@@ -23,3 +23,17 @@
  */
 
 $string['pluginname'] = 'Grupo Makro Core';
+$string['emailtemplates_settingspage'] = 'Email templates';
+
+// Email template sent when a new student is registrered.
+$string['emailtemplates_welcomemessage_student'] = 'Welcome message new student';
+$string['emailtemplates_welcomemessage_student_desc'] = 'This is the template used to send the welcome message to new students. You can use the following placeholders: {firstname}, {lastname}, {username}, {email}, {sitename}, {siteurl}, {password}';
+$string['emailtemplates_welcomemessage_student_default'] = 'Welcome {firstname} {lastname}!';
+
+// Email template sent when a new caregiver is registrered.
+$string['emailtemplates_welcomemessage_caregiver'] = 'Welcome message new student';
+$string['emailtemplates_welcomemessage_caregiver_desc'] = 'This is the template used to send the welcome message to new caregivers. You can use the following placeholders: {firstname}, {lastname}, {username}, {email}, {sitename}, {siteurl}, {password}';
+$string['emailtemplates_welcomemessage_caregiver_default'] = 'Welcome {firstname} {lastname}!';
+
+// Subject of the email sent when a new user is registrered.
+$string['emailtemplates_welcomemessage_subject'] = 'Welcome to Grupo Makro';

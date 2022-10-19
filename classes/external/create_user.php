@@ -24,7 +24,7 @@
 
 namespace local_grupomakro_core\external;
 
-use stdClass;
+use context_system;
 use external_api;
 use external_description;
 use external_function_parameters;
@@ -78,10 +78,80 @@ class create_user extends external_api {
             'usertype' => $usertype,
         ]);
 
-        // TODO implement the function.
+        // Let's see if the user already exists.
+        $user = $DB->get_record('user', ['email' => $params['email']]);
+
+        if ($user) {
+            // The user already exists, let's return it.
+            return ['status' => $user->id, 'message' => 'User already exists.'];
+        }
+
+        // Let's generate a password for the new user.
+        $password = generate_password();
+
+        // Let's create the new user.
+        $user = create_user_record($params['email'], $password, 'manual');
+
+        
+
+        // Let's update the user's name.
+        $user->firstname = $params['firstname'];
+        $user->lastname = $params['lastname'];
+
+        // Let's update the user.
+        $DB->update_record('user', $user);
+
+        // Let's see if the "usertype" custom field exists.
+        $usertypefield = $DB->get_record('user_info_field', ['shortname' => 'usertype']);
+
+        // If the field exists, then let's update the user's usertype.
+        if ($usertypefield) {
+            $DB->set_field('user_info_data', 'data', $params['usertype'], ['userid' => $user->id, 'fieldid' => $usertypefield->id]);
+        }
+
+        // If the "usertype" is "caregiver", then let's assign the "caregiver" role to the user.
+        if ($params['usertype'] == 2) {
+            $role = $DB->get_record('role', ['shortname' => 'caregiver']);
+            role_assign($role->id, $user->id, context_system::instance());
+        }
+
+        // Get the emailtemplates_welcomemessage_student and
+        // emailtemplates_welcomemessage_caregiver settings from the
+        // local_grupomakro_core plugin.
+        $welcomemessagestudent = get_config('local_grupomakro_core', 'emailtemplates_welcomemessage_student');
+
+        $welcomemessagecaregiver = get_config('local_grupomakro_core', 'emailtemplates_welcomemessage_caregiver');
+
+        // Replace the placeholders in both templates:
+        // - {firstname} with the user's first name.
+        // - {lastname} with the user's last name.
+        // - {email} with the user's email.
+        // - {password} with the user's password.
+        $welcomemessagestudent = str_replace(
+            ['{firstname}', '{lastname}', '{email}', '{password}'],
+            [$user->firstname, $user->lastname, $user->email, $password],
+            $welcomemessagestudent
+        );
+
+        $welcomemessagecaregiver = str_replace(
+            ['{firstname}', '{lastname}', '{email}', '{password}'],
+            [$user->firstname, $user->lastname, $user->email, $password],
+            $welcomemessagecaregiver
+        );
+
+        // Get the contact email address from the site settings.
+        $contactemail = get_config('moodle', 'supportemail');
+
+        // If teh usertype is "student", then let's send the student welcome message.
+        if ($params['usertype'] == 1) {
+            email_to_user($user, $contactemail, get_string('emailtemplates_welcomemessage_subject', 'local_grupomakro_core'), $welcomemessagestudent);
+        } else {
+            // If the usertype is "caregiver", then let's send the caregiver welcome message.
+            email_to_user($user, $contactemail, get_string('emailtemplates_welcomemessage_subject', 'local_grupomakro_core'), $welcomemessagecaregiver);
+        }
 
         // Return the result.
-        return ['result' => 1, 'message' => 'ok'];
+        return ['status' => $user->id, 'message' => 'ok'];
     }
 
     /**
