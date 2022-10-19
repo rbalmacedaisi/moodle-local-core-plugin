@@ -15,15 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details.
+ * Grupo Makro Core is a plugin used by the various components developed for the Grupo Makro platform.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = "local_grupomakro_core";
-$plugin->version =  2022101900;
-$plugin->requires = 2014051200;
-$plugin->maturity = MATURITY_STABLE;
+$functions = array(
+    'local_grupomakro_create_user' => array(
+        'classname' => 'local_grupomakro_core\external\create_user',
+        'methodname' => 'execute',
+        'description' => 'Ths method creates a new user in the Moodle platform.',
+        'type' => 'write',
+        "ajax" => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    )
+);
