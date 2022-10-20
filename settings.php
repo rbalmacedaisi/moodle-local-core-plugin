@@ -27,7 +27,10 @@ defined('MOODLE_INTERNAL') || die();
 if ($hassiteconfig) {
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
 
-    // Let's add a settings page called "local_grupomakro_core" to the "localplugins" category.
+    /********
+     * Settings page: Email Templates.
+     */
+    // Let's add a settings page called "emailtemplates_settingspage" to the "localplugins" category.
     $settingspage = new admin_settingpage('emailtemplates_settingspage', new lang_string('emailtemplates_settingspage', 'local_grupomakro_core'));
 
     if ($ADMIN->fulltree) {
@@ -53,5 +56,59 @@ if ($hassiteconfig) {
 
     // Add the page to the settings tree.
     $ADMIN->add('grupomakrocore', $settingspage);
+
+    /**
+     * End of settings page: Email Templates.
+     */
+
+    /********
+     * Settings page: Financial settings.
+     */
+    // Let's add a settings page called "financial_settingspage" to the "localplugins" category.
+    $settingspage = new admin_settingpage('financial_settingspage', new lang_string('financial_settingspage', 'local_grupomakro_core'));
+
+    if ($ADMIN->fulltree) {
+    
+        // Add the "tuitionfee" setting, which is an text field.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/tuitionfee',
+            new lang_string('tuitionfee', 'local_grupomakro_core'),
+            new lang_string('tuitionfee_desc', 'local_grupomakro_core'),
+            '',
+            PARAM_LOCALISEDFLOAT
+        ));
+
+        // Add the "tuitionfee_discount" setting, which is an text field.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/tuitionfee_discount',
+            new lang_string('tuitionfee_discount', 'local_grupomakro_core'),
+            new lang_string('tuitionfee_discount_desc', 'local_grupomakro_core'),
+            '',
+            PARAM_LOCALISEDFLOAT
+        ));
+
+        // Add the "currency" setting, which is an dropdown.
+        $settingspage->add(new admin_setting_configselect(
+            'local_grupomakro_core/currency',
+            new lang_string('currency', 'local_grupomakro_core'),
+            new lang_string('currency_desc', 'local_grupomakro_core'),
+            'USD',
+            array(
+                'USD' => new lang_string('USD', 'local_grupomakro_core'),
+                'COP' => new lang_string('COP', 'local_grupomakro_core'),
+                'MXN' => new lang_string('MXN', 'local_grupomakro_core'),
+                'PEN' => new lang_string('PEN', 'local_grupomakro_core'),
+            )
+        ));
+    }
+
+    // Add the page to the settings tree.
+    $ADMIN->add('grupomakrocore', $settingspage);
+
+    /**
+     * End of settings page: Email Templates.
+     */
+
+    
 
 }

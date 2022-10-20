@@ -37,3 +37,17 @@ $string['emailtemplates_welcomemessage_caregiver_default'] = 'Welcome {firstname
 
 // Subject of the email sent when a new user is registrered.
 $string['emailtemplates_welcomemessage_subject'] = 'Welcome to Grupo Makro';
+
+// Settings page: Financial settings.
+$string['financial_settingspage'] = 'Financial Details';
+$string['tuitionfee'] = 'Tuition Fee';
+$string['tuitionfee_desc'] = 'This is the price of the tuition fee defined for all the users across the site.';
+$string['tuitionfee_discount'] = 'Tuition Fee Discount';
+$string['tuitionfee_discount_desc'] = 'This is the % of discount applied to the tuition fee defined for all the users across the site.';
+$string['currency'] = 'Currency';
+$string['currency_desc'] = 'This is the currency used across the site.';
+$string['USD'] = 'USD - United States Dollar';
+$string['EUR'] = 'EUR - Euro';
+$string['COP'] = 'COP - Colombian Peso';
+$string['MXN'] = 'MXN - Mexican Peso';
+$string['PEN'] = 'PEN - Peruvian Sol';
