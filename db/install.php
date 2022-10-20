@@ -150,10 +150,30 @@ function xmldb_local_grupomakro_core_install() {
     $documentnumber->defaultdataformat = FORMAT_PLAIN;
     $documentnumber->param1 = '';
 
-    $DB->insert_record('user_info_field', $usertype);
-    $DB->insert_record('user_info_field', $accountmanager);
-    $DB->insert_record('user_info_field', $birthdate);
-    $DB->insert_record('user_info_field', $documenttype);
-    $DB->insert_record('user_info_field', $documentnumber);
-    
+    try {
+        $DB->insert_record('user_info_field', $usertype);
+    } catch (Exception $e) {
+    }
+
+    try {
+        $DB->insert_record('user_info_field', $accountmanager);
+    } catch (Exception $e) {
+    }
+
+    try {
+        $DB->insert_record('user_info_field', $birthdate);
+    } catch (Exception $e) {
+    }
+
+    try {
+        $DB->insert_record('user_info_field', $documenttype);
+    } catch (Exception $e) {
+    }
+
+    try {
+        $DB->insert_record('user_info_field', $documentnumber);
+    } catch (Exception $e) {
+    }
+
+    return true;
 }
