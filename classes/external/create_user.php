@@ -102,7 +102,7 @@ class create_user extends external_api {
         $DB->update_record('user', $user);
 
         // Let's see if the "usertype" custom field exists.
-        $usertypefield = $DB->get_record('user_info_field', ['shortname' => 'usertype']);
+        $usertypefield = $DB->get_record('user_info_field', ['shortname' => 'Perfil']);
 
         // If the field exists, then let's update the user's usertype.
         if ($usertypefield) {
