@@ -56,7 +56,7 @@ function xmldb_local_grupomakro_core_install() {
         // - accountmanager: text
         // - birthdate: datetime
         // - documenttype: menu with the options "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte"
-        // - documentnumber: text.
+        // - documentnumber: text
     $usertype = new stdClass();
     $usertype->shortname = 'usertype';
     $usertype->name = 'Tipo de usuario';

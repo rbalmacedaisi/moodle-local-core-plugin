@@ -57,6 +57,9 @@ class create_user extends external_api {
                 'lastname' => new external_value(PARAM_TEXT, 'Last name of the user.'),
                 'email' => new external_value(PARAM_TEXT, 'Email of the user.'),
                 'usertype' => new external_value(PARAM_INT, 'The type of user: 1 for student, 2 fore caregiver.', VALUE_DEFAULT, 1),
+                'accountmanager' => new external_value(PARAM_EMAIL, 'The email of the account manager; the account manager should be registered in the platform with the given email address.', VALUE_DEFAULT, ''),
+                'documenttype' => new external_value(PARAM_TEXT, 'The type of document for the user, it can be: "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte".', VALUE_DEFAULT, ''),
+                'documentnumber' => new external_value(PARAM_TEXT, 'The number of the document for the user.', VALUE_DEFAULT, ''),
             ]
         );
     }
@@ -67,7 +70,16 @@ class create_user extends external_api {
      * @param int $userid
      * @return mixed TODO document
      */
-    public static function execute(string $firstname, string $lastname, string $email, int $usertype = 1) {
+    public static function execute(
+        string $firstname,
+        string $lastname,
+        string $email,
+        int $usertype = 1,
+        string $accountmanager = '',
+        string $documenttype = '',
+        string $documentnumber = '') {
+
+        // Global variables.
         global $DB;
 
         // Validate the parameters passed to the function.
@@ -76,7 +88,44 @@ class create_user extends external_api {
             'lastname' => $lastname,
             'email' => $email,
             'usertype' => $usertype,
+            'accountmanager' => $accountmanager,
+            'documenttype' => $documenttype,
+            'documentnumber' => $documentnumber,
         ]);
+
+        // Let's validate the following rules:
+        // 1. There is a role called "caregiver"
+        // 2. The following user profile fields exist: usertype, accountmanager, documenttype, documentnumber.
+
+        // 1. There is a role called "caregiver".
+        $role = $DB->get_record('role', ['shortname' => 'caregiver']);
+
+        if (!$role) {
+            return ['status' => -1, 'message' => 'No role called "caregiver" exists.'];
+        }
+
+        // 2. The following user profile fields exist: usertype, accountmanager, documenttype, documentnumber.
+        $userprofilefields = $DB->get_records('user_info_field');
+
+        $userprofilefields = array_map(function($userprofilefield) {
+            return $userprofilefield->shortname;
+        }, $userprofilefields);
+
+        if (!in_array('usertype', $userprofilefields)) {
+            return ['status' => -1, 'message' => 'The user profile field "usertype" does not exist.'];
+        }
+
+        if (!in_array('accountmanager', $userprofilefields)) {
+            return ['status' => -1, 'message' => 'The user profile field "accountmanager" does not exist.'];
+        }
+
+        if (!in_array('documenttype', $userprofilefields)) {
+            return ['status' => -1, 'message' => 'The user profile field "documenttype" does not exist.'];
+        }
+
+        if (!in_array('documentnumber', $userprofilefields)) {
+            return ['status' => -1, 'message' => 'The user profile field "documentnumber" does not exist.'];
+        }
 
         // Let's see if the user already exists.
         $user = $DB->get_record('user', ['email' => $params['email']]);
@@ -101,17 +150,17 @@ class create_user extends external_api {
         // Let's update the user.
         $DB->update_record('user', $user);
 
-        // Let's see if the "usertype" custom field exists.
-        $usertypefield = $DB->get_record('user_info_field', ['shortname' => 'Perfil']);
+        // Let's update the user's profile fields.
+        profile_save_custom_fields($user->id, [
+            'usertype' => $params['usertype'],
+            'accountmanager' => $params['accountmanager'],
+            'documenttype' => $params['documenttype'],
+            'documentnumber' => $params['documentnumber'],
+        ]);
 
-        // If the field exists, then let's update the user's usertype.
-        if ($usertypefield) {
-            $DB->set_field('user_info_data', 'data', $params['usertype'], ['userid' => $user->id, 'fieldid' => $usertypefield->id]);
-        }
-
-        // If the "usertype" is "caregiver", then let's assign the "caregiver" role to the user.
-        if ($params['usertype'] == 2) {
-            $role = $DB->get_record('role', ['shortname' => 'caregiver']);
+        // If the usertype is "Acudiente / Codeudor", then we should enrol this user in the "caregiver" role.
+        if ($params['usertype'] == 'Acudiente / Codeudor') {
+            // Let's enrol the user in the "caregiver" role.
             role_assign($role->id, $user->id, context_system::instance());
         }
 
@@ -143,9 +192,11 @@ class create_user extends external_api {
         $contactemail = get_config('moodle', 'supportemail');
 
         // If teh usertype is "student", then let's send the student welcome message.
-        if ($params['usertype'] == 1) {
+        if ($params['usertype'] == 'Estudiante') {
             email_to_user($user, $contactemail, get_string('emailtemplates_welcomemessage_subject', 'local_grupomakro_core'), $welcomemessagestudent);
-        } else {
+        } 
+
+        if ($params['usertype'] == 'Acudiente / Codeudor'){
             // If the usertype is "caregiver", then let's send the caregiver welcome message.
             email_to_user($user, $contactemail, get_string('emailtemplates_welcomemessage_subject', 'local_grupomakro_core'), $welcomemessagecaregiver);
         }
