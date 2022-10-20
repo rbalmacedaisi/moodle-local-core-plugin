@@ -75,7 +75,7 @@ if ($hassiteconfig) {
             new lang_string('tuitionfee', 'local_grupomakro_core'),
             new lang_string('tuitionfee_desc', 'local_grupomakro_core'),
             '',
-            PARAM_LOCALISEDFLOAT
+            PARAM_TEXT
         ));
 
         // Add the "tuitionfee_discount" setting, which is an text field.
@@ -84,7 +84,7 @@ if ($hassiteconfig) {
             new lang_string('tuitionfee_discount', 'local_grupomakro_core'),
             new lang_string('tuitionfee_discount_desc', 'local_grupomakro_core'),
             '',
-            PARAM_LOCALISEDFLOAT
+            PARAM_TEXT
         ));
 
         // Add the "currency" setting, which is an dropdown.
