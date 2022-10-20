@@ -45,3 +45,5 @@ fail_reason: Interrupción por parte del usuario
 chargetotal: 1.00
 status: FALLADO
 *////////////////////////////////////
+
+error_log(print_r($_POST, true), 3, $CFG->dataroot.'/fail.log');

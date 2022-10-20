@@ -127,6 +127,10 @@ class create_user extends external_api {
             return ['status' => -1, 'message' => 'The user profile field "documentnumber" does not exist.'];
         }
 
+        if (!in_array('needfirsttuition', $userprofilefields)) {
+            return ['status' => -1, 'message' => 'The user profile field "documentnumber" does not exist.'];
+        }
+
         // Let's see if the user already exists.
         $user = $DB->get_record('user', ['email' => $params['email']]);
 
@@ -156,6 +160,7 @@ class create_user extends external_api {
             'accountmanager' => $params['accountmanager'],
             'documenttype' => $params['documenttype'],
             'documentnumber' => $params['documentnumber'],
+            'needfirsttuition' => "si",
         ]);
 
         // If the usertype is "Acudiente / Codeudor", then we should enrol this user in the "caregiver" role.

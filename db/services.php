@@ -32,5 +32,13 @@ $functions = array(
         'type' => 'write',
         "ajax" => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_generate_order' => array(
+        'classname' => 'local_grupomakro_core\external\generate_order',
+        'methodname' => 'execute',
+        'description' => 'Generates a new order for the userid and the items provided.',
+        'type' => 'write',
+        "ajax" => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     )
 );

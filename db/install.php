@@ -64,6 +64,7 @@ function xmldb_local_grupomakro_core_install() {
         // - birthdate: datetime
         // - documenttype: menu with the options "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte"
         // - documentnumber: text
+        // - needfirsttuition: text
     $usertype = new stdClass();
     $usertype->shortname = 'usertype';
     $usertype->name = 'Tipo de usuario';
@@ -157,6 +158,25 @@ function xmldb_local_grupomakro_core_install() {
     $documentnumber->defaultdataformat = FORMAT_PLAIN;
     $documentnumber->param1 = '';
 
+    $sortorderfield++;
+
+    $needfirsttuition = new stdClass();
+    $needfirsttuition->shortname = 'needfirsttuition';
+    $needfirsttuition->name = 'Debe pagar primera matricula';
+    $needfirsttuition->datatype = 'text';
+    $needfirsttuition->description = 'Este será un campo oculto, si el valor es "si" se mostrará el mensaje de que debe pagar la primera matrícula';
+    $needfirsttuition->descriptionformat = FORMAT_HTML;
+    $needfirsttuition->categoryid = $category->id;
+    $needfirsttuition->sortorder = $sortorderfield;
+    $needfirsttuition->required = 0;
+    $needfirsttuition->locked = 1;
+    $needfirsttuition->visible = 0;
+    $needfirsttuition->forceunique = 0;
+    $needfirsttuition->signup = 0;
+    $needfirsttuition->defaultdata = '';
+    $needfirsttuition->defaultdataformat = FORMAT_PLAIN;
+    $needfirsttuition->param1 = "si\rno";
+
     try {
         $DB->insert_record('user_info_field', $usertype);
     } catch (Exception $e) {
@@ -179,6 +199,11 @@ function xmldb_local_grupomakro_core_install() {
 
     try {
         $DB->insert_record('user_info_field', $documentnumber);
+    } catch (Exception $e) {
+    }
+
+    try {
+        $DB->insert_record('user_info_field', $needfirsttuition);
     } catch (Exception $e) {
     }
 

@@ -92,12 +92,12 @@ if ($hassiteconfig) {
             'local_grupomakro_core/currency',
             new lang_string('currency', 'local_grupomakro_core'),
             new lang_string('currency_desc', 'local_grupomakro_core'),
-            'USD',
+            '840',
             array(
-                'USD' => new lang_string('USD', 'local_grupomakro_core'),
-                'COP' => new lang_string('COP', 'local_grupomakro_core'),
-                'MXN' => new lang_string('MXN', 'local_grupomakro_core'),
-                'PEN' => new lang_string('PEN', 'local_grupomakro_core'),
+                '840' => new lang_string('USD', 'local_grupomakro_core'),
+                '170' => new lang_string('COP', 'local_grupomakro_core'),
+                '484' => new lang_string('MXN', 'local_grupomakro_core'),
+                '604' => new lang_string('PEN', 'local_grupomakro_core'),
             )
         ));
     }

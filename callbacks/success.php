@@ -54,3 +54,6 @@ cardnumber: (VISA) ... 5009
 ipgTransactionId: 84610659785
 status: APROBADO
 *////////////////////////////////////
+
+
+error_log(print_r($_POST, true), 3, $CFG->dataroot.'/success.log');
