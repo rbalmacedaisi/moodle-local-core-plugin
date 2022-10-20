@@ -26,8 +26,15 @@
 function xmldb_local_grupomakro_core_install() {
     global $DB;
 
-    // Install the roles system.
-    $caregiver = create_role('Acudiente', 'caregiver', '', 'user');
+    // Let's see if the "caregiver" role exists.
+    $role = $DB->get_record('role', array('shortname' => 'caregiver'));
+
+    // If it doesn't exist, let's create it.
+    if (!$role) {
+        $caregiver = create_role('Acudiente', 'caregiver', '', 'user');
+    } else {
+        $caregiver = $role->id;
+    }
 
     // Set up the context levels where you can assign each role!
     set_role_contextlevels($caregiver, [CONTEXT_SYSTEM, CONTEXT_COURSE]);
