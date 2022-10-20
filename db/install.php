@@ -163,7 +163,7 @@ function xmldb_local_grupomakro_core_install() {
     $needfirsttuition = new stdClass();
     $needfirsttuition->shortname = 'needfirsttuition';
     $needfirsttuition->name = 'Debe pagar primera matricula';
-    $needfirsttuition->datatype = 'text';
+    $needfirsttuition->datatype = 'menu';
     $needfirsttuition->description = 'Este será un campo oculto, si el valor es "si" se mostrará el mensaje de que debe pagar la primera matrícula';
     $needfirsttuition->descriptionformat = FORMAT_HTML;
     $needfirsttuition->categoryid = $category->id;
