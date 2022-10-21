@@ -55,5 +55,46 @@ ipgTransactionId: 84610659785
 status: APROBADO
 *////////////////////////////////////
 
+// Get the data from the POST request.
+$txndateprocessed = $_POST['txndate_processed'];
+$ccbin = $_POST['ccbin'];
+$timezone = $_POST['timezone'];
+$oid = $_POST['oid'];
+$cccountry = $_POST['cccountry'];
+$expmonth = $_POST['expmonth'];
+$hashalgorithm = $_POST['hash_algorithm'];
+$endpointTransactionId = $_POST['endpointTransactionId'];
+$currency = $_POST['currency'];
+$processor_response_code = $_POST['processor_response_code'];
+$chargetotal = $_POST['chargetotal'];
+$terminalid = $_POST['terminal_id'];
+$approvalcode = $_POST['approval_code'];
+$expyear = $_POST['expyear'];
+$response_hash = $_POST['response_hash'];
+$responsecode3dsecure = $_POST['response_code_3dsecure'];
+$tdate = $_POST['tdate'];
+$installmentsinterest = $_POST['installments_interest'];
+$bname = $_POST['bname'];
+$ccbrand = $_POST['ccbrand'];
+$refnumber = $_POST['refnumber'];
+$txntype = $_POST['txntype'];
+$paymentMethod = $_POST['paymentMethod'];
+$txndatetime = $_POST['txndatetime'];
+$cardnumber = $_POST['cardnumber'];
+$ipgTransactionId = $_POST['ipgTransactionId'];
+$status = $_POST['status'];
+
+// Get the order from the gmk_order table based on the oid field.
+$order = $DB->get_record('gmk_order', array('oid' => $oid));
+
+// If the order exists, let's update the status and the payment method.
+if ($order) {
+    // Update the order status.
+    $order->status = $status;
+    $order->payment_method = $paymentMethod;
+    $order->usermodified = 0;
+    $order->timemodified = time();
+    $DB->update_record('gmk_order', $order);
+}
 
 error_log(print_r($_POST, true), 3, $CFG->dataroot.'/success.log');

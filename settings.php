@@ -100,6 +100,32 @@ if ($hassiteconfig) {
                 '604' => new lang_string('PEN', 'local_grupomakro_core'),
             )
         ));
+
+        // Add a setting for the decimal separator.
+        $settingspage->add(new admin_setting_configselect(
+            'local_grupomakro_core/decsep',
+            new lang_string('decsep', 'local_grupomakro_core'),
+            '',
+            '.',
+            array(
+                '.' => new lang_string('decsep_dot', 'local_grupomakro_core'),
+                ',' => new lang_string('decsep_comma', 'local_grupomakro_core'),
+            )
+        ));
+
+        // Add a setting for the thousands separator.
+        $settingspage->add(new admin_setting_configselect(
+            'local_grupomakro_core/thousandssep',
+            new lang_string('thousandssep', 'local_grupomakro_core'),
+            new lang_string('thousandssep_desc', 'local_grupomakro_core'),
+            ',',
+            array(
+                ',' => new lang_string('thousandssep_comma', 'local_grupomakro_core'),
+                '.' => new lang_string('thousandssep_dot', 'local_grupomakro_core'),
+                ' ' => new lang_string('thousandssep_space', 'local_grupomakro_core'),
+                '' => new lang_string('thousandssep_none', 'local_grupomakro_core'),
+            )
+        ));
     }
 
     // Add the page to the settings tree.

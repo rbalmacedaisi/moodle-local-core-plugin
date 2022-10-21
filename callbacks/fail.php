@@ -46,4 +46,37 @@ chargetotal: 1.00
 status: FALLADO
 *////////////////////////////////////
 
+// Get the data from the POST request.
+$txndateprocessed = $_POST['txndate_processed'];
+$ccbin = $_POST['ccbin'];
+$timezone = $_POST['timezone'];
+$response_hash = $_POST['response_hash'];
+$failrc = $_POST['fail_rc'];
+$oid = $_POST['oid'];
+$tdate = $_POST['tdate'];
+$installmentsinterest = $_POST['installments_interest'];
+$cccountry = $_POST['cccountry'];
+$ccbrand = $_POST['ccbrand'];
+$hashalgorithm = $_POST['hash_algorithm'];
+$txntype = $_POST['txntype'];
+$currency = $_POST['currency'];
+$txndatetime = $_POST['txndatetime'];
+$ipgTransactionId = $_POST['ipgTransactionId'];
+$failreason = $_POST['fail_reason'];
+$chargetotal = $_POST['chargetotal'];
+$status = $_POST['status'];
+
+// Get the order from the gmk_order table based on the oid field.
+$order = $DB->get_record('gmk_order', array('oid' => $oid));
+
+// If the order exists, let's update the status and the payment method.
+if ($order) {
+    // Update the order status.
+    $order->status = $status;
+    $order->fail_reason = $failrc . '-' . $failreason;
+    $order->usermodified = 0;
+    $order->timemodified = time();
+    $DB->update_record('gmk_order', $order);
+}
+
 error_log(print_r($_POST, true), 3, $CFG->dataroot.'/fail.log');

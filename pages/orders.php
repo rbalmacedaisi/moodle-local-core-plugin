@@ -59,6 +59,12 @@ $table->head = array(
 // Get the records from the gm_orders table.
 $orders = $DB->get_records('gmk_orders');
 
+// Get the thousands separator setting from the gruopomakro_core plugin.
+$thousandsseparator = get_config($plugin_name, 'thousandssep');
+
+// Get the decimal separator setting from the gruopomakro_core plugin.
+$decimalseparator = get_config($plugin_name, 'decsep');
+
 // Iterate over the records and add them to the table.
 foreach ($orders as $order) {
     // Get the user fullname.
@@ -76,10 +82,11 @@ foreach ($orders as $order) {
         $order->itemname,
         date('Y-m-d H:i:s', $order->timecreated),
         date('Y-m-d H:i:s', $order->timemodified),
-        $order->status,
+        strtoupper($order->status),
+        number_format($order->amount, 2, $decimalseparator, $thousandsseparator),
         $order->amount,
         html_writer::link(
-            new moodle_url('/local/grupomakro_core/pages/orders-.php', array('id' => $order->id)),
+            new moodle_url('/local/grupomakro_core/pages/orders.php', array('id' => $order->id)),
             get_string('view', $plugin_name)
         ),
     );
@@ -87,6 +94,5 @@ foreach ($orders as $order) {
 
 // Print the table.
 echo html_writer::table($table);
-
 
 echo $OUTPUT->footer();

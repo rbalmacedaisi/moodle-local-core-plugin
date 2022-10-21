@@ -54,6 +54,8 @@ $string['EUR'] = 'EUR - Euro';
 $string['COP'] = 'COP - Peso colombiano';
 $string['MXN'] = 'MXN - Peso mexicano';
 $string['PEN'] = 'PEN - Nuevo sol peruano';
+$string['decsep'] = 'Separador decimal';
+$string['thousandssep'] = 'Separador de miles';
 
 // Página de órdenes de compra.
 $string['orders'] = 'Órdenes';

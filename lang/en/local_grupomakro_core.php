@@ -54,6 +54,8 @@ $string['EUR'] = 'EUR - Euro';
 $string['COP'] = 'COP - Colombian Peso';
 $string['MXN'] = 'MXN - Mexican Peso';
 $string['PEN'] = 'PEN - Peruvian Sol';
+$string['decsep'] = 'Decimal separator';
+$string['thousandssep'] = 'Thousands separator';
 
 // Orders page.
 $string['orders'] = 'Orders';
