@@ -258,7 +258,7 @@ function assign_capabilities_to_internal_roles() {
     global $DB;
 
     // First we need tu update the capabilities definition for this plugin.
-    update_capabilities('local/grupomakro_core');
+    update_capabilities('local_grupomakro_core');
 
     // Let's assign the grupomakro_core:seeallorders capability to the "administrative" role.
     $role = $DB->get_record('role', array('shortname' => 'administrative'));
