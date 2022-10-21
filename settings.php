@@ -117,7 +117,7 @@ if ($hassiteconfig) {
         $settingspage->add(new admin_setting_configselect(
             'local_grupomakro_core/thousandssep',
             new lang_string('thousandssep', 'local_grupomakro_core'),
-            new lang_string('thousandssep_desc', 'local_grupomakro_core'),
+            '',
             ',',
             array(
                 ',' => new lang_string('thousandssep_comma', 'local_grupomakro_core'),

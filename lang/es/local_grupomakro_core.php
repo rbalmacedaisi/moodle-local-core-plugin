@@ -56,6 +56,12 @@ $string['MXN'] = 'MXN - Peso mexicano';
 $string['PEN'] = 'PEN - Nuevo sol peruano';
 $string['decsep'] = 'Separador decimal';
 $string['thousandssep'] = 'Separador de miles';
+$string['decsep_dot'] = 'Punto (.)';
+$string['decsep_comma'] = 'Coma (,)';
+$string['thousandssep_comma'] = 'Coma (,)';
+$string['thousandssep_dot'] = 'Punto (.)';
+$string['thousandssep_space'] = 'Espacio ( )';
+$string['thousandssep_none'] = 'Ninguno';
 
 // Página de órdenes de compra.
 $string['orders'] = 'Órdenes';
