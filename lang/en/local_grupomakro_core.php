@@ -25,6 +25,9 @@
 $string['pluginname'] = 'Grupo Makro Core';
 $string['emailtemplates_settingspage'] = 'Email templates';
 
+// Capabilities.
+$string['grupomakro_core:seeallorders'] = 'See all orders';
+
 // Email template sent when a new student is registrered.
 $string['emailtemplates_welcomemessage_student'] = 'Welcome message new student';
 $string['emailtemplates_welcomemessage_student_desc'] = 'This is the template used to send the welcome message to new students. You can use the following placeholders: {firstname}, {lastname}, {username}, {email}, {sitename}, {siteurl}, {password}';
@@ -51,3 +54,14 @@ $string['EUR'] = 'EUR - Euro';
 $string['COP'] = 'COP - Colombian Peso';
 $string['MXN'] = 'MXN - Mexican Peso';
 $string['PEN'] = 'PEN - Peruvian Sol';
+
+// Orders page.
+$string['orders'] = 'Orders';
+$string['oid'] = 'Order ID';
+$string['fullname'] = 'Full Name';
+$string['itemtype'] = 'Item Type';
+$string['itemname'] = 'Item Name';
+$string['order_date'] = 'Order Date';
+$string['order_status'] = 'Order Status';
+$string['order_total'] = 'Order Total';
+$string['order_dateupdated'] = 'Updated Date';

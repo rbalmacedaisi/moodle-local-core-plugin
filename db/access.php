@@ -1,5 +1,5 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
+// This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,18 +12,23 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Version details.
+ * Access definitions for the local_grupomakro_core plugin.
  *
- * @package    local_grupomakro_core
- * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package     local_grupomakro_core
+ * @category    string
+ * @copyright   2022 Solutto Consulting <dev@soluttoconsulting.com>
+ * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = "local_grupomakro_core";
-$plugin->version =  2022102011;
-$plugin->requires = 2014051200;
-$plugin->maturity = MATURITY_STABLE;
+$capabilities = array(
+    'local/grupomakro_core:seeallorders' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(),
+    ),
+);

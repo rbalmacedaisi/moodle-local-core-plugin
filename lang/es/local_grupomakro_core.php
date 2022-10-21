@@ -25,6 +25,9 @@
 $string['pluginname'] = 'Grupo Makro Core';
 $string['emailtemplates_settingspage'] = 'Plantillas de correo electrónico';
 
+// Capabilities.
+$string['grupomakro_core:seeallorders'] = 'Ver todas las órdenes';
+
 // Plantilla de correo electrónico enviada cuando se registra un nuevo estudiante.
 $string['emailtemplates_welcomemessage_student'] = 'Mensaje de bienvenida al nuevo estudiante';
 $string['emailtemplates_welcomemessage_student_desc'] = 'Esta es la plantilla utilizada para enviar el mensaje de bienvenida a los nuevos estudiantes. Puede usar los siguientes marcadores de posición: {firstname}, {lastname}, {username}, {email}, {sitename}, {siteurl}, {password}';
@@ -51,3 +54,15 @@ $string['EUR'] = 'EUR - Euro';
 $string['COP'] = 'COP - Peso colombiano';
 $string['MXN'] = 'MXN - Peso mexicano';
 $string['PEN'] = 'PEN - Nuevo sol peruano';
+
+// Página de órdenes de compra.
+$string['orders'] = 'Órdenes';
+$string['oid'] = 'ID de pedido';
+$string['fullname'] = 'Nombre completo';
+$string['itemtype'] = 'Tipo de elemento';
+$string['itemname'] = 'Nombre del elemento';
+$string['order_date'] = 'Fecha de la pedido';
+$string['order_dateupdated'] = 'Fecha de actualización';
+$string['order_dateupdated'] = 'Updated Date';
+$string['order_status'] = 'Estado del pedido';
+$string['order_total'] = 'Total del pedido';

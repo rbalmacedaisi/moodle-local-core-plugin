@@ -1,5 +1,5 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
+// This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,22 +12,30 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * This file is executed right after the install.xml
+ * Plugin upgrade steps are defined here.
  *
  * @package     local_grupomakro_core
- * @category    string
- * @copyright   2022 Solutto Consulting <dev@soluttoconsulting.com>
+ * @category    upgrade
+ * @copyright   2022 Gilson Ricnón <gilson.rincon@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-// Require the library.
+defined('MOODLE_INTERNAL') || die();
+
+// Require the upgradelib.php file.
 require_once($CFG->dirroot . '/local/grupomakro_core/db/upgradelib.php');
 
-function xmldb_local_grupomakro_core_install() {
-
+/**
+ * Execute local_soluttolms_core upgrade from the given old version.
+ *
+ * @param int $oldversion
+ * @return bool
+ */
+function xmldb_local_grupomakro_core_upgrade($oldversion) {
+    
     // Create the new roles.
     create_roles();
 
