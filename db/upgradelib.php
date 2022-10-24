@@ -115,8 +115,8 @@ function create_custom_user_fields() {
     $usertype->categoryid = $category->id;
     $usertype->sortorder = $sortorderfield;
     $usertype->required = 0;
-    $usertype->locked = 1;
-    $usertype->visible = 0;
+    $usertype->locked = 0;
+    $usertype->visible = 3;
     $usertype->forceunique = 0;
     $usertype->signup = 0;
     $usertype->defaultdata = '';
@@ -134,8 +134,8 @@ function create_custom_user_fields() {
     $accountmanager->categoryid = $category->id;
     $accountmanager->sortorder = $sortorderfield;
     $accountmanager->required = 0;
-    $accountmanager->locked = 1;
-    $accountmanager->visible = 0;
+    $accountmanager->locked = 0;
+    $accountmanager->visible = 3;
     $accountmanager->forceunique = 0;
     $accountmanager->signup = 0;
     $accountmanager->defaultdata = '';
@@ -154,7 +154,7 @@ function create_custom_user_fields() {
     $birthdate->sortorder = $sortorderfield;
     $birthdate->required = 0;
     $birthdate->locked = 0;
-    $birthdate->visible = 2;
+    $birthdate->visible = 3;
     $birthdate->forceunique = 0;
     $birthdate->signup = 1;
     $birthdate->defaultdata = '';
@@ -210,8 +210,8 @@ function create_custom_user_fields() {
     $needfirsttuition->categoryid = $category->id;
     $needfirsttuition->sortorder = $sortorderfield;
     $needfirsttuition->required = 0;
-    $needfirsttuition->locked = 1;
-    $needfirsttuition->visible = 0;
+    $needfirsttuition->locked = 0;
+    $needfirsttuition->visible = 3;
     $needfirsttuition->forceunique = 0;
     $needfirsttuition->signup = 0;
     $needfirsttuition->defaultdata = '';

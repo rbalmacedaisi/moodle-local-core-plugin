@@ -150,6 +150,7 @@ class create_user extends external_api {
         // Let's update the user's name.
         $user->firstname = $params['firstname'];
         $user->lastname = $params['lastname'];
+        $user->email = $params['email'];
 
         // Let's update the user.
         $DB->update_record('user', $user);

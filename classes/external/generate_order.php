@@ -90,7 +90,7 @@ class generate_order extends external_api {
         // - currency
 
         // Get the tuition fee.
-        $tuitionfee = get_config('local_grupomakro_core', 'tuitionfee');
+        $tuitionfee = get_config('local_grupomakro_core', 'tuitionfee').'.00';
 
         // Get the tuition fee discount.
         $tuitionfee_discount = get_config('local_grupomakro_core', 'tuitionfee_discount');
