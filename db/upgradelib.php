@@ -121,7 +121,7 @@ function create_custom_user_fields() {
     $usertype->signup = 0;
     $usertype->defaultdata = '';
     $usertype->defaultdataformat = FORMAT_PLAIN;
-    $usertype->param1 = "Estudiante\rAcudiente / Codeudor";
+    $usertype->param1 = "Estudiante\n\rAcudiente / Codeudor";
 
     $sortorderfield++;
 
@@ -178,7 +178,7 @@ function create_custom_user_fields() {
     $documenttype->signup = 1;
     $documenttype->defaultdata = '';
     $documenttype->defaultdataformat = FORMAT_PLAIN;
-    $documenttype->param1 = "Cédula de Ciudadanía\rCédula de Extranjería\rPasaporte";
+    $documenttype->param1 = "Cédula de Ciudadanía\n\rCédula de Extranjería\n\rPasaporte";
 
     $sortorderfield++;
 
@@ -216,35 +216,64 @@ function create_custom_user_fields() {
     $needfirsttuition->signup = 0;
     $needfirsttuition->defaultdata = '';
     $needfirsttuition->defaultdataformat = FORMAT_PLAIN;
-    $needfirsttuition->param1 = "si\rno";
+    $needfirsttuition->param1 = "si\n\rno";
 
     try {
-        $DB->insert_record('user_info_field', $usertype);
+        // Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $usertype->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $usertype);
+        }
     } catch (Exception $e) {
     }
 
     try {
-        $DB->insert_record('user_info_field', $accountmanager);
+        // Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $accountmanager->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $accountmanager);
+        }
     } catch (Exception $e) {
     }
 
     try {
-        $DB->insert_record('user_info_field', $birthdate);
+        // Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $birthdate->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $birthdate);
+        }
     } catch (Exception $e) {
     }
 
     try {
-        $DB->insert_record('user_info_field', $documenttype);
+        // Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $documenttype->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $documenttype);
+        }
     } catch (Exception $e) {
     }
 
     try {
-        $DB->insert_record('user_info_field', $documentnumber);
+        // Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $documentnumber->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $documentnumber);
+        }
     } catch (Exception $e) {
     }
 
-    try {
-        $DB->insert_record('user_info_field', $needfirsttuition);
+    try {// Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $needfirsttuition->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $needfirsttuition);
+        }
     } catch (Exception $e) {
     }
 }
@@ -267,4 +296,34 @@ function assign_capabilities_to_internal_roles() {
     $permission = CAP_ALLOW;
 
     assign_capability($capability, $permission, $role->id, $context->id);
+}
+
+/**
+ * This function deletes all the custom fields created by this plugin.
+ * 
+ * @return void
+ * 
+ */
+function delete_custom_fields() {
+    global $DB;
+
+    // Let's get the ID of each individaul custom fiel:
+    $fields = [];
+
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'usertype'));
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'accountmanager'));
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'birthdate'));
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'documenttype'));
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
+    $fields[] = $DB->get_record('user_info_field', array('shortname' => 'needfirsttuition'));
+
+    // Let's delete each custom field and the data lreated to it.
+    foreach ($fields as $field) {
+        if (isset($field->id)) {
+            $DB->delete_records('user_info_data', array('fieldid' => $field->id));
+            $DB->delete_records('user_info_field', array('id' => $field->id));
+        }
+    }
+
+    return true;
 }
