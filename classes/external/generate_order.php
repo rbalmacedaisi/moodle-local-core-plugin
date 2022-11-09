@@ -31,10 +31,29 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 
+// Include the aws sdk.
+require_once($CFG->dirroot . '/local/soluttolms_core/lib/aws/aws-autoloader.php');
+use Aws\Lambda\LambdaClient;
+use Aws\Lambda\Exception\LambdaException;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 
+try {
+    $lambda = new LambdaClient([
+        'version' => $CFG->aws['version'],
+        'region' => $CFG->aws['region'],
+        'credentials' => [
+            'key' => $CFG->aws['key'],
+            'secret' => $CFG->aws['secret'],
+        ],
+    ]);
+} catch (LambdaException $e) {
+    echo "There was an error creating the Lambda client: " . $e->getMessage() . PHP_EOL;
+    exit(1);
+}
+$test = "lili";
 /**
  * External function 'local_grupomakro_generate_order' implementation.
  *
@@ -79,7 +98,8 @@ class generate_order extends external_api {
         ]);
 
         // Get the user's timezone.
-        $timezone = $DB->get_field('user', 'timezone', ['id' => $userid]);
+        // $timezone = $DB->get_field('user', 'timezone', ['id' => $userid]);
+        $timezone = "America/Bogota";
 
         // Let's generate the oid.
         $oid = uniqid($params['userid'].'-'.$params['itemid'].'-');
@@ -118,20 +138,40 @@ class generate_order extends external_api {
             'txntype' => 'sale',
             'hash' => '',
         ];
-
-        // Let's generate the hash.
+        
+        // Let's generate the hash String.
         foreach ($response as $key => $value) {
             if ($key != 'hash') {
                 $response['hash'] .= $value . '|';
             }
         }
-
         // Delete the last pipe.
         $response['hash'] = substr($response['hash'], 0, -1);
-        $response['hash'] = hash_hmac('sha256', $response['hash'], 'cP9!?9syGF');
-
-        // Codify the hash in base64.
-        $response['hash'] = base64_encode($response['hash']);
+        
+        
+        try {
+            //Instance the lambda cliente
+            $lambda = new LambdaClient([
+                'version' => $CFG->aws['version'],
+                'region' => $CFG->aws['region'],
+                'credentials' => [
+                    'key' => $CFG->aws['key'],
+                    'secret' => $CFG->aws['secret'],
+                ],
+            ]);
+            
+            
+            //Let's invoke the lambda function
+            $result = $lambda->invoke([
+                'FunctionName' => 'arn:aws:lambda:us-east-1:091636902724:function:WombiHasher',
+                'InvocationType' => 'RequestResponse',
+                'LogType' => 'None',
+                'Payload' => '{ "hashString":"'.$response['hash'].'"}'
+            ]);
+            $response['hash'] = json_decode($result['Payload']);
+        } catch (LambdaException $e) {
+            echo "Error " . $e->getMessage() . PHP_EOL;
+        }
 
         // Convert the response in a json.
         $response = json_encode($response);
@@ -162,7 +202,7 @@ class generate_order extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'response0' => new external_value(PARAM_RAW, 'A JSON string with all the data.'),
+                'response' => new external_value(PARAM_RAW, 'A JSON string with all the data.'),
             )
         );
     }
