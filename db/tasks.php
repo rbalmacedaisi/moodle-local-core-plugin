@@ -15,15 +15,21 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details.
+ * Task schedule configuration for the local_grupomakro_core plugin.
  *
  * @package    local_grupomakro_core
- * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright  2022 Solutto Consulting <dev@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = "local_grupomakro_core";
-$plugin->version =  2022111000;
-$plugin->requires = 2014051200;
-$plugin->maturity = MATURITY_STABLE;
+$tasks = [
+    [
+        'classname' => 'local_grupomakro_core\task\inactive_users',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '0',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+];

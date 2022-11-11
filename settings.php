@@ -28,6 +28,31 @@ if ($hassiteconfig) {
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
 
     /********
+     * Settings page: General Settings.
+     */
+    // Let's add a settings page called "general_settingspage" to the "localplugins" category.
+    $settingspage = new admin_settingpage('general_settingspage', new lang_string('general_settingspage', 'local_grupomakro_core'));
+
+    if ($ADMIN->fulltree) {
+    
+        // Add a setting to indicate the inactivity period.
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/inactiveafter_x_hours',
+            new lang_string('inactiveafter_x_hours', 'local_grupomakro_core'),
+            new lang_string('inactiveafter_x_hours_desc', 'local_grupomakro_core'),
+            48,
+            PARAM_INT)
+        );
+    }
+
+    // Add the page to the settings tree.
+    $ADMIN->add('grupomakrocore', $settingspage);
+
+    /**
+     * End of settings page: General Settings.
+     */
+
+    /********
      * Settings page: Email Templates.
      */
     // Let's add a settings page called "emailtemplates_settingspage" to the "localplugins" category.

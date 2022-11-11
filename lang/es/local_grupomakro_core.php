@@ -74,3 +74,14 @@ $string['order_dateupdated'] = 'Fecha de actualización';
 $string['order_dateupdated'] = 'Updated Date';
 $string['order_status'] = 'Estado del pedido';
 $string['order_total'] = 'Total del pedido';
+
+// General settings page.
+$string['general_settingspage'] = 'Configuración general';
+$string['inactiveafter_x_hours'] = 'Inactivo después de "X" número de horas';
+$cadena['inactivodespués_x_horas_desc'] = '
+<p>Esta es la cantidad de horas después de las cuales un usuario se considera inactivo.</p>
+<p>Por ejemplo, si establece este valor en 24, un usuario se considerará inactivo si no ha iniciado sesión durante 24 horas y ese usuario será eliminado.</p>
+<p><strong>NOTA:</strong> Esta configuración se usa para mantener la plataforma limpia de usuarios que no están realmente interesados en tomar ningún curso o carrera en el sistema.</p>';
+
+// Scheduled tasks.
+$string['taskinactiveusers'] = 'Eliminar usuarios inactivos';
