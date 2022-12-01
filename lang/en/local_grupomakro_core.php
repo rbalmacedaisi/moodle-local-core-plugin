@@ -73,3 +73,23 @@ $string['order_date'] = 'Order Date';
 $string['order_status'] = 'Order Status';
 $string['order_total'] = 'Order Total';
 $string['order_dateupdated'] = 'Updated Date';
+
+// Contract Management Page.
+$string['contract_management'] = 'Contract management';
+$string['cid'] = 'Contract';
+$string['careers'] = 'Careers';
+$string['user'] = 'User';
+$string['state'] = 'State';
+$string['payment_link'] = 'Payment link';
+$string['options'] = 'Options';
+$string['create_contract'] = 'Create Contract';
+$string['generate'] = 'Generate';
+$string['visualize'] = 'Visualize';
+$string['modify'] = 'Modify';
+$string['remove'] = 'Remove';
+
+// Contract Creation Page.
+$string['title_add_users'] = 'Manage Users';
+$string['select_user'] = 'Select a user';
+$string['periodicityPayments'] = 'Periodicity Payments';
+

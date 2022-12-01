@@ -1,0 +1,335 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template theme_boost/columns2
+
+    Admin time setting template.
+
+    Boost 2 column layout template.
+
+    Context variables required for this template:
+    * sitename - The name of the site
+    * output - The core renderer for the page
+    * bodyattributes - attributes for the body tag as a string of html attributes
+    * sidepreblocks - HTML for the blocks
+    * hasblocks - true if there are blocks on this page
+    * navdraweropen - true if the nav drawer should be open on page load
+    * regionmainsettingsmenu - HTML for the region main settings menu
+    * hasregionmainsettingsmenu - There is a region main settings menu on this page.
+
+    Example context (json):
+    {
+        "sitename": "Moodle",
+        "output": {
+            "doctype": "<!DOCTYPE html>",
+            "page_title": "Test page",
+            "favicon": "favicon.ico",
+            "main_content": "<h1>Headings make html validators happier</h1>"
+         },
+        "bodyattributes":"",
+        "sidepreblocks": "<h2>Blocks html goes here</h2>",
+        "hasblocks":true,
+        "navdraweropen":true,
+        "regionmainsettingsmenu": "",
+        "hasregionmainsettingsmenu": false
+    }
+}}
+<section>
+    <!-- container -->
+    <div class="container-fluid">
+        <!-- main content -->
+        <div class="main-content">
+            <!-- alert box -->
+            <div class="row justify-content-center">
+                <div class="col-lg-11 col-md-12">
+                    <!-- svg -->
+                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+                        <symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"></path>
+                        </symbol>
+                    </svg>
+                    <!-- /svg -->
+                    
+                    <div class="alert alert-danger d-none  align-items-center mt-3  mb-0" id="alertBox" role="alert">
+                        <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
+                            <use xlink:href="#exclamation-triangle-fill"></use>
+                        </svg>
+                        <div>Please select any card , only then you can move further!</div>
+                    </div>
+                </div>
+            </div>
+            <!-- End alert box -->
+        
+            <!-- row -->
+            <div class="row justify-content-center pt-0 p-2" id="wizardRow">
+                <!-- col -->
+                <div class="col-md-12 text-center">
+                    <!-- wizard -->
+                    <div class="wizard-form py-2 my-2">
+                        <!-- ul -->
+                        <ul id="progressBar" class="progressbar px-lg-5 px-0">
+                            <li id="progressList-1" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list active">Step 1</li>
+                            <li id="progressList-2" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Step 2</li>
+                            <li id="progressList-3" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Step 3</li>
+                            <li id="progressList-4" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Done</li>
+                        </ul>
+                        <!-- /ul -->
+                    </div>
+                    <!-- /wizard -->
+                </div>
+                <!-- /col -->
+            </div>
+            <!-- /row -->
+            
+            <!-- row -->
+            <div class="row justify-content-center" id="cardSection">
+                <div class="col-sm-10 col-md-12 col-lg-8 cols-xl-6">
+                    <div class="card py-3 px-4">
+                        <h3 class="text-center">Terminos generales</h3>
+        
+                        <div class="row pb-5">
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="listuser">{{#str}} title_add_users, local_grupomakro_core {{/str}}</label>
+                                <select name="listusers" id="listusers" class="form-control">
+                                    <option value=''>{{#str}} select_user, local_grupomakro_core {{/str}}</option>
+                                    
+                                </select>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="carrer">Gestionar Carreras</label>
+                                <select name="carrer" id="carrer" class="form-control">
+                                    <option value=''>Seleccionar una carrera</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="typepayment">Tipo de Pago</label>
+                                <select name="typepayment" id="typepayment" class="form-control">
+                                    <option value=''>Seleccionar Tipo de pago</option>
+                                </select>
+                            </div>
+                              
+                        </div>
+                        
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-outline-primary m-2">Cancel</button>
+                            <button type="button" class="btn btn-primary next m-2">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- /row -->
+            
+            <!-- row -->
+            <div class="row justify-content-center form-business" style="display: none;">
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
+                    <div class="card py-3 px-4">
+                        <h3 class="text-center">Términos del crédito</h3>
+        
+                        <div class="row pb-1">
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="periodicityPayments">{{#str}} periodicityPayments, local_grupomakro_core {{/str}}</label>
+                                <select name="periodicityPayments" id="periodicityPayments" class="form-control">
+                                    <option value=''>Selecciona la periodicidad</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="numberInstallments">Cuotas</label>
+                                <select name="numberInstallments" id="numberInstallments" class="form-control">
+                                    <option value=''>Seleccionar Número de cuotas</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label for="date">Fecha de pago</label>
+                                <input type="date" class="form-control" id="date" placeholder="name@example.com">
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="cod">¿Necesita codeudor?</label>
+                                <input type="radio" id="notcod" name="check_period" value="0">
+                                <label for="notperiod">No</label>
+                                <input type="radio" id="addcod" name="check_period" value="1">
+                                <label for="addperiod">Sí</label>
+                            </div>
+                        </div>
+                        
+                        <hr></hr>
+                        <h5 class="text-center">Información del Codeudor</h5>
+                        
+                        <div class="row pb-1">
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label for="name">Nombre del codeudor</label>
+                                <input type="text" class="form-control" id="name">
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label for="number">Número de identificación</label>
+                                <input type="text" class="form-control" id="number" >
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label for="phone">Teléfono</label>
+                                <input type="text" class="form-control" id="phone">
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label for="workplace">Lugar de trabajo</label>
+                                <input type="text" class="form-control" id="workplace">
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn back btn-outline-primary m-2">Atras</button>
+                            <button type="button" class="btn btn-primary next m-2">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- /row -->
+            
+            <!-- row -->
+            <div class="row justify-content-center form-business" style="display: none;">
+                <!-- col -->
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
+                    <div class="card py-3 px-4">
+                        <h3 class="text-center">Cuotas programadas</h3>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                      <th scope="col">No. cuota</th>
+                                      <th scope="col">Valor de la cuota</th>
+                                      <th scope="col">Intereses</th>
+                                      <th scope="col">Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                      <th scope="row">01</th>
+                                      <td>200.00</td>
+                                      <td>0.00</td>
+                                      <td>23/11/2022</td>
+                                    </tr>
+                                    <tr>
+                                      <th scope="row">02</th>
+                                      <td>200.00</td>
+                                      <td>0.00</td>
+                                      <td>23/12/2022</td>
+                                    </tr>
+                                    <tr>
+                                      <th scope="row">03</th>
+                                      <td>200.00</td>
+                                      <td>0.00</td>
+                                      <td>23/01/2023</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn back btn-outline-primary m-2">Atras</button>
+                        <button type="button" class="btn btn-primary next m-2">Next</button>
+                    </div>
+                </div>
+            </div>
+            <!-- /row -->
+            
+            <!-- row -->
+            <div class="row justify-content-center py-5 form-business" style="display: none;">
+                <!-- col -->
+                <div class="col-lg-7 col-md-8" id="successMessage" style="display: none;">
+                    <!-- success message -->
+                    <div class="position-relative success-content">
+                        <img src="https://uploads-ssl.webflow.com/5ef0df6b9272f7410180a013/60c0e28575cd7c21701806fd_q1cunpuhbdreMPFRSFLyfUXNzpqv_I5fz_plwv6gV3sMNXwUSPrq88pC2iJijEV7wERnKXtdTA0eE4HvdnntGo9AHAWn-IcMPKV-rZw1v75vlTEoLF4OdNqsRb7C6r7Mvzrm7fe4.png" class="w-100" id="successImage" alt="success-message">
+                        <a href="#" type="button" class="btn bg-success-color py-2 back-to-wizard position-absolute top-100 start-50 translate-middle text-white">Back to Wizad Form</a>
+                    </div>
+                    <!-- /success message -->
+                </div>
+                <!-- /col -->
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
+                    <div class="card py-3 px-4">
+                        <h3 class="text-center">Subir Documentos</h3>
+                        <label class="w-100" for="desc_plan">Documento de identificación.</label>
+                        {{{formimagpicker}}}
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        <!-- /main content -->
+    </div>
+    <!-- /container -->
+</section>
+
+{{#js}}
+    
+$(document).ready(function () {
+    // hidden things
+    $(".form-business").hide();
+    $("#successMessage").hide();
+   
+    // next button
+    $(".next").on({
+        click: function () {
+            // select any card
+            var getValue = $(this).parents(".row").find(".card").hasClass("active-card");
+            
+                $("#progressBar").find(".active").next().addClass("active");
+                $("#alertBox").addClass("d-none");
+                $(this).parents(".row").fadeOut("slow", function () {
+                    $(this).next(".row").fadeIn("slow");
+                });
+                
+            
+        }
+    });
+    // back button
+    $(".back").on({
+        click: function () {
+            $("#progressBar .active").last().removeClass("active");
+            $(this).parents(".row").fadeOut("slow", function () {
+                $(this).prev(".row").fadeIn("slow");
+            });
+        }
+    });
+    //finish button
+    $(".submit-button").on({
+        click: function () {
+            $("#wizardRow").fadeOut(300);
+            $(this).parents(".row").children("#successForm").fadeOut(300);
+            $(this).parents(".row").children("#successMessage").fadeIn(3000);
+        }
+    });
+    //Active card on click function
+    $(".card").on({
+        click: function () {
+            $(this).toggleClass("active-card");
+            $(this).parent(".col").siblings().children(".card").removeClass("active-card");
+        }
+    });
+    //back to wizard
+    $(".back-to-wizard").on({
+        click: function () {
+            location.reload(true);
+        }
+    });
+});
+{{/js}}

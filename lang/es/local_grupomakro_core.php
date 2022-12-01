@@ -74,3 +74,23 @@ $string['order_dateupdated'] = 'Fecha de actualización';
 $string['order_dateupdated'] = 'Updated Date';
 $string['order_status'] = 'Estado del pedido';
 $string['order_total'] = 'Total del pedido';
+
+// Página de Gestión de contratos.
+$string['contract_management'] = 'Gestión de contratos';
+$string['cid'] = 'Contrato';
+$string['careers'] = 'Carrera';
+$string['user'] = 'Usuario';
+$string['state'] = 'Estado';
+$string['payment_link'] = 'Link de pago';
+$string['options'] = 'Opciones';
+$string['create_contract'] = 'Crear contrato';
+$string['generate'] = 'Generar';
+$string['visualize'] = 'Visualizar';
+$string['modify'] = 'Modificar';
+$string['remove'] = 'Eleminar';
+
+// Página Creación de contrato.
+$string['title_add_users'] = 'Gestionar usuarios';
+$string['select_user'] = 'Selecciona un usuario';
+$string['periodicityPayments'] = 'Periodicidad de los pagos';
+
