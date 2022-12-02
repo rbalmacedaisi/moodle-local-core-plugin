@@ -114,3 +114,14 @@ $string['name_co_signer'] = 'Name of the co-signer';
 $string['identification_number'] = 'Identification number';
 $string['phone'] = 'Phone';
 $string['workplace'] = 'Workplace';
+
+// General settings page.
+$string['general_settingspage'] = 'General Settings';
+$string['inactiveafter_x_hours'] = 'Inactive after "X" number of hours';
+$string['inactiveafter_x_hours_desc'] = '
+<p>This is the number of hours after which a user is considered inactive.</p>
+<p>For example, if you set this value to 24, then a user will be considered inactive if he/she has not logged in for 24 hours, and that user will be deleted.</p>
+<p><strong>NOTE:</strong> This setting is used to keep the platform clean of users that are not really interested in taking any course or career in the system.</p>';
+
+// Scheduled tasks.
+$string['taskinactiveusers'] = 'Delete inactive users';
