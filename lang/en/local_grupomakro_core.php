@@ -87,9 +87,30 @@ $string['generate'] = 'Generate';
 $string['visualize'] = 'Visualize';
 $string['modify'] = 'Modify';
 $string['remove'] = 'Remove';
+$string['download'] = 'Download';
+$string['adviser'] = 'Adviser';
 
 // Contract Creation Page.
 $string['title_add_users'] = 'Manage Users';
 $string['select_user'] = 'Select a user';
 $string['periodicityPayments'] = 'Periodicity Payments';
-
+$string['general_terms'] = 'General Terms';
+$string['manage_careers'] = 'Manage Careers';
+$string['select_careers'] = 'Celect Careers';
+$string['payment_type'] = 'Payment Type';
+$string['select_payment_type'] = 'Select Payment type';
+$string['cancel'] = 'Cancel';
+$string['continue'] = 'Continue';
+$string['next'] = 'Next';
+$string['save'] = 'Save';
+$string['back'] = 'Back';
+$string['credit_terms'] = 'Credit Terms';
+$string['select_periodicity'] = 'Select the periodicity';
+$string['number_quotas'] = 'Number of Quotas';
+$string['payment_date'] = 'Payment date';
+$string['need_co-signer'] = 'Do you need a co-signer?';
+$string['cosigner_information'] = 'Co-signer Information';
+$string['name_co_signer'] = 'Name of the co-signer';
+$string['identification_number'] = 'Identification number';
+$string['phone'] = 'Phone';
+$string['workplace'] = 'Workplace';

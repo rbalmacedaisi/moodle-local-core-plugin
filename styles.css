@@ -81,11 +81,6 @@
     vertical-align: inherit !important;
 }
 
-
-
-
-
-/* body */
 .main-content .wizard-form .progressbar-list::before{
 content: " ";
 background-color: rgb(155, 155, 155);
@@ -134,23 +129,12 @@ z-index: -1;
 .progressbar-list{
     color:#6f787d;
 }
-.active{
-    color:#000;
-}
-/* card */
-.card img{
-    width: 40px;
-}
 
-.bg-color-info{
-    background-color:#00d69f;
-}
+
 .border-color{
     border-color: #ececec;
 }
-.btn{
-    padding:16px 30px;
-}
+
 .back-to-wizard{
     transform: translate(-50%, -139%) !important;
 }
@@ -165,4 +149,7 @@ z-index: -1;
 }
 #progressBar li {
     width: 15%;
+}
+.spacer{
+    flex-grow: 1!important;
 }

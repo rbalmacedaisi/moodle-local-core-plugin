@@ -88,9 +88,31 @@ $string['generate'] = 'Generar';
 $string['visualize'] = 'Visualizar';
 $string['modify'] = 'Modificar';
 $string['remove'] = 'Eleminar';
+$string['download'] = 'Descargar';
+$string['adviser'] = 'Asesor';
 
 // Página Creación de contrato.
 $string['title_add_users'] = 'Gestionar usuarios';
 $string['select_user'] = 'Selecciona un usuario';
 $string['periodicityPayments'] = 'Periodicidad de los pagos';
+$string['general_terms'] = 'Términos generales';
+$string['manage_careers'] = 'Gestionar Carreras';
+$string['select_careers'] = 'Seleccionar una carrera';
+$string['payment_type'] = 'Tipo de Pago';
+$string['select_payment_type'] = 'Seleccionar Tipo de pago';
+$string['cancel'] = 'Cancelar';
+$string['continue'] = 'Continuar';
+$string['next'] = 'Siguiente';
+$string['save'] = 'Guardar';
+$string['back'] = 'Atrás';
+$string['credit_terms'] = 'Términos del crédito';
+$string['select_periodicity'] = 'Selecciona la periodicidad';
+$string['number_quotas'] = 'Número Cuotas';
+$string['payment_date'] = 'Fecha de pago';
+$string['need_co-signer'] = '¿Necesita codeudor?';
+$string['cosigner_information'] = 'Información del Codeudor';
+$string['name_co_signer'] = 'Nombre del codeudor';
+$string['identification_number'] = 'Número de identificación';
+$string['phone'] = 'Teléfono';
+$string['workplace'] = 'Lugar de trabajo';
 

@@ -45,6 +45,7 @@ echo $OUTPUT->header();
 $formimagepicker = new createcontract_form();
 $maintemplatedata = [
     'formimagpicker' => $formimagepicker->render(),
+    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/create_contract', $maintemplatedata);

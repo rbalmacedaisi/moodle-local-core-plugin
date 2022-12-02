@@ -68,7 +68,7 @@
                         <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
                             <use xlink:href="#exclamation-triangle-fill"></use>
                         </svg>
-                        <div>Please select any card , only then you can move further!</div>
+                        <div></div>
                     </div>
                 </div>
             </div>
@@ -82,10 +82,10 @@
                     <div class="wizard-form py-2 my-2">
                         <!-- ul -->
                         <ul id="progressBar" class="progressbar px-lg-5 px-0">
-                            <li id="progressList-1" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list active">Step 1</li>
-                            <li id="progressList-2" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Step 2</li>
-                            <li id="progressList-3" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Step 3</li>
-                            <li id="progressList-4" class="d-inline-block fw-bold  position-relative text-center float-start progressbar-list">Done</li>
+                            <li id="progressList-1" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list active">Paso 1</li>
+                            <li id="progressList-2" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 2</li>
+                            <li id="progressList-3" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 3</li>
+                            <li id="progressList-4" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 4</li>
                         </ul>
                         <!-- /ul -->
                     </div>
@@ -97,38 +97,58 @@
             
             <!-- row -->
             <div class="row justify-content-center" id="cardSection">
-                <div class="col-sm-10 col-md-12 col-lg-8 cols-xl-6">
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-7">
                     <div class="card py-3 px-4">
-                        <h3 class="text-center">Terminos generales</h3>
+                        <h3 class="text-center">{{#str}}general_terms, local_grupomakro_core {{/str}}</h3>
         
-                        <div class="row pb-5">
+                        <div class="row pb-5 mt-2">
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="listuser">{{#str}} title_add_users, local_grupomakro_core {{/str}}</label>
                                 <select name="listusers" id="listusers" class="form-control">
                                     <option value=''>{{#str}} select_user, local_grupomakro_core {{/str}}</option>
-                                    
+                                    <option value="3">Ximena Rincón - ximena.rincon@soluttoconsulting.com</option>
+                                    <option value="9">Luz López - luz.lopez@soluttoconsulting.com</option>
+                                    <option value="26">Sergio Amariles - sergio.amariles@soluttoconsulting.com</option>
+                                    <option value="27">Sergio Estudiante - sergioandresamariles@gmail.com</option>
+                                    <option value="37">Yudy Perez - yudy.perez@soluttoconsulting.com</option>
+                                    <option value="38">Student Yudy Perez Velez - yudyperezvelez@gmail.com</option>
+                                    <option value="41">Student Demo - studentdemo@soluttoconsulting.com</option>
+                                    <option value="43">Admin Prueba - deicy1726@gmail.com</option>
+                                    <option value="44">usuariocuestionario usuariocuestionario - usuariocuestionario@mailinaitor.com</option>
+                                    <option value="45">Luz Fanllany Lopez QA - luzfanllanyl@gmail.com</option>
+                                    <option value="47">Meredith Gray - deicy.divvee@gmail.com</option>
+                                    <option value="48">Nataly Hoyos - nataly.hoyos@soluttoconsulting.com</option>
+                                    <option value="49">Camilo Velez - camivelez@mailinaitor.com</option>
                                 </select>
                             </div>
                             
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="carrer">Gestionar Carreras</label>
+                                <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
                                 <select name="carrer" id="carrer" class="form-control">
-                                    <option value=''>Seleccionar una carrera</option>
+                                    <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
+                                    <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
+                                    <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
+                                    <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
                                 </select>
                             </div>
                             
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="typepayment">Tipo de Pago</label>
+                                <label class="w-100" for="typepayment">{{#str}} payment_type, local_grupomakro_core {{/str}}</label>
                                 <select name="typepayment" id="typepayment" class="form-control">
-                                    <option value=''>Seleccionar Tipo de pago</option>
+                                    <option value=''>{{#str}} select_payment_type, local_grupomakro_core {{/str}}</option>
+                                    <option value="Contado">Contado</option>
+                                    <option value="IFARHU">IFARHU</option>
+                                    <option value="Crédito">Crédito</option>
                                 </select>
                             </div>
                               
                         </div>
                         
-                        <div class="d-flex justify-content-end">
-                            <button type="button" class="btn btn-outline-primary m-2">Cancel</button>
-                            <button type="button" class="btn btn-primary next m-2">Next</button>
+                        <div class="d-flex">
+                            <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                            <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <div class="spacer"></div>
+                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
                         </div>
                     </div>
                 </div>
@@ -139,65 +159,84 @@
             <div class="row justify-content-center form-business" style="display: none;">
                 <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
                     <div class="card py-3 px-4">
-                        <h3 class="text-center">Términos del crédito</h3>
+                        <h3 class="text-center">{{#str}} credit_terms, local_grupomakro_core {{/str}}</h3>
         
                         <div class="row pb-1">
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="periodicityPayments">{{#str}} periodicityPayments, local_grupomakro_core {{/str}}</label>
                                 <select name="periodicityPayments" id="periodicityPayments" class="form-control">
-                                    <option value=''>Selecciona la periodicidad</option>
+                                    <option value=''>{{#str}} select_periodicity, local_grupomakro_core {{/str}}</option>
+                                    <option value="semanal">Semanal</option>
+                                    <option value="quincenal">Quincenal</option>
+                                    <option value="mensual">Mensual</option>
                                 </select>
                             </div>
                             
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="numberInstallments">Cuotas</label>
+                                <label class="w-100" for="numberInstallments">Número Cuotas</label>
                                 <select name="numberInstallments" id="numberInstallments" class="form-control">
-                                    <option value=''>Seleccionar Número de cuotas</option>
+                                    <option value=''>{{#str}} number_quotas, local_grupomakro_core {{/str}}</option>
+                                    <option value="1">1 Cuotas</option>
+                                    <option value="2">2 Cuotas</option>
+                                    <option value="3">3 Cuotas</option>
+                                    <option value="4">4 Cuotas</option>
+                                    <option value="5">5 Cuotas</option>
+                                    <option value="6">6 Cuotas</option>
+                                    <option value="7">7 Cuotas</option>
+                                    <option value="8">8 Cuotas</option>
+                                    <option value="9">9 Cuotas</option>
+                                    <option value="10">10 Cuotas</option>
+                                    <option value="11">11 Cuotas</option>
+                                    <option value="12">12 Cuotas</option>
                                 </select>
                             </div>
                             
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label for="date">Fecha de pago</label>
-                                <input type="date" class="form-control" id="date" placeholder="name@example.com">
+                                <label for="date">{{#str}} payment_date, local_grupomakro_core {{/str}}</label>
+                                <input type="date" class="form-control" id="date" placeholder="Selecciona una fecha">
                             </div>
                             
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="cod">¿Necesita codeudor?</label>
-                                <input type="radio" id="notcod" name="check_period" value="0">
+                                <label class="w-100" for="cod">{{#str}} need_co-signer, local_grupomakro_core {{/str}}</label>
+                                <input type="radio" id="notcod" name="co-signer" value="0">
                                 <label for="notperiod">No</label>
-                                <input type="radio" id="addcod" name="check_period" value="1">
+                                <input type="radio" id="addcod" name="co-signer" value="1">
                                 <label for="addperiod">Sí</label>
                             </div>
                         </div>
                         
-                        <hr></hr>
-                        <h5 class="text-center">Información del Codeudor</h5>
-                        
-                        <div class="row pb-1">
-                            <div class="col-sm-12 col-md-6 py-2">
-                                <label for="name">Nombre del codeudor</label>
-                                <input type="text" class="form-control" id="name">
-                            </div>
+                        <div id="cod-info" class="d-none">
+                            <hr></hr>
+                            <h5 class="text-center">{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
                             
-                            <div class="col-sm-12 col-md-6 py-2">
-                                <label for="number">Número de identificación</label>
-                                <input type="text" class="form-control" id="number" >
-                            </div>
-                            
-                            <div class="col-sm-12 col-md-6 py-2">
-                                <label for="phone">Teléfono</label>
-                                <input type="text" class="form-control" id="phone">
-                            </div>
-                            
-                            <div class="col-sm-12 col-md-6 py-2">
-                                <label for="workplace">Lugar de trabajo</label>
-                                <input type="text" class="form-control" id="workplace">
+                            <div class="row pb-1">
+                                <div class="col-sm-12 col-md-6 py-2">
+                                    <label for="name">{{#str}} name_co_signer, local_grupomakro_core {{/str}}</label>
+                                    <input type="text" class="form-control" id="name">
+                                </div>
+                                
+                                <div class="col-sm-12 col-md-6 py-2">
+                                    <label for="number">{{#str}} identification_number, local_grupomakro_core {{/str}}</label>
+                                    <input type="text" class="form-control" id="number" >
+                                </div>
+                                
+                                <div class="col-sm-12 col-md-6 py-2">
+                                    <label for="phone">{{#str}} phone, local_grupomakro_core {{/str}}</label>
+                                    <input type="text" class="form-control" id="phone">
+                                </div>
+                                
+                                <div class="col-sm-12 col-md-6 py-2">
+                                    <label for="workplace">{{#str}} workplace, local_grupomakro_core {{/str}}</label>
+                                    <input type="text" class="form-control" id="workplace">
+                                </div>
                             </div>
                         </div>
                         
+                        
                         <div class="d-flex justify-content-end">
-                            <button type="button" class="btn back btn-outline-primary m-2">Atras</button>
-                            <button type="button" class="btn btn-primary next m-2">Next</button>
+                            <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
                         </div>
                     </div>
                 </div>
@@ -242,11 +281,12 @@
                                 </tbody>
                             </table>
                         </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-end">
-                        <button type="button" class="btn back btn-outline-primary m-2">Atras</button>
-                        <button type="button" class="btn btn-primary next m-2">Next</button>
+                        
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -269,6 +309,12 @@
                         <h3 class="text-center">Subir Documentos</h3>
                         <label class="w-100" for="desc_plan">Documento de identificación.</label>
                         {{{formimagpicker}}}
+                        
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -289,19 +335,16 @@ $(document).ready(function () {
     // next button
     $(".next").on({
         click: function () {
-            // select any card
             var getValue = $(this).parents(".row").find(".card").hasClass("active-card");
-            
-                $("#progressBar").find(".active").next().addClass("active");
-                $("#alertBox").addClass("d-none");
-                $(this).parents(".row").fadeOut("slow", function () {
-                    $(this).next(".row").fadeIn("slow");
-                });
-                
+            $("#progressBar").find(".active").next().addClass("active");
+            $("#alertBox").addClass("d-none");
+            $(this).parents(".row").fadeOut("slow", function () {
+                $(this).next(".row").fadeIn("slow");
+            });
             
         }
     });
-    // back button
+    
     $(".back").on({
         click: function () {
             $("#progressBar .active").last().removeClass("active");
@@ -310,7 +353,7 @@ $(document).ready(function () {
             });
         }
     });
-    //finish button
+    
     $(".submit-button").on({
         click: function () {
             $("#wizardRow").fadeOut(300);
@@ -331,5 +374,16 @@ $(document).ready(function () {
             location.reload(true);
         }
     });
+    
+    document.getElementById("notcod").checked = true;
+    
+    $('input[type=radio][name=co-signer]').change(function() {
+        if(this.value == 1){
+            $('div#cod-info').addClass('d-block');
+        }else{
+            $('div#cod-info').removeClass('d-block');
+        }
+    });
+    
 });
 {{/js}}
