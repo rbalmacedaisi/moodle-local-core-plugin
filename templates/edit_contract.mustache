@@ -1,0 +1,194 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_grupomakro_core/edit_contract
+
+    Template purpose and description.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * attributes Array of name / value pairs.
+
+    Example context (json):
+    {
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
+    }
+}}
+<div class="container">
+    <div class="row">
+        {{! Contract Action Panel }}
+        <div class="col-sm-12 mb-2">
+            <div class="d-flex align-items-center mt-3">
+                <h5 class="text-secondary mb-0">Contrato - 2022A23658</h5>
+                <div class="spacer"></div>
+                <div class="btn-group" role="group" aria-label="Basic example">
+                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#reasigncontractModalLong">{{#str}} re_asign, local_grupomakro_core {{/str}}</button>
+                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#deferringcontractModalLong">{{#str}} defer, local_grupomakro_core {{/str}}</button>
+                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#cancelcontractModalLong">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
+                </div>
+            </div>
+        </div>
+        {{! End Contract Action Panel }}
+        
+        {{! Contract data to modify }}
+        <div class="col-sm-12">
+            <div class="card py-3 px-4">
+                {{! General terms of the contract }}
+                <h5>{{#str}}general_terms, local_grupomakro_core {{/str}}</h5>
+                <div class="row pb-3 mt-2">
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100" for="listuser">{{#str}} user, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" value="john@user.com" disabled>
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
+                        <select name="carrer" id="carrer" class="form-control">
+                            <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
+                            <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
+                            <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
+                            <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100" for="typepayment">{{#str}} payment_type, local_grupomakro_core {{/str}}</label>
+                        <select name="typepayment" id="typepayment" class="form-control">
+                            <option value="Crédito">Crédito</option>
+                            <option value=''>{{#str}} select_payment_type, local_grupomakro_core {{/str}}</option>
+                            <option value="Contado">Contado</option>
+                            <option value="IFARHU">IFARHU</option>
+                        </select>
+                    </div>
+                </div>
+                {{! End General terms of the contract }}
+                <hr></hr>
+                
+                {{! Credit terms }}
+                <div class="row pb-3 mt-2">
+                    <div class="col-sm-12">
+                        <h5>{{#str}} credit_terms, local_grupomakro_core {{/str}}</h5>
+                    </div>
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100" for="periodicityPayments">{{#str}} periodicityPayments, local_grupomakro_core {{/str}}</label>
+                        <select name="periodicityPayments" id="periodicityPayments" class="form-control">
+                            <option value="mensual">Mensual</option>
+                            <option value=''>{{#str}} select_periodicity, local_grupomakro_core {{/str}}</option>
+                            <option value="semanal">Semanal</option>
+                            <option value="quincenal">Quincenal</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100" for="numberInstallments">Número Cuotas</label>
+                        <select name="numberInstallments" id="numberInstallments" class="form-control">
+                            <option value="3">3 Cuotas</option>
+                            <option value=''>{{#str}} number_quotas, local_grupomakro_core {{/str}}</option>
+                            <option value="1">1 Cuotas</option>
+                            <option value="2">2 Cuotas</option>
+                            <option value="4">4 Cuotas</option>
+                            <option value="5">5 Cuotas</option>
+                            <option value="6">6 Cuotas</option>
+                            <option value="7">7 Cuotas</option>
+                            <option value="8">8 Cuotas</option>
+                            <option value="9">9 Cuotas</option>
+                            <option value="10">10 Cuotas</option>
+                            <option value="11">11 Cuotas</option>
+                            <option value="12">12 Cuotas</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label for="date">{{#str}} payment_date, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" id="date" placeholder="Selecciona una fecha" value="11-12-2022">
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label class="w-100 mb-3" for="cod">{{#str}} need_co-signer, local_grupomakro_core {{/str}}</label>
+                        <input type="radio" id="notcod" name="co-signer" value="0">
+                        <label for="notperiod">No</label>
+                        <input type="radio" id="addcod" name="co-signer" value="1">
+                        <label for="addperiod">Sí</label>
+                    </div>
+                </div>
+                {{! End Credit terms }}
+                
+                <hr></hr>
+                {{! Información del Codeudor }}
+                <div class="row pb-3 mt-2">
+                    <div class="col-sm-12">
+                        <h5>{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
+                    </div>
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label for="name">{{#str}} name_co_signer, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" id="name" value="Carlos">
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label for="number">{{#str}} identification_number, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" id="number" value="1128445678">
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label for="phone">{{#str}} phone, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" id="phone" value="3004567894">
+                    </div>
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <label for="workplace">{{#str}} workplace, local_grupomakro_core {{/str}}</label>
+                        <input type="text" class="form-control" id="workplace" value="Solutto">
+                    </div>
+                </div>
+                {{! End Información del Codeudor }}
+                
+                <hr></hr>
+                {{! Documents section }}
+                <div class="row pb-3 mt-2">
+                    <div class="col-sm-12">
+                        <h5>Documentos</h5>
+                    </div>
+                </div>
+                {{! Documents section }}
+            </div>
+            
+            <div class="d-flex mt-3">
+                <div class="spacer"></div>
+                <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+            </div>
+        </div>
+        {{! End Contract data to modify }}
+    </div>
+</div>
+{{> local_grupomakro_core/modals/deferring_modal }}
+{{> local_grupomakro_core/modals/reasign_modal }}
+{{> local_grupomakro_core/modals/cancelcontract_modal }}
+
+{{#js}}
+    
+$(document).ready(function () {
+    document.getElementById("addcod").checked = true;
+});
+{{/js}}

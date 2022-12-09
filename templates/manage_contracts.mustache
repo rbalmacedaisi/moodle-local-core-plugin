@@ -1,5 +1,5 @@
 {{!
-    This file is part of Moodle - http://moodle.org/
+    This file is part of Moodle - https://moodle.org/
 
     Moodle is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,46 +15,40 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template theme_boost/columns2
+    @template local_grupomakro_core/manage_contract
 
-    Admin time setting template.
+    Template purpose and description.
 
-    Boost 2 column layout template.
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
 
     Context variables required for this template:
-    * sitename - The name of the site
-    * output - The core renderer for the page
-    * bodyattributes - attributes for the body tag as a string of html attributes
-    * sidepreblocks - HTML for the blocks
-    * hasblocks - true if there are blocks on this page
-    * navdraweropen - true if the nav drawer should be open on page load
-    * regionmainsettingsmenu - HTML for the region main settings menu
-    * hasregionmainsettingsmenu - There is a region main settings menu on this page.
+    * attributes Array of name / value pairs.
 
     Example context (json):
     {
-        "sitename": "Moodle",
-        "output": {
-            "doctype": "<!DOCTYPE html>",
-            "page_title": "Test page",
-            "favicon": "favicon.ico",
-            "main_content": "<h1>Headings make html validators happier</h1>"
-         },
-        "bodyattributes":"",
-        "sidepreblocks": "<h2>Blocks html goes here</h2>",
-        "hasblocks":true,
-        "navdraweropen":true,
-        "regionmainsettingsmenu": "",
-        "hasregionmainsettingsmenu": false
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
     }
 }}
 <div class="container-fluid">
     <div class="row">
         <div class="col-sm-12">
-            <div class="d-flex justify-content-end">
+            <div class="d-flex">
+                <div class="w-25">
+                    <input class="form-control" id="myInput" type="text" placeholder="Search..">
+                </div>
+                
+                <div class="spacer"></div>
                 <a class="btn btn-primary" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
             </div>
             {{{table}}}
         </div>
     </div>
 </div>
+{{{confirmationmodal}}}

@@ -1,5 +1,5 @@
 {{!
-    This file is part of Moodle - http://moodle.org/
+    This file is part of Moodle - https://moodle.org/
 
     Moodle is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,96 +15,58 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template theme_boost/columns2
+    @template local_grupomakro_core/create_contract
 
-    Admin time setting template.
+    Template purpose and description.
 
-    Boost 2 column layout template.
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
 
     Context variables required for this template:
-    * sitename - The name of the site
-    * output - The core renderer for the page
-    * bodyattributes - attributes for the body tag as a string of html attributes
-    * sidepreblocks - HTML for the blocks
-    * hasblocks - true if there are blocks on this page
-    * navdraweropen - true if the nav drawer should be open on page load
-    * regionmainsettingsmenu - HTML for the region main settings menu
-    * hasregionmainsettingsmenu - There is a region main settings menu on this page.
+    * attributes Array of name / value pairs.
 
     Example context (json):
     {
-        "sitename": "Moodle",
-        "output": {
-            "doctype": "<!DOCTYPE html>",
-            "page_title": "Test page",
-            "favicon": "favicon.ico",
-            "main_content": "<h1>Headings make html validators happier</h1>"
-         },
-        "bodyattributes":"",
-        "sidepreblocks": "<h2>Blocks html goes here</h2>",
-        "hasblocks":true,
-        "navdraweropen":true,
-        "regionmainsettingsmenu": "",
-        "hasregionmainsettingsmenu": false
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
     }
 }}
 <section>
-    <!-- container -->
     <div class="container-fluid">
-        <!-- main content -->
+        {{! Main content }}
         <div class="main-content">
-            <!-- alert box -->
-            <div class="row justify-content-center">
-                <div class="col-lg-11 col-md-12">
-                    <!-- svg -->
-                    <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
-                        <symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"></path>
-                        </symbol>
-                    </svg>
-                    <!-- /svg -->
-                    
-                    <div class="alert alert-danger d-none  align-items-center mt-3  mb-0" id="alertBox" role="alert">
-                        <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                            <use xlink:href="#exclamation-triangle-fill"></use>
-                        </svg>
-                        <div></div>
-                    </div>
-                </div>
-            </div>
-            <!-- End alert box -->
-        
-            <!-- row -->
+            {{! row }}
             <div class="row justify-content-center pt-0 p-2" id="wizardRow">
-                <!-- col -->
                 <div class="col-md-12 text-center">
-                    <!-- wizard -->
+                    {{! Wizard }}
                     <div class="wizard-form py-2 my-2">
-                        <!-- ul -->
                         <ul id="progressBar" class="progressbar px-lg-5 px-0">
                             <li id="progressList-1" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list active">Paso 1</li>
                             <li id="progressList-2" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 2</li>
                             <li id="progressList-3" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 3</li>
                             <li id="progressList-4" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">Paso 4</li>
                         </ul>
-                        <!-- /ul -->
                     </div>
-                    <!-- /wizard -->
+                    {{!End Wizard }}
                 </div>
-                <!-- /col -->
             </div>
-            <!-- /row -->
+            {{! End row }}
             
-            <!-- row -->
+            {{! Step general terms of the contract }}
             <div class="row justify-content-center" id="cardSection">
-                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-7">
-                    <div class="card py-3 px-4">
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
+                    <div class="card p-3">
                         <h3 class="text-center">{{#str}}general_terms, local_grupomakro_core {{/str}}</h3>
-        
                         <div class="row pb-5 mt-2">
+                            {{! User list }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="listuser">{{#str}} title_add_users, local_grupomakro_core {{/str}}</label>
-                                <select name="listusers" id="listusers" class="form-control">
+                                <select name="listusers" id="contrctusers" class="form-control">
                                     <option value=''>{{#str}} select_user, local_grupomakro_core {{/str}}</option>
                                     <option value="3">Ximena Rincón - ximena.rincon@soluttoconsulting.com</option>
                                     <option value="9">Luz López - luz.lopez@soluttoconsulting.com</option>
@@ -121,7 +83,9 @@
                                     <option value="49">Camilo Velez - camivelez@mailinaitor.com</option>
                                 </select>
                             </div>
+                            {{! End User list }}
                             
+                            {{! Learning plan list }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
                                 <select name="carrer" id="carrer" class="form-control">
@@ -131,7 +95,9 @@
                                     <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
                                 </select>
                             </div>
+                            {{! End Learning plan list }}
                             
+                            {{! Contract type selector }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="typepayment">{{#str}} payment_type, local_grupomakro_core {{/str}}</label>
                                 <select name="typepayment" id="typepayment" class="form-control">
@@ -141,27 +107,31 @@
                                     <option value="Crédito">Crédito</option>
                                 </select>
                             </div>
-                              
+                            {{! End Contract type selector }}  
                         </div>
+                        <hr></hr>
                         
+                        {{! Step actions }}
                         <div class="d-flex">
                             <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
                             <div class="spacer"></div>
                             <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
                         </div>
+                        {{! End Step actions }}
                     </div>
                 </div>
             </div>
-            <!-- /row -->
+            {{! End Step general terms of the contract }}
             
-            <!-- row -->
+            {{! Step credit terms }}
             <div class="row justify-content-center form-business" style="display: none;">
-                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
-                    <div class="card py-3 px-4">
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
+                    <div class="card p-3 ">
                         <h3 class="text-center">{{#str}} credit_terms, local_grupomakro_core {{/str}}</h3>
         
-                        <div class="row pb-1">
+                        <div class="row pb-5 mt-2">
+                            {{! Payment periodicity selector }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="periodicityPayments">{{#str}} periodicityPayments, local_grupomakro_core {{/str}}</label>
                                 <select name="periodicityPayments" id="periodicityPayments" class="form-control">
@@ -171,9 +141,11 @@
                                     <option value="mensual">Mensual</option>
                                 </select>
                             </div>
+                            {{! End Payment periodicity selector }}
                             
+                            {{! Selector for payment installments }}
                             <div class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="numberInstallments">Número Cuotas</label>
+                                <label class="w-100" for="numberInstallments">{{#str}} number_quotas, local_grupomakro_core{{/str}}</label>
                                 <select name="numberInstallments" id="numberInstallments" class="form-control">
                                     <option value=''>{{#str}} number_quotas, local_grupomakro_core {{/str}}</option>
                                     <option value="1">1 Cuotas</option>
@@ -190,12 +162,16 @@
                                     <option value="12">12 Cuotas</option>
                                 </select>
                             </div>
+                            {{! End Selector for payment installments }}
                             
+                            {{! Payment date field }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label for="date">{{#str}} payment_date, local_grupomakro_core {{/str}}</label>
-                                <input type="date" class="form-control" id="date" placeholder="Selecciona una fecha">
+                                <input type="date" class="form-control" id="date" placeholder="{{#str}}select_date , local_grupomakro_core {{/str}}">
                             </div>
+                            {{! End Payment date field }}
                             
+                            {{! Need co-signer }}
                             <div class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="cod">{{#str}} need_co-signer, local_grupomakro_core {{/str}}</label>
                                 <input type="radio" id="notcod" name="co-signer" value="0">
@@ -203,8 +179,10 @@
                                 <input type="radio" id="addcod" name="co-signer" value="1">
                                 <label for="addperiod">Sí</label>
                             </div>
+                            {{! End Need co-signer }}
                         </div>
                         
+                        {{! Co-signer information section }}
                         <div id="cod-info" class="d-none">
                             <hr></hr>
                             <h5 class="text-center">{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
@@ -231,25 +209,30 @@
                                 </div>
                             </div>
                         </div>
+                        {{! End Co-signer information section }}
+                        <hr></hr>
                         
-                        
-                        <div class="d-flex justify-content-end">
+                        {{! Step actions }}
+                        <div class="d-flex">
                             <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <div class="spacer"></div>
                             <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
                         </div>
+                        {{! End Step actions }}
                     </div>
                 </div>
             </div>
-            <!-- /row -->
+            {{! End Step credit terms }}
             
-            <!-- row -->
+            {{! Step credit installment projections }}
             <div class="row justify-content-center form-business" style="display: none;">
                 <!-- col -->
-                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
-                    <div class="card py-3 px-4">
-                        <h3 class="text-center">Cuotas programadas</h3>
-                        <div class="table-responsive">
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
+                    <div class="card p-3">
+                        <h3 class="text-center">{{#str}} scheduled_installments, local_grupomakro_core {{/str}}</h3>
+                        {{! Projection table of payment installments }}
+                        <div class="table-responsive pb-5">
                             <table class="table table-striped">
                                 <thead>
                                     <tr>
@@ -281,49 +264,110 @@
                                 </tbody>
                             </table>
                         </div>
+                        {{! End Projection table of payment installments }}
+                        <hr></hr>
                         
-                        <div class="d-flex justify-content-end">
+                        {{! Step actions }}
+                        <div class="d-flex">
                             <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
+                            <div class="spacer"></div>
                             <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
                         </div>
+                        {{! End Step actions }}
                     </div>
                 </div>
             </div>
-            <!-- /row -->
+            {{! End Step credit installment projections }}
             
-            <!-- row -->
+            {{! Step upload the documents }}
             <div class="row justify-content-center py-5 form-business" style="display: none;">
-                <!-- col -->
-                <div class="col-lg-7 col-md-8" id="successMessage" style="display: none;">
-                    <!-- success message -->
-                    <div class="position-relative success-content">
-                        <img src="https://uploads-ssl.webflow.com/5ef0df6b9272f7410180a013/60c0e28575cd7c21701806fd_q1cunpuhbdreMPFRSFLyfUXNzpqv_I5fz_plwv6gV3sMNXwUSPrq88pC2iJijEV7wERnKXtdTA0eE4HvdnntGo9AHAWn-IcMPKV-rZw1v75vlTEoLF4OdNqsRb7C6r7Mvzrm7fe4.png" class="w-100" id="successImage" alt="success-message">
-                        <a href="#" type="button" class="btn bg-success-color py-2 back-to-wizard position-absolute top-100 start-50 translate-middle text-white">Back to Wizad Form</a>
-                    </div>
-                    <!-- /success message -->
-                </div>
-                <!-- /col -->
-                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-6">
-                    <div class="card py-3 px-4">
-                        <h3 class="text-center">Subir Documentos</h3>
-                        <label class="w-100" for="desc_plan">Documento de identificación.</label>
-                        {{{formimagpicker}}}
+                <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
+                    <div class="card p-3">
+                        <h3 class="text-center">{{#str}} upload_documents, local_grupomakro_core {{/str}}</h3>
                         
-                        <div class="d-flex justify-content-end">
-                            <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
-                            <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
-                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                        <div class="row pb-5 mt-2">
+                            {{! Identification document field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="identification_document">{{#str}} identification_document, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="identification_document">
+                                </div>
+                            </div>
+                            {{! End Identification document field }}
+                            
+                            {{! Profile Picture Field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="photo_profile_picture">{{#str}} photo_profile_picture, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="photo_profile_picture">
+                                </div>
+                            </div>
+                            {{! End Profile Picture Field }}
+                            
+                            {{! High school diploma field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="bachelordiploma">{{#str}} bachelor's_diploma, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="bachelordiploma">
+                                </div>
+                            </div>
+                            {{! End High school diploma field }}
+                            
+                            {{! Personal Reference Letter Field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="personal_reference_letter">{{#str}} personal_reference_letter, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="personal_reference_letter">
+                                </div>
+                            </div>
+                            {{! End Personal Reference Letter Field }}
+                            
+                            {{! Medical certificate field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="medical_certificate">{{#str}} medical_certificate, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="medical_certificate">
+                                </div>
+                            </div>
+                            {{! End Medical certificate field }}
+                            
+                            {{! Diving Certificate Field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="diving_certificate">{{#str}} diving_certificate, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="diving_certificate">
+                                </div>
+                            </div>
+                            {{! End Diving Certificate Field }}
+                            
+                            {{! Job Letter Field }}
+                            <div class="col-sm-12 col-xl-6 py-2">
+                                <div class="form-group">
+                                    <label for="work_letter">{{#str}} work_letter, local_grupomakro_core {{/str}}</label>
+                                    <input type="file" class="form-control-file form-control p-0" id="work_letter">
+                                </div>
+                            </div>
                         </div>
+                        {{! End Job Letter Field }}
+                        <hr></hr>
+                        {{! Step actions }}
+                        <div class="d-flex">
+                            <div class="spacer"></div>
+                            <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
+                            <button type="button" class="btn btn-primary m-1" data-toggle="modal" data-target="#createcontractModalLong">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                        </div>
+                        {{! End Step actions }}
                     </div>
                 </div>
-                
             </div>
+            {{! End Step upload the documents }}
         </div>
-        <!-- /main content -->
+        {{! End Main content }}
     </div>
-    <!-- /container -->
 </section>
+
+{{> local_grupomakro_core/modals/contractcreation_modal }}
 
 {{#js}}
     
@@ -332,7 +376,7 @@ $(document).ready(function () {
     $(".form-business").hide();
     $("#successMessage").hide();
    
-    // next button
+    // next button.
     $(".next").on({
         click: function () {
             var getValue = $(this).parents(".row").find(".card").hasClass("active-card");
@@ -361,14 +405,15 @@ $(document).ready(function () {
             $(this).parents(".row").children("#successMessage").fadeIn(3000);
         }
     });
-    //Active card on click function
+    // Active card on click function.
     $(".card").on({
         click: function () {
             $(this).toggleClass("active-card");
             $(this).parent(".col").siblings().children(".card").removeClass("active-card");
         }
     });
-    //back to wizard
+    
+    // back to wizard.
     $(".back-to-wizard").on({
         click: function () {
             location.reload(true);
@@ -376,7 +421,6 @@ $(document).ready(function () {
     });
     
     document.getElementById("notcod").checked = true;
-    
     $('input[type=radio][name=co-signer]').change(function() {
         if(this.value == 1){
             $('div#cod-info').addClass('d-block');
@@ -384,6 +428,5 @@ $(document).ready(function () {
             $('div#cod-info').removeClass('d-block');
         }
     });
-    
 });
 {{/js}}

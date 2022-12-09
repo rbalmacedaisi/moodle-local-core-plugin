@@ -89,6 +89,8 @@ $string['modify'] = 'Modify';
 $string['remove'] = 'Remove';
 $string['download'] = 'Download';
 $string['adviser'] = 'Adviser';
+$string['msgconfirm'] = 'Are you sure to remove the final form of this contract and all related information?';
+$string['titleconfirm'] = 'Contractonfirm deletion';
 
 // Contract Creation Page.
 $string['title_add_users'] = 'Manage Users';
@@ -114,6 +116,17 @@ $string['name_co_signer'] = 'Name of the co-signer';
 $string['identification_number'] = 'Identification number';
 $string['phone'] = 'Phone';
 $string['workplace'] = 'Workplace';
+$string['msgcreatecontract'] = 'A new contract has been created, the associated user will be notified and will be able to see the new contract in their dashboard.';
+$string['upload_documents'] = 'Upload Documents';
+$string['identification_document'] = 'Identification document';
+$string['photo_profile_picture'] = 'Photo (profile picture)';
+$string["bachelor's_diploma"] = "Bachelor's or expert's diploma";
+$string["personal_reference_letter"] = 'Personal Reference Letter';
+$string["medical_certificate"] = 'Medical certificate';
+$string["diving_certificate"] = 'Diving Certificate';
+$string["work_letter"] = 'Work Letter';
+$string["select_date"] = 'Select a date';
+$string["scheduled_installments"] = 'Scheduled Installments';
 
 // General settings page.
 $string['general_settingspage'] = 'General Settings';
@@ -125,3 +138,16 @@ $string['inactiveafter_x_hours_desc'] = '
 
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Delete inactive users';
+
+// Edit contract page.
+$string['editcontract'] = 'Edit Contract';
+$string['defer'] = 'Defer';
+$string['re_asign'] = 'Re asign';
+$string['user'] = 'User';
+$string['msndeferring'] = 'By deferring the contract, all related payments will be frozen and the contract inactive.';
+$string['accept'] = 'Accept';
+$string['list_advisers'] = 'List of advisers';
+$string['select_advisor'] = 'Select an advisor';
+$string['reassign_contract'] = 'Reassign contract';
+$string['cancel_contract'] = 'Cancel Contract';
+$string['msncancel'] = "Are you sure you want to cancel the contract? <br>This action cannot be undone, both the financial information related to the contract and the student's status will change to inactive.";

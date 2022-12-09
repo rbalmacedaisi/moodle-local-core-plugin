@@ -153,3 +153,27 @@ z-index: -1;
 .spacer{
     flex-grow: 1!important;
 }
+.remove-contract {
+    cursor: pointer;
+}
+.success-content i{
+    font-size: 50px !important;
+    color: #07ab01 !important;
+}
+
+::-webkit-file-upload-button,
+input::file-selector-button {
+    font: caption;
+    -webkit-appearance: button;
+    border: none !important;
+    border-radius: 6px !important;
+    background: var(--primary) !important;
+    height: 100%;
+    border-bottom-right-radius: 0px !important;
+    border-top-right-radius: 0px !important;
+    cursor: pointer;
+    padding: 0px 8px !important;
+    border-right-style: solid !important;
+    border-right-color: #8f959e !important;
+    border-right-width: 1px !important;
+}

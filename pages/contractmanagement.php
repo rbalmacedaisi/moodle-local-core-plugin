@@ -28,9 +28,6 @@ $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-// Requiere the grupomakro_core:seeallorders capability.
-require_capability('local/grupomakro_core:seeallorders', context_system::instance());
-
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/contractmanagement.php');
 
 $context = context_system::instance();
@@ -110,7 +107,7 @@ foreach ($contrac_data as $contract) {
     
     // Contract Table Actions.
     $options_buttons = html_writer::link(
-        new moodle_url('', ['id' => 'open']),
+        new moodle_url(''),
         $visualizeicon,
         array(
             'class' => 'mx-1',
@@ -122,7 +119,7 @@ foreach ($contrac_data as $contract) {
         )
     );
     $options_buttons .= html_writer::link(
-        new moodle_url('', ['id' => 'modify']),
+        new moodle_url('/local/grupomakro_core/pages/editcontract.php'),
         $modifyicon,
         array(
             'class' => 'mx-1',
@@ -145,16 +142,16 @@ foreach ($contrac_data as $contract) {
             )
         )
     );
-    $options_buttons .= html_writer::link(
-        new moodle_url('', ['id' => 'remove']),
+    $options_buttons .= html_writer::tag('a',
         $removeicon,
         array(
-            'class' => 'mx-1',
+            'class' => 'mx-1 remove-contract',
             'data-toggle' => 'tooltip',
             'data-placement' => 'bottom',
             'title' => get_string(
                 'remove', $plugin_name
-            )
+            ),
+            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
         )
     );
     
@@ -170,9 +167,34 @@ foreach ($contrac_data as $contract) {
         $options_buttons
     );
     
+    // Creation of the confirmation modal.
+    $msgconfirm = get_string('msgconfirm', $plugin_name);
+    $modal = html_writer::start_tag('div', array('class' => 'modal fade', 'id' => 'confirmModalCenter', 'tabindex' => '-1', 'role' => 'dialog', 'aria-labelledby' => 'confirmModalCenterTitle', 'aria-hidden' => true));
+        $modal .= html_writer::start_tag('div', array('class' => 'modal-dialog modal-dialog-centered', 'role' => 'document'));
+            $modal .= html_writer::start_tag('div', array('class' => 'modal-content'));
+                $modal .= html_writer::start_tag('div', array('class' => 'modal-header justify-content-center'));
+                    $modal .= html_writer::tag('h5', get_string('titleconfirm', $plugin_name), array('class' => 'modal-title position-absolute', 'id' => 'confirmModalLongTitle'));
+                    $modal .= html_writer::start_tag('button', array('class' => 'close', 'type' => 'button', 'data-dismiss' => 'modal', 'aria-label' => 'Close'));
+                        $modal .= html_writer::tag('span', '&times;', array('aria-hidden' => true, 'id' => 'confirmModalLongTitle'));
+                    $modal .= html_writer::end_tag('button');
+                $modal .= html_writer::end_tag('div');
+                
+                $modal .= html_writer::start_tag('div', array('class' => 'modal-body text-center'));
+                    $modal .= $msgconfirm;
+                $modal .= html_writer::end_tag('div');
+                
+                $modal .= html_writer::start_tag('div', array('class' => 'modal-footer'));
+                    $modal .= html_writer::tag('button', get_string('cancel', $plugin_name), array('class' => 'btn btn-secondary', 'data-dismiss' => 'modal', 'type' => 'button'));
+                    $modal .= html_writer::tag('button', get_string('remove', $plugin_name), array('class' => 'btn btn-primary', 'type' => 'button'));
+                $modal .= html_writer::end_tag('div');
+            $modal .= html_writer::end_tag('div');
+        $modal .= html_writer::end_tag('div');
+    $modal .= html_writer::end_tag('div');
+    
     $templatedata = [
         'table' =>  html_writer::table($table),
         'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
+        'confirmationmodal' => $modal,
     ];
 }
 
