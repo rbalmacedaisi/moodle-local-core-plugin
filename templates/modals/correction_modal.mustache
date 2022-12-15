@@ -1,0 +1,163 @@
+<div class="modal fade" id="correctioncontractModalLong" tabindex="-1" role="dialog" aria-labelledby="correctioncontractModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header justify-content-center">
+                <h5 class="modal-title position-absolute">{{#str}}fixes, local_grupomakro_core {{/str}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body px-6 py-4">
+                <span class="text-muted">Elija las secciones que deben corregirse.</span>
+                
+                <div class="row pb-3 mt-2">
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <h6>{{#str}}general_terms, local_grupomakro_core {{/str}}</h6>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="username">
+                            <label class="form-check-label" for="username">
+                                {{#str}} user, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="careers">
+                            <label class="form-check-label" for="careers">
+                                {{#str}} careers, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="paymenttype">
+                            <label class="form-check-label" for="paymenttype">
+                                {{#str}} payment_type, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                    </div>
+                    
+                    {{#is_credit}}
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <h5>{{#str}} credit_terms, local_grupomakro_core {{/str}}</h5>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="periodicityPayments">
+                            <label class="form-check-label" for="periodicityPayments">
+                                {{#str}} periodicityPayments, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="numberquotas">
+                            <label class="form-check-label" for="numberquotas">
+                                {{#str}} number_quotas, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="paymentdate">
+                            <label class="form-check-label" for="paymentdate">
+                                {{#str}} payment_date, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="paymentdate">
+                            <label class="form-check-label" for="paymentdate">
+                                {{#str}} need_co-signer, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                    </div>
+                    {{/is_credit}}
+                    
+                    {{#need_co_signer}}
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <h5>{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="namecosigner">
+                            <label class="form-check-label" for="namecosigner">
+                                {{#str}} name_co_signer, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="identificationnumber">
+                            <label class="form-check-label" for="identificationnumber">
+                                {{#str}} identification_number, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="phone">
+                            <label class="form-check-label" for="phone">
+                                {{#str}} phone, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="workplace">
+                            <label class="form-check-label" for="workplace">
+                                {{#str}} workplace, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                    </div>
+                    {{/need_co_signer}}
+                    
+                    <div class="col-sm-12 col-md-6 py-2">
+                        <h5>{{#str}} documents, local_grupomakro_core {{/str}}</h5>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="identificationdocument">
+                            <label class="form-check-label" for="identificationdocument">
+                                {{#str}} identification_document, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="photoprofilepicture">
+                            <label class="form-check-label" for="photoprofilepicture">
+                                {{#str}} photo_profile_picture, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="bachelorsdiploma">
+                            <label class="form-check-label" for="bachelorsdiploma">
+                                {{#str}} bachelor's_diploma, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="personalreferenceletter">
+                            <label class="form-check-label" for="personalreferenceletter">
+                                {{#str}} personal_reference_letter, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="medicalcertificate">
+                            <label class="form-check-label" for="medicalcertificate">
+                                {{#str}} medical_certificate, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="divingcertificate">
+                            <label class="form-check-label" for="divingcertificate">
+                                {{#str}} diving_certificate, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="" id="workletter">
+                            <label class="form-check-label" for="workletter">
+                                {{#str}} work_letter, local_grupomakro_core {{/str}}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group mt-3">
+                    <label for="exampleFormControlTextarea1">Agregue una descripción sobre las correcciones seleccionadas.</label>
+                    <textarea class="form-control" id="exampleFormControlTextarea1" rows="3"></textarea>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}}cancel, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary">{{#str}}save, local_grupomakro_core {{/str}}</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -92,6 +92,7 @@ $string['download'] = 'Descargar';
 $string['adviser'] = 'Asesor';
 $string['msgconfirm'] = '¿Está seguro de eliminar de forma definitiva este contrato y toda la información relacionada?';
 $string['titleconfirm'] = 'Confirmar eliminación';
+$string['search'] = 'Buscar';
 
 // Página Creación de contrato.
 $string['title_add_users'] = 'Gestionar usuarios';
@@ -128,6 +129,10 @@ $string["diving_certificate"] = 'Certificado de buceo';
 $string["work_letter"] = 'Carta de trabajo';
 $string["select_date"] = 'Selecciona una fecha';
 $string["scheduled_installments"] = 'Cuotas programadas';
+$string['step_one'] = 'Paso 1';
+$string['step_two'] = 'Paso 2';
+$string['step_three'] = 'Paso 3';
+$string['step_four'] = 'Paso 4';
 
 // General settings page.
 $string['general_settingspage'] = 'Configuración general';
@@ -152,3 +157,7 @@ $string['select_advisor'] = 'Selecciona un asesor';
 $string['reassign_contract'] = 'Reasignar Contrato';
 $string['cancel_contract'] = 'Cancelar Contrato';
 $string['msncancel'] = '¿Está seguro que desea cancelar el contrato? <br>Esta acción no puede deshacerse, tanto la información financiera relacionada al contrato como el estado del estudiante cambiarán a inactivos.';
+$string['documents'] = 'Documentos';
+$string['approve'] = 'Aprobar';
+$string['correct'] = 'Corregir';
+$string['fixes'] = 'Correcciones';

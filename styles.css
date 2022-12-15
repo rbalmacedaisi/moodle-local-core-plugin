@@ -60,6 +60,18 @@
     color: var(--success) !important;
     caret-color: var(--success) !important;
 }
+.v-chip.state_cre {
+    color: var(--info) !important;
+    caret-color: var(--info) !important;
+}
+.v-chip.state_aprov {
+    color: var(--teal) !important;
+    caret-color: var(--teal) !important;
+}
+.v-chip.state_f {
+    color: var(--cyan) !important;
+    caret-color: var(--cyan) !important;
+}
 .v-chip.state_v:after{
     background: var(--primary) !important;
 }
@@ -68,6 +80,15 @@
 }
 .v-chip.state_a:after{
     background: var(--success) !important;
+}
+.v-chip.state_cre:after{
+    background: var(--info) !important;
+}
+.v-chip.state_aprov:after{
+    background: var(--teal) !important;
+}
+.v-chip.state_f:after{
+    background: var(--cyan) !important;
 }
 .table thead th{
     border-bottom: 1px !important;
@@ -176,4 +197,37 @@ input::file-selector-button {
     border-right-style: solid !important;
     border-right-color: #8f959e !important;
     border-right-width: 1px !important;
+}
+.btn-textlight{
+    color: #ffffff !important;
+}
+.img-document{
+    background: #d8d8d8;
+    position: relative;
+    overflow: hidden;
+    border-top-left-radius: 5px !important;
+    border-top-right-radius: 5px !important;
+    height: 100px;
+}
+#imdocument img{
+    border-radius: 2px;
+    margin: 7% 7% 0;
+    padding: inherit;
+    width: 86% !important;
+    height: 98px;
+}
+[data-preset="dark"] .img-document {
+    background: #3d3d45;
+}
+[data-preset="dark"] .info-document {
+    border: none;
+}
+.info-document{
+    border: 1px solid #cfcfcf;
+    height: 60px;
+    border-bottom-left-radius: 5px !important;
+    border-bottom-right-radius: 5px !important;
+}
+.card-document{
+    box-shadow: 0px 3px 1px -2px rgb(0 0 0 / 20%), 0px 2px 2px 0px rgb(0 0 0 / 14%), 0px 1px 5px 0px rgb(0 0 0 / 12%) !important;
 }

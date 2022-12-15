@@ -44,9 +44,7 @@
                 <h5 class="text-secondary mb-0">Contrato - 2022A23658</h5>
                 <div class="spacer"></div>
                 <div class="btn-group" role="group" aria-label="Basic example">
-                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#reasigncontractModalLong">{{#str}} re_asign, local_grupomakro_core {{/str}}</button>
-                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#deferringcontractModalLong">{{#str}} defer, local_grupomakro_core {{/str}}</button>
-                    <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#cancelcontractModalLong">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
+                    {{{actionbuttons}}}
                 </div>
             </div>
         </div>
@@ -60,14 +58,14 @@
                 <div class="row pb-3 mt-2">
                     <div class="col-sm-12 col-md-6 py-2">
                         <label class="w-100" for="listuser">{{#str}} user, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" value="john@user.com" disabled>
+                        <input type="text" class="form-control" value="{{username}}" disabled>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
-                        <select name="carrer" id="carrer" class="form-control">
-                            <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
+                        <select name="carrer" id="carrer" class="form-control" {{#is_contractactive}}disabled {{/is_contractactive}}>
                             <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
+                            <option value='{{learningname}}' selected>{{learningname}}</option>
                             <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
                             <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
                         </select>
@@ -75,9 +73,9 @@
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label class="w-100" for="typepayment">{{#str}} payment_type, local_grupomakro_core {{/str}}</label>
-                        <select name="typepayment" id="typepayment" class="form-control">
-                            <option value="Crédito">Crédito</option>
+                        <select name="typepayment" id="typepayment" class="form-control" {{#is_contractactive}}disabled {{/is_contractactive}}>
                             <option value=''>{{#str}} select_payment_type, local_grupomakro_core {{/str}}</option>
+                            <option value="{{typepayment}}" selected>{{typepayment}}</option>
                             <option value="Contado">Contado</option>
                             <option value="IFARHU">IFARHU</option>
                         </select>
@@ -87,27 +85,28 @@
                 <hr></hr>
                 
                 {{! Credit terms }}
+                {{#is_credit}}
                 <div class="row pb-3 mt-2">
                     <div class="col-sm-12">
                         <h5>{{#str}} credit_terms, local_grupomakro_core {{/str}}</h5>
                     </div>
                     <div class="col-sm-12 col-md-6 py-2">
                         <label class="w-100" for="periodicityPayments">{{#str}} periodicityPayments, local_grupomakro_core {{/str}}</label>
-                        <select name="periodicityPayments" id="periodicityPayments" class="form-control">
-                            <option value="mensual">Mensual</option>
+                        <select name="periodicityPayments" id="periodicityPayments" class="form-control" {{#is_contractactive}}disabled {{/is_contractactive}}>
                             <option value=''>{{#str}} select_periodicity, local_grupomakro_core {{/str}}</option>
+                            <option value="{{periodicity_payments}}" selected>{{periodicity_payments}}</option>
                             <option value="semanal">Semanal</option>
                             <option value="quincenal">Quincenal</option>
                         </select>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
-                        <label class="w-100" for="numberInstallments">Número Cuotas</label>
-                        <select name="numberInstallments" id="numberInstallments" class="form-control">
-                            <option value="3">3 Cuotas</option>
+                        <label class="w-100" for="numberInstallments">{{#str}} number_quotas, local_grupomakro_core {{/str}}</label>
+                        <select name="numberInstallments" id="numberInstallments" class="form-control" {{#is_contractactive}}disabled {{/is_contractactive}}>
                             <option value=''>{{#str}} number_quotas, local_grupomakro_core {{/str}}</option>
                             <option value="1">1 Cuotas</option>
                             <option value="2">2 Cuotas</option>
+                            <option value="{{number_installments}}" selected>{{number_installments}}</option>
                             <option value="4">4 Cuotas</option>
                             <option value="5">5 Cuotas</option>
                             <option value="6">6 Cuotas</option>
@@ -122,52 +121,73 @@
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label for="date">{{#str}} payment_date, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" id="date" placeholder="Selecciona una fecha" value="11-12-2022">
+                        <input type="text" class="form-control" id="date" placeholder="Selecciona una fecha" value="{{payment_date}}" {{#is_contractactive}}disabled {{/is_contractactive}}>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label class="w-100 mb-3" for="cod">{{#str}} need_co-signer, local_grupomakro_core {{/str}}</label>
-                        <input type="radio" id="notcod" name="co-signer" value="0">
+                        <input type="radio" id="notcod" name="co-signer" {{^need_co_signer}} checked {{/need_co_signer}} {{#is_contractactive}}disabled {{/is_contractactive}}>
                         <label for="notperiod">No</label>
-                        <input type="radio" id="addcod" name="co-signer" value="1">
+                        <input type="radio" id="addcod" name="co-signer" {{#need_co_signer}} checked {{/need_co_signer}} {{#is_contractactive}}disabled {{/is_contractactive}}>
                         <label for="addperiod">Sí</label>
                     </div>
                 </div>
                 {{! End Credit terms }}
-                
                 <hr></hr>
+                {{/is_credit}}
+                
                 {{! Información del Codeudor }}
+                {{#need_co_signer}}
                 <div class="row pb-3 mt-2">
                     <div class="col-sm-12">
                         <h5>{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
                     </div>
                     <div class="col-sm-12 col-md-6 py-2">
                         <label for="name">{{#str}} name_co_signer, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" id="name" value="Carlos">
+                        <input type="text" class="form-control" id="name" value="{{namecosigner}}" {{#is_contractactive}}disabled {{/is_contractactive}}>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label for="number">{{#str}} identification_number, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" id="number" value="1128445678">
+                        <input type="text" class="form-control" id="number" value="{{identification_number}}" {{#is_contractactive}}disabled {{/is_contractactive}}>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label for="phone">{{#str}} phone, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" id="phone" value="3004567894">
+                        <input type="text" class="form-control" id="phone" value="{{phone}}" {{#is_contractactive}}disabled {{/is_contractactive}}>
                     </div>
                     
                     <div class="col-sm-12 col-md-6 py-2">
                         <label for="workplace">{{#str}} workplace, local_grupomakro_core {{/str}}</label>
-                        <input type="text" class="form-control" id="workplace" value="Solutto">
+                        <input type="text" class="form-control" id="workplace" value="{{workplace}}" {{#is_contractactive}}disabled {{/is_contractactive}}>
                     </div>
                 </div>
+                <hr></hr>
+                {{/need_co_signer}}
                 {{! End Información del Codeudor }}
                 
-                <hr></hr>
                 {{! Documents section }}
                 <div class="row pb-3 mt-2">
                     <div class="col-sm-12">
-                        <h5>Documentos</h5>
+                        <h5>{{#str}}documents, local_grupomakro_core {{/str}}</h5>
+                    </div>
+                    <div class="col-sm-12 d-flex flex-wrap">
+                        {{#test}}
+                        <a class="m-3" style="text-decoration: none;">
+                            <div class="mx-auto card card-document border-0 rounded-sm" style="height: 160px; max-width: 180px; width: 180px;">
+                                <div class="img-document">
+                                    <div class="d-flex justify-content-center" id="imdocument">
+                                        {{#pix}} t/img-document, local_grupomakro_core {{/pix}}
+                                    </div>
+                                </div> 
+                                <div class="info-document p-2 position-relative">
+                                    <div class="d-flex align-center">
+                                        <span class="text-secondary font-weight-normal">{{documentname}}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                        {{/test}}
                     </div>
                 </div>
                 {{! Documents section }}
@@ -175,8 +195,16 @@
             
             <div class="d-flex mt-3">
                 <div class="spacer"></div>
-                <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
-                <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</a>
+                <!--<button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>-->
+                {{#is_contractverify}}
+                <button type="button" class="btn btn-danger btn-textlight m-1" data-toggle="modal" data-target='#correctioncontractModalLong'>{{#str}} correct, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary m-1">{{#str}} approve, local_grupomakro_core {{/str}}</button>
+                {{/is_contractverify}}
+                
+                {{#is_digitalsignature}}
+                <button type="button" class="btn btn-primary m-1">{{#str}} approve, local_grupomakro_core {{/str}}</button>
+                {{/is_digitalsignature}}
             </div>
         </div>
         {{! End Contract data to modify }}
@@ -185,10 +213,4 @@
 {{> local_grupomakro_core/modals/deferring_modal }}
 {{> local_grupomakro_core/modals/reasign_modal }}
 {{> local_grupomakro_core/modals/cancelcontract_modal }}
-
-{{#js}}
-    
-$(document).ready(function () {
-    document.getElementById("addcod").checked = true;
-});
-{{/js}}
+{{> local_grupomakro_core/modals/correction_modal }}

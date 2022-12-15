@@ -56,7 +56,21 @@ $contrac_data[2]->carrername = 'Ingeniería';
 $contrac_data[2]->user = 'laurent@user.com';
 $contrac_data[2]->adviser = 'Ximena Rincón';
 $contrac_data[2]->state = 'Activo';
-
+$contrac_data[3]->contract_id = '2022A23643';
+$contrac_data[3]->carrername = 'Asistente de Ing civil';
+$contrac_data[3]->user = 'studentdemo@user.com';
+$contrac_data[3]->adviser = 'Ximena Rincón';
+$contrac_data[3]->state = 'Creación';
+$contrac_data[4]->contract_id = '2022A236498';
+$contrac_data[4]->carrername = 'Soldadura Subacuática';
+$contrac_data[4]->user = 'Marc@user.com';
+$contrac_data[4]->adviser = 'Ximena Rincón';
+$contrac_data[4]->state = 'Aprobado';
+$contrac_data[5]->contract_id = '2022A236438';
+$contrac_data[5]->carrername = 'Tripulante de vuelo';
+$contrac_data[5]->user = 'Jack@user.com';
+$contrac_data[5]->adviser = 'Ximena Rincón';
+$contrac_data[5]->state = 'Firma digital';
 
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();
@@ -87,6 +101,12 @@ foreach ($contrac_data as $contract) {
         $vchipclass = 'state_v';
     }else if($contract->state == 'Corrección'){
         $vchipclass = 'state_c';
+    }else if($contract->state == 'Creación'){
+        $vchipclass = 'state_cre';
+    }else if($contract->state == 'Aprobado'){
+        $vchipclass = 'state_aprov';
+    }else if($contract->state == 'Firma digital'){
+        $vchipclass = 'state_f';
     }else{
         $vchipclass = 'state_a';
     }
@@ -119,7 +139,7 @@ foreach ($contrac_data as $contract) {
         )
     );
     $options_buttons .= html_writer::link(
-        new moodle_url('/local/grupomakro_core/pages/editcontract.php'),
+        new moodle_url('/local/grupomakro_core/pages/editcontract.php?contract_state='.$contract->state),
         $modifyicon,
         array(
             'class' => 'mx-1',
@@ -130,30 +150,35 @@ foreach ($contrac_data as $contract) {
             )
         )
     );
-    $options_buttons .= html_writer::link(
-        new moodle_url('', ['id' => 'download']),
-        $downloadicon,
-        array(
-            'class' => 'mx-1',
-            'data-toggle' => 'tooltip',
-            'data-placement' => 'bottom',
-            'title' => get_string(
-                'download', $plugin_name
+    if($contract->state != 'Creación' && $contract->state != 'Verificación' && $contract->state != 'Corrección'){
+        $options_buttons .= html_writer::link(
+            new moodle_url('', ['id' => 'download']),
+            $downloadicon,
+            array(
+                'class' => 'mx-1',
+                'data-toggle' => 'tooltip',
+                'data-placement' => 'bottom',
+                'title' => get_string(
+                    'download', $plugin_name
+                )
             )
-        )
-    );
-    $options_buttons .= html_writer::tag('a',
-        $removeicon,
-        array(
-            'class' => 'mx-1 remove-contract',
-            'data-toggle' => 'tooltip',
-            'data-placement' => 'bottom',
-            'title' => get_string(
-                'remove', $plugin_name
-            ),
-            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
-        )
-    );
+        );
+    }
+    if($contract->state === 'Creación' || $contract->state === 'Verificación'){
+        $options_buttons .= html_writer::tag('a',
+            $removeicon,
+            array(
+                'class' => 'mx-1 remove-contract',
+                'data-toggle' => 'tooltip',
+                'data-placement' => 'bottom',
+                'title' => get_string(
+                    'remove', $plugin_name
+                ),
+                'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
+            )
+        );
+        
+    }
     
     
     // Fill the table with the contract data.

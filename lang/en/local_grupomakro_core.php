@@ -91,6 +91,7 @@ $string['download'] = 'Download';
 $string['adviser'] = 'Adviser';
 $string['msgconfirm'] = 'Are you sure to remove the final form of this contract and all related information?';
 $string['titleconfirm'] = 'Contractonfirm deletion';
+$string['search'] = 'Search';
 
 // Contract Creation Page.
 $string['title_add_users'] = 'Manage Users';
@@ -127,6 +128,10 @@ $string["diving_certificate"] = 'Diving Certificate';
 $string["work_letter"] = 'Work Letter';
 $string["select_date"] = 'Select a date';
 $string["scheduled_installments"] = 'Scheduled Installments';
+$string['step_one'] = 'Step 1';
+$string['step_two'] = 'Step 2';
+$string['step_three'] = 'Step 3';
+$string['step_four'] = 'Step 4';
 
 // General settings page.
 $string['general_settingspage'] = 'General Settings';
@@ -151,3 +156,7 @@ $string['select_advisor'] = 'Select an advisor';
 $string['reassign_contract'] = 'Reassign contract';
 $string['cancel_contract'] = 'Cancel Contract';
 $string['msncancel'] = "Are you sure you want to cancel the contract? <br>This action cannot be undone, both the financial information related to the contract and the student's status will change to inactive.";
+$string['documents'] = 'Documents';
+$string['approve'] = 'Approve';
+$string['correct'] = 'Correct';
+$string['fixes'] = 'Fixes';
