@@ -93,6 +93,9 @@ $string['adviser'] = 'Asesor';
 $string['msgconfirm'] = '¿Está seguro de eliminar de forma definitiva este contrato y toda la información relacionada?';
 $string['titleconfirm'] = 'Confirmar eliminación';
 $string['search'] = 'Buscar';
+$string['payment_link_message'] = 'Se ha generado un link de pago para la orden, el usuario asociado al contrato será notificado.';
+$string['approve_message'] = 'El contrato ha sido aprobado, se le notificará al usuario que tiene un contrato listo para firmar.';
+$string['fixes_message'] = 'El usuario asociado al contrato será notificado sobre las correcciones a realizar.';
 
 // Página Creación de contrato.
 $string['title_add_users'] = 'Gestionar usuarios';
@@ -129,10 +132,7 @@ $string["diving_certificate"] = 'Certificado de buceo';
 $string["work_letter"] = 'Carta de trabajo';
 $string["select_date"] = 'Selecciona una fecha';
 $string["scheduled_installments"] = 'Cuotas programadas';
-$string['step_one'] = 'Paso 1';
-$string['step_two'] = 'Paso 2';
-$string['step_three'] = 'Paso 3';
-$string['step_four'] = 'Paso 4';
+$string['step'] = 'Paso';
 
 // General settings page.
 $string['general_settingspage'] = 'Configuración general';

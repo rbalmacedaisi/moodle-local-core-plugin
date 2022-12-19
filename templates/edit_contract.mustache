@@ -172,7 +172,7 @@
                         <h5>{{#str}}documents, local_grupomakro_core {{/str}}</h5>
                     </div>
                     <div class="col-sm-12 d-flex flex-wrap">
-                        {{#test}}
+                        {{#data}}
                         <a class="m-3" style="text-decoration: none;">
                             <div class="mx-auto card card-document border-0 rounded-sm" style="height: 160px; max-width: 180px; width: 180px;">
                                 <div class="img-document">
@@ -182,12 +182,12 @@
                                 </div> 
                                 <div class="info-document p-2 position-relative">
                                     <div class="d-flex align-center">
-                                        <span class="text-secondary font-weight-normal">{{documentname}}</span>
+                                        <span class="text-secondary documentname">{{documentname}}</span>
                                     </div>
                                 </div>
                             </div>
                         </a>
-                        {{/test}}
+                        {{/data}}
                     </div>
                 </div>
                 {{! Documents section }}
@@ -199,7 +199,7 @@
                 <!--<button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>-->
                 {{#is_contractverify}}
                 <button type="button" class="btn btn-danger btn-textlight m-1" data-toggle="modal" data-target='#correctioncontractModalLong'>{{#str}} correct, local_grupomakro_core {{/str}}</button>
-                <button type="button" class="btn btn-primary m-1">{{#str}} approve, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary m-1" data-toggle="modal" data-target='#approvedcontractModalLong'>{{#str}} approve, local_grupomakro_core {{/str}}</button>
                 {{/is_contractverify}}
                 
                 {{#is_digitalsignature}}
@@ -210,7 +210,12 @@
         {{! End Contract data to modify }}
     </div>
 </div>
+
+{{! Modals}}
 {{> local_grupomakro_core/modals/deferring_modal }}
 {{> local_grupomakro_core/modals/reasign_modal }}
 {{> local_grupomakro_core/modals/cancelcontract_modal }}
 {{> local_grupomakro_core/modals/correction_modal }}
+{{> local_grupomakro_core/modals/approved_modal }}
+
+{{! End Modals}}

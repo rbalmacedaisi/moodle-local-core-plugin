@@ -46,10 +46,12 @@
                     {{! Wizard }}
                     <div class="wizard-form py-2 my-2">
                         <ul id="progressBar" class="progressbar px-lg-5 px-0">
-                            <li id="progressList-1" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list active">{{#str}} step_one, local_grupomakro_core {{/str}}</li>
-                            <li id="progressList-2" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">{{#str}} step_two, local_grupomakro_core {{/str}}</li>
-                            <li id="progressList-3" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">{{#str}} step_three, local_grupomakro_core {{/str}}</li>
-                            <li id="progressList-4" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">{{#str}} step_four, local_grupomakro_core {{/str}}</li>
+                            <li id="progressList-1" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list active">{{#str}} step, local_grupomakro_core {{/str}}1</li>
+                            <li id="progressList-2" class="d-none font-weight-bolder position-relative text-center progressbar-list list-hidden">{{#str}} step, local_grupomakro_core {{/str}}2</li>
+                            <li id="progressList-3" class="d-none font-weight-bolder position-relative text-center progressbar-list list-hidden">{{#str}} step, local_grupomakro_core {{/str}}3</li>
+                            <li id="progressList-4" class="d-inline-block font-weight-bolder position-relative text-center progressbar-list">{{#str}} step, local_grupomakro_core {{/str}}
+                                <span class="sp-show">2</span> <span class="d-none sp-hidden">4</span>
+                            </li>
                         </ul>
                     </div>
                     {{!End Wizard }}
@@ -116,7 +118,7 @@
                             <a href="{{cancelurl}}" class="btn btn-outline-primary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
                             <div class="spacer"></div>
-                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                            <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
                         </div>
                         {{! End Step actions }}
                     </div>
@@ -125,7 +127,7 @@
             {{! End Step general terms of the contract }}
             
             {{! Step credit terms }}
-            <div class="row justify-content-center form-business" style="display: none;">
+            <div class="row justify-content-center" style="display: none;">
                 <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
                     <div class="card p-3 ">
                         <h3 class="text-center">{{#str}} credit_terms, local_grupomakro_core {{/str}}</h3>
@@ -217,7 +219,7 @@
                             <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
                             <div class="spacer"></div>
-                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                            <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
                         </div>
                         {{! End Step actions }}
                     </div>
@@ -226,7 +228,7 @@
             {{! End Step credit terms }}
             
             {{! Step credit installment projections }}
-            <div class="row justify-content-center form-business" style="display: none;">
+            <div class="row justify-content-center" style="display: none;">
                 <!-- col -->
                 <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
                     <div class="card p-3">
@@ -247,19 +249,19 @@
                                       <th scope="row">01</th>
                                       <td>200.00</td>
                                       <td>0.00</td>
-                                      <td>23/11/2022</td>
+                                      <td>15/12/2022</td>
                                     </tr>
                                     <tr>
                                       <th scope="row">02</th>
                                       <td>200.00</td>
                                       <td>0.00</td>
-                                      <td>23/12/2022</td>
+                                      <td>15/01/2023</td>
                                     </tr>
                                     <tr>
                                       <th scope="row">03</th>
                                       <td>200.00</td>
                                       <td>0.00</td>
-                                      <td>23/01/2023</td>
+                                      <td>15/02/2023</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -272,7 +274,7 @@
                             <button type="button" class="btn back btn-outline-primary m-1">{{#str}} back, local_grupomakro_core {{/str}}</button>
                             <button type="button" class="btn btn-outline-primary next m-1">{{#str}} next, local_grupomakro_core {{/str}}</button>
                             <div class="spacer"></div>
-                            <button type="button" class="btn btn-primary next m-1">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                            <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
                         </div>
                         {{! End Step actions }}
                     </div>
@@ -281,7 +283,7 @@
             {{! End Step credit installment projections }}
             
             {{! Step upload the documents }}
-            <div class="row justify-content-center py-5 form-business" style="display: none;">
+            <div id="lastrow" class="row justify-content-center py-5" style="display: none;">
                 <div class="col-sm-10 col-md-12 col-lg-8 col-xl-8">
                     <div class="card p-3">
                         <h3 class="text-center">{{#str}} upload_documents, local_grupomakro_core {{/str}}</h3>
@@ -372,51 +374,57 @@
 {{#js}}
     
 $(document).ready(function () {
-    // hidden things
-    $(".form-business").hide();
-    $("#successMessage").hide();
-   
+
+    $('#typepayment').change(function(){
+        var valueselect = $(this).val();
+        if(valueselect == 'Crédito'){
+            $('.sp-hidden').addClass("d-inline-block");
+            $('.sp-show').addClass("d-none");
+            $('.list-hidden').addClass("d-inline-block");
+        }else{
+            $('.list-hidden').removeClass("d-inline-block");
+            $('.sp-hidden').removeClass("d-inline-block");
+            $('.sp-show').removeClass("d-none");
+        }
+    });
     // next button.
     $(".next").on({
         click: function () {
-            var getValue = $(this).parents(".row").find(".card").hasClass("active-card");
-            $("#progressBar").find(".active").next().addClass("active");
-            $("#alertBox").addClass("d-none");
-            $(this).parents(".row").fadeOut("slow", function () {
-                $(this).next(".row").fadeIn("slow");
-            });
-            
+            if($('#typepayment').val() == 'Crédito'){
+                $("#progressBar").find(".active").next().addClass("active");
+                $(this).parents(".row").fadeOut("slow", function () {
+                    $(this).next(".row").fadeIn("slow");
+                });
+            }else{
+                $("#progressBar").find("#progressList-4").addClass("active");
+                $(this).parents(".row").fadeOut("slow", function () {
+                    $('#lastrow').fadeIn("slow");
+                });
+            }
         }
     });
     
     $(".back").on({
         click: function () {
-            $("#progressBar .active").last().removeClass("active");
-            $(this).parents(".row").fadeOut("slow", function () {
-                $(this).prev(".row").fadeIn("slow");
-            });
+            if($('#typepayment').val() == 'Crédito'){
+                $("#progressBar .active").last().removeClass("active");
+                $(this).parents(".row").fadeOut("slow", function () {
+                    $(this).prev(".row").fadeIn("slow");
+                });
+            }else{
+                $("#progressBar").find("#progressList-4").removeClass("active");
+                $(this).parents(".row").fadeOut("slow", function () {
+                    $('#cardSection').fadeIn("slow");
+                });
+            }
         }
     });
     
-    $(".submit-button").on({
-        click: function () {
-            $("#wizardRow").fadeOut(300);
-            $(this).parents(".row").children("#successForm").fadeOut(300);
-            $(this).parents(".row").children("#successMessage").fadeIn(3000);
-        }
-    });
     // Active card on click function.
     $(".card").on({
         click: function () {
             $(this).toggleClass("active-card");
             $(this).parent(".col").siblings().children(".card").removeClass("active-card");
-        }
-    });
-    
-    // back to wizard.
-    $(".back-to-wizard").on({
-        click: function () {
-            location.reload(true);
         }
     });
     

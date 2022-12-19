@@ -92,6 +92,9 @@ $string['adviser'] = 'Adviser';
 $string['msgconfirm'] = 'Are you sure to remove the final form of this contract and all related information?';
 $string['titleconfirm'] = 'Contractonfirm deletion';
 $string['search'] = 'Search';
+$string['payment_link_message'] = 'A payment link has been generated for the order, the user associated with the contract will be notified.';
+$string['approve_message'] = 'The contract has been approved, the user will be notified that they have a contract ready to sign.';
+$string['fixes_message'] = 'The user associated with the contract will be notified about the corrections to be made.';
 
 // Contract Creation Page.
 $string['title_add_users'] = 'Manage Users';
@@ -128,10 +131,7 @@ $string["diving_certificate"] = 'Diving Certificate';
 $string["work_letter"] = 'Work Letter';
 $string["select_date"] = 'Select a date';
 $string["scheduled_installments"] = 'Scheduled Installments';
-$string['step_one'] = 'Step 1';
-$string['step_two'] = 'Step 2';
-$string['step_three'] = 'Step 3';
-$string['step_four'] = 'Step 4';
+$string['step'] = 'Step';
 
 // General settings page.
 $string['general_settingspage'] = 'General Settings';

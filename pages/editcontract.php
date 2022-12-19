@@ -57,7 +57,7 @@ if($contract_data->typepayment == 'Crédito'){
         $contract_data->is_credit = true;
         $contract_data->periodicity_payments = 'Mensual';
         $contract_data->number_installments = '3 Cuotas';
-        $contract_data->payment_date = '11-12-2022';
+        $contract_data->payment_date = '15-12-2022';
         $contract_data->need_co_signer = true;
         if($contract_data->need_co_signer == true){
                 $contract_data->namecosigner = 'Carlos';
@@ -67,6 +67,7 @@ if($contract_data->typepayment == 'Crédito'){
         }
 }
 
+// Contract Actions.
 $actionbuttons = html_writer::tag('button', 
         get_string('re_asign', 'local_grupomakro_core'), 
         array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#reasigncontractModalLong')
@@ -113,9 +114,9 @@ $documents_data[3]->document_id = '4';
 $documents_data[3]->documentname = 'Carta de referencia personal';
 $documents_data[3]->src = '/';
 
-$test = array();
+$data = array();
 foreach ($documents_data as $document) {
-        array_push($test,$document);
+        array_push($data,$document);
 }
 
 echo $OUTPUT->header();
@@ -140,7 +141,7 @@ $templatedata = [
         'is_contractaproved' => $contract_data->is_contractaproved,
         'is_digitalsignature' => $contract_data->is_digitalsignature,
         'actionbuttons' => $actionbuttons,
-        'test' => $test
+        'data' => $data
     ];
 
 

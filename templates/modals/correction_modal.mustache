@@ -36,7 +36,7 @@
                     
                     {{#is_credit}}
                     <div class="col-sm-12 col-md-6 py-2">
-                        <h5>{{#str}} credit_terms, local_grupomakro_core {{/str}}</h5>
+                        <h6>{{#str}} credit_terms, local_grupomakro_core {{/str}}</h6>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" value="" id="periodicityPayments">
                             <label class="form-check-label" for="periodicityPayments">
@@ -68,7 +68,7 @@
                     
                     {{#need_co_signer}}
                     <div class="col-sm-12 col-md-6 py-2">
-                        <h5>{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h5>
+                        <h6>{{#str}} cosigner_information, local_grupomakro_core {{/str}}</h6>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" value="" id="namecosigner">
                             <label class="form-check-label" for="namecosigner">
@@ -98,7 +98,7 @@
                     {{/need_co_signer}}
                     
                     <div class="col-sm-12 col-md-6 py-2">
-                        <h5>{{#str}} documents, local_grupomakro_core {{/str}}</h5>
+                        <h6>{{#str}} documents, local_grupomakro_core {{/str}}</h6>
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" value="" id="identificationdocument">
                             <label class="form-check-label" for="identificationdocument">
@@ -156,8 +156,9 @@
             
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}}cancel, local_grupomakro_core {{/str}}</button>
-                <button type="button" class="btn btn-primary">{{#str}}save, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary" data-toggle="modal" data-target='#fixescontractModalLong'>{{#str}}save, local_grupomakro_core {{/str}}</button>
             </div>
         </div>
     </div>
 </div>
+{{> local_grupomakro_core/modals/fixes_modal }}

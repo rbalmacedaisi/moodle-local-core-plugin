@@ -32,7 +32,6 @@ $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/contractmanagement.
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-
 $PAGE->set_title(get_string('contract_management', $plugin_name));
 $PAGE->set_heading(get_string('contract_management', $plugin_name));
 $PAGE->set_pagelayout('base');
@@ -117,7 +116,7 @@ foreach ($contrac_data as $contract) {
     $status .= html_writer::end_tag('span');
     
     // button to generate the payment link.
-    $payment_button = html_writer::tag('button', get_string('generate', $plugin_name), array('class' => 'btn btn-link btn-sm mr-2'));
+    $payment_button = html_writer::tag('button', get_string('generate', $plugin_name), array('class' => 'btn btn-link btn-sm mr-2', 'data-toggle'=>'modal', 'data-target'=> '#paymentcontractModalLong'));
     
     // Table Action Icons.
     $visualizeicon = html_writer::tag('i', '', array('class' => 'fa fa-folder-open-o'));
@@ -210,11 +209,12 @@ foreach ($contrac_data as $contract) {
                 
                 $modal .= html_writer::start_tag('div', array('class' => 'modal-footer'));
                     $modal .= html_writer::tag('button', get_string('cancel', $plugin_name), array('class' => 'btn btn-secondary', 'data-dismiss' => 'modal', 'type' => 'button'));
-                    $modal .= html_writer::tag('button', get_string('remove', $plugin_name), array('class' => 'btn btn-primary', 'type' => 'button'));
+                    $modal .= html_writer::tag('a', get_string('remove', $plugin_name), array('class' => 'btn btn-primary', 'href' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php'));
                 $modal .= html_writer::end_tag('div');
             $modal .= html_writer::end_tag('div');
         $modal .= html_writer::end_tag('div');
     $modal .= html_writer::end_tag('div');
+
     
     $templatedata = [
         'table' =>  html_writer::table($table),
