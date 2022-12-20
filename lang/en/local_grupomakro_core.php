@@ -160,3 +160,19 @@ $string['documents'] = 'Documents';
 $string['approve'] = 'Approve';
 $string['correct'] = 'Correct';
 $string['fixes'] = 'Fixes';
+
+// Institutions Management Page.
+$string['institutionmanagement'] = 'Institution Management';
+$string['edit'] = 'Edit';
+$string['see'] = 'See';
+$string['create_institution'] = 'Create Institution';
+$string['name_institution'] = 'Name of the Institution';
+
+// Institutional Contracts Page.
+$string['institutional_contracts'] = 'Institutional Contracts';
+$string['contractnumber'] = 'Contract number';
+$string['startdate'] = 'Start Date';
+$string['enddate'] = 'End Date';
+$string['budget'] = 'Budget';
+$string['billing_condition'] = 'Billing condition';
+$string['users'] = 'Users';

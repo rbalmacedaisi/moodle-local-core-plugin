@@ -39,37 +39,37 @@ $PAGE->set_pagelayout('base');
 echo $OUTPUT->header();
 
 // Contract data.
-$contrac_data = array();
-$contrac_data[0]->contract_id = '2022A23658';
-$contrac_data[0]->carrername = 'Soldadura';
-$contrac_data[0]->user = 'john@user.com';
-$contrac_data[0]->adviser = 'Ximena Rincón';
-$contrac_data[0]->state = 'Verificación';
-$contrac_data[1]->contract_id = '2022A23657';
-$contrac_data[1]->carrername = 'Maquinaría';
-$contrac_data[1]->user = 'alexa@user.com';
-$contrac_data[1]->adviser = 'Ximena Rincón';
-$contrac_data[1]->state = 'Corrección';
-$contrac_data[2]->contract_id = '2022A23652';
-$contrac_data[2]->carrername = 'Ingeniería';
-$contrac_data[2]->user = 'laurent@user.com';
-$contrac_data[2]->adviser = 'Ximena Rincón';
-$contrac_data[2]->state = 'Activo';
-$contrac_data[3]->contract_id = '2022A23643';
-$contrac_data[3]->carrername = 'Asistente de Ing civil';
-$contrac_data[3]->user = 'studentdemo@user.com';
-$contrac_data[3]->adviser = 'Ximena Rincón';
-$contrac_data[3]->state = 'Creación';
-$contrac_data[4]->contract_id = '2022A236498';
-$contrac_data[4]->carrername = 'Soldadura Subacuática';
-$contrac_data[4]->user = 'Marc@user.com';
-$contrac_data[4]->adviser = 'Ximena Rincón';
-$contrac_data[4]->state = 'Aprobado';
-$contrac_data[5]->contract_id = '2022A236438';
-$contrac_data[5]->carrername = 'Tripulante de vuelo';
-$contrac_data[5]->user = 'Jack@user.com';
-$contrac_data[5]->adviser = 'Ximena Rincón';
-$contrac_data[5]->state = 'Firma digital';
+$contract_data = array();
+$contract_data[0]->contract_id = '2022A23658';
+$contract_data[0]->carrername = 'Soldadura';
+$contract_data[0]->user = 'john@user.com';
+$contract_data[0]->adviser = 'Ximena Rincón';
+$contract_data[0]->state = 'Verificación';
+$contract_data[1]->contract_id = '2022A23657';
+$contract_data[1]->carrername = 'Maquinaría';
+$contract_data[1]->user = 'alexa@user.com';
+$contract_data[1]->adviser = 'Ximena Rincón';
+$contract_data[1]->state = 'Corrección';
+$contract_data[2]->contract_id = '2022A23652';
+$contract_data[2]->carrername = 'Ingeniería';
+$contract_data[2]->user = 'laurent@user.com';
+$contract_data[2]->adviser = 'Ximena Rincón';
+$contract_data[2]->state = 'Activo';
+$contract_data[3]->contract_id = '2022A23643';
+$contract_data[3]->carrername = 'Asistente de Ing civil';
+$contract_data[3]->user = 'studentdemo@user.com';
+$contract_data[3]->adviser = 'Ximena Rincón';
+$contract_data[3]->state = 'Creación';
+$contract_data[4]->contract_id = '2022A236498';
+$contract_data[4]->carrername = 'Soldadura Subacuática';
+$contract_data[4]->user = 'Marc@user.com';
+$contract_data[4]->adviser = 'Ximena Rincón';
+$contract_data[4]->state = 'Aprobado';
+$contract_data[5]->contract_id = '2022A236438';
+$contract_data[5]->carrername = 'Tripulante de vuelo';
+$contract_data[5]->user = 'Jack@user.com';
+$contract_data[5]->adviser = 'Ximena Rincón';
+$contract_data[5]->state = 'Firma digital';
 
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();
@@ -87,7 +87,7 @@ $table->head = array(
     
 );
 
-foreach ($contrac_data as $contract) {
+foreach ($contract_data as $contract) {
     $displaycontract = html_writer::start_tag('div', array('class' => 'd-flex align-items-center'));
         $displaycontract .= html_writer::start_tag('div', array('class' => 'contract-img'));
            $displaycontract .= html_writer::tag('img', '', array('src' => $CFG->wwwroot.'/local/grupomakro_core/pix/t/contract.png', 'height' => 35, 'class' => 'mr-3'));

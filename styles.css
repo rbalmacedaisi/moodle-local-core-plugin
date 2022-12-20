@@ -240,4 +240,32 @@ input::file-selector-button {
     filter: invert(1);
     border-radius: 50%;
     padding: 4px;
-  }
+}
+.btnmenu{
+    position: absolute !important;
+    right: 12px;
+    top: 12px;
+}
+#instmenu{
+    cursor: pointer;
+}
+#created{
+  background-color: transparent;
+  border: 1px dashed;
+  border-radius: 8px;
+  color: var(--primary);
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 16px;
+  -webkit-transition: all .3s ease;
+  -moz-transition: all .3s ease;
+  -o-transition: all .3s ease;
+  -ms-transition: all .3s ease;
+  transition: all .3s ease;
+  max-width: 230px;
+  width: 235px;
+  height: 155px;
+}
+.institutionid{
+    font-size: 14px !important;
+}

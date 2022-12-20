@@ -87,7 +87,7 @@ $string['create_contract'] = 'Crear contrato';
 $string['generate'] = 'Generar';
 $string['visualize'] = 'Visualizar';
 $string['modify'] = 'Modificar';
-$string['remove'] = 'Eleminar';
+$string['remove'] = 'Eliminar';
 $string['download'] = 'Descargar';
 $string['adviser'] = 'Asesor';
 $string['msgconfirm'] = '¿Está seguro de eliminar de forma definitiva este contrato y toda la información relacionada?';
@@ -161,3 +161,19 @@ $string['documents'] = 'Documentos';
 $string['approve'] = 'Aprobar';
 $string['correct'] = 'Corregir';
 $string['fixes'] = 'Correcciones';
+
+// Pagina Gestión de Instituciones.
+$string['institutionmanagement'] = 'Gestión de Instituciones';
+$string['edit'] = 'Editar';
+$string['see'] = 'Ver';
+$string['create_institution'] = 'Crear Institución';
+$string['name_institution'] = 'Nombre de la institución';
+
+// Pagina Contratos Institucionales.
+$string['institutional_contracts'] = 'Contratos Institucionales';
+$string['contractnumber'] = 'Número de contrato';
+$string['startdate'] = 'Fecha de inicio';
+$string['enddate'] = 'Fecha de finalización';
+$string['budget'] = 'Presupuesto';
+$string['billing_condition'] = 'Condición de facturación';
+$string['users'] = 'Usuarios';
