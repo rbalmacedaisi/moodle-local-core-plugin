@@ -38,6 +38,7 @@ $PAGE->set_heading(get_string('editcontract', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $contract_state = required_param('contract_state', PARAM_TEXT);
+$contract_id = required_param('cid', PARAM_TEXT);
 
 // Contract data.
 $contract_data->username = 'john@user.com';
@@ -54,49 +55,50 @@ $contract_data->is_digitalsignature = false;
 
 // We validate if the type of payment is credit.
 if($contract_data->typepayment == 'Crédito'){
-        $contract_data->is_credit = true;
-        $contract_data->periodicity_payments = 'Mensual';
-        $contract_data->number_installments = '3 Cuotas';
-        $contract_data->payment_date = '15-12-2022';
-        $contract_data->need_co_signer = true;
-        if($contract_data->need_co_signer == true){
-                $contract_data->namecosigner = 'Carlos';
-                $contract_data->identification_number = '1128445678';
-                $contract_data->phone = '3004567894';
-                $contract_data->workplace = 'Solutto';
-        }
+    $contract_data->is_credit = true;
+    $contract_data->periodicity_payments = 'Mensual';
+    $contract_data->number_installments = '3 Cuotas';
+    $contract_data->payment_date = '15-12-2022';
+    $contract_data->need_co_signer = true;
+    if($contract_data->need_co_signer == true){
+        $contract_data->namecosigner = 'Carlos';
+        $contract_data->identification_number = '1128445678';
+        $contract_data->phone = '3004567894';
+        $contract_data->workplace = 'Solutto';
+    }
 }
 
 // Contract Actions.
 $actionbuttons = html_writer::tag('button', 
-        get_string('re_asign', 'local_grupomakro_core'), 
-        array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#reasigncontractModalLong')
+    get_string('re_asign', 'local_grupomakro_core'), 
+    array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#reasigncontractModalLong')
 );
 
+// We validate the status parameter in the url to activate the actions.
 if($contract_state === 'Activo' || $contract_state === 'Aprobado'){
-        $actionbuttons .= html_writer::tag('button', 
-                get_string('defer', 'local_grupomakro_core'), 
-                array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#deferringcontractModalLong')
-        );
-        $actionbuttons .= html_writer::tag('button', 
-                get_string('cancel', 'local_grupomakro_core'), 
-                array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#cancelcontractModalLong')
-        );
+    $actionbuttons .= html_writer::tag('button', 
+        get_string('defer', 'local_grupomakro_core'), 
+        array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#deferringcontractModalLong')
+    );
+    $actionbuttons .= html_writer::tag('button', 
+        get_string('cancel', 'local_grupomakro_core'), 
+        array('class' => 'btn btn-secondary', 'type' => 'button', 'data-toggle' => 'modal', 'data-target' => '#cancelcontractModalLong')
+    );
 }
 
 // Validation of the contract status.
 if($contract_state === 'Verificación'){
-        $contract_data->is_contractverify = true;
+    $contract_data->is_contractverify = true;
 }else if($contract_state === 'Corrección'){
-       $contract_data->is_contractcorrection = true;
+    $contract_data->is_contractcorrection = true;
 }else if($contract_state === 'Activo'){
-        $contract_data->is_contractactive = true;
+    $contract_data->is_contractactive = true;
 }else if($contract_state === 'Creación'){
-        $contract_data->is_contractcreate = true;
+    $contract_data->is_contractcreate = true;
 }else if($contract_state === 'Aprobado'){
-        $contract_data->is_contractaproved = true;
+    $contract_data->is_contractaproved = true;
 }else if($contract_state == 'Firma digital'){
-        $contract_data->is_digitalsignature = true;
+    $contract_data->is_digitalsignature = true;
 }
 
 // Document data.
@@ -116,33 +118,35 @@ $documents_data[3]->src = '/';
 
 $data = array();
 foreach ($documents_data as $document) {
-        array_push($data,$document);
+    array_push($data,$document);
 }
 
 echo $OUTPUT->header();
+
 $templatedata = [
-        'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
-        'username' => $contract_data->username,
-        'learningname' => $contract_data->learningname,
-        'periodicity_payments' => $contract_data->periodicity_payments,
-        'typepayment' => $contract_data->typepayment,
-        'is_credit' => $contract_data->is_credit,
-        'number_installments' => $contract_data->number_installments,
-        'payment_date' => $contract_data->payment_date,
-        'need_co_signer' => $contract_data->need_co_signer,
-        'namecosigner' => $contract_data->namecosigner,
-        'identification_number' => $contract_data->identification_number,
-        'phone' => $contract_data->phone,
-        'workplace' => $contract_data->workplace,
-        'is_contractverify' => $contract_data->is_contractverify,
-        'is_contractcorrection' => $contract_data->is_contractcorrection,
-        'is_contractactive' => $contract_data->is_contractactive,
-        'is_contractcreate' => $contract_data->is_contractcreate,
-        'is_contractaproved' => $contract_data->is_contractaproved,
-        'is_digitalsignature' => $contract_data->is_digitalsignature,
-        'actionbuttons' => $actionbuttons,
-        'data' => $data
-    ];
+    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
+    'username' => $contract_data->username,
+    'learningname' => $contract_data->learningname,
+    'periodicity_payments' => $contract_data->periodicity_payments,
+    'typepayment' => $contract_data->typepayment,
+    'is_credit' => $contract_data->is_credit,
+    'number_installments' => $contract_data->number_installments,
+    'payment_date' => $contract_data->payment_date,
+    'need_co_signer' => $contract_data->need_co_signer,
+    'namecosigner' => $contract_data->namecosigner,
+    'identification_number' => $contract_data->identification_number,
+    'phone' => $contract_data->phone,
+    'workplace' => $contract_data->workplace,
+    'is_contractverify' => $contract_data->is_contractverify,
+    'is_contractcorrection' => $contract_data->is_contractcorrection,
+    'is_contractactive' => $contract_data->is_contractactive,
+    'is_contractcreate' => $contract_data->is_contractcreate,
+    'is_contractaproved' => $contract_data->is_contractaproved,
+    'is_digitalsignature' => $contract_data->is_digitalsignature,
+    'actionbuttons' => $actionbuttons,
+    'data' => $data,
+    'contract_id' => $contract_id,
+];
 
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/edit_contract', $templatedata);

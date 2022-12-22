@@ -34,11 +34,15 @@ $context = context_system::instance();
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_heading(get_string('institutional_contracts', $plugin_name));
-$PAGE->set_pagelayout('incourse');
+$PAGE->set_pagelayout('base');
 
-
-$PAGE->navbar->add(get_string('administrationsite'), new moodle_url('/admin/search.php'));
-$PAGE->navbar->add(get_string('pluginname', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionalcontracts.php'));
+if (is_siteadmin()) {
+    $PAGE->navbar->add(get_string('institutionmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php'));
+}
+$PAGE->navbar->add(
+    get_string('institutional_contracts', $plugin_name),
+    new moodle_url('/local/grupomakro_core/pages/institutionalcontracts.php')
+);
 
 
 echo $OUTPUT->header();
@@ -58,10 +62,9 @@ $contract_data[1]->budget = '200.000.000';
 $contract_data[1]->billing_condition = '20%';
 $contract_data[1]->users = '20';
 
-
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();
-$table->attributes['class'] = 'table rounded mt-3';
+$table->attributes['class'] = 'table rounded mt-3 shadow-sm';
 $table->id = 'contract_table';
 $table->tablealign  = 'center';
 $table->head = array(
@@ -124,13 +127,68 @@ foreach ($contract_data as $contract) {
         $contract->users,
         $options_buttons
     );
-
-    
-    $templatedata = [
-        'table' =>  html_writer::table($table),
-        'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
-    ];
 }
+
+// Generate a table with the the records from the gm_orders table.
+$userstable = new html_table();
+$userstable->attributes['class'] = 'table rounded mt-3 shadow-sm';
+$userstable->id = 'users_table';
+$userstable->tablealign  = 'center';
+$userstable->head = array(
+    get_string('user', $plugin_name),
+    get_string('phone', $plugin_name),
+    get_string('courses', $plugin_name),
+    get_string('options', $plugin_name),
+    
+);
+
+// Users data.
+$users_data = array();
+$users_data[0]->username = 'Nataly Hoyos';
+$users_data[0]->email = 'natalyhoyos@solutto.com';
+$users_data[0]->phone = '3003458905';
+$users_data[0]->courses = 'Maquinaria Amarilla';
+$users_data[1]->username = 'Sergio Mejia';
+$users_data[1]->email = 'sergiomejia@solutto.com';
+$users_data[1]->phone = '3003450000';
+$users_data[1]->courses = 'Maquinaria Pesada';
+
+foreach ($users_data as $user) {
+    
+    $userprofile = html_writer::start_tag('div', array('class' => 'd-flex align-center', 'style' => 'gap: 16px;'));
+        $userprofile .= html_writer::tag('img', '', array('src' => 'https://berrydashboard.io/vue/assets/avatar-1.8ab8bc8e.png', 'height' => 40));
+        $userprofile .= html_writer::start_tag('div', array('class' => ''));
+            $userprofile .= html_writer::tag('h6', $user->username, array('class' => 'mb-0'));
+            $userprofile .= html_writer::tag('small', $user->email, array());
+        $userprofile .= html_writer::end_tag('div');
+    $userprofile .= html_writer::end_tag('div');
+    
+    $action_button = html_writer::tag('a',
+        $removeicon,
+        array(
+            'class' => 'mx-1 remove-contract',
+            'data-toggle' => 'tooltip',
+            'data-placement' => 'bottom',
+            'title' => get_string(
+                'remove', $plugin_name
+            ),
+            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
+        )
+    );
+    
+    // Fill the table with the user data.
+    $userstable->data[] = array(
+        $userprofile, 
+        $user->phone, 
+        $user->courses, 
+        $action_button
+    );
+}
+$templatedata = [
+    'table' =>  html_writer::table($table),
+    'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontractinstitutional.php',
+    'usertable' => html_writer::table($userstable)
+];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/institutionalcontracts', $templatedata);
 echo $OUTPUT->footer();

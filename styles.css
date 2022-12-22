@@ -95,10 +95,12 @@
     opacity: .7!important;
     border-top: none !important;
 }
-#contract_table{
+#contract_table,
+#users_table{
     background-color: #fff;
 }
-#contract_table td {
+#contract_table td ,
+#users_table td{
     vertical-align: inherit !important;
 }
 
@@ -268,4 +270,109 @@ input::file-selector-button {
 }
 .institutionid{
     font-size: 14px !important;
+}
+#institution-tabs a.nav-link.active{
+    border-bottom: 2px solid var(--primary) !important;
+    color: var(--primary) !important;
+    font-weight: 600;
+}
+[data-preset="default"] #institution-tabs a.nav-link:not(.active){
+  color: initial !important;  
+}
+#institution-tabs a.nav-link:focus{
+    outline: 0;
+    box-shadow: none !important;
+}
+.users-card:before {
+    background: linear-gradient(140.9deg,var(--secondary) -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.contract-card:before{
+    background: linear-gradient(140.9deg,var(--warning) -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.budget-card:before{
+    background: linear-gradient(140.9deg,var(--info) -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.users-card:before,
+.contract-card:before,
+.budget-card:before{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -160px;
+    right: -130px;
+}
+.users-card:after {
+    background: linear-gradient(210.04deg,var(--secondary) -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.contract-card:after{
+    background: linear-gradient(210.04deg,var(--warning) -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.budget-card:after{
+    background: linear-gradient(210.04deg,var(--info) -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.users-card:after,
+.contract-card:after,
+.budget-card:after{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -30px;
+    right: -180px;
+}
+.users-card,
+.contract-card,
+.budget-card{
+    width: 200px;
+    overflow: hidden;
+}
+span.spicon{
+    border-radius: 3px;
+}
+div.p-user-content span{
+    font-size: 12px;
+    font-weight: 500;
+}
+[data-preset="default"] .spicon i{
+    color: #fff;
+}
+div.users-card{
+    background: #bfbfbf;
+}
+.budget-card{
+    background: #00819638 !important;
+}
+#institution-card{
+    height: 190px; 
+    max-width: 300px; 
+    width: 300px;
+    overflow: hidden!important;
+}
+#institution-card:before{
+    background: linear-gradient(140.9deg,var(--primary) -14.02%,rgba(255,204,99,8%) 70.5%);
+}
+#institution-card:after{
+    background: linear-gradient(210.04deg,var(--primary) -50.94%,rgba(255,181,103,7%) 83.49%);
+}
+#institution-card:after{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -85px;
+    right: -95px;
+}
+#institution-card:before{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -125px;
+    right: -15px;
+    opacity: .5;
 }

@@ -37,17 +37,79 @@
     }
 }}
 <div class="container-fluid pt-3">
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="d-flex">
-                <div class="w-25">
-                    <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+    <div class="row"> 
+        <div class="col-sm-12 mb-3 d-flex flex-wrap">
+            {{! Card Number of contracts }}
+            <div class="card contract-card shadow-sm border-0 m-2">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="bg-primary p-2 mr-2 spicon" >
+                            <i class="fa fa-file-text-o"></i>
+                        </span>
+                        <div class="p-user-content">
+                            <h4 class="mb-0">03</h4>
+                            <span class="text-muted ">{{#str}}contracts, local_grupomakro_core{{/str}}</span>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="spacer"></div>
-                <a class="btn btn-primary" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
             </div>
-            {{{table}}}
+            {{! End Card Number of contracts }}
+            
+            {{! Card Number of users }}
+            <div class="card users-card shadow-sm border-0 m-2">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span class="bg-secondary p-2 mr-2 spicon" >
+                            <i class="fa fa-users"></i>
+                        </span>
+                        <div class="p-user-content">
+                            <h4 class="mb-0">30</h4>
+                            <span class="text-muted">{{#str}}totalusers, local_grupomakro_core{{/str}}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{! End Card Number of users }}
         </div>
     </div>
+    
+    {{! Content of the institutions }}
+    <div class="row"> 
+        <div class="col-sm-12">
+            {{! Tabs }}
+            <ul class="nav nav-tabs bg-transparent" role="tablist" id="institution-tabs">
+                <li class="nav-item">
+                    <a class="nav-link active bg-transparent" data-toggle="tab" href="#contracts" role="tab">{{#str}}cid, local_grupomakro_core{{/str}}</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link bg-transparent" data-toggle="tab" href="#users" role="tab">{{#str}} users, local_grupomakro_core{{/str}}</a>
+                </li>
+            </ul>
+            {{! End Tabs }}
+            
+            {{! Tab content }}
+            <div class="tab-content py-5">
+                {{! Tab contracts }}
+                <div class="tab-pane active" id="contracts" role="tabpanel">
+                    <div class="d-flex">
+                        <div class="w-25">
+                            <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+                        </div>
+                        <div class="spacer"></div>
+                        <a class="btn btn-primary" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
+                    </div>
+                    {{{table}}}
+                </div>
+                {{! End Tab contracts }}
+                
+                {{! Tab Users }}
+                <div class="tab-pane" id="users" role="tabpanel">
+                    {{> local_grupomakro_core/userspanel }}
+                </div>
+                {{! End Tab Users }}
+            </div>
+            {{! End Tab content }}
+        </div>
+    </div>
+    {{! End Content of the institutions }}
 </div>

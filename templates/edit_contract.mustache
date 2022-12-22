@@ -41,7 +41,7 @@
         {{! Contract Action Panel }}
         <div class="col-sm-12 mb-2">
             <div class="d-flex align-items-center mt-3">
-                <h5 class="text-secondary mb-0">Contrato - 2022A23658</h5>
+                <h5 class="text-secondary mb-0">{{#str}}cid,local_grupomakro_core{{/str}} - {{contract_id}}</h5>
                 <div class="spacer"></div>
                 <div class="btn-group" role="group" aria-label="Basic example">
                     {{{actionbuttons}}}
@@ -217,5 +217,4 @@
 {{> local_grupomakro_core/modals/cancelcontract_modal }}
 {{> local_grupomakro_core/modals/correction_modal }}
 {{> local_grupomakro_core/modals/approved_modal }}
-
 {{! End Modals}}

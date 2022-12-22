@@ -36,20 +36,23 @@
         ]
     }
 }}
-<div class="container-fluid pt-3">
+<div class="container-fluid">
+    <div class="row"> 
+        <div class="col-sm-12 d-flex align-items-center flex-wrap">
+            <div class="w-25">
+                <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+            </div>
+            <div class="spacer"></div>
+        
+            <form action="" method='POST' enctype="multipart/form-data" class="m-1 ">
+                <input type="file" class="form-control-file form-control p-0" id="upload_massive_inst_users" data-initial-value="" name='massivecsv'>
+            </form>
+            <a class="btn btn-primary m-1" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
+        </div>
+    </div>
     <div class="row">
         <div class="col-sm-12">
-            <div class="d-flex">
-                <div class="w-25">
-                    <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
-                </div>
-                <div class="spacer"></div>
-                <a class="btn btn-primary" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
-            </div>
-            {{{table}}}
+            {{{usertable}}}
         </div>
     </div>
 </div>
-
-{{> local_grupomakro_core/modals/payment_link_modal }}
-{{> local_grupomakro_core/modals/confirm_modal }}
