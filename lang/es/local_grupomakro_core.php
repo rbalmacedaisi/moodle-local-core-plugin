@@ -184,3 +184,4 @@ $string['email'] = 'Correo electrónico';
 $string['phone'] = 'Teléfono';
 $string['courses'] = 'Cursos';
 $string['user'] = 'Usuario';
+$string['adduser'] = 'Agregar Usuario';

@@ -183,3 +183,4 @@ $string['email'] = 'Email';
 $string['phone'] = 'Phone';
 $string['courses'] = 'Courses';
 $string['user'] = 'User';
+$string['adduser'] = 'Add User';

@@ -190,7 +190,7 @@ input::file-selector-button {
     -webkit-appearance: button;
     border: none !important;
     border-radius: 6px !important;
-    background: var(--primary) !important;
+    background: var(--secondary) !important;
     height: 100%;
     border-bottom-right-radius: 0px !important;
     border-top-right-radius: 0px !important;
@@ -199,6 +199,7 @@ input::file-selector-button {
     border-right-style: solid !important;
     border-right-color: #8f959e !important;
     border-right-width: 1px !important;
+    color: #fff;
 }
 .btn-textlight{
     color: #ffffff !important;
@@ -264,9 +265,9 @@ input::file-selector-button {
   -o-transition: all .3s ease;
   -ms-transition: all .3s ease;
   transition: all .3s ease;
-  max-width: 230px;
-  width: 235px;
-  height: 155px;
+  max-width: 290px;
+  width: 290px;
+  height: 190px;
 }
 .institutionid{
     font-size: 14px !important;
@@ -375,4 +376,20 @@ div.users-card{
     top: -125px;
     right: -15px;
     opacity: .5;
+}
+.menu-card{
+    position: absolute;
+    top: 21px;
+    right: 17px;
+}
+.menu-card .dropdown-toggle::after {
+	display: none !important;
+}
+.menu-card a.dropdown-toggle{
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    padding: 2px;
+    justify-content: center;
 }

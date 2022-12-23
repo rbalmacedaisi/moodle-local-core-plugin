@@ -87,8 +87,8 @@ foreach ($contract_data as $contract) {
     $displaycontract .= html_writer::end_tag('div');
     
     // Table Action Icons.
-    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear'));
-    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash'));
+    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear text-secondary'));
+    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash text-secondary'));
     
     // Contract Table Actions.
     $options_buttons = html_writer::link(
@@ -172,7 +172,7 @@ foreach ($users_data as $user) {
             'title' => get_string(
                 'remove', $plugin_name
             ),
-            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
+            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter', 'style' => 'font-size:20px;'
         )
     );
     
