@@ -217,7 +217,7 @@ function create_custom_user_fields() {
     $needfirsttuition->signup = 0;
     $needfirsttuition->defaultdata = '';
     $needfirsttuition->defaultdataformat = FORMAT_PLAIN;
-    $needfirsttuition->param1 = "si\n\rno";
+    $needfirsttuition->param1 = "si" . PHP_EOL . "no";
 
     $personalemail = new stdClass();
     $personalemail->shortname = 'personalemail';
