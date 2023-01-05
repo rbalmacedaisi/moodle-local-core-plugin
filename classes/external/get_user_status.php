@@ -92,8 +92,11 @@ class get_user_status extends external_api {
 
         $needfirsttuition = $DB->get_field('user_info_data', 'data', ['userid' => $params['userid'], 'fieldid' => $field->id]);
 
-        // Return the value of the custom field.
-        return ['status' => 1, 'message' => $needfirsttuition];
+        if (!$needfirsttuition->data == 'si') {
+            return ['status' => 1, 'message' => 'User has to pay his/her first tuition'];
+        } else {
+            return ['status' => 2, 'message' => 'User has already paid his/her first tuition'];
+        }
     }
 
     /**
