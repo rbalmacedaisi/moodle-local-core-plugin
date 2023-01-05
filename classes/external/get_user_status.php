@@ -90,9 +90,9 @@ class get_user_status extends external_api {
             return ['status' => -1, 'message' => 'Custom field not found'];
         }
 
-        $needfirsttuition = $DB->get_field('user_info_data', 'data', ['userid' => $params['userid'], 'fieldid' => $field->id]);
+        $needfirsttuition = $DB->get_record('user_info_data', ['userid' => $params['userid'], 'fieldid' => $field->id]);
 
-        if (!$needfirsttuition->data == 'si') {
+        if ($needfirsttuition->data == 'si') {
             return ['status' => 1, 'message' => 'User has to pay his/her first tuition'];
         } else {
             return ['status' => 2, 'message' => 'User has already paid his/her first tuition'];
@@ -107,8 +107,8 @@ class get_user_status extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new user or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_INT, 'Status code or -1 if there was an error.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or status description.'),
             )
         );
     }
