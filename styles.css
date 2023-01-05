@@ -90,6 +90,22 @@
 .v-chip.state_f:after{
     background: var(--cyan) !important;
 }
+.v-chip.n-contract{
+    width: 45px;
+    color: var(--secondary) !important;
+    caret-color: var(--secondary) !important;
+}
+.v-chip.n-contract:after{
+    width: 45px !important;
+    background: var(--secondary) !important;
+}
+[data-preset="dark"] .v-chip.n-contract{
+    color: var(--primary) !important;
+    caret-color: var(--primary) !important;
+}
+[data-preset="dark"] .v-chip.n-contract:after{
+    background: var(--primary) !important;
+}
 .table thead th{
     border-bottom: 1px !important;
     opacity: .7!important;
@@ -392,4 +408,17 @@ div.users-card{
     align-items: center;
     padding: 2px;
     justify-content: center;
+}
+.avatar-default {
+    font-size: 38px !important;
+}
+table tbody td{
+    font-size: 14px !important;
+}
+div.contracicon img{
+    width: 30px !important;
+    height: auto !important;
+}
+.card {
+    background-color: #fff !important;
 }

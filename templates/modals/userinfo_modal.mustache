@@ -1,0 +1,60 @@
+<div class="modal fade" id="userinfoModalLong" tabindex="-1" role="dialog" aria-labelledby="userinfoModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title position-absolute">{{#str}} userinformation, local_grupomakro_core {{/str}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body px-4">
+                <div class="card border-0">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                            {{! User picture }}
+                            <div class="d-flex align-items-center">
+                                <a href="#">
+                                    <i class="fa fa-user-circle mr-2" style="font-size: 44px;"></i>
+                                </a>
+                                <div>
+                                    <p class="m-0">
+                                        <a href="#" class="text--primary font-weight-bold mb-1">Nataly Hoyos</a>
+                                    </p>
+                                    <small class="text-muted caption m-0">natalyhoyos@solutto.com</small>
+                                </div>
+                            </div>
+                            {{! End User picture }} 
+                            
+                            {{! User Actions }}
+                            <div>
+                                <button type="button" class="m-1 btn btn-secondary btn-sm">{{#str}}memessage, local_grupomakro_core{{/str}}</button>
+                                <button type="button" class="m-1 btn btn-secondary btn-sm">{{#str}}profile, local_grupomakro_core{{/str}}</button>
+                            </div>
+                            {{! End User Actions }}
+                        </div>
+                        <hr>
+                        
+                        {{! Contract information }}
+                        <div class="mt-1">
+                            <p class="pr-10">{{#str}} contracts, local_grupomakro_core {{/str}}</p>
+                            {{! Contract list }}
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="contracicon d-flex align-items-center">
+                                        {{#pix}} t/contract, local_grupomakro_core {{/pix}}
+                                        <span class="ml-2">2022A23658</span>
+                                    </div>
+                                    <a href="#" class="text-secondary">
+                                        <i class="fa fa-trash" style="font-size:20px"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                            {{! End Contract list }}
+                        </div>
+                        {{! End Contract information }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

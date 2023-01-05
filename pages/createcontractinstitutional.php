@@ -49,5 +49,9 @@ $PAGE->navbar->add(
 
 echo $OUTPUT->header();
 
-echo $OUTPUT->render_from_template('local_grupomakro_core/create_contract_institutional', []);
+$templatedata = [
+    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/institutionalcontracts.php',
+];
+
+echo $OUTPUT->render_from_template('local_grupomakro_core/create_contract_institutional', $templatedata);
 echo $OUTPUT->footer();

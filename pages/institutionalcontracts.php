@@ -54,13 +54,19 @@ $contract_data[0]->start_date = '20-12-2022';
 $contract_data[0]->end_date = '20-06-2023';
 $contract_data[0]->budget = '100.000.000';
 $contract_data[0]->billing_condition = '30%';
-$contract_data[0]->users = '10';
+$contract_data[0]->users = '1';
 $contract_data[1]->contract_id = '2022A23645';
 $contract_data[1]->start_date = '20-12-2022';
 $contract_data[1]->end_date = '20-06-2023';
 $contract_data[1]->budget = '200.000.000';
 $contract_data[1]->billing_condition = '20%';
-$contract_data[1]->users = '20';
+$contract_data[1]->users = '1';
+$contract_data[2]->contract_id = '2022A23646';
+$contract_data[2]->start_date = '03-01-2023';
+$contract_data[2]->end_date = '03-06-2023';
+$contract_data[2]->budget = '200.000.000';
+$contract_data[2]->billing_condition = '10%';
+$contract_data[2]->users = '1';
 
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();
@@ -138,7 +144,8 @@ $userstable->head = array(
     get_string('user', $plugin_name),
     get_string('phone', $plugin_name),
     get_string('courses', $plugin_name),
-    get_string('options', $plugin_name),
+    get_string('contracts', $plugin_name),
+    get_string('actions', $plugin_name),
     
 );
 
@@ -148,39 +155,47 @@ $users_data[0]->username = 'Nataly Hoyos';
 $users_data[0]->email = 'natalyhoyos@solutto.com';
 $users_data[0]->phone = '3003458905';
 $users_data[0]->courses = 'Maquinaria Amarilla';
+$users_data[0]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
+$users_data[0]->contracts = '1';
 $users_data[1]->username = 'Sergio Mejia';
 $users_data[1]->email = 'sergiomejia@solutto.com';
 $users_data[1]->phone = '3003450000';
 $users_data[1]->courses = 'Maquinaria Pesada';
+$users_data[1]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
+$users_data[1]->contracts = '1';
+$users_data[2]->username = 'Luz Lopez';
+$users_data[2]->email = 'luzlopez@solutto.com';
+$users_data[2]->phone = '3003250000';
+$users_data[2]->courses = 'Maquinaria Pesada';
+$users_data[2]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
+$users_data[2]->contracts = '1';
 
 foreach ($users_data as $user) {
     
     $userprofile = html_writer::start_tag('div', array('class' => 'd-flex align-center', 'style' => 'gap: 16px;'));
-        $userprofile .= html_writer::tag('img', '', array('src' => 'https://berrydashboard.io/vue/assets/avatar-1.8ab8bc8e.png', 'height' => 40));
+        $userprofile .= html_writer::tag('i', '', array('class' => 'fa fa-user-circle avatar-default'));
         $userprofile .= html_writer::start_tag('div', array('class' => ''));
             $userprofile .= html_writer::tag('h6', $user->username, array('class' => 'mb-0'));
             $userprofile .= html_writer::tag('small', $user->email, array());
         $userprofile .= html_writer::end_tag('div');
     $userprofile .= html_writer::end_tag('div');
     
-    $action_button = html_writer::tag('a',
-        $removeicon,
-        array(
-            'class' => 'mx-1 remove-contract',
-            'data-toggle' => 'tooltip',
-            'data-placement' => 'bottom',
-            'title' => get_string(
-                'remove', $plugin_name
-            ),
-            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter', 'style' => 'font-size:20px;'
-        )
+    $action_button = html_writer::tag('button',
+        get_string('details', 'local_grupomakro_core'), 
+        array('class' => 'btn btn-primary btn-sm', 'data-toggle' => 'modal', 'data-target' => '#userinfoModalLong')
     );
+    
+    // The contract status tag is generated.
+    $countcontract = html_writer::start_tag('span', array('class' => 'v-chip n-contract'));
+        $countcontract .= html_writer::tag('span', $user->contracts, array('class' => 'v-chip__content'));
+    $countcontract .= html_writer::end_tag('span');
     
     // Fill the table with the user data.
     $userstable->data[] = array(
         $userprofile, 
         $user->phone, 
-        $user->courses, 
+        $user->courses,
+        $countcontract,
         $action_button
     );
 }

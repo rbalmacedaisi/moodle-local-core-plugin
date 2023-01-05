@@ -40,6 +40,7 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('create_contract', $plugin_name));
 $PAGE->set_heading(get_string('create_contract', $plugin_name));
 $PAGE->set_pagelayout('base');
+$PAGE->add_body_class('limitedwidth');
 
 echo $OUTPUT->header();
 $formimagepicker = new createcontract_form();
