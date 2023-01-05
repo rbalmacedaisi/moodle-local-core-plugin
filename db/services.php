@@ -40,5 +40,13 @@ $functions = array(
         'type' => 'write',
         "ajax" => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
-    )
+    ),
+    'local_grupomakro_get_user_status' => array(
+        'classname' => 'local_grupomakro_core\external\get_user_status',
+        'methodname' => 'execute',
+        'description' => 'Returns the status of the user in the Moodle platform.',
+        'type' => 'read',
+        "ajax" => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

@@ -95,6 +95,9 @@ if ($order) {
     $order->usermodified = 0;
     $order->timemodified = time();
     $DB->update_record('gmk_order', $order);
+
+    profile_save_custom_fields($order->userid, array('needfirsttuition' => 'no'));
+
 }
 
 error_log(print_r($_POST, true), 3, $CFG->dataroot.'/success.log');
