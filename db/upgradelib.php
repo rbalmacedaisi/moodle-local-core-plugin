@@ -106,6 +106,7 @@ function create_custom_user_fields() {
         // - documenttype: menu with the options "Cédula de Ciudadanía", "Cédula de Extranjería", "Pasaporte"
         // - documentnumber: text
         // - needfirsttuition: text
+        // - personalemail: text
     $usertype = new stdClass();
     $usertype->shortname = 'usertype';
     $usertype->name = 'Tipo de usuario';
@@ -218,6 +219,25 @@ function create_custom_user_fields() {
     $needfirsttuition->defaultdataformat = FORMAT_PLAIN;
     $needfirsttuition->param1 = "si\n\rno";
 
+    $personalemail = new stdClass();
+    $personalemail->shortname = 'personalemail';
+    $personalemail->name = 'Correo personal';
+    $personalemail->datatype = 'text';
+    $personalemail->description = '';
+    $personalemail->descriptionformat = FORMAT_HTML;
+    $personalemail->categoryid = $category->id;
+    $personalemail->sortorder = $sortorderfield;
+    $personalemail->required = 0;
+    $personalemail->locked = 0;
+    $personalemail->visible = 3;
+    $personalemail->forceunique = 0;
+    $personalemail->signup = 0;
+    $personalemail->defaultdata = '';
+    $personalemail->defaultdataformat = FORMAT_PLAIN;
+    $personalemail->param1 = '';
+
+    $sortorderfield++;
+
     try {
         // Verify if the field already exists.
         $record = $DB->get_record('user_info_field', array('shortname' => $usertype->shortname));
@@ -273,6 +293,15 @@ function create_custom_user_fields() {
 
         if (!isset($record->id)) {
             $DB->insert_record('user_info_field', $needfirsttuition);
+        }
+    } catch (Exception $e) {
+    }
+
+    try {// Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $personalemail->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $personalemail);
         }
     } catch (Exception $e) {
     }

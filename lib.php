@@ -41,7 +41,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         
         // If the current user has grupomakro_core:seeallorders capability, we will add a new item to the main navigation menu.
         if (has_capability('local/grupomakro_core:seeallorders', $PAGE->context)) {
-            $CFG->custommenuitems .= "\n\r-".get_string('orders', 'local_grupomakro_core') . 
+            $CFG->custommenuitems .= PHP_EOL . '-' . get_string('orders', 'local_grupomakro_core') . 
             '|/local/grupomakro_core/pages/orders.php';
         }
     }

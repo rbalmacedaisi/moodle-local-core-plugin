@@ -151,6 +151,7 @@ class create_user extends external_api {
         $user->firstname = $params['firstname'];
         $user->lastname = $params['lastname'];
         $user->email = $params['email'];
+        $user->username = strtolower($params['documentnumber']);
 
         // Let's update the user.
         $DB->update_record('user', $user);
@@ -162,6 +163,7 @@ class create_user extends external_api {
             'documenttype' => $params['documenttype'],
             'documentnumber' => $params['documentnumber'],
             'needfirsttuition' => "si",
+            'personalemail' => $params['email'],
         ]);
 
         // If the usertype is "Acudiente / Codeudor", then we should enrol this user in the "caregiver" role.
