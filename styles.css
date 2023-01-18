@@ -168,12 +168,9 @@ z-index: -1;
 .progressbar-list{
     color:#6f787d;
 }
-
-
 .border-color{
     border-color: #ececec;
 }
-
 .back-to-wizard{
     transform: translate(-50%, -139%) !important;
 }
@@ -293,7 +290,13 @@ input::file-selector-button {
     color: var(--primary) !important;
     font-weight: 600;
 }
-[data-preset="default"] #institution-tabs a.nav-link:not(.active){
+.class-tabs a.nav-link.active{
+    color: var(--primary) !important;
+    font-weight: 600;
+}
+
+[data-preset="default"] #institution-tabs a.nav-link:not(.active),
+[data-preset="default"] .class-tabs a.nav-link:not(.active){
   color: initial !important;  
 }
 #institution-tabs a.nav-link:focus{
@@ -421,4 +424,146 @@ div.contracicon img{
 }
 .card {
     background-color: #fff !important;
+}
+.side-bar-class{
+    width: 280px;
+    min-width: 280px;
+    position: relative;
+    transition: all .3s ease-in;
+}
+.v-alert__border {
+    border-style: solid;
+    border-width: 4px;
+    content: "";
+    position: absolute;
+}
+.v-alert__border--top {
+    left: 0;
+    right: 0;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    top: 0;
+}
+.gk-mex .v-alert__border--top{
+    background-color: #c8e6c9 !important;
+    border-color: #c8e6c9 !important;
+}
+.gk-mex .badge-pill{
+    background-color: #c8e6c9 !important;
+}
+.gk-col .v-alert__border--top{
+    background-color: #efe2a2 !important;
+    border-color: #efe2a2 !important;
+}
+.gk-col .badge-pill{
+    background-color: #efe2a2 !important;
+}
+.isi-pa .v-alert__border--top{
+    background-color: #ffcdd2 !important;
+    border-color: #ffcdd2 !important;
+}
+.isi-pa .badge-pill{
+    background-color: #ffcdd2 !important;
+}
+#page-local-grupomakro_core-pages-classmanagement .avatar-default{
+    color: #c0c0c0;
+}
+#page-local-grupomakro_core-pages-classmanagement .startdate{
+    font-size: 13px;
+    font-weight: 500 !important;
+}
+#instances-content .card{
+    width: 140px;
+    height: 90px;
+}
+.gk-card-col.active:before,
+.gk-card-mex.active:before,
+.isi-card-pa.active:before{
+    background: linear-gradient(140.9deg,#ffffff -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.gk-card-col.active:after,
+.gk-card-mex.active:after,
+.isi-card-pa.active:after{
+    background: linear-gradient(210.04deg,#ffffff -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.gk-card-col:before{
+    background: linear-gradient(140.9deg,#67aae4 -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.gk-card-mex:before{
+    background: linear-gradient(140.9deg,#357a32 -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.isi-card-pa:before{
+    background: linear-gradient(140.9deg,var(--primary) -14.02%,rgba(144,202,249,0) 70.5%);
+}
+.gk-card-mex:after{
+    background: linear-gradient(210.04deg,#357a32 -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.gk-card-col:after{
+   background: linear-gradient(210.04deg,#67aae4 -50.94%,rgba(144,202,249,0) 83.49%); 
+}
+.isi-card-pa:after{
+    background: linear-gradient(210.04deg,var(--primary) -50.94%,rgba(144,202,249,0) 83.49%);
+}
+.isi-card-pa:after,
+.gk-card-mex:after,
+.gk-card-col:after{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -30px;
+    right: -180px;
+}
+.isi-card-pa:before,
+.gk-card-mex:before,
+.gk-card-col:before{
+    content: "";
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    top: -160px;
+    right: -130px;
+}
+[data-preset="dark"] .gk-card-col{
+    border-color: #064377 !important;
+}
+.gk-card-col span{
+    width: 80%;
+    font-weight: 400;
+    color: #67aae4;
+}
+[data-preset="dark"] .gk-card-mex{
+    border-color: #357a32 !important;
+}
+.gk-card-mex span{
+    width: 80%;
+    font-weight: 400;
+    color: #3aa135;
+}
+[data-preset="dark"] .isi-card-pa{
+    border-color: var(--primary) !important;
+}
+.isi-card-pa span{
+    width: 80%;
+    color: var(--primary);
+}
+[data-preset="dark"] .gk-card-col.active,
+.gk-card-col.active{
+    background: #064377 !important;
+}
+[data-preset="dark"] .gk-card-mex.active,
+.gk-card-mex.active{
+    background: #0a4807 !important;
+}
+[data-preset="dark"] .isi-card-pa.active,
+.isi-card-pa.active{
+    background: var(--primary) !important;
+}
+[data-preset="dark"] .gk-card-col.active span,
+.gk-card-col.active span,
+.gk-card-mex.active span,
+.isi-card-pa.active span{
+    color: #ffffff !important;
 }

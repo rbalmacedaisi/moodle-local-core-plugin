@@ -1,0 +1,200 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_grupomakro_core/create_contract
+
+    Template purpose and description.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * attributes Array of name / value pairs.
+
+    Example context (json):
+    {
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
+    }
+}}
+
+<div class="container-fluid">   
+    <div class="d-flex">
+        <div class="side-bar-class mr-2 d-none d-sm-block">
+            <div class="card p-3">
+                <div class="pb-4">
+                    <a type="button" class="btn btn-primary btn-block shadow-sm" href="{{createclass_url}}">{{#str}}createclass, local_grupomakro_core{{/str}}</a>
+                </div>
+                
+                <ul class="nav flex-column class-tabs">
+                    <li class="nav-item ">
+                        <a class="nav-link active d-flex align-items-center font-weight-bold" href="" data-toggle="tab" data-target="#all">
+                            <i class="fa fa-mortar-board mr-3" style="font-size: 24px;"></i>
+                            {{#str}}allclasses, local_grupomakro_core{{/str}}
+                        </a>
+                    </li>
+                    {{#is_col}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#gk-col" data-toggle="tab" data-target="#gk-col">Grupo Makro Colombia</a>
+                    </li>
+                    {{/is_col}}
+                    
+                    {{#is_mex}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#gk-mex" data-toggle="tab" data-target="#gk-mex">Grupo Makro México</a>
+                    </li>
+                    {{/is_mex}}
+                    
+                    {{#is_pa}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="#isi-pa" data-toggle="tab" data-target="#isi-pa">Isi Panamá</a>
+                    </li>
+                    {{/is_pa}}
+                </ul>
+            </div>
+        </div>
+
+        <div class="tab-content">
+            <div class="tab-pane active" id="all" role="tabpanel" aria-labelledby="all-tab">
+                <div class="d-flex flex-wrap">
+                    {{#data}}
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{state}}" style="width: 320px;">
+                        <div class="v-alert__border v-alert__border--top"></div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{classname}}</h6>
+                            <div class="d-flex mb-2">
+                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <div class="d-flex flex-column">
+                                    <span>{{classinstructor}}</span>
+                                    <span class="text-primary">Instructor</span>
+                                </div>
+                            </div>
+                            <span class="badge badge-pill p-2">{{classcompany}}</span>
+                        </div>
+                        <div class="card-footer d-flex">
+                            <div>
+                                <i class="fa fa-calendar-o mr-2" style="font-size:18px"></i>
+                                <span class="text-muted startdate">{{startdate}}</span>
+                            </div>
+                            <div class="spacer"></div>
+                            <i class="fa fa-gear mx-1" style="font-size:20px"></i>
+                            <i class="fa fa-trash mx-1" style="font-size:20px"></i>
+                        </div>
+                    </div>
+                    {{/data}}
+                </div>
+            </div>
+            
+            
+            <div class="tab-pane" id="gk-col" role="tabpanel" aria-labelledby="gk-col-tab">
+                <div class="d-flex flex-wrap">
+                    {{#gk_col}}
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{state}}" style="width: 320px;">
+                        <div class="v-alert__border v-alert__border--top"></div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{classname}}</h6>
+                            <div class="d-flex mb-2">
+                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <div class="d-flex flex-column">
+                                    <span>{{classinstructor}}</span>
+                                    <span class="text-primary">Instructor</span>
+                                </div>
+                            </div>
+                            <span class="badge badge-pill p-2">{{classcompany}}</span>
+                        </div>
+                        <div class="card-footer d-flex">
+                            <div>
+                                <i class="fa fa-calendar-o mr-2" style="font-size:18px"></i>
+                                <span class="text-muted startdate">{{startdate}}</span>
+                            </div>
+                            <div class="spacer"></div>
+                            <i class="fa fa-gear mx-1" style="font-size:20px"></i>
+                            <i class="fa fa-trash mx-1" style="font-size:20px"></i>
+                        </div>
+                    </div>
+                    {{/gk_col}}
+                </div>
+            </div>
+            
+            <div class="tab-pane" id="gk-mex" role="tabpanel" aria-labelledby="gk-mex-tab">
+                <div class="d-flex flex-wrap">
+                    {{#gk_mex}}
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{state}}" style="width: 320px;">
+                        <div class="v-alert__border v-alert__border--top"></div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{classname}}</h6>
+                            <div class="d-flex mb-2">
+                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <div class="d-flex flex-column">
+                                    <span>{{classinstructor}}</span>
+                                    <span class="text-primary">Instructor</span>
+                                </div>
+                            </div>
+                            <span class="badge badge-pill p-2">{{classcompany}}</span>
+                        </div>
+                        <div class="card-footer d-flex">
+                            <div>
+                                <i class="fa fa-calendar-o mr-2" style="font-size:18px"></i>
+                                <span class="text-muted startdate">{{startdate}}</span>
+                            </div>
+                            <div class="spacer"></div>
+                            <i class="fa fa-gear mx-1" style="font-size:20px"></i>
+                            <i class="fa fa-trash mx-1" style="font-size:20px"></i>
+                        </div>
+                    </div>
+                    {{/gk_mex}}
+                </div>
+            </div>
+            
+            <div class="tab-pane" id="isi-pa" role="tabpanel" aria-labelledby="isi-pa-tab">
+                <div class="d-flex flex-wrap">
+                    {{#isi_pa}}
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{state}}" style="width: 320px;">
+                        <div class="v-alert__border v-alert__border--top"></div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{classname}}</h6>
+                            <div class="d-flex mb-2">
+                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <div class="d-flex flex-column">
+                                    <span>{{classinstructor}}</span>
+                                    <span class="text-primary">Instructor</span>
+                                </div>
+                            </div>
+                            <span class="badge badge-pill p-2">{{classcompany}}</span>
+                        </div>
+                        <div class="card-footer d-flex">
+                            <div>
+                                <i class="fa fa-calendar-o mr-2" style="font-size:18px"></i>
+                                <span class="text-muted startdate">{{startdate}}</span>
+                            </div>
+                            <div class="spacer"></div>
+                            <i class="fa fa-gear mx-1" style="font-size:20px"></i>
+                            <i class="fa fa-trash mx-1" style="font-size:20px"></i>
+                        </div>
+                    </div>
+                    {{/isi_pa}}
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>

@@ -194,3 +194,15 @@ $string['details'] = 'Details';
 $string['profile'] = 'Profile';
 $string['memessage'] = 'Memessage';
 $string['selectcontract'] = 'Select a contract';
+
+// Class Management Page.
+$string['classmanagement'] = 'Class Management';
+$string['createclass'] = 'Create Class';
+$string['allclasses'] = 'All the classes';
+$string['instances'] = 'Instances';
+$string['select_instance'] = 'Select instance';
+$string['period'] = 'Periods';
+$string['select_period'] = 'Select period';
+$string['instructor'] = 'Instructor';
+$string['select_instructor'] = 'Select Instructor';
+$string['number_classes'] = 'Number of classes';

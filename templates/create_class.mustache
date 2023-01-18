@@ -1,0 +1,171 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_grupomakro_core/create_contract
+
+    Template purpose and description.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * attributes Array of name / value pairs.
+
+    Example context (json):
+    {
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
+    }
+}}
+
+<div class="container-fluid">   
+    <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12 px-md-0">
+            <div class="card px-4 pt-3">
+                <form>
+                    <div class="row mt-2 mx-0 rounded">
+                        {{! Instances }}
+                        <div class="col-sm-12 col-md-12 form-group">     
+                            <h5 class="w-100 pt-2" for="instances">{{#str}} instances, local_grupomakro_core {{/str}}</h5>
+                            <div class="d-flex" id="instances-content">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio1" value="grupomakro_col">
+                                    <a href="#" class="d-block text-decoration-none company-instance">
+                                        <div class="card d-flex align-items-center justify-content-center shadow-sm gk-card-col overflow-hidden">
+                                            <span class="text-center">Grupo Makro Colombia</span>
+                                        </div>
+                                    </a>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="grupomakro_mex">
+                                    <a href="#" class="d-block text-decoration-none company-instance">
+                                        <div class="card d-flex align-items-center justify-content-center shadow-sm gk-card-mex overflow-hidden">
+                                            <span class="text-center">Grupo Makro México</span>
+                                        </div>
+                                    </a>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="isi_panama">
+                                    <a href="#" class="d-block text-decoration-none company-instance">
+                                        <div class="card d-flex align-items-center justify-content-center shadow-sm isi-card-pa overflow-hidden">
+                                            <span class="text-center">Isi Panamá</span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>    
+                        {{! End Instances }}
+                    </div> 
+                    
+                    
+                    <div id="fields-groups" class="row pb-5 mt-2 mx-0 d-none">
+                        <div class="col-12">
+                            <hr> </hr>
+                        </div>  
+                        
+                        {{! Field to select learning plans }}
+                        <div id="learning-fieldset" class="col-sm-12 col-md-6 d-none py-2">
+                            <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
+                            <select name="carrer" id="carrer" class="form-control">
+                                <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
+                                <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
+                                <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
+                                <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
+                            </select>
+                        </div>
+                        {{! End Field to select learning plans }}
+                        
+                        {{! Field to select the period }}
+                        <div id="period-fieldset" class="col-sm-12 col-md-6 d-none py-2">
+                            <label class="w-100" for="period">{{#str}}period, local_grupomakro_core {{/str}}</label>
+                            <select name="period" id="period" class="form-control">
+                                <option value=''>{{#str}}select_period, local_grupomakro_core {{/str}}</option>
+                                <option value="1">Primer periodo</option>
+                                <option value="2">Segundo periodo</option>
+                                <option value="3">Tercer periodo</option>
+                                <option value="4">Cuarto periodo</option>
+                            </select>
+                        </div>
+                        {{! End Field to select the period }}
+                        
+                        {{! Field to select courses }}
+                        <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="courses">{{#str}}courses, local_grupomakro_core {{/str}}</label>
+                            <select name="courses" id="courses" class="form-control">
+                                <option value=''>{{#str}}select_courses, local_grupomakro_core {{/str}}</option>
+                                <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
+                                <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
+                                <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
+                            </select>
+                        </div>
+                        {{! End Field to select courses }}
+                        
+                        {{! Field to select the Instructors }}
+                        <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
+                            <select name="instructor" id="instructor" class="form-control">
+                                <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
+                                <option value="Madeline R. Mercer">Madeline R. Mercer</option>
+                                <option value="Fern M. Lewis">Fern M. Lewis</option>
+                                <option value="Ernesto F. Jones">Ernesto F. Jones</option>
+                            </select>
+                        </div>
+                        {{! End Field to select the Instructors }}
+                        
+                        {{! Field to select the Instructors }}
+                        <div id="number_classes-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="number_classes">{{#str}}number_classes, local_grupomakro_core {{/str}}</label>
+                            <input type="number" class="form-control" id="number_classes">
+                        </div>
+                        {{! End Field to select the Instructors }}
+                        
+                    </div>   
+                </form>
+                
+                {{! Actions }}
+                <div class="d-flex card-footer bg-transparent mt-3 px-0">
+                    <div class="spacer"></div>
+                    <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                    <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
+                </div>
+                {{! End Actions }}
+            </div>
+        </div>
+    </div>
+</div>
+{{#js}}
+    $('a.company-instance').click(function(){
+        $('.form-check .card').removeClass('active');
+        $(this).parent('.form-check').find('input').click();
+        $(this).find('.card').addClass('active');
+        var value_input = $('input:radio:checked').val();
+        console.log(value_input);
+        if(value_input  == 'grupomakro_col'){
+            $('#learning-fieldset').addClass('d-none');
+            $('#period-fieldset').addClass('d-none');
+        }else{
+            $('#learning-fieldset').removeClass('d-none');
+            $('#period-fieldset').removeClass('d-none');
+        }
+        $('#fields-groups').removeClass('d-none');
+    });
+{{/js}}

@@ -195,3 +195,15 @@ $string['details'] = 'Ver Detalle';
 $string['profile'] = 'Perfil';
 $string['memessage'] = 'Mensaje';
 $string['selectcontract'] = 'Seleccionar un contrato';
+
+// Pagina Gestión de clases.
+$string['classmanagement'] = 'Gestion de clases';
+$string['createclass'] = 'Crear Clase';
+$string['allclasses'] = 'Todas las Clases';
+$string['instances'] = 'Instancias';
+$string['select_instance'] = 'Seleccionar Instancia';
+$string['period'] = 'Periodos';
+$string['select_period'] = 'Seleccionar Periodo';
+$string['instructor'] = 'Instructor';
+$string['select_instructor'] = 'Seleccionar Instructor';
+$string['number_classes'] = 'Número de clases';
