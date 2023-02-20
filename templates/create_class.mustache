@@ -48,6 +48,14 @@
                             <h5 class="w-100 pt-2" for="instances">{{#str}} instances, local_grupomakro_core {{/str}}</h5>
                             <div class="d-flex" id="instances-content">
                                 <div class="form-check form-check-inline">
+                                    <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="isi_panama">
+                                    <a href="#" class="d-block text-decoration-none company-instance">
+                                        <div class="card d-flex align-items-center justify-content-center shadow-sm isi-card-pa overflow-hidden">
+                                            <span class="text-center">Isi Panamá</span>
+                                        </div>
+                                    </a>
+                                </div>
+                                <div class="form-check form-check-inline">
                                     <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio1" value="grupomakro_col">
                                     <a href="#" class="d-block text-decoration-none company-instance">
                                         <div class="card d-flex align-items-center justify-content-center shadow-sm gk-card-col overflow-hidden">
@@ -63,14 +71,6 @@
                                         </div>
                                     </a>
                                 </div>
-                                <div class="form-check form-check-inline">
-                                    <input class="form-check-input d-none" type="radio" name="inlineRadioOptions" id="inlineRadio2" value="isi_panama">
-                                    <a href="#" class="d-block text-decoration-none company-instance">
-                                        <div class="card d-flex align-items-center justify-content-center shadow-sm isi-card-pa overflow-hidden">
-                                            <span class="text-center">Isi Panamá</span>
-                                        </div>
-                                    </a>
-                                </div>
                             </div>
                         </div>    
                         {{! End Instances }}
@@ -80,7 +80,18 @@
                     <div id="fields-groups" class="row pb-5 mt-2 mx-0 d-none">
                         <div class="col-12">
                             <hr> </hr>
-                        </div>  
+                        </div>
+                        
+                        {{! Field to select class_type }}
+                        <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="class_type">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
+                            <select name="class_type" id="class_type" class="form-control">
+                                <option value=''>{{#str}}select_type_class, local_grupomakro_core {{/str}}</option>
+                                <option value="virtual">Virtual</option>
+                                <option value="presencial">Presencial</option>
+                            </select>
+                        </div>
+                        {{! End Field to select class_type }}
                         
                         {{! Field to select learning plans }}
                         <div id="learning-fieldset" class="col-sm-12 col-md-6 d-none py-2">
@@ -138,6 +149,56 @@
                         </div>
                         {{! End Field to select the Instructors }}
                         
+                        {{! Field to select the Start Date }}
+                        <div id="startdate-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="startdate">{{#str}}startdate, local_grupomakro_core {{/str}}</label>
+                            <input type="date" class="form-control" id="startdate">
+                        </div>
+                        {{! Field to select the Start Date }}
+                        
+                        {{! Field for start time }}
+                        <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="starttime">
+                        </div>
+                        {{! Field for start time }}
+                        
+                        {{! Section to choose class days }}
+                        <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
+                            <div class="col-12">
+                                <label>{{#str}} classdays, local_grupomakro_core{{/str}}</label>
+                            </div>
+                        
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchMonday">
+                                <label class="custom-control-label" for="customSwitchMonday">{{#str}} monday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchTuesday">
+                                <label class="custom-control-label" for="customSwitchTuesday">{{#str}} tuesday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchWednesday">
+                                <label class="custom-control-label" for="customSwitchWednesday">{{#str}} wednesday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchThursday">
+                                <label class="custom-control-label" for="customSwitchThursday">{{#str}} thursday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchFriday">
+                                <label class="custom-control-label" for="customSwitchFriday">{{#str}} friday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchSaturday">
+                                <label class="custom-control-label" for="customSwitchSaturday">{{#str}} saturday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchSunday">
+                                <label class="custom-control-label" for="customSwitchSunday">{{#str}} sunday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                        </div>
+                        {{! End Section to choose class days }}
                     </div>   
                 </form>
                 

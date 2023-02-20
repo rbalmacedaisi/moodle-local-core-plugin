@@ -40,30 +40,42 @@ echo $OUTPUT->header();
 
 // Class data.
 $class_data = array();
-$class_data[0]->classid = 1;
-$class_data[0]->classname = 'Soldadura';
-$class_data[0]->classinstructor = 'Jorge N. Woods';
-$class_data[0]->classcompany = 'Grupo Makro Colombia';
-$class_data[0]->startdate = '01/20/2023';
-$class_data[0]->state = 'gk-col';
-$class_data[1]->classid = 2;
-$class_data[1]->classname = 'Maquinaría';
-$class_data[1]->classinstructor = 'George R. Mendoza';
-$class_data[1]->classcompany = 'Grupo Makro México';
-$class_data[1]->startdate = '01/30/2023';
-$class_data[1]->state = 'gk-mex';
-$class_data[2]->classid = 3;
+$class_data[0]->classid = 3;
+$class_data[0]->classname = 'Maquinaría';
+$class_data[0]->classinstructor = 'Artur R. Mendoza';
+$class_data[0]->classcompany = 'Isi Panamá';
+$class_data[0]->startdate = '01/30/2023';
+$class_data[0]->state = 'isi-pa';
+$class_data[0]->classtype = 'virtual';
+$class_data[0]->classschedule = '8:00 pm';
+$class_data[0]->classdays = 'Lunes-Miércoles';
+$class_data[1]->classid = 1;
+$class_data[1]->classname = 'Soldadura';
+$class_data[1]->classinstructor = 'Jorge N. Woods';
+$class_data[1]->classcompany = 'Grupo Makro Colombia';
+$class_data[1]->startdate = '01/20/2023';
+$class_data[1]->state = 'gk-col';
+$class_data[1]->classtype = 'virtual';
+$class_data[1]->classschedule = '3:00 pm';
+$class_data[1]->classdays = 'Lunes-Miércoles';
+$class_data[2]->classid = 2;
 $class_data[2]->classname = 'Maquinaría';
-$class_data[2]->classinstructor = 'Artur R. Mendoza';
-$class_data[2]->classcompany = 'Isi Panamá';
+$class_data[2]->classinstructor = 'George R. Mendoza';
+$class_data[2]->classcompany = 'Grupo Makro México';
 $class_data[2]->startdate = '01/30/2023';
-$class_data[2]->state = 'isi-pa';
+$class_data[2]->state = 'gk-mex';
+$class_data[2]->classtype = 'facetoface';
+$class_data[2]->classschedule = '10:00 am';
+$class_data[2]->classdays = 'Lunes-Miércoles';
 $class_data[3]->classid = 4;
 $class_data[3]->classname = 'Maquinaría Pesada';
 $class_data[3]->classinstructor = 'jhon R. Mejia';
 $class_data[3]->classcompany = 'Grupo Makro Colombia';
 $class_data[3]->startdate = '01/30/2023';
 $class_data[3]->state = 'gk-col';
+$class_data[3]->classtype = 'facetoface';
+$class_data[3]->classschedule = '1:00 pm';
+$class_data[3]->classdays = 'Lunes-Miércoles';
 
 $data = array();
 $gk_col = array();
@@ -84,7 +96,13 @@ foreach ($class_data as $class) {
         array_push($isi_pa,$class);
         $is_pa = true;
     }
-    
+    if($class->classtype == 'facetoface'){
+        $class->icon = 'fa fa-group';
+        $class->type = 'Presencial';
+    }else{
+        $class->icon = 'fa fa-desktop';
+        $class->type = 'Virtual';
+    }
 }
 
 $templatedata = [

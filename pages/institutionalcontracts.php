@@ -93,12 +93,12 @@ foreach ($contract_data as $contract) {
     $displaycontract .= html_writer::end_tag('div');
     
     // Table Action Icons.
-    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear text-secondary'));
-    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash text-secondary'));
+    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear', 'style'=>'font-size: 16px;'));
+    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash', 'style'=>'font-size: 16px;'));
     
     // Contract Table Actions.
     $options_buttons = html_writer::link(
-        new moodle_url('/local/grupomakro_core/pages/editcontract.php'),
+        new moodle_url('/local/grupomakro_core/pages/editcontractinstitutionals.php?cid='.$contract->contract_id),
         $modifyicon,
         array(
             'class' => 'mx-1',

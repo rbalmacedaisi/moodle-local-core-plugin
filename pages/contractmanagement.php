@@ -120,10 +120,10 @@ foreach ($contract_data as $contract) {
     $payment_button = html_writer::tag('button', get_string('generate', $plugin_name), array('class' => 'btn btn-link btn-sm mr-2', 'data-toggle'=>'modal', 'data-target'=> '#paymentcontractModalLong'));
     
     // Table Action Icons.
-    $visualizeicon = html_writer::tag('i', '', array('class' => 'fa fa-folder-open-o'));
-    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear'));
-    $downloadicon = html_writer::tag('i', '', array('class' => 'fa fa-download'));
-    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash'));
+    $visualizeicon = html_writer::tag('i', '', array('class' => 'fa fa-folder-open-o', 'style'=>'font-size: 16px;'));
+    $modifyicon = html_writer::tag('i', '', array('class' => 'fa fa-gear', 'style'=>'font-size: 16px;'));
+    $downloadicon = html_writer::tag('i', '', array('class' => 'fa fa-download', 'style'=>'font-size: 16px;'));
+    $removeicon = html_writer::tag('i', '', array('class' => 'fa fa-trash', 'style'=>'font-size: 16px;'));
     
     // Contract Table Actions.
     $options_buttons = html_writer::link(

@@ -197,7 +197,7 @@ $string['memessage'] = 'Mensaje';
 $string['selectcontract'] = 'Seleccionar un contrato';
 
 // Pagina Gestión de clases.
-$string['classmanagement'] = 'Gestion de clases';
+$string['classmanagement'] = 'Gestión de clases';
 $string['createclass'] = 'Crear Clase';
 $string['allclasses'] = 'Todas las Clases';
 $string['instances'] = 'Instancias';
@@ -207,3 +207,16 @@ $string['select_period'] = 'Seleccionar Periodo';
 $string['instructor'] = 'Instructor';
 $string['select_instructor'] = 'Seleccionar Instructor';
 $string['number_classes'] = 'Número de clases';
+$string['start_time'] = 'Hora de inicio';
+$string['class_type'] = 'Tipo de Clase';
+$string['select_type_class'] = 'Selecciona el Tipo de Clase';
+$string['monday'] = 'Lunes';
+$string['tuesday'] = 'Martes';
+$string['wednesday'] = 'Miércoles';
+$string['thursday'] = 'Jueves';
+$string['friday'] = 'Viernes';
+$string['saturday'] = 'Sábado';
+$string['sunday'] = 'Domingo';
+$string['classdays'] = 'Días de clase';
+$string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
+$string['edit_class'] = 'Editar Clase';

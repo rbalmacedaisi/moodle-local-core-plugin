@@ -397,9 +397,7 @@ div.users-card{
     opacity: .5;
 }
 .menu-card{
-    position: absolute;
-    top: 21px;
-    right: 17px;
+    z-index: 2;
 }
 .menu-card .dropdown-toggle::after {
 	display: none !important;
@@ -445,25 +443,28 @@ div.contracicon img{
     top: 0;
 }
 .gk-mex .v-alert__border--top{
-    background-color: #c8e6c9 !important;
-    border-color: #c8e6c9 !important;
+    background-color: #0a4807 !important;
+    border-color: #0a4807 !important;
 }
 .gk-mex .badge-pill{
-    background-color: #c8e6c9 !important;
+    background-color: #0a4807 !important;
+    color: #ffffff;
 }
 .gk-col .v-alert__border--top{
-    background-color: #efe2a2 !important;
-    border-color: #efe2a2 !important;
+    background-color: #064377 !important;
+    border-color: #064377 !important;
 }
 .gk-col .badge-pill{
-    background-color: #efe2a2 !important;
+    background-color: #064377 !important;
+    color: #ffffff;
 }
 .isi-pa .v-alert__border--top{
-    background-color: #ffcdd2 !important;
-    border-color: #ffcdd2 !important;
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
 }
 .isi-pa .badge-pill{
-    background-color: #ffcdd2 !important;
+    background-color: var(--primary) !important;
+    color: #ffffff;
 }
 #page-local-grupomakro_core-pages-classmanagement .avatar-default{
     color: #c0c0c0;
@@ -566,4 +567,12 @@ div.contracicon img{
 .gk-card-mex.active span,
 .isi-card-pa.active span{
     color: #ffffff !important;
+}
+span.badge.text-white{
+  color: #FFFFFF !important;
+}
+.left-position{
+    position: absolute;
+    top: 21px;
+    right: 10px;
 }
