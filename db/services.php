@@ -49,4 +49,12 @@ $functions = array(
         "ajax" => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_create_class' => array(
+        'classname'     => 'local_grupomakro_core\external\create_class',
+        'methodname'    => 'execute',
+        'description'   => 'Create new class',
+        'type'          => 'write',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
