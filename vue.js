@@ -1,60 +1,121 @@
-
-console.log('oley');
+let data = (id) => {
+    console.log(id)
+};
 const app = new Vue({
     el: '#app',
     vuetify: new Vuetify(),
     
     data: {
-        type: 'month',
-      types: ['month', 'week', 'day', '4day'],
-      mode: 'stack',
-      modes: ['stack', 'column'],
-      weekday: [0, 1, 2, 3, 4, 5, 6],
-      weekdays: [
-        { text: 'Sun - Sat', value: [0, 1, 2, 3, 4, 5, 6] },
-        { text: 'Mon - Sun', value: [1, 2, 3, 4, 5, 6, 0] },
-        { text: 'Mon - Fri', value: [1, 2, 3, 4, 5] },
-        { text: 'Mon, Wed, Fri', value: [1, 3, 5] },
-      ],
-      value: '',
+      today: new Date().toISOString().substr(0,10),
+      focus: new Date().toISOString().substr(0,10),
+      type: 'week',
+      typeToLabel: {
+        month: 'Mes',
+        week: 'Week',
+        day: 'Day',
+      },
+      start: null,
+      end: null,
+      selectedEvent: {},
+      selectedElement: null,
+      selectedOpen: false,
       events: [],
-      colors: ['blue', 'indigo', 'deep-purple', 'cyan', 'green', 'orange', 'grey darken-1'],
-      names: ['Meeting', 'Holiday', 'PTO', 'Travel', 'Event', 'Birthday', 'Conference', 'Party'],
+      name: null,
+      details: null,
+      color: '#1976D2',
+      dialog: false,
+      currentlyEditing: null,
+      items:[
+        {id: 1, text: 'Artur R. Mendoza', value: 'Artur R. Mendoza'},
+        {id: 2, text: 'Jorge N. Woods', value: 'Jorge N. Woods'},
+        {id: 3, text: 'George R. Mendoza', value: 'George R. Mendoza'},
+      ],
+      select: [],
+    },
+    mounted () {
+      this.$refs.calendar.checkChange();
+    },
+    created(){
+      this.getEvents();
     },
     methods: {
-      getEvents ({ start, end }) {
-        const events = []
-
-        const min = new Date(`${start.date}T00:00:00`)
-        const max = new Date(`${end.date}T23:59:59`)
-        const days = (max.getTime() - min.getTime()) / 86400000
-        const eventCount = this.rnd(days, days + 20)
-
-        for (let i = 0; i < eventCount; i++) {
-          const allDay = this.rnd(0, 3) === 0
-          const firstTimestamp = this.rnd(min.getTime(), max.getTime())
-          const first = new Date(firstTimestamp - (firstTimestamp % 900000))
-          const secondTimestamp = this.rnd(2, allDay ? 288 : 8) * 900000
-          const second = new Date(first.getTime() + secondTimestamp)
-
-          events.push({
-            name: this.names[this.rnd(0, this.names.length - 1)],
-            start: first,
-            end: second,
-            color: this.colors[this.rnd(0, this.colors.length - 1)],
-            timed: !allDay,
+      getEvents(){
+        const data = [
+          {
+            name: 'Maquinaría',
+            instructor: 'Artur R. Mendoza',
+            details: 'Virtual',
+            color: '#E5B751',
+            start: '2023-03-13 09:15',
+            end: '2023-03-13 11:30',
+            categories: 'Artur R. Mendoza'
+          },
+          {
+            name: 'Soldadura',
+            instructor: 'Jorge N. Woods',
+            details: 'Virtual',
+            color: '#064377',
+            start: '2023-03-15 15:00',
+            end: '2023-03-15 17:00',
+            categories: 'Jorge N. Woods'
+          },
+          {
+            name: 'Maquinaría',
+            instructor: 'George R. Mendoza',
+            details: 'Presencial',
+            color: '#0a4807',
+            start: '2023-03-16 15:00',
+            end: '2023-03-16 17:00',
+            categories: 'George R. Mendoza'
+          },
+        ]
+        data.forEach((element) => {
+          this.events.push({
+            name: element.name,
+            details: element.details,
+            start: element.start,
+            end: element.end,
+            color: element.color,
+            instructor: element.instructor,
           })
-        }
-
-        this.events = events
+        })
+      },
+      viewDay ({ date }) {
+        this.focus = date
+        this.type = 'day'
+      },
+      setToday () {
+        this.focus = this.today
+      },
+      prev () {
+        this.$refs.calendar.prev()
+      },
+      next () {
+        this.$refs.calendar.next()
       },
       getEventColor (event) {
         return event.color
       },
-      rnd (a, b) {
-        return Math.floor((b - a + 1) * Math.random()) + a
-      },
-    
-  }
+      showEvent ({ nativeEvent, event }) {
+        const open = () => {
+          this.selectedEvent = event
+          this.selectedElement = nativeEvent.target
+          setTimeout(() => this.selectedOpen = true, 10)
+        }
 
-})
+        if (this.selectedOpen) {
+          this.selectedOpen = false
+          setTimeout(open, 10)
+        } else {
+          open()
+        }
+
+        nativeEvent.stopPropagation()
+      },
+      updateRange ({ start, end }) {
+        // You could load events from an outside source (like database) now that we have the start and end dates on the calendar
+        this.start = start
+        this.end = end
+      },
+    }
+  })
