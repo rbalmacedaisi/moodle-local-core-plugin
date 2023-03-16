@@ -11,8 +11,8 @@ const app = new Vue({
       type: 'week',
       typeToLabel: {
         month: 'Mes',
-        week: 'Week',
-        day: 'Day',
+        week: 'Semana',
+        day: 'Día',
       },
       start: null,
       end: null,
@@ -31,6 +31,13 @@ const app = new Vue({
         {id: 3, text: 'George R. Mendoza', value: 'George R. Mendoza'},
       ],
       select: [],
+      selectclass:[],
+      classitems:[
+        {id: 1, text: 'Maquinaría', value: 'Maquinaría'},
+        {id: 2, text: 'Soldadura', value: 'Soldadura'},
+        {id: 3, text: 'Maquinaría', value: 'Maquinaría'},
+      ],
+      categories: [],
     },
     mounted () {
       this.$refs.calendar.checkChange();
@@ -48,6 +55,24 @@ const app = new Vue({
             color: '#E5B751',
             start: '2023-03-13 09:15',
             end: '2023-03-13 11:30',
+            categories: 'Artur R. Mendoza'
+          },
+          {
+            name: 'Maquinaría',
+            instructor: 'Artur R. Mendoza',
+            details: 'Virtual',
+            color: '#E5B751',
+            start: '2023-03-15 09:15',
+            end: '2023-03-15 11:30',
+            categories: 'Artur R. Mendoza'
+          },
+          {
+            name: 'Maquinaría',
+            instructor: 'Artur R. Mendoza',
+            details: 'Virtual',
+            color: '#E5B751',
+            start: '2023-03-17 09:15',
+            end: '2023-03-17 11:30',
             categories: 'Artur R. Mendoza'
           },
           {
@@ -69,6 +94,10 @@ const app = new Vue({
             categories: 'George R. Mendoza'
           },
         ]
+        this.showEvents(data)
+      },
+      showEvents(data){
+        this.events = []
         data.forEach((element) => {
           this.events.push({
             name: element.name,
@@ -77,6 +106,7 @@ const app = new Vue({
             end: element.end,
             color: element.color,
             instructor: element.instructor,
+            category: element.instructor
           })
         })
       },
@@ -117,5 +147,20 @@ const app = new Vue({
         this.start = start
         this.end = end
       },
+      selectInstructor(){
+        this.getEvents()
+        let data = []
+        this.categories = []
+        if(this.select.value){
+          this.categories.push(this.select.value)
+          this.events.forEach((element) => {
+            if(element.instructor == this.select.value ){
+              data.push(element)
+              this.showEvents(data)
+              console.log(element)
+            }
+          })
+        }
+      }
     }
   })
