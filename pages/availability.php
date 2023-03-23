@@ -27,20 +27,17 @@ require_once($CFG->libdir . '/adminlib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/schedules.php');
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/availability.php');
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('schedules', $plugin_name));
-$PAGE->set_heading(get_string('schedules', $plugin_name));
+$PAGE->set_title(get_string('availability', $plugin_name));
+$PAGE->set_heading(get_string('availability', $plugin_name));
 $PAGE->set_pagelayout('base');
-
 
 echo $OUTPUT->header();
 
-$url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
-
-echo <<<EOT
+echo <<<'EOT'
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
@@ -48,7 +45,8 @@ echo <<<EOT
     <v-app>
       <v-main>
         <v-container>
-          <classschedule></classschedule>
+        <availabilitycalendar></availabilitycalendar>
+            
         </v-container>
       </v-main>
     </v-app>
@@ -57,13 +55,13 @@ echo <<<EOT
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
   <style>
-    .v-toolbar__content{
-        padding-left: 0px !important;
+    .instructor-select{
+        max-width: 400px;
     }
 </style>
 EOT;
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitycomponent.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/classschedule.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitymodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

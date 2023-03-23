@@ -208,6 +208,7 @@ $string['instructor'] = 'Instructor';
 $string['select_instructor'] = 'Seleccionar Instructor';
 $string['number_classes'] = 'Número de clases';
 $string['start_time'] = 'Hora de inicio';
+$string['end_time'] = 'Hora de finalización';
 $string['class_type'] = 'Tipo de Clase';
 $string['select_type_class'] = 'Selecciona el Tipo de Clase';
 $string['monday'] = 'Lunes';
@@ -222,4 +223,5 @@ $string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta c
 $string['edit_class'] = 'Editar Clase';
 
 // Pagina de Horarios.
-$string['schedules'] = 'Horarios';
+$string['schedules'] = 'Horarios de Clase';
+$string['availability'] = 'Disponibilidad';

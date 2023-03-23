@@ -207,6 +207,7 @@ $string['instructor'] = 'Instructor';
 $string['select_instructor'] = 'Select Instructor';
 $string['number_classes'] = 'Number of classes';
 $string['start_time'] = 'Start Time';
+$string['end_time'] = 'End Time';
 $string['class_type'] = 'Class Type';
 $string['select_type_class'] = 'Select the type of class';
 $string['monday'] = 'Monday';
@@ -222,3 +223,4 @@ $string['edit_class'] = 'Edit Class';
 
 // Schedules page.
 $string['schedules'] = 'Schedules';
+$string['availability'] = 'Availability';
