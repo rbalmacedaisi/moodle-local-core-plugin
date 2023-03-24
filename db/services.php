@@ -57,4 +57,28 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_list_classes' => array(
+        'classname'     => 'local_grupomakro_core\external\list_classes',
+        'methodname'    => 'execute',
+        'description'   => 'This method list the created classes',
+        'type'          => 'read',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_delete_class' => array(
+        'classname'     => 'local_grupomakro_core\external\delete_class',
+        'methodname'    => 'execute',
+        'description'   => 'This method delete the class with the id provided',
+        'type'          => 'write',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_update_class' => array(
+        'classname'     => 'local_grupomakro_core\external\update_class',
+        'methodname'    => 'execute',
+        'description'   => 'This method update the class with the id provided',
+        'type'          => 'write',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

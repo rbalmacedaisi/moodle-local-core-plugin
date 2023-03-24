@@ -23,6 +23,7 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_active_learning_plans.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -45,12 +46,29 @@ $PAGE->navbar->add(
     new moodle_url('/local/grupomakro_core/pages/createclass.php')
 );
 
+// Get the active learning plans with careers and format the object passed to the mustache
+$activeLearningPlans = get_active_learning_plans_external::get_active_learning_plans();
+$formattedAvailableCareers = [];
+$availableCareers =json_decode($activeLearningPlans['availablecareers']); 
+foreach($availableCareers as $careerName => $careerInfo){
+    array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName]);
+}
+// 
+
 
 echo $OUTPUT->header();
 
+$classTypes = [
+    ['value'=>1, 'label'=>'Virtual'],
+    ['value'=>0, 'label'=>'Presencial']
+];
+
 $templatedata = [
-    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/institutionalcontracts.php',
+    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
+    'classTypes' => $classTypes,
+    'availableCareers' => $formattedAvailableCareers
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/create_class', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/create_class', 'init', []);
 echo $OUTPUT->footer();

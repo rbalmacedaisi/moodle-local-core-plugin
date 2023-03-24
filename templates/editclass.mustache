@@ -41,7 +41,6 @@
         {{! Contract Action Panel }}
         <div class="col-sm-12 mb-2 px-md-0">
             <div class="d-flex align-items-center mt-3">
-                <h5 class="text-secondary mb-0">{{name}}</h5>
             </div>
         </div>
         {{! End Contract Action Panel }}
@@ -49,135 +48,137 @@
         {{! Contract data to modify }}
         <div class="col-sm-12 px-md-0">
             <div class="card py-3 px-4">
-                <div class="row pb-3 mt-2">
-                    {{! Field to select class_type }}
-                    <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
-                        <label class="w-100" for="class_type">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
-                        <select name="class_type" id="class_type" class="form-control">
-                            <option value=''>{{#str}}select_type_class, local_grupomakro_core {{/str}}</option>
-                            <option selected>{{type}}</option>
-                            <option value="presencial">Presencial</option>
-                        </select>
-                    </div>
-                    {{! End Field to select class_type }}
-                    
-                    {{#isperiods}}
-                    {{! Field to select learning plans }}
-                    <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
-                        <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
-                        <select name="carrer" id="carrer" class="form-control">
-                            <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
-                            <option value="{{name}}" selected>{{name}}</option>
-                            <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
-                            <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
-                        </select>
-                    </div>
-                    {{! End Field to select learning plans }}
-                    
-                    {{! Field to select the period }}
-                    <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
-                        <label class="w-100" for="period">{{#str}}period, local_grupomakro_core {{/str}}</label>
-                        <select name="period" id="period" class="form-control">
-                            <option value=''>{{#str}}select_period, local_grupomakro_core {{/str}}</option>
-                            <option value="1" selected>Primer periodo</option>
-                            <option value="2">Segundo periodo</option>
-                            <option value="3">Tercer periodo</option>
-                            <option value="4">Cuarto periodo</option>
-                        </select>
-                    </div>
-                    {{! End Field to select the period }}
-                    {{/isperiods}}
-                    
-                    {{! Field to select courses }}
-                    <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                        <label class="w-100" for="courses">{{#str}}courses, local_grupomakro_core {{/str}}</label>
-                        <select name="courses" id="courses" class="form-control">
-                            <option value=''>{{#str}}select_courses, local_grupomakro_core {{/str}}</option>
-                            <option value="SOLDADURA SUBACUÁTICA" selected>SOLDADURA SUBACUÁTICA</option>
-                            <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
-                            <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
-                        </select>
-                    </div>
-                    {{! End Field to select courses }}
-                    
-                    {{! Field to select the Instructors }}
-                    <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                        <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
-                        <select name="instructor" id="instructor" class="form-control">
-                            <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
-                            <option value="" selected>{{instructor}}</option>
-                            <option value="Fern M. Lewis">Fern M. Lewis</option>
-                            <option value="Ernesto F. Jones">Ernesto F. Jones</option>
-                        </select>
-                    </div>
-                    {{! End Field to select the Instructors }}
-                    
-                    {{! Field to select the Instructors }}
-                    <div id="number_classes-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                        <label class="w-100" for="number_classes">{{#str}}number_classes, local_grupomakro_core {{/str}}</label>
-                        <input type="number" value="5" class="form-control" id="number_classes">
-                    </div>
-                    {{! End Field to select the Instructors }}
-                    
-                    {{! Field to select the Start Date }}
-                    <div id="startdate-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                        <label class="w-100" for="startdate">{{#str}}startdate, local_grupomakro_core {{/str}}</label>
-                        <input value='{{startdate}}' type="date" class="form-control" id="startdate">
-                    </div>
-                    {{! Field to select the Start Date }}
-                    
-                    {{! Field for start time }}
-                    <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                        <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
-                        <input type="time" class="form-control" id="starttime" value='{{classschedule}}'>
-                    </div>
-                    {{! Field for start time }}
-                    
-                    {{! Section to choose class days }}
-                    <div id="starttime-fieldset" class="row form-group py-2 px-2 mx-0">
-                        
+                <div id="fields-groups" class="row pb-5 mt-2 mx-0">
                         <div class="col-12">
-                            <label>{{#str}} classdays, local_grupomakro_core{{/str}}</label>
-                        </div>
-                    
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchMonday" checked>
-                            <label class="custom-control-label" for="customSwitchMonday">{{#str}} monday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchTuesday">
-                            <label class="custom-control-label" for="customSwitchTuesday">{{#str}} tuesday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchWednesday" checked>
-                            <label class="custom-control-label" for="customSwitchWednesday">{{#str}} wednesday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchThursday">
-                            <label class="custom-control-label" for="customSwitchThursday">{{#str}} thursday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchFriday">
-                            <label class="custom-control-label" for="customSwitchFriday">{{#str}} friday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchSaturday">
-                            <label class="custom-control-label" for="customSwitchSaturday">{{#str}} saturday, local_grupomakro_core {{/str}}</label>
-                        </div>
-                        <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
-                            <input type="checkbox" class="custom-control-input" id="customSwitchSunday">
-                            <label class="custom-control-label" for="customSwitchSunday">{{#str}} sunday, local_grupomakro_core {{/str}}</label>
+                             <h5 class="text-secondary mb-0">{{className}}</h5>
+                            <hr> </hr>
                         </div>
                         
-                    </div>
-                    {{! End Section to choose class days }}
-                </div>
+                        {{! Class name field }}
+                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
+                            <input type="text" class="form-control" id="classname" value="{{className}}" required>
+                        </div>
+                        {{! Class name field }}
+                        
+                        {{! Field to select class_type }}
+                        <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="class_type">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
+                            <select name="class_type" id="class_type" class="form-control" required>
+                                <option value=''>{{#str}}select_type_class, local_grupomakro_core {{/str}}</option>
+                                {{#classTypes}}
+                                <option {{selected}} value="{{value}}">{{label}}</option>
+                                {{/classTypes}}
+                            </select>
+                        </div>
+                        {{! End Field to select class_type }}
+                        
+                        {{! Field to select learning plans }}
+                        <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="career">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
+                            <select name="career" id="career" class="form-control" required>
+                                <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
+                                {{#availableCareers}}
+                                <option  {{selected}} value="{{value}}">{{label}}</option>
+                                {{/availableCareers}}
+                            </select>
+                        </div>
+                        {{! End Field to select learning plans }}
+                        
+                        {{! Field to select the period }}
+                        <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="period">{{#str}}period, local_grupomakro_core {{/str}}</label>
+                            <select name="period" id="period" class="form-control" required>
+                                <option value=''>{{#str}}select_period, local_grupomakro_core {{/str}}</option>
+                                {{#periods}}
+                                <option class="periodValue" {{selected}} value="{{value}}">{{label}}</option>
+                                {{/periods}}
+                            </select>
+                        </div>
+                        {{! End Field to select the period }}
+                        
+                        {{! Field to select courses }}
+                        <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="courses">{{#str}}courses, local_grupomakro_core {{/str}}</label>
+                            <select name="courses" id="courses" class="form-control" required>
+                                <option value=''>{{#str}}select_courses, local_grupomakro_core {{/str}}</option>
+                                 {{#courses}}
+                                <option class="courseValue" {{selected}} value="{{value}}">{{label}}</option>
+                                {{/courses}}
+                            </select>
+                        </div>
+                        {{! End Field to select courses }}
+                        
+                        {{! Field to select the Instructors }}
+                        <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
+                            <select name="instructor" id="instructor" class="form-control" required>
+                                <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
+                                 {{#teachers}}
+                                <option class="teacherValue" {{selected}} value="{{value}}">{{label}}</option>
+                                {{/teachers}}
+                            </select>
+                        </div>
+                        {{! End Field to select the Instructors }}
+                        
+                        
+                        {{! Field for start time }}
+                        <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="starttime" value="{{initTime}}" required>
+                        </div>
+                        {{! Field for start time }}
+                        
+                        {{! Field for End time }}
+                        <div id="endtime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="endtime">{{#str}}end_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="endtime" value="{{endTime}}" required>
+                        </div>
+                        {{! Field for End time }}
+                        
+                        {{! Section to choose class days }}
+                        <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
+                            <div class="col-12">
+                                <label>{{#str}} classdays, local_grupomakro_core{{/str}}</label>
+                            </div>
+                        
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchMonday" {{mondayValue}}>
+                                <label class="custom-control-label" for="customSwitchMonday">{{#str}} monday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchTuesday" {{tuesdayValue}}>
+                                <label class="custom-control-label" for="customSwitchTuesday">{{#str}} tuesday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchWednesday" {{wednesdayValue}}>
+                                <label class="custom-control-label" for="customSwitchWednesday">{{#str}} wednesday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchThursday" {{thursdayValue}}>
+                                <label class="custom-control-label" for="customSwitchThursday">{{#str}} thursday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchFriday" {{fridayValue}}>
+                                <label class="custom-control-label" for="customSwitchFriday">{{#str}} friday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchSaturday" {{saturdayValue}}>
+                                <label class="custom-control-label" for="customSwitchSaturday">{{#str}} saturday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 my-2 ml-4">
+                                <input type="checkbox" class="custom-control-input" id="customSwitchSunday" {{sundayValue}}>
+                                <label class="custom-control-label" for="customSwitchSunday">{{#str}} sunday, local_grupomakro_core {{/str}}</label>
+                            </div>
+                        </div>
+                        {{! End Section to choose class days }}
+                    </div>  
                 
                 {{! Actions }}
                 <div class="d-flex card-footer bg-transparent px-0">
                     <div class="spacer"></div>
                     <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
-                    <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
+                    <a id="saveClassButton" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
                 </div>
                 {{! End Actions }}
                 

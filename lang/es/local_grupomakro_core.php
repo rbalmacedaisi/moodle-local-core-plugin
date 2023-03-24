@@ -221,6 +221,7 @@ $string['sunday'] = 'Domingo';
 $string['classdays'] = 'Días de clase';
 $string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
 $string['edit_class'] = 'Editar Clase';
+$string['class_name'] = 'Nombre clase';
 
 // Pagina de Horarios.
 $string['schedules'] = 'Horarios de Clase';

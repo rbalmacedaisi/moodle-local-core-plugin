@@ -24,6 +24,10 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_active_learning_plans.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/period/get_learning_plan_periods.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/course/get_learning_plan_courses.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/user/get_learning_plan_teachers.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -38,57 +42,93 @@ $PAGE->set_heading(get_string('edit_class', $plugin_name));
 $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
 
-$classid = required_param('class_id', PARAM_TEXT);
-$periods = false;
-if($classid == 3){
-    $periods = true;
-    $class_data->classname = 'Maquinaría';
-    $class_data->classinstructor = 'Artur R. Mendoza';
-    $class_data->classcompany = 'Isi Panamá';
-    $classt_data->startdate = '2023-01-20';
-    $class_data->state = 'gk-col';
-    $class_data->classtype = 'virtual';
-    $class_data->classschedule = '20:00';
-}else if($classid == 1){
-    $periods = false;
-    $class_data->classname = 'Soldadura';
-    $class_data->classinstructor = 'Jorge N. Woods';
-    $class_data->classcompany = 'Grupo Makro Colombia';
-    $class_data->startdate = '2023-01-20';
-    $class_data->state = 'gk-col';
-    $class_data->classtype = 'virtual';
-    $class_data->classschedule = '15:00';
-}else if($classid == 2){
-    $class_data->classid = 2;
-    $class_data->classname = 'Maquinaría';
-    $class_data->classinstructor = 'George R. Mendoza';
-    $class_data->classcompany = 'Grupo Makro México';
-    $class_data->startdate = '2023-01-30';
-    $class_data->state = 'gk-mex';
-    $class_data->classtype = 'Presencial';
-    $class_data->classschedule = '10:00';
-}else{
-    $class_data->classid = 4;
-    $class_data->classname = 'Maquinaría Pesada';
-    $class_data->classinstructor = 'jhon R. Mejia';
-    $class_data->classcompany = 'Grupo Makro Colombia';
-    $class_data->startdate = '2023-01-30';
-    $class_data->state = 'gk-col';
-    $class_data->classtype = 'Presencial';
-    $class_data->classschedule = '13:00';
+$id = required_param('class_id', PARAM_TEXT);
+
+//Get the class that is going to be edited
+$class = json_decode(\local_grupomakro_core\external\list_classes::execute($id)['classes'])[0];
+$classType = $class->type;
+$classLearningPlanId=$class->learningplanid;
+$classPeriodId = $class->periodid;
+$classCourseId = $class->courseid;
+$classInstructorId = $class->instructorid;
+$classDays = $class->classdays;
+
+$mondayValue = $classDays[0]==='1'?'checked':null;
+$tuesdayValue = $classDays[2]==='1'?'checked':null;
+$wednesdayValue = $classDays[4]==='1'?'checked':null;
+$thursdayValue = $classDays[6]==='1'?'checked':null;
+$fridayValue = $classDays[8]==='1'?'checked':null;
+$saturdayValue = $classDays[10]==='1'?'checked':null;
+$sundayValue = $classDays[12]==='1'?'checked':null;
+// ---------------------------------------
+
+
+//Set class types and selected class type for the class
+$classTypes = [
+    ['value'=>1, 'label'=>'Virtual', 'selected'=>$classType === '1'? 'selected':null],
+    ['value'=>0, 'label'=>'Presencial', 'selected'=>$classType === '0'? 'selected':null]
+];
+// ----------------------------------------------------
+
+// Get the active learning plans with careers and format the object passed to the mustache
+$activeLearningPlans = json_decode(get_active_learning_plans_external::get_active_learning_plans()['availablecareers']);
+$formattedAvailableCareers = [];
+foreach($activeLearningPlans as $careerName => $careerInfo){
+    array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName, 'selected'=>$classLearningPlanId === $careerInfo->lpid?'selected':'']);
 }
+//------------------------------------------------------------------------------------------
+
+
+//Get learning plan periods
+$classLearningPlanPeriods = json_decode(get_learning_plan_periods_external::get_learning_plan_periods($classLearningPlanId)['periods']);
+$classLearningPlanPeriodsFormatted = [];
+foreach($classLearningPlanPeriods as $period){
+    array_push($classLearningPlanPeriodsFormatted, ['value'=>$period->id, 'label'=>$period->name, 'selected'=>$classPeriodId === $period->id?'selected':'']);
+}
+//--------------------------
+
+//Get courses by class learning plan and class period
+$classLearningPlanCourses = json_decode(get_learning_plan_courses_external::get_learning_plan_courses($classLearningPlanId,$classPeriodId)['courses']);
+$classLearningPlanCoursesFormatted = [];
+foreach($classLearningPlanCourses as $course){
+    array_push($classLearningPlanCoursesFormatted, ['value'=>$course->id, 'label'=>$course->name, 'selected'=>$classCourseId === $course->id?'selected':'']);
+}
+//---------------------------------------------------
+
+//Get teacher by class learning plan
+$classLearningPlanTeachers = json_decode(get_learning_plan_teachers_external::get_learning_plan_teachers($classLearningPlanId)['teachers']);
+$classLearningPlanTeachersFormatted = [];
+foreach($classLearningPlanTeachers as $teacher){
+    array_push($classLearningPlanTeachersFormatted, ['value'=>$teacher->id, 'label'=>$teacher->fullname.' ('.$teacher->email.')', 'selected'=>$classInstructorId === $teacher->id?'selected':'']);
+}
+// ---------------------------------
+
+// var_dump($classLearningPlanTeachersFormatted);
+// die();
 
 echo $OUTPUT->header();
 
+
+
 $templatedata = [
-    'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
-    'name' => $class_data->classname,
-    'instructor' => $class_data->classinstructor,
-    'type' => $class_data->classtype,
-    'isperiods' => $periods,
-    'startdate' => $classt_data->startdate,
-    'classschedule' => $class_data->classschedule,
+    'classTypes' => $classTypes,
+    'availableCareers' => $formattedAvailableCareers,
+    'periods'=>$classLearningPlanPeriodsFormatted,
+    'courses'=>$classLearningPlanCoursesFormatted,
+    'teachers'=>$classLearningPlanTeachersFormatted,
+    'initTime'=> $class->inittime,
+    'endTime'=>$class->endtime,
+    'mondayValue' =>$mondayValue, 
+    'tuesdayValue' =>$tuesdayValue, 
+    'wednesdayValue' =>$wednesdayValue,
+    'thursdayValue' =>$thursdayValue,
+    'fridayValue' =>$fridayValue,
+    'saturdayValue' =>$saturdayValue,
+    'sundayValue' =>$sundayValue,
+    'className'=> $class->name,
+    'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php'
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
 echo $OUTPUT->footer();

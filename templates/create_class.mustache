@@ -85,35 +85,32 @@
                         {{! Field to select class_type }}
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="class_type">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
-                            <select name="class_type" id="class_type" class="form-control">
+                            <select name="class_type" id="class_type" class="form-control" required>
                                 <option value=''>{{#str}}select_type_class, local_grupomakro_core {{/str}}</option>
-                                <option value="virtual">Virtual</option>
-                                <option value="presencial">Presencial</option>
+                                {{#classTypes}}
+                                <option value="{{value}}">{{label}}</option>
+                                {{/classTypes}}
                             </select>
                         </div>
                         {{! End Field to select class_type }}
                         
                         {{! Field to select learning plans }}
-                        <div id="learning-fieldset" class="col-sm-12 col-md-6 d-none py-2">
-                            <label class="w-100" for="carrer">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
-                            <select name="carrer" id="carrer" class="form-control">
+                        <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="career">{{#str}}manage_careers, local_grupomakro_core {{/str}}</label>
+                            <select name="career" id="career" class="form-control" required>
                                 <option value=''>{{#str}}select_careers, local_grupomakro_core {{/str}}</option>
-                                <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
-                                <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
-                                <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
+                                {{#availableCareers}}
+                                <option value="{{value}}">{{label}}</option>
+                                {{/availableCareers}}
                             </select>
                         </div>
                         {{! End Field to select learning plans }}
                         
                         {{! Field to select the period }}
-                        <div id="period-fieldset" class="col-sm-12 col-md-6 d-none py-2">
+                        <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="period">{{#str}}period, local_grupomakro_core {{/str}}</label>
-                            <select name="period" id="period" class="form-control">
+                            <select name="period" id="period" class="form-control" required>
                                 <option value=''>{{#str}}select_period, local_grupomakro_core {{/str}}</option>
-                                <option value="1">Primer periodo</option>
-                                <option value="2">Segundo periodo</option>
-                                <option value="3">Tercer periodo</option>
-                                <option value="4">Cuarto periodo</option>
                             </select>
                         </div>
                         {{! End Field to select the period }}
@@ -121,11 +118,8 @@
                         {{! Field to select courses }}
                         <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="courses">{{#str}}courses, local_grupomakro_core {{/str}}</label>
-                            <select name="courses" id="courses" class="form-control">
+                            <select name="courses" id="courses" class="form-control" required>
                                 <option value=''>{{#str}}select_courses, local_grupomakro_core {{/str}}</option>
-                                <option value="SOLDADURA SUBACUÁTICA">SOLDADURA SUBACUÁTICA</option>
-                                <option value="TRIPULANTE DE VUELO COMERCIAL">TRIPULANTE DE VUELO COMERCIAL</option>
-                                <option value="ASISTENTE DE ING CIVIL">ASISTENTE DE ING CIVIL</option>
                             </select>
                         </div>
                         {{! End Field to select courses }}
@@ -133,27 +127,30 @@
                         {{! Field to select the Instructors }}
                         <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
-                            <select name="instructor" id="instructor" class="form-control">
+                            <select name="instructor" id="instructor" class="form-control" required>
                                 <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
-                                <option value="Madeline R. Mercer">Madeline R. Mercer</option>
-                                <option value="Fern M. Lewis">Fern M. Lewis</option>
-                                <option value="Ernesto F. Jones">Ernesto F. Jones</option>
                             </select>
                         </div>
                         {{! End Field to select the Instructors }}
                         
+                        {{! Class name field }}
+                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
+                            <input type="text" class="form-control" id="classname" required>
+                        </div>
+                        {{! Class name field }}
                         
                         {{! Field for start time }}
                         <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
-                            <input type="time" class="form-control" id="starttime">
+                            <input type="time" class="form-control" id="starttime" required>
                         </div>
                         {{! Field for start time }}
                         
                         {{! Field for End time }}
-                        <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
-                            <input type="time" class="form-control" id="starttime">
+                        <div id="endtime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="endtime">{{#str}}end_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="endtime" required>
                         </div>
                         {{! Field for End time }}
                         
@@ -194,33 +191,18 @@
                         </div>
                         {{! End Section to choose class days }}
                     </div>   
+                    
                 </form>
+                    {{! Actions }}
+                    <div class="d-flex card-footer bg-transparent mt-3 px-0">
+                        <div class="spacer"></div>
+                        <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                        <a href="#" id="saveClassButton" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
+                    </div>
+                    {{! End Actions }}
                 
-                {{! Actions }}
-                <div class="d-flex card-footer bg-transparent mt-3 px-0">
-                    <div class="spacer"></div>
-                    <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
-                    <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
-                </div>
-                {{! End Actions }}
+                
             </div>
         </div>
     </div>
 </div>
-{{#js}}
-    $('a.company-instance').click(function(){
-        $('.form-check .card').removeClass('active');
-        $(this).parent('.form-check').find('input').click();
-        $(this).find('.card').addClass('active');
-        var value_input = $('input:radio:checked').val();
-        console.log(value_input);
-        if(value_input  == 'grupomakro_col'){
-            $('#learning-fieldset').addClass('d-none');
-            $('#period-fieldset').addClass('d-none');
-        }else{
-            $('#learning-fieldset').removeClass('d-none');
-            $('#period-fieldset').removeClass('d-none');
-        }
-        $('#fields-groups').removeClass('d-none');
-    });
-{{/js}}

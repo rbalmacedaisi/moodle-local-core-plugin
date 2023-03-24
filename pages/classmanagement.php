@@ -36,87 +36,50 @@ $PAGE->set_title(get_string('classmanagement', $plugin_name));
 $PAGE->set_heading(get_string('classmanagement', $plugin_name));
 $PAGE->set_pagelayout('base');
 
+$classes = json_decode(\local_grupomakro_core\external\list_classes::execute()['classes']);
+
+// var_dump($classes);
+// die();
+
 echo $OUTPUT->header();
-
-// Class data.
-$class_data = array();
-$class_data[0]->classid = 3;
-$class_data[0]->classname = 'Maquinaría';
-$class_data[0]->classinstructor = 'Artur R. Mendoza';
-$class_data[0]->classcompany = 'Isi Panamá';
-$class_data[0]->startdate = '01/30/2023';
-$class_data[0]->state = 'isi-pa';
-$class_data[0]->classtype = 'virtual';
-$class_data[0]->classschedule = '8:00 pm';
-$class_data[0]->classdays = 'Lunes-Miércoles';
-$class_data[1]->classid = 1;
-$class_data[1]->classname = 'Soldadura';
-$class_data[1]->classinstructor = 'Jorge N. Woods';
-$class_data[1]->classcompany = 'Grupo Makro Colombia';
-$class_data[1]->startdate = '01/20/2023';
-$class_data[1]->state = 'gk-col';
-$class_data[1]->classtype = 'virtual';
-$class_data[1]->classschedule = '3:00 pm';
-$class_data[1]->classdays = 'Lunes-Miércoles';
-$class_data[2]->classid = 2;
-$class_data[2]->classname = 'Maquinaría';
-$class_data[2]->classinstructor = 'George R. Mendoza';
-$class_data[2]->classcompany = 'Grupo Makro México';
-$class_data[2]->startdate = '01/30/2023';
-$class_data[2]->state = 'gk-mex';
-$class_data[2]->classtype = 'facetoface';
-$class_data[2]->classschedule = '10:00 am';
-$class_data[2]->classdays = 'Lunes-Miércoles';
-$class_data[3]->classid = 4;
-$class_data[3]->classname = 'Maquinaría Pesada';
-$class_data[3]->classinstructor = 'jhon R. Mejia';
-$class_data[3]->classcompany = 'Grupo Makro Colombia';
-$class_data[3]->startdate = '01/30/2023';
-$class_data[3]->state = 'gk-col';
-$class_data[3]->classtype = 'facetoface';
-$class_data[3]->classschedule = '1:00 pm';
-$class_data[3]->classdays = 'Lunes-Miércoles';
-
-$data = array();
-$gk_col = array();
-$gk_mex = array();
-$isi_pa = array();
-$is_col = false;
-$is_mex = false;
-$is_pa = false;
-foreach ($class_data as $class) {
-    array_push($data,$class);
-    if($class->state == 'gk-col'){
-        array_push($gk_col,$class);
-        $is_col = true;
-    }else if($class->state == 'gk-mex'){
-        array_push($gk_mex,$class);
-        $is_mex = true;
-    }else if($class->state == 'isi-pa'){
-        array_push($isi_pa,$class);
-        $is_pa = true;
+$colClasses = array();
+$mexClasses = array();
+$paClasses = array();
+$definedColClasses = false;
+$definedMexClasses = false;
+$definedPaClasses = false;
+foreach ($classes as $class) {
+    
+    $companyCode = $class->companyCode;
+    
+    if($companyCode === 'gk-col'){
+        array_push($colClasses,$class);
+        $definedColClasses = true;
+    }else if($companyCode === 'gk-mex'){
+        array_push($mexClasses,$class);
+        $definedMexClasses = true;
+    }else if($companyCode=== 'isi-pa'){
+        array_push($paClasses,$class);
+        $definedPaClasses = true;
     }
-    if($class->classtype == 'facetoface'){
-        $class->icon = 'fa fa-group';
-        $class->type = 'Presencial';
-    }else{
-        $class->icon = 'fa fa-desktop';
-        $class->type = 'Virtual';
-    }
+    $class->icon = $class->type ==='0' ? 'fa fa-group':'fa fa-desktop';
+    $class->classDaysString = implode('-',$class->selectedDaysES);
 }
 
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
     'url' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
-    'data' => $data,
-    'is_col' => $is_col,
-    'is_mex' => $is_mex,
-    'is_pa' => $is_pa,
-    'gk_col' => $gk_col,
-    'gk_mex' => $gk_mex,
-    'isi_pa' => $isi_pa,
+    'allClasses' => $classes,
+    'definedColClasses' => $definedColClasses,
+    'definedMexClasses' => $definedMexClasses,
+    'definedPaClasses' => $definedPaClasses,
+    'colClasses' => $colClasses,
+    'mexClasses' => $mexClasses,
+    'paClasses' => $paClasses,
     'createclass_url' => $CFG->wwwroot . '/local/grupomakro_core/pages/createclass.php'
 ]; 
 
-echo $OUTPUT->render_from_template('local_grupomakro_core/class_managment', $templatedata);
+echo $OUTPUT->render_from_template('local_grupomakro_core/class_management', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/class_management', 'init', []);
+$PAGE->requires->js_call_amd('local_grupomakro_core/delete_class', 'init', []);
 echo $OUTPUT->footer();

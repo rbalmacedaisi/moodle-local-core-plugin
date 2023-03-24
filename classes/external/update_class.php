@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_create_class external function.
+ * Class definition for the local_grupomakro_update_class external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
@@ -39,14 +39,14 @@ require_once($CFG->libdir . '/filelib.php');
 require_once $CFG->dirroot . '/group/externallib.php';
 
 /**
- * External function 'local_grupomakro_create_class' implementation.
+ * External function 'local_grupomakro_update_class' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_class extends external_api {
+class update_class extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -55,7 +55,8 @@ class create_class extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
-            [
+            [   
+                'classId'=> new external_value(PARAM_TEXT, 'Id of the class.'),
                 'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
                 'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
                 'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
@@ -77,6 +78,7 @@ class create_class extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
+        string $classId,
         string $name,
         int $type,
         int $instance,
@@ -107,6 +109,12 @@ class create_class extends external_api {
         global $DB, $USER;
         
         $coreCourseId = $DB->get_record('local_learning_courses',['id'=>$courseId])->courseid;
+        $periodName = $DB->get_record('local_learning_periods',['id'=>$periodId])->name;
+        $instructorInfo = $DB->get_record('user',['id'=>$DB->get_record('local_learning_users',['id'=>$instructorId])->userid]);
+        $instructorFullName = $instructorInfo->firstname.' '.$instructorInfo->lastname;
+        $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$instructorFullName.'-'.$periodName,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
+        $createdGroup = \core_group_external::create_groups($group);
+        
         
         $newClass = new stdClass();
         $newClass->name           = $name;
@@ -120,20 +128,12 @@ class create_class extends external_api {
         $newClass->endtime        = $endTime;
         $newClass->classdays      = $classDays;
         $newClass->usermodified   = $USER->id;
+        $newClass->groupid        = $createdGroup[0]['id'];
         $newClass->timecreated    = time();
         $newClass->timemodified   = time();
         
         $newClassId = $DB->insert_record('gmk_class', $newClass);
-        
-        $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClassId,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
-        $createdGroup = \core_group_external::create_groups($group);
-        
-        
-        $createdClass = new stdClass();
-        $createdClass->id= $newClassId;
-        $createdClass->groupid= $createdGroup[0]['id'];
-        $createdClassId = $DB->update_record('gmk_class', $createdClass);
-        
+
         // Return the result.
         return ['status' => $newClassId, 'message' => 'ok'];
     }
