@@ -77,14 +77,29 @@ class delete_class extends external_api {
         ]);
         
         // Global variables.
-        global $DB, $USER;
+        global $DB;
         
-        $groupId = $DB->get_record('gmk_class',['id'=>$id])->groupid;
-
-        $groupIds = [$groupId];
+        $classInfo = $DB->get_record('gmk_class', ['id'=>$id]);
         
+        //Get the section.
+        $section = $DB->get_record('course_sections', ['id' => $classInfo->coursesectionid]);
+        
+        //Get the current course.
+        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$classInfo->courseid]);
+        $coreCourseId = $learningCourse->courseid;
+        $course = $DB->get_record('course', ['id' => $coreCourseId]);
+        
+        //Delete created resources.
+        $sectionnum = $section->section;
+        $sectioninfo = get_fast_modinfo($course)->get_section_info($sectionnum);    
+        course_delete_section($course, $sectioninfo, true, true);
+        rebuild_course_cache($coreCourseId, true);
+        
+        //Delete the class group.
+        $groupIds = [$classInfo->groupid];
         $deleteGroup = \core_group_external::delete_groups($groupIds);
 
+        //Lastly, delete the class itself.
         $deleteClassId = $DB->delete_records('gmk_class',['id'=>$id]);
 
         // Return the result.

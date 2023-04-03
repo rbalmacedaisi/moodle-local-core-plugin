@@ -37,6 +37,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once $CFG->dirroot . '/group/externallib.php';
+require_once $CFG->dirroot . '/local/grupomakro_core/libs/classeslib.php';
 
 /**
  * External function 'local_grupomakro_update_class' implementation.
@@ -59,14 +60,13 @@ class update_class extends external_api {
                 'classId'=> new external_value(PARAM_TEXT, 'Id of the class.'),
                 'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
                 'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
                 'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
                 'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
                 'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
                 'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active')
+                'classDays' => new external_value(PARAM_TEXT, 'The days when the class will have sessions, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active')
             ]
         );
     }
@@ -81,7 +81,6 @@ class update_class extends external_api {
         string $classId,
         string $name,
         int $type,
-        int $instance,
         int $learningPlanId,
         int $periodId,
         int $courseId,
@@ -90,52 +89,73 @@ class update_class extends external_api {
         string $endTime,
         string $classDays
         ) {
-        
-        // Validate the parameters passed to the function.
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'name' => $name,
-            'type' =>$type,
-            'instance'=>$instance,
-            'learningPlanId'=>$learningPlanId,
-            'periodId' =>$periodId,
-            'courseId' =>$courseId,
-            'instructorId' =>$instructorId,
-            'initTime'=>$initTime,
-            'endTime'=>$endTime,
-            'classDays'=>$classDays
-        ]);
-    
-        // Global variables.
-        global $DB, $USER;
-        
-        $coreCourseId = $DB->get_record('local_learning_courses',['id'=>$courseId])->courseid;
-        $periodName = $DB->get_record('local_learning_periods',['id'=>$periodId])->name;
-        $instructorInfo = $DB->get_record('user',['id'=>$DB->get_record('local_learning_users',['id'=>$instructorId])->userid]);
-        $instructorFullName = $instructorInfo->firstname.' '.$instructorInfo->lastname;
-        $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$instructorFullName.'-'.$periodName,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
-        $createdGroup = \core_group_external::create_groups($group);
-        
-        
-        $newClass = new stdClass();
-        $newClass->name           = $name;
-        $newClass->type           = $type;
-        $newClass->instance       = $instance;
-        $newClass->learningplanid = $learningPlanId;
-        $newClass->periodid       = $periodId;
-        $newClass->courseid       = $courseId;
-        $newClass->instructorid   = $instructorId;
-        $newClass->inittime       = $initTime;
-        $newClass->endtime        = $endTime;
-        $newClass->classdays      = $classDays;
-        $newClass->usermodified   = $USER->id;
-        $newClass->groupid        = $createdGroup[0]['id'];
-        $newClass->timecreated    = time();
-        $newClass->timemodified   = time();
-        
-        $newClassId = $DB->insert_record('gmk_class', $newClass);
 
+        
+        // Global variables.
+        global $DB,$USER;
+        
+        $classInfo = $DB->get_record('gmk_class', ['id'=>$classId]);
+        
+        //Get the section
+        $section = $DB->get_record('course_sections', ['id' => $classInfo->coursesectionid]);
+        
+        //Get the current course
+        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$classInfo->courseid]);
+        $coreCourseId = $learningCourse->courseid;
+        $course = $DB->get_record('course', ['id' => $coreCourseId]);
+        
+        //Delete created resources before the update
+        $sectionnum = $section->section;
+        $sectioninfo = get_fast_modinfo($course)->get_section_info($sectionnum);    
+        course_delete_section($course, $sectioninfo, true, true);
+        rebuild_course_cache($coreCourseId, true);
+
+        //Get the real course Id from the courses table for the new course.
+        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$courseId]);
+        $coreCourseId = $learningCourse->courseid;
+        $course = $DB->get_record('course', ['id' => $coreCourseId]);
+        
+        //----------------------------------------Update Group-----------------------------------------
+        
+        $groupInfo = new stdClass();
+        $groupInfo->id = $classInfo->groupid;
+        $groupInfo->name = $name.'-'.$classId;
+        $groupInfo->courseid = $coreCourseId;
+        $groupInfo->timemodified = time();
+        
+        $groupUpdated = $DB->update_record('groups',$groupInfo);
+        
+        //---------------------------------------Update Class------------------------------------------
+        
+        $classInfo->name           = $name;
+        $classInfo->type           = $type;
+        $classInfo->learningplanid = $learningPlanId;
+        $classInfo->periodid       = $periodId;
+        $classInfo->courseid       = $courseId;
+        $classInfo->instructorid   = $instructorId;
+        $classInfo->inittime       = $initTime;
+        $classInfo->endtime        = $endTime;
+        $classInfo->classdays      = $classDays;
+        $classInfo->usermodified   = $USER->id;
+        $classInfo->timemodified   = time();
+        
+        $classUpdated = $DB->update_record('gmk_class', $classInfo);
+        
+        //-------------------------------Delete section and recreate it-------------------------------
+        
+                
+        $classSection = grupomakro_core_create_class_section($classInfo,$coreCourseId,$classInfo->groupid );
+        rebuild_course_cache($coreCourseId, true);
+        
+        $classInfo->coursesectionid      = $classSection->id;
+        $classUpdated = $DB->update_record('gmk_class', $classInfo);
+        
+        //Define the activity to be created
+        $activity    = $type===1? 'bigbluebuttonbn':'attendance';
+        grupomakro_core_create_class_activities($classInfo,$course, $activity, $classSection->section);
+    
         // Return the result.
-        return ['status' => $newClassId, 'message' => 'ok'];
+        return ['status' => $classUpdated];
     }
 
 
@@ -147,8 +167,7 @@ class update_class extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new user or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_BOOL, 'True if the class is updated, false otherwise.'),
             )
         );
     }

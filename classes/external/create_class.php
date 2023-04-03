@@ -31,12 +31,14 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
+use DateTime;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once $CFG->libdir . '/externallib.php';
+require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->libdir . '/filelib.php');
-require_once $CFG->dirroot . '/group/externallib.php';
+require_once($CFG->dirroot . '/group/externallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/libs/classeslib.php');
 
 /**
  * External function 'local_grupomakro_create_class' implementation.
@@ -102,12 +104,19 @@ class create_class extends external_api {
             'endTime'=>$endTime,
             'classDays'=>$classDays
         ]);
-    
+        
         // Global variables.
         global $DB, $USER;
         
-        $coreCourseId = $DB->get_record('local_learning_courses',['id'=>$courseId])->courseid;
+
+        //Get the real course Id from the courses table.
+        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$courseId]);
+        $coreCourseId = $learningCourse->courseid;
+        $course= $DB->get_record('course',['id'=>$coreCourseId]);
         
+        //----------------------------------------------------Creation of class----------------------------------------------------------
+        
+        //Create the class object and insert into DB
         $newClass = new stdClass();
         $newClass->name           = $name;
         $newClass->type           = $type;
@@ -124,16 +133,35 @@ class create_class extends external_api {
         $newClass->timemodified   = time();
         
         $newClassId = $DB->insert_record('gmk_class', $newClass);
+        $newClass->id = $newClassId;
         
+        //----------------------------------------------------Creation of group----------------------------------------------------------
+        
+        //Create the group oject and create the group using the webservice.
         $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClassId,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
         $createdGroup = \core_group_external::create_groups($group);
         
         
-        $createdClass = new stdClass();
-        $createdClass->id= $newClassId;
-        $createdClass->groupid= $createdGroup[0]['id'];
-        $createdClassId = $DB->update_record('gmk_class', $createdClass);
+        //----------------------------------------------------Creation of course section (topic)-----------------------------------------
         
+        $classSection = grupomakro_core_create_class_section($newClass,$coreCourseId,$createdGroup[0]['id'] );
+        rebuild_course_cache($coreCourseId, true);
+
+        //----------------------------------------------------Update class with group and section-------------------------
+        
+        //Update the class with the new group id and the new section id.
+
+        $newClass->groupid= $createdGroup[0]['id'];
+        $newClass->coursesectionid= $classSection->id;
+        $updatedClass = $DB->update_record('gmk_class', $newClass);
+
+        
+        //-----------------------------------------------------Creation of the activities---------------------------------
+        
+        //Define the activity to be created
+        $activity    = $type===1? 'bigbluebuttonbn':'attendance';
+        grupomakro_core_create_class_activities($newClass,$course, $activity, $classSection->section);
+
         // Return the result.
         return ['status' => $newClassId, 'message' => 'ok'];
     }

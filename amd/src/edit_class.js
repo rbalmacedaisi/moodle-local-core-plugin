@@ -1,6 +1,7 @@
 import * as Ajax from 'core/ajax';
 import $ from 'jquery';
 
+const classNameInput = $('#classname');
 const typeSelector = $('#class_type');
 const careerSelector = $('#career');
 const periodSelector = $('#period');
@@ -16,9 +17,9 @@ const thursdaySwitch = $('#customSwitchThursday');
 const fridaySwitch = $('#customSwitchFriday');
 const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
-const selectors = [typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector, initTimeInput, endTimeInput];
+const selectors = [classNameInput,typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector, initTimeInput, endTimeInput];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
-const classId = window.location.search.substring(10,)
+const classId = window.location.search.substring(10,);
 
 let periods;
 let courses;
@@ -64,7 +65,8 @@ const handleClassSave = () => {
         }
         //
         const args = {
-            name: courses.find(course => course.id === courseSelector.val()).name,
+            classId,
+            name: classNameInput.val(),
             type: typeSelector.val(),
             learningPlanId: careerSelector.val(),
             periodId: periodSelector.val(),
@@ -72,19 +74,21 @@ const handleClassSave = () => {
             instructorId: teacherSelector.val(),
             initTime: initTimeInput.val(),
             endTime: endTimeInput.val(),
-            classDays: formatSelectedClassDays()
+            classDays: formatSelectedClassDays(),
         };
         console.log(args)
-        // const promise = Ajax.call([{
-        //     methodname: 'local_grupomakro_update_class',
-        //     args
-        // }, ]);
-        // promise[0].done(function(response) {
-        //     window.console.log(response);
-        //     window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
-        // }).fail(function(error) {
-        //     window.console.error(error);
-        // });
+        const promise = Ajax.call([{
+            methodname: 'local_grupomakro_update_class',
+            args
+        }, ]);
+        promise[0].done(function(response) {
+            window.console.log(response);
+            if(response.status){
+                window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
+            }
+        }).fail(function(error) {
+            window.console.error(error);
+        });
 
     });
 };

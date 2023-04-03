@@ -99,6 +99,20 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20230306007, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20230329002) {
+
+        // Define field coursesectionid to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('coursesectionid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'bbbclassroomid');
+
+        // Conditionally launch add field coursesectionid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230329002, 'local', 'grupomakro_core');
+    }
 
     return true;
 }

@@ -81,4 +81,12 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_calendar_get_calendar_events' => array(
+        'classname' => 'local_grupomakro_core\external\calendar_external',
+        'methodname' => 'execute',
+        'description' => 'Get calendar events',
+        'type' => 'read',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
