@@ -36,6 +36,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 
 /**
  * External function 'local_grupomakro_list_classes' implementation.
@@ -89,7 +90,8 @@ class list_classes extends external_api {
         string $endTime= null,
         string $classDays= null
         ) {
-        global $DB;
+        global $DB,$USER;
+
         
         $filters = [];
         
@@ -105,56 +107,8 @@ class list_classes extends external_api {
         $endTime && $endTime !== "" ? $filters['endtime']=$endTime : null;
         $classDays && $classDays !== "" ? $filters['classdays']=$classDays : null;
 
-        $classes = $DB->get_records('gmk_class',$filters);
-        foreach($classes as $class){
-            
-            //get the class instructor name
-            $teacherId = $class->instructorid;
-            $teacherCoreId = $DB->get_record('local_learning_users',['id'=>$teacherId])->userid;
-            $userInfo = $DB->get_record('user',['id'=>$teacherCoreId]);
-            $class->instructorName = $userInfo->firstname.' '. $userInfo->lastname;
-            //
-            
-            //set the type Label
-            $class->typeLabel = $class->type === '1'? 'Virtual':'Presencial';
-            //
-            
-            //set the formatted hour in the format am/pm
-            $initHour = intval(substr($class->inittime,0,2));
-            $initMinutes = substr($class->inittime,3,2);
-            $endHour = intval(substr($class->endtime,0,2));
-            $endMinutes = substr($class->endtime,3,2);
-            $class->initHourFormatted = $initHour>12? strval($initHour-12).':'.$initMinutes.' pm': ($initHour===12? $initHour.':'.$initMinutes.' pm' : $initHour.':'.$initMinutes.' am');
-            $class->endHourFormatted = $endHour>12? strval($endHour-12).':'.$endMinutes.' pm': ($endHour===12? $endHour.':'.$endMinutes.' pm' : $endHour.':'.$endMinutes.' am');
-            //
-            
-            //set the list of choosen days
-            $daysES = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-            $daysEN = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-            $daysString = $class->classdays;
-            $selectedDaysES = [];
-            $selectedDaysEN = [];
-            foreach($daysES as $index=>$day){
-                $includedDay= intval(substr($daysString,0,1))===1;
-                $includedDay ? array_push($selectedDaysES,$day) :null;
-                $includedDay ? array_push($selectedDaysEN,$daysEN[$index]) :null;
-                $daysString = substr($daysString,2);
-            }
-            $class->selectedDaysES =$selectedDaysES;
-            $class->selectedDaysEN =$selectedDaysEN;
-            //
-            
-            //set the company label and code
-            $companies = ['Isi Panamá','Grupo Makro Colombia','Grupo Makro México'];
-            $companyCodes = ['isi-pa','gk-col','gk-mex'];
-            $class->companyName =$companies[$class->instance];
-            $class->companyCode =$companyCodes[$class->instance];
-            //
-            
-            $class->startDate = '01/30/2023';
-            
-            
-        }
+        $classes = grupomakro_core_list_classes($filters);
+
         return ['classes' => json_encode(array_values($classes))];
 
     }

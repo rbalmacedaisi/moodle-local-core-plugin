@@ -38,9 +38,6 @@ $PAGE->set_pagelayout('base');
 
 $classes = json_decode(\local_grupomakro_core\external\list_classes::execute()['classes']);
 
-// var_dump($classes);
-// die();
-
 echo $OUTPUT->header();
 $colClasses = array();
 $mexClasses = array();

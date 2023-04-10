@@ -38,7 +38,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot . '/group/externallib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/libs/classeslib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 
 /**
  * External function 'local_grupomakro_create_class' implementation.
@@ -141,6 +141,8 @@ class create_class extends external_api {
         $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClassId,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
         $createdGroup = \core_group_external::create_groups($group);
         
+        $members = ['members'=>['groupid'=>$createdGroup[0]['id'], 'userid'=>$DB->get_record('local_learning_users',['id'=>$instructorId])->userid]];
+        $instructorAddedToGroup = \core_group_external::add_group_members($members);
         
         //----------------------------------------------------Creation of course section (topic)-----------------------------------------
         
@@ -160,7 +162,7 @@ class create_class extends external_api {
         
         //Define the activity to be created
         $activity    = $type===1? 'bigbluebuttonbn':'attendance';
-        grupomakro_core_create_class_activities($newClass,$course, $activity, $classSection->section);
+        grupomakro_core_create_class_activities($newClass,$course, $activity, $classSection->section,$createdGroup[0]['id']);
 
         // Return the result.
         return ['status' => $newClassId, 'message' => 'ok'];

@@ -36,8 +36,8 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
-require_once $CFG->dirroot . '/group/externallib.php';
-require_once $CFG->dirroot . '/local/grupomakro_core/libs/classeslib.php';
+require_once $CFG->dirroot. '/group/externallib.php';
+require_once $CFG->dirroot. '/local/grupomakro_core/lib.php';
 
 /**
  * External function 'local_grupomakro_update_class' implementation.
@@ -152,7 +152,7 @@ class update_class extends external_api {
         
         //Define the activity to be created
         $activity    = $type===1? 'bigbluebuttonbn':'attendance';
-        grupomakro_core_create_class_activities($classInfo,$course, $activity, $classSection->section);
+        grupomakro_core_create_class_activities($classInfo,$course, $activity, $classSection->section,$classInfo->groupid);
     
         // Return the result.
         return ['status' => $classUpdated];
