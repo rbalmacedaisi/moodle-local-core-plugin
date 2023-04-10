@@ -66,7 +66,8 @@ $sundayValue = $classDays[12]==='1'?'checked':null;
 //Set class types and selected class type for the class
 $classTypes = [
     ['value'=>1, 'label'=>'Virtual', 'selected'=>$classType === '1'? 'selected':null],
-    ['value'=>0, 'label'=>'Presencial', 'selected'=>$classType === '0'? 'selected':null]
+    ['value'=>0, 'label'=>'Presencial', 'selected'=>$classType === '0'? 'selected':null],
+    ['value'=>2, 'label'=>'Mixta', 'selected'=>$classType === '2'? 'selected':null]
 ];
 // ----------------------------------------------------
 

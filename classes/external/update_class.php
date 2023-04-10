@@ -150,9 +150,7 @@ class update_class extends external_api {
         $classInfo->coursesectionid      = $classSection->id;
         $classUpdated = $DB->update_record('gmk_class', $classInfo);
         
-        //Define the activity to be created
-        $activity    = $type===1? 'bigbluebuttonbn':'attendance';
-        grupomakro_core_create_class_activities($classInfo,$course, $activity, $classSection->section,$classInfo->groupid);
+        grupomakro_core_create_class_activities($classInfo,$course, $type, $classSection->section,$classInfo->groupid);
     
         // Return the result.
         return ['status' => $classUpdated];

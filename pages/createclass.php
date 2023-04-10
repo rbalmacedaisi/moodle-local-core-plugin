@@ -60,7 +60,9 @@ echo $OUTPUT->header();
 
 $classTypes = [
     ['value'=>1, 'label'=>'Virtual'],
-    ['value'=>0, 'label'=>'Presencial']
+    ['value'=>0, 'label'=>'Presencial'],
+    ['value'=>2, 'label'=>'Mixta'],
+    
 ];
 
 $templatedata = [

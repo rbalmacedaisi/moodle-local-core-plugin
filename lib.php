@@ -56,7 +56,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
  *
  * @return array
  */
-function grupomakro_core_create_class_activities($classInfo, $course,$activity,$section,$groupId) {
+function grupomakro_core_create_class_activities($classInfo, $course,$type,$section,$groupId) {
     global $DB;
     
     $name = $classInfo->name;
@@ -89,10 +89,9 @@ function grupomakro_core_create_class_activities($classInfo, $course,$activity,$
     //Define some needed constants
     $currentDateTS = $startDateTS;
     $dayInSeconds = 86400;
+    if($type === 1 || $type ===2){ //If the type of activity is equal to 1, create the big blue button activities
         
-    if($activity === 'bigbluebuttonbn'){ //If the type of activity is equal to 1, create the big blue button activities
-        
-        
+        $activity = 'bigbluebuttonbn';
         //Start looping from the startDate to the endDate
         while($currentDateTS < $endDateTS){
             $day =  $classDaysList[date('l',$currentDateTS)];
@@ -151,7 +150,9 @@ function grupomakro_core_create_class_activities($classInfo, $course,$activity,$
             $currentDateTS+=$dayInSeconds;
         }
     }
-    else if ($activity === 'attendance'){
+    $currentDateTS = $startDateTS;
+    if ($type === 0 || $type ===2){
+        $activity = 'attendance';
         list($module, $context, $cw, $cm, $data) = prepare_new_moduleinfo_data($course, $activity,$section);
         
         $attendanceActivityDefinition                             = new stdClass();
@@ -280,7 +281,9 @@ function grupomakro_core_list_classes($filters) {
         //
         
         //set the type Label
-        $class->typeLabel = $class->type === '1'? 'Virtual':'Presencial';
+        
+        $classLabels = ['1'=>'Virtual', '0'=>'Presencial', '2'=>'Mixta'];
+        $class->typeLabel = $classLabels[$class->type];
         //
         
         //set the formatted hour in the format am/pm

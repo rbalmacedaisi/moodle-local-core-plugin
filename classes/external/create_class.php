@@ -159,10 +159,8 @@ class create_class extends external_api {
 
         
         //-----------------------------------------------------Creation of the activities---------------------------------
-        
-        //Define the activity to be created
-        $activity    = $type===1? 'bigbluebuttonbn':'attendance';
-        grupomakro_core_create_class_activities($newClass,$course, $activity, $classSection->section,$createdGroup[0]['id']);
+        grupomakro_core_create_class_activities($newClass,$course, $type, $classSection->section,$createdGroup[0]['id']);
+        // 
 
         // Return the result.
         return ['status' => $newClassId, 'message' => 'ok'];
