@@ -4,6 +4,7 @@ Vue.component('classschedule',{
             <v-sheet :dark="dark">
                 <v-toolbar
                     flat
+                    id="first"
                 >
                     <v-btn color="primary" dark class="mr-4" :href="urlClass" >
                         Agregar
@@ -126,17 +127,21 @@ Vue.component('classschedule',{
                     @click:more="viewDay"
                     @click:date="viewDay"
                     @change="updateRange"
-                    locale="es"
+                    locale="es-CO"
                     :short-weekdays="false"
-                    event-timed="timed"
-                    category-show-all
-                    :categories="categories"
                     :events="events"
-                    :event-color="getEventColor"
                     :type="type"
-                    :event-overlap-mode="mode"
-                    :dark="dark"
-                ></v-calendar>
+                    show-month-on-first
+                >
+                    <template v-slot:event="{ event }">
+                      <div class="v-event-draggable">
+                        <strong>{{ event.name }}</strong
+                        ><br />
+                        {{ formatEventTime(event.start) }} -
+                        {{ formatEventTime(event.end) }}
+                      </div>
+                    </template>
+                </v-calendar>
                 <v-menu
                     v-model="selectedOpen"
                     :close-on-content-click="false"
@@ -154,7 +159,7 @@ Vue.component('classschedule',{
                             :color="selectedEvent.color"
                             dark
                         >
-                            <v-toolbar-title v-html="selectedEvent.name"></v-toolbar-title>
+                            <v-toolbar-title class="pl-2" v-html="selectedEvent.name"></v-toolbar-title>
                             <v-spacer></v-spacer>
                             <v-menu
                               v-if="!rolInstructor"
@@ -329,49 +334,57 @@ Vue.component('classschedule',{
                 week: 'Semana',
                 day: 'Día',
             },
+            classitems:undefined,
+            items:undefined,
+            rolInstructor: undefined,
             start: null,
             end: null,
             selectedEvent: {},
             selectedElement: null,
             selectedOpen: false,
             events: [],
-            mode: 'column',
+            mode: 'stack',
             name: null,
             details: null,
             color: '#1976D2',
             dialog: false,
             currentlyEditing: null,
-            items:[
-                {id: 1, text: 'Artur R. Mendoza', value: 'Artur R. Mendoza'},
-                {id: 2, text: 'Jorge N. Woods', value: 'Jorge N. Woods'},
-                {id: 3, text: 'George R. Mendoza', value: 'George R. Mendoza'},
-            ],
             select: [],
             selectclass:[],
-            classitems:[
-                {id: 1, text: 'Maquinaría', value: 'Maquinaría'},
-                {id: 2, text: 'Soldadura', value: 'Soldadura'},
-                {id: 3, text: 'Maquinaría Amarilla', value: 'Maquinaría Amarilla'}
-            ],
             categories: [],
-            rolInstructor: false,
             dark: false,
             listItem: '',
             dialogconfirm: false,
             reschedulemodal: false,
             urlClass: '',
-            urlAvailability: ''
+            urlAvailability: '',
+            newdata:[],
+            URLdomain: window.location.origin
+        }
+    },
+    props:{
+        text:{
+            type:String,
+            default:'vivo'
         }
     },
     created(){
+        this.classitems = window.classItems;
+        this.items = window.instructorItems;
+        console.log(this.items)
+        this.rolInstructor = false //window.rolInstructor===1;
         this.getEvents();
-        var URLdomain = window.location.host;
+        var URLdomain = window.location.origin;
         this.urlClass =  'classmanagement.php'
         this.urlAvailability = 'availability.php'
     },
     mounted(){
-        this.$refs.calendar.checkChange();
-    },
+        // this.$refs.schedule.text = text;
+        this.$refs.calendar.checkChange();  
+        var timeStamp= 1107110465663
+        var dateFormat= new Date(timeStamp);
+    },  
+            
     methods:{
         getEvents(){
             const data = [
@@ -489,10 +502,41 @@ Vue.component('classschedule',{
                 }
             ]
             if(!this.rolInstructor){
-              this.showEvents(data)
+              //this.showEvents(data)
             }else {
-              this.showEvents(dataInstructor)
+              //this.showEvents(dataInstructor)
             }
+            
+            
+            const year = new Date().getFullYear()
+            let month = new Date().getMonth()
+            let currentMonth = 0
+            month > 0 ? currentMonth = month +1 : currentMonth = 0
+            const url = this.URLdomain +
+                '/webservice/rest/server.php?wstoken=0a9e53bb26a56bcb930002d6a7d6392a&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events&year='
+                + year + '&month=' + currentMonth; 
+            
+            fetch(url)
+            .then(res => res.json())
+            .then(res => {
+                console.log(JSON.parse(res.events))
+                const data = JSON.parse(res.events)
+                data.forEach((element) => {
+                    this.newdata.push({
+                        name: element.coursename,
+                        instructor: 'Artur R. Mendoza',
+                        details: 'Presencial',
+                        color: element.color,
+                        start: element.initDate,
+                        end: element.endDate,
+                        days: 'Jueves - Sábado',
+                        hour: '14:30 - 15:30',
+                        timed: true
+                    })
+                })
+                this.showEvents(this.newdata)
+            })
+            .catch( err => console.error(err))
         },
         showEvents(data){
             this.events = []
@@ -579,10 +623,18 @@ Vue.component('classschedule',{
         sendSolit(){
             this.dialog = false;
             this.dialogconfirm = true;
+            console.log('hola sergio')
         },
         hidenDialog(){
             this.dialogconfirm = false;
             this.reschedulemodal = false
-        }
+        },
+        formatEventTime(date) {
+          return new Date(date).toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+        },
     }
 })

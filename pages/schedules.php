@@ -24,8 +24,11 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
+
+global $DB,$USER;
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/schedules.php');
 
@@ -35,10 +38,46 @@ $PAGE->set_title(get_string('schedules', $plugin_name));
 $PAGE->set_heading(get_string('schedules', $plugin_name));
 $PAGE->set_pagelayout('base');
 
+//Check if the user is an Instructor
+$sql = "SELECT DISTINCT r.shortname
+              FROM {role_assignments} ra, {role} r
+             WHERE ra.userid = ? AND ra.roleid = r.id
+                    AND r.shortname IN ('teacher')";
+
+$teacherRoles = $DB->get_records_sql($sql , array($USER->id));
+$rolInstructor = !empty($teacherRoles);
+// 
+
+// Get the list of created classes
+$classes = grupomakro_core_list_classes([]);
+$classItems = [];
+foreach($classes as $class){
+  $classItem = new stdClass();
+  $classItem->id = $class->id;
+  $classItem->text = $class->name;
+  $classItem->value = $class->id;
+  array_push($classItems,$classItem);
+}
+$classItems = json_encode($classItems);
+// 
+
+//Get the list of Instructors
+$instructors = grupomakro_core_list_instructors();
+$instructorItems = [];
+foreach($instructors as $instructor){
+  $instructorItem = new stdClass();
+  $instructorItem->id = $instructor->id;
+  $instructorItem->text = $instructor->fullname;
+  $instructorItem->value = $instructor->id;
+  array_push($instructorItems,$instructorItem);
+}
+$instructorItems = json_encode($instructorItems);
+// 
 
 echo $OUTPUT->header();
 
 $url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
+
 
 echo <<<EOT
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
@@ -56,14 +95,22 @@ echo <<<EOT
 
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  
+  <script>
+    var rolInstructor = $rolInstructor;
+    var classItems = $classItems;
+    var instructorItems = $instructorItems;
+  </script>
+  
   <style>
-    .v-toolbar__content{
+    #first .v-toolbar__content{
         padding-left: 0px !important;
     }
 </style>
 EOT;
+
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/classschedule.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitycomponent.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/classschedule.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

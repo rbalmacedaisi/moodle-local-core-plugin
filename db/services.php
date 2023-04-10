@@ -86,6 +86,7 @@ $functions = array(
         'methodname' => 'execute',
         'description' => 'Get calendar events',
         'type' => 'read',
+        'capabilities' => 'moodle/course:ignoreavailabilityrestrictions, moodle/calendar:manageentries, moodle/calendar:manageownentries, moodle/calendar:managegroupentries',
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),

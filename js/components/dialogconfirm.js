@@ -21,5 +21,5 @@ Vue.component('eventdialog',{
             this.dialogconfirm = false
             this.$emit('hiden-dialog')
         }
-    }
+    },
 })
