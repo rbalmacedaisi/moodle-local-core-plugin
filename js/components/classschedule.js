@@ -88,17 +88,15 @@ Vue.component('classschedule',{
                 <v-col cols="3">
                     <v-combobox
                       v-if="!rolInstructor"
-                      v-model="select"
-                      :items="items"
+                      v-model="selectedInstructors"
+                      :items="instructors"
                       label="Instructores"
                       outlined
                       dense
                       hide-details
                       class="mr-2"
                       clearable
-                      @input="selectInstructor"
                       multiple
-                      small-chips
                     ></v-combobox>
                 </v-col>
                 <v-col cols="3">
@@ -129,7 +127,7 @@ Vue.component('classschedule',{
                     @change="updateRange"
                     locale="es-CO"
                     :short-weekdays="false"
-                    :events="events"
+                    :events="filteredEvents"
                     :type="type"
                     show-month-on-first
                 >
@@ -335,7 +333,7 @@ Vue.component('classschedule',{
                 day: 'Día',
             },
             classitems:undefined,
-            items:undefined,
+            instructors:undefined,
             rolInstructor: undefined,
             start: null,
             end: null,
@@ -343,35 +341,27 @@ Vue.component('classschedule',{
             selectedElement: null,
             selectedOpen: false,
             events: [],
-            mode: 'stack',
-            name: null,
-            details: null,
-            color: '#1976D2',
+            mode: 'column',
             dialog: false,
-            currentlyEditing: null,
-            select: [],
+            selectedInstructors: [],
             selectclass:[],
-            categories: [],
             dark: false,
             listItem: '',
             dialogconfirm: false,
             reschedulemodal: false,
             urlClass: '',
             urlAvailability: '',
-            newdata:[],
-            URLdomain: window.location.origin
+            URLdomain: window.location.origin,
+            token: '0a9e53bb26a56bcb930002d6a7d6392a'
         }
     },
     props:{
-        text:{
-            type:String,
-            default:'vivo'
-        }
+        
     },
     created(){
         this.classitems = window.classItems;
-        this.items = window.instructorItems;
-        console.log(this.items)
+        this.instructors = window.instructorItems;
+        console.log(this.instructors)
         this.rolInstructor = false //window.rolInstructor===1;
         this.getEvents();
         var URLdomain = window.location.origin;
@@ -379,141 +369,20 @@ Vue.component('classschedule',{
         this.urlAvailability = 'availability.php'
     },
     mounted(){
-        // this.$refs.schedule.text = text;
-        this.$refs.calendar.checkChange();  
-        var timeStamp= 1107110465663
-        var dateFormat= new Date(timeStamp);
+        this.$refs.calendar.checkChange();
     },  
             
     methods:{
         getEvents(){
-            const data = [
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-13 09:15',
-                    end: '2023-03-13 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-15 09:15',
-                    end: '2023-03-15 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-17 09:15',
-                    end: '2023-03-17 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Soldadura',
-                    instructor: 'Jorge N. Woods',
-                    details: 'Virtual',
-                    color: '#064377',
-                    start: '2023-03-15 15:10',
-                    end: '2023-03-15 17:10',
-                    days: 'Miércoles - Jueves',
-                    hour: '15:10 - 17:10'
-                },
-                {
-                    name: 'Soldadura',
-                    instructor: 'Jorge N. Woods',
-                    details: 'Virtual',
-                    color: '#064377',
-                    start: '2023-03-16 15:10',
-                    end: '2023-03-16 17:10',
-                    days: 'Miércoles - Jueves',
-                    hour: '15:10 - 17:10'
-                },
-                {
-                    name: 'Maquinaría Amarilla',
-                    instructor: 'George R. Mendoza',
-                    details: 'Presencial',
-                    color: '#0a4807',
-                    start: '2023-03-16 14:30',
-                    end: '2023-03-16 15:30',
-                    days: 'Jueves - Sábado',
-                    hour: '14:30 - 15:30'
-                },
-                {
-                    name: 'Maquinaría Amarilla',
-                    instructor: 'George R. Mendoza',
-                    details: 'Presencial',
-                    color: '#0a4807',
-                    start: '2023-03-18 14:30',
-                    end: '2023-03-18 15:30',
-                    days: 'Jueves - Sábado',
-                    hour: '14:30 - 15:30'
-                },
-            ]
-            const dataInstructor = [
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-13 09:15',
-                    end: '2023-03-13 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-15 09:15',
-                    end: '2023-03-15 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Maquinaría',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#E5B751',
-                    start: '2023-03-17 09:15',
-                    end: '2023-03-17 11:30',
-                    days: 'Lunes - Miércoles - Viernes',
-                    hour: '09:15 - 11:30'
-                },
-                {
-                    name: 'Soldadura',
-                    instructor: 'Artur R. Mendoza',
-                    details: 'Virtual',
-                    color: '#064377',
-                    start: '2023-03-16 08:30',
-                    end: '2023-03-16 10:30',
-                    days: 'Jueves',
-                    hour: '08:30 - 10:30'
-                }
-            ]
-            if(!this.rolInstructor){
-              //this.showEvents(data)
-            }else {
-              //this.showEvents(dataInstructor)
-            }
-            
+            this.events = []
             
             const year = new Date().getFullYear()
             let month = new Date().getMonth()
             let currentMonth = 0
             month > 0 ? currentMonth = month +1 : currentMonth = 0
             const url = this.URLdomain +
-                '/webservice/rest/server.php?wstoken=0a9e53bb26a56bcb930002d6a7d6392a&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events&year='
+                '/webservice/rest/server.php?wstoken='+ this.token + 
+                '&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events&year='
                 + year + '&month=' + currentMonth; 
             
             fetch(url)
@@ -522,37 +391,28 @@ Vue.component('classschedule',{
                 console.log(JSON.parse(res.events))
                 const data = JSON.parse(res.events)
                 data.forEach((element) => {
-                    this.newdata.push({
-                        name: element.coursename,
-                        instructor: 'Artur R. Mendoza',
-                        details: 'Presencial',
-                        color: element.color,
-                        start: element.initDate,
-                        end: element.endDate,
-                        days: 'Jueves - Sábado',
-                        hour: '14:30 - 15:30',
-                        timed: true
-                    })
+                    if(element.component == 'mod_attendance' || element.component == 'mod_bigbluebuttonbn'){
+                        this.events.push({
+                            name: element.coursename,
+                            instructor: element.instructorName,
+                            details: element.typeLabel,
+                            color: element.color,
+                            start: element.initDate,
+                            end: element.endDate,
+                            days: element.classDaysES.join(" - "),
+                            hour: element.timeRange,
+                            timed: true,
+                            component: element.component,
+                            course: element.course
+                        })
+                    }
+                    
                 })
-                this.showEvents(this.newdata)
+                
             })
             .catch( err => console.error(err))
         },
-        showEvents(data){
-            this.events = []
-            data.forEach((element) => {
-                this.events.push({
-                    name: element.name,
-                    details: element.details,
-                    start: element.start,
-                    end: element.end,
-                    color: element.color,
-                    instructor: element.instructor,
-                    days: element.days,
-                    hour: element.hour
-                })
-            })
-        },
+        
         viewDay ({ date }) {
             this.focus = date
             this.type = 'day'
@@ -590,22 +450,6 @@ Vue.component('classschedule',{
             this.start = start
             this.end = end
         },
-        selectInstructor(e){
-            console.log(e)
-            this.getEvents()
-            let data = []
-            if(e.length > 0){
-                this.events.forEach((element) => {
-                    e.forEach((item) =>{
-                        if(element.instructor == item.value ){
-                            data.push(element)
-                            this.showEvents(data)
-                            console.log(element)
-                        }
-                    })
-                })
-            }
-        },
         handleInput(e){
             this.getEvents()
             let data = []
@@ -614,7 +458,7 @@ Vue.component('classschedule',{
                     e.forEach((item) =>{
                         if(element.name == item.value ){
                             data.push(element)
-                            this.showEvents(data)
+                            
                         }
                     })
                 })
@@ -623,7 +467,6 @@ Vue.component('classschedule',{
         sendSolit(){
             this.dialog = false;
             this.dialogconfirm = true;
-            console.log('hola sergio')
         },
         hidenDialog(){
             this.dialogconfirm = false;
@@ -636,5 +479,34 @@ Vue.component('classschedule',{
             hour12: true,
           });
         },
-    }
+    },
+    computed: {
+        filteredEvents() {
+            let select = []
+            
+            if(this.selectedInstructors.length > 0){
+                this.selectedInstructors.forEach((element) =>{
+                    select.push(element.text)
+                })
+                return this.events.filter((event) =>
+                    select.includes(event.instructor)
+                );
+            }
+            
+            if(this.selectclass.length > 0){
+                this.selectclass.forEach((element) =>{
+                    select.push(element.text)
+                })
+                return this.events.filter((event) =>
+                    select.includes(event.name)
+                );
+            }
+            
+            if (this.selectedInstructors.length === 0 && this.selectclass.length === 0) {
+              return this.events;
+            }
+            
+        },
+    },
+    
 })

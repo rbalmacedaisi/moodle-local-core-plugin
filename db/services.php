@@ -90,4 +90,13 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_send_reschedule_message' => array(
+        'classname' => 'local_grupomakro_core\external\send_reschedule_message',
+        'methodname' => 'execute',
+        'description' => '',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

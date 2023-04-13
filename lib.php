@@ -318,6 +318,10 @@ function grupomakro_core_list_classes($filters) {
         $class->companyCode =$companyCodes[$class->instance];
         //
         
+        //Set the real course id
+        $class->coreCourseId = $DB->get_record('local_learning_courses',['id'=>$class->courseid])->courseid;
+        $class->coreCourseName = $DB->get_record('course',['id'=>$class->coreCourseId])->fullname;
+        
         $class->startDate = '01/30/2023';
         
         

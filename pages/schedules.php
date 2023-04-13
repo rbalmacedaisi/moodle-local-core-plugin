@@ -53,12 +53,18 @@ $classes = grupomakro_core_list_classes([]);
 $classItems = [];
 foreach($classes as $class){
   $classItem = new stdClass();
-  $classItem->id = $class->id;
-  $classItem->text = $class->name;
-  $classItem->value = $class->id;
+  $classItem->id = $class->coreCourseId;
+  $classItem->text = $class->coreCourseName;
+  $classItem->value = $class->coreCourseId;
   array_push($classItems,$classItem);
 }
-$classItems = json_encode($classItems);
+$classItemsUnique = [];
+foreach($classItems as $item){
+  if(!array_key_exists($item->id,$classItemsUnique)){
+    $classItemsUnique[$item->id]=$item;
+  }
+}
+$classItemsUnique = json_encode(array_values($classItemsUnique));
 // 
 
 //Get the list of Instructors
@@ -68,7 +74,7 @@ foreach($instructors as $instructor){
   $instructorItem = new stdClass();
   $instructorItem->id = $instructor->id;
   $instructorItem->text = $instructor->fullname;
-  $instructorItem->value = $instructor->id;
+  $instructorItem->value = $instructor->fullname;
   array_push($instructorItems,$instructorItem);
 }
 $instructorItems = json_encode($instructorItems);
@@ -98,7 +104,7 @@ echo <<<EOT
   
   <script>
     var rolInstructor = $rolInstructor;
-    var classItems = $classItems;
+    var classItems = $classItemsUnique;
     var instructorItems = $instructorItems;
   </script>
   
