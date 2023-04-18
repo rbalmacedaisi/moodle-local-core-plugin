@@ -24,6 +24,8 @@
 
 require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->dirroot. '/mod/attendance/locallib.php');
+require_once(__DIR__ . '/../../config.php');
+require_once($CFG->dirroot.'/calendar/lib.php');
 
 
 defined('MOODLE_INTERNAL') || die();
@@ -52,11 +54,11 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
 }
 
 /**
- * Get the active learning plans for the class creation
+ * Create or updated (delete and recreate) the activities for the given class
  *
  * @return array
  */
-function grupomakro_core_create_class_activities($classInfo, $course,$type,$section,$groupId) {
+function grupomakro_core_create_class_activities($classInfo, $course,$type,$section,$groupId,$instructorUserId) {
     global $DB;
     
     $name = $classInfo->name;
@@ -64,6 +66,9 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
     $initTime = $classInfo->inittime;
     $endTime = $classInfo->endtime;
     $classDays = $classInfo->classdays;
+    
+    $initDate = '2023-04-01';
+    $endDate = '2023-04-30';
         
     //Calculate the class session duration in seconds
     $initDateTime = DateTime::createFromFormat('H:i', $initTime);
@@ -72,13 +77,13 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
     //
     
     //Get the period start date in seconds and the day name
-    $startDate = DateTime::createFromFormat('Y-m-d H:i:s', '2023-04-01 '.$initTime.':00'); // January 1st of this year
+    $startDate = DateTime::createFromFormat('Y-m-d H:i:s', $initDate.' '.$initTime.':00'); // January 1st of this year
     $startDateTS = strtotime($startDate->format('Y-m-d H:i:s'));
     
     //
     
     //Get the period end date timestamp(seconds)
-    $endDate = DateTime::createFromFormat('Y-m-d H:i:s', '2023-04-14 '.$endTime.':00'); // April 30th of this year
+    $endDate = DateTime::createFromFormat('Y-m-d H:i:s', $endDate.' '.$endTime.':00'); // April 30th of this year
     $endDateTS = strtotime($endDate->format('Y-m-d H:i:s'));
     //
     
@@ -125,7 +130,8 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
                 $bbbActivityDefinition->cmidnumber                      = "";
                 $bbbActivityDefinition->groupmode                       = "1";
                 $bbbActivityDefinition->groupingid                      = "0";
-                $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$currentDateTS.'},{"type":"date","d":"<","t":'.$activityEndTS.'}],"showc":[true,true]}';
+                // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$currentDateTS.'},{"type":"date","d":"<","t":'.$activityEndTS.'}],"showc":[true,true]}';
+                $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[],"showc":[]}';
                 $bbbActivityDefinition->completionunlocked              = 1;
                 $bbbActivityDefinition->completion                      = "1";
                 $bbbActivityDefinition->completionexpected              = 0;
@@ -143,7 +149,7 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
                 $bbbActivityDefinition->competencies                    = array();
                 $bbbActivityDefinition->competency_rule                 = "0";
                 $bbbActivityDefinition->submitbutton2                   = "Guardar cambios y regresar al curso";
-                $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"53","role":"moderator"}]';
+                $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"'.$instructorUserId.'","role":"moderator"}]';
         
                 $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $course);
             }
@@ -235,7 +241,6 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
     
     return ['status'=>'created'];
 }
-
 
 function grupomakro_core_create_class_section($classInfo, $courseId, $groupId) {
     global $DB;
@@ -341,5 +346,3 @@ function grupomakro_core_list_instructors() {
     
     return $instructors;
 }
-
-

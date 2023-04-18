@@ -150,7 +150,8 @@ class update_class extends external_api {
         $classInfo->coursesectionid      = $classSection->id;
         $classUpdated = $DB->update_record('gmk_class', $classInfo);
         
-        grupomakro_core_create_class_activities($classInfo,$course, $type, $classSection->section,$classInfo->groupid);
+        $instructorUserId = $DB->get_record('local_learning_users',['id'=>$instructorId])->userid;
+        grupomakro_core_create_class_activities($classInfo,$course, $type, $classSection->section,$classInfo->groupid,$instructorUserId);
     
         // Return the result.
         return ['status' => $classUpdated];

@@ -141,7 +141,8 @@ class create_class extends external_api {
         $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClassId,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
         $createdGroup = \core_group_external::create_groups($group);
         
-        $members = ['members'=>['groupid'=>$createdGroup[0]['id'], 'userid'=>$DB->get_record('local_learning_users',['id'=>$instructorId])->userid]];
+        $instructorUserId = $DB->get_record('local_learning_users',['id'=>$instructorId])->userid;
+        $members = ['members'=>['groupid'=>$createdGroup[0]['id'], 'userid'=>$instructorUserId]];
         $instructorAddedToGroup = \core_group_external::add_group_members($members);
         
         //----------------------------------------------------Creation of course section (topic)-----------------------------------------
@@ -159,7 +160,7 @@ class create_class extends external_api {
 
         
         //-----------------------------------------------------Creation of the activities---------------------------------
-        grupomakro_core_create_class_activities($newClass,$course, $type, $classSection->section,$createdGroup[0]['id']);
+        grupomakro_core_create_class_activities($newClass,$course, $type, $classSection->section,$createdGroup[0]['id'],$instructorUserId);
         // 
 
         // Return the result.
