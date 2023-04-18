@@ -99,4 +99,13 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_teachers_disponibility' => array(
+        'classname' => 'local_grupomakro_core\external\get_teachers_disponibility',
+        'methodname' => 'execute',
+        'description' => 'Get the theachers disponibility',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
