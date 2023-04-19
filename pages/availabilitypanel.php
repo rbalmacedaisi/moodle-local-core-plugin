@@ -80,6 +80,9 @@ echo <<<EOT
     .odd-item {
       background-color: #7199dc21;
     }
+    .theme--light.v-application{
+      background: transparent !important;
+    }
    </style>
    
    <script>

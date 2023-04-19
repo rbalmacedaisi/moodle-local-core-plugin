@@ -369,7 +369,6 @@ Vue.component('classschedule',{
     mounted(){
         this.$refs.calendar.checkChange();
     },  
-            
     methods:{
         getEvents(){
             this.events = []

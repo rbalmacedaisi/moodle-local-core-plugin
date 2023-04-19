@@ -110,7 +110,7 @@ echo <<<EOT
   
   <style>
     #first .v-toolbar__content{
-        padding-left: 0px !important;
+      padding-left: 0px !important;
     }
 </style>
 EOT;
