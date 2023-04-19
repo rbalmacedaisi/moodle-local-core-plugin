@@ -45,7 +45,7 @@ $PAGE->add_body_class('limitedwidth');
 $id = required_param('class_id', PARAM_TEXT);
 
 //Get the class that is going to be edited
-$class = json_decode(\local_grupomakro_core\external\list_classes::execute($id)['classes'])[0];
+$class = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($id)['classes'])[0];
 $classType = $class->type;
 $classLearningPlanId=$class->learningplanid;
 $classPeriodId = $class->periodid;

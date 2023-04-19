@@ -36,7 +36,7 @@ $PAGE->set_title(get_string('classmanagement', $plugin_name));
 $PAGE->set_heading(get_string('classmanagement', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-$classes = json_decode(\local_grupomakro_core\external\list_classes::execute()['classes']);
+$classes = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute()['classes']);
 
 echo $OUTPUT->header();
 $colClasses = array();

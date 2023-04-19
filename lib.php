@@ -68,7 +68,7 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
     $classDays = $classInfo->classdays;
     
     $initDate = '2023-04-01';
-    $endDate = '2023-04-30';
+    $endDate = '2023-05-30';
         
     //Calculate the class session duration in seconds
     $initDateTime = DateTime::createFromFormat('H:i', $initTime);
@@ -345,4 +345,50 @@ function grupomakro_core_list_instructors() {
     }
     
     return $instructors;
+}
+
+function calculate_disponibility_range($timeRanges){
+     
+    $ranges = [];
+    
+    foreach ($timeRanges as $range) {
+        $times = explode(',', $range);
+        $start = strtotime($times[0]);
+        $end = strtotime($times[1]);
+        
+        $merged = false;
+        foreach ($ranges as $key => $existing) {
+            if ($start >= $existing->st && $end <= $existing->et) {
+                // New range is completely contained in an existing range
+                $merged = true;
+                break;
+            } elseif ($start <= $existing->st && $end >= $existing->et) {
+                // New range completely contains an existing range
+                $existing->st = $start;
+                $existing->et = $end;
+                $merged = true;
+                break;
+            } elseif ($start <= $existing->et && $end >= $existing->et) {
+                // New range overlaps the end of an existing range
+                $existing->et = $end;
+                $merged = true;
+                break;
+            } elseif ($end >= $existing->st && $start <= $existing->st) {
+                // New range overlaps the start of an existing range
+                $existing->st = $start;
+                $merged = true;
+                break;
+            }
+        }
+        
+        if (!$merged) {
+            $ranges[] = (object)['st' => $start, 'et' => $end];
+        }
+    }
+    
+    $result = [];
+    foreach ($ranges as $range) {
+        $result[] = (object)['st' => $range->st - strtotime('today'), 'et' => $range->et - strtotime('today')];
+    }
+    return($result);
 }

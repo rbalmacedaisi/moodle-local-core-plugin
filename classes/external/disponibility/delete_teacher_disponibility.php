@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_delete_class external function.
+ * Class definition for the local_grupomakro_delete_teacher_disponibility external function.
  *
  * @package    local_grupomakro_core
- * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright  2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -31,19 +31,18 @@ use external_function_parameters;
 use external_single_structure;
 use external_multiple_structure;
 use external_value;
-use stdClass;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
-require_once($CFG->dirroot . '/calendar/lib.php');
 /**
- * External function 'local_grupomakro_delete_class' implementation.
+ * External function 'local_grupomakro_delete_teacher_disponibility' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
- * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright   2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class delete_teacher_disponibility extends external_api {
@@ -57,108 +56,40 @@ class delete_teacher_disponibility extends external_api {
         return new external_function_parameters(
             [
                 'instructorId' => new external_value(PARAM_INT, 'ID of the instructor', VALUE_REQUIRED),
-                'newDisponibilityRecord' => new external_multiple_structure(
-                    new external_single_structure(
-                        [
-                            'day' => new external_value(PARAM_TEXT, 'Day of the week', VALUE_REQUIRED),
-                            'timeslots' => new external_multiple_structure(
-                                new external_value(PARAM_TEXT, 'Available time slot', VALUE_REQUIRED),
-                                'Array of available time slots'
-                            )
-                        ],
-                        'Record for a single day of availability'
-                    ),
-                    'Array of availability records for each day of the week'
-                )
             ],
-            'Parameters for setting instructor availability'
+            'Parameters for deleting instructor availability'
         );
     }
     /**
      * TODO describe what the function actually does.
      *
-     * @param int $userid
+     * @param int instructorId
      * @return mixed TODO document
      */
     public static function execute(
-        // string $id
+            $instructorId
         ) {
         
-        // Validate the parameters passed to the function.
-        // $params = self::validate_parameters(self::execute_parameters(), [
-        //     'id' => $id,
-        // ]);
-        
-        // Global variables.
-        global $DB;
-   
-        $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility');
-        
-        $weekdays = array(
-            'disp_monday',
-            'disp_tuesday',
-            'disp_wednesday',
-            'disp_thursday',
-            'disp_friday',
-            'disp_saturday',
-            'disp_sunday'
-        );
-        $teachersDisponibility = new stdClass();
-        
-        foreach($disponibilityRecords as $disponibilityRecord){
-            $teacherId = $disponibilityRecord->userid;
-            $teachersDisponibility->{$teacherId}= new stdClass();
+        try{
+            // Validate the parameters passed to the function.
+            $params = self::validate_parameters(self::execute_parameters(), [
+                'instructorId' => $instructorId,
+            ]);
             
-            foreach($weekdays as $day){
-                $dayAvailabilities = json_decode($disponibilityRecord->{$day});
-                $dayLabel = substr($day, 5);
-                $teachersDisponibility->{$teacherId}->{$dayLabel} =self::calculate_disponibility_hours($dayAvailabilities);
-            }
+            // Global variables.
+            global $DB;
+            
+            $instructorUserId = $DB->get_record('local_learning_users', ['id'=>$instructorId])->userid; 
+            $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorUserId]);
+            
+            // Return the result.
+            return ['status' => $deleteDisponibilityRecord, 'message' => 'ok'];
         }
-        print_object($teachersDisponibility);
-        die();
-
-        
-        
-        // Return the result.
-        return ['status' => $deleteClassId, 'message' => 'ok'];
+        catch (Exception $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
     }
     
-    
-    public static function calculate_disponibility_hours($dayAvailabilities){
-        $result = array();
-        foreach($dayAvailabilities as $dayAvailability){
-            if(!$dayAvailability){continue;}
-        
-            $startTime = $dayAvailability->st;
-            $endTime = $dayAvailability->et;
-            
-            $startHour = sprintf('%02d:%02d', floor($startTime/3600), ($startTime/60)%60);
-            $endHour = sprintf('%02d:%02d', floor($endTime/3600), ($endTime/60)%60);
-            
-            // Add initial hour to the result array
-            $result[] = $startHour;
-            
-            $startHour = (int)substr($startHour, 0, 2);
-            $endHour = (int)substr($endHour , 0, 2);
-            $numHours = $endHour - $startHour;
-            
-            // Adjust end hour to nearest o'clock hour
-            if ((int)substr($end, 3) != 0) {
-                $endHour++;
-            }
-            
-            // Add o'clock hours for each hour between start and end
-            for ($i = 1; $i < $numHours; $i++) {
-                $hour = $startHour + $i;
-                $result[] = sprintf('%02d:00', $hour);
-            }
-            
-            // Add final o'clock hour to the result array
-            // $result[] = sprintf('%02d:00', $endHour);
-        }
-        return $result;
-    }
 
     /**
      * Describes the return value of the {@see self::execute()} method.

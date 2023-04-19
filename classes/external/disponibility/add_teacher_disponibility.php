@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_delete_class external function.
+ * Class definition for the local_grupomakro_add_teacher_disponibility external function.
  *
  * @package    local_grupomakro_core
- * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright  2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -32,19 +32,18 @@ use external_single_structure;
 use external_multiple_structure;
 use external_value;
 use stdClass;
-use DateTime;
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
-require_once($CFG->dirroot . '/calendar/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 /**
- * External function 'local_grupomakro_delete_class' implementation.
+ * External function 'local_grupomakro_add_teacher_disponibility' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
- * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright   2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class add_teacher_disponibility extends external_api {
@@ -76,97 +75,67 @@ class add_teacher_disponibility extends external_api {
         );
     }
     /**
-     * TODO describe what the function actually does.
+     * Set instructor availability
      *
-     * @param int $userid
-     * @return mixed TODO document
+     * @param int $instructorId ID of the instructor
+     * @param array $newDisponibilityRecords Array of availability records for each day of the week
+     *
+     * @return bool True if availability was set successfully, false otherwise
+     *
+     * @throws moodle_exception
+     *
+     * @external
      */
     public static function execute(
         $instructorId,$newDisponibilityRecords
         ) {
         
-        // Validate the parameters passed to the function.
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'instructorId' => $instructorId,
-            'newDisponibilityRecords' => $newDisponibilityRecords
-        ]);
-        
-        // Global variables.
-        global $DB;
-        
-        $dayENLabels = array(
-            'lunes' => 'monday',
-            'martes' => 'tuesday',
-            'miércoles' => 'wednesday',
-            'jueves' => 'thursday',
-            'viernes' => 'friday',
-            'sábado' => 'saturday',
-            'domingo' => 'sunday'
-        );
-
-        $teacherDisponibility = new stdClass();
-        $teacherDisponibility->userid=$instructorId;
-        
-        foreach($newDisponibilityRecords as $newDisponibilityRecord){
-            $day = $newDisponibilityRecord['day'];
-            $teacherDisponibility->{'disp_'.$dayENLabels[$day]}=self::calculate_disponibility_range($newDisponibilityRecord['timeslots']);
-        }
-        print_object($newDisponibilityRecords);
-        die;
-        
-        
-        // Return the result.
-        return ['status' => $deleteClassId, 'message' => 'ok'];
-    }
+        try {
+            // Validate the parameters passed to the function.
+            $params = self::validate_parameters(self::execute_parameters(), [
+                'instructorId' => $instructorId,
+                'newDisponibilityRecords' => $newDisponibilityRecords
+            ]);
+            
+            // Global variables.
+            global $DB;
+            
+            $dayENLabels = array(
+                'lunes' => 'disp_monday',
+                'martes' => 'disp_tuesday',
+                'miercoles' => 'disp_wednesday',
+                'jueves' => 'disp_thursday',
+                'viernes' => 'disp_friday',
+                'sabado' => 'disp_saturday',
+                'domingo' => 'disp_sunday'
+            );
     
-    
-    public static function calculate_disponibility_range($timeRanges){
-     
-    $ranges = [];
-    
-    foreach ($timeRanges as $range) {
-        $times = explode(',', $range);
-        $start = strtotime($times[0]);
-        $end = strtotime($times[1]);
-        
-        $merged = false;
-        foreach ($ranges as $key => $existing) {
-            if ($start >= $existing->st && $end <= $existing->et) {
-                // New range is completely contained in an existing range
-                $merged = true;
-                break;
-            } elseif ($start <= $existing->st && $end >= $existing->et) {
-                // New range completely contains an existing range
-                $existing->st = $start;
-                $existing->et = $end;
-                $merged = true;
-                break;
-            } elseif ($start <= $existing->et && $end >= $existing->et) {
-                // New range overlaps the end of an existing range
-                $existing->et = $end;
-                $merged = true;
-                break;
-            } elseif ($end >= $existing->st && $start <= $existing->st) {
-                // New range overlaps the start of an existing range
-                $existing->st = $start;
-                $merged = true;
-                break;
+            $teacherDisponibility = new stdClass();
+            $teacherDisponibility->userid = $DB->get_record('local_learning_users', ['id'=>$instructorId])->userid;
+            
+            foreach($newDisponibilityRecords as $newDisponibilityRecord){
+                $day = strtolower($newDisponibilityRecord['day']);
+                $teacherDisponibility->{$dayENLabels[$day]}=json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
             }
+            
+            foreach($dayENLabels as $dayLabel){
+                !property_exists( $teacherDisponibility,$dayLabel)?$teacherDisponibility->{$dayLabel}="[]" :null;
+            }
+            
+            try {
+                $disponibilityRecordId = $DB->insert_record('gmk_teacher_disponibility',$teacherDisponibility);
+            } catch (Exception $e) {
+                $disponibilityRecordId = -1;
+            }
+            
+            // Return the result.
+            return ['status' => $disponibilityRecordId, 'message' => 'ok'];
+        } catch (Exception $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
         }
         
-        if (!$merged) {
-            $ranges[] = (object)['st' => $start, 'et' => $end];
-        }
     }
     
-    $result = [];
-    foreach ($ranges as $range) {
-        $result[] = (object)['st' => $range->st - strtotime('today'), 'et' => $range->et - strtotime('today')];
-    }
-    print_r($result);
-        die;
-    }
-
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
@@ -175,7 +144,7 @@ class add_teacher_disponibility extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'status' => new external_value(PARAM_INT, 'The ID of the disponibility record or -1 if there was an error.'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );

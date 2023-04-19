@@ -66,6 +66,7 @@ echo <<<EOT
 
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <style>
     .tiemfield-from.v-text-field--filled.v-input--dense.v-text-field--single-line>.v-input__control>.v-input__slot{
        background: rgb(84 164 217 / 25%) !important;

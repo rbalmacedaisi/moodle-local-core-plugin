@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_delete_class external function.
+ * Class definition for the local_grupomakro_get_teachers_disponibility_calendar external function.
  *
  * @package    local_grupomakro_core
- * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright  2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external;
+namespace local_grupomakro_core\external\disponibility;
 
 use context_system;
 use external_api;
@@ -35,16 +35,17 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
-
+require_once($CFG->dirroot.'/lib/moodlelib.php');
+require_once($CFG->dirroot . '/calendar/lib.php');
 /**
- * External function 'local_grupomakro_delete_class' implementation.
+ * External function 'local_grupomakro_get_teachers_disponibility_calendar' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
- * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright   2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_teachers_disponibility extends external_api {
+class get_teachers_disponibility_calendar extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -54,29 +55,35 @@ class get_teachers_disponibility extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                // 'id' => new external_value(PARAM_TEXT, 'ID of the class to be delete.')
+                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_OPTIONAL)
             ]
         );
     }
 
     /**
-     * TODO describe what the function actually does.
+     * get teacher disponibility for the disponibility calendar
      *
-     * @param int $userid
-     * @return mixed TODO document
+     * @param string|null $instructorId ID of the teacher (optional)
+     *
+     * @throws moodle_exception
+     *
+     * @external
      */
     public static function execute(
-        // string $id
+            $instructorId = null
         ) {
         
         // Validate the parameters passed to the function.
-        // $params = self::validate_parameters(self::execute_parameters(), [
-        //     'id' => $id,
-        // ]);
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'instructorId' => $instructorId,
+        ]);
         
         // Global variables.
         global $DB;
         
+        $initDate = '2023-04-01';
+        $endDate = '2023-05-30';
+   
         $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility');
         
         $weekdays = array(
@@ -97,14 +104,16 @@ class get_teachers_disponibility extends external_api {
             foreach($weekdays as $day){
                 $dayAvailabilities = json_decode($disponibilityRecord->{$day});
                 $dayLabel = substr($day, 5);
-                $teachersDisponibility->{$teacherId}->{$dayLabel} =self::calculate_disponibility_hours($dayAvailabilities);
+                $dayDisponibilityHours = self::calculate_disponibility_hours($dayAvailabilities);
+                if(empty($dayDisponibilityHours)){
+                    continue;
+                };
+                $teachersDisponibility->{$teacherId}->{$dayLabel} =$dayDisponibilityHours;
             }
         }
         print_object($teachersDisponibility);
         die();
 
-        
-        
         // Return the result.
         return ['status' => $deleteClassId, 'message' => 'ok'];
     }
