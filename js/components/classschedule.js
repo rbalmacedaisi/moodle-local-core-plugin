@@ -124,12 +124,11 @@ Vue.component('classschedule',{
                     @click:event="showEvent"
                     @click:more="viewDay"
                     @click:date="viewDay"
-                    @change="updateRange"
-                    locale="es-CO"
+                    locale="en-US"
                     :short-weekdays="false"
                     :events="filteredEvents"
                     :type="type"
-                    show-month-on-first
+                    @change="getEvents"
                 >
                     <template v-slot:event="{ event }">
                       <div class="v-event-draggable">
@@ -361,7 +360,6 @@ Vue.component('classschedule',{
     created(){
         this.classitems = window.classItems;
         this.instructors = window.instructorItems;
-        console.log(this.instructors)
         this.rolInstructor = false //window.rolInstructor===1;
         this.getEvents();
         var URLdomain = window.location.origin;
@@ -382,33 +380,25 @@ Vue.component('classschedule',{
             month > 0 ? currentMonth = month +1 : currentMonth = 0
             const url = this.URLdomain +
                 '/webservice/rest/server.php?wstoken='+ this.token + 
-                '&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events&year='
-                + year + '&month=' + currentMonth; 
-            
+                '&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events'; 
             fetch(url)
             .then(res => res.json())
             .then(res => {
-                console.log(JSON.parse(res.events))
                 const data = JSON.parse(res.events)
                 data.forEach((element) => {
-                    if(element.component == 'mod_attendance' || element.component == 'mod_bigbluebuttonbn'){
-                        this.events.push({
-                            name: element.coursename,
-                            instructor: element.instructorName,
-                            details: element.typeLabel,
-                            color: element.color,
-                            start: element.initDate,
-                            end: element.endDate,
-                            days: element.classDaysES.join(" - "),
-                            hour: element.timeRange,
-                            timed: true,
-                            component: element.component,
-                            course: element.course
-                        })
-                    }
-                    
+                    this.events.push({
+                        name: element.coursename,
+                        instructor: element.instructorName,
+                        details: element.typeLabel,
+                        color: element.color,
+                        start: element.initDate,
+                        end: element.endDate,
+                        days: element.classDaysES.join(" - "),
+                        hour: element.timeRange,
+                        timed: true,
+                        modulename: element.modulename
+                    })
                 })
-                
             })
             .catch( err => console.error(err))
         },

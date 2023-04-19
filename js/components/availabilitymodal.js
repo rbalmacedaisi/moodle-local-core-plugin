@@ -19,13 +19,12 @@ Vue.component('availabilitymodal',{
                           locale="es"
                           :value="dayselected"
                         >
-                          
                           <template v-slot:interval="{ time,date,day,hour,minute}">
                             <div
-                                v-if="hoursFree.indexOf(time) !== -1"
                                 class="h-100 blue white--text"
+                                v-if="hoursFree.indexOf(time) !== -1"
                             >
-                              Disponible
+                              Disponible {{time}}
                             </div>
                           </template>
                           
@@ -58,13 +57,22 @@ Vue.component('availabilitymodal',{
           </v-card>
         </v-dialog>
     `,
-    props:['dayselected'],
+    // props:['dayselected'],
+    props:{
+        dayselected:String
+    },
     data(){
         return{
             dialog: true,
             hoursFree: [
-                '09:00','10:00', '11:00'
+                '08:00','09:30','10:00','11:00'
             ]
+        }
+    },
+    created(){},
+    computed:{
+        dayLabel(){
+          return new Date(this.dayselected).toLocaleDateString('en-US', { weekday: 'narrow' });    
         }
     },
     mounted () {

@@ -108,12 +108,12 @@ Vue.component('availabilitycalendar',{
             users:[
                 {
                     name: 'Artur R. Mendoza',
-                    daysFree:[
-                        '2023-03-06',
-                        '2023-03-08',
-                        '2023-03-10',
-                        '2023-03-17'
-                    ],
+                    daysFree:{
+                        '2023-03-06': ['08:00','09:30','10:00','11:00'],
+                        '2023-03-08': ['08:00','09:30','10:00','11:00'],
+                        '2023-03-10': ['08:00','09:30','10:00','11:00'],
+                        '2023-03-17': ['08:00','09:30','10:00','11:00']
+                    },
                     events:[
                         {
                             name: 'Maquinaría',
@@ -190,7 +190,7 @@ Vue.component('availabilitycalendar',{
             ],
             daysFree: [],
             dayModal: false,
-            dayTo: ''
+            dayTo: undefined
         }
     },
     mounted () {
@@ -231,7 +231,7 @@ Vue.component('availabilitycalendar',{
           this.events = events
         },
         toggleDayFree(date,day,time){
-            console.log(date,day, time)
+            // console.log(date,day, time)
             this.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
             this.dayTo = date
         },
