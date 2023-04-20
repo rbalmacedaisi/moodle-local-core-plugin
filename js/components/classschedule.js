@@ -128,7 +128,7 @@ Vue.component('classschedule',{
                     :short-weekdays="false"
                     :events="filteredEvents"
                     :type="type"
-                    @change="getEvents"
+                    
                 >
                     <template v-slot:event="{ event }">
                       <div class="v-event-draggable">
@@ -348,10 +348,11 @@ Vue.component('classschedule',{
             listItem: '',
             dialogconfirm: false,
             reschedulemodal: false,
-            urlClass: '',
-            urlAvailability: '',
+            urlClass: 'classmanagement.php',
+            urlAvailability: 'availability.php',
             URLdomain: window.location.origin,
-            token: '0a9e53bb26a56bcb930002d6a7d6392a'
+            token: '0deabd5798084addc080286f4acccd87',
+            siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
         }
     },
     props:{
@@ -362,44 +363,42 @@ Vue.component('classschedule',{
         this.instructors = window.instructorItems;
         this.rolInstructor = false //window.rolInstructor===1;
         this.getEvents();
-        var URLdomain = window.location.origin;
-        this.urlClass =  'classmanagement.php'
-        this.urlAvailability = 'availability.php'
     },
     mounted(){
         this.$refs.calendar.checkChange();
     },  
     methods:{
+        // This method appears to make an HTTP GET request to retrieve calendar events from the Moddle.
         getEvents(){
             this.events = []
-            
-            const year = new Date().getFullYear()
-            let month = new Date().getMonth()
-            let currentMonth = 0
-            month > 0 ? currentMonth = month +1 : currentMonth = 0
-            const url = this.URLdomain +
-                '/webservice/rest/server.php?wstoken='+ this.token + 
-                '&moodlewsrestformat=json&wsfunction=local_grupomakro_calendar_get_calendar_events'; 
-            fetch(url)
-            .then(res => res.json())
-            .then(res => {
-                const data = JSON.parse(res.events)
-                data.forEach((element) => {
-                    this.events.push({
-                        name: element.coursename,
-                        instructor: element.instructorName,
-                        details: element.typeLabel,
-                        color: element.color,
-                        start: element.initDate,
-                        end: element.endDate,
-                        days: element.classDaysES.join(" - "),
-                        hour: element.timeRange,
-                        timed: true,
-                        modulename: element.modulename
+            const url = this.siteUrl;
+            const params = {
+                wstoken: '0deabd5798084addc080286f4acccd87',
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_calendar_get_calendar_events',
+            };
+            axios.get(url, { params })
+                .then(response => {
+                    const data = JSON.parse(response.data.events)
+                    console.log(data);
+                    data.forEach((element) => {
+                        this.events.push({
+                            name: element.coursename,
+                            instructor: element.instructorName,
+                            details: element.typeLabel,
+                            color: element.color,
+                            start: element.initDate,
+                            end: element.endDate,
+                            days: element.classDaysES.join(" - "),
+                            hour: element.timeRange,
+                            timed: true,
+                            modulename: element.modulename
+                        })
                     })
                 })
-            })
-            .catch( err => console.error(err))
+                .catch(error => {
+                console.error(error);
+            });
         },
         
         viewDay ({ date }) {

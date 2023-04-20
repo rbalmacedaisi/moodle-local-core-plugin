@@ -226,3 +226,4 @@ $string['class_name'] = 'Nombre clase';
 // Pagina de Horarios.
 $string['schedules'] = 'Horarios de Clase';
 $string['availability'] = 'Disponibilidad';
+$string['availability_panel'] = 'Panel de Disponibilidad';

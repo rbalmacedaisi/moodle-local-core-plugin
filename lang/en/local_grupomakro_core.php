@@ -225,3 +225,4 @@ $string['class_name'] = 'Class Name';
 // Schedules page.
 $string['schedules'] = 'Schedules';
 $string['availability'] = 'Availability';
+$string['availability_panel'] = 'Availability panel';

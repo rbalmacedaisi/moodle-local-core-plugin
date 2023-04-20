@@ -77,7 +77,6 @@ Vue.component('instructoravailability',{
             const data = this.data
             var flat = 20
             for (let day in data.disponibilityRecords) {
-                console.log(data.disponibilityRecords[day]);
                 flat++
                 this.items.push({
                     text: `${day}: ${data.disponibilityRecords[day].join(' - ')}`,
