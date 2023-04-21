@@ -49,77 +49,85 @@ Vue.component('availabilitytable',{
                                     </v-card-title>
                     
                                     <v-card-text>
-                                        <v-container>
-                                            <v-row>
-                                                <v-col cols="12" sm="6" md="6">
-                                                    <v-select
-                                                      :items="instructors"
-                                                      label="Instructor"
-                                                      outlined
-                                                      dense
-                                                      v-model="selectedInstructor"
-                                                    ></v-select>
-                                                </v-col>
-                                                <v-col cols="12" sm="6" md="6">
-                                                    <v-combobox
-                                                      v-model="selectedDays"
-                                                      :items="daysOfWeek"
-                                                      label="Días"
-                                                      outlined
-                                                      dense
-                                                      hide-details
-                                                      class="mr-2"
-                                                      clearable
-                                                      multiple
-                                                      @change="addSchedules"
-                                                    ></v-combobox>
-                                                </v-col>
-                                            </v-row>
-                                            <v-divider v-if="selectedDays" class="my-0 mb-3"></v-divider>
-                                            <v-row>
-                                                <v-col cols="12">
-                                                    <div v-for="(schedules, index) in schedulesPerDay" :key="index">
-                                                        <h5>{{schedules.day}}</h5>
-                                                        <div v-for="(schedules, index) in schedules.schedules" :key="index">
-                                                            <div class="d-flex mt-5">
-                                                                <v-text-field
-                                                                   v-model="schedules.startTime"
-                                                                   label="Hora de inicio"
-                                                                   type="time"
-                                                                   outlined
-                                                                   dense
-                                                                   hide-details
-                                                                   class="mr-2"
-                                                                   style="background-color: #71dc7421;"
-                                                                ></v-text-field>
-                                                                <v-text-field
-                                                                   v-model="schedules.timeEnd"
-                                                                   label="Hora de fin"
-                                                                   type="time"
-                                                                   outlined
-                                                                   dense
-                                                                   hide-details
-                                                                   style="background-color: #7199dc21;"
-                                                                ></v-text-field>
-                                                                <v-btn icon small color="error" fab @click="deleteField(schedules)">
-                                                                  <v-icon>mdi-delete</v-icon>
-                                                                </v-btn>
+                                        <v-form ref="form" v-model="valid" class="d-flex w-100">
+                                            <v-container>
+                                                <v-row>
+                                                    <v-col cols="12" sm="6" md="6">
+                                                        <v-select
+                                                          :items="instructors"
+                                                          label="Instructor"
+                                                          outlined
+                                                          dense
+                                                          required
+                                                          v-model="selectedInstructor"
+                                                          :rules="[v => !!v || 'Este campo es requerido']"
+                                                          :disabled="editedIndex == 0"
+                                                        ></v-select> 
+                                                    </v-col>
+                                                    <v-col cols="12" sm="6" md="6">
+                                                        <v-combobox
+                                                          v-model="selectedDays"
+                                                          :items="daysOfWeek"
+                                                          label="Días"
+                                                          outlined
+                                                          dense
+                                                          required
+                                                          class="mr-2"
+                                                          clearable
+                                                          multiple
+                                                          @change="addSchedules"
+                                                          :rules="[v => !!v && v.length > 0 || 'Este campo es requerido']"
+                                                        ></v-combobox>
+                                                    </v-col>
+                                                </v-row>
+                                                <v-divider v-if="selectedDays" class="my-0 mb-3"></v-divider>
+                                                <v-row>
+                                                    <v-col cols="12">
+                                                        <div v-for="(schedules, index) in schedulesPerDay" :key="index">
+                                                            <h5>{{schedules.day}}</h5>
+                                                            <div v-for="(schedules, index) in schedules.schedules" :key="index">
+                                                                <div class="d-flex mt-5">
+                                                                    <v-text-field
+                                                                       v-model="schedules.startTime"
+                                                                       label="Hora de inicio"
+                                                                       type="time"
+                                                                       outlined
+                                                                       dense
+                                                                       :rules="[requiredRule]"
+                                                                       required
+                                                                       class="mr-2 startTime"
+                                                                    ></v-text-field>
+                                                                    <v-text-field
+                                                                       v-model="schedules.timeEnd"
+                                                                       label="Hora de fin"
+                                                                       type="time"
+                                                                       outlined
+                                                                       dense
+                                                                       :rules="[requiredRule, validateEndTime(schedules)]"
+                                                                       required
+                                                                       class="timeEnd"
+                                                                    ></v-text-field>
+                                                                    <v-btn icon small color="error" fab @click="deleteField(schedules)">
+                                                                      <v-icon>mdi-delete</v-icon>
+                                                                    </v-btn>
+                                                                </div>
+                                                            </div>
+                                                            <div class="d-flex justify-center">
+                                                                <v-tooltip bottom>
+                                                                    <template v-slot:activator="{ on, attrs }">
+                                                                        <v-btn x-small class="mx-2" color="primary" fab @click="addField(schedules)" v-bind="attrs"v-on="on">
+                                                                            <v-icon>mdi-plus</v-icon>
+                                                                        </v-btn>
+                                                                    </template>
+                                                                    <span>Agregar Horario</span>
+                                                                </v-tooltip>
                                                             </div>
                                                         </div>
-                                                        <div class="d-flex justify-center mt-2">
-                                                            <v-tooltip bottom>
-                                                                <template v-slot:activator="{ on, attrs }">
-                                                                    <v-btn x-small class="mx-2" color="primary" fab @click="addField(schedules)" v-bind="attrs"v-on="on">
-                                                                        <v-icon>mdi-plus</v-icon>
-                                                                    </v-btn>
-                                                                </template>
-                                                                <span>Agregar Horario</span>
-                                                            </v-tooltip>
-                                                        </div>
-                                                    </div>
-                                                </v-col>
-                                            </v-row>
-                                        </v-container>
+                                                    </v-col>
+                                                </v-row>
+                                            </v-container>
+                                        </v-form>
+                                        
                                     </v-card-text>
                     
                                     <v-card-actions>
@@ -254,12 +262,13 @@ Vue.component('availabilitytable',{
             selectedDays: [],
             schedules: [],
             schedulesPerDay: [],
-            selectedInstructor:[],
+            selectedInstructor: null,
             token: '0deabd5798084addc080286f4acccd87',
             search: '',
             siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
             itemDelete:{},
-            editMode: false
+            editMode: false,
+            valid: false,
         }
     },
     props:{
@@ -272,20 +281,24 @@ Vue.component('availabilitytable',{
     mounted(){
     },  
     methods:{
-        // This is a function that is used by the Axios library to make an HTTP GET request to a specific URL with some parameters. 
-        // The response is then parsed as JSON data, and the function populates an array named "items"
-        // with some properties obtained from the response data.
+        // Function to initialize the data of the instructors.
         initialize () {
+            // Assign the site URL to the url variable.
             const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
             const params = {
                 wstoken: '0deabd5798084addc080286f4acccd87',
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_get_teachers_disponibility',
             };
+            // Make a GET request to the specified URL, passing the parameters as query options.
             axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
                 .then(response => {
+                    // Converts the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.teacherAvailabilityRecords)
                     console.log(data);
+                    // Add the availability data for each instructor to the current instance's item array.
                     data.forEach((element) => {
                         this.items.push({
                             instructorName: element.instructorName,
@@ -295,16 +308,23 @@ Vue.component('availabilitytable',{
                         })
                     })
                 })
+                // If the request fails, log an error to the console.
                 .catch(error => {
                 console.error(error);
             });
         },
+        // Function to edit an item from the instructor list.
         editItem (item) {
+            // Activate edit mode.
             this.editMode = true
             console.log(item)
+            // The selectedInstructor property is set to the value of the instructor name of the record being edited.
             this.selectedInstructor = item.instructorName
+            // Set the selectedDays property with an array containing the names of the days of the week the instructor is available, 
+            // using the Object.keys() method to get the keys from the availabilityRecords object in the registry.
             this.selectedDays = Object.keys(item.disponibilityRecords);
-            
+            // Iterates through each day of the week in the log, getting the list of available times for that day and adding 
+            // them to the schedules array with the structure {day: <day_name>, startTime: <start_time>, timeEnd: <end_time> }.
             for (const day in item.disponibilityRecords) {
                 // Get the list of available time slots for the current day.
                 const timeSlots = item.disponibilityRecords[day];
@@ -319,9 +339,11 @@ Vue.component('availabilitytable',{
                     });
                 });
             }
-            
+            // Set the editedIndex property to the index of the item object in the items array.
             this.editedIndex = this.items.indexOf(item)
+            // A copy of the item object is created and set as the editedItem object.
             this.editedItem = Object.assign({}, item)
+            // Display the edit dialog by setting the dialog property to true.
             this.dialog = true
         },
         // This is a function that gets an "item" parameter, which is assigned to the data this.
@@ -334,6 +356,7 @@ Vue.component('availabilitytable',{
         // This is a function that makes an HTTP GET request to a specific URL with some parameters. 
         // The function then removes an element from an array and closes a dialog.
         deleteItemConfirm () {
+            // Build the URL and parameters for the Moodle web service.
             const url = this.siteUrl;
             const params = {
                 wstoken: this.token,
@@ -341,6 +364,7 @@ Vue.component('availabilitytable',{
                 wsfunction: 'local_grupomakro_delete_teacher_disponibility',
                 instructorId: this.itemDelete
             };
+            // Call the Moodle web service to delete the instructor's availability.
             axios.get(url, { params })
                 .then(response => {
                   console.log(response.data);
@@ -348,6 +372,7 @@ Vue.component('availabilitytable',{
                 .catch(error => {
                 console.error(error);
             });
+            // Remove the item from the items array and close the delete dialog.
             this.items.splice(this.editedIndex, 1)
             this.closeDelete()
         },
@@ -371,50 +396,55 @@ Vue.component('availabilitytable',{
         },
         // This is a function that creates a new availability record and sends it to a Moodle web service via an HTTP GET request.
         save () {
-            const newDisponibilityRecord = this.schedulesPerDay.map(daySchedule => {
-                const day = daySchedule.day;
-                const timeslots = daySchedule.schedules.map(schedule => `${schedule.startTime}, ${schedule.timeEnd}`);
-                return { day, timeslots };
-            });
-            const selectedInstructor = this.instructors.find(instructor => instructor.value === this.selectedInstructor);
-    
-            // Get the text and the id of the selected instructor
-            const selectedInstructorText = selectedInstructor.text;
-            const selectedInstructorId = selectedInstructor.id;
-            
-            const url = 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php';
-            let wsfunction = ''
-            this.editedIndex === -1 ? wsfunction = 'local_grupomakro_add_teacher_disponibility' : wsfunction = 'local_grupomakro_update_teacher_disponibility'
-            const params = {
-                wstoken: '0deabd5798084addc080286f4acccd87',
-                moodlewsrestformat: 'json',
-                wsfunction: wsfunction,
-                instructorId: selectedInstructorId,
-                newDisponibilityRecords: newDisponibilityRecord
-            };
-            axios.get(url, { params })
-                .then(response => {
-                    if(response.data.message == 'ok'){
-                        location.reload();
-                    }
-                })
-                .catch(error => {
-                console.error(error);
-            });
-            
-            this.close()
+            // Validate the form.
+            this.$refs.form.validate()
+            // If the form is valid, proceed to save the availability record.
+            if(this.valid){
+                // Create a new availability record from the selected schedules.
+                const newDisponibilityRecord = this.schedulesPerDay.map(daySchedule => {
+                    const day = daySchedule.day;
+                    const timeslots = daySchedule.schedules.map(schedule => `${schedule.startTime}, ${schedule.timeEnd}`);
+                    return { day, timeslots };
+                });
+                
+                // Get the selected instructor's data (name and id).
+                const selectedInstructor = this.instructors.find(instructor => instructor.value === this.selectedInstructor);
+                const selectedInstructorText = selectedInstructor.text;
+                const selectedInstructorId = selectedInstructor.id;
+                
+                // Set the URL and parameters for the web service request.
+                const url = this.siteUrl
+                let wsfunction = ''
+                this.editedIndex === -1 ? wsfunction = 'local_grupomakro_add_teacher_disponibility' : wsfunction = 'local_grupomakro_update_teacher_disponibility'
+                const params = {
+                    wstoken: '0deabd5798084addc080286f4acccd87',
+                    moodlewsrestformat: 'json',
+                    wsfunction: wsfunction,
+                    instructorId: selectedInstructorId,
+                    newDisponibilityRecords: newDisponibilityRecord
+                };
+                
+                // Send the HTTP GET request to the Moodle web service.
+                axios.get(url, { params })
+                    .then(response => {
+                        if(response.data.message == 'ok'){
+                            location.reload();
+                        }
+                    })
+                    .catch(error => {
+                    console.error(error);
+                });
+                // Close the dialog.
+                this.close()
+            }
         },
-        // This is a method that adds schedules to the component's schedules array based on the days that are currently selected in the selectedDays array.
-        // First, it checks if selectedDays is empty, and if so, it sets schedules to an empty array.
-        // Then, it loops through each day in selectedDays, and filters schedules to find any existing schedules for that day. 
-        // If there are no existing schedules, it adds a new object to the schedules array with the day property set to the current day, 
-        // and the startTime and timeEnd properties set to null.
+        // This function is called when the user clicks the "Add Schedules" button.
         addSchedules() {
-            console.log('entro')
-            console.log(this.selectedDays)
+            // If no days are selected, clear the schedules array.
             if (this.selectedDays.length === 0) {
                 this.schedules = []
             }
+            // For each selected day, check if it already has a schedule. If not, add a new empty schedule for that day.
             for (const day of this.selectedDays) {
                 const schedulesOfDay = this.schedules.filter(schedule => schedule.day === day)
                 if (schedulesOfDay.length === 0) {
@@ -426,36 +456,36 @@ Vue.component('availabilitytable',{
                 }
             }
         },
-        // This is a method that adds a new empty schedule object to the schedules array, based on a given schedule object.
-        // First, it creates a new schedule object newSchedule with the same day property as the schedule parameter, and with startTime and timeEnd properties set to null.
-        // Then, it pushes the new newSchedule object onto the schedules array.
-        // Overall, this method allows for the addition of a new, empty schedule to the schedules array for a given day.
+        /**
+         * This function adds a new blank schedule field to the list of schedules.
+         * @param {Object} schedule - The schedule object to add a new field to.
+        */
         addField(schedule) {
+            // Create a new blank schedule object with null start and end times.
             const newSchedule = {
                 day: schedule.day,
                 startTime: null,
                 timeEnd: null
             }
+            // Add the new schedule object to the schedules list.
             this.schedules.push(newSchedule)
         },
-        // This is a method that groups the schedules in the schedules array by day, and stores the result in the schedulesPerDay array.
-        // First, it creates an empty array schedulesPerDay to hold the grouped schedules.
-        // Then, it loops through each day in the daysOfWeek array, and filters the schedules array to find any schedules for that day. 
-        // If there are schedules for the current day, it creates a new object with a day property set to the current day, 
-        // and a schedules property set to the array of schedules for that day. It then pushes this object onto the schedulesPerDay array.
-        // If there are no schedules for the current day, it checks if the day is still selected in selectedDays, and if so, removes it from the array.
-        // Finally, it sets the component's schedulesPerDay property to the newly created schedulesPerDay array.
-        // Overall, this method allows for the schedules in the schedules array to be grouped by day, 
-        // and for the resulting arrays to be used in the component's template to display the schedules for each day.
+        // This function groups schedules by day of the week.
         groupSchedulesPerDay() {
+            // create an empty array to store schedules grouped by day.
             const schedulesPerDay = []
+            // loop through the days of the week.
             this.daysOfWeek.forEach(day => {
+                // filter the schedules for the current day.
                 const schedulesOfDay = this.schedules.filter(schedule => schedule.day === day)
+                // if there are schedules for the current day.
                 if (schedulesOfDay.length > 0) {
+                    // create an object to store the schedules grouped by day.
                     const schedulesgrouped = {
                         day: day,
                         schedules: schedulesOfDay
                     }
+                    // add the schedules grouped by day to the array.
                     schedulesPerDay.push(schedulesgrouped)
                 } else {
                     const index = this.selectedDays.indexOf(day)
@@ -464,16 +494,29 @@ Vue.component('availabilitytable',{
                     }
                 }
             })
+            // update the schedulesPerDay property with the schedules grouped by day.
             this.schedulesPerDay = schedulesPerDay
         },
-        // The deleteField method receives an object schedules which represents a day with its schedules. 
-        // It first finds the index of the schedules object within the schedules array using the indexOf() method. 
-        // It then removes the schedules object from the array using the splice() method. 
-        // Finally, it calls the groupSchedulesPerDay() method to re-group the remaining schedules per day.
+        // This function removes a time field from the list of times.
         deleteField(schedules) {
+            // Find the index of the selected schedule in the list of schedules.
             const index = this.schedules.indexOf(schedules)
+            // Remove the selected schedule from the list of schedules.
             this.schedules.splice(index, 1)
+            // Group schedules by day to update the list of schedules by day.
             this.groupSchedulesPerDay()
+        },
+        // This method returns a validation function for the end time of a schedule.
+        validateEndTime(schedule) {
+            return (value) => {
+                // Check if the end time value is defined and if the start time is greater than or equal to the end time value.
+                if (value && schedule.startTime >= value) {
+                    // Return an error message indicating that the end time must be later than the start time.
+                    return "La hora de fin debe ser posterior a la hora de inicio";
+                }
+                // If the validation is successful, return true.
+                return true;
+            };
         },
     },
     computed: {
@@ -482,6 +525,11 @@ Vue.component('availabilitytable',{
         // Otherwise, if editedIndex is not -1, it means the form is being used to edit an existing element and the method returns the string 'Edit Element'.
         formTitle () {
             return this.editedIndex === -1 ? 'Nueva Disponibilidad' : 'Editar'
+        },
+        // This method returns a validation rule function for use with vee-validate library.
+        // The function takes a value as input and returns a boolean indicating whether the value is non-empty or not.
+        requiredRule() {
+          return (value) => !!value || 'Este campo es requerido';
         },
     },
     watch: {

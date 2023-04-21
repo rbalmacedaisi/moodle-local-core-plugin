@@ -84,6 +84,12 @@ echo <<<EOT
     .theme--light.v-application{
       background: transparent !important;
     }
+    .startTime .v-input__slot fieldset{
+      background-color: #71dc7421;
+    }
+    .timeEnd .v-input__slot fieldset{
+      background-color: #7199dc21;
+    }
    </style>
    
    <script>
