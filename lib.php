@@ -129,7 +129,7 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
                 $bbbActivityDefinition->visibleoncoursepage             = 1;
                 $bbbActivityDefinition->cmidnumber                      = "";
                 $bbbActivityDefinition->groupmode                       = "1";
-                $bbbActivityDefinition->groupingid                      = "0";
+                $bbbActivityDefinition->groupingid                      = $groupId;
                 // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$currentDateTS.'},{"type":"date","d":"<","t":'.$activityEndTS.'}],"showc":[true,true]}';
                 $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[],"showc":[]}';
                 $bbbActivityDefinition->completionunlocked              = 1;
@@ -173,7 +173,7 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
         $attendanceActivityDefinition->visibleoncoursepage        = 1;
         $attendanceActivityDefinition->cmidnumber                 = "";
         $attendanceActivityDefinition->groupmode                  = "1";
-        $attendanceActivityDefinition->groupingid                 = "0";
+        $attendanceActivityDefinition->groupingid                 = $groupId;
         $attendanceActivityDefinition->availabilityconditionsjson = '{"op":"&","c":[],"showc":[]}';
         $attendanceActivityDefinition->completionunlocked         = 1;
         $attendanceActivityDefinition->completion                 = "1";
@@ -291,6 +291,11 @@ function grupomakro_core_list_classes($filters) {
         $class->typeLabel = $classLabels[$class->type];
         //
         
+        
+        
+        
+        
+        
         //set the formatted hour in the format am/pm
         $initHour = intval(substr($class->inittime,0,2));
         $initMinutes = substr($class->inittime,3,2);
@@ -299,6 +304,11 @@ function grupomakro_core_list_classes($filters) {
         $class->initHourFormatted = $initHour>12? strval($initHour-12).':'.$initMinutes.' pm': ($initHour===12? $initHour.':'.$initMinutes.' pm' : $initHour.':'.$initMinutes.' am');
         $class->endHourFormatted = $endHour>12? strval($endHour-12).':'.$endMinutes.' pm': ($endHour===12? $endHour.':'.$endMinutes.' pm' : $endHour.':'.$endMinutes.' am');
         //
+        
+        //set the hour in seconds
+        $class->inittimeTS=$initHour * 3600 + $initMinutes * 60;
+        $class->endtimeTS=$endHour * 3600 + $endMinutes * 60;
+        // 
         
         //set the list of choosen days
         $daysES = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
@@ -336,15 +346,37 @@ function grupomakro_core_list_classes($filters) {
 
 function grupomakro_core_list_instructors() {
     global $DB;
-    
     $instructors = $DB->get_records('local_learning_users',["userroleid"=>4]);
-    
     foreach($instructors as $instructor){
          $userInfo =$DB->get_record('user',['id'=> $instructor->userid]);
          $instructor->fullname = $userInfo->firstname.' '.$userInfo->lastname;
+         $instructor->userid = $userInfo->id;
     }
-    
     return $instructors;
+}
+
+function grupomakro_core_list_instructors_without_disponibility(){
+    global $DB;
+    $filteredInstructors = array();
+    $instructors = grupomakro_core_list_instructors();
+    foreach($instructors as $instructor){
+        if (!$existing_record = $DB->get_record('gmk_teacher_disponibility', array("userid"=>$instructor->userid))) {
+            $filteredInstructors[]=$instructor;
+        }
+    }
+    return $filteredInstructors;
+}
+
+function grupomakro_core_list_instructors_with_disponibility(){
+    global $DB;
+    $filteredInstructors = array();
+    $instructors = grupomakro_core_list_instructors();
+    foreach($instructors as $instructor){
+        if ($existing_record = $DB->get_record('gmk_teacher_disponibility', array("userid"=>$instructor->userid))) {
+            $filteredInstructors[]=$instructor;
+        }
+    }
+    return $filteredInstructors;
 }
 
 function calculate_disponibility_range($timeRanges){
@@ -391,4 +423,78 @@ function calculate_disponibility_range($timeRanges){
         $result[] = (object)['st' => $range->st - strtotime('today'), 'et' => $range->et - strtotime('today')];
     }
     return($result);
+}
+
+function getClassEvents(){
+    global $DB;
+    $fetchedClasses = array();
+    $fetchedCourses = array();
+    $eventDaysFiltered = [];
+    
+    $initDate = '2023-04-01';
+    $endDate = '2023-05-30';
+    
+    $events = calendar_get_events(strtotime($initDate),strtotime($endDate),true,true,true,false,false);
+    // print_object($events);
+    // die;
+    $moduleIds = ["bigbluebuttonbn"=>$DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id,"attendance"=>$DB->get_record('modules',['name'=>'attendance'])->id];
+    foreach($events as $event){
+        
+        if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
+            continue;
+        }
+        
+        $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
+        $moduleSectionId = $moduleInfo->section;
+        
+        //Save the fetched classes to minimize db queries
+        if(array_key_exists($moduleSectionId,$fetchedClasses)){
+            $gmkClass = $fetchedClasses[$moduleSectionId];
+        }else {
+            $class = $DB->get_record('gmk_class', ['coursesectionid'=>$moduleSectionId]);
+            if(!$class){continue;}
+            $gmkClass = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($class->id)['classes'])[0];
+            $fetchedClasses[$moduleSectionId] = $gmkClass;
+
+        }
+        
+        //Set the class information for the event
+        $event->instructorName = $gmkClass->instructorName;
+        $event->timeRange = $gmkClass->initHourFormatted.' - '. $gmkClass->endHourFormatted;
+        $event->classDaysES = $gmkClass->selectedDaysES;
+        $event->classDaysEN = $gmkClass->selectedDaysEN;
+        $event->typeLabel = $gmkClass->typeLabel;
+        $event->className = $gmkClass->name;
+        $event->classId = $gmkClass->id;
+        $event->instructorId = $gmkClass->instructorid;
+        
+        
+        
+        // The big blue button event doesn't come with the timeduration, so we calculate it and added to the event object
+        // Asign the event color for both cases
+        if($event->modulename === 'bigbluebuttonbn'){
+            $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
+            $event->color = '#2196f3';
+            $event->activityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
+        }else{
+            $event->color = '#00bcd4';
+            $event->activityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
+        }
+        //Set the initial date and the end date of the event
+        $event->start = date('Y-m-d H:i:s',$event->timestart);
+        $event->end = date('Y-m-d H:i:s',$event->timestart + $event->timeduration);
+        
+        //Get the coursename, save the fetched coursenames for minimize db queries
+        if(array_key_exists($event->courseid,$fetchedCourses)){
+            $event->coursename = $fetchedCourses[$event->courseid];
+        }else {
+            $event->coursename = $DB->get_record('course', ['id'=>$event->courseid])->fullname;
+            $fetchedCourses[$event->courseid] = $event->coursename;
+        }
+
+        //push the filtered event to the arrays of events
+        array_push($eventDaysFiltered,$event);
+    }
+    
+    return $eventDaysFiltered;
 }

@@ -83,8 +83,22 @@ $instructorItems = json_encode($instructorItems);
 echo $OUTPUT->header();
 
 $url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
-
-
+$strings = new stdClass();
+$strings->today = get_string('today',$plugin_name);
+$strings->add = get_string('add',$plugin_name);
+$strings->availability = get_string('availability',$plugin_name);
+$strings->day = get_string('day',$plugin_name);
+$strings->week = get_string('week',$plugin_name);
+$strings->month = get_string('month',$plugin_name);
+$strings->instructors = get_string('instructors',$plugin_name);
+$strings->scheduledclasses = get_string('scheduledclasses',$plugin_name);
+$strings->close = get_string('close',$plugin_name);
+$strings->edit = get_string('edit',$plugin_name);
+$strings->remove = get_string('remove',$plugin_name);
+$strings->reschedule = get_string('reschedule',$plugin_name);
+$strings->cancel = get_string('cancel',$plugin_name);
+$strings->accept = get_string('accept',$plugin_name);
+$strings = json_encode($strings);
 echo <<<EOT
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
@@ -107,13 +121,32 @@ echo <<<EOT
     var rolInstructor = $rolInstructor;
     var classItems = $classItemsUnique;
     var instructorItems = $instructorItems;
+    var strings = $strings;
   </script>
-  
-  <style>
+  <style lang="scss">
+    .v-current-time {
+      height: 2px;
+      background-color: #ea4335;
+      position: absolute;
+      left: -1px;
+      right: 0;
+      pointer-events: none;
+    
+      &.first::before {
+        content: '';
+        position: absolute;
+        background-color: #ea4335;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-top: -5px;
+        margin-left: -6.5px;
+      }
+    }
     #first .v-toolbar__content{
       padding-left: 0px !important;
     }
-</style>
+  </style>
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/classschedule.js'));

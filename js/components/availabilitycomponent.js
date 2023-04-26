@@ -55,29 +55,28 @@ Vue.component('availabilitycalendar',{
                   color="primary"
                   type="month"
                   :events="events"
-                  locale="es"
+                  locale="en-US"
                   :weekdays="weekdays"
-                  @change="fetchEvents"
+                  @click:day="showEvent"
                 >
                     <template v-slot:day-label="{date,day}">
                         <v-btn
-                           small
+                           x-small
                            fab
                            type="button"
                            @click="toggleDayFree(date,day)"
-                           :class="(daysFree.indexOf(date.toString()) !== -1) ? 'success' : 'transparent elevation-0'"
+                           :class="(daysFree.indexOf(date.toString()) !== -1) ? 'availabilityColor' : 'transparent elevation-0'"
                            :style="(daysFree.indexOf(date.toString()) !== -1) ? 'event-pointer: none !important;' : ''"
                            >
-                            <span class="v-btn__content">{{day}}</span>
+                            <span class="v-btn__content black--text">{{day}}</span>
                         </v-btn>
                         <div class="d-flex justify-center mt-2">
                             <v-chip
                               v-if="daysFree.indexOf(date.toString()) !== -1"
-                              color="success"
+                              color="availabilityColor"
                               label
-                              text-color="white"
-                              small
-                              class="mt-1"
+                              x-small
+                              class="mt-0 mb-1 black--text"
                             >
                               Disponible
                             </v-chip>
@@ -86,117 +85,81 @@ Vue.component('availabilitycalendar',{
                 </v-calendar>
             </v-sheet>
         </v-col>
-        <availabilitymodal v-if="dayModal" :dayselected="dayTo" @close-dialog="closeDialog"></availabilitymodal>
+        <availabilitymodal v-if="dayModal" :dayselected="dayTo" :hoursFree="times" @close-dialog="closeDialog"></availabilitymodal>
     </v-row>
     `,
     data(){
         return{
             focus: new Date().toISOString().substr(0,10),
-            events: [
-                
-            ],
-            items:[
-                {id: 1, text: 'Artur R. Mendoza', value: 'Artur R. Mendoza'},
-                {id: 1, text: 'Artur R. Mendoza', value: 'Artur R. Mendoza'},
-                {id: 2, text: 'Jorge N. Woods', value: 'Jorge N. Woods'},
-                {id: 3, text: 'George R. Mendoza', value: 'George R. Mendoza'},
-            ],
+            type: 'month',
+            events: [],
+            items: window.instructorItems,
             select: null,
             weekdays: [
                 1, 2, 3, 4, 5, 6, 0
             ],
-            users:[
-                {
-                    name: 'Artur R. Mendoza',
-                    daysFree:{
-                        '2023-03-06': ['08:00','09:30','10:00','11:00'],
-                        '2023-03-08': ['08:00','09:30','10:00','11:00'],
-                        '2023-03-10': ['08:00','09:30','10:00','11:00'],
-                        '2023-03-17': ['08:00','09:30','10:00','11:00']
-                    },
-                    events:[
-                        {
-                            name: 'Maquinaría',
-                            instructor: 'Artur R. Mendoza',
-                            details: 'Virtual',
-                            color: '#E5B751',
-                            start: '2023-03-13 09:15',
-                            end: '2023-03-13 11:30',
-                            days: 'Lunes - Miércoles - Viernes',
-                            hour: '09:15 - 11:30',
-                        },
-                        {
-                            name: 'Maquinaría',
-                            instructor: 'Artur R. Mendoza',
-                            details: 'Virtual',
-                            color: '#E5B751',
-                            start: '2023-03-15 09:15',
-                            end: '2023-03-15 11:30',
-                            days: 'Lunes - Miércoles - Viernes',
-                            hour: '09:15 - 11:30'
-                        },
-                        {
-                            name: 'Maquinaría',
-                            instructor: 'Artur R. Mendoza',
-                            details: 'Virtual',
-                            color: '#E5B751',
-                            start: '2023-03-20 09:15',
-                            end: '2023-03-20 11:30',
-                            days: 'Lunes - Miércoles - Viernes',
-                            hour: '09:15 - 11:30'
-                        },
-                        {
-                            name: 'Maquinaría',
-                            instructor: 'Artur R. Mendoza',
-                            details: 'Virtual',
-                            color: '#E5B751',
-                            start: '2023-03-22 09:15',
-                            end: '2023-03-22 11:30',
-                            days: 'Lunes - Miércoles - Viernes',
-                            hour: '09:15 - 11:30'
-                        },
-                        {
-                            name: 'Maquinaría',
-                            instructor: 'Artur R. Mendoza',
-                            details: 'Virtual',
-                            color: '#E5B751',
-                            start: '2023-03-24 09:15',
-                            end: '2023-03-24 11:30',
-                            days: 'Lunes - Miércoles - Viernes',
-                            hour: '09:15 - 11:30'
-                        }
-                    ]
-                },
-                {
-                    name: 'Jorge N. Woods',
-                    daysFree:[
-                        '2023-03-08 09:15',
-                        '2023-03-09',
-                        '2023-03-15',
-                        '2023-03-16'
-                    ],
-                    events:[]
-                },
-                {
-                    name: 'George R. Mendoza',
-                    daysFree:[
-                        '2023-03-09',
-                        '2023-03-11',
-                        '2023-03-23',
-                        '2023-03-25'
-                    ],
-                    events:[]
-                },
-            ],
+            users:[],
+            siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
+            token: '33513bec0b3469194c7756c29bf9fb33',
             daysFree: [],
             dayModal: false,
-            dayTo: undefined
+            dayTo: '',
+            selectedEvent: {},
+            selectedElement: null,
+            selectedOpen: false,
+            hoursFree: [],
+            times: []
         }
     },
+    created(){
+        this.getDisponibilityData()
+    },
     mounted () {
-        this.$refs.calendar.checkChange()
+        this.$refs.calendar.checkChange();
+        setTimeout(()=>{
+            console.log(this.$refs.calendar.checkChange())
+        },3000)
+        console.log(this.$refs.calendar.checkChange())
     },
     methods: {
+        getDisponibilityData(){
+          const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_teachers_disponibility_calendar',
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Converts the data returned from the API from JSON string format to object format.
+                    const data = JSON.parse(response.data.disponibility)
+                    console.log(data);
+                    // Add the availability data for each instructor to the current instance's item array.
+                    for (const response of data) {
+                        const userDaysFree = [];
+                    
+                        for (const [day, hours] of Object.entries(response.daysFree)) {
+                            const dayObj = {
+                                day,
+                                hours
+                            };
+                            userDaysFree.push(dayObj);
+                        }
+                        this.users.push({
+                            name: response.name,
+                            daysFree: userDaysFree,
+                            events: response.events
+                        })
+                    }
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                console.error(error);
+            });  
+        },
         getEventColor (event) {
             return event.color
         },
@@ -216,27 +179,39 @@ Vue.component('availabilitycalendar',{
             if(e){
                 this.users.forEach((element) => {
                     if(element.name == e.value ){
-                        console.log('entra')
                         element.daysFree.forEach((day) =>{
-                            this.daysFree.push(day)
+                            this.daysFree.push(day.day)
                         })
                         this.events = element.events
                     }
-                    
                 })
             }
         },
-        fetchEvents ({ start, end }) {
-            const events = []
-          this.events = events
-        },
         toggleDayFree(date,day,time){
-            // console.log(date,day, time)
             this.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
             this.dayTo = date
         },
         closeDialog(){
             this.dayModal = false
-        }
+        },
+        showEvent ( date ) {
+            if(this.select){
+                const user = this.users.find(user => user.name === this.select.value)
+                user.daysFree.forEach((element) => {
+                    if(element.day === date.date){
+                        this.hoursFree = element.hours
+                    }
+                })
+                this.times = [];
+                for (let i = 0; i < this.hoursFree.length; i += 2) {
+                    this.times.push({
+                        startTime: this.hoursFree[i],
+                        endTime: this.hoursFree[i+1]
+                    })
+                }
+            }else{
+                return false
+            }
+        },
     },
 })

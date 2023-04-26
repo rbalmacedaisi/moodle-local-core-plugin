@@ -37,7 +37,7 @@ $PAGE->set_heading(get_string('availability_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 //Get the list of Instructors
-$instructors = grupomakro_core_list_instructors();
+$instructors = grupomakro_core_list_instructors_without_disponibility();
 $instructorItems = [];
 foreach($instructors as $instructor){
   $instructorItem = new stdClass();
@@ -90,6 +90,7 @@ echo <<<EOT
     .timeEnd .v-input__slot fieldset{
       background-color: #7199dc21;
     }
+    
    </style>
    
    <script>

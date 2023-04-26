@@ -7,7 +7,7 @@ Vue.component('classschedule',{
                     id="first"
                 >
                     <v-btn color="primary" dark class="mr-4" :href="urlClass" >
-                        Agregar
+                        {{lang.add}}
                     </v-btn>
                     <v-btn
                       outlined
@@ -15,7 +15,7 @@ Vue.component('classschedule',{
                       color="grey darken-2"
                       @click="setToday"
                     >
-                      Hoy
+                      {{lang.today}}
                     </v-btn>
                     <v-btn
                       fab
@@ -47,7 +47,7 @@ Vue.component('classschedule',{
                       color="primary"
                       :href="urlAvailability"
                     >
-                      Disponibilidad
+                      {{lang.availability}}
                     </v-btn>
                 </v-toolbar>
             </v-sheet>
@@ -74,13 +74,13 @@ Vue.component('classschedule',{
                     
                     <v-list>
                         <v-list-item @click="type = 'day'">
-                            <v-list-item-title>Día</v-list-item-title>
+                            <v-list-item-title>{{lang.day}}</v-list-item-title>
                         </v-list-item>
                         <v-list-item @click="type = 'week'">
-                            <v-list-item-title>Semana</v-list-item-title>
+                            <v-list-item-title>{{lang.week}}</v-list-item-title>
                         </v-list-item>
                         <v-list-item @click="type = 'month'">
-                            <v-list-item-title>Mes</v-list-item-title>
+                            <v-list-item-title>{{lang.month}}</v-list-item-title>
                         </v-list-item>
                     </v-list>
                 </v-menu>
@@ -90,7 +90,7 @@ Vue.component('classschedule',{
                       v-if="!rolInstructor"
                       v-model="selectedInstructors"
                       :items="instructors"
-                      label="Instructores"
+                      :label="lang.instructors"
                       outlined
                       dense
                       hide-details
@@ -103,7 +103,7 @@ Vue.component('classschedule',{
                     <v-combobox
                       v-model="selectclass"
                       :items="classitems"
-                      label="Clases programadas"
+                      :label="lang.scheduledclasses"
                       multiple
                       outlined
                       dense
@@ -128,22 +128,30 @@ Vue.component('classschedule',{
                     :short-weekdays="false"
                     :events="filteredEvents"
                     :type="type"
-                    
+                    first-time="7"
+                    interval-count="14"
+                    :weekdays="weekdays"
                 >
                     <template v-slot:event="{ event }">
-                      <div class="v-event-draggable">
-                        <strong>{{ event.name }}</strong
-                        ><br />
-                        {{ formatEventTime(event.start) }} -
-                        {{ formatEventTime(event.end) }}
-                      </div>
+                        <div class="v-event-draggable">
+                            <strong>{{ event.name }}</strong><br />
+                            {{ formatEventTime(event.start) }} -
+                            {{ formatEventTime(event.end) }}
+                        </div>
                     </template>
+                    <template v-slot:day-body="{ date, week }">
+                    <div
+                      class="v-current-time"
+                      :class="{ first: date === week[0].date }"
+                      :style="{ top: nowY }"
+                    ></div>
+                  </template>
                 </v-calendar>
                 <v-menu
                     v-model="selectedOpen"
                     :close-on-content-click="false"
                     :activator="selectedElement"
-                    offset-x
+                    
                 >
                     <v-card
                       color="grey lighten-4"
@@ -186,7 +194,7 @@ Vue.component('classschedule',{
                                             <v-icon >mdi-calendar-edit</v-icon>
                                           </v-list-item-icon>
                                           <v-list-item-content>
-                                            <v-list-item-title>Editar</v-list-item-title>
+                                            <v-list-item-title>{{lang.edit}}</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
                                         <v-list-item>
@@ -194,7 +202,7 @@ Vue.component('classschedule',{
                                             <v-icon >mdi-trash-can-outline</v-icon>
                                           </v-list-item-icon>
                                           <v-list-item-content>
-                                            <v-list-item-title>Eliminar</v-list-item-title>
+                                            <v-list-item-title>{{lang.remove}}r</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
                                       </v-list-item-group>
@@ -214,7 +222,7 @@ Vue.component('classschedule',{
                                       v-bind="attrs"
                                       v-on="on"
                                     >
-                                      Reprogramar
+                                      {{lang.reschedule}}
                                     </v-btn>
                                 </template>
                         
@@ -231,7 +239,7 @@ Vue.component('classschedule',{
                                         >
                                           <v-textarea
                                             name="input-7-1"
-                                            label="Describa el motivo para reprogramar"
+                                            :label="lang.desc_rescheduling"
                                             value=""
                                             rows="2"
                                             hide-details
@@ -251,7 +259,7 @@ Vue.component('classschedule',{
                                         small
                                         @click="dialog = false"
                                       >
-                                        Cancelar
+                                        {{lang.cancel}}
                                       </v-btn>
                                       
                                       <v-btn
@@ -259,7 +267,7 @@ Vue.component('classschedule',{
                                         small
                                         @click="sendSolit"
                                       >
-                                        Aceptar
+                                        {{lang.accept}}
                                       </v-btn>
                                     </v-card-actions>
                                 </v-card>
@@ -312,7 +320,7 @@ Vue.component('classschedule',{
                               color="secondary"
                               @click="selectedOpen = false"
                             >
-                              Cerrar
+                              {{lang.close}}
                             </v-btn>
                         </v-card-actions>
                     </v-card>
@@ -327,9 +335,9 @@ Vue.component('classschedule',{
             focus: new Date().toISOString().substr(0,10),
             type: 'week',
             typeToLabel: {
-                month: 'Mes',
-                week: 'Semana',
-                day: 'Día',
+                month: window.strings.month,
+                week: window.strings.week,
+                day: window.strings.day,
             },
             classitems:undefined,
             instructors:undefined,
@@ -353,6 +361,9 @@ Vue.component('classschedule',{
             URLdomain: window.location.origin,
             token: '0deabd5798084addc080286f4acccd87',
             siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
+            weekdays: [1, 2, 3, 4, 5, 6, 0],
+            ready: false,
+            lang: window.strings 
         }
     },
     props:{
@@ -366,29 +377,40 @@ Vue.component('classschedule',{
     },
     mounted(){
         this.$refs.calendar.checkChange();
+        this.ready = true
+        this.scrollToTime()
+        this.updateTime()
     },  
     methods:{
         // This method appears to make an HTTP GET request to retrieve calendar events from the Moddle.
         getEvents(){
+            // Initialize the events property to an empty array.
             this.events = []
+            // Get the Moodle site URL from the siteUrl property.
             const url = this.siteUrl;
+            // Define the parameters of the HTTP request.
             const params = {
-                wstoken: '0deabd5798084addc080286f4acccd87',
+                wstoken: this.token,
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_calendar_get_calendar_events',
             };
+            // Make an HTTP GET request with Axios.
             axios.get(url, { params })
+                // If the request is successful, process the received data
                 .then(response => {
+                    // Convert the JSON response to an objec.
                     const data = JSON.parse(response.data.events)
                     console.log(data);
+                    // Iterate over each element in the received data.
                     data.forEach((element) => {
+                        // Extract the relevant information from each event and add it to the events array.
                         this.events.push({
                             name: element.coursename,
                             instructor: element.instructorName,
                             details: element.typeLabel,
                             color: element.color,
-                            start: element.initDate,
-                            end: element.endDate,
+                            start: element.start,
+                            end: element.end,
                             days: element.classDaysES.join(" - "),
                             hour: element.timeRange,
                             timed: true,
@@ -396,6 +418,7 @@ Vue.component('classschedule',{
                         })
                     })
                 })
+                // If the request fails, display the error on the console.
                 .catch(error => {
                 console.error(error);
             });
@@ -467,6 +490,18 @@ Vue.component('classschedule',{
             hour12: true,
           });
         },
+        getCurrentTime () {
+            return this.cal ? this.cal.times.now.hour * 60 + this.cal.times.now.minute : 0
+        },
+        scrollToTime () {
+            const time = this.getCurrentTime()
+            const first = Math.max(0, time - (time % 30) - 30)
+    
+            this.cal.scrollToTime(first)
+        },
+        updateTime () {
+            setInterval(() => this.cal.updateTimes(), 60 * 1000)
+        },
     },
     computed: {
         filteredEvents() {
@@ -493,7 +528,12 @@ Vue.component('classschedule',{
             if (this.selectedInstructors.length === 0 && this.selectclass.length === 0) {
               return this.events;
             }
-            
+        },
+        cal () {
+            return this.ready ? this.$refs.calendar : null
+        },
+        nowY () {
+            return this.cal ? this.cal.timeToY(this.cal.times.now) + 'px' : '-10px'
         },
     },
     

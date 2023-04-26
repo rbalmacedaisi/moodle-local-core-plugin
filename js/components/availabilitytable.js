@@ -229,6 +229,17 @@ Vue.component('availabilitytable',{
                     </template>
                 </v-data-table>
             </v-col>
+            <v-col cols="12" v-if="overlay">
+                <v-overlay :value="overlay" z-index='200' class="text-center">
+                    <v-progress-circular
+                        :size="70"
+                        :width="7"
+                        color="primary"
+                        indeterminate
+                        class="mt-5"
+                    ></v-progress-circular>
+                </v-overlay>
+            </v-col>
         </v-row>
     `,
     data(){
@@ -263,12 +274,13 @@ Vue.component('availabilitytable',{
             schedules: [],
             schedulesPerDay: [],
             selectedInstructor: null,
-            token: '0deabd5798084addc080286f4acccd87',
+            token: '33513bec0b3469194c7756c29bf9fb33',
             search: '',
             siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
             itemDelete:{},
             editMode: false,
             valid: false,
+            overlay: false
         }
     },
     props:{
@@ -283,11 +295,12 @@ Vue.component('availabilitytable',{
     methods:{
         // Function to initialize the data of the instructors.
         initialize () {
+            this.overlay = true
             // Assign the site URL to the url variable.
             const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
             const params = {
-                wstoken: '0deabd5798084addc080286f4acccd87',
+                wstoken: this.token,
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_get_teachers_disponibility',
             };
@@ -307,6 +320,7 @@ Vue.component('availabilitytable',{
                             disponibilityRecords: element.disponibilityRecords
                         })
                     })
+                    this.overlay = false
                 })
                 // If the request fails, log an error to the console.
                 .catch(error => {
@@ -350,8 +364,9 @@ Vue.component('availabilitytable',{
         // itemDelete and triggers a dialog asking the user to confirm the deletion of an item.
         deleteItem (item) {
             console.log(item)
-            this.itemDelete = item
+            this.itemDelete = item.instructorId
             this.dialogDelete = true
+            console.log(this.itemDelete)
         },
         // This is a function that makes an HTTP GET request to a specific URL with some parameters. 
         // The function then removes an element from an array and closes a dialog.
