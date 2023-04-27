@@ -31,7 +31,7 @@ Vue.component('availabilitytable',{
                                             <v-btn
                                               color="primary"
                                               dark
-                                              class="mb-2 mt-8 mr-5"
+                                              class="mb-2 mt-8 mr-5 rounded"
                                               v-bind="attrs"
                                               v-on="on"
                                               @click="dialog = true"
@@ -203,6 +203,7 @@ Vue.component('availabilitytable',{
                                    @click="editItem(item)"
                                    v-bind="attrs"
                                    v-on="on"
+                                   small
                                 >
                                     mdi-pencil
                                 </v-icon>
@@ -216,6 +217,7 @@ Vue.component('availabilitytable',{
                                    @click="deleteItem(item)" 
                                    v-bind="attrs"
                                    v-on="on"
+                                   small
                                 >
                                     mdi-delete
                                 </v-icon>

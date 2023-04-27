@@ -12,7 +12,7 @@ Vue.component('availabilitycalendar',{
                       color="grey darken-2"
                       @click="setToday"
                     >
-                        Hoy
+                        {{lang.today}}
                     </v-btn>
                     <v-btn
                       fab
@@ -39,7 +39,7 @@ Vue.component('availabilitycalendar',{
                     <v-combobox
                       v-model="select"
                       :items="items"
-                      label="Instructores"
+                      :label="lang.instructors"
                       outlined
                       dense
                       hide-details
@@ -48,7 +48,7 @@ Vue.component('availabilitycalendar',{
                     ></v-combobox>
                 </v-toolbar>
             </v-sheet>
-            <v-sheet height="600">
+            <v-sheet height="600" class="px-4">
                 <v-calendar
                   ref="calendar"
                   v-model="focus"
@@ -65,10 +65,10 @@ Vue.component('availabilitycalendar',{
                            fab
                            type="button"
                            @click="toggleDayFree(date,day)"
-                           :class="(daysFree.indexOf(date.toString()) !== -1) ? 'availabilityColor' : 'transparent elevation-0'"
+                           :class="(daysFree.indexOf(date.toString()) !== -1) ? 'availabilityColor rounded-circle' : 'transparent elevation-0'"
                            :style="(daysFree.indexOf(date.toString()) !== -1) ? 'event-pointer: none !important;' : ''"
                            >
-                            <span class="v-btn__content black--text">{{day}}</span>
+                            <span class="v-btn__content" :class="(daysFree.indexOf(date.toString()) !== -1) ? 'black--text' : ''">{{day}}</span>
                         </v-btn>
                         <div class="d-flex justify-center mt-2">
                             <v-chip
@@ -78,7 +78,7 @@ Vue.component('availabilitycalendar',{
                               x-small
                               class="mt-0 mb-1 black--text"
                             >
-                              Disponible
+                              {{lang.available}}
                             </v-chip>
                         </div>
                     </template>
@@ -108,22 +108,22 @@ Vue.component('availabilitycalendar',{
             selectedElement: null,
             selectedOpen: false,
             hoursFree: [],
-            times: []
+            times: [],
+            lang: window.strings
         }
     },
     created(){
         this.getDisponibilityData()
+        
     },
     mounted () {
         this.$refs.calendar.checkChange();
-        setTimeout(()=>{
-            console.log(this.$refs.calendar.checkChange())
-        },3000)
-        console.log(this.$refs.calendar.checkChange())
+        this.events = []
     },
     methods: {
+        // This method calls a web service to get the instructors' availability information and adds it to the users array.
         getDisponibilityData(){
-          const url = this.siteUrl;
+            const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
             const params = {
                 wstoken: this.token,
@@ -160,20 +160,21 @@ Vue.component('availabilitycalendar',{
                 console.error(error);
             });  
         },
-        getEventColor (event) {
-            return event.color
-        },
+        // This method sets the selected date on the calendar as the current date.
         setToday () {
             this.focus = ''
         },
+        // This method displays the previous month, week, or day on the calendar.
         prev () {
             this.$refs.calendar.prev()
         },
+        // This method displays the next month, week, or day on the calendar.
         next () {
             this.$refs.calendar.next()
         },
+        // This method updates the availability information for the selected instructor 
+        // and adds it to the daysFree and events arrays.
         selectInstructor(e){
-            console.log(e)
             this.daysFree = []
             this.events = []
             if(e){
@@ -182,18 +183,35 @@ Vue.component('availabilitycalendar',{
                         element.daysFree.forEach((day) =>{
                             this.daysFree.push(day.day)
                         })
-                        this.events = element.events
+                        
+                        element.events.forEach((item) => {
+                            this.events.push({
+                                name: item.coursename,
+                                instructor: item.instructorName,
+                                details: item.typeLabel,
+                                color: item.color,
+                                start: item.start,
+                                end: item.end,
+                                days: item.classDaysES.join(" - "),
+                                hour: item.timeRange,
+                                timed: true,
+                                modulename: item.modulename
+                            })
+                        })
                     }
                 })
             }
         },
+        // This method shows or hides the availability modal.
         toggleDayFree(date,day,time){
             this.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
             this.dayTo = date
         },
+        // This method closes the availability modal.
         closeDialog(){
             this.dayModal = false
         },
+        // This method updates the availability information of the selected instructor based on the date selected in the calendar.
         showEvent ( date ) {
             if(this.select){
                 const user = this.users.find(user => user.name === this.select.value)

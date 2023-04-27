@@ -44,6 +44,7 @@ Vue.component('classschedule',{
                     </v-toolbar-title>
                     <v-spacer></v-spacer>
                     <v-btn
+                      v-if="!rolInstructor"
                       color="primary"
                       :href="urlAvailability"
                     >
@@ -52,7 +53,7 @@ Vue.component('classschedule',{
                 </v-toolbar>
             </v-sheet>
             
-            <v-row class="mb-1 mx-0 align-center">
+            <v-row class="mb-1 mx-0 align-center" :class="$vuetify.theme.isDark ? 'mt-1': ''">
                 
                 <v-menu
                   bottom
@@ -151,10 +152,9 @@ Vue.component('classschedule',{
                     v-model="selectedOpen"
                     :close-on-content-click="false"
                     :activator="selectedElement"
-                    
+                    :max-width="type == 'day' ? '300px' : '100%'"
                 >
                     <v-card
-                      color="grey lighten-4"
                       min-width="300px"
                       flat
                       :max-width="type == 'day' ? '300px' : '100%'"
@@ -227,7 +227,7 @@ Vue.component('classschedule',{
                                 </template>
                         
                                 <v-card>
-                                    <v-card-title class="text-h5 text-white" style="background: #e5b751;" >
+                                    <v-card-title class="text-h5 info white--text">
                                       {{selectedEvent.name}}
                                     </v-card-title>
                         
@@ -243,7 +243,7 @@ Vue.component('classschedule',{
                                             value=""
                                             rows="2"
                                             hide-details
-                                            color="#e5b751"
+                                            color="info"
                                           ></v-textarea>
                                         </v-col>
                                       </v-row>
@@ -254,18 +254,21 @@ Vue.component('classschedule',{
                                     <v-card-actions>
                                       <v-spacer></v-spacer>
                                       <v-btn
-                                        color="#e5b751"
-                                        outlined
                                         small
                                         @click="dialog = false"
+                                        class="rounded"
+                                        text
+                                        color="secondary"
                                       >
                                         {{lang.cancel}}
                                       </v-btn>
                                       
                                       <v-btn
-                                        color="#e5b751"
                                         small
                                         @click="sendSolit"
+                                        class="rounded"
+                                        text
+                                        color="secondary"
                                       >
                                         {{lang.accept}}
                                       </v-btn>
@@ -312,6 +315,23 @@ Vue.component('classschedule',{
                                     <v-icon>mdi-calendar-cursor</v-icon>
                                 </v-avatar>
                                 <span v-html="selectedEvent.days"></span>
+                            </div>
+                            <div v-if="rolInstructor" class="d-flex align-center">
+                                <v-avatar
+                                 size="36px"
+                                 class="mr-2"
+                                >
+                                    <v-icon>mdi-link</v-icon>
+                                </v-avatar>
+                                <v-btn 
+                                   text 
+                                   small 
+                                   color="primary" 
+                                   :href="selectedEvent.activityUrl"
+                                    class="text-capitalize"
+                                >
+                                  Actividad
+                                </v-btn>
                             </div>
                         </v-card-text>
                         <v-card-actions class="d-flex justify-end">
@@ -363,7 +383,8 @@ Vue.component('classschedule',{
             siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             ready: false,
-            lang: window.strings 
+            lang: window.strings,
+            userId: window.userid
         }
     },
     props:{
@@ -372,7 +393,7 @@ Vue.component('classschedule',{
     created(){
         this.classitems = window.classItems;
         this.instructors = window.instructorItems;
-        this.rolInstructor = false //window.rolInstructor===1;
+        this.rolInstructor = false//window.rolInstructor===1;
         this.getEvents();
     },
     mounted(){
@@ -382,18 +403,33 @@ Vue.component('classschedule',{
         this.updateTime()
     },  
     methods:{
-        // This method appears to make an HTTP GET request to retrieve calendar events from the Moddle.
+        // This method makes an HTTP GET request to retrieve calendar events from the Moodle server. 
+        // The received data is processed and relevant information is extracted from each event, which is added to the events array. 
+        // This method also handles errors if the request fails.
         getEvents(){
             // Initialize the events property to an empty array.
             this.events = []
+            
             // Get the Moodle site URL from the siteUrl property.
             const url = this.siteUrl;
-            // Define the parameters of the HTTP request.
-            const params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_grupomakro_calendar_get_calendar_events',
-            };
+            let params = {}
+            if(this.rolInstructor){
+                // Define the parameters of the HTTP request.
+                params = {
+                    wstoken: this.token,
+                    moodlewsrestformat: 'json',
+                    wsfunction: 'local_grupomakro_calendar_get_calendar_events',
+                    userId: this.userId
+                };
+            }else{
+                // Define the parameters of the HTTP request.
+                params = {
+                    wstoken: this.token,
+                    moodlewsrestformat: 'json',
+                    wsfunction: 'local_grupomakro_calendar_get_calendar_events',
+                };
+            }
+            
             // Make an HTTP GET request with Axios.
             axios.get(url, { params })
                 // If the request is successful, process the received data
@@ -414,7 +450,8 @@ Vue.component('classschedule',{
                             days: element.classDaysES.join(" - "),
                             hour: element.timeRange,
                             timed: true,
-                            modulename: element.modulename
+                            modulename: element.modulename,
+                            activityUrl: element.activityUrl
                         })
                     })
                 })
@@ -423,23 +460,28 @@ Vue.component('classschedule',{
                 console.error(error);
             });
         },
-        
+        // This method updates the calendar view to display a specific day.
         viewDay ({ date }) {
             this.focus = date
             this.type = 'day'
         },
+        // This method sets the calendar view to the current day.
         setToday () {
             this.focus = this.today
         },
+        // This method navigates to the previous calendar view.
         prev () {
             this.$refs.calendar.prev()
         },
+        // This method navigates to the next calendar view.
         next () {
             this.$refs.calendar.next()
         },
+        // This method returns the color of a given event.
         getEventColor (event) {
             return event.color
         },
+        // This method displays information about a specific event when it is clicked by the user.
         showEvent ({ nativeEvent, event }) {
             const open = () => {
                 this.selectedEvent = event
@@ -456,11 +498,46 @@ Vue.component('classschedule',{
 
             nativeEvent.stopPropagation()
         },
+        // This method updates the start and end dates of the calendar range.
         updateRange ({ start, end }) {
-            // You could load events from an outside source (like database) now that we have the start and end dates on the calendar
             this.start = start
             this.end = end
         },
+        // This method hides the current dialog box and displays the confirmation dialog box.
+        sendSolit(){
+            this.dialog = false;
+            this.dialogconfirm = true;
+        },
+        // This method hides the current dialog box and reschedule modal.
+        hidenDialog(){
+            this.dialogconfirm = false;
+            this.reschedulemodal = false
+        },
+        // This method formats a given date object to display only the time in hours and minutes.
+        formatEventTime(date) {
+          return new Date(date).toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+        },
+        // This method returns the current time in minutes, based on the current time on the calendar.
+        getCurrentTime () {
+            return this.cal ? this.cal.times.now.hour * 60 + this.cal.times.now.minute : 0
+        },
+        // This method scrolls the calendar to the current time.
+        scrollToTime () {
+            const time = this.getCurrentTime()
+            const first = Math.max(0, time - (time % 30) - 30)
+    
+            this.cal.scrollToTime(first)
+        },
+        // This method updates the time displayed on the calendar every minute.
+        updateTime () {
+            setInterval(() => this.cal.updateTimes(), 60 * 1000)
+        },
+        // This method retrieves events from the server based on the selected classes and instructors, 
+        // and filters the events that match the selected classes.
         handleInput(e){
             this.getEvents()
             let data = []
@@ -469,41 +546,17 @@ Vue.component('classschedule',{
                     e.forEach((item) =>{
                         if(element.name == item.value ){
                             data.push(element)
-                            
                         }
                     })
                 })
             }
         },
-        sendSolit(){
-            this.dialog = false;
-            this.dialogconfirm = true;
-        },
-        hidenDialog(){
-            this.dialogconfirm = false;
-            this.reschedulemodal = false
-        },
-        formatEventTime(date) {
-          return new Date(date).toLocaleTimeString("es-CO", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-        },
-        getCurrentTime () {
-            return this.cal ? this.cal.times.now.hour * 60 + this.cal.times.now.minute : 0
-        },
-        scrollToTime () {
-            const time = this.getCurrentTime()
-            const first = Math.max(0, time - (time % 30) - 30)
-    
-            this.cal.scrollToTime(first)
-        },
-        updateTime () {
-            setInterval(() => this.cal.updateTimes(), 60 * 1000)
-        },
     },
     computed: {
+        // This method returns an array of events filtered based on the selections made by the user. 
+        // If any instructor has been selected, it returns the events related to that instructor. 
+        // If any class type has been selected, it returns the events related to that class type. 
+        // If no selection has been made, returns all events.
         filteredEvents() {
             let select = []
             
@@ -529,9 +582,11 @@ Vue.component('classschedule',{
               return this.events;
             }
         },
+        // This method returns the calendar instance if it is ready to use, otherwise it returns null.
         cal () {
             return this.ready ? this.$refs.calendar : null
         },
+        // This method Returns the current vertical position of the current time indicator on the calendar.
         nowY () {
             return this.cal ? this.cal.timeToY(this.cal.times.now) + 'px' : '-10px'
         },

@@ -78,10 +78,8 @@ foreach($instructors as $instructor){
   array_push($instructorItems,$instructorItem);
 }
 $instructorItems = json_encode($instructorItems);
-// 
 
-echo $OUTPUT->header();
-
+$userid = $USER->id;
 $url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
 $strings = new stdClass();
 $strings->today = get_string('today',$plugin_name);
@@ -98,13 +96,17 @@ $strings->remove = get_string('remove',$plugin_name);
 $strings->reschedule = get_string('reschedule',$plugin_name);
 $strings->cancel = get_string('cancel',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
+$strings->desc_rescheduling = get_string('desc_rescheduling',$plugin_name);
 $strings = json_encode($strings);
+
+echo $OUTPUT->header();
+
 echo <<<EOT
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
   <div id="app">
-    <v-app>
+    <v-app class="transparent">
       <v-main>
         <v-container>
           <classschedule></classschedule>
@@ -122,6 +124,7 @@ echo <<<EOT
     var classItems = $classItemsUnique;
     var instructorItems = $instructorItems;
     var strings = $strings;
+    var userid = $userid;
   </script>
   <style lang="scss">
     .v-current-time {
@@ -145,6 +148,12 @@ echo <<<EOT
     }
     #first .v-toolbar__content{
       padding-left: 0px !important;
+    }
+    .v-text-field__slot textarea{
+      background: transparent !important;
+    }
+    .theme--dark.v-application {
+      background: transparent;
     }
   </style>
 EOT;

@@ -62,6 +62,8 @@ $strings->remove = get_string('remove',$plugin_name);
 $strings->reschedule = get_string('reschedule',$plugin_name);
 $strings->cancel = get_string('cancel',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
+$strings->available_hours = get_string('available_hours',$plugin_name);
+$strings->available = get_string('available',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -73,9 +75,8 @@ echo <<<EOT
   <div id="app">
     <v-app>
       <v-main>
-        <v-container>
+        <v-container fluid>
         <availabilitycalendar></availabilitycalendar>
-            
         </v-container>
       </v-main>
     </v-app>
@@ -84,37 +85,43 @@ echo <<<EOT
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <style>
+ 
+  <style lang="scss">
+    .v-current-time {
+      height: 2px;
+      background-color: #ea4335;
+      position: absolute;
+      left: -1px;
+      right: 0;
+      pointer-events: none;
+    
+      &.first::before {
+        content: '';
+        position: absolute;
+        background-color: #ea4335;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-top: -5px;
+        margin-left: -6.5px;
+      }
+    }
     .instructor-select{
       max-width: 400px;
     }
-</style>
-<style lang="scss">
-.v-current-time {
-  height: 2px;
-  background-color: #ea4335;
-  position: absolute;
-  left: -1px;
-  right: 0;
-  pointer-events: none;
-
-  &.first::before {
-    content: '';
-    position: absolute;
-    background-color: #ea4335;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-top: -5px;
-    margin-left: -6.5px;
-  }
-}
-</style>
-<script>
+    .v-label.theme--dark + input[type="text"]{
+      background: transparent !important;
+    }
+    .v-btn--round {
+      border-radius: 50% !important;
+    }
+  </style>
+  <script>
     var instructorItems = $instructorItems;
     var strings = $strings;
   </script>
 EOT;
+
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitycomponent.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitymodal.js'));

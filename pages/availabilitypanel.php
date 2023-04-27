@@ -55,11 +55,11 @@ echo <<<EOT
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
   <div id="app">
-    <v-app>
+    <v-app class="transparent">
       <v-main>
-        <v-container fluid>
+        <div>
             <availabilitytable></availabilitytable>
-        </v-container>
+        </div>
       </v-main>
     </v-app>
   </div>
@@ -89,6 +89,13 @@ echo <<<EOT
     }
     .timeEnd .v-input__slot fieldset{
       background-color: #7199dc21;
+    }
+    .v-select__selections input[type="text"],
+    .v-text-field__slot input[type="text"]{
+      background: transparent !important;
+    }
+    .theme--dark.v-application {
+      background: transparent;
     }
     
    </style>
