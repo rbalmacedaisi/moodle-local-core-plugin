@@ -64,7 +64,7 @@ class delete_class extends external_api {
     /**
      * TODO describe what the function actually does.
      *
-     * @param int $userid
+     * @param string id
      * @return mixed TODO document
      */
     public static function execute(

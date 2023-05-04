@@ -37,6 +37,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 /**
  * External function 'local_grupomakro_delete_teacher_disponibility' implementation.
  *
@@ -79,9 +80,17 @@ class delete_teacher_disponibility extends external_api {
             // Global variables.
             global $DB;
             
-            $instructorUserId = $DB->get_record('local_learning_users', ['id'=>$instructorId])->userid; 
-            $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorUserId]);
+            $instructorLearningPlanUserIds = $DB->get_records('local_learning_users', ['userid'=>$instructorId]);
+            $instructorAsignedClasses = array();
+            foreach($instructorLearningPlanUserIds as $instructorLearningPlanUserId){
+               $instructorAsignedClasses = array_merge($instructorAsignedClasses,grupomakro_core_list_classes(['instructorid'=>$instructorLearningPlanUserId->id]));
+            }
+            foreach($instructorAsignedClasses as $instructorAsignedClass){
+                \local_grupomakro_core\external\gmkclass\delete_class::execute($instructorAsignedClass->id);
+            }
             
+            $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorId]);
+
             // Return the result.
             return ['status' => $deleteDisponibilityRecord, 'message' => 'ok'];
         }

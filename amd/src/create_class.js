@@ -88,6 +88,10 @@ const handleClassSave = () => {
         }, ]);
         promise[0].done(function(response) {
             window.console.log(response);
+            if(response.status === -1 ){
+                console.log(response.message)
+                return
+            } 
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
         }).fail(function(error) {
             window.console.error(error);
@@ -110,8 +114,8 @@ const handleInstanceSelection = () => {
 const handleCareerSelection = ()=> {
     careerSelector.change(()=> {
         if (careerSelector.val() === '') {
- return;
-}
+            return;
+        }
         const args = {
             learningPlanId: careerSelector.val()
         };

@@ -85,7 +85,9 @@ class get_teachers_disponibility extends external_api {
         
         
         try {
-            $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility');
+            
+            
+            $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $instructorId? ['userid'=>$instructorId]:[]);
         
             $weekdays = array(
                 'disp_monday' => 'Lunes',

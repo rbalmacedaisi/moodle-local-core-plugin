@@ -58,14 +58,13 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
  *
  * @return array
  */
-function grupomakro_core_create_class_activities($classInfo, $course,$type,$section,$groupId,$instructorUserId) {
+function grupomakro_core_create_class_activities($class) {
     global $DB;
     
-    $name = $classInfo->name;
-    $classId = $classInfo->id;
-    $initTime = $classInfo->inittime;
-    $endTime = $classInfo->endtime;
-    $classDays = $classInfo->classdays;
+    $classType =  $class->type;
+    $initTime = $class->inittime;
+    $endTime = $class->endtime;
+    $classDays = $class->classdays;
     
     $initDate = '2023-04-01';
     $endDate = '2023-05-30';
@@ -94,144 +93,43 @@ function grupomakro_core_create_class_activities($classInfo, $course,$type,$sect
     //Define some needed constants
     $currentDateTS = $startDateTS;
     $dayInSeconds = 86400;
-    if($type === 1 || $type ===2){ //If the type of activity is equal to 1, create the big blue button activities
-        
-        $activity = 'bigbluebuttonbn';
+    
+    //If the type of activity is virtual or mixta, create the big blue button activities
+    if($classType === 1 || $classType ===2){
+    
         //Start looping from the startDate to the endDate
         while($currentDateTS < $endDateTS){
             $day =  $classDaysList[date('l',$currentDateTS)];
             if($day==='1'){
                 $activityEndTS = $currentDateTS+$classDurationInSeconds;
-                
-                list($module, $context, $cw, $cm, $data) = prepare_new_moduleinfo_data($course, $activity,$section);
-                
-                $bbbActivityDefinition                                  = new stdClass();
-                $bbbActivityDefinition->type                            = "0";
-                $bbbActivityDefinition->name                            = $name.'-'.$classId.'-'.$currentDateTS;
-                $bbbActivityDefinition->introeditor                     = $data->introeditor;
-                $bbbActivityDefinition->showdescription                 = "0";
-                $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$name ;
-                $bbbActivityDefinition->voicebridge                     = 0;
-                $bbbActivityDefinition->userlimit                       = 0;
-                $bbbActivityDefinition->record                          = 1;
-                $bbbActivityDefinition->recordallfromstart              = 0;
-                $bbbActivityDefinition->recordhidebutton                = 0;
-                $bbbActivityDefinition->muteonstart                     = 0;
-                $bbbActivityDefinition->recordings_deleted              = 1;
-                $bbbActivityDefinition->recordings_imported             = 0;
-                $bbbActivityDefinition->recordings_preview              = 1;
-                $bbbActivityDefinition->lockonjoin                      = 1;
-                $bbbActivityDefinition->mform_isexpanded_id_permissions = 1;
-                $bbbActivityDefinition->participants                    = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
-                $bbbActivityDefinition->openingtime                     = $currentDateTS;
-                $bbbActivityDefinition->closingtime                     = $activityEndTS;
-                $bbbActivityDefinition->visible                         = 1;
-                $bbbActivityDefinition->visibleoncoursepage             = 1;
-                $bbbActivityDefinition->cmidnumber                      = "";
-                $bbbActivityDefinition->groupmode                       = "1";
-                $bbbActivityDefinition->groupingid                      = $groupId;
-                // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$currentDateTS.'},{"type":"date","d":"<","t":'.$activityEndTS.'}],"showc":[true,true]}';
-                $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[],"showc":[]}';
-                $bbbActivityDefinition->completionunlocked              = 1;
-                $bbbActivityDefinition->completion                      = "1";
-                $bbbActivityDefinition->completionexpected              = 0;
-                $bbbActivityDefinition->tags                            = array();
-                $bbbActivityDefinition->course                          = $course->id;
-                $bbbActivityDefinition->coursemodule                    = 0;
-                $bbbActivityDefinition->section                         = $section;
-                $bbbActivityDefinition->module                          = 28;
-                $bbbActivityDefinition->modulename                      = $activity;
-                $bbbActivityDefinition->instance                        = 0;
-                $bbbActivityDefinition->add                             = $activity;
-                $bbbActivityDefinition->update                          = 0;
-                $bbbActivityDefinition->return                          = 0;
-                $bbbActivityDefinition->sr                              = 0;
-                $bbbActivityDefinition->competencies                    = array();
-                $bbbActivityDefinition->competency_rule                 = "0";
-                $bbbActivityDefinition->submitbutton2                   = "Guardar cambios y regresar al curso";
-                $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"'.$instructorUserId.'","role":"moderator"}]';
-        
-                $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $course);
+                createBigBlueButtonActivity($class,$currentDateTS,$activityEndTS);
             }
             $currentDateTS+=$dayInSeconds;
         }
     }
-    $currentDateTS = $startDateTS;
-    if ($type === 0 || $type ===2){
-        $activity = 'attendance';
-        list($module, $context, $cw, $cm, $data) = prepare_new_moduleinfo_data($course, $activity,$section);
-        
-        $attendanceActivityDefinition                             = new stdClass();
-        $attendanceActivityDefinition->name                       = $name.'-'.$classId;
-        $attendanceActivityDefinition->introeditor                = $data->introeditor;
-        $attendanceActivityDefinition->showdescription            = "0";
-        $attendanceActivityDefinition->grade                      = 100;
-        $attendanceActivityDefinition->grade_rescalegrades        = NULL;
-        $attendanceActivityDefinition->gradecat                   = "38";
-        $attendanceActivityDefinition->gradepass                  = NULL;
-        $attendanceActivityDefinition->visible                    = 1;
-        $attendanceActivityDefinition->visibleoncoursepage        = 1;
-        $attendanceActivityDefinition->cmidnumber                 = "";
-        $attendanceActivityDefinition->groupmode                  = "1";
-        $attendanceActivityDefinition->groupingid                 = $groupId;
-        $attendanceActivityDefinition->availabilityconditionsjson = '{"op":"&","c":[],"showc":[]}';
-        $attendanceActivityDefinition->completionunlocked         = 1;
-        $attendanceActivityDefinition->completion                 = "1";
-        $attendanceActivityDefinition->completionexpected         = 0;
-        $attendanceActivityDefinition->tags                       = array();
-        $attendanceActivityDefinition->course                     = $course->id;
-        $attendanceActivityDefinition->coursemodule               = 0;
-        $attendanceActivityDefinition->section                    = $section;
-        $attendanceActivityDefinition->module                     = 32;
-        $attendanceActivityDefinition->modulename                 = $activity;
-        $attendanceActivityDefinition->instance                   = 0;
-        $attendanceActivityDefinition->add                        = $activity;
-        $attendanceActivityDefinition->update                     = 0;
-        $attendanceActivityDefinition->return                     = 0;
-        $attendanceActivityDefinition->sr                         = 0;
-        $attendanceActivityDefinition->competencies               = array();
-        $attendanceActivityDefinition->competency_rule            = "0";
-        $attendanceActivityDefinition->subnet                     = "";
-        $attendanceActivityDefinition->submitbutton2              = "Guardar cambios y regresar al curso";
     
-        $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $course);
+    
+    $currentDateTS = $startDateTS;
+    
+    //If the type of activity is presencial or mixta, create the attendance activity and sessions
+    if ($classType === 0 || $classType ===2){
+        
+        $attendanceActivityInfo = createAttendanceActivity($class);
         
         $attendanceModuleId = $attendanceActivityInfo->coursemodule;
-        $cm             = get_coursemodule_from_id('attendance', $attendanceModuleId, 0, false, MUST_EXIST);
+        $cm  = get_coursemodule_from_id('attendance', $attendanceModuleId, 0, false, MUST_EXIST);
         $context = \context_module::instance($cm->id);
-        $pageparams = new stdClass();
-        $pageparams->action=1;
         $att= $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
-        $att = new \mod_attendance_structure($att, $cm, $course, $context, $pageparams);
+        $att = new \mod_attendance_structure($att, $cm, $class->course, $context);
         
         $sessions = [];
         
         while($currentDateTS < $endDateTS){
             $day =  $classDaysList[date('l',$currentDateTS)];
             if($day==='1'){
-                $attendanceSessionDefinition = new stdClass();
-                $attendanceSessionDefinition->sessdate = $currentDateTS;
-                $attendanceSessionDefinition->duration = $classDurationInSeconds;
-                $attendanceSessionDefinition->descriptionitemid = 0;
-                $attendanceSessionDefinition->description = "";
-                $attendanceSessionDefinition->descriptionformat = "1";
-                $attendanceSessionDefinition->calendarevent = 1;
-                $attendanceSessionDefinition->timemodified = time();
-                $attendanceSessionDefinition->absenteereport = "1";
-                $attendanceSessionDefinition->studentpassword = "";
-                $attendanceSessionDefinition->includeqrcode = 0;
-                $attendanceSessionDefinition->rotateqrcode = 0;
-                $attendanceSessionDefinition->rotateqrcodesecret = "";
-                $attendanceSessionDefinition->automark = 0;
-                $attendanceSessionDefinition->automarkcmid = 0;
-                $attendanceSessionDefinition->automarkcompleted = 0;
-                $attendanceSessionDefinition->subnet = "";
-                $attendanceSessionDefinition->preventsharedip = 0;
-                $attendanceSessionDefinition->preventsharediptime = "";
-                $attendanceSessionDefinition->statusset = 0;
-                $attendanceSessionDefinition->groupid = $groupId;
                 
-                array_push($sessions,$attendanceSessionDefinition);
+                $attendanceSession = createAttendanceSessionObject($currentDateTS,$classDurationInSeconds,$class->groupid);
+                array_push($sessions,$attendanceSession);
             }
             $currentDateTS+=$dayInSeconds;
             
@@ -283,6 +181,7 @@ function grupomakro_core_list_classes($filters) {
         $teacherCoreId = $DB->get_record('local_learning_users',['id'=>$teacherId])->userid;
         $userInfo = $DB->get_record('user',['id'=>$teacherCoreId]);
         $class->instructorName = $userInfo->firstname.' '. $userInfo->lastname;
+        $class->instructorUserId = $teacherCoreId;
         //
         
         //set the type Label
@@ -290,11 +189,6 @@ function grupomakro_core_list_classes($filters) {
         $classLabels = ['1'=>'Virtual', '0'=>'Presencial', '2'=>'Mixta'];
         $class->typeLabel = $classLabels[$class->type];
         //
-        
-        
-        
-        
-        
         
         //set the formatted hour in the format am/pm
         $initHour = intval(substr($class->inittime,0,2));
@@ -335,7 +229,9 @@ function grupomakro_core_list_classes($filters) {
         
         //Set the real course id
         $class->coreCourseId = $DB->get_record('local_learning_courses',['id'=>$class->courseid])->courseid;
-        $class->coreCourseName = $DB->get_record('course',['id'=>$class->coreCourseId])->fullname;
+        $class->course = $DB->get_record('course',['id'=>$class->coreCourseId]);
+        $class->coreCourseName = $class->course->fullname;
+        $class->coursesectionid = $class->coursesectionid;
         
         $class->startDate = '01/30/2023';
         
@@ -355,16 +251,17 @@ function grupomakro_core_list_instructors() {
     return $instructors;
 }
 
-function grupomakro_core_list_instructors_without_disponibility(){
+function grupomakro_core_list_instructors_with_disponibility_flag(){
     global $DB;
-    $filteredInstructors = array();
     $instructors = grupomakro_core_list_instructors();
     foreach($instructors as $instructor){
         if (!$existing_record = $DB->get_record('gmk_teacher_disponibility', array("userid"=>$instructor->userid))) {
-            $filteredInstructors[]=$instructor;
+            $instructor->hasDisponibility = 0;
+            continue;
         }
+        $instructor->hasDisponibility = 1;
     }
-    return $filteredInstructors;
+    return $instructors;
 }
 
 function grupomakro_core_list_instructors_with_disponibility(){
@@ -435,8 +332,7 @@ function getClassEvents(){
     $endDate = '2023-05-30';
     
     $events = calendar_get_events(strtotime($initDate),strtotime($endDate),true,true,true,false,false);
-    // print_object($events);
-    // die;
+    
     $moduleIds = ["bigbluebuttonbn"=>$DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id,"attendance"=>$DB->get_record('modules',['name'=>'attendance'])->id];
     foreach($events as $event){
         
@@ -445,6 +341,7 @@ function getClassEvents(){
         }
         
         $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
+        
         $moduleSectionId = $moduleInfo->section;
         
         //Save the fetched classes to minimize db queries
@@ -459,6 +356,7 @@ function getClassEvents(){
         }
         
         //Set the class information for the event
+        $event->moduleId = $moduleInfo->id;
         $event->instructorName = $gmkClass->instructorName;
         $event->timeRange = $gmkClass->initHourFormatted.' - '. $gmkClass->endHourFormatted;
         $event->classDaysES = $gmkClass->selectedDaysES;
@@ -479,6 +377,8 @@ function getClassEvents(){
         }else{
             $event->color = '#00bcd4';
             $event->activityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
+            $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
+            $event->sessionId = $sessionId;
         }
         //Set the initial date and the end date of the event
         $event->start = date('Y-m-d H:i:s',$event->timestart);
@@ -497,4 +397,192 @@ function getClassEvents(){
     }
     
     return $eventDaysFiltered;
+}
+
+function createBigBlueButtonActivity($class,$initDateTS,$endDateTS){
+    
+    global $DB;
+    $sectionNumber = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
+    
+    list($module, $context, $cw, $cm, $data) = prepare_new_moduleinfo_data($class->course,'bigbluebuttonbn',$sectionNumber);
+                
+    $bbbActivityDefinition                                  = new stdClass();
+    $bbbActivityDefinition->type                            = "0";
+    $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
+    $bbbActivityDefinition->introeditor                     = $data->introeditor;
+    $bbbActivityDefinition->showdescription                 = "0";
+    $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
+    $bbbActivityDefinition->voicebridge                     = 0;
+    $bbbActivityDefinition->userlimit                       = 0;
+    $bbbActivityDefinition->record                          = 1;
+    $bbbActivityDefinition->recordallfromstart              = 0;
+    $bbbActivityDefinition->recordhidebutton                = 0;
+    $bbbActivityDefinition->muteonstart                     = 0;
+    $bbbActivityDefinition->recordings_deleted              = 1;
+    $bbbActivityDefinition->recordings_imported             = 0;
+    $bbbActivityDefinition->recordings_preview              = 1;
+    $bbbActivityDefinition->lockonjoin                      = 1;
+    $bbbActivityDefinition->mform_isexpanded_id_permissions = 1;
+    $bbbActivityDefinition->participants                    = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
+    $bbbActivityDefinition->openingtime                     = $initDateTS;
+    $bbbActivityDefinition->closingtime                     = $endDateTS;
+    $bbbActivityDefinition->visible                         = 1;
+    $bbbActivityDefinition->visibleoncoursepage             = 1;
+    $bbbActivityDefinition->cmidnumber                      = "";
+    $bbbActivityDefinition->groupmode                       = "0";
+    $bbbActivityDefinition->groupingid                      = NULL;
+    // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$currentDateTS.'},{"type":"date","d":"<","t":'.$activityEndTS.'}],"showc":[true,true]}';
+    $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[],"showc":[]}';
+    $bbbActivityDefinition->completionunlocked              = 1;
+    $bbbActivityDefinition->completion                      = "1";
+    $bbbActivityDefinition->completionexpected              = 0;
+    $bbbActivityDefinition->tags                            = array();
+    $bbbActivityDefinition->course                          = $class->course->id;
+    $bbbActivityDefinition->coursemodule                    = 0;
+    $bbbActivityDefinition->section                         = $sectionNumber;
+    $bbbActivityDefinition->module                          = 28;
+    $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
+    $bbbActivityDefinition->instance                        = 0;
+    $bbbActivityDefinition->add                             = 'bigbluebuttonbn';
+    $bbbActivityDefinition->update                          = 0;
+    $bbbActivityDefinition->return                          = 0;
+    $bbbActivityDefinition->sr                              = 0;
+    $bbbActivityDefinition->competencies                    = array();
+    $bbbActivityDefinition->competency_rule                 = "0";
+    $bbbActivityDefinition->submitbutton2                   = "Guardar cambios y regresar al curso";
+    $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"'.$class->instructorUserId.'","role":"moderator"}]';
+
+    $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
+    
+    return $bbbActivityInfo;
+}
+
+function createAttendanceActivity($class){
+    
+    global $DB;
+    $sectionNumber = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
+    
+    list($module, $context, $cw, $cm, $data) = prepare_new_moduleinfo_data($class->course, 'attendance',$sectionNumber);
+        
+    $attendanceActivityDefinition                             = new stdClass();
+    $attendanceActivityDefinition->name                       = $class->name.'-'.$class->id;
+    $attendanceActivityDefinition->introeditor                = $data->introeditor;
+    $attendanceActivityDefinition->showdescription            = "0";
+    $attendanceActivityDefinition->grade                      = 100;
+    $attendanceActivityDefinition->grade_rescalegrades        = NULL;
+    $attendanceActivityDefinition->gradecat                   = "38";
+    $attendanceActivityDefinition->gradepass                  = NULL;
+    $attendanceActivityDefinition->visible                    = 1;
+    $attendanceActivityDefinition->visibleoncoursepage        = 1;
+    $attendanceActivityDefinition->cmidnumber                 = "";
+    $attendanceActivityDefinition->groupmode                  = "0";
+    $attendanceActivityDefinition->groupingid                 = NULL;
+    $attendanceActivityDefinition->availabilityconditionsjson = '{"op":"&","c":[],"showc":[]}';
+    $attendanceActivityDefinition->completionunlocked         = 1;
+    $attendanceActivityDefinition->completion                 = "1";
+    $attendanceActivityDefinition->completionexpected         = 0;
+    $attendanceActivityDefinition->tags                       = array();
+    $attendanceActivityDefinition->course                     = $class->course->id;
+    $attendanceActivityDefinition->coursemodule               = 0;
+    $attendanceActivityDefinition->section                    = $sectionNumber;
+    $attendanceActivityDefinition->module                     = 32;
+    $attendanceActivityDefinition->modulename                 = 'attendance';
+    $attendanceActivityDefinition->instance                   = 0;
+    $attendanceActivityDefinition->add                        = 'attendance';
+    $attendanceActivityDefinition->update                     = 0;
+    $attendanceActivityDefinition->return                     = 0;
+    $attendanceActivityDefinition->sr                         = 0;
+    $attendanceActivityDefinition->competencies               = array();
+    $attendanceActivityDefinition->competency_rule            = "0";
+    $attendanceActivityDefinition->subnet                     = "";
+    $attendanceActivityDefinition->submitbutton2              = "Guardar cambios y regresar al curso";
+
+    $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
+    return $attendanceActivityInfo;
+        
+}
+
+function replaceAttendanceSession($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$groupId){
+    
+    global $DB;
+    
+    $cm = get_coursemodule_from_id('attendance', $moduleId, 0, false, MUST_EXIST);
+    $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+    $att = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
+    $context = \context_module::instance($cm->id);
+    $att = new \mod_attendance_structure($att, $cm, $course, $context, $pageparams);
+    
+    //Remove the attendance session that will be reschedule
+    
+    $att->delete_sessions(array($sessionIdToBeRemoved));
+    
+    //Create the new attendance session with the new values
+
+    $attendanceSession = createAttendanceSessionObject($sessionDate,$classDurationInSeconds,$groupId);
+    
+    $att->add_sessions(array($attendanceSession)); 
+    
+    return true;
+}
+
+function createAttendanceSessionObject($sessionDate,$classDurationInSeconds,$groupId){
+    
+    $attendanceSessionDefinition = new stdClass();
+    $attendanceSessionDefinition->sessdate = $sessionDate;
+    $attendanceSessionDefinition->duration = $classDurationInSeconds;
+    $attendanceSessionDefinition->descriptionitemid = 0;
+    $attendanceSessionDefinition->description = "";
+    $attendanceSessionDefinition->descriptionformat = "1";
+    $attendanceSessionDefinition->calendarevent = 1;
+    $attendanceSessionDefinition->timemodified = time();
+    $attendanceSessionDefinition->absenteereport = "1";
+    $attendanceSessionDefinition->studentpassword = "";
+    $attendanceSessionDefinition->includeqrcode = 0;
+    $attendanceSessionDefinition->rotateqrcode = 0;
+    $attendanceSessionDefinition->rotateqrcodesecret = "";
+    $attendanceSessionDefinition->automark = 0;
+    $attendanceSessionDefinition->automarkcmid = 0;
+    $attendanceSessionDefinition->automarkcompleted = 0;
+    $attendanceSessionDefinition->subnet = "";
+    $attendanceSessionDefinition->preventsharedip = 0;
+    $attendanceSessionDefinition->preventsharediptime = "";
+    $attendanceSessionDefinition->statusset = 0;
+    $attendanceSessionDefinition->groupid = $groupId;
+    
+    return $attendanceSessionDefinition;
+}
+
+function getActivityInfo($moduleId,$sessionId=null){
+    
+    global $DB;
+    
+    //First we get the modules id defined in the modules table, this can vary between moodle installations, so we make sure we hace the correct ids
+    $attendanceModuleId = $DB->get_record('modules', array('name' =>'attendance'), '*', MUST_EXIST)->id;
+    $bigBlueButtonModuleId = $DB->get_record('modules', array('name' =>'bigbluebuttonbn'), '*', MUST_EXIST)->id;
+    
+    //Get the module info
+    $moduleInfo = $DB->get_record('course_modules', array('id' => $moduleId), '*', MUST_EXIST);
+    
+    if ($moduleInfo->module === $bigBlueButtonModuleId){
+        
+        $activityInfo = $DB->get_record('bigbluebuttonbn', array('id' => $moduleInfo->instance), '*', MUST_EXIST);
+        $activityInitTS = $activityInfo->openingtime;
+        $activityEndTS = $activityInfo->closingtime;
+    }
+    else if($moduleInfo->module === $attendanceModuleId){
+        $sessionInfo = $DB->get_record('attendance_sessions', array('id' => $sessionId), '*', MUST_EXIST);
+        $activityInitTS = $sessionInfo->sessdate;
+        $activityEndTS = $sessionInfo->sessdate +  $sessionInfo->duration;
+    }
+
+    $activityInitDate = date('Y-m-d', $activityInitTS);
+    $activityInitTime = date('H:i', $activityInitTS);
+    $activityEndTime = date('H:i', $activityEndTS);
+    
+    $activityInfo= new stdClass();
+    $activityInfo->activityInitDate = $activityInitDate;
+    $activityInfo->activityInitTime = $activityInitTime;
+    $activityInfo->activityEndTime = $activityEndTime;
+    
+    return $activityInfo;
 }

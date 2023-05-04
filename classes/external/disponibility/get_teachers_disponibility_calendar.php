@@ -31,6 +31,8 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
+use DateTime;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
@@ -83,8 +85,12 @@ class get_teachers_disponibility_calendar extends external_api {
         
         $initDate = '2023-04-01';
         $endDate = '2023-05-30';
-   
-        $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility');
+        
+        $filters = array();
+        if($instructorId){
+            $filters['userid']=$instructorId;
+        }
+        $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility',$filters);
         
         $weekdays = array(
             'disp_monday',
@@ -95,64 +101,119 @@ class get_teachers_disponibility_calendar extends external_api {
             'disp_saturday',
             'disp_sunday'
         );
-        $teachersDisponibility = new stdClass();
+        
+        $teachersDisponibility = array();
         
         foreach($disponibilityRecords as $disponibilityRecord){
             $teacherId = $disponibilityRecord->userid;
-            $teachersDisponibility->{$teacherId}= new stdClass();
+            $teachersDisponibility[$teacherId]= new stdClass();
+            $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
+            $teachersDisponibility[$teacherId]->name = $teacherInfo->firstname.' '.$teacherInfo->lastname;
+            $teachersDisponibility[$teacherId]->events = json_decode(\local_grupomakro_core\external\calendar_external::execute($teacherId)['events']);
             
+            $eventsTimesToSubstract = array();
+            
+            foreach($teachersDisponibility[$teacherId]->events as $event){
+                $eventInitDateAndTime = explode(' ',$event->start);
+                $eventDate = $eventInitDateAndTime[0];
+                $eventInitTime = substr($eventInitDateAndTime[1],0,5);
+                $eventEndTime = substr($event->end,11,5);
+                
+                $eventInitTime = strtotime($eventInitTime) - strtotime('today');
+                $eventEndTime = strtotime($eventEndTime) - strtotime('today');
+                
+                $newRange1 = new stdClass();
+                $newRange1->st = $eventInitTime;
+                $newRange1->et = $eventEndTime;
+                
+                if(array_key_exists($eventInitDateAndTime[0], $eventsTimesToSubstract)){
+                    $eventsTimesToSubstract[$eventInitDateAndTime[0]][]=$newRange1;
+                    continue;
+                }
+                $eventsTimesToSubstract[$eventInitDateAndTime[0]]=array($newRange1);
+                
+            }
+            
+            $dayDisponibility = array();
+
             foreach($weekdays as $day){
                 $dayAvailabilities = json_decode($disponibilityRecord->{$day});
                 $dayLabel = substr($day, 5);
-                $dayDisponibilityHours = self::calculate_disponibility_hours($dayAvailabilities);
+                $dayDisponibilityHours =$dayAvailabilities; 
                 if(empty($dayDisponibilityHours)){
                     continue;
                 };
-                $teachersDisponibility->{$teacherId}->{$dayLabel} =$dayDisponibilityHours;
+                $dayDisponibility[$dayLabel] = $dayDisponibilityHours;
             }
-        }
-        print_object($teachersDisponibility);
-        die();
 
-        // Return the result.
-        return ['status' => $deleteClassId, 'message' => 'ok'];
-    }
-    
-    
-    public static function calculate_disponibility_hours($dayAvailabilities){
-        $result = array();
-        foreach($dayAvailabilities as $dayAvailability){
-            if(!$dayAvailability){continue;}
-        
-            $startTime = $dayAvailability->st;
-            $endTime = $dayAvailability->et;
-            
-            $startHour = sprintf('%02d:%02d', floor($startTime/3600), ($startTime/60)%60);
-            $endHour = sprintf('%02d:%02d', floor($endTime/3600), ($endTime/60)%60);
-            
-            // Add initial hour to the result array
-            $result[] = $startHour;
-            
-            $startHour = (int)substr($startHour, 0, 2);
-            $endHour = (int)substr($endHour , 0, 2);
-            $numHours = $endHour - $startHour;
-            
-            // Adjust end hour to nearest o'clock hour
-            if ((int)substr($end, 3) != 0) {
-                $endHour++;
+            $date = new DateTime($initDate);
+            $lastDate = new DateTime($endDate);
+            $result = array();
+            while ($date <= $lastDate) {
+                $day = $date->format('Y-m-d');
+                $date->modify('+1 day');
+                $dayLabel = strtolower(date('l', strtotime($day)));
+                if(!array_key_exists($dayLabel, $dayDisponibility)){
+                    continue;
+                }
+                $result[$day] = $dayDisponibility[$dayLabel];
+                if(array_key_exists($day,$eventsTimesToSubstract)){
+                    foreach($eventsTimesToSubstract[$day] as $event){
+                        $result[$day] = self::checkRangeArray($result[$day], $event);
+                    }
+
+                }
+                $rangeHolder = array();
+                foreach($result[$day] as $dayRange){
+                    $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->st / 3600), floor(($dayRange->st % 3600) / 60));
+                    $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->et / 3600), floor(($dayRange->et % 3600) / 60));
+                }
+                $result[$day] = $rangeHolder;
             }
+            $teachersDisponibility[$teacherId]->daysFree = $result;
             
-            // Add o'clock hours for each hour between start and end
-            for ($i = 1; $i < $numHours; $i++) {
-                $hour = $startHour + $i;
-                $result[] = sprintf('%02d:00', $hour);
-            }
-            
-            // Add final o'clock hour to the result array
-            // $result[] = sprintf('%02d:00', $endHour);
         }
-        return $result;
+        // Return the result.
+        return ['disponibility' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
     }
+    
+    public static function checkRangeArray($rangeArray, $inputRange) {
+        foreach ($rangeArray as $key => $range) {
+            if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
+                // input range is fully contained within the current range
+                if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
+                    // input range is identical to current range, so remove it completely
+                    unset($rangeArray[$key]);
+                } else {
+                    // input range is within current range, so split it
+                    $newRange1 = new stdClass();
+                    $newRange1->st = $range->st;
+                    $newRange1->et = $inputRange->st;// - 1;
+    
+                    $newRange2 = new stdClass();
+                    $newRange2->st = $inputRange->et;// + 1;
+                    $newRange2->et = $range->et;
+    
+                    // remove the current range from the range array and add the two new ranges
+                    unset($rangeArray[$key]);
+    
+                    // if the input range is not completely contained in the beginning of the current range
+                    if ($newRange1->et > $newRange1->st) {
+                        $rangeArray[] = $newRange1;
+                    }
+    
+                    // if the input range is not completely contained in the end of the current range
+                    if ($newRange2->et > $newRange2->st) {
+                        $rangeArray[] = $newRange2;
+                    }
+                }
+                return $rangeArray;
+            } 
+        }
+        return $rangeArray;
+    }
+    
+   
 
     /**
      * Describes the return value of the {@see self::execute()} method.
@@ -162,7 +223,7 @@ class get_teachers_disponibility_calendar extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'disponibility' => new external_value(PARAM_RAW, 'The ID of the delete class or -1 if there was an error.'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );

@@ -11,7 +11,7 @@ Vue.component('availabilitytable',{
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
-                            <v-toolbar-title>Disponibilidad</v-toolbar-title>
+                            <v-toolbar-title>{{lang.availability}}</v-toolbar-title>
                             <v-divider
                               class="mx-4"
                               inset
@@ -36,10 +36,10 @@ Vue.component('availabilitytable',{
                                               v-on="on"
                                               @click="dialog = true"
                                             >
-                                                Agregar
+                                                {{lang.add}}
                                             </v-btn>
                                         </template>
-                                        <span>Agregar Disponibilidad</span>
+                                        <span>{{lang.add_availability}}</span>
                                     </v-tooltip>
                                 </template>
                                 
@@ -54,21 +54,21 @@ Vue.component('availabilitytable',{
                                                 <v-row>
                                                     <v-col cols="12" sm="6" md="6">
                                                         <v-select
-                                                          :items="instructors"
-                                                          label="Instructor"
+                                                          :items="instructorsWithoutDisponibility"
+                                                          :label="lang.instructors"
                                                           outlined
                                                           dense
                                                           required
                                                           v-model="selectedInstructor"
-                                                          :rules="[v => !!v || 'Este campo es requerido']"
-                                                          :disabled="editedIndex == 0"
+                                                          :rules="[v => !!v || lang.field_required]"
+                                                          :disabled="editMode"
                                                         ></v-select> 
                                                     </v-col>
                                                     <v-col cols="12" sm="6" md="6">
                                                         <v-combobox
                                                           v-model="selectedDays"
                                                           :items="daysOfWeek"
-                                                          label="Días"
+                                                          :label="lang.days"
                                                           outlined
                                                           dense
                                                           required
@@ -76,12 +76,27 @@ Vue.component('availabilitytable',{
                                                           clearable
                                                           multiple
                                                           @change="addSchedules"
-                                                          :rules="[v => !!v && v.length > 0 || 'Este campo es requerido']"
+                                                          :rules="[v => !!v && v.length > 0 || lang.field_required]"
                                                         ></v-combobox>
                                                     </v-col>
                                                 </v-row>
                                                 <v-divider v-if="selectedDays" class="my-0 mb-3"></v-divider>
                                                 <v-row>
+                                                    <v-overlay :value="Alert">
+                                                        <v-alert
+                                                          outlined
+                                                          type="warning"
+                                                          prominent
+                                                          border="left"
+                                                          v-model="Alert"
+                                                          dismissible
+                                                          class="white"
+                                                          @input="handler"
+                                                        >
+                                                          No es posible completar la acción. El rango seleccionado para edición tiene clases programadas.
+                                                        </v-alert>
+                                                    </v-overlay>
+                                                    
                                                     <v-col cols="12">
                                                         <div v-for="(schedules, index) in schedulesPerDay" :key="index">
                                                             <h5>{{schedules.day}}</h5>
@@ -89,7 +104,7 @@ Vue.component('availabilitytable',{
                                                                 <div class="d-flex mt-5">
                                                                     <v-text-field
                                                                        v-model="schedules.startTime"
-                                                                       label="Hora de inicio"
+                                                                       :label="lang.start_time"
                                                                        type="time"
                                                                        outlined
                                                                        dense
@@ -99,7 +114,7 @@ Vue.component('availabilitytable',{
                                                                     ></v-text-field>
                                                                     <v-text-field
                                                                        v-model="schedules.timeEnd"
-                                                                       label="Hora de fin"
+                                                                       :label="lang.end_time"
                                                                        type="time"
                                                                        outlined
                                                                        dense
@@ -119,7 +134,7 @@ Vue.component('availabilitytable',{
                                                                             <v-icon>mdi-plus</v-icon>
                                                                         </v-btn>
                                                                     </template>
-                                                                    <span>Agregar Horario</span>
+                                                                    <span>{{lang.add_schedule}}</span>
                                                                 </v-tooltip>
                                                             </div>
                                                         </div>
@@ -133,18 +148,18 @@ Vue.component('availabilitytable',{
                                     <v-card-actions>
                                         <v-spacer></v-spacer>
                                         <v-btn
-                                           color="blue darken-1"
+                                           color="primary"
                                            text
                                            @click="close"
                                         >
-                                            Cancelar
+                                            {{lang.cancel}}
                                         </v-btn>
                                         <v-btn
-                                           color="blue darken-1"
+                                           color="primary"
                                            text
                                            @click="save"
                                         >
-                                            Guardar
+                                            {{lang.save}}
                                         </v-btn>
                                     </v-card-actions>
                                 </v-card>
@@ -152,11 +167,12 @@ Vue.component('availabilitytable',{
                         
                             <v-dialog v-model="dialogDelete" max-width="500px">
                                 <v-card>
-                                    <v-card-title class="text-h6">¿Estás seguro de que quieres eliminar este item?</v-card-title>
+                                    <v-card-title class="text-subtitle-1 d-flex justify-center">{{lang.delete_available}}</v-card-title>
+                                    <v-card-subtitle class="pt-1 d-flex justify-center">{{lang.delete_available_confirm}}</v-card-subtitle>
                                     <v-card-actions>
                                         <v-spacer></v-spacer>
-                                        <v-btn color="blue darken-1" text @click="closeDelete">Cancelar</v-btn>
-                                        <v-btn color="blue darken-1" text @click="deleteItemConfirm">Aceptar</v-btn>
+                                        <v-btn color="primary" text @click="closeDelete">{{lang.cancel}}</v-btn>
+                                        <v-btn color="primary" text @click="deleteItemConfirm">{{lang.accept}}</v-btn>
                                         <v-spacer></v-spacer>
                                     </v-card-actions>
                                 </v-card>
@@ -168,7 +184,7 @@ Vue.component('availabilitytable',{
                                 <v-text-field
                                    v-model="search"
                                    append-icon="mdi-magnify"
-                                   label="Search"
+                                   :label="lang.search"
                                    hide-details
                                    outlined
                                    dense
@@ -208,7 +224,7 @@ Vue.component('availabilitytable',{
                                     mdi-pencil
                                 </v-icon>
                             </template>
-                            <span>Editar</span>
+                            <span>{{lang.edit}}</span>
                         </v-tooltip>
                         
                         <v-tooltip bottom>
@@ -222,7 +238,7 @@ Vue.component('availabilitytable',{
                                     mdi-delete
                                 </v-icon>
                             </template>
-                            <span>Eliminar</span>
+                            <span>{{lang.remove}}</span>
                         </v-tooltip>
                     </template>
                     
@@ -247,6 +263,7 @@ Vue.component('availabilitytable',{
     data(){
         return{
             dialog: false,
+            lang: window.strings,
             dialogDelete: false,
             headers: [
                 {
@@ -260,15 +277,8 @@ Vue.component('availabilitytable',{
             ],
             items: [],
             editedIndex: -1,
-            editedItem: {
-            },
-            defaultItem: {
-                name: '',
-                every: '',
-                from: '',
-                to: '',
-            },
-            instructors:undefined,
+            editedItem: {},
+            instructors: window.instructorItems,
             start: null,
             end: null,
             daysOfWeek: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
@@ -278,11 +288,12 @@ Vue.component('availabilitytable',{
             selectedInstructor: null,
             token: '33513bec0b3469194c7756c29bf9fb33',
             search: '',
-            siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
+            siteUrl: window.location.origin + '/webservice/rest/server.php',
             itemDelete:{},
             editMode: false,
             valid: false,
-            overlay: false
+            overlay: false,
+            Alert: false
         }
     },
     props:{
@@ -290,9 +301,11 @@ Vue.component('availabilitytable',{
     },
     created(){
         this.initialize()
-        this.instructors = window.instructorItems;
-    },
+        console.log(this.instructors);
+    }, 
     mounted(){
+        
+        
     },  
     methods:{
         // Function to initialize the data of the instructors.
@@ -331,11 +344,21 @@ Vue.component('availabilitytable',{
         },
         // Function to edit an item from the instructor list.
         editItem (item) {
+            console.log(item)
+            this.instructors =  []
+            this.instructors = window.instructorItems
             // Activate edit mode.
             this.editMode = true
-            console.log(item)
+            
             // The selectedInstructor property is set to the value of the instructor name of the record being edited.
             this.selectedInstructor = item.instructorName
+            
+            this.instructors.push({
+                id: item.instructorId,
+                text: item.instructorName,
+                value: item.instructorName
+            })
+            
             // Set the selectedDays property with an array containing the names of the days of the week the instructor is available, 
             // using the Object.keys() method to get the keys from the availabilityRecords object in the registry.
             this.selectedDays = Object.keys(item.disponibilityRecords);
@@ -361,14 +384,13 @@ Vue.component('availabilitytable',{
             this.editedItem = Object.assign({}, item)
             // Display the edit dialog by setting the dialog property to true.
             this.dialog = true
+            console.log(this.selectedInstructor)
         },
         // This is a function that gets an "item" parameter, which is assigned to the data this.
         // itemDelete and triggers a dialog asking the user to confirm the deletion of an item.
         deleteItem (item) {
-            console.log(item)
             this.itemDelete = item.instructorId
             this.dialogDelete = true
-            console.log(this.itemDelete)
         },
         // This is a function that makes an HTTP GET request to a specific URL with some parameters. 
         // The function then removes an element from an array and closes a dialog.
@@ -395,6 +417,7 @@ Vue.component('availabilitytable',{
         },
         close () {
             this.dialog = false
+            this.editMode = false
             this.schedules = []
             this.selectedInstructor = []
             this.$nextTick(() => {
@@ -406,15 +429,14 @@ Vue.component('availabilitytable',{
             this.dialogDelete = false
             this.itemDelete = {}
             location.reload();
-            /*this.$nextTick(() => {
-                this.editedItem = Object.assign({}, this.defaultItem)
-                this.editedIndex = -1
-            })*/
+            this.editedIndex = -1
         },
         // This is a function that creates a new availability record and sends it to a Moodle web service via an HTTP GET request.
         save () {
             // Validate the form.
             this.$refs.form.validate()
+            
+            this.Alert = false
             // If the form is valid, proceed to save the availability record.
             if(this.valid){
                 // Create a new availability record from the selected schedules.
@@ -431,8 +453,7 @@ Vue.component('availabilitytable',{
                 
                 // Set the URL and parameters for the web service request.
                 const url = this.siteUrl
-                let wsfunction = ''
-                this.editedIndex === -1 ? wsfunction = 'local_grupomakro_add_teacher_disponibility' : wsfunction = 'local_grupomakro_update_teacher_disponibility'
+                const wsfunction =this.editMode ? 'local_grupomakro_update_teacher_disponibility':'local_grupomakro_add_teacher_disponibility';
                 const params = {
                     wstoken: '0deabd5798084addc080286f4acccd87',
                     moodlewsrestformat: 'json',
@@ -447,12 +468,13 @@ Vue.component('availabilitytable',{
                         if(response.data.message == 'ok'){
                             location.reload();
                         }
+                        if(response.data.status == -1){
+                            this.Alert = true
+                        }
                     })
                     .catch(error => {
                     console.error(error);
                 });
-                // Close the dialog.
-                this.close()
             }
         },
         // This function is called when the user clicks the "Add Schedules" button.
@@ -535,6 +557,9 @@ Vue.component('availabilitytable',{
                 return true;
             };
         },
+        handler(e){
+            this.close()
+        }
     },
     computed: {
         // This method returns a string that represents the caption of the form in the user interface. 
@@ -548,6 +573,12 @@ Vue.component('availabilitytable',{
         requiredRule() {
           return (value) => !!value || 'Este campo es requerido';
         },
+        
+        // This method returns the list of instructors that doesnt have a disponibility record created
+        instructorsWithoutDisponibility(){
+            const instructorDisponibilityFlag = this.editMode? 1:0;
+            return this.instructors.filter(instructor => instructor.hasDisponibility ===instructorDisponibilityFlag )
+        }
     },
     watch: {
         dialog (val) {

@@ -99,7 +99,7 @@ Vue.component('availabilitycalendar',{
                 1, 2, 3, 4, 5, 6, 0
             ],
             users:[],
-            siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
+            siteUrl: window.location.origin + '/webservice/rest/server.php',
             token: '33513bec0b3469194c7756c29bf9fb33',
             daysFree: [],
             dayModal: false,

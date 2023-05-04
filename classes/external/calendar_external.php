@@ -37,7 +37,7 @@ use external_value;
 defined('MOODLE_INTERNAL') || die;
 
 require_once("$CFG->libdir/externallib.php");
-require_once($CFG->dirroot . '/calendar/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 
 class calendar_external extends external_api {
     
@@ -55,7 +55,7 @@ class calendar_external extends external_api {
      * @param int $year The year to be shown
      * @return  array
      */
-    public static function execute($userId) {
+    public static function execute($userId = null) {
         global $DB, $USER, $PAGE;
 
         // Parameter validation.
@@ -63,69 +63,67 @@ class calendar_external extends external_api {
             'userId' => $userId,
         ]);
         
-        $fetchedClasses = array();
-        $fetchedCourses = array();
-        $eventDaysFiltered = [];
+        $eventDaysFiltered = getClassEvents();
         
-        $events = calendar_get_events(1680325200,1690779599,true,true,true,false,false);
-        
-        $moduleIds = ["bigbluebuttonbn"=>$DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id,"attendance"=>$DB->get_record('modules',['name'=>'attendance'])->id];
-        foreach($events as $event){
+        if($userId){
+            $learningPlanUserRoles =  $DB->get_records('local_learning_users', ['userid'=>$userId]);
             
-            if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
-                continue;
+            
+            // print_object($learningPlanUserRoles);
+            // die;
+            
+            if (!$learningPlanUserRoles){
+                return [
+                'events' => 'invalidUserId','message'=>'invalidUserId'
+                ];
             }
             
-            $moduleSectionId = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]])->section;
+            $eventsFiltered = array();
             
-            //Save the fetched classes to minimize db queries
-            if(array_key_exists($moduleSectionId,$fetchedClasses)){
-                $gmkClass = $fetchedClasses[$moduleSectionId];
-            }else {
-                $class = $DB->get_record('gmk_class', ['coursesectionid'=>$moduleSectionId]);
-                if(!$class){continue;}
-                $gmkClass = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($class->id)['classes'])[0];
-                $fetchedClasses[$moduleSectionId] = $gmkClass;
+            foreach($learningPlanUserRoles as $learningPlanUserRole){
+                
+                $userLearningPlanRole = $learningPlanUserRole->userroleid;
+                $learningPlanUserId = $learningPlanUserRole->id;
+        
+                
+                if ($userLearningPlanRole === '4'){
 
-            }
-            
-            //Set the class information for the event
-            
-            $event->instructorName = $gmkClass->instructorName;
-            $event->timeRange = $gmkClass->initHourFormatted.' - '. $gmkClass->endHourFormatted;
-            $event->classDaysES = $gmkClass->selectedDaysES;
-            $event->classDaysEN = $gmkClass->selectedDaysEN;
-            $event->typeLabel = $gmkClass->typeLabel;
-            $event->className = $gmkClass->name;
-            
-            
-            // The big blue button event doesn't come with the timeduration, so we calculate it and added to the event object
-            // Asign the event color for both cases
-            if($event->modulename === 'bigbluebuttonbn'){
-                $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
-                $event->color = '#2196f3';
-            }else{
-                $event->color = '#00bcd4';
-            }
-            //Set the initial date and the end date of the event
-            $event->initDate = date('Y-m-d H:i:s',$event->timestart);
-            $event->endDate = date('Y-m-d H:i:s',$event->timestart + $event->timeduration);
-            
-            //Get the coursename, save the fetched coursenames for minimize db queries
-            if(array_key_exists($event->courseid,$fetchedCourses)){
-                $event->coursename = $fetchedCourses[$event->courseid];
-            }else {
-                $event->coursename = $DB->get_record('course', ['id'=>$event->courseid])->fullname;
-                $fetchedCourses[$event->courseid] = $event->coursename;
+                    $eventsFilteredByTeacher=array();
+                    foreach($eventDaysFiltered as $event){
+                        if($event->instructorId ===$learningPlanUserId){
+                            $event->role = 'teacher';
+                            $eventsFilteredByTeacher[]=$event;
+                        }
+                    }
+                    $eventsFiltered = array_merge($eventsFiltered, $eventsFilteredByTeacher);
+                }
+                elseif($userLearningPlanRole === '5'){
+                    $asignedGroups = $DB->get_records('groups_members', array("userid"=>$userId));
+                    $asignedClasses = array();
+                    foreach($asignedGroups as $asignedGroup){
+                        $groupClassId = $DB->get_record('gmk_class', array("groupid"=>$asignedGroup->groupid , "learningplanid"=>$learningPlanUserRole->learningplanid))->id;
+                        $groupClassId? $asignedClasses[]=$groupClassId :null;
+                    }
+
+                    $eventsFilteredByClass=array();
+                    foreach($eventDaysFiltered as $event){
+                        if(in_array($event->classId,$asignedClasses)){
+                            $event->role = 'student';
+                            $eventsFilteredByClass[]=$event;
+                        }
+                    }
+                    $eventsFiltered = array_merge($eventsFiltered, $eventsFilteredByClass);
+                }
+                
             }
 
-            //push the filtered event to the arrays of events
-            array_push($eventDaysFiltered,$event);
+            $eventDaysFiltered =$eventsFiltered;
         }
+        
         // print_object($eventDaysFiltered);
         // die;
         return [
-            'events' => json_encode(array_values($eventDaysFiltered))
+            'events' => json_encode(array_values($eventDaysFiltered)),'message'=>'ok'
         ];
     }
 
@@ -135,10 +133,10 @@ class calendar_external extends external_api {
      * @return external_description
      */
     public static function execute_returns(): external_description {
-        //return \core_calendar\external\month_exporter::get_read_structure();
         return new external_single_structure(
             array(
-                'events' => new external_value(PARAM_RAW, 'Events for the month')
+                'events' => new external_value(PARAM_RAW, 'Events for the month'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
     }

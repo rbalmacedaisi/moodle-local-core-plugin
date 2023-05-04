@@ -144,4 +144,22 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_check_reschedule_conflicts' => array(
+        'classname' => 'local_grupomakro_core\external\activity\check_reschedule_conflicts',
+        'methodname' => 'execute',
+        'description' => 'Check if the new date and time for the activity is in conflict with another class for the users in the update activity',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_reschedule_activity' => array(
+        'classname' => 'local_grupomakro_core\external\activity\reschedule_activity',
+        'methodname' => 'execute',
+        'description' => 'Reschedule an activity to another date and time',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

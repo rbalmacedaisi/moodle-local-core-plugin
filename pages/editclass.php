@@ -28,6 +28,7 @@ require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_acti
 require_once($CFG->dirroot . '/local/sc_learningplans/external/period/get_learning_plan_periods.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/course/get_learning_plan_courses.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/user/get_learning_plan_teachers.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -43,9 +44,25 @@ $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
 
 $id = required_param('class_id', PARAM_TEXT);
+$moduleId = optional_param('moduleId',null, PARAM_TEXT);
+$sessionId = optional_param('sessionId',null, PARAM_TEXT);
+$reschedulingActivity = !!$moduleId;
+
+$activityInfo = null;
+if($reschedulingActivity){
+    $activityInfo = getActivityInfo($moduleId,$sessionId);
+}
+// if()
+
+// $
+// print_object($moduleId);
+// print_object($sessionId);
+// die;
 
 //Get the class that is going to be edited
-$class = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($id)['classes'])[0];
+$class =  grupomakro_core_list_classes(array('id'=>$id))[$id];
+// $class = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($id)['classes'])[0];
+
 $classType = $class->type;
 $classLearningPlanId=$class->learningplanid;
 $classPeriodId = $class->periodid;
@@ -127,9 +144,14 @@ $templatedata = [
     'saturdayValue' =>$saturdayValue,
     'sundayValue' =>$sundayValue,
     'className'=> $class->name,
-    'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php'
+    'reschedulingActivity' => $reschedulingActivity,
+    'activityInitDate'=>$activityInfo?$activityInfo ->activityInitDate: null,
+    'activityInitTime'=>$activityInfo?$activityInfo ->activityInitTime: null,
+    'activityEndTime'=>$activityInfo?$activityInfo ->activityEndTime: null,
+    'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
+    'rescheduleCancelUrl'=> $CFG->wwwroot.'/local/grupomakro_core/pages/schedules.php'
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);
-$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
+$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', ['reschedulingActivity'=>$reschedulingActivity]);
 echo $OUTPUT->footer();

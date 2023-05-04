@@ -32,6 +32,8 @@ use external_single_structure;
 use external_multiple_structure;
 use external_value;
 use stdClass;
+use Exception;
+class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -40,7 +42,7 @@ require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
 /**
- * External function 'local_grupomakro_update_teacher_disponibilitys' implementation.
+ * External function 'local_grupomakro_update_teacher_disponibilities' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
@@ -111,27 +113,74 @@ class update_teacher_disponibility extends external_api {
                 'domingo' => 'disp_sunday'
             );
             
-            $instructorUserId = $DB->get_record('local_learning_users', ['id'=>$instructorId])->userid; 
-            $teacherDisponibility= $DB->get_record('gmk_teacher_disponibility',['userid'=>$instructorUserId]);
+            $weekdays = [
+                  "Monday" => "Lunes",
+                  "Tuesday" => "Martes",
+                  "Wednesday" => "Miércoles",
+                  "Thursday" => "Jueves",
+                  "Friday" => "Viernes",
+                  "Saturday" => "Sábado",
+                  "Sunday" => "Domingo"
+            ];
             
+            $teacherDisponibilityId= $DB->get_record('gmk_teacher_disponibility',['userid'=>$instructorId])->id;
+            
+            $teacherDisponibility = new stdClass();
+            $teacherDisponibility->id = $teacherDisponibilityId;
+            $teacherDisponibility->userid = $instructorId;
+            
+            $disponibilityDays = array();
             foreach($newDisponibilityRecords as $newDisponibilityRecord){
-                $day = strtolower($newDisponibilityRecord['day']);
-                $teacherDisponibility->{$dayENLabels[$day]}=json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
+                $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+                $teacherDisponibility->{$dayENLabels[$day]}=calculate_disponibility_range($newDisponibilityRecord['timeslots']);
+                $disponibilityDays[]=explode( '_',$dayENLabels[$day])[1];
+            }
+            
+            $instructorLearningPlanUserIds = $DB->get_records('local_learning_users', ['userid'=>$instructorId]);
+            $instructorAsignedClasses = array();
+            foreach($instructorLearningPlanUserIds as $instructorLearningPlanUserId){
+               $instructorAsignedClasses = array_merge($instructorAsignedClasses,grupomakro_core_list_classes(['instructorid'=>$instructorLearningPlanUserId->id]));
+            }
+            foreach($instructorAsignedClasses as $instructorAsignedClass){
+                
+                // Check if a day that is already defined for a class is missing in the new disponibility
+                foreach($instructorAsignedClass->selectedDaysEN as $classDay){
+                     if(!in_array(strtolower($classDay),$disponibilityDays)){
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad.";
+                        throw new MyException($errorString);
+                    }
+                    
+                    $foundedRange = false;
+                    $dayDisponibilities = $teacherDisponibility->{'disp_'.strtolower($classDay)};
+                    foreach($dayDisponibilities as $dayDisponibility){
+                        if($instructorAsignedClass->inittimeTS >= $dayDisponibility->st &&  $instructorAsignedClass->endtimeTS  <= $dayDisponibility->et){
+                            $foundedRange = true;
+                            break;
+                        }
+                    }
+                    if(!$foundedRange){
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad.";
+                        throw new MyException($errorString);
+                    }
+                }
+                // -----------------------------------------------------------------------------------------
+            }
+            
+            foreach($teacherDisponibility as $columnKey => $columnValue){
+                if(strpos($columnKey, 'disp_')!== false){
+                    $teacherDisponibility->{$columnKey} = json_encode($columnValue);
+                }
             }
             
             foreach($dayENLabels as $dayLabel){
                 !property_exists( $teacherDisponibility,$dayLabel)?$teacherDisponibility->{$dayLabel}="[]" :null;
             }
-            
-            try {
-                $disponibilityRecordId = $DB->update_record('gmk_teacher_disponibility',$teacherDisponibility);
-            } catch (Exception $e) {
-                $disponibilityRecordId = -1;
-            }
+
+            $disponibilityRecordId = $DB->update_record('gmk_teacher_disponibility',$teacherDisponibility);
             
             // Return the result.
             return ['status' => $disponibilityRecordId, 'message' => 'ok'];
-        } catch (Exception $e) {
+        } catch (MyException $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
         

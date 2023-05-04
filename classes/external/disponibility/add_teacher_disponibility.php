@@ -111,10 +111,10 @@ class add_teacher_disponibility extends external_api {
             );
     
             $teacherDisponibility = new stdClass();
-            $teacherDisponibility->userid = $DB->get_record('local_learning_users', ['id'=>$instructorId])->userid;
+            $teacherDisponibility->userid =$instructorId;
             
             foreach($newDisponibilityRecords as $newDisponibilityRecord){
-                $day = strtolower($newDisponibilityRecord['day']);
+                $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
                 $teacherDisponibility->{$dayENLabels[$day]}=json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
             }
             

@@ -48,18 +48,43 @@
         {{! Contract data to modify }}
         <div class="col-sm-12 px-md-0">
             <div class="card py-3 px-4">
+                
                 <div id="fields-groups" class="row pb-5 mt-2 mx-0">
+                        
+                        {{#reschedulingActivity}}
+                        
+                        <div class="col-12">
+                             <h5 class="text-secondary mb-0">{{#str}}rescheduling_activity, local_grupomakro_core {{/str}} {{className}} ({{activityInitDate}} {{activityInitTime}}-{{activityEndTime}})</h5>
+                            <hr> </hr>
+                        </div>
+                        
+                        {{! Field for reschedule date }}
+                        <div id="newDate-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="newDate">{{#str}}new_date, local_grupomakro_core {{/str}}</label>
+                            <input type="date" class="form-control" id="newDate" value="{{activityInitDate}}" required>
+                        </div>
+                        {{! Field for reschedule date }}
+                        
+                        {{! Field for start time }}
+                        <div id="newStartTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="newStartTime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="newStartTime" value="{{activityInitTime}}" required>
+                        </div>
+                        {{! Field for start time }}
+                        
+                        {{! Field for End time }}
+                        <div id="newEndTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="newEndTime">{{#str}}end_time, local_grupomakro_core {{/str}}</label>
+                            <input type="time" class="form-control" id="newEndTime" value="{{activityEndTime}}" required>
+                        </div>
+                        {{! Field for End time }}
+                        {{/reschedulingActivity}}
+                        
+                        {{^reschedulingActivity}}
                         <div class="col-12">
                              <h5 class="text-secondary mb-0">{{className}}</h5>
                             <hr> </hr>
                         </div>
-                        
-                        {{! Class name field }}
-                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
-                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
-                            <input type="text" class="form-control" id="classname" value="{{className}}" required>
-                        </div>
-                        {{! Class name field }}
                         
                         {{! Field to select class_type }}
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
@@ -121,6 +146,12 @@
                         </div>
                         {{! End Field to select the Instructors }}
                         
+                        {{! Class name field }}
+                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
+                            <input type="text" class="form-control" id="classname" value="{{className}}" required>
+                        </div>
+                        {{! Class name field }}
                         
                         {{! Field for start time }}
                         <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
@@ -171,15 +202,29 @@
                                 <label class="custom-control-label" for="customSwitchSunday">{{#str}} sunday, local_grupomakro_core {{/str}}</label>
                             </div>
                         </div>
+                        
                         {{! End Section to choose class days }}
+                        {{/reschedulingActivity}}
+                        
+                        
+                        <div class="py-2 mx-0 px-2 w-100"><a href="https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/availabilitypanel.php" target="blank">{{#str}} check_availability, local_grupomakro_core {{/str}}</a></div>
                     </div>  
                 
                 {{! Actions }}
+                {{#reschedulingActivity}}
+                <div class="d-flex card-footer bg-transparent px-0">
+                    <div class="spacer"></div>
+                    <a href="{{rescheduleCancelUrl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                    <a id="rescheduleActivityButton" data-target='#rescheduleActivityModalCenter' data-toggle='modal' class="btn btn-primary m-1">{{#str}} reschedule, local_grupomakro_core {{/str}}</a>
+                </div>
+                {{/reschedulingActivity}}
+                {{^reschedulingActivity}}
                 <div class="d-flex card-footer bg-transparent px-0">
                     <div class="spacer"></div>
                     <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
                     <a id="saveClassButton" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
                 </div>
+                {{/reschedulingActivity}}
                 {{! End Actions }}
                 
             </div>
@@ -187,3 +232,24 @@
         {{! End Contract data to modify }}
     </div>
 </div>
+
+<!-- Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="errorModalLabel"></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{> local_grupomakro_core/modals/modal_reschedule_activity }}

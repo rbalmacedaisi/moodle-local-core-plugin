@@ -46,7 +46,6 @@ $sql = "SELECT DISTINCT r.shortname
 
 $teacherRoles = $DB->get_records_sql($sql , array($USER->id));
 $rolInstructor = !empty($teacherRoles);
-// 
 
 // Get the list of created classes
 $classes = grupomakro_core_list_classes([]);
@@ -65,7 +64,6 @@ foreach($classItems as $item){
   }
 }
 $classItemsUnique = json_encode(array_values($classItemsUnique));
-// 
 
 //Get the list of Instructors
 $instructors = grupomakro_core_list_instructors();

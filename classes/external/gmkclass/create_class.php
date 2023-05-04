@@ -32,6 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use DateTime;
+use Exception;
+class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -108,63 +110,138 @@ class create_class extends external_api {
         // Global variables.
         global $DB, $USER;
         
+        
+        try{
+            //Check the instructor availability
+            $instructorUserId = $DB->get_record('local_learning_users',['id'=>$instructorId])->userid;
+            $incomingClassSchedule = explode('/', $classDays);
+            $incomingInitHour = intval(substr($initTime,0,2));
+            $incomingInitMinutes = substr($initTime,3,2);
+            $incomingEndHour = intval(substr($endTime,0,2));
+            $incomingEndMinutes = substr($endTime,3,2);
+            $incomingInitTimeTS=$incomingInitHour * 3600 + $incomingInitMinutes * 60;
+            $incomingEndTimeTS=$incomingEndHour * 3600 + $incomingEndMinutes * 60;
+            
+            $availabilityRecords = json_decode(\local_grupomakro_core\external\disponibility\get_teachers_disponibility::execute($instructorUserId)['teacherAvailabilityRecords'])[0]->disponibilityRecords;
+            
+            $weekdays = array(
+              0 => 'Lunes',
+              1 => 'Martes',
+              2 => 'Miércoles',
+              3 => 'Jueves',
+              4 => 'Viernes',
+              5 => 'Sábado',
+              6 => 'Domingo'
+            );
+            
+            for ($i = 0; $i < 7; $i++) {
+                if($incomingClassSchedule[$i]==="1" && !property_exists($availabilityRecords,$weekdays[$i])){
+                    $errorString = "El instructor no esta disponible el día ".$weekdays[$i];
+                    throw new MyException($errorString);
+                }
+                else if ($incomingClassSchedule[$i]==="1" && property_exists($availabilityRecords,$weekdays[$i])){
+                    $foundedAvailableRange = false;
+                    foreach($availabilityRecords->{$weekdays[$i]} as $timeRange){
+                        $splittedTimeRange = explode(', ',$timeRange);
+                        $rangeInitHour = intval(substr($splittedTimeRange[0],0,2));
+                        $rangeInitMinutes = substr($splittedTimeRange[0],3,2);
+                        $rangeEndHour = intval(substr($splittedTimeRange[1],0,2));
+                        $rangeEndMinutes = substr($splittedTimeRange[1],3,2);
+                        $rangeInitTimeTS=$rangeInitHour * 3600 + $rangeInitMinutes * 60;
+                        $rangeEndTimeTS=$rangeEndHour * 3600 + $rangeEndMinutes * 60;
+                        
+                        if($incomingInitTimeTS >=$rangeInitTimeTS && $incomingEndTimeTS <=$rangeEndTimeTS){
+                            $foundedAvailableRange = true;
+                            break;
+                        }
+                    }
+                    if(!$foundedAvailableRange){
+                        $errorString = "El instructor no esta disponible el día ".$weekdays[$i]." en el horário: ".$initTime." - ".$endTime ;
+                        throw new MyException($errorString);
+                    }
+                }
+            }
+            
+            $alreadyAsignedClasses= grupomakro_core_list_classes(['instructorid'=>$instructorId]);
 
-        //Get the real course Id from the courses table.
-        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$courseId]);
-        $coreCourseId = $learningCourse->courseid;
-        $course= $DB->get_record('course',['id'=>$coreCourseId]);
+            foreach($alreadyAsignedClasses as $alreadyAsignedClass){
+                $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
+                $classInitTime = $alreadyAsignedClass->inittimeTS;
+                $classEndTime = $alreadyAsignedClass->endtimeTS;
+                
+                for ($i = 0; $i < 7; $i++) {
+                    if ($incomingClassSchedule[$i] == $alreadyAsignedClassSchedule[$i] && $incomingClassSchedule[$i] === '1') {
+                        if(($incomingInitTimeTS >= $classInitTime && $incomingEndTimeTS<=$classEndTime) || ($incomingInitTimeTS < $classInitTime && $incomingEndTimeTS>$classInitTime) ||($incomingInitTimeTS < $classEndTime && $incomingEndTimeTS>$classEndTime)){
+                            $errorString = "La clase ".$alreadyAsignedClass->name.": ".$weekdays[$i]." (".$alreadyAsignedClass->initHourFormatted." - ".$alreadyAsignedClass->endHourFormatted.") se cruza con el horario escogido"  ;
+                            throw new MyException($errorString);
+                        }
+                    }
+                }
+            }
+            
+            // --------------------------------------------------------------------
+            
+            
+            //Get the real course Id from the courses table.
+            $learningCourse= $DB->get_record('local_learning_courses',['id'=>$courseId]);
+            $coreCourseId = $learningCourse->courseid;
+            $course= $DB->get_record('course',['id'=>$coreCourseId]);
+            
+            //----------------------------------------------------Creation of class----------------------------------------------------------
+            
+            //Create the class object and insert into DB
+            $newClass = new stdClass();
+            $newClass->name           = $name;
+            $newClass->type           = $type;
+            $newClass->instance       = $instance;
+            $newClass->learningplanid = $learningPlanId;
+            $newClass->periodid       = $periodId;
+            $newClass->courseid       = $courseId;
+            $newClass->instructorid   = $instructorId;
+            $newClass->inittime       = $initTime;
+            $newClass->endtime        = $endTime;
+            $newClass->classdays      = $classDays;
+            $newClass->usermodified   = $USER->id;
+            $newClass->timecreated    = time();
+            $newClass->timemodified   = time();
+            
+            $newClass->id = $DB->insert_record('gmk_class', $newClass);
+            
+            //----------------------------------------------------Creation of group----------------------------------------------------------
+            
+            //Create the group oject and create the group using the webservice.
+            $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClass->id,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
+            $newClass->groupid = \core_group_external::create_groups($group)[0]['id'];
+            
+            $members = ['members'=>['groupid'=> $newClass->groupid, 'userid'=>$instructorUserId]];
+            $instructorAddedToGroup = \core_group_external::add_group_members($members);
+            
+            //----------------------------------------------------Creation of course section (topic)-----------------------------------------
+            
+            $newClass->coursesectionid = grupomakro_core_create_class_section($newClass,$coreCourseId, $newClass->groupid)->id;
+            rebuild_course_cache($coreCourseId, true);
+    
+            //----------------------------------------------------Update class with group and section-------------------------
+            
+            //Update the class with the new group id and the new section id.
+    
+            $updatedClass = $DB->update_record('gmk_class', $newClass);
+            
+            //-----------------------------------------------------Creation of the activities---------------------------------
+            
+            $newClass->course = $course;
+            $newClass->instructorUserId = $instructorUserId;
+            
+            grupomakro_core_create_class_activities($newClass);
+            // 
+    
+            // Return the result.
+            return ['status' => $newClass->id, 'message' => 'ok'];
+        }
+        catch (MyException $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
         
-        //----------------------------------------------------Creation of class----------------------------------------------------------
-        
-        //Create the class object and insert into DB
-        $newClass = new stdClass();
-        $newClass->name           = $name;
-        $newClass->type           = $type;
-        $newClass->instance       = $instance;
-        $newClass->learningplanid = $learningPlanId;
-        $newClass->periodid       = $periodId;
-        $newClass->courseid       = $courseId;
-        $newClass->instructorid   = $instructorId;
-        $newClass->inittime       = $initTime;
-        $newClass->endtime        = $endTime;
-        $newClass->classdays      = $classDays;
-        $newClass->usermodified   = $USER->id;
-        $newClass->timecreated    = time();
-        $newClass->timemodified   = time();
-        
-        $newClassId = $DB->insert_record('gmk_class', $newClass);
-        $newClass->id = $newClassId;
-        
-        //----------------------------------------------------Creation of group----------------------------------------------------------
-        
-        //Create the group oject and create the group using the webservice.
-        $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClassId,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
-        $createdGroup = \core_group_external::create_groups($group);
-        
-        $instructorUserId = $DB->get_record('local_learning_users',['id'=>$instructorId])->userid;
-        $members = ['members'=>['groupid'=>$createdGroup[0]['id'], 'userid'=>$instructorUserId]];
-        $instructorAddedToGroup = \core_group_external::add_group_members($members);
-        
-        //----------------------------------------------------Creation of course section (topic)-----------------------------------------
-        
-        $classSection = grupomakro_core_create_class_section($newClass,$coreCourseId,$createdGroup[0]['id'] );
-        rebuild_course_cache($coreCourseId, true);
-
-        //----------------------------------------------------Update class with group and section-------------------------
-        
-        //Update the class with the new group id and the new section id.
-
-        $newClass->groupid= $createdGroup[0]['id'];
-        $newClass->coursesectionid= $classSection->id;
-        $updatedClass = $DB->update_record('gmk_class', $newClass);
-
-        
-        //-----------------------------------------------------Creation of the activities---------------------------------
-        grupomakro_core_create_class_activities($newClass,$course, $type, $classSection->section,$createdGroup[0]['id'],$instructorUserId);
-        // 
-
-        // Return the result.
-        return ['status' => $newClassId, 'message' => 'ok'];
     }
 
 
@@ -176,7 +253,7 @@ class create_class extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new user or -1 if there was an error.'),
+                'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );

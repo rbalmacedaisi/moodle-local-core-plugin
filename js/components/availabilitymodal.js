@@ -16,7 +16,6 @@ Vue.component('availabilitymodal',{
                             :value="dayselected"
                             :interval-minutes="30"
                             :interval-count="36"
-                            :event-color="getEventColor"
                             first-time="6"
                             ref="calendar"
                             v-model="value"
@@ -26,6 +25,7 @@ Vue.component('availabilitymodal',{
                                 <div
                                     class="h-100 d-flex align-center justify-center"
                                     :style="getIntervalStyle(time)"
+                                    @click="intervalUrl(time, date, day, hour, minute)"
                                 >
                                     <div v-if="getIntervalStyle(time).content" class="black--text">{{ getIntervalStyle(time).content }}</div>
                                 </div>
@@ -38,7 +38,7 @@ Vue.component('availabilitymodal',{
                                   :style="{ top: nowY }"
                                 ></div>
                             </template>
-                          </v-calendar>
+                        </v-calendar>
                     </v-sheet>
                 </v-card-text>
                 <v-card-actions>
@@ -122,5 +122,18 @@ Vue.component('availabilitymodal',{
             }
             return {};
         },
+        intervalUrl(time, date, day, hour, minute){
+            console.log('entra')
+            /*if (this.getIntervalStyle(time).background) {
+                const intervalStartTime = hour * 60 + minute;
+                const intervalEndTime = intervalStartTime + 30;
+                this.selectedInterval = {
+                  startTime: intervalStartTime,
+                  endTime: intervalEndTime
+                };
+            } else {
+                this.selectedInterval = null;
+            }*/
+        }
     },
 })

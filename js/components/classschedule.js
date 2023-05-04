@@ -189,20 +189,12 @@ Vue.component('classschedule',{
                                 <v-card width="180">
                                     <v-list dense>
                                       <v-list-item-group v-model="listItem">
-                                        <v-list-item>
+                                        <v-list-item @click="editEvent(selectedEvent)">
                                           <v-list-item-icon class="mr-2">
                                             <v-icon >mdi-calendar-edit</v-icon>
                                           </v-list-item-icon>
                                           <v-list-item-content>
                                             <v-list-item-title>{{lang.edit}}</v-list-item-title>
-                                          </v-list-item-content>
-                                        </v-list-item>
-                                        <v-list-item>
-                                          <v-list-item-icon class="mr-2">
-                                            <v-icon >mdi-trash-can-outline</v-icon>
-                                          </v-list-item-icon>
-                                          <v-list-item-content>
-                                            <v-list-item-title>{{lang.remove}}r</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
                                       </v-list-item-group>
@@ -241,6 +233,7 @@ Vue.component('classschedule',{
                                             name="input-7-1"
                                             :label="lang.desc_rescheduling"
                                             value=""
+                                            v-model="value"
                                             rows="2"
                                             hide-details
                                             color="info"
@@ -265,7 +258,7 @@ Vue.component('classschedule',{
                                       
                                       <v-btn
                                         small
-                                        @click="sendSolit"
+                                        @click="sendSolit(selectedEvent)"
                                         class="rounded"
                                         text
                                         color="secondary"
@@ -380,11 +373,12 @@ Vue.component('classschedule',{
             urlAvailability: 'availability.php',
             URLdomain: window.location.origin,
             token: '0deabd5798084addc080286f4acccd87',
-            siteUrl: 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php',
+            siteUrl: window.location.origin + '/webservice/rest/server.php',
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             ready: false,
             lang: window.strings,
-            userId: window.userid
+            userId: window.userid,
+            value: ''
         }
     },
     props:{
@@ -451,7 +445,13 @@ Vue.component('classschedule',{
                             hour: element.timeRange,
                             timed: true,
                             modulename: element.modulename,
-                            activityUrl: element.activityUrl
+                            moduleId: element.moduleId,
+                            activityUrl: element.activityUrl,
+                            classId: element.classId,
+                            className: element.className,
+                            sessionId: element.sessionId ? element.sessionId : null,
+                            instructorId: element.instructorId,
+                            visible: element.visible
                         })
                     })
                 })
@@ -504,9 +504,35 @@ Vue.component('classschedule',{
             this.end = end
         },
         // This method hides the current dialog box and displays the confirmation dialog box.
-        sendSolit(){
-            this.dialog = false;
-            this.dialogconfirm = true;
+        sendSolit(event){
+            const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_send_reschedule_message',
+                message: this.value,
+                instructorId: event.instructorId,
+                classId: event.classId,
+                moduleId: event.moduleId,
+                sessionId: event.sessionId
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Converts the data returned from the API from JSON string format to object format.
+                    //const data = JSON.parse(response.data.disponibility)
+                    //console.log(data);
+                    // Add the availability data for each instructor to the current instance's item array.
+                    this.dialog = false;
+                    this.dialogconfirm = true;
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                console.error(error);
+            });
+            
         },
         // This method hides the current dialog box and reschedule modal.
         hidenDialog(){
@@ -551,6 +577,11 @@ Vue.component('classschedule',{
                 })
             }
         },
+        editEvent(event){
+            console.log(event)
+            window.location = this.URLdomain + '/local/grupomakro_core/pages/editclass.php?class_id=' 
+            + event.classId + '&moduleId=' + event.moduleId + '&sessionId=' + event.sessionId
+        }
     },
     computed: {
         // This method returns an array of events filtered based on the selections made by the user. 

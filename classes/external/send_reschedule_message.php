@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_delete_class external function.
+ * Class definition for the local_grupomakro_send_reschedule_message_class external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
@@ -31,20 +31,20 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
+use Exception;
+class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
-// require_once $CFG->libdir . '/externallib.php';
-// require_once($CFG->libdir . '/filelib.php');
-// require_once $CFG->dirroot . '/group/externallib.php';
-//require_once(__DIR__ . '/../../config.php');
+
 require_once($CFG->libdir.'/messagelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot .'/mod/bigbluebuttonbn/lib.php');
 
-
-        // Include messaging library
+// Include messaging library
 /**
  
- * External function 'local_grupomakro_delete_class' implementation.
+ * External function 'local_grupomakro_send_reschedule_message' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
@@ -64,113 +64,112 @@ class send_reschedule_message extends external_api {
                 'message' => new external_value(PARAM_TEXT, ''),
                 'instructorId' => new external_value(PARAM_TEXT, ''),
                 'classId' => new external_value(PARAM_TEXT, ''),
-                'roleUser' => new external_value(PARAM_TEXT, '')
-
+                'moduleId' => new external_value(PARAM_TEXT, ''),
+                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_OPTIONAL)
             ]
         );
     }
 
     /**
-     * TODO describe what the function actually does.
+     * Sends a rescheduling message to the administrators.
      *
-     * @param int $userid
-     * @return mixed TODO document
+     * @param string $$message
+     * @param string $instructorId
+     * @param string $classId
+     * 
+     * @return bool True on success, false on failure.
+     *
+     * @throws MyException If an error occurs.
      */
     public static function execute(
         string $message, 
         string $instructorId,
         string $classId,
-        string $roleUser
+        string $moduleId,
+        string $sessionId=null
         ){  
         global $DB;
         
+        // print_object($message);
+        // print_object($instructorId);
+        // print_object($classId);
+        // print_object($moduleId);
+        // print_object($sessionId);
+        // die;
         
-        $userInfo = $DB->get_record('user',['id'=>$instructorId]);
-        $userName = $userInfo->username;    
-        
-        $classInfo = $DB->get_record('gmk_class',['id'=>$classId]);
-        $idClass = $classInfo->id;
-        
-        
-        
-        
-        $userRole= $DB->get_records('role_assignments',['roleid'=>$roleUser]);
-        foreach($userRole as $item){
-            $itemm = $item->roleid;
-            // print_object($itemm);
-            if ($itemm===$roleUser){
-                foreach($userName as $mail){
-                    if(mail($userName, $message->subject,$message->fullmessage)) {
-                       echo 'Correo enviado correctamente';
-                    } else {
-                       echo 'Error al enviar el correo';
-                    }
-                }
-                die();
-              print_object('Tienes un mensaje de: '.$userName.' de la clase ['.$idClass.']');
-              $message = new \core\message\message();
-              $message->userfrom = \core_user::get_noreply_user(); // Set the message sender
-              $message->component = 'moodle'; // Set the message component
-              $message->name = 'instantmessage'; // Set the message name
-              $message->subject = 'New message notification'; // Set the message subject
-              $message->fullmessage = 'You have a new message notification in Moodle'; 
-              $message->fullmessageformat = FORMAT_PLAIN;
-              
-            //   print_object($message);
-               
-            }else{
-                echo'doesnt works';
-            }
-        }
-        $message = new \core\message\message();
-        $message->component = 'moodle'; // Set the message component
-        $message->name = 'instantmessage'; // Set the message name
-        $message->userfrom = \core_user::get_noreply_user(); // Set the message sender
-        $messageid = message_send($message);
-        return ['status' => $deleteClassId, 'message' => 'ok'];
-        die();
-        // $typeUser= $userRole->roleid;
+        try{
+            
+            $userInfo = $DB->get_record('user',['id'=>$instructorId]);
+            $classInfo= grupomakro_core_list_classes(['id'=>$classId])[$classId];
+            $instructorFullName = $userInfo->firstname.' '.$userInfo->lastname;
     
-        //     if($typeUser==5){
-        //         echo("works");
-        //     }
-        //     else{
-        //         echo("doesnt works");
-        //     }
-        // die();
-        // $typeUser = $userRole->roleid;
-        // print_object($typeUser);
-        // die();
-        // echo($typeUser);
-        // die();
-        
-        // Validate the parameters passed to the function.
-       // $params = self::validate_parameters(self::execute_parameters(), [
-         //   'message' => $message,
-        // ]);
-        
-        
-        // Global variables
+            
+            // Set the html message----------------------------------------------------------------------------------------------------------------------------------------------------
+            
+            $htmlMessage = '<html><body>';
+            $htmlMessage .= '<h2>El instructor <strong>'.$instructorFullName.'</strong> ha solicitado una reprogramación con el siguiente mensaje:</h2>';
+            $htmlMessage .= '<q>'.$message.'</q>';
+            $htmlMessage .= '<h3>Informacipon de la clase:</h3>';
+            $htmlMessage .= '<ul>';
+            $htmlMessage .= '<li><strong>Nombre: </strong>'.$classInfo->name.'</li>';
+            $htmlMessage .= '<li><strong>Horario: </strong>'.implode(', ', $classInfo->selectedDaysES).'('.$classInfo->initHourFormatted.'-'.$classInfo->endHourFormatted.')</li>';
+            $htmlMessage .= '<li><strong>Curso: </strong>'.$classInfo->coreCourseName.'</li>';
+            $htmlMessage .= '<li><strong>Modalidad: </strong>'.$classInfo->typeLabel.'</li>';
+            $htmlMessage .= '</ul>';
+            $htmlMessage .= '<p>Para reprogramar la sesión haz click <a href="https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'">aquí.</a></p>';
+            $htmlMessage .= '</body></html>';
+            
+            // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    
+            // message test (will be deleted)
+            $messageDefinition = new \core\message\message();
+            $messageDefinition->component = 'moodle'; // Set the message component
+            $messageDefinition->name ='instantmessage'; // Set the message name
+            $messageDefinition->userfrom = \core_user::get_noreply_user(); // Set the message sender
+            $messageDefinition->userto = 70; // Set the message recipient
+            $messageDefinition->subject = 'Solicitud de reprogramación nueva'; // Set the message subject
+            $messageDefinition->fullmessage = $htmlMessage; // Set the message body
+            $messageDefinition->fullmessageformat = FORMAT_HTML; // Set the message body format
+            $messageDefinition->contexturl ='https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId;
+            $messageDefinition->contexturlname = 'Reprogramar Sesión';
+            $messageid = message_send($messageDefinition);
+            // -------------------------------
 
+    
+            // // Find the users that have administrator role---------------------------
+    
+            // $managers = $DB->get_records('role_assignments', array('roleid'=>1));
+            
+            // $managerIds = array_map(function($element) {
+            //     return $element->userid;
+            // }, $managers);
+            
+            // // -----------------------------------------------------------------------
+    
+            // // Loop the managers array and send the reschedule message-------------------------------------------------------------------------
+    
+            // foreach (array_unique($managerIds) as $adminId) {
+            //     $messageDefinition = new \core\message\message();
+            //     $messageDefinition->component = 'moodle'; 
+            //     $messageDefinition->name ='instantmessage'; 
+            //     $messageDefinition->userfrom = \core_user::get_noreply_user(); 
+            //     $messageDefinition->userto = $adminId; 
+            //     $messageDefinition->subject = 'Solicitud de reprogramación nueva'; 
+            //     $messageDefinition->fullmessage = $htmlMessage;
+            //     $messageDefinition->fullmessageformat = FORMAT_HTML; 
+            //     $messageDefinition->contexturl = 'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId;
+            //     $messageDefinition->contexturlname = 'Reprogramar Sesión';
+            //     // Send the message notification
+            //     $messageid = message_send($messageDefinition);
+            // }
+            
+            // // ---------------------------------------------------------------------------------------------------------------------------------
 
-        // Create a new message object
-        $message = new \core\message\message();
-        $message->component = 'moodle'; // Set the message component
-        $message->name = 'instantmessage'; // Set the message name
-        $message->userfrom = \core_user::get_noreply_user(); // Set the message sender
-        
-        $message->userto = $USER; // Set the message recipient
-        $message->subject = 'New message notification'; // Set the message subject
-        $message->fullmessage = 'You have a new message notification in Moodle'; // Set the message body
-        $message->fullmessageformat = FORMAT_PLAIN; // Set the message body format
-        
-        // Send the message notification
-        $messageid = message_send($message);
-        // Return the result.
-        return ['status' => $deleteClassId, 'message' => 'ok'];
+            return ['status' => 1, 'message' => 'ok'];
+        }catch (MyException $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
     }
-
-
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
@@ -179,7 +178,7 @@ class send_reschedule_message extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'status' => new external_value(PARAM_INT, '1 of the message was correctly sended, -1 otherwise.'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
