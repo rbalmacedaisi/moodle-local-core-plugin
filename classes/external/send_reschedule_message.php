@@ -38,7 +38,7 @@ defined('MOODLE_INTERNAL') || die();
 
 
 require_once($CFG->libdir.'/messagelib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->dirroot .'/mod/bigbluebuttonbn/lib.php');
 
 // Include messaging library
@@ -61,11 +61,15 @@ class send_reschedule_message extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'message' => new external_value(PARAM_TEXT, ''),
                 'instructorId' => new external_value(PARAM_TEXT, ''),
                 'classId' => new external_value(PARAM_TEXT, ''),
+                'causes' => new external_value(PARAM_TEXT, ''),
                 'moduleId' => new external_value(PARAM_TEXT, ''),
-                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_OPTIONAL)
+                'originalDate' => new external_value(PARAM_TEXT, ''),
+                'originalHour' => new external_value(PARAM_TEXT, ''),
+                'proposedDate' => new external_value(PARAM_TEXT, ''),
+                'proposedHour' => new external_value(PARAM_TEXT, ''),
+                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_OPTIONAL),
             ]
         );
     }
@@ -82,41 +86,50 @@ class send_reschedule_message extends external_api {
      * @throws MyException If an error occurs.
      */
     public static function execute(
-        string $message, 
         string $instructorId,
         string $classId,
+        string $causes, 
         string $moduleId,
+        string $originalDate,
+        string $originalHour,
+        string $proposedDate,
+        string $proposedHour,
         string $sessionId=null
         ){  
         global $DB;
-        
-        // print_object($message);
-        // print_object($instructorId);
-        // print_object($classId);
-        // print_object($moduleId);
-        // print_object($sessionId);
-        // die;
-        
+
         try{
             
+            $causes = explode(',',$causes);
+            $causeNames=array();
+            foreach($causes as $cause){
+                $causeNames[]=$DB->get_record('gmk_reschedule_causes',['id'=>$cause])->causename;
+            }
+
             $userInfo = $DB->get_record('user',['id'=>$instructorId]);
             $classInfo= grupomakro_core_list_classes(['id'=>$classId])[$classId];
             $instructorFullName = $userInfo->firstname.' '.$userInfo->lastname;
     
+            $rescheduleUrl=  'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'&proposedDate='.$proposedDate.'&proposedHour='.$proposedHour;
             
             // Set the html message----------------------------------------------------------------------------------------------------------------------------------------------------
             
             $htmlMessage = '<html><body>';
-            $htmlMessage .= '<h2>El instructor <strong>'.$instructorFullName.'</strong> ha solicitado una reprogramación con el siguiente mensaje:</h2>';
-            $htmlMessage .= '<q>'.$message.'</q>';
+            $htmlMessage .= '<h2>El instructor <strong>'.$instructorFullName.'</strong> ha solicitado una reprogramación con los siguientes causales:</h2>';
+            $htmlMessage .= '<q>'.implode(', ',$causeNames).'</q>';
             $htmlMessage .= '<h3>Informacipon de la clase:</h3>';
             $htmlMessage .= '<ul>';
             $htmlMessage .= '<li><strong>Nombre: </strong>'.$classInfo->name.'</li>';
-            $htmlMessage .= '<li><strong>Horario: </strong>'.implode(', ', $classInfo->selectedDaysES).'('.$classInfo->initHourFormatted.'-'.$classInfo->endHourFormatted.')</li>';
+            $htmlMessage .= '<li><strong>Horario: </strong>'.$originalDate.' ('.$originalHour.')</li>';
             $htmlMessage .= '<li><strong>Curso: </strong>'.$classInfo->coreCourseName.'</li>';
             $htmlMessage .= '<li><strong>Modalidad: </strong>'.$classInfo->typeLabel.'</li>';
             $htmlMessage .= '</ul>';
-            $htmlMessage .= '<p>Para reprogramar la sesión haz click <a href="https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'">aquí.</a></p>';
+            $htmlMessage .= '<h3>Horario Propuesto:</h3>';
+            $htmlMessage .= '<ul>';
+            $htmlMessage .= '<li><strong>Día: </strong>'.$proposedDate.'</li>';
+            $htmlMessage .= '<li><strong>Hora: </strong>'.$proposedHour.'</li>';
+            $htmlMessage .= '</ul>';
+            $htmlMessage .= '<p>Para reprogramar la sesión haz click <a href="'.$rescheduleUrl.'">aquí.</a></p>';
             $htmlMessage .= '</body></html>';
             
             // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -130,7 +143,7 @@ class send_reschedule_message extends external_api {
             $messageDefinition->subject = 'Solicitud de reprogramación nueva'; // Set the message subject
             $messageDefinition->fullmessage = $htmlMessage; // Set the message body
             $messageDefinition->fullmessageformat = FORMAT_HTML; // Set the message body format
-            $messageDefinition->contexturl ='https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId;
+            $messageDefinition->contexturl =$rescheduleUrl;
             $messageDefinition->contexturlname = 'Reprogramar Sesión';
             $messageid = message_send($messageDefinition);
             // -------------------------------

@@ -40,7 +40,8 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/group/externallib.php');
 /**
  * External function 'local_grupomakro_update_teacher_disponibilities' implementation.
  *
@@ -72,7 +73,8 @@ class update_teacher_disponibility extends external_api {
                         'Record for a single day of availability'
                     ),
                     'Array of availability records for each day of the week'
-                )
+                ),
+                'newInstructorId' => new external_value(PARAM_INT, 'ID of the new instructor that will take the old instructor disponibility and classes', VALUE_OPTIONAL),
             ],
             'Parameters for setting instructor availability'
         );
@@ -90,19 +92,17 @@ class update_teacher_disponibility extends external_api {
      * @external
      */
     public static function execute(
-        $instructorId,$newDisponibilityRecords
+        $instructorId,$newDisponibilityRecords,$newInstructorId=null
         ) {
+        // Global variables.
+        global $DB;
         
         try {
             // Validate the parameters passed to the function.
-            $params = self::validate_parameters(self::execute_parameters(), [
-                'instructorId' => $instructorId,
-                'newDisponibilityRecords' => $newDisponibilityRecords
-            ]);
-            
-            // Global variables.
-            global $DB;
-            
+            // $params = self::validate_parameters(self::execute_parameters(), [
+            //     'instructorId' => $instructorId,
+            //     'newDisponibilityRecords' => $newDisponibilityRecords
+            // ]);
             $dayENLabels = array(
                 'lunes' => 'disp_monday',
                 'martes' => 'disp_tuesday',
@@ -136,17 +136,20 @@ class update_teacher_disponibility extends external_api {
                 $disponibilityDays[]=explode( '_',$dayENLabels[$day])[1];
             }
             
-            $instructorLearningPlanUserIds = $DB->get_records('local_learning_users', ['userid'=>$instructorId]);
-            $instructorAsignedClasses = array();
-            foreach($instructorLearningPlanUserIds as $instructorLearningPlanUserId){
-               $instructorAsignedClasses = array_merge($instructorAsignedClasses,grupomakro_core_list_classes(['instructorid'=>$instructorLearningPlanUserId->id]));
-            }
+            $instructorAsignedClasses = grupomakro_core_list_classes(['instructorid'=>$instructorId]);
+            
+            $classLearningPlans = array();
+            
             foreach($instructorAsignedClasses as $instructorAsignedClass){
                 
+                if(!in_array($instructorAsignedClass->learningplanid, $classLearningPlans)){
+                    $classLearningPlans[]=$instructorAsignedClass->learningplanid;
+                }
+
                 // Check if a day that is already defined for a class is missing in the new disponibility
                 foreach($instructorAsignedClass->selectedDaysEN as $classDay){
                      if(!in_array(strtolower($classDay),$disponibilityDays)){
-                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad.";
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
                         throw new MyException($errorString);
                     }
                     
@@ -159,12 +162,49 @@ class update_teacher_disponibility extends external_api {
                         }
                     }
                     if(!$foundedRange){
-                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad.";
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
                         throw new MyException($errorString);
                     }
                 }
                 // -----------------------------------------------------------------------------------------
             }
+            
+            //Check if there is a change in the user availability owner
+            if($newInstructorId && $newInstructorId !== $instructorId){
+                if($DB->get_record('gmk_teacher_disponibility', array('userid'=>$newInstructorId))){
+                    $errorString = 'El nuevo instructor ya tiene una disponibilidad definida.';
+                    throw new MyException($errorString);
+                }
+                
+                foreach($classLearningPlans as $classLearningPlan){
+                    if(!$DB->get_record('local_learning_users', array('userid'=>$newInstructorId, 'learningplanid'=>$classLearningPlan, 'userrolename'=>'teacher'))){
+                        $errorString = 'El nuevo instructor no esta en el plan de aprendizaje '.$DB->get_record('local_learning_plans', array('id'=>$classLearningPlan))->name.' ('.$classLearningPlan.')';
+                        throw new MyException($errorString);
+                    }
+                }
+                
+                foreach($instructorAsignedClasses as $instructorAsignedClass ){
+                    $classRecord = $DB->get_record('gmk_class',array('id'=>$instructorAsignedClass->id));
+                    $classRecord->instructorid = $newInstructorId;
+                    $updateClassInstructor = $DB->update_record('gmk_class',$classRecord);
+                    
+                    
+                    //Update the group with the new instructor
+                    $classGroupId = $instructorAsignedClass->groupid;
+                    
+                    $toRemoveMembers = ['members'=>['groupid'=> $classGroupId, 'userid'=>$instructorId]];
+                    $toAddMembers = ['members'=>['groupid'=> $classGroupId, 'userid'=>$newInstructorId]];
+                    
+                    $instructorAddedToGroup = \core_group_external::delete_group_members($toRemoveMembers);
+                    $instructorAddedToGroup = \core_group_external::add_group_members($toAddMembers);
+                    // ---------------------------------------
+                    
+                    
+                }
+                $teacherDisponibility->userid=$newInstructorId;
+                
+            }
+            // --------------------------------------------------------
             
             foreach($teacherDisponibility as $columnKey => $columnValue){
                 if(strpos($columnKey, 'disp_')!== false){

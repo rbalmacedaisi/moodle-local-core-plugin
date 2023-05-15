@@ -36,7 +36,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_grupomakro_list_classes' implementation.

@@ -39,6 +39,7 @@ require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
 require_once($CFG->dirroot . '/calendar/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
  * External function 'local_grupomakro_get_teachers_disponibility' implementation.
  *
@@ -86,6 +87,7 @@ class get_teachers_disponibility extends external_api {
         
         try {
             
+            $skillCustomFieldId = $DB->get_record('user_info_field',['shortname'=>'skills'])->id;
             
             $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $instructorId? ['userid'=>$instructorId]:[]);
         
@@ -106,74 +108,27 @@ class get_teachers_disponibility extends external_api {
                 $teachersDisponibility[$teacherId]->instructorId = $teacherId;
                 $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
                 $teachersDisponibility[$teacherId]->instructorName = $teacherInfo->firstname.' '.$teacherInfo->lastname;
-                $teachersDisponibility[$teacherId]->instructorPicture =self::my_get_user_picture_url($teacherId);
+                $teachersDisponibility[$teacherId]->instructorPicture =my_get_user_picture_url($teacherId);
+                
+                $teacherSkills = $DB->get_record('user_info_data',['userid'=>$teacherId,'fieldid'=>$skillCustomFieldId])->data;
+                $teachersDisponibility[$teacherId]->instructorSkills= !is_null($teacherSkills)? array_map('trim',explode(',',$teacherSkills)):[];
+                
                 $teachersDisponibility[$teacherId]->disponibilityRecords = array();
                 foreach($weekdays as $dayColumnName => $day){
-                     $timeSlots = self::convert_time_ranges($disponibilityRecord->{$dayColumnName});
+                     $timeSlots = convert_time_ranges($disponibilityRecord->{$dayColumnName});
                      if(empty($timeSlots)){
                          continue;
                      };
                      $teachersDisponibility[$teacherId]->disponibilityRecords[$day] = $timeSlots;
                 }
             }
-            
+
             // Return the result.
             return ['teacherAvailabilityRecords' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
         } catch (Exception $e) {
-            return ['status' => -1, 'message' => $e->getMessage()];
+            return ['teacherAvailabilityRecords' => -1, 'message' => $e->getMessage()];
         }
         
-    }
-    
-   /**
-     * Convert time ranges from input format to formatted time ranges.
-     *
-     * @param string $ranges_json The time ranges in JSON format.
-     * @return array The time ranges as an array of formatted time ranges.
-     */
-    function convert_time_ranges($rangesJson) {
-        // Parse the input as a JSON array
-        $data = json_decode($rangesJson, true);
-    
-        $formattedRanges = array();
-        foreach ($data as $range) {
-            // Convert start and end times to DateTime objects
-            $start = new DateTime('midnight');
-            $start->add(new DateInterval('PT' . $range['st'] . 'S'));
-    
-            $end = new DateTime('midnight');
-            $end->add(new DateInterval('PT' . $range['et'] . 'S'));
-    
-            // Format the start and end times as strings
-            $startStr = $start->format('H:i');
-            $endStr = $end->format('H:i');
-    
-            // Add the formatted time range to the result array
-            $formattedRanges[] = "$startStr, $endStr";
-        }
-    
-        // Return the result array
-        return $formattedRanges;
-    }
-
-    /**
-     * Get the URL for the user picture.
-     *
-     * @param int $userid The ID of the user.
-     * @param int $size The size of the picture (in pixels).
-     * @return string The URL of the user picture.
-     */
-    public static function my_get_user_picture_url($userid, $size = 100) {
-        global $DB;
-        $user = $DB->get_record('user', array('id' => $userid));
-        if (!$user) {
-            return '';
-        }
-        $context = \context_user::instance($user->id);
-        $url = \moodle_url::make_pluginfile_url(
-            $context->id, 'user', 'icon', null, null, null, $size
-        );
-        return $url->out();
     }
 
     /**

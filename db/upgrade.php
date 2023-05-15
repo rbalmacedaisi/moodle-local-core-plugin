@@ -145,6 +145,32 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20230329007, 'local', 'grupomakro_core');
     }
+    
+     if ($oldversion < 20230329013) {
+
+        // Define table gmk_reschedule_causes to be created.
+        $table = new xmldb_table('gmk_reschedule_causes');
+
+        // Adding fields to table gmk_reschedule_causes.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('causeshortname', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('causename', XMLDB_TYPE_CHAR, '200', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table gmk_reschedule_causes.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Conditionally launch create table for gmk_reschedule_causes.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230329013, 'local', 'grupomakro_core');
+    }
 
 
     return true;

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/grupomakro_core/db" VERSION="20230412" COMMENT="XMLDB file for Moodle local/grupomakro_core"
+<XMLDB PATH="local/grupomakro_core/db" VERSION="20230510" COMMENT="XMLDB file for Moodle local/grupomakro_core"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -74,7 +74,6 @@
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The id of the group created for the class"/>
-        <FIELD NAME="bbbclassroomid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Id of the big blue button classroom that is created with the class"/>
         <FIELD NAME="coursesectionid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="The section id of the course created for the class"/>
       </FIELDS>
       <KEYS>
@@ -96,6 +95,34 @@
         <FIELD NAME="disp_friday" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Friday teacher's disponibility"/>
         <FIELD NAME="disp_saturday" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Saturday teacher's disponibility"/>
         <FIELD NAME="disp_sunday" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Sunday teacher's disponibility"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_reschedule_causes" COMMENT="The table contain the reschedule causes">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="causeshortname" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="causename" TYPE="char" LENGTH="200" NOTNULL="true" SEQUENCE="false" COMMENT="The complete name for the cause"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_reschedule_request" COMMENT="This table contains the reschedule request that where sended by the instructors">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="instructorid" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="causeid" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

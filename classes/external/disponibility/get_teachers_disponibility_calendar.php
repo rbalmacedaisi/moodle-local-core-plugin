@@ -39,6 +39,7 @@ require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
 require_once($CFG->dirroot . '/calendar/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
  * External function 'local_grupomakro_get_teachers_disponibility_calendar' implementation.
  *
@@ -109,6 +110,7 @@ class get_teachers_disponibility_calendar extends external_api {
             $teachersDisponibility[$teacherId]= new stdClass();
             $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
             $teachersDisponibility[$teacherId]->name = $teacherInfo->firstname.' '.$teacherInfo->lastname;
+            $teachersDisponibility[$teacherId]->id = $teacherId;
             $teachersDisponibility[$teacherId]->events = json_decode(\local_grupomakro_core\external\calendar_external::execute($teacherId)['events']);
             
             $eventsTimesToSubstract = array();
@@ -159,7 +161,7 @@ class get_teachers_disponibility_calendar extends external_api {
                 $result[$day] = $dayDisponibility[$dayLabel];
                 if(array_key_exists($day,$eventsTimesToSubstract)){
                     foreach($eventsTimesToSubstract[$day] as $event){
-                        $result[$day] = self::checkRangeArray($result[$day], $event);
+                        $result[$day] = checkRangeArray($result[$day], $event);
                     }
 
                 }
@@ -177,44 +179,6 @@ class get_teachers_disponibility_calendar extends external_api {
         return ['disponibility' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
     }
     
-    public static function checkRangeArray($rangeArray, $inputRange) {
-        foreach ($rangeArray as $key => $range) {
-            if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
-                // input range is fully contained within the current range
-                if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
-                    // input range is identical to current range, so remove it completely
-                    unset($rangeArray[$key]);
-                } else {
-                    // input range is within current range, so split it
-                    $newRange1 = new stdClass();
-                    $newRange1->st = $range->st;
-                    $newRange1->et = $inputRange->st;// - 1;
-    
-                    $newRange2 = new stdClass();
-                    $newRange2->st = $inputRange->et;// + 1;
-                    $newRange2->et = $range->et;
-    
-                    // remove the current range from the range array and add the two new ranges
-                    unset($rangeArray[$key]);
-    
-                    // if the input range is not completely contained in the beginning of the current range
-                    if ($newRange1->et > $newRange1->st) {
-                        $rangeArray[] = $newRange1;
-                    }
-    
-                    // if the input range is not completely contained in the end of the current range
-                    if ($newRange2->et > $newRange2->st) {
-                        $rangeArray[] = $newRange2;
-                    }
-                }
-                return $rangeArray;
-            } 
-        }
-        return $rangeArray;
-    }
-    
-   
-
     /**
      * Describes the return value of the {@see self::execute()} method.
      *

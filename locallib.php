@@ -178,10 +178,9 @@ function grupomakro_core_list_classes($filters) {
             
         //get the class instructor name
         $teacherId = $class->instructorid;
-        $teacherCoreId = $DB->get_record('local_learning_users',['id'=>$teacherId])->userid;
-        $userInfo = $DB->get_record('user',['id'=>$teacherCoreId]);
+        $class->instructorLPId = $DB->get_record('local_learning_users',['userid'=>$teacherId, 'learningplanid'=>$class->learningplanid])->id;
+        $userInfo = $DB->get_record('user',['id'=>$teacherId]);
         $class->instructorName = $userInfo->firstname.' '. $userInfo->lastname;
-        $class->instructorUserId = $teacherCoreId;
         //
         
         //set the type Label
@@ -202,6 +201,7 @@ function grupomakro_core_list_classes($filters) {
         //set the hour in seconds
         $class->inittimeTS=$initHour * 3600 + $initMinutes * 60;
         $class->endtimeTS=$endHour * 3600 + $endMinutes * 60;
+        $class->classDuration = $class->endtimeTS - $class->inittimeTS;
         // 
         
         //set the list of choosen days
@@ -243,12 +243,17 @@ function grupomakro_core_list_classes($filters) {
 function grupomakro_core_list_instructors() {
     global $DB;
     $instructors = $DB->get_records('local_learning_users',["userroleid"=>4]);
+    $uniqueInstructors= array();
     foreach($instructors as $instructor){
-         $userInfo =$DB->get_record('user',['id'=> $instructor->userid]);
-         $instructor->fullname = $userInfo->firstname.' '.$userInfo->lastname;
-         $instructor->userid = $userInfo->id;
+         if(!array_key_exists($instructor->userid, $uniqueInstructors)){
+            $userInfo =$DB->get_record('user',['id'=> $instructor->userid]);
+            $instructor->fullname = $userInfo->firstname.' '.$userInfo->lastname;
+            $instructor->userid = $userInfo->id;
+            $uniqueInstructors[$instructor->userid] = $instructor;
+         }
     }
-    return $instructors;
+
+    return $uniqueInstructors;
 }
 
 function grupomakro_core_list_instructors_with_disponibility_flag(){
@@ -322,6 +327,42 @@ function calculate_disponibility_range($timeRanges){
     return($result);
 }
 
+function checkRangeArray($rangeArray, $inputRange) {
+        foreach ($rangeArray as $key => $range) {
+            if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
+                // input range is fully contained within the current range
+                if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
+                    // input range is identical to current range, so remove it completely
+                    unset($rangeArray[$key]);
+                } else {
+                    // input range is within current range, so split it
+                    $newRange1 = new stdClass();
+                    $newRange1->st = $range->st;
+                    $newRange1->et = $inputRange->st;// - 1;
+    
+                    $newRange2 = new stdClass();
+                    $newRange2->st = $inputRange->et;// + 1;
+                    $newRange2->et = $range->et;
+    
+                    // remove the current range from the range array and add the two new ranges
+                    unset($rangeArray[$key]);
+    
+                    // if the input range is not completely contained in the beginning of the current range
+                    if ($newRange1->et > $newRange1->st) {
+                        $rangeArray[] = $newRange1;
+                    }
+    
+                    // if the input range is not completely contained in the end of the current range
+                    if ($newRange2->et > $newRange2->st) {
+                        $rangeArray[] = $newRange2;
+                    }
+                }
+                return $rangeArray;
+            } 
+        }
+        return $rangeArray;
+    }
+
 function getClassEvents(){
     global $DB;
     $fetchedClasses = array();
@@ -354,7 +395,8 @@ function getClassEvents(){
             $fetchedClasses[$moduleSectionId] = $gmkClass;
 
         }
-        
+        // var_dump($event);
+        // die;
         //Set the class information for the event
         $event->moduleId = $moduleInfo->id;
         $event->instructorName = $gmkClass->instructorName;
@@ -364,7 +406,7 @@ function getClassEvents(){
         $event->typeLabel = $gmkClass->typeLabel;
         $event->className = $gmkClass->name;
         $event->classId = $gmkClass->id;
-        $event->instructorId = $gmkClass->instructorid;
+        $event->instructorLPId = $DB->get_record('local_learning_users',['userid'=>$gmkClass->instructorid,'learningplanid'=>$gmkClass->learningplanid])->id;
         
         
         
@@ -393,7 +435,7 @@ function getClassEvents(){
         }
 
         //push the filtered event to the arrays of events
-        array_push($eventDaysFiltered,$event);
+        $eventDaysFiltered[]=$event;
     }
     
     return $eventDaysFiltered;
@@ -450,7 +492,7 @@ function createBigBlueButtonActivity($class,$initDateTS,$endDateTS){
     $bbbActivityDefinition->competencies                    = array();
     $bbbActivityDefinition->competency_rule                 = "0";
     $bbbActivityDefinition->submitbutton2                   = "Guardar cambios y regresar al curso";
-    $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"'.$class->instructorUserId.'","role":"moderator"}]';
+    $bbbActivityDefinition->participants                   = '[{"selectiontype":"all","selectionid":"all","role":"viewer"},{"selectiontype":"user","selectionid":"'.$class->instructorId.'","role":"moderator"}]';
 
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
     
@@ -585,4 +627,55 @@ function getActivityInfo($moduleId,$sessionId=null){
     $activityInfo->activityEndTime = $activityEndTime;
     
     return $activityInfo;
+}
+
+/**
+ * Convert time ranges from input format to formatted time ranges.
+ *
+ * @param string $ranges_json The time ranges in JSON format.
+ * @return array The time ranges as an array of formatted time ranges.
+ */
+function convert_time_ranges($rangesJson) {
+    // Parse the input as a JSON array
+    $data = json_decode($rangesJson, true);
+
+    $formattedRanges = array();
+    foreach ($data as $range) {
+        // Convert start and end times to DateTime objects
+        $start = new DateTime('midnight');
+        $start->add(new DateInterval('PT' . $range['st'] . 'S'));
+
+        $end = new DateTime('midnight');
+        $end->add(new DateInterval('PT' . $range['et'] . 'S'));
+
+        // Format the start and end times as strings
+        $startStr = $start->format('H:i');
+        $endStr = $end->format('H:i');
+
+        // Add the formatted time range to the result array
+        $formattedRanges[] = "$startStr, $endStr";
+    }
+
+    // Return the result array
+    return $formattedRanges;
+}
+
+/**
+ * Get the URL for the user picture.
+ *
+ * @param int $userid The ID of the user.
+ * @param int $size The size of the picture (in pixels).
+ * @return string The URL of the user picture.
+ */
+function my_get_user_picture_url($userid, $size = 100) {
+    global $DB;
+    $user = $DB->get_record('user', array('id' => $userid));
+    if (!$user) {
+        return '';
+    }
+    $context = \context_user::instance($user->id);
+    $url = \moodle_url::make_pluginfile_url(
+        $context->id, 'user', 'icon', null, null, null, $size
+    );
+    return $url->out();
 }

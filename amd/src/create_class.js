@@ -19,6 +19,8 @@ const thursdaySwitch = $('#customSwitchThursday');
 const fridaySwitch = $('#customSwitchFriday');
 const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
+const errorModal = $('#errorModal');
+const errorModalContent = $('#error-modal-content');
 const selectors = [ typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector,classNameInput, initTimeInput, endTimeInput];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 
@@ -89,7 +91,9 @@ const handleClassSave = () => {
         promise[0].done(function(response) {
             window.console.log(response);
             if(response.status === -1 ){
-                console.log(response.message)
+                // Add the error message to the modal content.
+                errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
                 return
             } 
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
@@ -195,8 +199,8 @@ const handleCourseSelection = () => {
                 return;
             }
             teacherSelector.prop('disabled', false);
-            teachers.forEach(({id, fullname, email}) => {
-                teacherSelector.append(`<option class="teacherValue" value="${id}">${fullname} (${email})</option>`);
+            teachers.forEach(({userid, fullname, email}) => {
+                teacherSelector.append(`<option class="teacherValue" value="${userid}">${fullname} (${email})</option>`);
             });
         }).fail(function(response) {
             window.console.error(response);

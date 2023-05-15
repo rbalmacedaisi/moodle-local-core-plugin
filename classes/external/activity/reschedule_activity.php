@@ -40,7 +40,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once $CFG->dirroot. '/group/externallib.php';
-require_once $CFG->dirroot. '/local/grupomakro_core/lib.php';
+require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 
 /**
  * External function 'local_grupomakro_reschedule_activity' implementation.
@@ -82,7 +82,7 @@ class reschedule_activity extends external_api {
             string $date,
             string $initTime,
             string $endTime,
-            string $sessionId
+            string $sessionId=null
         ) {
         // Global variables.
         global $DB;
@@ -99,9 +99,7 @@ class reschedule_activity extends external_api {
             $classInfo = grupomakro_core_list_classes(['id' =>$classId])[$classId];
             $classType = $classInfo->type;
             
-            // print_object($moduleActivity);
-            // die;
-            
+
             // Calculate the class session duration in seconds
             
             $initDateTime = DateTime::createFromFormat('H:i', $initTime);
@@ -124,6 +122,7 @@ class reschedule_activity extends external_api {
             else if($classType === '1'){
                 course_delete_module($moduleId);
                 $bigBluebuttonActivityRescheduled = createBigBlueButtonActivity($classInfo,$initTimestamp,$endTimestamp);
+                
             }
             
             // If the class type is 2 (mixta), we need to reschedule both big blue button activity and attendance session

@@ -37,7 +37,7 @@ use external_value;
 defined('MOODLE_INTERNAL') || die;
 
 require_once("$CFG->libdir/externallib.php");
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 class calendar_external extends external_api {
     
@@ -68,10 +68,6 @@ class calendar_external extends external_api {
         if($userId){
             $learningPlanUserRoles =  $DB->get_records('local_learning_users', ['userid'=>$userId]);
             
-            
-            // print_object($learningPlanUserRoles);
-            // die;
-            
             if (!$learningPlanUserRoles){
                 return [
                 'events' => 'invalidUserId','message'=>'invalidUserId'
@@ -84,13 +80,13 @@ class calendar_external extends external_api {
                 
                 $userLearningPlanRole = $learningPlanUserRole->userroleid;
                 $learningPlanUserId = $learningPlanUserRole->id;
-        
+                
                 
                 if ($userLearningPlanRole === '4'){
 
                     $eventsFilteredByTeacher=array();
                     foreach($eventDaysFiltered as $event){
-                        if($event->instructorId ===$learningPlanUserId){
+                        if($event->instructorLPId ===$learningPlanUserId){
                             $event->role = 'teacher';
                             $eventsFilteredByTeacher[]=$event;
                         }
@@ -120,8 +116,6 @@ class calendar_external extends external_api {
             $eventDaysFiltered =$eventsFiltered;
         }
         
-        // print_object($eventDaysFiltered);
-        // die;
         return [
             'events' => json_encode(array_values($eventDaysFiltered)),'message'=>'ok'
         ];

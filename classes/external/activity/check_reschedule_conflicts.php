@@ -39,7 +39,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once $CFG->dirroot. '/group/externallib.php';
-require_once $CFG->dirroot. '/local/grupomakro_core/lib.php';
+require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 
 /**
  * External function 'local_grupomakro_check_reschedule_conflicts' implementation.
@@ -63,7 +63,7 @@ class check_reschedule_conflicts extends external_api {
                 'moduleId'=> new external_value(PARAM_TEXT, 'Id of the course module.'),
                 'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity'),
                 'initTime' => new external_value(PARAM_TEXT, 'The init time for the session'),
-                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session'),
+                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session', VALUE_OPTIONAL),
                 'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_OPTIONAL),
             ]
         );
@@ -80,8 +80,8 @@ class check_reschedule_conflicts extends external_api {
         string $moduleId,
         string $date,
         string $initTime,
-        string $endTime,
-        string $sessionId
+        string $endTime=null,
+        string $sessionId=null
         ) {
 
         
@@ -89,17 +89,21 @@ class check_reschedule_conflicts extends external_api {
         global $DB;
         
         try{
-            
+
             $classInfo = grupomakro_core_list_classes(['id'=>$classId])[$classId];
 
             //Check the instructor availability
-            $instructorUserId = $classInfo->instructorUserId;
+            $instructorUserId = $classInfo->instructorid;
 
             // Get the day of the week in English from the Unix timestamp
             $incomingWeekDay= date('l', strtotime($date));
             
             $incomingInitHour = intval(substr($initTime,0,2));
             $incomingInitMinutes = substr($initTime,3,2);
+            if(!$endTime || $endTime = 'null'){
+                $endTime = date("H:i", strtotime($initTime) + $classInfo->classDuration);
+            }
+
             $incomingEndHour = intval(substr($endTime,0,2));
             $incomingEndMinutes = substr($endTime,3,2);
             $incomingInitTimeTS=$incomingInitHour * 3600 + $incomingInitMinutes * 60;
@@ -167,19 +171,17 @@ class check_reschedule_conflicts extends external_api {
             // --------------------------------------------------------------------
             
             // Return the result.
-            if(count($groupMembersWithConflicts)===0){
-               return ['status' => 1, 'message'=>'La reprogramación no presenta ningun conflicto, puedes continuar'];
+            if(count($groupMembersWithConflicts)!==0){
+                $errorString=count($groupMembersWithConflicts).' de los ('.count($groupMembers).') miembros del grupo presentan conflictos con el nuevo horario; no se puede reprogramar.';
+               throw new MyException($errorString);
             }
-            return ['status' => 1, 'message'=>count($groupMembersWithConflicts).' de los ('.count($groupMembers).') miembros del grupo presentan conflictos con el nuevo horario, procede con precaución'];
+            return ['status' => 1, 'message'=>'La reprogramación no presenta ningun conflicto, puedes continuar'];
             
         }
         catch (MyException $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
-
-        
     }
-
 
     /**
      * Describes the return value of the {@see self::execute()} method.

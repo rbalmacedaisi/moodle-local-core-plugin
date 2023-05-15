@@ -31,13 +31,15 @@ use external_function_parameters;
 use external_single_structure;
 use external_multiple_structure;
 use external_value;
+use Exception;
+class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot.'/lib/moodlelib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
  * External function 'local_grupomakro_delete_teacher_disponibility' implementation.
  *
@@ -80,21 +82,19 @@ class delete_teacher_disponibility extends external_api {
             // Global variables.
             global $DB;
             
-            $instructorLearningPlanUserIds = $DB->get_records('local_learning_users', ['userid'=>$instructorId]);
-            $instructorAsignedClasses = array();
-            foreach($instructorLearningPlanUserIds as $instructorLearningPlanUserId){
-               $instructorAsignedClasses = array_merge($instructorAsignedClasses,grupomakro_core_list_classes(['instructorid'=>$instructorLearningPlanUserId->id]));
-            }
-            foreach($instructorAsignedClasses as $instructorAsignedClass){
-                \local_grupomakro_core\external\gmkclass\delete_class::execute($instructorAsignedClass->id);
-            }
             
+            $instructorAsignedClasses = $DB->get_records('gmk_class',['instructorid'=>$instructorId]);
+            
+            if(count($instructorAsignedClasses)>0){
+                $errorString = "El instructor tiene clases asignadas, no se puede eliminar la disponibilidad.";
+                throw new MyException($errorString);
+            }
             $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorId]);
 
             // Return the result.
             return ['status' => $deleteDisponibilityRecord, 'message' => 'ok'];
         }
-        catch (Exception $e) {
+        catch (MyException $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }

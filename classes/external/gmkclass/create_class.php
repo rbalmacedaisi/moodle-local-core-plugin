@@ -40,7 +40,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot . '/group/externallib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_grupomakro_create_class' implementation.
@@ -112,8 +112,8 @@ class create_class extends external_api {
         
         
         try{
+            
             //Check the instructor availability
-            $instructorUserId = $DB->get_record('local_learning_users',['id'=>$instructorId])->userid;
             $incomingClassSchedule = explode('/', $classDays);
             $incomingInitHour = intval(substr($initTime,0,2));
             $incomingInitMinutes = substr($initTime,3,2);
@@ -122,7 +122,7 @@ class create_class extends external_api {
             $incomingInitTimeTS=$incomingInitHour * 3600 + $incomingInitMinutes * 60;
             $incomingEndTimeTS=$incomingEndHour * 3600 + $incomingEndMinutes * 60;
             
-            $availabilityRecords = json_decode(\local_grupomakro_core\external\disponibility\get_teachers_disponibility::execute($instructorUserId)['teacherAvailabilityRecords'])[0]->disponibilityRecords;
+            $availabilityRecords = json_decode(\local_grupomakro_core\external\disponibility\get_teachers_disponibility::execute($instructorId)['teacherAvailabilityRecords'])[0]->disponibilityRecords;
             
             $weekdays = array(
               0 => 'Lunes',
@@ -213,7 +213,7 @@ class create_class extends external_api {
             $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClass->id,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
             $newClass->groupid = \core_group_external::create_groups($group)[0]['id'];
             
-            $members = ['members'=>['groupid'=> $newClass->groupid, 'userid'=>$instructorUserId]];
+            $members = ['members'=>['groupid'=> $newClass->groupid, 'userid'=>$instructorId]];
             $instructorAddedToGroup = \core_group_external::add_group_members($members);
             
             //----------------------------------------------------Creation of course section (topic)-----------------------------------------
@@ -230,7 +230,6 @@ class create_class extends external_api {
             //-----------------------------------------------------Creation of the activities---------------------------------
             
             $newClass->course = $course;
-            $newClass->instructorUserId = $instructorUserId;
             
             grupomakro_core_create_class_activities($newClass);
             // 
