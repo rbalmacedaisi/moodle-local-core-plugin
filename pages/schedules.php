@@ -24,7 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -77,6 +77,10 @@ foreach($instructors as $instructor){
 }
 $instructorItems = json_encode($instructorItems);
 
+//Get the reschedule causes
+$rescheduleCauses = $DB->get_records('gmk_reschedule_causes');
+$rescheduleCauses=json_encode(array_values($rescheduleCauses));
+
 $userid = $USER->id;
 $url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
 $strings = new stdClass();
@@ -95,6 +99,12 @@ $strings->reschedule = get_string('reschedule',$plugin_name);
 $strings->cancel = get_string('cancel',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
 $strings->desc_rescheduling = get_string('desc_rescheduling',$plugin_name);
+$strings->competences = get_string('competences', $plugin_name);
+$strings->field_required = get_string('field_required', $plugin_name);
+$strings->causes_rescheduling = get_string('causes_rescheduling', $plugin_name);
+$strings->select_possible_date = get_string('select_possible_date', $plugin_name);
+$strings->new_class_time = get_string('new_class_time', $plugin_name);
+$strings->activity = get_string('activity', $plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -123,6 +133,7 @@ echo <<<EOT
     var instructorItems = $instructorItems;
     var strings = $strings;
     var userid = $userid;
+    var rescheduleCauses = $rescheduleCauses;
   </script>
   <style lang="scss">
     .v-current-time {
@@ -152,6 +163,16 @@ echo <<<EOT
     }
     .theme--dark.v-application {
       background: transparent;
+    }
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      display: none;
+    }
+    .v-input input:active, .v-input input:focus{
+      box-shadow: none !important;
+    }
+    .v-select__selections input[type="text"],
+    .v-text-field__slot input[type="text"]{
+      background: transparent !important;
     }
   </style>
 EOT;

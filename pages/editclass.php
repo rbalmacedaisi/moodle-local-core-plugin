@@ -28,7 +28,7 @@ require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_acti
 require_once($CFG->dirroot . '/local/sc_learningplans/external/period/get_learning_plan_periods.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/course/get_learning_plan_courses.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/user/get_learning_plan_teachers.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -46,22 +46,21 @@ $PAGE->add_body_class('limitedwidth');
 $id = required_param('class_id', PARAM_TEXT);
 $moduleId = optional_param('moduleId',null, PARAM_TEXT);
 $sessionId = optional_param('sessionId',null, PARAM_TEXT);
+$proposedDate = optional_param('proposedDate',null, PARAM_TEXT);
+$proposedHour = optional_param('proposedHour',null, PARAM_TEXT);
 $reschedulingActivity = !!$moduleId;
 
+$activityInitDate = null;
+$activityInitTime = null;
+$activityEndTime = null;
 $activityInfo = null;
-if($reschedulingActivity){
-    $activityInfo = getActivityInfo($moduleId,$sessionId);
-}
-// if()
-
-// $
-// print_object($moduleId);
-// print_object($sessionId);
-// die;
 
 //Get the class that is going to be edited
 $class =  grupomakro_core_list_classes(array('id'=>$id))[$id];
-// $class = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($id)['classes'])[0];
+
+if($reschedulingActivity){
+    $activityInfo = getActivityInfo($moduleId,$sessionId);
+}
 
 $classType = $class->type;
 $classLearningPlanId=$class->learningplanid;
@@ -92,7 +91,7 @@ $classTypes = [
 $activeLearningPlans = json_decode(get_active_learning_plans_external::get_active_learning_plans()['availablecareers']);
 $formattedAvailableCareers = [];
 foreach($activeLearningPlans as $careerName => $careerInfo){
-    array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName, 'selected'=>$classLearningPlanId === $careerInfo->lpid?'selected':'']);
+    $formattedAvailableCareers[]= ['value'=>$careerInfo->lpid, 'label'=>$careerName, 'selected'=>$classLearningPlanId === $careerInfo->lpid?'selected':''];
 }
 //------------------------------------------------------------------------------------------
 
@@ -101,7 +100,7 @@ foreach($activeLearningPlans as $careerName => $careerInfo){
 $classLearningPlanPeriods = json_decode(get_learning_plan_periods_external::get_learning_plan_periods($classLearningPlanId)['periods']);
 $classLearningPlanPeriodsFormatted = [];
 foreach($classLearningPlanPeriods as $period){
-    array_push($classLearningPlanPeriodsFormatted, ['value'=>$period->id, 'label'=>$period->name, 'selected'=>$classPeriodId === $period->id?'selected':'']);
+    $classLearningPlanPeriodsFormatted[]= ['value'=>$period->id, 'label'=>$period->name, 'selected'=>$classPeriodId === $period->id?'selected':''];
 }
 //--------------------------
 
@@ -109,7 +108,7 @@ foreach($classLearningPlanPeriods as $period){
 $classLearningPlanCourses = json_decode(get_learning_plan_courses_external::get_learning_plan_courses($classLearningPlanId,$classPeriodId)['courses']);
 $classLearningPlanCoursesFormatted = [];
 foreach($classLearningPlanCourses as $course){
-    array_push($classLearningPlanCoursesFormatted, ['value'=>$course->id, 'label'=>$course->name, 'selected'=>$classCourseId === $course->id?'selected':'']);
+    $classLearningPlanCoursesFormatted[]= ['value'=>$course->id, 'label'=>$course->name, 'selected'=>$classCourseId === $course->id?'selected':''];
 }
 //---------------------------------------------------
 
@@ -117,12 +116,10 @@ foreach($classLearningPlanCourses as $course){
 $classLearningPlanTeachers = json_decode(get_learning_plan_teachers_external::get_learning_plan_teachers($classLearningPlanId)['teachers']);
 $classLearningPlanTeachersFormatted = [];
 foreach($classLearningPlanTeachers as $teacher){
-    array_push($classLearningPlanTeachersFormatted, ['value'=>$teacher->id, 'label'=>$teacher->fullname.' ('.$teacher->email.')', 'selected'=>$classInstructorId === $teacher->id?'selected':'']);
+    $classLearningPlanTeachersFormatted[]= ['value'=>$teacher->userid, 'label'=>$teacher->fullname.' ('.$teacher->email.')', 'selected'=>$classInstructorId === $teacher->userid?'selected':''];
 }
 // ---------------------------------
 
-// var_dump($classLearningPlanTeachersFormatted);
-// die();
 
 echo $OUTPUT->header();
 
@@ -146,8 +143,11 @@ $templatedata = [
     'className'=> $class->name,
     'reschedulingActivity' => $reschedulingActivity,
     'activityInitDate'=>$activityInfo?$activityInfo ->activityInitDate: null,
+    'activityProposedDate'=>$activityInfo? ($proposedDate ? $proposedDate : $activityInfo->activityInitDate): null,
     'activityInitTime'=>$activityInfo?$activityInfo ->activityInitTime: null,
+    'activityProposedInitTime'=>$activityInfo? ($proposedHour ? $proposedHour : $activityInfo->activityInitTime): null,
     'activityEndTime'=>$activityInfo?$activityInfo ->activityEndTime: null,
+    'activityProposedEndTime'=>$activityInfo? ($proposedHour ? date("H:i", strtotime($proposedHour) + $class->classDuration)  : $activityInfo->activityEndTime): null,
     'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
     'rescheduleCancelUrl'=> $CFG->wwwroot.'/local/grupomakro_core/pages/schedules.php'
 ];

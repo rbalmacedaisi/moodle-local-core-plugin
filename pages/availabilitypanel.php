@@ -24,7 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -74,6 +74,7 @@ $strings->add_schedule = get_string('add_schedule', $plugin_name);
 $strings->search = get_string('search', $plugin_name);
 $strings->save = get_string('save', $plugin_name);
 $strings->delete_available_confirm = get_string('delete_available_confirm', $plugin_name);
+$strings->unable_complete_action = get_string('unable_complete_action', $plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -137,5 +138,6 @@ EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitytable.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/instructoravailability.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/instructorcompetencies.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

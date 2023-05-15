@@ -38,7 +38,7 @@ Vue.component('availabilitycalendar',{
                     <v-spacer></v-spacer>
                     <v-combobox
                       v-model="select"
-                      :items="items"
+                      :items="instructors"
                       :label="lang.instructors"
                       outlined
                       dense
@@ -54,7 +54,7 @@ Vue.component('availabilitycalendar',{
                   v-model="focus"
                   color="primary"
                   type="month"
-                  :events="events"
+                  :events="selectedInstructor.events"
                   locale="en-US"
                   :weekdays="weekdays"
                   @click:day="showEvent"
@@ -65,14 +65,14 @@ Vue.component('availabilitycalendar',{
                            fab
                            type="button"
                            @click="toggleDayFree(date,day)"
-                           :class="(daysFree.indexOf(date.toString()) !== -1) ? 'availabilityColor rounded-circle' : 'transparent elevation-0'"
-                           :style="(daysFree.indexOf(date.toString()) !== -1) ? 'event-pointer: none !important;' : ''"
+                           :class="(selectedInstructor.daysFree.indexOf(date.toString()) !== -1) ? 'availabilityColor rounded-circle' : 'transparent elevation-0'"
+                           :style="(selectedInstructor.daysFree.indexOf(date.toString()) !== -1) ? 'event-pointer: none !important;' : ''"
                            >
-                            <span class="v-btn__content" :class="(daysFree.indexOf(date.toString()) !== -1) ? 'black--text' : ''">{{day}}</span>
+                            <span class="v-btn__content" :class="(selectedInstructor.daysFree.indexOf(date.toString()) !== -1) ? 'black--text' : ''">{{day}}</span>
                         </v-btn>
                         <div class="d-flex justify-center mt-2">
                             <v-chip
-                              v-if="daysFree.indexOf(date.toString()) !== -1"
+                              v-if="selectedInstructor.daysFree.indexOf(date.toString()) !== -1"
                               color="availabilityColor"
                               label
                               x-small
@@ -85,40 +85,67 @@ Vue.component('availabilitycalendar',{
                 </v-calendar>
             </v-sheet>
         </v-col>
-        <availabilitymodal v-if="dayModal" :dayselected="dayTo" :hoursFree="times" @close-dialog="closeDialog"></availabilitymodal>
+        <availabilitymodal v-if="dayModal" :dayselected="dayTo" :hoursFree="times" @close-dialog="closeDialog" :instructorId="selectedInstructorId" :instructorCareers="instructorCareers"></availabilitymodal>
     </v-row>
     `,
     data(){
         return{
-            focus: new Date().toISOString().substr(0,10),
+            focus:new Date().toISOString().substr(0,10),
             type: 'month',
-            events: [],
-            items: window.instructorItems,
             select: null,
             weekdays: [
                 1, 2, 3, 4, 5, 6, 0
             ],
-            users:[],
-            siteUrl: window.location.origin + '/webservice/rest/server.php',
-            token: '33513bec0b3469194c7756c29bf9fb33',
-            daysFree: [],
+            userAvailabilityRecords:[],
             dayModal: false,
-            dayTo: '',
-            selectedEvent: {},
+            dayTo: undefined,
             selectedElement: null,
             selectedOpen: false,
+            selectedEvent: {},
             hoursFree: [],
             times: [],
-            lang: window.strings
+            instructorCareers:{},
+            token: '33513bec0b3469194c7756c29bf9fb33',
+            selectedInstructorId:undefined
         }
     },
     created(){
         this.getDisponibilityData()
-        
     },
     mounted () {
         this.$refs.calendar.checkChange();
-        this.events = []
+    },
+    computed:{
+        lang(){
+            return window.strings
+        },
+        
+        siteUrl(){
+            return window.location.origin + '/webservice/rest/server.php';
+        },
+        instructors(){
+            return window.instructorItems
+        },
+        selectedInstructor(){
+            const userAvailabilityRecord =  this.userAvailabilityRecords.find(userAvailabilityRecord => userAvailabilityRecord.id === this.selectedInstructorId )
+            return {
+                daysFree:userAvailabilityRecord?userAvailabilityRecord.daysFree.map(dayItem=>(dayItem.day)):[],
+                events:userAvailabilityRecord?userAvailabilityRecord.events.map(({color,start,end,modulename,coursename,instructorName,typeLabel,timeRange,classDaysES})=>({
+                    color,
+                    end,
+                    start,
+                    modulename,
+                    name:coursename,
+                    instructor:instructorName,
+                    details:typeLabel,
+                    hour:timeRange,
+                    days:classDaysES.join(" - "),
+                    timed:true
+                })):[]
+            }
+            
+        }
+        
     },
     methods: {
         // This method calls a web service to get the instructors' availability information and adds it to the users array.
@@ -131,33 +158,23 @@ Vue.component('availabilitycalendar',{
                 wsfunction: 'local_grupomakro_get_teachers_disponibility_calendar',
             };
             // Make a GET request to the specified URL, passing the parameters as query options.
-            axios.get(url, { params })
+            window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     // Converts the data returned from the API from JSON string format to object format.
-                    const data = JSON.parse(response.data.disponibility)
-                    console.log(data);
+                    const teachersAvailability = JSON.parse(response.data.disponibility)
                     // Add the availability data for each instructor to the current instance's item array.
-                    for (const response of data) {
-                        const userDaysFree = [];
                     
-                        for (const [day, hours] of Object.entries(response.daysFree)) {
-                            const dayObj = {
-                                day,
-                                hours
-                            };
-                            userDaysFree.push(dayObj);
-                        }
-                        this.users.push({
-                            name: response.name,
-                            daysFree: userDaysFree,
-                            events: response.events
-                        })
-                    }
+                    this.userAvailabilityRecords = teachersAvailability.map(availabilityRecord => ({
+                        id:availabilityRecord.id,
+                        name:availabilityRecord.name,
+                        events:availabilityRecord.events,
+                        daysFree:Object.keys(availabilityRecord.daysFree).map(date=>({day:date,hours:availabilityRecord.daysFree[date]}))
+                    }))
                 })
                 // If the request fails, log an error to the console.
                 .catch(error => {
-                console.error(error);
+                    console.error(error);
             });  
         },
         // This method sets the selected date on the calendar as the current date.
@@ -174,37 +191,34 @@ Vue.component('availabilitycalendar',{
         },
         // This method updates the availability information for the selected instructor 
         // and adds it to the daysFree and events arrays.
-        selectInstructor(e){
-            this.daysFree = []
-            this.events = []
-            if(e){
-                this.users.forEach((element) => {
-                    if(element.name == e.value ){
-                        element.daysFree.forEach((day) =>{
-                            this.daysFree.push(day.day)
-                        })
-                        
-                        element.events.forEach((item) => {
-                            this.events.push({
-                                name: item.coursename,
-                                instructor: item.instructorName,
-                                details: item.typeLabel,
-                                color: item.color,
-                                start: item.start,
-                                end: item.end,
-                                days: item.classDaysES.join(" - "),
-                                hour: item.timeRange,
-                                timed: true,
-                                modulename: item.modulename
-                            })
-                        })
-                    }
+        selectInstructor(instructor){
+            if (!instructor) return
+            this.selectedInstructorId = instructor.id
+            this.instructorCareers={}
+            
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_sc_learningplans_get_active_learning_plans',
+                instructorId:instructor.id
+                
+            };
+            
+            window.axios.get(this.siteUrl, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Converts the data returned from the API from JSON string format to object format.
+                    this.instructorCareers = JSON.parse(response.data.availablecareers)
                 })
-            }
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                console.error(error);
+            });  
+            
         },
         // This method shows or hides the availability modal.
         toggleDayFree(date,day,time){
-            this.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
+            this.selectedInstructor.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
             this.dayTo = date
         },
         // This method closes the availability modal.
@@ -214,7 +228,7 @@ Vue.component('availabilitycalendar',{
         // This method updates the availability information of the selected instructor based on the date selected in the calendar.
         showEvent ( date ) {
             if(this.select){
-                const user = this.users.find(user => user.name === this.select.value)
+                const user = this.userAvailabilityRecords.find(user => user.name === this.select.value)
                 user.daysFree.forEach((element) => {
                     if(element.day === date.date){
                         this.hoursFree = element.hours

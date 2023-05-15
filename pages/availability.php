@@ -24,7 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -40,7 +40,7 @@ $instructors = grupomakro_core_list_instructors_with_disponibility();
 $instructorItems = [];
 foreach($instructors as $instructor){
   $instructorItem = new stdClass();
-  $instructorItem->id = $instructor->id;
+  $instructorItem->id = $instructor->userid;
   $instructorItem->text = $instructor->fullname;
   $instructorItem->value = $instructor->fullname;
   array_push($instructorItems,$instructorItem);
@@ -64,7 +64,30 @@ $strings->cancel = get_string('cancel',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
 $strings->available_hours = get_string('available_hours',$plugin_name);
 $strings->available = get_string('available',$plugin_name);
+$strings->name = get_string('name',$plugin_name);
+$strings->select_instance = get_string('select_instance',$plugin_name);
+$strings->class_type = get_string('class_type',$plugin_name);
+$strings->select_careers = get_string('select_careers',$plugin_name);
+$strings->select_period = get_string('select_period',$plugin_name);
+$strings->select_courses = get_string('select_courses',$plugin_name);
+$strings->classdays = get_string('classdays',$plugin_name);
+$strings->create = get_string('create',$plugin_name);
 $strings = json_encode($strings);
+
+$classTypes = [
+  ['value'=>1, 'label'=>'Virtual'],
+  ['value'=>0, 'label'=>'Presencial'],
+  ['value'=>2, 'label'=>'Mixta'],
+];
+
+$instances = [
+  ['value'=>0, 'label'=>'Isi Panamá'],
+  ['value'=>1, 'label'=>'Grupo Makro Colombia'],
+  ['value'=>2, 'label'=>'Grupo Makro México']
+];
+
+$instances = json_encode($instances);
+$classTypes = json_encode($classTypes);
 
 echo $OUTPUT->header();
 
@@ -115,10 +138,16 @@ echo <<<EOT
     .v-btn--round {
       border-radius: 50% !important;
     }
+    .v-select__selections input[type="text"],
+    .v-text-field__slot input[type="text"]{
+      background: transparent !important;
+    }
   </style>
   <script>
     var instructorItems = $instructorItems;
     var strings = $strings;
+    var classTypes = $classTypes;
+    var instances = $instances;
   </script>
 EOT;
 

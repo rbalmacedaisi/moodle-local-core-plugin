@@ -6,7 +6,7 @@ Vue.component('classschedule',{
                     flat
                     id="first"
                 >
-                    <v-btn color="primary" dark class="mr-4" :href="urlClass" >
+                    <v-btn v-if="!rolInstructor" color="primary" dark class="mr-4" :href="urlClass" >
                         {{lang.add}}
                     </v-btn>
                     <v-btn
@@ -86,21 +86,31 @@ Vue.component('classschedule',{
                     </v-list>
                 </v-menu>
                 <v-spacer></v-spacer>
-                <v-col cols="3">
+                <v-col v-if="!rolInstructor" cols="12" sm="3" md="3" lg="2" class="px-1">
                     <v-combobox
-                      v-if="!rolInstructor"
+                      v-model="selectedcompetences"
+                      :items="competences"
+                      :label="lang.competences"
+                      outlined
+                      dense
+                      hide-details
+                      clearable
+                      multiple
+                    ></v-combobox>
+                </v-col>
+                <v-col v-if="!rolInstructor" cols="12" sm="3" md="3" lg="2" class="px-1">
+                    <v-combobox
                       v-model="selectedInstructors"
                       :items="instructors"
                       :label="lang.instructors"
                       outlined
                       dense
                       hide-details
-                      class="mr-2"
                       clearable
                       multiple
                     ></v-combobox>
                 </v-col>
-                <v-col cols="3">
+                <v-col cols="12" sm="3" md="3" :lg="rolInstructor ? '3' : '2'" class="px-1">
                     <v-combobox
                       v-model="selectclass"
                       :items="classitems"
@@ -109,7 +119,6 @@ Vue.component('classschedule',{
                       outlined
                       dense
                       hide-details
-                      class="mr-2"
                       small-chips
                       clearable
                       @input="handleInput"
@@ -219,52 +228,147 @@ Vue.component('classschedule',{
                                 </template>
                         
                                 <v-card>
-                                    <v-card-title class="text-h5 info white--text">
+                                    <v-card-title class="text-h5 white--text" :style="{ background: selectedEvent.color }" >
                                       {{selectedEvent.name}}
                                     </v-card-title>
                         
                                     <v-card-text>
-                                      <v-row class="pt-3">
-                                        <v-col
-                                          cols="12"
-                                          md="12"
+                                        <v-form ref="reschedulingform" v-model="valid">
+                                            <v-row class="pt-3 mt-3">
+                                                <v-col cols="12" class="py-0">
+                                                    <v-select
+                                                      v-model="causes"
+                                                      :items="rescheduleCauses"
+                                                      small-chips
+                                                      :label="lang.causes_rescheduling"
+                                                      multiple
+                                                      :menu-props="{ bottom: true, offsetY: true }"
+                                                      dense
+                                                      :color="selectedEvent.color"
+                                                      outlined
+                                                      required
+                                                      :rules="[v => !!v && v.length > 0 || lang.field_required]"
+                                                    ></v-select>
+                                                </v-col>
+                                                <v-col cols="12" class="py-0">
+                                                    <v-menu
+                                                      ref="menu"
+                                                      v-model="menu"
+                                                      :close-on-content-click="false"
+                                                      :return-value.sync="date"
+                                                      transition="scale-transition"
+                                                      offset-y
+                                                      min-width="auto"
+                                                    >
+                                                        <template v-slot:activator="{ on, attrs }">
+                                                            <v-text-field
+                                                              v-model="date"
+                                                              :label="lang.select_possible_date"
+                                                              append-icon="mdi-calendar"
+                                                              readonly
+                                                              v-bind="attrs"
+                                                              v-on="on"
+                                                              :color="selectedEvent.color"
+                                                              outlined
+                                                              dense
+                                                              required
+                                                              :rules="[v => !!v || lang.field_required]"
+                                                          ></v-text-field>
+                                                        </template>
+                                                        <v-date-picker
+                                                          v-model="date"
+                                                          no-title
+                                                          scrollable
+                                                        >
+                                                            <v-spacer></v-spacer>
+                                                            <v-btn
+                                                              text
+                                                              :color="selectedEvent.color"
+                                                              @click="menu = false"
+                                                            >
+                                                                {{lang.cancel}}
+                                                            </v-btn>
+                                                            <v-btn
+                                                              text
+                                                              :color="selectedEvent.color"
+                                                              @click="$refs.menu.save(date)"
+                                                            >
+                                                                OK
+                                                            </v-btn>
+                                                        </v-date-picker>
+                                                    </v-menu>
+                                                </v-col>
+                                                <v-col clos="12" class="py-0">
+                                                    <v-menu
+                                                        ref="menu2"
+                                                        v-model="menu2"
+                                                        :close-on-content-click="false"
+                                                        :nudge-right="40"
+                                                        :return-value.sync="time"
+                                                        transition="scale-transition"
+                                                        offset-y
+                                                        max-width="290px"
+                                                        min-width="290px"
+                                                    >
+                                                        <template v-slot:activator="{ on, attrs }">
+                                                            <v-text-field
+                                                              v-model="time"
+                                                              :label="lang.new_class_time"
+                                                              append-icon="mdi-clock-time-four-outline"
+                                                              readonly
+                                                              v-bind="attrs"
+                                                              v-on="on"
+                                                              :color="selectedEvent.color"
+                                                              outlined
+                                                              dense
+                                                              required
+                                                              :rules="[v => !!v || lang.field_required]"
+                                                            ></v-text-field>
+                                                        </template>
+                                                        <v-time-picker
+                                                          v-if="menu2"
+                                                          v-model="time"
+                                                          full-width
+                                                          :color="selectedEvent.color"
+                                                          @click:minute="$refs.menu2.save(time)"
+                                                        ></v-time-picker>
+                                                    </v-menu>
+                                                </v-col>
+                                            </v-row>
+                                        </v-form>
+                                        <v-alert
+                                          dense
+                                          outlined
+                                          type="error"
+                                          v-show="rescheduleError"
                                         >
-                                          <v-textarea
-                                            name="input-7-1"
-                                            :label="lang.desc_rescheduling"
-                                            value=""
-                                            v-model="value"
-                                            rows="2"
-                                            hide-details
-                                            color="info"
-                                          ></v-textarea>
-                                        </v-col>
-                                      </v-row>
+                                          {{rescheduleError}}
+                                        </v-alert>
                                     </v-card-text>
                         
                                     <v-divider></v-divider>
                         
                                     <v-card-actions>
-                                      <v-spacer></v-spacer>
-                                      <v-btn
-                                        small
-                                        @click="dialog = false"
-                                        class="rounded"
-                                        text
-                                        color="secondary"
-                                      >
-                                        {{lang.cancel}}
-                                      </v-btn>
+                                        <v-spacer></v-spacer>
+                                        <v-btn
+                                            small
+                                            @click="dialog = false"
+                                            class="rounded"
+                                            text
+                                            color="secondary"
+                                        >
+                                            {{lang.cancel}}
+                                        </v-btn>
                                       
-                                      <v-btn
-                                        small
-                                        @click="sendSolit(selectedEvent)"
-                                        class="rounded"
-                                        text
-                                        color="secondary"
-                                      >
-                                        {{lang.accept}}
-                                      </v-btn>
+                                        <v-btn
+                                          small
+                                          @click="sendSolit(selectedEvent)"
+                                          class="rounded"
+                                          text
+                                          color="secondary"
+                                        >
+                                            {{lang.accept}}
+                                        </v-btn>
                                     </v-card-actions>
                                 </v-card>
                             </v-dialog>
@@ -319,11 +423,11 @@ Vue.component('classschedule',{
                                 <v-btn 
                                    text 
                                    small 
-                                   color="primary" 
+                                   :color="selectedEvent.color" 
                                    :href="selectedEvent.activityUrl"
                                     class="text-capitalize"
                                 >
-                                  Actividad
+                                  {{lang.activity}}
                                 </v-btn>
                             </div>
                         </v-card-text>
@@ -378,16 +482,51 @@ Vue.component('classschedule',{
             ready: false,
             lang: window.strings,
             userId: window.userid,
-            value: ''
+            value: '',
+            items: [
+                {
+                    id: 1,
+                    text: 'Cita Medica',
+                    value: 'Cita Medica'
+                },
+                {
+                    id: 2,
+                    text: 'Fallas de Internet',
+                    value: 'Fallas de Internet'
+                },
+                {
+                    id: 3,
+                    text: 'Incapacidad médica',
+                    value: 'Incapacidad médica'
+                },
+                
+            ],
+            causes: [],
+            date: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10),
+            menu: false,
+            startTime: '',
+            time: null,
+            menu2: false,
+            selectedcompetences: [],
+            competences: [],
+            valid: false,
+            rescheduleError:undefined
         }
     },
     props:{
         
     },
+    watch:{
+        rescheduleError:function handler(newVal, oldVal){
+            if(newVal){
+                setTimeout(()=>this.rescheduleError = undefined, 6000)
+            }
+        }
+    },
     created(){
         this.classitems = window.classItems;
         this.instructors = window.instructorItems;
-        this.rolInstructor = false//window.rolInstructor===1;
+        this.rolInstructor =false// window.rolInstructor===1;
         this.getEvents();
     },
     mounted(){
@@ -425,7 +564,7 @@ Vue.component('classschedule',{
             }
             
             // Make an HTTP GET request with Axios.
-            axios.get(url, { params })
+            window.axios.get(url, { params })
                 // If the request is successful, process the received data
                 .then(response => {
                     // Convert the JSON response to an objec.
@@ -450,7 +589,7 @@ Vue.component('classschedule',{
                             classId: element.classId,
                             className: element.className,
                             sessionId: element.sessionId ? element.sessionId : null,
-                            instructorId: element.instructorId,
+                            instructorId: element.userid,
                             visible: element.visible
                         })
                     })
@@ -504,35 +643,53 @@ Vue.component('classschedule',{
             this.end = end
         },
         // This method hides the current dialog box and displays the confirmation dialog box.
-        sendSolit(event){
+        async sendSolit(event){
+            this.$refs.reschedulingform.validate()
+            console.log(event)
             const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
-            const params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_grupomakro_send_reschedule_message',
-                message: this.value,
-                instructorId: event.instructorId,
-                classId: event.classId,
-                moduleId: event.moduleId,
-                sessionId: event.sessionId
-            };
-            // Make a GET request to the specified URL, passing the parameters as query options.
-            axios.get(url, { params })
-                // If the request is resolved successfully, perform the following operations.
-                .then(response => {
-                    // Converts the data returned from the API from JSON string format to object format.
-                    //const data = JSON.parse(response.data.disponibility)
-                    //console.log(data);
-                    // Add the availability data for each instructor to the current instance's item array.
+            if(this.valid){
+                const config = {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                }
+                const params = new FormData()
+                params.append('wstoken',this.token)
+                params.append('wsfunction',  'local_grupomakro_check_reschedule_conflicts')
+                params.append('moodlewsrestformat', 'json')
+                params.append('classId',event.classId)
+                params.append('moduleId', event.moduleId)
+                params.append('date',this.date)
+                params.append('initTime', this.time)
+                params.append('endTime', null)
+                params.append('sessionId',event.sessionId)
+
+                try {
+                    const checkResponse= await window.axios.post(url, params,config)
+                    console.log(checkResponse)
+                    if(!checkResponse.data.status || checkResponse.data.status === -1) throw Error(checkResponse.data.message);
+                    const sendRescheduleMessageParams = {
+                        wstoken: this.token,
+                        moodlewsrestformat: 'json',
+                        wsfunction: 'local_grupomakro_send_reschedule_message',
+                        instructorId: event.instructorId,
+                        classId: event.classId,
+                        causes:this.causes.join(','),
+                        moduleId: event.moduleId,
+                        originalDate:event.start.split(" ")[0],
+                        originalHour:event.hour,
+                        sessionId: event.sessionId,
+                        proposedDate:this.date,
+                        proposedHour:this.time,
+                    };
+                    const messageResponse= await window.axios.get(url, { params:sendRescheduleMessageParams })
+                    if (messageResponse.data.status===-1) throw Error(messageResponse.data.message)
                     this.dialog = false;
                     this.dialogconfirm = true;
-                })
-                // If the request fails, log an error to the console.
-                .catch(error => {
-                console.error(error);
-            });
-            
+                }
+                catch (error){
+                    this.rescheduleError = error.message
+                }
+            }
         },
         // This method hides the current dialog box and reschedule modal.
         hidenDialog(){
@@ -621,6 +778,15 @@ Vue.component('classschedule',{
         nowY () {
             return this.cal ? this.cal.timeToY(this.cal.times.now) + 'px' : '-10px'
         },
+        // This method returns a validation rule function for use with vee-validate library.
+        // The function takes a value as input and returns a boolean indicating whether the value is non-empty or not.
+        requiredRule() {
+          return (value) => !!value || 'Este campo es requerido';
+        },
+        
+        rescheduleCauses(){
+            return window.rescheduleCauses.map(cause => ({text:cause.causename,id:cause.id,value:cause.id}));
+        }
     },
     
 })

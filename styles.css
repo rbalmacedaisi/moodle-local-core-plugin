@@ -576,3 +576,44 @@ span.badge.text-white{
     top: 21px;
     right: 10px;
 }
+
+.v-event-draggable {
+  padding-left: 6px;
+}
+
+.v-event-timed {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.v-event-drag-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 4px;
+  cursor: ns-resize;
+}
+
+.v-event-drag-bottom::after {
+    display: none;
+    position: absolute;
+    left: 50%;
+    height: 4px;
+    border-top: 1px solid white;
+    border-bottom: 1px solid white;
+    width: 16px;
+    margin-left: -8px;
+    opacity: 0.8;
+    content: "";
+}
+
+.v-event-drag-bottom:hover::after {
+    display: block;
+}
+
+.availabilityClassCreationMenu{
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%);
+}

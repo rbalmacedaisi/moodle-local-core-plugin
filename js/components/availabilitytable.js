@@ -4,7 +4,7 @@ Vue.component('availabilitytable',{
             <v-col cols="12" class="py-0">
                 <v-data-table
                    :headers="headers"
-                   :items="items"
+                   :items="teacherAvailabilityRecords"
                    class="elevation-1"
                    dense
                    :search="search"
@@ -54,14 +54,15 @@ Vue.component('availabilitytable',{
                                                 <v-row>
                                                     <v-col cols="12" sm="6" md="6">
                                                         <v-select
-                                                          :items="instructorsWithoutDisponibility"
+                                                          :items="instructorsPickerOptions"
                                                           :label="lang.instructors"
+                                                          item-value="id"
+                                                          no-data-text="No hay instructores disponibles"
                                                           outlined
                                                           dense
                                                           required
-                                                          v-model="selectedInstructor"
+                                                          v-model="pickedInstructorId"
                                                           :rules="[v => !!v || lang.field_required]"
-                                                          :disabled="editMode"
                                                         ></v-select> 
                                                     </v-col>
                                                     <v-col cols="12" sm="6" md="6">
@@ -93,7 +94,7 @@ Vue.component('availabilitytable',{
                                                           class="white"
                                                           @input="handler"
                                                         >
-                                                          No es posible completar la acción. El rango seleccionado para edición tiene clases programadas.
+                                                          {{lang.unable_complete_action}}
                                                         </v-alert>
                                                     </v-overlay>
                                                     
@@ -171,8 +172,8 @@ Vue.component('availabilitytable',{
                                     <v-card-subtitle class="pt-1 d-flex justify-center">{{lang.delete_available_confirm}}</v-card-subtitle>
                                     <v-card-actions>
                                         <v-spacer></v-spacer>
-                                        <v-btn color="primary" text @click="closeDelete">{{lang.cancel}}</v-btn>
-                                        <v-btn color="primary" text @click="deleteItemConfirm">{{lang.accept}}</v-btn>
+                                        <v-btn color="primary" text @click="dialogDelete = false">{{lang.cancel}}</v-btn>
+                                        <v-btn color="primary" text @click="confirmAvailabilityRecordDeletion">{{lang.accept}}</v-btn>
                                         <v-spacer></v-spacer>
                                     </v-card-actions>
                                 </v-card>
@@ -207,6 +208,10 @@ Vue.component('availabilitytable',{
                         </v-list>
                     </template>
                     
+                    <template v-slot:item.competencies="{ item }">
+                        <instructorcompetencies :instructorData="item"></instructorcompetencies>
+                    </template>
+                    
                     <template v-slot:item.availability="{ item }">
                         <instructoravailability :data="item"></instructoravailability>
                     </template>
@@ -230,7 +235,7 @@ Vue.component('availabilitytable',{
                         <v-tooltip bottom>
                             <template v-slot:activator="{ on, attrs }">
                                 <v-icon 
-                                   @click="deleteItem(item)" 
+                                   @click="deleteAvailabilityRecord(item)" 
                                    v-bind="attrs"
                                    v-on="on"
                                    small
@@ -258,13 +263,39 @@ Vue.component('availabilitytable',{
                     ></v-progress-circular>
                 </v-overlay>
             </v-col>
+            <v-dialog v-model="errorDialog" max-width="500px">
+                <v-card>
+                    <v-card-title class="text-subtitle-1 d-flex justify-center">Error</v-card-title>
+                    <v-card-subtitle class="pt-1 d-flex justify-center text-center">{{errorMessage}}</v-card-subtitle>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text @click="errorDialog = false">{{lang.accept}}</v-btn>
+                        <v-spacer></v-spacer>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </v-row>
     `,
     data(){
         return{
+            token: '33513bec0b3469194c7756c29bf9fb33',
             dialog: false,
-            lang: window.strings,
             dialogDelete: false,
+            overlay: false,
+            errorDialog:false,
+            errorMessage:undefined,
+            editMode: false,
+            valid: false,
+            Alert: false,
+            editedIndex: -1,
+            start: null,
+            end: null,
+            daysOfWeek: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
+            selectedDays: [],
+            schedules: [],
+            schedulesPerDay: [],
+            search: '',
+            pickedInstructorId: undefined,
             headers: [
                 {
                     text: 'Instructor',
@@ -272,47 +303,32 @@ Vue.component('availabilitytable',{
                     sortable: false,
                     value: 'instructorName',
                 },
+                {
+                    text: 'Competencias',
+                    sortable: false,
+                    value: 'competencies',
+                },
                 { text: 'Disponibilidad', value: 'availability',sortable: false },
                 { text: 'Actions', value: 'actions', sortable: false },
             ],
-            items: [],
-            editedIndex: -1,
-            editedItem: {},
-            instructors: window.instructorItems,
-            start: null,
-            end: null,
-            daysOfWeek: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
-            selectedDays: [],
-            schedules: [],
-            schedulesPerDay: [],
-            selectedInstructor: null,
-            token: '33513bec0b3469194c7756c29bf9fb33',
-            search: '',
-            siteUrl: window.location.origin + '/webservice/rest/server.php',
-            itemDelete:{},
-            editMode: false,
-            valid: false,
-            overlay: false,
-            Alert: false
+            teacherAvailabilityRecords:[],
+            selectedInstructorId:undefined
         }
     },
-    props:{
-        
-    },
+    props:{},
     created(){
         this.initialize()
-        console.log(this.instructors);
     }, 
-    mounted(){
-        
-        
-    },  
+    mounted(){},  
     methods:{
+        openErrorDialog(errorMessage){
+            this.errorMessage = errorMessage;
+            this.errorDialog = true;
+        },
+        
         // Function to initialize the data of the instructors.
-        initialize () {
+        async initialize () {
             this.overlay = true
-            // Assign the site URL to the url variable.
-            const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
             const params = {
                 wstoken: this.token,
@@ -320,53 +336,32 @@ Vue.component('availabilitytable',{
                 wsfunction: 'local_grupomakro_get_teachers_disponibility',
             };
             // Make a GET request to the specified URL, passing the parameters as query options.
-            axios.get(url, { params })
-                // If the request is resolved successfully, perform the following operations.
-                .then(response => {
-                    // Converts the data returned from the API from JSON string format to object format.
-                    const data = JSON.parse(response.data.teacherAvailabilityRecords)
-                    console.log(data);
-                    // Add the availability data for each instructor to the current instance's item array.
-                    data.forEach((element) => {
-                        this.items.push({
-                            instructorName: element.instructorName,
-                            instructorId: element.instructorId,
-                            instructorPicture: element.instructorPicture,
-                            disponibilityRecords: element.disponibilityRecords
-                        })
-                    })
-                    this.overlay = false
-                })
-                // If the request fails, log an error to the console.
-                .catch(error => {
-                console.error(error);
-            });
+            const availabilityResponse = await window.axios.get(this.siteUrl, { params })
+            this.overlay = false
+            if(availabilityResponse.data.teacherAvailabilityRecords === -1) {
+                console.error(availabilityResponse.data.message)
+                return
+            }
+            // If the request is resolved successfully, perform the following operations.
+            this.teacherAvailabilityRecords = JSON.parse(availabilityResponse.data.teacherAvailabilityRecords)
         },
         // Function to edit an item from the instructor list.
-        editItem (item) {
-            console.log(item)
-            this.instructors =  []
-            this.instructors = window.instructorItems
+        editItem ({instructorId}) {
+            
             // Activate edit mode.
             this.editMode = true
             
-            // The selectedInstructor property is set to the value of the instructor name of the record being edited.
-            this.selectedInstructor = item.instructorName
-            
-            this.instructors.push({
-                id: item.instructorId,
-                text: item.instructorName,
-                value: item.instructorName
-            })
+            this.selectedInstructorId = instructorId
+            this.pickedInstructorId =instructorId
             
             // Set the selectedDays property with an array containing the names of the days of the week the instructor is available, 
             // using the Object.keys() method to get the keys from the availabilityRecords object in the registry.
-            this.selectedDays = Object.keys(item.disponibilityRecords);
+            this.selectedDays = Object.keys(this.selectedInstructorData.disponibilityRecords);
             // Iterates through each day of the week in the log, getting the list of available times for that day and adding 
             // them to the schedules array with the structure {day: <day_name>, startTime: <start_time>, timeEnd: <end_time> }.
-            for (const day in item.disponibilityRecords) {
+            for (const day in this.selectedInstructorData.disponibilityRecords) {
                 // Get the list of available time slots for the current day.
-                const timeSlots = item.disponibilityRecords[day];
+                const timeSlots = this.selectedInstructorData.disponibilityRecords[day];
             
                 // Cycle through each available time slot and add it to schedules.
                 timeSlots.forEach(slot => {
@@ -379,63 +374,53 @@ Vue.component('availabilitytable',{
                 });
             }
             // Set the editedIndex property to the index of the item object in the items array.
-            this.editedIndex = this.items.indexOf(item)
-            // A copy of the item object is created and set as the editedItem object.
-            this.editedItem = Object.assign({}, item)
+            this.editedIndex = this.teacherAvailabilityRecords.indexOf(this.selectedInstructorData)
+
             // Display the edit dialog by setting the dialog property to true.
             this.dialog = true
-            console.log(this.selectedInstructor)
         },
-        // This is a function that gets an "item" parameter, which is assigned to the data this.
-        // itemDelete and triggers a dialog asking the user to confirm the deletion of an item.
-        deleteItem (item) {
-            this.itemDelete = item.instructorId
+        
+        // This is a function that gets an "instructorId" parameter, which is assigned to the data this.
+        // selectedInstructorId and triggers a dialog asking the user to confirm the deletion of an availability record.
+        deleteAvailabilityRecord ({instructorId}) {
+            this.selectedInstructorId = instructorId
             this.dialogDelete = true
         },
         // This is a function that makes an HTTP GET request to a specific URL with some parameters. 
-        // The function then removes an element from an array and closes a dialog.
-        deleteItemConfirm () {
+        // The function then removes an element from an array and reload the pageg.
+        async confirmAvailabilityRecordDeletion () {
             // Build the URL and parameters for the Moodle web service.
-            const url = this.siteUrl;
             const params = {
                 wstoken: this.token,
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_delete_teacher_disponibility',
-                instructorId: this.itemDelete
+                instructorId: this.selectedInstructorId
             };
             // Call the Moodle web service to delete the instructor's availability.
-            axios.get(url, { params })
-                .then(response => {
-                  console.log(response.data);
-                })
-                .catch(error => {
-                console.error(error);
-            });
-            // Remove the item from the items array and close the delete dialog.
-            this.items.splice(this.editedIndex, 1)
-            this.closeDelete()
+            const deleteResponse =await  window.axios.get(this.siteUrl, { params })
+            if(deleteResponse.data.status ===-1){
+                this.dialogDelete = false
+                this.openErrorDialog(deleteResponse.data.message)
+                return
+            }
+            // Remove the item from the items array and reload the page.
+            this.teacherAvailabilityRecords.splice(this.editedIndex, 1)
+            window.location.reload();
         },
         close () {
             this.dialog = false
             this.editMode = false
             this.schedules = []
-            this.selectedInstructor = []
             this.$nextTick(() => {
-                this.editedItem = Object.assign({}, this.defaultItem)
-            this.editedIndex = -1
+                this.pickedInstructorId = undefined
+                this.selectedInstructorId = undefined
+                this.editedIndex = -1
             })
         },
-        closeDelete () {
-            this.dialogDelete = false
-            this.itemDelete = {}
-            location.reload();
-            this.editedIndex = -1
-        },
         // This is a function that creates a new availability record and sends it to a Moodle web service via an HTTP GET request.
-        save () {
+        async save () {
             // Validate the form.
             this.$refs.form.validate()
-            
             this.Alert = false
             // If the form is valid, proceed to save the availability record.
             if(this.valid){
@@ -446,35 +431,27 @@ Vue.component('availabilitytable',{
                     return { day, timeslots };
                 });
                 
-                // Get the selected instructor's data (name and id).
-                const selectedInstructor = this.instructors.find(instructor => instructor.value === this.selectedInstructor);
-                const selectedInstructorText = selectedInstructor.text;
-                const selectedInstructorId = selectedInstructor.id;
-                
-                // Set the URL and parameters for the web service request.
-                const url = this.siteUrl
+                // Set the parameters for the web service request.
+
                 const wsfunction =this.editMode ? 'local_grupomakro_update_teacher_disponibility':'local_grupomakro_add_teacher_disponibility';
+                
                 const params = {
-                    wstoken: '0deabd5798084addc080286f4acccd87',
+                    wstoken: this.token,
                     moodlewsrestformat: 'json',
                     wsfunction: wsfunction,
-                    instructorId: selectedInstructorId,
-                    newDisponibilityRecords: newDisponibilityRecord
+                    instructorId:this.editMode? this.selectedInstructorId : this.pickedInstructorId,
+                    newDisponibilityRecords: newDisponibilityRecord,
+                    newInstructorId:this.editMode?this.pickedInstructorId :null
                 };
                 
                 // Send the HTTP GET request to the Moodle web service.
-                axios.get(url, { params })
-                    .then(response => {
-                        if(response.data.message == 'ok'){
-                            location.reload();
-                        }
-                        if(response.data.status == -1){
-                            this.Alert = true
-                        }
-                    })
-                    .catch(error => {
-                    console.error(error);
-                });
+                const saveResponse = await window.axios.get(this.siteUrl, { params })
+                if(saveResponse.data.status === -1){
+                    this.dialog= false
+                    this.openErrorDialog(saveResponse.data.message)
+                    return
+                }
+                window.location.reload();
             }
         },
         // This function is called when the user clicks the "Add Schedules" button.
@@ -562,6 +539,7 @@ Vue.component('availabilitytable',{
         }
     },
     computed: {
+        
         // This method returns a string that represents the caption of the form in the user interface. 
         // If editedIndex equals -1, it means that the form is being used to create a new item and the method returns the string 'New Availability'. 
         // Otherwise, if editedIndex is not -1, it means the form is being used to edit an existing element and the method returns the string 'Edit Element'.
@@ -573,19 +551,30 @@ Vue.component('availabilitytable',{
         requiredRule() {
           return (value) => !!value || 'Este campo es requerido';
         },
-        
         // This method returns the list of instructors that doesnt have a disponibility record created
-        instructorsWithoutDisponibility(){
-            const instructorDisponibilityFlag = this.editMode? 1:0;
-            return this.instructors.filter(instructor => instructor.hasDisponibility ===instructorDisponibilityFlag )
+        instructorsPickerOptions(){
+            const availableInstructors = window.instructorItems.filter(instructor => instructor.hasDisponibility ===0 )
+            return this.editMode? [{...this.editingPickedInstructorData},...availableInstructors]:availableInstructors
+        },
+        siteUrl(){
+            return window.location.origin + '/webservice/rest/server.php'
+        },
+        lang(){
+            return window.strings
+        },
+        selectedInstructorData(){
+            return this.selectedInstructorId? this.teacherAvailabilityRecords.find(instructorAvailabilityRecord => instructorAvailabilityRecord.instructorId === this.selectedInstructorId):undefined
+        },
+        pickedInstructorData(){
+            return this.pickedInstructorId? window.instructorItems.find(instructor => instructor.id === this.pickedInstructorId):undefined
+        },
+        editingPickedInstructorData(){
+            return this.pickedInstructorId? window.instructorItems.find(instructor => instructor.id === this.selectedInstructorId):undefined
         }
     },
     watch: {
         dialog (val) {
             val || this.close()
-        },
-        dialogDelete (val) {
-            val || this.closeDelete()
         },
         schedules: {
             handler: 'groupSchedulesPerDay',
