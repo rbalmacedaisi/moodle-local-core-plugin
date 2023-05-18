@@ -88,18 +88,6 @@ Vue.component('classschedule',{
                 <v-spacer></v-spacer>
                 <v-col v-if="!rolInstructor" cols="12" sm="3" md="3" lg="2" class="px-1">
                     <v-combobox
-                      v-model="selectedcompetences"
-                      :items="competences"
-                      :label="lang.competences"
-                      outlined
-                      dense
-                      hide-details
-                      clearable
-                      multiple
-                    ></v-combobox>
-                </v-col>
-                <v-col v-if="!rolInstructor" cols="12" sm="3" md="3" lg="2" class="px-1">
-                    <v-combobox
                       v-model="selectedInstructors"
                       :items="instructors"
                       :label="lang.instructors"
@@ -744,7 +732,7 @@ Vue.component('classschedule',{
         // This method returns an array of events filtered based on the selections made by the user. 
         // If any instructor has been selected, it returns the events related to that instructor. 
         // If any class type has been selected, it returns the events related to that class type. 
-        // If no selection has been made, returns all events.
+        // If no selection has been made, returns all events. 
         filteredEvents() {
             let select = []
             

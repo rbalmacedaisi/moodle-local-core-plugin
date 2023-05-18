@@ -55,40 +55,48 @@
             <div class="card py-3 px-4">
                 <form>
                     <div class="row pb-5 mt-2">
+                        {{#contract}}
                         {{! Contract number field }}
                         <div class="col-sm-12 col-md-6 form-group">     
                             <label class="w-100" for="contractnumber">{{#str}} contractnumber, local_grupomakro_core {{/str}}</label>
-                            <input type="text" class="form-control" id="contractnumber" value="{{contract_id}}">
+                            <input type="text" class="form-control" id="contractnumber" required value="{{contractid}}">
                         </div>    
                         {{! End Contract number field }}    
                             
                         {{! contract start date field }}
                         <div class="col-sm-12 col-md-6 form-group">
                             <label class="w-100" for="startdate">{{#str}}startdate, local_grupomakro_core {{/str}}</label>
-                            <input type="date" class="form-control" id="startdate" value="2022-12-20">
+                            <input type="date" class="form-control" id="startdate" required value="{{formattedInitDate}}">
                         </div>
                         {{! End contract start date field }}
                         
                         {{! contract end date field }}
                         <div class="col-sm-12 col-md-6 form-group">
                             <label class="w-100" for="enddate">{{#str}} enddate, local_grupomakro_core {{/str}}</label>
-                            <input type="date" class="form-control" id="enddate" value="2023-06-20">
+                            <input type="date" class="form-control" id="enddate" required value="{{formattedExpectedEndDate}}">
                         </div>
                         {{! End contract end date field }}
                         
                         {{! contract budget field }}
                         <div class="col-sm-12 col-md-6 form-group">
                             <label class="w-100" for="budget">{{#str}} budget, local_grupomakro_core {{/str}}</label>
-                            <input type="text" class="form-control" id="budget" placeholder="$" value="100.000.000">
+                            <div class="input-container">
+                              <span class="prefix">$</span>
+                              <input type="text" class="form-control input-field-prefix" id="budget"  required value="{{formattedBudget}}">
+                            </div>
                         </div>
                         {{! End contract budget field }}
                         
                         {{! Contract billing condition field }}
                         <div class="col-sm-12 col-md-6 form-group">
                             <label class="w-100" for="billing_condition">{{#str}} billing_condition, local_grupomakro_core {{/str}}</label>
-                            <input type="text" class="form-control" id="billing_condition" placeholder="%" value="30%">
+                            <div class="input-container">
+                              <input type="text" class="form-control  input-field-suffix" id="billing_condition" required value="{{billingcondition}}">
+                              <span class="suffix">%</span>
+                            </div>
                         </div>
                         {{! End Contract billing condition field }}
+                        {{/contract}}
                     </div>    
                 </form>
             </div>
@@ -96,14 +104,12 @@
             {{! Actions }}
             <div class="d-flex card-footer bg-transparent px-0">
                 <div class="spacer"></div>
-                <a href="{{cancelurl}}" class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
-                <a href="{{cancelurl}}" class="btn btn-primary m-1">{{#str}} save, local_grupomakro_core {{/str}}</a>
+                <a href="#" class="btn btn-secondary m-1" id="cancel-contract-update-button">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                <a href="#" class="btn btn-primary m-1" id="save-contract-button">{{#str}} save, local_grupomakro_core {{/str}}</a>
             </div>
             {{! End Actions }}
         </div>
         {{! End Contract data to modify }}
     </div>
 </div>
-{{#js}}
-//document.querySelector("input#startdate").value = "2022-12-20";
-{{/js}}
+{{> local_grupomakro_core/modals/class_error }}

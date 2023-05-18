@@ -23,6 +23,7 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -36,29 +37,17 @@ $PAGE->set_title(get_string('institutionmanagement', $plugin_name));
 $PAGE->set_heading(get_string('institutionmanagement', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-echo $OUTPUT->header();
+$institutions = get_institutions();
 
-// Contract data.
-$institution_data = array();
-$institution_data[0]->name_institution = 'Solutto';
-$institution_data[0]->id = '283035';
-$institution_data[0]->number_contracts = '3';
-$institution_data[1]->name_institution = 'Comfenalco';
-$institution_data[1]->id = '456756';
-$institution_data[1]->number_contracts = '3';
+echo $OUTPUT->header();
 
 $icon_src = $CFG->wwwroot.'/local/grupomakro_core/pix/t/contract.png';
 
-$data = array();
-foreach ($institution_data as $institution) {
-    array_push($data,$institution);
-}
-
 $templatedata = [
-    'data' => $data,
-    'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/institutionalcontracts.php',
+    'institutions' => $institutions,
     'iconcontract' => $icon_src,
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/institution_management', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/institution_management', 'init', [$institutions]);
 echo $OUTPUT->footer();

@@ -1,0 +1,215 @@
+import * as Ajax from 'core/ajax';
+import $ from 'jquery';
+
+const createContractButton = $('#create-contract-button')
+const removeContractButtons = $('.remove-contract')
+const removeContractConfirmButton = $('#remove-contract-confirm-button')
+const confirmContractDeletionModal = $('#confirmModalCenter')
+
+const viewUserDetailsButtons = $('.view-details-button')
+const userInfoName = $('#user-info-name')
+const userInfoEmail = $('#user-info-email')
+const userInfoAvatar = $('#user-info-avatar')
+const viewUserProfileButton = $('#view-profile-button')
+const userInfoContractList = $('#user-info-contract-list')
+const confirmContractUserDeletionModal = $('#confirmContractUserDeletionModal')
+const confirmContractUserDeletionButton = $('#remove-contract-_user_confirm-button')
+
+const selectedUserInput = $('#selected-user')
+const contractSelectInput = $('#contractlist')
+const coursesSelectInput = $('#courselist')
+const newContractUserInputs = [selectedUserInput,contractSelectInput,coursesSelectInput]
+
+const addUserButton = $('#add-user-button')
+
+const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract'
+
+const errorModal = $('#errorModal');
+const errorModalContent = $('#error-modal-content');
+
+let selectedInstitutionId;
+let selectedContractId;
+let selectedUser;
+let selectedInstitutionContractUsers
+let availableUsers;
+let selectedUserToBeCreated
+let institutionContracts
+let selectedContractUserId
+
+export const init = (institutionId, institutionContractUsers,users,contractNames) => {
+    selectedInstitutionContractUsers=institutionContractUsers;
+    selectedInstitutionId = institutionId
+    availableUsers=users
+    institutionContracts=contractNames
+    handleCreateContractButtonClick()
+    handleRemoveContractButtonClick()
+    handleRemoveContractConfirmButtonClick()
+    handleRemoveContractUserConfirmButtonClick()
+    handleViewUserDetailsButton()
+    handleViewUserProfileButtonClick();
+    handleDeleteUserContractLinkButtonClick();
+    handleUserCreation()
+};
+
+const handleUserCreation = () => {
+    addUserButton.click(()=>{
+        selectedUserInput.get(0).setCustomValidity('');
+        // Check the select inputs and the time inputs
+        const valid = newContractUserInputs.every(input => {
+            return input.get(0).reportValidity();
+        });
+        if (!valid) {
+            return;
+        }
+        //
+        
+        if(!selectedUserToBeCreated) {
+            selectedUserInput.get(0).setCustomValidity('Este usuario no existe.');
+            selectedUserInput.get(0).reportValidity();
+            return;
+        }
+        
+        const args = {
+            userId:selectedUserToBeCreated.id,
+            contractId:contractSelectInput.val(),
+            courseIds: coursesSelectInput.val().join(','),
+        };
+        const promise = Ajax.call([{
+            methodname: 'local_grupomakro_create_contract_user',
+            args
+        }, ]);
+        promise[0].done(function(response) {
+            if(response.institutionContractId === -1 ){
+                errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
+                return   
+            }
+            window.location.reload()
+        }).fail(function(error) {
+            console.error(error)
+        });
+    })
+    
+    selectedUserInput.on('input',()=>{
+        $('.contract-inserted-value').remove();
+        selectedUserToBeCreated = availableUsers.find(user=>user.username ===selectedUserInput.val())
+        if(!selectedUserToBeCreated) {
+            contractSelectInput.prop('disabled',true)
+            return
+        }
+        const selectedUserToBeCreatedContractInfo = selectedInstitutionContractUsers[selectedUserToBeCreated.id]
+        const availableContractsForSelectedUser = !selectedUserToBeCreatedContractInfo? institutionContracts: institutionContracts.filter(contract =>{
+             return !selectedUserToBeCreatedContractInfo.contracts.some(userContract=> userContract.id === contract.id)
+        })
+        let contractListOptions = ''
+        availableContractsForSelectedUser.forEach(contractOption=>{
+            contractListOptions+= `<option class="contract-inserted-value" value="${contractOption.id}">${contractOption.contractId}</option>`
+        })
+        contractSelectInput.removeAttr('disabled')
+        contractSelectInput.html(contractSelectInput.html() + contractListOptions)
+    })
+    
+}
+
+const handleDeleteUserContractLinkButtonClick = ()=> {
+    const deleteUserContractLinkButtons = $('.delete-contract-user-link')
+    deleteUserContractLinkButtons.click(event=>{
+        selectedContractUserId = event.currentTarget.attributes['contract-user-id'].value
+        confirmContractUserDeletionModal.modal('show')
+    })
+    
+    
+}
+
+const handleRemoveContractUserConfirmButtonClick = () => {
+    confirmContractUserDeletionButton.click(()=>{
+        if(!selectedContractUserId)return
+        const args = {
+            id:selectedContractUserId
+        };
+        const promise = Ajax.call([{
+            methodname: 'local_grupomakro_delete_contract_user',
+            args
+        }, ]);
+        promise[0].done(function(response) {
+            if(response.deletedContractUserId === -1 ){
+                confirmContractUserDeletionModal.modal('hide')
+                errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
+                return   
+            }
+            window.location.reload()
+        }).fail(function(error) {
+            console.error(error)
+        });
+    })
+    
+}
+
+const handleViewUserProfileButtonClick = () =>{
+    viewUserProfileButton.click(()=>{
+        window.open(selectedUser.profileUrl,'blank')
+    })
+}
+
+const handleCreateContractButtonClick = () => {
+    createContractButton.click(()=>{
+        window.location.href = `/local/grupomakro_core/pages/createcontractinstitutional.php?id=${selectedInstitutionId}`
+    })
+}
+
+const handleRemoveContractButtonClick = () => {
+    removeContractButtons.click(event=>{
+        selectedContractId = event.currentTarget.attributes['contract-id'].value
+    })
+}
+
+const handleRemoveContractConfirmButtonClick = ()=> {
+    removeContractConfirmButton.click(()=>{
+        const args = {
+            id:selectedContractId,
+        };
+        const promise = Ajax.call([{
+            methodname: 'local_grupomakro_delete_institution_contract',
+            args
+        }, ]);
+        promise[0].done(function(response) {
+            if(response.deletedInstitutionContractId === -1 ){
+                confirmContractDeletionModal.modal('hide')
+                errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
+                return   
+            }
+            window.location.reload()
+        }).fail(function(error) {
+            console.error(error)
+        });
+    })
+}
+
+const handleViewUserDetailsButton = () => {
+    viewUserDetailsButtons.click((event)=> {
+        selectedUser = selectedInstitutionContractUsers[event.currentTarget.attributes['contract-user-id'].value]
+        userInfoName.text(selectedUser.fullname)
+        userInfoName.attr('href',selectedUser.profileUrl)
+        userInfoEmail.text(selectedUser.email)
+        userInfoAvatar.attr('src',selectedUser.avatar)
+        
+        let contractsHtmlString = ''
+        selectedUser.contracts.forEach(contract=>{
+            contractsHtmlString+=`
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div class="contracicon d-flex align-items-center">
+                    <img class="icon " alt="" aria-hidden="true" src="${contractIcon}">
+                    <span class="ml-2">${contract.contractId}</span>
+                </div>
+                <a href="#" class="text-secondary delete-contract-user-link" contract-user-id="${contract.contractUserId}">
+                    <i class="fa fa-trash" style="font-size:20px"></i>
+                </a>
+            </li>`
+        })
+        
+        userInfoContractList.html(contractsHtmlString)
+        handleDeleteUserContractLinkButtonClick()
+    })
+}

@@ -23,6 +23,7 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -35,6 +36,7 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_heading(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_pagelayout('base');
+$institutionId = required_param('id', PARAM_TEXT);
 
 if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('institutionmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php'));
@@ -44,29 +46,29 @@ $PAGE->navbar->add(
     new moodle_url('/local/grupomakro_core/pages/institutionalcontracts.php')
 );
 
+$users = $DB->get_records('user');
+
+$users =array_values( array_map(function ($user){
+    $userMin = new stdClass();
+    $userMin->fullname = $user->firstname.' '.$user->lastname;
+    $userMin->email = $user->email;
+    $userMin->username = $user->username;
+    $userMin->id = $user->id;
+    return $userMin;
+},$users));
+
+$institution = get_institution_contract_panel_info($institutionId);
+
+
+$courses = $DB->get_records('course');
+$courses =array_values( array_map(function ($course){
+    $courseMin = new stdClass();
+    $courseMin->fullname = $course->fullname;
+    $courseMin->id = $course->id;
+    return $courseMin;
+},$courses));
 
 echo $OUTPUT->header();
-
-// Contract data.
-$contract_data = array();
-$contract_data[0]->contract_id = '2022A23658';
-$contract_data[0]->start_date = '20-12-2022';
-$contract_data[0]->end_date = '20-06-2023';
-$contract_data[0]->budget = '100.000.000';
-$contract_data[0]->billing_condition = '30%';
-$contract_data[0]->users = '1';
-$contract_data[1]->contract_id = '2022A23645';
-$contract_data[1]->start_date = '20-12-2022';
-$contract_data[1]->end_date = '20-06-2023';
-$contract_data[1]->budget = '200.000.000';
-$contract_data[1]->billing_condition = '20%';
-$contract_data[1]->users = '1';
-$contract_data[2]->contract_id = '2022A23646';
-$contract_data[2]->start_date = '03-01-2023';
-$contract_data[2]->end_date = '03-06-2023';
-$contract_data[2]->budget = '200.000.000';
-$contract_data[2]->billing_condition = '10%';
-$contract_data[2]->users = '1';
 
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();
@@ -84,11 +86,11 @@ $table->head = array(
     
 );
 
-foreach ($contract_data as $contract) {
+foreach ($institution->institutionInfo->contracts as $contract) {
     $displaycontract = html_writer::start_tag('div', array('class' => 'd-flex align-items-center'));
         $displaycontract .= html_writer::start_tag('div', array('class' => 'contract-img'));
            $displaycontract .= html_writer::tag('img', '', array('src' => $CFG->wwwroot.'/local/grupomakro_core/pix/t/contract.png', 'height' => 35, 'class' => 'mr-3'));
-           $displaycontract .= html_writer::tag('span', $contract->contract_id, array());
+           $displaycontract .= html_writer::tag('span', $contract->contractid, array());
         $displaycontract .= html_writer::end_tag('div');
     $displaycontract .= html_writer::end_tag('div');
     
@@ -98,7 +100,7 @@ foreach ($contract_data as $contract) {
     
     // Contract Table Actions.
     $options_buttons = html_writer::link(
-        new moodle_url('/local/grupomakro_core/pages/editcontractinstitutionals.php?cid='.$contract->contract_id),
+        new moodle_url('/local/grupomakro_core/pages/editcontractinstitutionals.php?id='.$contract->id.'&institutionId='.$contract->institutionid),
         $modifyicon,
         array(
             'class' => 'mx-1',
@@ -119,18 +121,20 @@ foreach ($contract_data as $contract) {
             'title' => get_string(
                 'remove', $plugin_name
             ),
-            'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
+            'data-toggle'=>'modal', 
+            'data-target'=> '#confirmModalCenter',
+            'contract-id'=>$contract->id
         )
     );
     
     // Fill the table with the contract data.
     $table->data[] = array(
         $displaycontract,
-        $contract->start_date, 
-        $contract->end_date,
-        $contract->budget, 
-        $contract->billing_condition, 
-        $contract->users,
+        $contract->formattedInitDate, 
+        $contract->formattedExpectedEndDate,
+        $contract->formattedBudget, 
+        $contract->formattedBillingCondition, 
+        $contract->usersCount,
         $options_buttons
     );
 }
@@ -149,61 +153,44 @@ $userstable->head = array(
     
 );
 
-// Users data.
-$users_data = array();
-$users_data[0]->username = 'Nataly Hoyos';
-$users_data[0]->email = 'natalyhoyos@solutto.com';
-$users_data[0]->phone = '3003458905';
-$users_data[0]->courses = 'Maquinaria Amarilla';
-$users_data[0]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
-$users_data[0]->contracts = '1';
-$users_data[1]->username = 'Sergio Mejia';
-$users_data[1]->email = 'sergiomejia@solutto.com';
-$users_data[1]->phone = '3003450000';
-$users_data[1]->courses = 'Maquinaria Pesada';
-$users_data[1]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
-$users_data[1]->contracts = '1';
-$users_data[2]->username = 'Luz Lopez';
-$users_data[2]->email = 'luzlopez@solutto.com';
-$users_data[2]->phone = '3003250000';
-$users_data[2]->courses = 'Maquinaria Pesada';
-$users_data[2]->avatar = $CFG->wwwroot.'/local/grupomakro_core/pix/t/avatar.jpg';
-$users_data[2]->contracts = '1';
-
-foreach ($users_data as $user) {
+foreach ($institution->contractUsers as $contractUser) {
     
     $userprofile = html_writer::start_tag('div', array('class' => 'd-flex align-center', 'style' => 'gap: 16px;'));
-        $userprofile .= html_writer::tag('i', '', array('class' => 'fa fa-user-circle avatar-default'));
+        $userprofile .= html_writer::tag('img','' , array('class' => 'fa fa-user-circle avatar-default','src'=>$contractUser->avatar, 'style' => 'max-width: 38px; '));
         $userprofile .= html_writer::start_tag('div', array('class' => ''));
-            $userprofile .= html_writer::tag('h6', $user->username, array('class' => 'mb-0'));
-            $userprofile .= html_writer::tag('small', $user->email, array());
+            $userprofile .= html_writer::tag('h6', $contractUser->fullname, array('class' => 'mb-0'));
+            $userprofile .= html_writer::tag('small', $contractUser->email, array());
         $userprofile .= html_writer::end_tag('div');
     $userprofile .= html_writer::end_tag('div');
     
     $action_button = html_writer::tag('button',
         get_string('details', 'local_grupomakro_core'), 
-        array('class' => 'btn btn-primary btn-sm', 'data-toggle' => 'modal', 'data-target' => '#userinfoModalLong')
+        array('class' => 'btn btn-primary btn-sm view-details-button', 'data-toggle' => 'modal', 'data-target' => '#userinfoModalLong','contract-user-id'=>$contractUser->userid)
     );
     
     // The contract status tag is generated.
     $countcontract = html_writer::start_tag('span', array('class' => 'v-chip n-contract'));
-        $countcontract .= html_writer::tag('span', $user->contracts, array('class' => 'v-chip__content'));
+        $countcontract .= html_writer::tag('span', $contractUser->acquiredContracts, array('class' => 'v-chip__content'));
     $countcontract .= html_writer::end_tag('span');
     
     // Fill the table with the user data.
     $userstable->data[] = array(
         $userprofile, 
-        $user->phone, 
-        $user->courses,
+        $contractUser->phone, 
+        $contractUser->coursesString,
         $countcontract,
         $action_button
     );
 }
 $templatedata = [
     'table' =>  html_writer::table($table),
-    'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontractinstitutional.php',
-    'usertable' => html_writer::table($userstable)
+    'usertable' => html_writer::table($userstable),
+    'numberOfContracts' => $institution->institutionInfo->numberOfContracts,
+    'numberOfUsers'=>$institution->institutionInfo->numberOfUsers,
+    'users'=>$users,
+    'courses'=>$courses
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/institutionalcontracts', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/institutional_contracts', 'init', [$institutionId,$institution->contractUsers,$users,$institution->institutionInfo->contractNames]);
 echo $OUTPUT->footer();

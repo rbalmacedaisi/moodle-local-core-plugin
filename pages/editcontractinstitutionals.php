@@ -24,6 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -46,17 +47,19 @@ $PAGE->navbar->add(
     new moodle_url('/local/grupomakro_core/pages/editcontractinstitutionals.php')
 );
 
-$contract_id = required_param('cid', PARAM_TEXT);
+$contractId = required_param('id', PARAM_TEXT);
+$institutionId = required_param('institutionId', PARAM_TEXT);
 
-
+$contract = get_institution_contracts(['id'=>$contractId])[0];
 
 echo $OUTPUT->header();
 
 $templatedata = [
     'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/institutionalcontracts.php',
-    'contract_id' => $contract_id,
+    'contract' => $contract,
 ];
 
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/edit_contract_institutionals', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/edit_institution_contract', 'init', [$contractId,$institutionId]);
 echo $OUTPUT->footer();

@@ -126,7 +126,9 @@ echo <<<EOT
     .theme--dark.v-application {
       background: transparent;
     }
-    
+    .paneltable td:nth-child(4n){
+      display: none !important;
+    }
    </style>
    
    <script>

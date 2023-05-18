@@ -167,6 +167,10 @@ $string['institutionmanagement'] = 'Gestión de Instituciones';
 $string['edit'] = 'Editar';
 $string['see'] = 'Ver';
 $string['create_institution'] = 'Crear Institución';
+$string['update_institution'] = 'Actualizar Institución';
+$string['delete_institution_title'] = 'Confirmación eliminación de institución';
+$string['delete_institution_message'] = '¿Está seguro de eliminar de forma definitiva esta institución y toda la información relacionada?';
+
 $string['name_institution'] = 'Nombre de la institución';
 
 // Pagina Contratos Institucionales.
@@ -187,7 +191,7 @@ $string['user'] = 'Usuario';
 $string['adduser'] = 'Agregar Usuario';
 $string['enrollUser'] = 'Matricular Usuario';
 $string['userlist'] = 'Lista de Usuarios';
-$string['selectusers'] = 'Seleccionar Usuarios';
+$string['selectusers'] = 'Seleccionar Usuario';
 $string['select_courses'] = 'Seleccionar Cursos';
 $string['actions'] = 'Acciones';
 $string['userinformation'] = 'Información del usuario';

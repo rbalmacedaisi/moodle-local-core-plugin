@@ -10,18 +10,18 @@
             <div class="modal-body px-4">
                 <form>
                     <div class="form-group">
-                        <label for="name_institution" class="col-form-label">{{#str}} name_institution, local_grupomakro_core {{/str}}:</label>
-                        <input type="text" class="form-control" id="name_institution">
+                        <label for="create_name_institution" class="col-form-label">{{#str}} name_institution, local_grupomakro_core {{/str}}:</label>
+                        <input type="text" class="form-control" id="create_name_institution" required>
                     </div>
                     <div class="form-group">
-                        <label for="id-institution" class="col-form-label">Id:</label>
-                        <input class="form-control" id="id-institution"></input>
+                        <label for="create_id_institution" class="col-form-label">Id:</label>
+                        <input type="text" class="form-control" id="create_id_institution" required></input>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
-                <button type="button" class="btn btn-primary">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary" id="saveInstitutionButton">{{#str}} save, local_grupomakro_core {{/str}}</button>
             </div>
         </div>
     </div>

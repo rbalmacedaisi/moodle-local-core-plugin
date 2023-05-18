@@ -39,7 +39,7 @@
 <div class="container-fluid pt-3">
     <div class="row">
         <div class="col-sm-12 d-flex flex-wrap pl-0">
-            {{#data}}
+            {{#institutions}}
             <div class="m-2 position-relative">
                 {{! Institution cards }}
                 <div class="card" id="institution-card">
@@ -56,14 +56,14 @@
                                     <i id="instmenu" class="fa fa-ellipsis-v" data-toggle="dropdown" data-display="static" aria-expanded="false"></i>
                                 </button>
                                 <div class="dropdown-menu dropdown-menu-right">
-                                    <button class="dropdown-item" type="button"><i class="fa fa-edit mr-2"></i>{{#str}} edit, local_grupomakro_core {{/str}}</button>
-                                    <button class="dropdown-item" type="button"><i class="fa fa-trash mr-2"></i>{{#str}} remove, local_grupomakro_core {{/str}}</button>
+                                    <button class="dropdown-item edit-institution-button" type="button" institution-id="{{id}}" ><i class="fa fa-edit mr-2"></i>{{#str}} edit, local_grupomakro_core {{/str}}</button>
+                                    <button class="dropdown-item delete-institution-button" type="button" institution-id="{{id}}"><i class="fa fa-trash mr-2"></i>{{#str}} remove, local_grupomakro_core {{/str}}</button>
                                 </div>
                             </div>
                             {{! End Institutions menu }}
                         </div>
-                        <h5 class="card-title mb-1">{{name_institution}}</h5>
-                        <span class="text-muted institutionid">Id-{{id}}</span>
+                        <h5 class="card-title mb-1">{{name}}</h5>
+                        <span class="text-muted institutionid">Id-{{institutionid}}</span>
                     </div>
                     {{! End Card content }}
                     
@@ -72,12 +72,12 @@
                         <div class="d-flex align-items-center">
                             <div>
                                 <i class="fa fa-file-text-o text-light"></i>
-                                <small class="text-light">{{number_contracts}} {{#str}} contracts, local_grupomakro_core{{/str}}</small>
+                                <small class="text-light">{{numberOfContracts}} {{#str}} contracts, local_grupomakro_core{{/str}}</small>
                             </div>
                         </div>
                         
                         <div class="spacer"></div>
-                       <a class="btn btn-primary btn-sm" href="{{createurl}}">{{#str}} see, local_grupomakro_core {{/str}}</a>
+                       <a class="btn btn-primary btn-sm view-institution" institution-id="{{id}}" href="#">{{#str}} see, local_grupomakro_core {{/str}}</a>
                     </div>
                     {{! End Card footer }}
                 </div>
@@ -96,7 +96,7 @@
                 
                 {{! End Institutions menu }}
             </div>
-            {{/data}}
+            {{/institutions}}
             
             {{! Institution creation button }}
             <a id="created" href="" class="m-2 d-flex justify-content-center align-items-center text-decoration-none" data-toggle="modal" data-target="#createInstitutionModalLong">
@@ -107,3 +107,6 @@
     </div>
 </div>
 {{> local_grupomakro_core/modals/create_institution_modal }}
+{{> local_grupomakro_core/modals/update_institution_modal }}
+{{> local_grupomakro_core/modals/modal_delete_institution }}
+{{> local_grupomakro_core/modals/class_error }}

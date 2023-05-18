@@ -5,7 +5,7 @@ Vue.component('availabilitytable',{
                 <v-data-table
                    :headers="headers"
                    :items="teacherAvailabilityRecords"
-                   class="elevation-1"
+                   class="elevation-1 paneltable"
                    dense
                    :search="search"
                 >
@@ -216,6 +216,10 @@ Vue.component('availabilitytable',{
                         <instructoravailability :data="item"></instructoravailability>
                     </template>
                     
+                    <template v-slot:item.instructorSkills="{ item }">
+                        
+                    </template>
+                    
                     <template v-slot:item.actions="{ item }">
                         <v-tooltip bottom>
                             <template v-slot:activator="{ on, attrs }">
@@ -309,6 +313,7 @@ Vue.component('availabilitytable',{
                     value: 'competencies',
                 },
                 { text: 'Disponibilidad', value: 'availability',sortable: false },
+                { text: 'instructorSkills', value: 'instructorSkills',sortable: false, class: 'd-none'},
                 { text: 'Actions', value: 'actions', sortable: false },
             ],
             teacherAvailabilityRecords:[],

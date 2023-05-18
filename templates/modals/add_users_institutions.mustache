@@ -13,24 +13,21 @@
                     {{! User List }}
                     <div class="form-group">
                         <label for="userlist" class="col-form-label w-100">{{#str}} userlist, local_grupomakro_core {{/str}}:</label>
-                        <input list="userlist" name="userlist" id="user-list" class="form-control">
+                        <input list="userlist" name="userlist" id="selected-user" class="form-control" placeholder="{{#str}} selectusers, local_grupomakro_core {{/str}}" required>
                         <datalist id="userlist" class="form-control_">
-                            <option value=''>{{#str}} selectusers, local_grupomakro_core {{/str}}</option>
-                            <option value="Cindy A. Whitacre">Cindy A. Whitacre <small>CindyAWhitacre@superrito.com</small></option>
-                            <option value="Gloria T. Williams">Gloria T. Williams <small>GloriaTWilliams@gustr.com</small></option>
-                            <option value="Roger C. Lewis">Roger C. Lewis <small>RogerCLewis@gustr.com</small></option>
+
+                            {{#users}}
+                            <option value="{{username}}">{{fullname}} - {{email}}</option>
+                            {{/users}}
                         </datalist>
                     </div>
                     {{! End User List }}
                     
                     {{! Contract List }}
                     <div class="form-group">
-                        <label for="contraclist" class="col-form-label">{{#str}} courses, local_grupomakro_core {{/str}}:</label>
-                        <select name="contraclist" id="contraclist" class="form-control">
+                        <label for="contractlist" class="col-form-label">{{#str}} contracts, local_grupomakro_core {{/str}}:</label>
+                        <select name="contraclist" id="contractlist" class="form-control" disabled required>
                             <option value=''>{{#str}} selectcontract, local_grupomakro_core {{/str}}</option>
-                            <option value="1">2022A23658</option>
-                            <option value="2">2022A23645</option>
-                            <option value="2">2022A23646</option>
                         </select>
                     </div>
                     {{! End Contract List }}
@@ -38,11 +35,11 @@
                     {{! Courses list }}
                     <div class="form-group">
                         <label for="courselist" class="col-form-label">{{#str}} courses, local_grupomakro_core {{/str}}:</label>
-                        <select name="courselist" id="courselist" class="form-control">
-                            <option value=''>{{#str}} select_courses, local_grupomakro_core {{/str}}</option>
-                            <option value="1">Maquinaria Amarilla</option>
-                            <option value="2">Maquinaria Pesada</option>
-                            <option value="2">Aviación</option>
+                        <select name="courselist" id="courselist" class="form-control" multiple size="6" required>
+                            <option value='' disabled>{{#str}} select_courses, local_grupomakro_core {{/str}}</option>
+                            {{#courses}}
+                            <option value="{{id}}">{{fullname}}</option>
+                            {{/courses}}
                         </select>
                     </div>
                     {{! End Courses list }}
@@ -51,7 +48,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
-                <button type="button" class="btn btn-primary" data-dismiss="modal">{{#str}} save, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary" id="add-user-button">{{#str}} save, local_grupomakro_core {{/str}}</button>
             </div>
         </div>
     </div>

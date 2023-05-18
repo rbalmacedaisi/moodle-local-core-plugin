@@ -47,7 +47,7 @@
                             <i class="fa fa-file-text-o"></i>
                         </span>
                         <div class="p-user-content">
-                            <h4 class="mb-0">3</h4>
+                            <h4 class="mb-0">{{numberOfContracts}}</h4>
                             <span class="text-muted ">{{#str}}contracts, local_grupomakro_core{{/str}}</span>
                         </div>
                     </div>
@@ -63,7 +63,7 @@
                             <i class="fa fa-users"></i>
                         </span>
                         <div class="p-user-content">
-                            <h4 class="mb-0">3</h4>
+                            <h4 class="mb-0">{{numberOfUsers}}</h4>
                             <span class="text-muted">{{#str}}totalusers, local_grupomakro_core{{/str}}</span>
                         </div>
                     </div>
@@ -96,7 +96,7 @@
                             <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
                         </div>
                         <div class="spacer"></div>
-                        <a class="btn btn-primary" href="{{createurl}}">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
+                        <a class="btn btn-primary" id="create-contract-button" href="#">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
                     </div>
                     {{{table}}}
                 </div>
@@ -113,4 +113,6 @@
     </div>
     {{! End Content of the institutions }}
 </div>
-{{> local_grupomakro_core/modals/confirm_modal }}
+{{> local_grupomakro_core/modals/confirm_contract_deletion_modal }}
+{{> local_grupomakro_core/modals/confirm_contract_user_deletion_modal }}
+{{> local_grupomakro_core/modals/class_error }}

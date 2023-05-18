@@ -166,7 +166,11 @@ $string['institutionmanagement'] = 'Institution Management';
 $string['edit'] = 'Edit';
 $string['see'] = 'See';
 $string['create_institution'] = 'Create Institution';
+$string['update_institution'] = 'Update Institution';
 $string['name_institution'] = 'Name of the Institution';
+$string['delete_institution_title'] = 'Delete Institution Confirmation';
+$string['delete_institution_message'] = 'Are you sure to permanently delete this institution and all related information?';
+
 
 // Institutional Contracts Page.
 $string['institutional_contracts'] = 'Institutional Contracts';
@@ -186,7 +190,7 @@ $string['user'] = 'User';
 $string['adduser'] = 'Add User';
 $string['enrollUser'] = 'Enroll User';
 $string['userlist'] = 'User List';
-$string['selectusers'] = 'Select users';
+$string['selectusers'] = 'Select user';
 $string['select_courses'] = 'Select courses';
 $string['actions'] = 'Actions';
 $string['userinformation'] = 'User information';

@@ -47,6 +47,7 @@ export const init = () => {
 const handleClassSave = () => {
     saveButton.click(()=>{
         endTimeInput.get(0).setCustomValidity('');
+        mondaySwitch.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
         const valid = selectors.every(selector => {
             return selector.get(0).reportValidity();

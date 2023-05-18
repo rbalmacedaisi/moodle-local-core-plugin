@@ -1,0 +1,28 @@
+<div class="modal fade" id="updateInstitutionModalLong" tabindex="-1" role="dialog" aria-labelledby="updateInstitutionModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title position-absolute">{{#str}}update_institution, local_grupomakro_core {{/str}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body px-4">
+                <form>
+                    <div class="form-group">
+                        <label for="update_name_institution" class="col-form-label">{{#str}} name_institution, local_grupomakro_core {{/str}}:</label>
+                        <input type="text" class="form-control" id="update_name_institution" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="update_id_institution" class="col-form-label">Id:</label>
+                        <input type="text" class="form-control" id="update_id_institution" required></input>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
+                <button type="button" class="btn btn-primary" id="updateInstitutionButton">{{#str}} save, local_grupomakro_core {{/str}}</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -412,6 +412,7 @@ div.users-card{
 }
 .avatar-default {
     font-size: 38px !important;
+    border-radius:50%;
 }
 table tbody td{
     font-size: 14px !important;
@@ -617,3 +618,32 @@ span.badge.text-white{
     left: 50% !important;
     transform: translate(-50%, -50%);
 }
+
+
+/*Styles used in the create_institution_contracts page********************/
+.input-container {
+    position: relative;
+}
+
+.prefix {
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding-right: 5px;
+}
+.input-field-prefix {
+    padding-left: 25px; /* Adjust this value based on the prefix width */
+}
+.suffix {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding-left: 5px;
+}
+
+.input-field-suffix {
+    padding-right: 25px; /* Adjust this value based on the suffix width */
+}
+/*************************************************************************/

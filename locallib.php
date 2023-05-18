@@ -679,3 +679,103 @@ function my_get_user_picture_url($userid, $size = 100) {
     );
     return $url->out();
 }
+
+function get_institutions($filters=null){
+    global $DB; // Assuming $DB is a globally accessible database object
+    
+    // Retrieve records from the 'gmk_institution' table
+    $institutions = $DB->get_records('gmk_institution',$filters);
+    
+    // Iterate through each institution
+    foreach($institutions as $institution){
+        // Count the number of contracts associated with the institution
+        $institution->contracts = get_institution_contracts(['institutionid' => $institution->id]);
+        $institution->numberOfContracts = count($institution->contracts);
+        
+        $institution->contractNames = [];
+        foreach($institution->contracts as $contract){
+            $institution->contractNames[] = ['id'=>$contract->id,'contractId'=>$contract->contractid];
+        }
+    }
+    
+    // Return the updated array of institution objects
+    return array_values($institutions);
+}
+
+function get_institution_contracts($filters = null){
+    global $DB; // Assuming $DB is a globally accessible database object
+    
+    // Retrieve records from the 'gmk_institution' table
+    $institutionContracts = $DB->get_records('gmk_institution_contract',$filters);
+    foreach($institutionContracts as $institutionContract){
+         $institutionContract->formattedInitDate = date('Y-m-d',$institutionContract->initdate);
+         $institutionContract->formattedExpectedEndDate = date('Y-m-d',$institutionContract->expectedenddate);
+         $institutionContract->formattedBudget =number_format($institutionContract->budget, 0, '.', '.');
+         $institutionContract->formattedBillingCondition =$institutionContract->billingcondition . '%';
+         
+         $institutionContract->users =get_contract_users(['contractid'=>$institutionContract->id]);
+         $institutionContract->usersCount = 0;
+         foreach($institutionContract->users as $institutionContractUser){
+             $institutionContract->usersCount+=count($institutionContractUser->courses);
+         }
+    }
+    
+    // Return the updated array of institution objects
+    return array_values($institutionContracts);
+}
+
+function get_contract_users($filters=null){
+    global $DB; // Assuming $DB is a globally accessible database object
+    
+    $contractUsers = $DB->get_records('gmk_contract_user',$filters);
+    
+    foreach($contractUsers as $contractUser){
+        $userInfo = $DB->get_record('user',['id'=>$contractUser->userid]);
+        $contractUser->phone = $userInfo->phone1?$userInfo->phone1:'Sin definir';
+        $contractUser->email = $userInfo->email;
+        $contractUser->fullname = $userInfo->firstname.' '.$userInfo->lastname;
+        $contractUser->avatar = my_get_user_picture_url($userInfo->id);
+        $contractUser->profileUrl = 'https://grupomakro-dev.soluttolabs.com/user/profile.php?id='.$userInfo->id;
+        $contractUser->courses= array_map(function($courseId) use ($DB){
+            return $DB->get_record('course',['id'=>$courseId])->fullname;
+        }, explode(',',$contractUser->courseids));
+    }
+    
+    return array_values($contractUsers);    
+}
+
+function get_contract_users_by_institution($institutionContracts){
+    
+    $contractUsers = [];
+    foreach($institutionContracts as $institutionContract){
+        foreach($institutionContract->users as $institutionContractUser){
+            if(!array_key_exists($institutionContractUser->userid,$contractUsers)){
+                $contractUsers[$institutionContractUser->userid] = $institutionContractUser;
+                $contractUsers[$institutionContractUser->userid]->acquiredContracts = 1;
+                $contractUsers[$institutionContractUser->userid]->contracts = [['id'=>$institutionContract->id,'contractId'=>$institutionContract->contractid,'contractUserId'=>$institutionContractUser->id]];
+                continue;
+            }
+            $contractUsers[$institutionContractUser->userid]->acquiredContracts += 1;
+            $contractUsers[$institutionContractUser->userid]->contracts[]=['id'=>$institutionContract->id,'contractId'=>$institutionContract->contractid,'contractUserId'=>$institutionContractUser->id];
+            foreach($institutionContractUser->courses as $institutionContractUserCourse){
+                !in_array($institutionContractUserCourse, $contractUsers[$institutionContractUser->userid]->courses)?
+                    $contractUsers[$institutionContractUser->userid]->courses[]=$institutionContractUserCourse:
+                    null;
+            }
+            
+        }
+    }
+    foreach($contractUsers as $contractUser){
+        $contractUser->coursesString = implode(', ',$contractUser->courses);
+    }
+    
+    return $contractUsers;
+}
+
+function get_institution_contract_panel_info($institutionId){
+    $institutionDetailedInfo = new stdClass();
+    $institutionDetailedInfo->institutionInfo = get_institutions(['id'=>$institutionId])[0];
+    $institutionDetailedInfo->contractUsers = get_contract_users_by_institution($institutionDetailedInfo->institutionInfo->contracts);
+    $institutionDetailedInfo->institutionInfo->numberOfUsers = count($institutionDetailedInfo->contractUsers);
+    return $institutionDetailedInfo;
+}

@@ -36,6 +36,7 @@ $PAGE->set_title(get_string('create_contract', $plugin_name));
 $PAGE->set_heading(get_string('create_contract', $plugin_name));
 $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
+$institutionId = required_param('id', PARAM_TEXT);
 
 if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('institutionmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php'));
@@ -54,4 +55,5 @@ $templatedata = [
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/create_contract_institutional', $templatedata);
+$PAGE->requires->js_call_amd('local_grupomakro_core/create_institution_contract', 'init', [$institutionId]);
 echo $OUTPUT->footer();
