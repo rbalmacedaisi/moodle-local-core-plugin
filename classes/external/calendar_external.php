@@ -64,7 +64,7 @@ class calendar_external extends external_api {
         ]);
         
         $eventDaysFiltered = getClassEvents();
-        
+
         if($userId){
             $learningPlanUserRoles =  $DB->get_records('local_learning_users', ['userid'=>$userId]);
             
@@ -105,6 +105,7 @@ class calendar_external extends external_api {
                     foreach($eventDaysFiltered as $event){
                         if(in_array($event->classId,$asignedClasses)){
                             $event->role = 'student';
+                            unset($event->attendanceActivityUrl);
                             $eventsFilteredByClass[]=$event;
                         }
                     }
@@ -115,7 +116,7 @@ class calendar_external extends external_api {
 
             $eventDaysFiltered =$eventsFiltered;
         }
-        
+
         return [
             'events' => json_encode(array_values($eventDaysFiltered)),'message'=>'ok'
         ];

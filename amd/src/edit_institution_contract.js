@@ -27,6 +27,7 @@ export const init = (contractId,institutionId) => {
 
 const handleSaveContractButtonClick = () => {
     saveContractButton.click(()=>{
+        endDateInput.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
         const valid = contractInputs.every(input => {
             return input.get(0).reportValidity();

@@ -363,82 +363,130 @@ function checkRangeArray($rangeArray, $inputRange) {
         return $rangeArray;
     }
 
-function getClassEvents(){
+function getClassEvents() {
     global $DB;
     $fetchedClasses = array();
     $fetchedCourses = array();
-    $eventDaysFiltered = [];
+    $eventDaysFiltered = array();
+    $dispatchedEvents = array();
     
     $initDate = '2023-04-01';
     $endDate = '2023-05-30';
+
+    $aux = 0;
     
     $events = calendar_get_events(strtotime($initDate),strtotime($endDate),true,true,true,false,false);
+    $copyEvents = array_slice($events, 0);
     
+    $copyEvents = array_map(function($item) {
+        return clone (object)$item; // Perform a shallow copy of each object
+    }, $events);
+
     $moduleIds = ["bigbluebuttonbn"=>$DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id,"attendance"=>$DB->get_record('modules',['name'=>'attendance'])->id];
-    foreach($events as $event){
-        
-        if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
+    foreach($events as $eventKey => $event){
+        $eventComplete = null;
+        // var_dump('nuevo evento '. $eventKey);
+        if(array_search($eventKey, $dispatchedEvents)){
             continue;
         }
         
-        $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
+        if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
+            $dispatchedEvents[]=$eventKey;
+            continue;
+        }
         
-        $moduleSectionId = $moduleInfo->section;
+        list($eventComplete,$fetchedClasses,$fetchedCourses) = complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds);
         
-        //Save the fetched classes to minimize db queries
-        if(array_key_exists($moduleSectionId,$fetchedClasses)){
-            $gmkClass = $fetchedClasses[$moduleSectionId];
-        }else {
-            $class = $DB->get_record('gmk_class', ['coursesectionid'=>$moduleSectionId]);
-            if(!$class){continue;}
-            $gmkClass = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($class->id)['classes'])[0];
-            $fetchedClasses[$moduleSectionId] = $gmkClass;
 
+
+        if(!$eventComplete){ 
+            continue;
         }
-        // var_dump($event);
-        // die;
-        //Set the class information for the event
-        $event->moduleId = $moduleInfo->id;
-        $event->instructorName = $gmkClass->instructorName;
-        $event->timeRange = $gmkClass->initHourFormatted.' - '. $gmkClass->endHourFormatted;
-        $event->classDaysES = $gmkClass->selectedDaysES;
-        $event->classDaysEN = $gmkClass->selectedDaysEN;
-        $event->typeLabel = $gmkClass->typeLabel;
-        $event->className = $gmkClass->name;
-        $event->classId = $gmkClass->id;
-        $event->instructorLPId = $DB->get_record('local_learning_users',['userid'=>$gmkClass->instructorid,'learningplanid'=>$gmkClass->learningplanid])->id;
         
-        
-        
-        // The big blue button event doesn't come with the timeduration, so we calculate it and added to the event object
-        // Asign the event color for both cases
-        if($event->modulename === 'bigbluebuttonbn'){
-            $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
-            $event->color = '#2196f3';
-            $event->activityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
-        }else{
-            $event->color = '#00bcd4';
-            $event->activityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
-            $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
-            $event->sessionId = $sessionId;
-        }
-        //Set the initial date and the end date of the event
-        $event->start = date('Y-m-d H:i:s',$event->timestart);
-        $event->end = date('Y-m-d H:i:s',$event->timestart + $event->timeduration);
-        
-        //Get the coursename, save the fetched coursenames for minimize db queries
-        if(array_key_exists($event->courseid,$fetchedCourses)){
-            $event->coursename = $fetchedCourses[$event->courseid];
-        }else {
-            $event->coursename = $DB->get_record('course', ['id'=>$event->courseid])->fullname;
-            $fetchedCourses[$event->courseid] = $event->coursename;
+        if($eventComplete->classType === '2'){
+            
+            foreach ($copyEvents as $pairEventKey => $pairEvent) {
+                if(array_search($eventKey, $dispatchedEvents)){
+                    continue;
+                }
+                list($pairEvent,$fetchedClasses,$fetchedCourses) = complete_class_event_information($pairEvent,$fetchedClasses,$fetchedCourses,$moduleIds);
+
+                if ($pairEvent->classId === $eventComplete->classId && $pairEvent->timestart === $eventComplete->timestart && $pairEvent->modulename !== $eventComplete->modulename) {
+                    break;
+                }
+            }
+            $eventComplete->modulename ==='bigbluebuttonbn'?$eventComplete->attendanceActivityUrl = $pairEvent->attendanceActivityUrl : $eventComplete->bigBlueButtonActivityUrl = $pairEvent->attendanceActivityUrl;
+            $eventComplete->color = '#673ab7';
+
+            $dispatchedEvents[]=$pairEventKey;
         }
 
-        //push the filtered event to the arrays of events
-        $eventDaysFiltered[]=$event;
+        $dispatchedEvents[]=$eventKey;
+        $eventDaysFiltered[]=$eventComplete;
+    }
+
+    return $eventDaysFiltered;
+}
+
+function complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds){
+    global $DB;
+
+    $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
+        
+    $moduleSectionId = $moduleInfo->section;
+    
+    //Save the fetched classes to minimize db queries
+    if(array_key_exists($moduleSectionId,$fetchedClasses)){
+        $gmkClass = $fetchedClasses[$moduleSectionId];
+    }else {
+        $class = $DB->get_record('gmk_class', ['coursesectionid'=>$moduleSectionId]);
+        if(!$class){
+            return [false,$fetchedClasses,$fetchedCourses];
+        }
+        $gmkClass = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute($class->id)['classes'])[0];
+        $fetchedClasses[$moduleSectionId] = $gmkClass;
+
     }
     
-    return $eventDaysFiltered;
+    //Set the class information for the event
+    $event->moduleId = $moduleInfo->id;
+    $event->instructorName = $gmkClass->instructorName;
+    $event->timeRange = $gmkClass->initHourFormatted.' - '. $gmkClass->endHourFormatted;
+    $event->classDaysES = $gmkClass->selectedDaysES;
+    $event->classDaysEN = $gmkClass->selectedDaysEN;
+    $event->typeLabel = $gmkClass->typeLabel;
+    $event->classType = $gmkClass->type;
+    $event->className = $gmkClass->name;
+    $event->classId = $gmkClass->id;
+    $event->instructorLPId = $DB->get_record('local_learning_users',['userid'=>$gmkClass->instructorid,'learningplanid'=>$gmkClass->learningplanid])->id;
+    
+
+    // The big blue button event doesn't come with the timeduration, so we calculate it and added to the event object
+    // Asign the event color for both cases
+    if($event->modulename === 'bigbluebuttonbn'){
+        $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
+        $event->color = '#2196f3';
+        $event->bigBlueButtonActivityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
+    }else{
+        $event->color = '#00bcd4';
+        $event->attendanceActivityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
+        $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
+        $event->sessionId = $sessionId;
+    }
+    
+    //Set the initial date and the end date of the event
+    $event->start = date('Y-m-d H:i:s',$event->timestart);
+    $event->end = date('Y-m-d H:i:s',$event->timestart + $event->timeduration);
+    
+    //Get the coursename, save the fetched coursenames for minimize db queries
+    if(array_key_exists($event->courseid,$fetchedCourses)){
+        $event->coursename = $fetchedCourses[$event->courseid];
+    }else {
+        $event->coursename = $DB->get_record('course', ['id'=>$event->courseid])->fullname;
+        $fetchedCourses[$event->courseid] = $event->coursename;
+    }
+    
+    return [$event,$fetchedClasses,$fetchedCourses];
 }
 
 function createBigBlueButtonActivity($class,$initDateTS,$endDateTS){

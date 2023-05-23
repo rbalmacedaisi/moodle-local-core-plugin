@@ -401,23 +401,44 @@ Vue.component('classschedule',{
                                 </v-avatar>
                                 <span v-html="selectedEvent.days"></span>
                             </div>
-                            <div v-if="rolInstructor" class="d-flex align-center">
-                                <v-avatar
-                                 size="36px"
-                                 class="mr-2"
-                                >
-                                    <v-icon>mdi-link</v-icon>
-                                </v-avatar>
-                                <v-btn 
-                                   text 
-                                   small 
-                                   :color="selectedEvent.color" 
-                                   :href="selectedEvent.activityUrl"
-                                    class="text-capitalize"
-                                >
-                                  {{lang.activity}}
-                                </v-btn>
+                            <div v-if="rolInstructor">
+                                <div v-if="selectedEvent.details == 'Virtual' || selectedEvent.details == 'Mixta'" class="d-flex align-center">
+                                    <v-avatar
+                                     size="36px"
+                                     class="mr-2"
+                                    >
+                                        <v-icon>mdi-desktop-mac</v-icon>
+                                    </v-avatar>
+                                    <v-btn 
+                                       text 
+                                       small 
+                                       :color="selectedEvent.color" 
+                                       :href="selectedEvent.bigBlueButtonActivityUrl"
+                                        class="text-capitalize"
+                                    >
+                                      Aula Virtual
+                                    </v-btn>
+                                </div>
+                                
+                                <div v-if="selectedEvent.details == 'Presencial' || selectedEvent.details == 'Mixta'" class="d-flex align-center">
+                                    <v-avatar
+                                     size="36px"
+                                     class="mr-2"
+                                    >
+                                        <v-icon>mdi-link</v-icon>
+                                    </v-avatar>
+                                    <v-btn 
+                                       text 
+                                       small 
+                                       :color="selectedEvent.color" 
+                                       :href="selectedEvent.attendanceActivityUrl"
+                                        class="text-capitalize"
+                                    >
+                                      {{lang.activity}}
+                                    </v-btn>
+                                </div>
                             </div>
+                            
                         </v-card-text>
                         <v-card-actions class="d-flex justify-end">
                             <v-btn
@@ -514,7 +535,7 @@ Vue.component('classschedule',{
     created(){
         this.classitems = window.classItems;
         this.instructors = window.instructorItems;
-        this.rolInstructor =false// window.rolInstructor===1;
+        this.rolInstructor =false//window.rolInstructor===1;
         this.getEvents();
     },
     mounted(){
@@ -557,7 +578,6 @@ Vue.component('classschedule',{
                 .then(response => {
                     // Convert the JSON response to an objec.
                     const data = JSON.parse(response.data.events)
-                    console.log(data);
                     // Iterate over each element in the received data.
                     data.forEach((element) => {
                         // Extract the relevant information from each event and add it to the events array.
@@ -573,7 +593,8 @@ Vue.component('classschedule',{
                             timed: true,
                             modulename: element.modulename,
                             moduleId: element.moduleId,
-                            activityUrl: element.activityUrl,
+                            bigBlueButtonActivityUrl: element.bigBlueButtonActivityUrl ? element.bigBlueButtonActivityUrl : null,
+                            attendanceActivityUrl: element.attendanceActivityUrl ? element.attendanceActivityUrl : null,
                             classId: element.classId,
                             className: element.className,
                             sessionId: element.sessionId ? element.sessionId : null,
