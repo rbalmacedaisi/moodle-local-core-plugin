@@ -25,8 +25,40 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
+    $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('plugin', 'local_grupomakro_core')));
+    $classManagementPage =new admin_externalpage(
+        'grupomakro_core_class_management',
+        get_string('class_management', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/classmanagement.php')
+    );
+    $classSchedulesPage =new admin_externalpage(
+        'grupomakro_core_class_schedule',
+        get_string('class_schedules', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/schedules.php')
+    );
+    $availabilityPanelPage =new admin_externalpage(
+        'grupomakro_core_availability_panel',
+        get_string('availability_panel', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/availabilitypanel.php')
+    );
+    $availabilityCalendarPage =new admin_externalpage(
+        'grupomakro_core_availability_calendar',
+        get_string('availability_calendar', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/availability.php')
+    );
+    $institutionManagementPage =new admin_externalpage(
+        'grupomakro_core_institution_management',
+        get_string('institution_management', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php')
+    );
+    $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
+    $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
+    $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
+    $ADMIN->add('grupomakrocore_plugin', $availabilityCalendarPage);
+    $ADMIN->add('grupomakrocore_plugin', $institutionManagementPage);
+    
+    
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
-
     /********
      * Settings page: General Settings.
      */
@@ -159,7 +191,4 @@ if ($hassiteconfig) {
     /**
      * End of settings page: Email Templates.
      */
-
-    
-
 }

@@ -23,7 +23,13 @@
  */
 
 $string['pluginname'] = 'Grupo Makro Core';
+$string['plugin'] = 'Grupo Makro';
 $string['emailtemplates_settingspage'] = 'Plantillas de correo electrónico';
+$string['class_management'] = 'Administrar clases';
+$string['class_schedules'] = 'Horarios de clases';
+$string['availability_panel'] = 'Panel de disponibilidad';
+$string['availability_calendar'] = 'Calendario de disponibilidad';
+$string['institution_management'] = 'Administrar instituciones';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'Ver todas las órdenes';
