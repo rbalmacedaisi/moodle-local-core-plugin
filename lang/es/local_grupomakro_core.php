@@ -195,16 +195,41 @@ $string['phone'] = 'Teléfono';
 $string['courses'] = 'Cursos';
 $string['user'] = 'Usuario';
 $string['adduser'] = 'Agregar Usuario';
+$string['generateEnrolLink'] = 'Generar enlace de matrícula';
+$string['enrolLinkInfo'] = 'Información enlace de matriculación';
+$string['enrolLinkExpirationDate'] = 'Fecha de vencimiento';
+$string['enrolLinkUrl'] = 'Enlace';
+$string['copyEnrolLink'] = 'Copiar URL';
+$string['viewActiveEnrolLinks'] = 'Ver enlaces activos';
 $string['enrollUser'] = 'Matricular Usuario';
+$string['enrolLinkGeneration'] = 'Generación de enlace de matrícula';
 $string['userlist'] = 'Lista de Usuarios';
 $string['selectusers'] = 'Seleccionar Usuario';
 $string['select_courses'] = 'Seleccionar Cursos';
+$string['select_course'] = 'Seleccionar Curso';
 $string['actions'] = 'Acciones';
 $string['userinformation'] = 'Información del usuario';
 $string['details'] = 'Ver Detalle';
 $string['profile'] = 'Perfil';
 $string['memessage'] = 'Mensaje';
 $string['selectcontract'] = 'Seleccionar un contrato';
+
+// Contract Enrol Page.
+$string['contractenrol'] = 'Matriculación contrato';
+$string['contractenrollinkexpirated'] = 'Este link ha vencido.';
+$string['invalidtoken'] = 'Token invalido.';
+$string['enrol'] = 'Matricular';
+$string['enrolUserNotFoundModalMessage'] = 'El documento que ingresaste no parece estar registrado, si te equivocaste puedes volver a intentarlo o tambien puedes crear una cuenta si no tienes una.';
+$string['enrolCreateAccount'] = 'Crear cuenta';
+$string['enrolTryAgain'] = 'Volver a intentar';
+$string['enrolUserNotFound'] = 'No se ha encontrado el usuario';
+$string['enrolGeneralInformation'] = 'Información general';
+$string['enrolContractLabel'] = 'Contrato: ';
+$string['enrolCourseLabel'] = 'Nombre del curso: ';
+$string['enrolUserDocumentLabel'] = 'Número de documento';
+$string['enrolUserFirstName'] = 'Nombre';
+$string['enrolUserLastName'] = 'Apellidos';
+$string['enrolUserEmail'] = 'Correo electrónico';
 
 // Pagina Gestión de clases.
 $string['classmanagement'] = 'Gestión de clases';
@@ -268,3 +293,7 @@ $string['new_class_time'] = 'Hora de la nueva clase';
 $string['activity'] = 'Actividad';
 $string['unable_complete_action'] = 'No es posible completar la acción. El rango seleccionado para edición tiene clases programadas.';
 $string['create'] = 'Crear';
+
+// Pagina Panel de Horarios.
+$string['schedule_panel'] = 'Panel de Horarios';
+$string['scheduleapproval'] = 'Aprobación de horarios';

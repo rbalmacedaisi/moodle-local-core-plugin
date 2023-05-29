@@ -19,8 +19,18 @@ const selectedUserInput = $('#selected-user')
 const contractSelectInput = $('#contractlist')
 const coursesSelectInput = $('#courselist')
 const newContractUserInputs = [selectedUserInput,contractSelectInput,coursesSelectInput]
-
 const addUserButton = $('#add-user-button')
+
+const generateEnrolLinkModal = $('#generateEnrolLinkModal');
+const enrolLinkContractListSelect = $('#enrolLinkContractList');
+const enrolLinkCourseListSelect = $('#enrolLinkCourseList');
+const enrolLinkInputs = [enrolLinkContractListSelect,enrolLinkCourseListSelect];
+const enrolLinkGenerateButton = $('#generate-enrol-button');
+
+const genetaredLinkInfoModal = $('#generatedLinkInfoModal')
+const enrolLinkExpirationDateContainer = $('#enrolLinkExpirationDate')
+const enrolLinkUrlContainer = $('#enrolLinkUrl')
+const enrolUrlClipboardCopyButton = $('#enrolUrlClipboardCopy')
 
 const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract'
 
@@ -35,6 +45,7 @@ let availableUsers;
 let selectedUserToBeCreated
 let institutionContracts
 let selectedContractUserId
+let generatedEnrolLinkUrl
 
 export const init = (institutionId, institutionContractUsers,users,contractNames) => {
     selectedInstitutionContractUsers=institutionContractUsers;
@@ -48,8 +59,53 @@ export const init = (institutionId, institutionContractUsers,users,contractNames
     handleViewUserDetailsButton()
     handleViewUserProfileButtonClick();
     handleDeleteUserContractLinkButtonClick();
-    handleUserCreation()
+    handleUserCreation();
+    handleEnrolLinkGenerateButtonClick()
+    handleEnrolUrlClipboardCopyButton()
 };
+
+const handleEnrolUrlClipboardCopyButton = () => {
+    enrolUrlClipboardCopyButton.click(()=>{
+        window.navigator.clipboard.writeText(generatedEnrolLinkUrl)
+        window.alert('Se ha copiado la url')
+    })
+}
+
+const handleEnrolLinkGenerateButtonClick = () => {
+    enrolLinkGenerateButton.click(()=>{
+        // Check the select inputs and the time inputs
+        const valid = enrolLinkInputs.every(input => {
+            return input.get(0).reportValidity();
+        });
+        if (!valid) {
+            return;
+        }
+        //
+        const args = {
+            contractId:enrolLinkContractListSelect.val(),
+            courseId:enrolLinkCourseListSelect.val()
+        };
+        const promise = Ajax.call([{
+            methodname: 'local_grupomakro_generate_contract_enrol_link',
+            args
+        }, ]);
+        promise[0].done(function(response) {
+            if(response.contractEnrolLink === '-1' ){
+                errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
+                return   
+            }
+            generateEnrolLinkModal.modal('hide');
+            enrolLinkExpirationDateContainer.text(response.expirationDate);
+            enrolLinkUrlContainer.text(response.contractEnrolLink);
+            generatedEnrolLinkUrl = response.contractEnrolLink
+            genetaredLinkInfoModal.modal('show');
+        }).fail(function(error) {
+            console.error(error)
+        });
+        
+    })
+}
 
 const handleUserCreation = () => {
     addUserButton.click(()=>{
@@ -91,22 +147,12 @@ const handleUserCreation = () => {
     })
     
     selectedUserInput.on('input',()=>{
-        $('.contract-inserted-value').remove();
         selectedUserToBeCreated = availableUsers.find(user=>user.username ===selectedUserInput.val())
         if(!selectedUserToBeCreated) {
             contractSelectInput.prop('disabled',true)
             return
         }
-        const selectedUserToBeCreatedContractInfo = selectedInstitutionContractUsers[selectedUserToBeCreated.id]
-        const availableContractsForSelectedUser = !selectedUserToBeCreatedContractInfo? institutionContracts: institutionContracts.filter(contract =>{
-             return !selectedUserToBeCreatedContractInfo.contracts.some(userContract=> userContract.id === contract.id)
-        })
-        let contractListOptions = ''
-        availableContractsForSelectedUser.forEach(contractOption=>{
-            contractListOptions+= `<option class="contract-inserted-value" value="${contractOption.id}">${contractOption.contractId}</option>`
-        })
         contractSelectInput.removeAttr('disabled')
-        contractSelectInput.html(contractSelectInput.html() + contractListOptions)
     })
     
 }
@@ -202,8 +248,9 @@ const handleViewUserDetailsButton = () => {
                 <div class="contracicon d-flex align-items-center">
                     <img class="icon " alt="" aria-hidden="true" src="${contractIcon}">
                     <span class="ml-2">${contract.contractId}</span>
+                    <span class="ml-2">${contract.courseName}</span>
                 </div>
-                <a href="#" class="text-secondary delete-contract-user-link" contract-user-id="${contract.contractUserId}">
+                <a href="#" class="text-secondary delete-contract-user-link" contract-user-id="${contract.id}">
                     <i class="fa fa-trash" style="font-size:20px"></i>
                 </a>
             </li>`

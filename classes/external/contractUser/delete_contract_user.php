@@ -32,7 +32,7 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -79,7 +79,7 @@ class delete_contract_user extends external_api {
             return ['deletedContractUserId' => $deletedContractUserId, 'message'=>'ok'];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['deletedContractUserId' => -1, 'message' => $e->getMessage()];
         }
 

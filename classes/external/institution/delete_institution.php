@@ -32,7 +32,6 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -76,7 +75,7 @@ class delete_institution extends external_api {
             $deletedInstitution = get_institutions(['id'=>$id])[0];
             
             if($deletedInstitution->numberOfContracts >0){
-                throw new MyException('La institución tiene contratos activos. No se puede eliminar.');
+                throw new Exception('La institución tiene contratos activos. No se puede eliminar.');
             }
             
             $deleteInstitutionId = $DB->delete_records('gmk_institution',['id'=>$id]);
@@ -84,7 +83,7 @@ class delete_institution extends external_api {
             return ['institutionId' => $deleteInstitutionId, 'message'=>'ok'];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['institutionId' => -1, 'message' => $e->getMessage()];
         }
 

@@ -32,6 +32,7 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use DateTime;
+use Exception;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -58,7 +59,7 @@ class get_teachers_disponibility_calendar extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_OPTIONAL)
+                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null)
             ]
         );
     }

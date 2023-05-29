@@ -22,14 +22,15 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+// Admin Menú Strings
 $string['pluginname'] = 'Grupo Makro Core';
 $string['plugin'] = 'Grupo Makro';
 $string['emailtemplates_settingspage'] = 'Email templates';
 $string['class_management'] = 'Class Management';
-$string['class_schedules'] = 'Class Management';
-$string['availability_panel'] = 'Class Management';
-$string['availability_calendar'] = 'Class Management';
-$string['institution_management'] = 'Class Management';
+$string['class_schedules'] = 'Class Schedules';
+$string['availability_panel'] = 'Availability Panel';
+$string['availability_calendar'] = 'Availability Calendar';
+$string['institution_management'] = 'Institution Management';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'See all orders';
@@ -194,16 +195,43 @@ $string['phone'] = 'Phone';
 $string['courses'] = 'Courses';
 $string['user'] = 'User';
 $string['adduser'] = 'Add User';
+$string['generateEnrolLink'] = 'Generate enrol Link';
+$string['enrolLinkInfo'] = 'Enrol Link Information';
+$string['enrolLinkExpirationDate'] = 'Expiration Date';
+$string['enrolLinkUrl'] = 'Url';
+$string['copyEnrolLink'] = 'Copy Url';
+$string['viewActiveEnrolLinks'] = 'View Active Links';
 $string['enrollUser'] = 'Enroll User';
+$string['enrolLinkGeneration'] = 'Enrol Link Generation';
 $string['userlist'] = 'User List';
 $string['selectusers'] = 'Select user';
 $string['select_courses'] = 'Select courses';
+$string['select_course'] = 'Select course';
 $string['actions'] = 'Actions';
 $string['userinformation'] = 'User information';
 $string['details'] = 'Details';
 $string['profile'] = 'Profile';
 $string['memessage'] = 'Memessage';
 $string['selectcontract'] = 'Select a contract';
+
+// Contract Enrol Page.
+$string['contractenrol'] = 'Contract Enrol';
+$string['contractenrollinkexpirated'] = 'This link has expired.';
+$string['invalidtoken'] = 'Invalid Token.';
+$string['enrol'] = 'Enrol';
+$string['enrolUserNotFoundModalMessage'] = 'It seems the document provided is not registered, either create a new account or try again.';
+$string['enrolCreateAccount'] = 'Create account';
+$string['enrolTryAgain'] = 'Try again';
+$string['enrolUserNotFound'] = 'User not found';
+$string['enrolGeneralInformation'] = 'General information';
+$string['enrolContractLabel'] = 'Contract: ';
+$string['enrolCourseLabel'] = 'Course name: ';
+$string['enrolUserDocumentLabel'] = 'Document Number';
+$string['enrolUserFirstName'] = 'FirstName';
+$string['enrolUserLastName'] = 'LastName';
+$string['enrolUserEmail'] = 'Email';
+
+
 
 // Class Management Page.
 $string['classmanagement'] = 'Class Management';
@@ -267,3 +295,7 @@ $string['new_class_time'] = 'New class time';
 $string['activity'] = 'Activity';
 $string['unable_complete_action'] = 'Unable to complete action. The range selected for editing has scheduled classes.';
 $string['create'] = 'Create';
+
+// Schedule Panel page.
+$string['schedule_panel'] = 'Schedule Panel';
+$string['scheduleapproval'] = 'Schedule approval';

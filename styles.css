@@ -647,3 +647,10 @@ span.badge.text-white{
     padding-right: 25px; /* Adjust this value based on the suffix width */
 }
 /*************************************************************************/
+
+/*Style for then enrol contract course url modal container*/
+#enrolLinkUrl {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

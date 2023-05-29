@@ -28,6 +28,9 @@
                         <label for="contractlist" class="col-form-label">{{#str}} contracts, local_grupomakro_core {{/str}}:</label>
                         <select name="contraclist" id="contractlist" class="form-control" disabled required>
                             <option value=''>{{#str}} selectcontract, local_grupomakro_core {{/str}}</option>
+                            {{#contracts}}
+                            <option value="{{id}}">{{contractId}}</option>
+                            {{/contracts}}
                         </select>
                     </div>
                     {{! End Contract List }}

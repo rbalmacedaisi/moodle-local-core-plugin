@@ -32,7 +32,7 @@ use external_single_structure;
 use external_multiple_structure;
 use external_value;
 use Exception;
-class MyException extends Exception {}
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -87,14 +87,14 @@ class delete_teacher_disponibility extends external_api {
             
             if(count($instructorAsignedClasses)>0){
                 $errorString = "El instructor tiene clases asignadas, no se puede eliminar la disponibilidad.";
-                throw new MyException($errorString);
+                throw new Exception($errorString);
             }
             $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorId]);
 
             // Return the result.
             return ['status' => $deleteDisponibilityRecord, 'message' => 'ok'];
         }
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }

@@ -1,0 +1,19 @@
+<div class="modal fade" id="generatedLinkInfoModal" tabindex="-1" role="dialog" aria-labelledby="generatedLinkInfoModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title position-absolute">{{#str}}enrolLinkInfo, local_grupomakro_core {{/str}}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body px-4">
+                <p><strong>{{#str}}enrolLinkExpirationDate, local_grupomakro_core {{/str}}: </strong><div id="enrolLinkExpirationDate"></div></p>
+                <p><strong>{{#str}}enrolLinkUrl, local_grupomakro_core {{/str}}: </strong><div id="enrolLinkUrl"></div><button id="enrolUrlClipboardCopy">{{#str}}copyEnrolLink, local_grupomakro_core {{/str}}</button></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} close, local_grupomakro_core {{/str}}</button>
+            </div>
+        </div>
+    </div>
+</div>

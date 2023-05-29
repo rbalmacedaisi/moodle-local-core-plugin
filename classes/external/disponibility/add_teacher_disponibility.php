@@ -32,6 +32,8 @@ use external_single_structure;
 use external_multiple_structure;
 use external_value;
 use stdClass;
+use Exception;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';

@@ -38,6 +38,7 @@ $PAGE->set_heading(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_pagelayout('base');
 $institutionId = required_param('id', PARAM_TEXT);
 
+
 if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('institutionmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php'));
 }
@@ -58,7 +59,8 @@ $users =array_values( array_map(function ($user){
 },$users));
 
 $institution = get_institution_contract_panel_info($institutionId);
-
+// print_object(uniqid());
+// die;
 
 $courses = $DB->get_records('course');
 $courses =array_values( array_map(function ($course){
@@ -85,6 +87,8 @@ $table->head = array(
     get_string('options', $plugin_name),
     
 );
+
+
 
 foreach ($institution->institutionInfo->contracts as $contract) {
     $displaycontract = html_writer::start_tag('div', array('class' => 'd-flex align-items-center'));
@@ -153,6 +157,8 @@ $userstable->head = array(
     
 );
 
+
+
 foreach ($institution->contractUsers as $contractUser) {
     
     $userprofile = html_writer::start_tag('div', array('class' => 'd-flex align-center', 'style' => 'gap: 16px;'));
@@ -188,7 +194,8 @@ $templatedata = [
     'numberOfContracts' => $institution->institutionInfo->numberOfContracts,
     'numberOfUsers'=>$institution->institutionInfo->numberOfUsers,
     'users'=>$users,
-    'courses'=>$courses
+    'courses'=>$courses,
+    'contracts'=>$institution->institutionInfo->contractNames
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/institutionalcontracts', $templatedata);

@@ -298,6 +298,53 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20230329018, 'local', 'grupomakro_core');
 
     }
+    
+    if ($oldversion < 20230329019) {
+    
+        // Rename field contractid on table gmk_contract_user to NEWNAMEGOESHERE.
+        $table = new xmldb_table('gmk_contract_user');
+        $field = new xmldb_field('courseids', XMLDB_TYPE_CHAR, '256', null, XMLDB_NOTNULL, null, null, 'userid');
+    
+        // Launch rename field contractid.
+        $dbman->rename_field($table, $field, 'courseid');
+
+        $field = new xmldb_field('courseid', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null, 'contractid');
+
+        // Launch change of type for field courseids.
+        $dbman->change_field_type($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230329019, 'local', 'grupomakro_core');
+
+    }
+    
+     if ($oldversion < 20230329020) {
+
+        // Define table gmk_contract_enrol_link to be created.
+        $table = new xmldb_table('gmk_contract_enrol_link');
+
+        // Adding fields to table gmk_contract_enrol_link.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('contractid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('token', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('expirationdate', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table gmk_contract_enrol_link.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Conditionally launch create table for gmk_contract_enrol_link.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230329020, 'local', 'grupomakro_core');
+    }
 
 
     return true;

@@ -177,7 +177,6 @@ foreach ($contract_data as $contract) {
                 'data-toggle'=>'modal', 'data-target'=> '#confirmModalCenter'
             )
         );
-        
     }
     
     // Fill the table with the contract data.

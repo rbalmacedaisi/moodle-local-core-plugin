@@ -48,6 +48,7 @@
                 <input type="file" class="form-control-file form-control p-0" id="upload_massive_inst_users" data-initial-value="" name='massivecsv'>
             </form>
             <a class="btn btn-primary m-1" data-toggle='modal' data-target='#addUserInstitutionModalLong'>{{#str}}adduser, local_grupomakro_core{{/str}}</a>
+            <a class="btn btn-primary m-1" data-toggle='modal' data-target='#generateEnrolLinkModal'>{{#str}}generateEnrolLink, local_grupomakro_core{{/str}}</a>
         </div>
     </div>
     <div class="row">
@@ -57,4 +58,6 @@
     </div>
 </div>
 {{> local_grupomakro_core/modals/add_users_institutions }}
+{{> local_grupomakro_core/modals/generate_enrol_link_modal }}
+{{> local_grupomakro_core/modals/generated_link_info_modal }}
 {{> local_grupomakro_core/modals/userinfo_modal }}

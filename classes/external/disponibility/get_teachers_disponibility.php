@@ -33,6 +33,8 @@ use external_value;
 use stdClass;
 use DateTime;
 use DateInterval;
+use Exception;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
@@ -58,7 +60,7 @@ class get_teachers_disponibility extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_OPTIONAL)
+                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null)
             ]
         );
     }

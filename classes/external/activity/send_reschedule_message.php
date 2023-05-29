@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external;
+namespace local_grupomakro_core\external\activity;
 
 use context_system;
 use external_api;
@@ -32,7 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -69,7 +70,7 @@ class send_reschedule_message extends external_api {
                 'originalHour' => new external_value(PARAM_TEXT, ''),
                 'proposedDate' => new external_value(PARAM_TEXT, ''),
                 'proposedHour' => new external_value(PARAM_TEXT, ''),
-                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_OPTIONAL),
+                'sessionId' => new external_value(PARAM_TEXT, '',VALUE_DEFAULT,null),
             ]
         );
     }
@@ -179,7 +180,7 @@ class send_reschedule_message extends external_api {
             // // ---------------------------------------------------------------------------------------------------------------------------------
 
             return ['status' => 1, 'message' => 'ok'];
-        }catch (MyException $e) {
+        }catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }

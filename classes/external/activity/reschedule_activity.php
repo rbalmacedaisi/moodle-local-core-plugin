@@ -33,13 +33,12 @@ use external_value;
 use stdClass;
 use DateTime;
 use Exception;
-class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once $CFG->libdir . '/externallib.php';
+// require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
-require_once $CFG->dirroot. '/group/externallib.php';
+// require_once $CFG->dirroot. '/group/externallib.php';
 require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 
 /**
@@ -65,7 +64,7 @@ class reschedule_activity extends external_api {
                 'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity'),
                 'initTime' => new external_value(PARAM_TEXT, 'The init time for the session'),
                 'endTime' => new external_value(PARAM_TEXT, 'The end time for the session'),
-                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_OPTIONAL),
+                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_DEFAULT,null),
             ]
         );
     }
@@ -173,7 +172,7 @@ class reschedule_activity extends external_api {
             return ['status' => 1, 'message'=>'ok'];
             
         }
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
         

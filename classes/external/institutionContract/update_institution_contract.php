@@ -32,7 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -93,7 +94,7 @@ class update_institution_contract extends external_api {
             $contractWithPossibleDuplicateIdentifier = $DB->get_record('gmk_institution_contract', array('contractid'=>$contractId, 'institutionid'=>$institutionId));
             
             if($institutionContractUpdated->contractid !== $contractId &&$contractWithPossibleDuplicateIdentifier && $contractWithPossibleDuplicateIdentifier->id!== $id){
-                throw new MyException('Existe un contrato con el identificador proporcionado.');
+                throw new Exception('Existe un contrato con el identificador proporcionado.');
             }
             
             $institutionContractUpdated->contractid = $contractId;
@@ -108,7 +109,7 @@ class update_institution_contract extends external_api {
             return ['institutionContractId' => $institutionContractUpdated, 'message'=>'ok'];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['institutionContractId' => -1, 'message' => $e->getMessage()];
         }
 

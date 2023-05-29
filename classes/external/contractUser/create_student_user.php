@@ -48,7 +48,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class update_contract_user extends external_api {
+class generate_contract_enrol_link extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -57,7 +57,11 @@ class update_contract_user extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
-            []
+            [
+                'contractId' => new external_value(PARAM_TEXT, 'The id of the contract'),
+                'courseId' => new external_value(PARAM_TEXT, 'The course in the contract'),
+                
+            ]
         );
     }
 
@@ -67,15 +71,44 @@ class update_contract_user extends external_api {
      * @param int $userid
      * @return mixed TODO document
      */
-    public static function execute() {
+    public static function execute(
+            string $contractId,
+            string $courseId
+        ) {
         global $DB,$USER;
         
         try{
-            return ['institutionId' => 'ok', 'message'=>'ok'];
+            if($contractEnrolLinkRecord = $DB->get_record('gmk_contract_enrol_link',['contractid'=>$contractId, 'courseid'=>$courseId])){
+                if(time() > $contractEnrolLinkRecord->expirationdate){
+                    $DB->delete_records('gmk_contract_enrol_link',['id'=>$contractEnrolLinkRecord->id]);
+                }
+                else{
+                    $url = 'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/contractenrol.php?token='.$contractEnrolLinkRecord->token;
+                    return ['contractEnrolLink' => $url, 'expirationDate'=>date("Y-m-d", $contractEnrolLinkRecord->expirationdate) ,'message' =>'ok'];
+                }
+            } 
+            $contractEnrolLinkToken = md5(uniqid());
+            $contractEnrolLinkExpirationDate = time()+259200 ;
+            
+            
+            $contractEnrolLink = new stdClass();
+            $contractEnrolLink->contractid = $contractId;
+            $contractEnrolLink->courseid = $courseId;
+            $contractEnrolLink->token = $contractEnrolLinkToken;
+            $contractEnrolLink->expirationdate = $contractEnrolLinkExpirationDate;
+            $contractEnrolLink->timecreated = time();
+            $contractEnrolLink->timemodified = time();
+            $contractEnrolLink->usermodified = $USER->id;
+            
+            $contractEnrolLink->id = $DB->insert_record('gmk_contract_enrol_link',$contractEnrolLink);
+            
+            $contractEnrolLink->url = 'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/contractenrol.php?token='.$contractEnrolLinkToken;
+            
+            return ['contractEnrolLink' => $contractEnrolLink->url,'expirationDate'=>date("Y-m-d", $contractEnrolLink->expirationdate), 'message'=>'ok'];
         }
         
         catch (Exception $e) {
-            return ['institutionId' => -1, 'message' => $e->getMessage()];
+            return ['contractEnrolLink' => '-1', 'expirationDate'=>'' ,'message' => $e->getMessage()];
         }
 
     }
@@ -88,7 +121,8 @@ class update_contract_user extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'institutionId' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'contractEnrolLink' => new external_value(PARAM_TEXT, 'The ID of the delete class or -1 if there was an error.'),
+                'expirationDate' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );

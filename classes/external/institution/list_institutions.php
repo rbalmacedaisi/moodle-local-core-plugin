@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\gmkclass;
+namespace local_grupomakro_core\external\institution;
 
 use context_system;
 use external_api;
@@ -32,7 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -74,7 +75,7 @@ class list_institutions extends external_api {
             return ['institutionId' => 'ok', 'message'=>'ok'];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['institutionId' => -1, 'message' => $e->getMessage()];
         }
 

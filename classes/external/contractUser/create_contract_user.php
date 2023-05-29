@@ -32,7 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -80,23 +81,48 @@ class create_contract_user extends external_api {
         global $DB,$USER;
         
         try{
-            if($DB->get_record('gmk_contract_user',['userid'=>$userId, 'contractid'=>$contractId])){
-                throw new MyException('Ya existe un registro del usuario para el contrato escogido.');
-            }
-            $newContractUser = new stdClass();
-            $newContractUser->userid = $userId;
-            $newContractUser->contractid = $contractId;
-            $newContractUser->courseids = $courseIds;
-            $newContractUser->timecreated = time();
-            $newContractUser->timemodified = time();
-            $newContractUser->usermodified = $USER->id;
+            $enrolplugin = enrol_get_plugin('manual');
+            $courseIds = explode(',',$courseIds);
             
-            $newContractUser->id = $DB->insert_record('gmk_contract_user',$newContractUser);
+            $contractUserRecords = new stdClass();
+            $contractUserRecords->failure = array();
+            $contractUserRecords->success = array();
+            
+            foreach($courseIds as $courseId){
+                $instance = get_manual_enroll($courseId);
+                if($DB->get_record('gmk_contract_user',['userid'=>$userId, 'contractid'=>$contractId, 'courseid'=>$courseId]) || !$instance){
+                    $contractUserRecords->failure[]=$courseId;
+                    continue;
+                }
+                $enrolled = $enrolplugin->enrol_user($instance, $userId, 5);
+                
+                $newContractUserRecord = new stdClass();
+                $newContractUserRecord->userid = $userId;
+                $newContractUserRecord->contractid = $contractId;
+                $newContractUserRecord->courseid = $courseId;
+                $newContractUserRecord->timecreated = time();
+                $newContractUserRecord->timemodified = time();
+                $newContractUserRecord->usermodified = $USER->id;
+                
+                $newContractUserRecord->id = $DB->insert_record('gmk_contract_user',$newContractUserRecord);
+                $contractUserRecords->success[]=$courseId;
+            }
+            
+            $message = 'ok';
+            if(count($contractUserRecords->failure)>0){
+                $message = 'Los siguientes cursos no se pudieron agregar al contrato, puede que ya esten inscritos o haya habido un error: ';
+                foreach($contractUserRecords->failure as $failedCourseId){
+                    $message=$message.$DB->get_record('course',['id'=>$failedCourseId])->fullname.'('.$failedCourseId.'), ';
+                }
 
-            return ['contractUserId' => $newContractUser->id, 'message'=>'ok'];
+                if(count($contractUserRecords->success)===0){
+                    throw new Exception($message);
+                }
+            }
+            return ['contractUserId' => 1, 'message'=>$message];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['contractUserId' => -1, 'message' => $e->getMessage()];
         }
 

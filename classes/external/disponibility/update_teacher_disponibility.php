@@ -33,7 +33,8 @@ use external_multiple_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -74,7 +75,7 @@ class update_teacher_disponibility extends external_api {
                     ),
                     'Array of availability records for each day of the week'
                 ),
-                'newInstructorId' => new external_value(PARAM_INT, 'ID of the new instructor that will take the old instructor disponibility and classes', VALUE_OPTIONAL),
+                'newInstructorId' => new external_value(PARAM_INT, 'ID of the new instructor that will take the old instructor disponibility and classes', VALUE_DEFAULT,null),
             ],
             'Parameters for setting instructor availability'
         );
@@ -150,7 +151,7 @@ class update_teacher_disponibility extends external_api {
                 foreach($instructorAsignedClass->selectedDaysEN as $classDay){
                      if(!in_array(strtolower($classDay),$disponibilityDays)){
                         $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
-                        throw new MyException($errorString);
+                        throw new Exception($errorString);
                     }
                     
                     $foundedRange = false;
@@ -163,7 +164,7 @@ class update_teacher_disponibility extends external_api {
                     }
                     if(!$foundedRange){
                         $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
-                        throw new MyException($errorString);
+                        throw new Exception($errorString);
                     }
                 }
                 // -----------------------------------------------------------------------------------------
@@ -173,13 +174,13 @@ class update_teacher_disponibility extends external_api {
             if($newInstructorId && $newInstructorId !== $instructorId){
                 if($DB->get_record('gmk_teacher_disponibility', array('userid'=>$newInstructorId))){
                     $errorString = 'El nuevo instructor ya tiene una disponibilidad definida.';
-                    throw new MyException($errorString);
+                    throw new Exception($errorString);
                 }
                 
                 foreach($classLearningPlans as $classLearningPlan){
                     if(!$DB->get_record('local_learning_users', array('userid'=>$newInstructorId, 'learningplanid'=>$classLearningPlan, 'userrolename'=>'teacher'))){
                         $errorString = 'El nuevo instructor no esta en el plan de aprendizaje '.$DB->get_record('local_learning_plans', array('id'=>$classLearningPlan))->name.' ('.$classLearningPlan.')';
-                        throw new MyException($errorString);
+                        throw new Exception($errorString);
                     }
                 }
                 
@@ -220,7 +221,7 @@ class update_teacher_disponibility extends external_api {
             
             // Return the result.
             return ['status' => $disponibilityRecordId, 'message' => 'ok'];
-        } catch (MyException $e) {
+        } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
         

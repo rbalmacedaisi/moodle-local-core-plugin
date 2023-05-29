@@ -32,7 +32,6 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -63,8 +62,8 @@ class check_reschedule_conflicts extends external_api {
                 'moduleId'=> new external_value(PARAM_TEXT, 'Id of the course module.'),
                 'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity'),
                 'initTime' => new external_value(PARAM_TEXT, 'The init time for the session'),
-                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session', VALUE_OPTIONAL),
-                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_OPTIONAL),
+                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session', VALUE_DEFAULT,null),
+                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_DEFAULT,null),
             ]
         );
     }
@@ -138,7 +137,7 @@ class check_reschedule_conflicts extends external_api {
             }
             if(!$foundedAvailableRange){
                 $errorString = "El instructor no esta disponible el día ".$incomingWeekDay." en el horário: ".$initTime." - ".$endTime ;
-                throw new MyException($errorString);
+                throw new Exception($errorString);
             }
             // --------------------------------------------------------------------
             
@@ -173,12 +172,11 @@ class check_reschedule_conflicts extends external_api {
             // Return the result.
             if(count($groupMembersWithConflicts)!==0){
                 $errorString=count($groupMembersWithConflicts).' de los ('.count($groupMembers).') miembros del grupo presentan conflictos con el nuevo horario; no se puede reprogramar.';
-               throw new MyException($errorString);
             }
             return ['status' => 1, 'message'=>'La reprogramación no presenta ningun conflicto, puedes continuar'];
             
         }
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }

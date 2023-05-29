@@ -761,34 +761,45 @@ function get_institution_contracts($filters = null){
          $institutionContract->formattedBudget =number_format($institutionContract->budget, 0, '.', '.');
          $institutionContract->formattedBillingCondition =$institutionContract->billingcondition . '%';
          
-         $institutionContract->users =get_contract_users(['contractid'=>$institutionContract->id]);
+         $institutionContract->users =get_contract_users($institutionContract->contractid,['contractid'=>$institutionContract->id]);
          $institutionContract->usersCount = 0;
          foreach($institutionContract->users as $institutionContractUser){
              $institutionContract->usersCount+=count($institutionContractUser->courses);
          }
     }
-    
     // Return the updated array of institution objects
     return array_values($institutionContracts);
 }
 
-function get_contract_users($filters=null){
+function get_contract_users($contractName,$filters=null){
     global $DB; // Assuming $DB is a globally accessible database object
+    $contractUserRecords = $DB->get_records('gmk_contract_user',$filters);
+    $contractUsers = [];
     
-    $contractUsers = $DB->get_records('gmk_contract_user',$filters);
     
-    foreach($contractUsers as $contractUser){
-        $userInfo = $DB->get_record('user',['id'=>$contractUser->userid]);
-        $contractUser->phone = $userInfo->phone1?$userInfo->phone1:'Sin definir';
-        $contractUser->email = $userInfo->email;
-        $contractUser->fullname = $userInfo->firstname.' '.$userInfo->lastname;
-        $contractUser->avatar = my_get_user_picture_url($userInfo->id);
-        $contractUser->profileUrl = 'https://grupomakro-dev.soluttolabs.com/user/profile.php?id='.$userInfo->id;
-        $contractUser->courses= array_map(function($courseId) use ($DB){
-            return $DB->get_record('course',['id'=>$courseId])->fullname;
-        }, explode(',',$contractUser->courseids));
+    
+    foreach($contractUserRecords as $contractUserRecord){
+        $contractCourse = $DB->get_record('course',['id'=>$contractUserRecord->courseid]);
+        $contractUserRecordInstance = clone $contractUserRecord;
+        $contractUserRecordInstance->courseName = $contractCourse->fullname;
+        $contractUserRecordInstance->contractName = $contractName;
+        
+        if(array_key_exists($contractUserRecord->userid,$contractUsers)){
+            $contractUsers[$contractUserRecord->userid]->contractInstances[]= $contractUserRecordInstance;
+            $contractUsers[$contractUserRecord->userid]->courses[]=$contractCourse->fullname;
+            continue;
+        }
+        $contractUserRecord->contractInstances=[$contractUserRecordInstance];
+        $userInfo = $DB->get_record('user',['id'=>$contractUserRecord->userid]);
+        $contractUserRecord->phone = $userInfo->phone1?$userInfo->phone1:'Sin definir';
+        $contractUserRecord->email = $userInfo->email;
+        $contractUserRecord->fullname = $userInfo->firstname.' '.$userInfo->lastname;
+        $contractUserRecord->avatar = my_get_user_picture_url($userInfo->id);
+        $contractUserRecord->profileUrl = 'https://grupomakro-dev.soluttolabs.com/user/profile.php?id='.$userInfo->id;
+        $contractUserRecord->courses=[$contractCourse->fullname];
+        
+        $contractUsers[$contractUserRecord->userid]= $contractUserRecord;
     }
-    
     return array_values($contractUsers);    
 }
 
@@ -798,13 +809,26 @@ function get_contract_users_by_institution($institutionContracts){
     foreach($institutionContracts as $institutionContract){
         foreach($institutionContract->users as $institutionContractUser){
             if(!array_key_exists($institutionContractUser->userid,$contractUsers)){
-                $contractUsers[$institutionContractUser->userid] = $institutionContractUser;
-                $contractUsers[$institutionContractUser->userid]->acquiredContracts = 1;
-                $contractUsers[$institutionContractUser->userid]->contracts = [['id'=>$institutionContract->id,'contractId'=>$institutionContract->contractid,'contractUserId'=>$institutionContractUser->id]];
+                $institutionContractUserInstance = new stdClass();
+                $institutionContractUserInstance->userid = $institutionContractUser->userid;
+                $institutionContractUserInstance->phone = $institutionContractUser->phone;
+                $institutionContractUserInstance->email = $institutionContractUser->email;
+                $institutionContractUserInstance->fullname = $institutionContractUser->fullname;
+                $institutionContractUserInstance->avatar = $institutionContractUser->avatar;
+                $institutionContractUserInstance->profileUrl = $institutionContractUser->profileUrl;
+                $institutionContractUserInstance->courses = $institutionContractUser->courses;
+                $institutionContractUserInstance->acquiredContracts = 1;
+                $institutionContractUserInstance->contracts = [];
+                foreach($institutionContractUser->contractInstances as $contractInstance){
+                    $institutionContractUserInstance->contracts[]=['id'=>$contractInstance->id,'contractId'=>$contractInstance->contractName,'courseName'=>$contractInstance->courseName];
+                }
+                $contractUsers[$institutionContractUser->userid] = $institutionContractUserInstance;
                 continue;
             }
             $contractUsers[$institutionContractUser->userid]->acquiredContracts += 1;
-            $contractUsers[$institutionContractUser->userid]->contracts[]=['id'=>$institutionContract->id,'contractId'=>$institutionContract->contractid,'contractUserId'=>$institutionContractUser->id];
+            foreach($institutionContractUser->contractInstances as $contractInstance){
+                    $contractUsers[$institutionContractUser->userid]->contracts[]=['id'=>$contractInstance->id,'contractId'=>$contractInstance->contractName,'courseName'=>$contractInstance->courseName];
+            }
             foreach($institutionContractUser->courses as $institutionContractUserCourse){
                 !in_array($institutionContractUserCourse, $contractUsers[$institutionContractUser->userid]->courses)?
                     $contractUsers[$institutionContractUser->userid]->courses[]=$institutionContractUserCourse:
@@ -813,6 +837,7 @@ function get_contract_users_by_institution($institutionContracts){
             
         }
     }
+    
     foreach($contractUsers as $contractUser){
         $contractUser->coursesString = implode(', ',$contractUser->courses);
     }
@@ -823,7 +848,42 @@ function get_contract_users_by_institution($institutionContracts){
 function get_institution_contract_panel_info($institutionId){
     $institutionDetailedInfo = new stdClass();
     $institutionDetailedInfo->institutionInfo = get_institutions(['id'=>$institutionId])[0];
+    
     $institutionDetailedInfo->contractUsers = get_contract_users_by_institution($institutionDetailedInfo->institutionInfo->contracts);
     $institutionDetailedInfo->institutionInfo->numberOfUsers = count($institutionDetailedInfo->contractUsers);
     return $institutionDetailedInfo;
+}
+
+/**
+ * Get instance of manual enrol
+ *
+ * @param int $courseid
+ * @return stdClass instance
+ */
+function get_manual_enroll($courseid) {
+    $instances = enrol_get_instances($courseid, true);
+    foreach ($instances as $instance) {
+        if ($instance->enrol = 'manual') {
+            return $instance;
+        }
+    }
+    return false;
+}
+
+function check_enrol_link_validity($token){
+    global $DB;
+    
+    $enrolLinkRecord = $DB->get_record('gmk_contract_enrol_link',['token'=>$token]);
+    if(!$enrolLinkRecord){
+        throw new Exception(get_string('invalidtoken', $plugin_name));
+    }
+    else if(time()>$enrolLinkRecord->expirationdate){
+        
+        throw new Exception(get_string('contractenrollinkexpirated', $plugin_name));
+    }
+    
+    $enrolLinkRecord->courseName = $DB->get_record('course',['id'=>$enrolLinkRecord->courseid])->fullname;
+    $enrolLinkRecord->contractId = $DB->get_record('gmk_institution_contract',['id'=>$enrolLinkRecord->contractid])->contractid;
+    
+    return $enrolLinkRecord;
 }

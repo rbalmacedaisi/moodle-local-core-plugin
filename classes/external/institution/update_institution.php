@@ -32,7 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-class MyException extends Exception {}
+
+
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -82,7 +83,7 @@ class update_institution extends external_api {
             $institutionUpdated = $DB->get_record('gmk_institution', array('id'=>$id));
             
             if($institutionUpdated->institutionid !== $institutionId && $DB->get_record('gmk_institution', array('institutionid'=>$institutionId))){
-                throw new MyException('Existe una institución con el identificador proporcionado');
+                throw new Exception('Existe una institución con el identificador proporcionado');
             }
             
             $institutionUpdated->name = $name;
@@ -95,7 +96,7 @@ class update_institution extends external_api {
             return ['institutionId' => $institutionUpdated, 'message'=>'ok'];
         }
         
-        catch (MyException $e) {
+        catch (Exception $e) {
             return ['institutionId' => -1, 'message' => $e->getMessage()];
         }
 

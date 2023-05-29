@@ -31,6 +31,7 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
+use Exception;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -56,17 +57,17 @@ class list_classes extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'id' => new external_value(PARAM_TEXT, 'Id of the class.',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class',VALUE_OPTIONAL,null,NULL_ALLOWED),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_OPTIONAL,null,NULL_ALLOWED)
+                'id' => new external_value(PARAM_TEXT, 'Id of the class.',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'name' => new external_value(PARAM_TEXT, 'Name of the class.',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'instance' => new external_value(PARAM_INT, 'Id of the instance.',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class',VALUE_DEFAULT,null,NULL_ALLOWED),
+                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_DEFAULT,null,NULL_ALLOWED)
             ]
         );
     }

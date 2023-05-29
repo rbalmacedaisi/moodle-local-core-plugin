@@ -1,0 +1,103 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template local_grupomakro_core/create_contract
+
+    Template purpose and description.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * attributes Array of name / value pairs.
+
+    Example context (json):
+    {
+        "attributes": [
+            { "name": "src", "value": "https://example.com/imgs/logo.png" },
+            { "name": "class", "value": "iconsmall" }
+        ]
+    }
+}}
+
+<div class="container-fluid">   
+    <div class="row">
+        <div class="col-sm-12 col-md-12 col-lg-12 col-xl-12 px-md-0">
+            <div class="card px-4 pt-3">
+                <form>
+                    <div class="row mt-2 mx-0 rounded">
+                        {{!----}}
+                        <div class="col-sm-12 col-md-12 form-group">     
+                            <h4 class="w-100 pt-2">{{#str}} enrolGeneralInformation, local_grupomakro_core {{/str}}</h4>
+                            <div id="enrol-link-info">
+                                <div><p class="mt-2 mb-0"><strong>{{#str}} enrolContractLabel, local_grupomakro_core {{/str}}</strong>{{contractId}}</p></div>
+                                <div><p class="mb-0"><strong>{{#str}} enrolCourseLabel, local_grupomakro_core {{/str}}</strong>{{courseName}}</p></div>
+                            </div>
+                        </div> 
+                        {{!----}}
+                        <div class="spacer"></div>
+                        {{!----}}
+                        <div id="document-check-input" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="userCheckIdentificationNumber">{{#str}} enrolUserDocumentLabel, local_grupomakro_core {{/str}}</label>
+                            <input type="text" class="form-control" id="userCheckIdentificationNumber" required>
+                        </div>
+                        {{!----}}
+                        
+                        <div id="create-user-inputs" class="row pb-5 mt-2 mx-0" style="display:none;">
+                            <div class="col-12">
+                                <hr> </hr>
+                            </div>
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="userIdentificationNumber">{{#str}} enrolUserDocumentLabel, local_grupomakro_core {{/str}}</label>
+                                <input type="text" class="form-control" id="userIdentificationNumber" required>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="userFirstName">{{#str}} enrolUserFirstName, local_grupomakro_core {{/str}}</label>
+                                <input type="text" class="form-control" id="userFirstName" required>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="userLastName">{{#str}} enrolUserLastName, local_grupomakro_core {{/str}}</label>
+                                <input type="text" class="form-control" id="userLastName" required>
+                            </div>
+                            
+                            <div class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="userEmail">{{#str}} enrolUserEmail, local_grupomakro_core {{/str}}</label>
+                                <input type="email" class="form-control" id="userEmail" required>
+                            </div>
+                        </div> 
+                    </div> 
+                    
+                </form>
+                    {{! Actions }}
+                    <div class="d-flex card-footer bg-transparent mt-3 px-0">
+                        <div class="spacer"></div>
+                        <a href='#' class="btn btn-secondary m-1">{{#str}} cancel, local_grupomakro_core {{/str}}</a>
+                        <a href="#" id="enrolButton" class="btn btn-primary m-1">{{#str}} enrol, local_grupomakro_core {{/str}}</a>
+                    </div>
+                    {{! End Actions }}
+            </div>
+        </div>
+    </div>
+</div>
+
+{{> local_grupomakro_core/modals/class_error }}
+{{> local_grupomakro_core/modals/enrol_user_not_found_modal }}

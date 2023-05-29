@@ -49,12 +49,14 @@ axios.get(url, { params })
             light: {
               primary: primarycolor,
               secondary: secondarycolor,
-              availabilityColor: '#0ed456'
+              availabilityColor: '#0ed456',
+              success: '#3cd4a0'
             },
             dark: {
               primary: darkPrimarycolor,
               secondary: secondarycolordark,
-              availabilityColor: '#0ed456'
+              availabilityColor: '#0ed456',
+              success: '#3cd4a0'
             }
           },
         },
