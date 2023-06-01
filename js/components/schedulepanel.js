@@ -7,6 +7,7 @@ Vue.component('availabilitytable',{
                    :items="items"
                    class="elevation-1 paneltable"
                    :search="search"
+                   dense
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
@@ -44,6 +45,21 @@ Vue.component('availabilitytable',{
                         </v-list>
                     </template>
                     
+                    <template v-slot:item.numberclasses="{ item }">
+                      <div class="d-flex flex-column">
+                        {{item.numberclasses}}
+                        <div class="d-flex>">
+                            <span
+                              v-for="n in item.numberclasses"
+                              :key="n"
+                              class="rounded-circle mr-1"
+                              style="width: 10px; height: 10px;display: inline-flex;"
+                              :class="getColor(item.users)"
+                            ></span>
+                        </div>
+                      </div>
+                    </template>
+                    
                     <template v-slot:item.users="{ item }">
                       <v-chip
                         :color="getColor(item.users)"
@@ -52,6 +68,10 @@ Vue.component('availabilitytable',{
                       >
                         {{ item.users }}
                       </v-chip>
+                    </template>
+                    
+                    <template v-slot:item.periods="{ item }">
+                      
                     </template>
                     
                     <template v-slot:item.actions="{ item }">
@@ -92,7 +112,9 @@ Vue.component('availabilitytable',{
                     align: 'center',
                 },
                 { text: 'Usuarios', value: 'users',sortable: false, align: 'center', },
+                { text: 'periods', value: 'period', sortable: false, class: 'd-none' },
                 { text: 'Acciones', value: 'actions', sortable: false, align: 'center' },
+                
             ],
             items: [
                 {
@@ -100,21 +122,21 @@ Vue.component('availabilitytable',{
                     coursename: 'Maquinaría',
                     numberclasses: 2,
                     users: 10,
-                    period: 'Cuastrimestre 1'
+                    period: 'Cuatrimestre 1'
                 },
                 {
                     id: 2,
                     coursename: 'Matemáticas',
                     numberclasses: 1,
                     users: 20,
-                    period: 'Cuastrimestre 2'
+                    period: 'Cuatrimestre 2'
                 },
                 {
                     id: 3,
                     coursename: 'Español',
                     numberclasses: 3,
                     users: 1,
-                    period: 'Cuastrimestre 1'
+                    period: 'Cuatrimestre 1'
                 }
             ],
             dialog: false,
@@ -127,13 +149,13 @@ Vue.component('availabilitytable',{
     methods:{
         getColor (num) {
             if(!this.$vuetify.theme.dark){
-                if (num >= 20) return 'green accent-3'
+                if (num >= 20) return ' red accent-2'
                 else if (num >= 10) return 'amber lighten-4'
-                else return 'red accent-2'
+                else return 'green accent-3'
             }else{
-                if (num >= 20) return 'green accent-4'
+                if (num >= 20) return 'red accent-2'
                 else if (num >= 10) return 'amber lighten-4'
-                else return 'red accent-2'
+                else return 'green accent-4'
             }
         },
         showschedules(item){

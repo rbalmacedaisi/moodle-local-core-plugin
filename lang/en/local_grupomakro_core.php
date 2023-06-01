@@ -299,3 +299,4 @@ $string['create'] = 'Create';
 // Schedule Panel page.
 $string['schedule_panel'] = 'Schedule Panel';
 $string['scheduleapproval'] = 'Schedule approval';
+$string['waitingusers'] = 'Waiting users';

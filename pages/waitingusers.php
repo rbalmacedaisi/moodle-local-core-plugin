@@ -23,24 +23,34 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
 $plugin_name = 'local_grupomakro_core';
+
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/schedulepanel.php');
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/waitingusers.php');
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('schedule_panel', $plugin_name));
-$PAGE->set_heading(get_string('schedule_panel', $plugin_name));
+if (is_siteadmin()) {
+    $PAGE->navbar->add(get_string('schedule_panel', $plugin_name), new moodle_url('/local/grupomakro_core/pages/schedulepanel.php'));
+    $PAGE->navbar->add(get_string('scheduleapproval', $plugin_name), new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php'));
+}
+$PAGE->navbar->add(
+    get_string('waitingusers', $plugin_name),
+    new moodle_url('/local/grupomakro_core/pages/waitingusers.php')
+);
+$PAGE->set_title(get_string('waitingusers', $plugin_name));
+$PAGE->set_title(get_string('waitingusers', $plugin_name));
 $PAGE->set_pagelayout('base');
-
-
-
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
+$strings->remove = get_string('remove',$plugin_name);
+$strings->cancel = get_string('cancel',$plugin_name);
+$strings->save = get_string('save', $plugin_name);
+$strings->close = get_string('close',$plugin_name);
+$strings->accept = get_string('accept',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -51,9 +61,9 @@ echo <<<EOT
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
   <div id="app">
     <v-app class="transparent">
-      <v-main>
+      <v-main class="pt-0">
         <div>
-          <availabilitytable></availabilitytable>
+          <waitingusers></waitingusers>
         </div>
       </v-main>
     </v-app>
@@ -66,7 +76,19 @@ echo <<<EOT
     .theme--light.v-application{
       background: transparent !important;
     }
-    .paneltable td:nth-child(4n){
+    .v-alert--prominent .v-alert__icon {
+      align-self: start !important;
+    }
+    .v-data-table__wrapper{
+      padding-top: 10px;
+    }
+    body#page-local-grupomakro_core-pages-waitingusers #topofscroll{
+      height: 100% !important;
+    }
+    label[for="selectall"]{
+      margin-bottom: 0px !important;
+    }
+    .check-table thead .v-data-table__checkbox.v-simple-checkbox{
       display: none !important;
     }
   </style>
@@ -77,6 +99,8 @@ echo <<<EOT
   
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/schedulepanel.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waitingusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
+
 echo $OUTPUT->footer();

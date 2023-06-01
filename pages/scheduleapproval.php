@@ -46,6 +46,11 @@ $id = required_param('id', PARAM_TEXT);
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
+$strings->remove = get_string('remove',$plugin_name);
+$strings->cancel = get_string('cancel',$plugin_name);
+$strings->save = get_string('save', $plugin_name);
+$strings->close = get_string('close',$plugin_name);
+$strings->accept = get_string('accept',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -71,6 +76,12 @@ echo <<<EOT
     .theme--light.v-application{
       background: transparent !important;
     }
+    .v-application--is-ltr .v-list-item__icon:first-child {
+      margin-right: 15px !important;
+    }
+    .v-alert--prominent .v-alert__icon {
+        align-self: start !important;
+    }
   </style>
    
   <script>
@@ -80,6 +91,8 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/scheduleapproval.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteclass.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/approveusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();

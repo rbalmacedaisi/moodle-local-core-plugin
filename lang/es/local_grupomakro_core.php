@@ -297,3 +297,4 @@ $string['create'] = 'Crear';
 // Pagina Panel de Horarios.
 $string['schedule_panel'] = 'Panel de Horarios';
 $string['scheduleapproval'] = 'Aprobación de horarios';
+$string['waitingusers'] = 'Usuarios en Espera';
