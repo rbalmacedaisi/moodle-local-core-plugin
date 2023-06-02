@@ -26,6 +26,7 @@ require_once($CFG->dirroot . '/course/modlib.php');
 require_once($CFG->dirroot. '/mod/attendance/locallib.php');
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot.'/calendar/lib.php');
+require_once($CFG->dirroot.'/user/lib.php');
 
 
 defined('MOODLE_INTERNAL') || die();
@@ -886,4 +887,53 @@ function check_enrol_link_validity($token){
     $enrolLinkRecord->contractId = $DB->get_record('gmk_institution_contract',['id'=>$enrolLinkRecord->contractid])->contractid;
     
     return $enrolLinkRecord;
+}
+
+function create_contract_user($user){
+    global $DB,$USER;
+    $enrolplugin = enrol_get_plugin('manual');
+    $userContractRecordsResult = array();
+    
+    $courseIds = explode(',',$user['courseIds']);
+    $contractUserRecords = new stdClass();
+    $contractUserRecords->failure = array();
+    $contractUserRecords->success = array();
+    //loop for each course id and try to enrol the user; if so, add the record to the user contract table
+    foreach($courseIds as $courseId){
+        // print_object($courseId);
+        $instance = get_manual_enroll($courseId);
+        if($DB->get_record('gmk_contract_user',['userid'=>$user['userId'], 'contractid'=>$user['contractId'], 'courseid'=>$courseId]) || !$instance){
+            $contractUserRecords->failure[]=['courseId'=>$courseId, 'message'=>'El curso '.$DB->get_record('course',['id'=>$courseId])->fullname.' ya esta matriculado para este contrato'];
+            continue;
+        }
+        $enrolled = $enrolplugin->enrol_user($instance, $user['userId'], 5);
+        
+        $newContractUserRecord = new stdClass();
+        $newContractUserRecord->userid = $user['userId'];
+        $newContractUserRecord->contractid = $user['contractId'];
+        $newContractUserRecord->courseid = $courseId;
+        $newContractUserRecord->timecreated = time();
+        $newContractUserRecord->timemodified = time();
+        $newContractUserRecord->usermodified = $USER->id;
+        
+        $newContractUserRecord->id = $DB->insert_record('gmk_contract_user',$newContractUserRecord);
+        $contractUserRecords->success[]=['courseId'=>$courseId, 'message'=>'ok'];
+    }
+    $userContractRecordsResult[$user['userId']]=['success'=>$contractUserRecords->success, 'failure'=>$contractUserRecords->failure];
+    return $userContractRecordsResult;
+}
+
+function create_student_user($user){
+    
+    $user->mnethostid = 1;
+    try{
+        $newUserId = user_create_user($user);
+        return $newUserId;
+    } catch (Exception $e){
+        return $e;
+    }
+}
+
+function create_contract_users($users){
+    
 }

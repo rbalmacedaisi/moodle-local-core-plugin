@@ -213,6 +213,7 @@ $string['details'] = 'Ver Detalle';
 $string['profile'] = 'Perfil';
 $string['memessage'] = 'Mensaje';
 $string['selectcontract'] = 'Seleccionar un contrato';
+$string['bulkConfirmationMessage'] = '¿Esta seguro de subir el archivo y crear todos los contratos?';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Matriculación contrato';

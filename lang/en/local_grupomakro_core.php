@@ -213,6 +213,7 @@ $string['details'] = 'Details';
 $string['profile'] = 'Profile';
 $string['memessage'] = 'Memessage';
 $string['selectcontract'] = 'Select a contract';
+$string['bulkConfirmationMessage'] = 'Are you sure to upload the document and create the user contracts?';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Contract Enrol';

@@ -39,6 +39,8 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot.'/enrol/manual/lib.php');
+require_once($CFG->dirroot.'/enrol/locallib.php');
 
 /**
  * External function 'local_grupomakro_create_institution' implementation.
@@ -75,6 +77,18 @@ class delete_contract_user extends external_api {
         global $DB;
         
         try{
+            $courseId = 41;
+            $userId = 92;
+            
+            $contractUserRecord = $DB->get_record('gmk_contract_user',['id'=>$id]);
+            if(count($DB->get_records('gmk_contract_user',['userid'=>$contractUserRecord->userid,'courseid'=>$contractUserRecord->courseid]))===1){
+                $instances = $DB->get_records('enrol', array('courseid' => $contractUserRecord->courseid));
+                foreach ($instances as $instance) {
+                    $plugin = enrol_get_plugin($instance->enrol);
+                    $plugin->unenrol_user($instance, $contractUserRecord->userid);
+                }
+            }
+
             $deletedContractUserId = $DB->delete_records('gmk_contract_user',['id'=>$id]);
             return ['deletedContractUserId' => $deletedContractUserId, 'message'=>'ok'];
         }

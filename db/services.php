@@ -279,4 +279,22 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_create_student_user' => array(
+        'classname' => 'local_grupomakro_core\external\contractUser\create_student_user',
+        'methodname' => 'execute',
+        'description' => 'Create a user and enrol in a course contract',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_bulk_create_contract_user' => array(
+        'classname' => 'local_grupomakro_core\external\contractUser\bulk_create_contract_user',
+        'methodname' => 'execute',
+        'description' => 'Create a user and enrol in a course contract',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

@@ -33,10 +33,12 @@ export const init = async (courseId,contractId) => {
     handleEnrolButtonClick();
     handleEnrolCreateAccountButtonClick()
 };
+
 const handleEnrolCreateAccountButtonClick = () => {
     enrolCreateAccountButton.click(()=>{
         creatingAccount = true;
         documentCheckInputHolder.hide();
+        createUserIdentificationNumberInput.val(userCheckIdentificationNumberInput.val())
         userNotFoundModal.modal('hide');
         createAccountInputsHolder.show();
     })
@@ -80,27 +82,30 @@ const handleEnrolButtonClick = () => {
         if (!valid) {
             return;
         }
-        const args = {
-            users: [{
-                username:createUserIdentificationNumberInput.val(),
-                firstname:createUserFirstNameInput.val(),
-                lastname:createUserLastNameInput.val(),
-                email:createUserEmailInput.val()
-            }]
+        const params = new URLSearchParams();
+        params.append('username', createUserIdentificationNumberInput.val());
+        params.append('firstname', createUserFirstNameInput.val());
+        params.append('lastname', createUserLastNameInput.val());
+        params.append('email', createUserEmailInput.val());
+        params.append('contractId',enrolContractId);
+        params.append('courseId', enrolCourseId);
+        try{
+        let response = await window.fetch(webserviceUrl+'local_grupomakro_create_student_user&'+params, fetchParams)
+            if (!response.ok) {
+                throw new Error('Request failed with status: ' + response.status);
+            }
+            response = await response.json();
+            if(response.contractEnrolResult ===-1) throw response.message;
+            setTimeout(()=>{
+                window.location.href = `https://students-lxp-dev.soluttolabs.com/login`
+            },5000)
             
-        };
-        try {
-            const response = await Ajax.call([
-                {
-                    methodname: 'core_user_create_users',
-                    args,
-                },
-            ])[0];
-            console.log(response)
-        } catch (error){
-            errorModalContent.html(`<p class="text-center">${error.message}</p>`);
+        }catch (error){
+            errorModalContent.html(`<p class="text-center">${error}</p>`);
             errorModal.modal('show');
             console.error(error);
+        }finally{
+            return;
         }
         //
     })
@@ -118,12 +123,19 @@ const enrolContractUser = async (userId) => {
         }
         response = await response.json();
         if(response.contractUserId ===-1)throw response.message;
-        console.log('bien');
+        if(!response.result) throw response.message
+        
+        const parsedResponse = JSON.parse(response.result)
+        
+        if(!parsedResponse.success.length )throw parsedResponse.failure[0].message
+        
+        setTimeout(()=>{
+            window.location.href = `https://students-lxp-dev.soluttolabs.com/login`
+        },5000)
         
     }catch (error){
         errorModalContent.html(`<p class="text-center">${error}</p>`);
         errorModal.modal('show');
-        console.error(error);
     }finally{
         return;
     }

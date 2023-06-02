@@ -32,10 +32,17 @@ const enrolLinkExpirationDateContainer = $('#enrolLinkExpirationDate')
 const enrolLinkUrlContainer = $('#enrolLinkUrl')
 const enrolUrlClipboardCopyButton = $('#enrolUrlClipboardCopy')
 
+const bulkUserContractInput = $('#upload_massive_inst_users');
+const bulkConfirmModal = $('#bulkConfirmModal');
+const bulkConfirmModalButton = $('#bulkConfirmModalButton');
+const bulkCancelModalButton = $('#bulkCancelModalButton');
+
 const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract'
 
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
+
+
 
 let selectedInstitutionId;
 let selectedContractId;
@@ -46,6 +53,7 @@ let selectedUserToBeCreated
 let institutionContracts
 let selectedContractUserId
 let generatedEnrolLinkUrl
+let bulkFile;
 
 export const init = (institutionId, institutionContractUsers,users,contractNames) => {
     selectedInstitutionContractUsers=institutionContractUsers;
@@ -62,7 +70,57 @@ export const init = (institutionId, institutionContractUsers,users,contractNames
     handleUserCreation();
     handleEnrolLinkGenerateButtonClick()
     handleEnrolUrlClipboardCopyButton()
+    handleBulkContractUserInput()
 };
+
+const handleBulkContractUserInput = () => {
+    bulkUserContractInput.on('change',(event)=>{
+        bulkFile = event.target.files[0];
+        bulkConfirmModal.modal('show')
+        console.log(bulkFile);
+    })
+    
+    bulkConfirmModalButton.click(async()=>{
+        const formData = new FormData();
+        formData.append('file', bulkFile);
+        formData.append('token', '33513bec0b3469194c7756c29bf9fb33');
+        const fetchParams = {
+            method: 'POST',
+            body:formData
+        }
+        try{
+            let bulkCSVUploadResponse = await window.fetch('https://grupomakro-dev.soluttolabs.com/webservice/upload.php', fetchParams)
+            if (!bulkCSVUploadResponse.ok) {
+                throw new Error('Request failed with status: ' + bulkCSVUploadResponse.status);
+            }
+            bulkCSVUploadResponse = await bulkCSVUploadResponse.json();
+            bulkCSVUploadResponse = bulkCSVUploadResponse[0]
+            const args = {
+                contextId:bulkCSVUploadResponse.contextid,
+                itemId:bulkCSVUploadResponse.itemid,
+                filename:bulkCSVUploadResponse.filename
+            }
+            const bulkEnrolResponse =await Ajax.call([{
+                methodname: 'local_grupomakro_bulk_create_contract_user',
+                args
+            }])[0];
+            if(!bulkEnrolResponse.result)throw bulkEnrolResponse.message
+            window.location.reload()
+            
+        }catch (error){
+            errorModalContent.html(`<p class="text-center">${error}</p>`);
+            errorModal.modal('show');
+            console.error(error);
+        }finally{
+            return;
+        }
+    })
+    
+    bulkCancelModalButton.click(()=>{
+        bulkConfirmModal.modal('hide')
+        bulkFile=undefined;
+    })
+}
 
 const handleEnrolUrlClipboardCopyButton = () => {
     enrolUrlClipboardCopyButton.click(()=>{
@@ -128,15 +186,22 @@ const handleUserCreation = () => {
         const args = {
             userId:selectedUserToBeCreated.id,
             contractId:contractSelectInput.val(),
-            courseIds: coursesSelectInput.val().join(','),
+            courseIds: coursesSelectInput.val().join(',') 
         };
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_contract_user',
             args
         }, ]);
         promise[0].done(function(response) {
-            if(response.institutionContractId === -1 ){
+            if(!response.result){
                 errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                errorModal.modal('show');
+            }
+            const parsedResponse = JSON.parse(response.result)
+            console.log(parsedResponse);
+            if(!parsedResponse.success.length ){
+                
+                errorModalContent.html(`<p class="text-center">${parsedResponse.failure[0].message}</p>`);
                 errorModal.modal('show');
                 return   
             }

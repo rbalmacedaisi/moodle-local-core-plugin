@@ -29,6 +29,7 @@ use external_api;
 use external_description;
 use external_function_parameters;
 use external_single_structure;
+use external_multiple_structure;
 use external_value;
 use stdClass;
 use Exception;
@@ -49,7 +50,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_contract_user extends external_api {
+class bulk_create_contract_user extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -59,9 +60,9 @@ class create_contract_user extends external_api {
      public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'userId' => new external_value(PARAM_TEXT, 'The id of the user'),
-                'contractId' => new external_value(PARAM_TEXT, 'The id of the contract'),
-                'courseIds' => new external_value(PARAM_TEXT, 'The courses in the contract')
+                'contextId' => new external_value(PARAM_INT, 'The id of the contract user'),    
+                'itemId' => new external_value(PARAM_INT, 'The id of the contract user'),    
+                'filename' => new external_value(PARAM_TEXT, 'The id of the contract user'),    
             ]
         );
     }
@@ -73,13 +74,58 @@ class create_contract_user extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-            $userId,$contractId,$courseIds
+            $contextId,$itemId,$filename
         ) {
         global $DB,$USER;
         
         try{
-            $createContractResults = create_contract_user(['userId'=>$userId,'contractId'=>$contractId,'courseIds'=>$courseIds])[$userId];
-            return ['result' => json_encode($createContractResults), 'message'=>'ok'];
+            $fs = get_file_storage();
+            $file = $fs->get_file($contextId,'user','draft',$itemId,'/',$filename);
+
+            if (!$file) {
+                throw new Exception('File not found.');
+            }
+            // File found. Read the content of the file.
+            $filecontent = $file->get_content();
+            $users = array();
+            $lines = explode(PHP_EOL, $filecontent);
+            $header = str_getcsv(array_shift($lines));
+            foreach ($lines as $line) {
+                $data = str_getcsv($line);
+                $row = new stdClass();
+                foreach ($header as $i => $column) {
+                    $row->$column = $data[$i];
+                }
+                $users[] = $row;
+            }
+            $results = array();
+            foreach($users as $user){
+                if(!$DB->get_record('gmk_institution_contract',['id'=>$user->contractid])){
+                    continue;
+                }
+                $userInfo = $DB->get_record('user',['username'=>$user->user_document]);
+                if(!$userInfo){
+
+                    if($DB->get_record('user',['email'=>$user->user_email])){
+                        continue;
+                    }
+            
+                    $newUser = new stdClass();
+                    $newUser->username=  $user->user_document;
+                    $newUser->firstname=  $user->user_firstname;
+                    $newUser->lastname=  $user->user_lastname;
+                    $newUser->email=  $user->user_email;
+                    $newUser->id = create_student_user($newUser);
+                    
+                    $userInfo = $DB->get_record('user',['id'=>$newUser->id]);
+                }
+                
+                $createContractResults = create_contract_user(['userId'=>$userInfo->id,'contractId'=>$user->contractid,'courseIds'=>str_replace('-',',',$user->courseid)])[$userInfo->id];
+                $results[$userInfo->id]= $createContractResults;
+            }
+            $deleted = $file->delete();
+
+            return ['result' => json_encode($results), 'message'=>'ok'];
         }
         
         catch (Exception $e) {
