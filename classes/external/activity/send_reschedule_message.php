@@ -32,6 +32,8 @@ use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
+use core\message\message;
+use core_user;
 
 
 
@@ -97,7 +99,7 @@ class send_reschedule_message extends external_api {
         string $proposedHour,
         string $sessionId=null
         ){  
-        global $DB;
+        global $DB,$OUTPUT,$CFG;
 
         try{
             
@@ -110,72 +112,65 @@ class send_reschedule_message extends external_api {
             $userInfo = $DB->get_record('user',['id'=>$instructorId]);
             $classInfo= grupomakro_core_list_classes(['id'=>$classId])[$classId];
             $instructorFullName = $userInfo->firstname.' '.$userInfo->lastname;
-    
-            $rescheduleUrl=  'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'&proposedDate='.$proposedDate.'&proposedHour='.$proposedHour;
+
+            $envDic=['development'=>'-dev','staging'=>'-staging','production'=>''];
+            
+            $rescheduleUrl=  'https://grupomakro'.$envDic[$CFG->environment_type].'.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'&proposedDate='.$proposedDate.'&proposedHour='.$proposedHour;
             
             // Set the html message----------------------------------------------------------------------------------------------------------------------------------------------------
             
-            $htmlMessage = '<html><body>';
-            $htmlMessage .= '<h2>El instructor <strong>'.$instructorFullName.'</strong> ha solicitado una reprogramación con los siguientes causales:</h2>';
-            $htmlMessage .= '<q>'.implode(', ',$causeNames).'</q>';
-            $htmlMessage .= '<h3>Informacipon de la clase:</h3>';
-            $htmlMessage .= '<ul>';
-            $htmlMessage .= '<li><strong>Nombre: </strong>'.$classInfo->name.'</li>';
-            $htmlMessage .= '<li><strong>Horario: </strong>'.$originalDate.' ('.$originalHour.')</li>';
-            $htmlMessage .= '<li><strong>Curso: </strong>'.$classInfo->coreCourseName.'</li>';
-            $htmlMessage .= '<li><strong>Modalidad: </strong>'.$classInfo->typeLabel.'</li>';
-            $htmlMessage .= '</ul>';
-            $htmlMessage .= '<h3>Horario Propuesto:</h3>';
-            $htmlMessage .= '<ul>';
-            $htmlMessage .= '<li><strong>Día: </strong>'.$proposedDate.'</li>';
-            $htmlMessage .= '<li><strong>Hora: </strong>'.$proposedHour.'</li>';
-            $htmlMessage .= '</ul>';
-            $htmlMessage .= '<p>Para reprogramar la sesión haz click <a href="'.$rescheduleUrl.'">aquí.</a></p>';
-            $htmlMessage .= '</body></html>';
-            
+            $strData = new stdClass();
+            $strData->instructorFullName=$instructorFullName;
+            $strData->causeNames=implode(', ',$causeNames);
+            $strData->originalDate=$originalDate;
+            $strData->originalHour=$originalHour;
+            $strData->proposedDate=$proposedDate;
+            $strData->proposedHour=$proposedHour;
+            $strData->rescheduleUrl=$rescheduleUrl;
+            $strData->name=$classInfo->name;
+            $strData->coreCourseName=$classInfo->coreCourseName;
+            $strData->typeLabel=$classInfo->typeLabel;
+
+            $messageBody = get_string('msg:send_reschedule_message:body','local_grupomakro_core', $strData);
+            $messageHtml = $OUTPUT->render_from_template( 'local_grupomakro_core/messages/reschedule_message',array('messageBody'=>$messageBody));
+
             // --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
             // message test (will be deleted)
-            $messageDefinition = new \core\message\message();
-            $messageDefinition->component = 'moodle'; // Set the message component
-            $messageDefinition->name ='instantmessage'; // Set the message name
-            $messageDefinition->userfrom = \core_user::get_noreply_user(); // Set the message sender
-            $messageDefinition->userto = 70; // Set the message recipient
-            $messageDefinition->subject = 'Solicitud de reprogramación nueva'; // Set the message subject
-            $messageDefinition->fullmessage = $htmlMessage; // Set the message body
+            $messageDefinition = new message();
+            $messageDefinition->component = 'local_grupomakro_core'; // Set the message component
+            $messageDefinition->name ='send_reschedule_message'; // Set the message name
+            $messageDefinition->userfrom = core_user::get_noreply_user(); // Set the message sender
+            $messageDefinition->subject = get_string('msg:send_reschedule_message:subject','local_grupomakro_core'); // Set the message subject
+            $messageDefinition->fullmessage = $messageHtml; // Set the message body
             $messageDefinition->fullmessageformat = FORMAT_HTML; // Set the message body format
+            $messageDefinition->fullmessagehtml = $messageHtml;
+            $messageDefinition->notification = 1;
             $messageDefinition->contexturl =$rescheduleUrl;
-            $messageDefinition->contexturlname = 'Reprogramar Sesión';
-            $messageid = message_send($messageDefinition);
+            $messageDefinition->contexturlname = get_string('msg:send_reschedule_message:contexturlname','local_grupomakro_core');;
             // -------------------------------
 
     
             // // Find the users that have administrator role---------------------------
     
-            // $managers = $DB->get_records('role_assignments', array('roleid'=>1));
-            
-            // $managerIds = array_map(function($element) {
-            //     return $element->userid;
-            // }, $managers);
+            $managers = $DB->get_records('role_assignments', array('roleid'=>1));
+            $managerIds = array_map(function($element) {
+                return $element->userid;
+            }, $managers);
             
             // // -----------------------------------------------------------------------
-    
+            
+            //Add my user for test purposes
+            $managerIds[]=70;
+            
             // // Loop the managers array and send the reschedule message-------------------------------------------------------------------------
     
-            // foreach (array_unique($managerIds) as $adminId) {
-            //     $messageDefinition = new \core\message\message();
-            //     $messageDefinition->component = 'moodle'; 
-            //     $messageDefinition->name ='instantmessage'; 
-            //     $messageDefinition->userfrom = \core_user::get_noreply_user(); 
-            //     $messageDefinition->userto = $adminId; 
-            //     $messageDefinition->subject = 'Solicitud de reprogramación nueva'; 
-            //     $messageDefinition->fullmessage = $htmlMessage;
-            //     $messageDefinition->fullmessageformat = FORMAT_HTML; 
-            //     $messageDefinition->contexturl = 'https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId;
-            //     $messageDefinition->contexturlname = 'Reprogramar Sesión';
-            //     // Send the message notification
-            //     $messageid = message_send($messageDefinition);
-            // }
+            foreach (array_unique($managerIds) as $adminId) {
+                
+                $messageDefinition->userto=$adminId;
+                // Send the message notification
+                $messageid = message_send($messageDefinition);
+            }
             
             // // ---------------------------------------------------------------------------------------------------------------------------------
 

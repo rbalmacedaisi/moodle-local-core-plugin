@@ -266,7 +266,7 @@ $string['reschedule'] = 'Reprogramar';
 $string['confirm_reschedule_title'] = 'Confirmacion reprogramación';
 
 // Pagina de Horarios.
-$string['schedules'] = 'Horarios de Clase';
+$string['schedules'] = 'Horarios';
 $string['availability'] = 'Disponibilidad';
 $string['availability_panel'] = 'Panel de Disponibilidad';
 $string['today'] = 'Hoy';
@@ -299,3 +299,38 @@ $string['create'] = 'Crear';
 $string['schedule_panel'] = 'Panel de Horarios';
 $string['scheduleapproval'] = 'Aprobación de horarios';
 $string['waitingusers'] = 'Usuarios en Espera';
+$string['selection_schedules'] = 'Selección de Horarios';
+$string['nodata'] = 'No hay datos';
+$string['approve_schedules'] = 'Aprobar Horarios';
+$string['registered_users'] = 'Usuarios Inscritos';
+$string['waitinglist'] = 'Lista de Espera';
+$string['approved'] = 'Aprobado';
+$string['class_schedule'] = 'Horario de Clase';
+$string['quotas_enabled'] = 'Cupos Habilitados';
+$string['registered_users'] = 'Usuarios Inscritos';
+$string['approve_users'] = 'Aprobar Usuarios';
+$string['move_to'] = 'Mover a:';
+$string['current_location'] = 'Ubicación actual:';
+
+//Message providers names
+$string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';
+
+//Reschedule Message Body.
+$string['msg:send_reschedule_message:body'] = '
+<h2>El instructor <strong>{$a->instructorFullName}</strong> ha solicitado una reprogramación con los siguientes causales:</h2>
+<q>{$a->causeNames}</q>
+<h3>Informacipon de la clase:</h3>
+<ul>
+    <li><strong>Nombre: </strong>{$a->name}</li>
+    <li><strong>Horario: </strong>{$a->originalDate} ({$a->originalHour})</li>
+    <li><strong>Curso: </strong>{$a->coreCourseName}</li>
+    <li><strong>Modalidad: </strong>{$a->typeLabel}</li>
+</ul>
+<h3>Horario Propuesto:</h3>
+<ul>
+    <li><strong>Día: </strong>{$a->proposedDate}</li>
+    <li><strong>Hora: </strong>{$a->proposedHour}</li>
+</ul>
+<p>Para reprogramar la sesión haz click <a href="{$a->rescheduleUrl}">aquí.</a></p>';
+$string['msg:send_reschedule_message:subject'] ='Solicitud de reprogramación nueva';
+$string['msg:send_reschedule_message:contexturlname'] ='Reprogramar sesión';

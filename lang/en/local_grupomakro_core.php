@@ -301,3 +301,39 @@ $string['create'] = 'Create';
 $string['schedule_panel'] = 'Schedule Panel';
 $string['scheduleapproval'] = 'Schedule approval';
 $string['waitingusers'] = 'Waiting users';
+$string['selection_schedules'] = 'Selection of Schedules';
+$string['nodata'] = 'There is no data';
+$string['approve_schedules'] = 'Approve Schedules';
+$string['registered_users'] = 'Registered Users';
+$string['waitinglist'] = 'Waiting list';
+$string['approved'] = 'Approved';
+$string['class_schedule'] = 'Class schedule';
+$string['quotas_enabled'] = 'Quotas Enabled';
+$string['registered_users'] = 'Registered Users';
+$string['approve_users'] = 'Approve Users';
+$string['move_to'] = 'Move to:';
+$string['current_location'] = 'Current location:';
+
+//Message providers names
+$string['messageprovider:send_reschedule_message'] = 'Send reschedule message';
+
+//Reschedule Message Body.
+$string['msg:send_reschedule_message:body'] = '
+<h2>The teacher <strong>{$a->instructorFullName}</strong> has requested a rescheduling for the following reasons:</h2>
+<q>{$a->causeNames}</q>
+<h3>Class Information:</h3>
+<ul>
+    <li><strong>Name: </strong>{$a->name}</li>
+    <li><strong>Schedule: </strong>{$a->originalDate} ({$a->originalHour})</li>
+    <li><strong>Course: </strong>{$a->coreCourseName}</li>
+    <li><strong>Type: </strong>{$a->typeLabel}</li>
+</ul>
+<h3>Proposed schedule:</h3>
+<ul>
+    <li><strong>Day: </strong>{$a->proposedDate}</li>
+    <li><strong>Hour: </strong>{$a->proposedHour}</li>
+</ul>
+<p>To reschedule the session click <a href="{a->rescheduleUrl}">here.</a></p>';
+
+$string['msg:send_reschedule_message:subject'] ='New reschedule request';
+$string['msg:send_reschedule_message:contexturlname'] ='Reschedule session';
