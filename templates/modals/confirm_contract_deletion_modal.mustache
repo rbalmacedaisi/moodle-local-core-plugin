@@ -1,4 +1,4 @@
-<div class="modal fade" id="bulkConfirmModal" tabindex="-1" role="dialog" aria-labelledby="bulkConfirmModalTitle" aria-hidden="true">
+<div class="modal fade" id="confirmContractDeletionModal" tabindex="-1" role="dialog" aria-labelledby="confirmContractDeletionModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content"> 
             <div class="modal-header justify-content-center">
@@ -8,11 +8,11 @@
                 </button>
             </div>
             <div class="modal-body text-center">
-                {{#str}}bulkConfirmationMessage, local_grupomakro_core {{/str}}
+                {{#str}}msgconfirm, local_grupomakro_core {{/str}}
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="bulkCancelModalButton">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
-                <a href="#" class="btn btn-primary" id="bulkConfirmModalButton">{{#str}} accept, local_grupomakro_core {{/str}}</a>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">{{#str}} cancel, local_grupomakro_core {{/str}}</button>
+                <a href="#" class="btn btn-primary" id="remove-contract-confirm-button">{{#str}} remove, local_grupomakro_core {{/str}}</a>
             </div>
         </div>
     </div>

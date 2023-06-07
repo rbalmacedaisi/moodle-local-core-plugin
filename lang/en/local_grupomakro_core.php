@@ -178,7 +178,6 @@ $string['name_institution'] = 'Name of the Institution';
 $string['delete_institution_title'] = 'Delete Institution Confirmation';
 $string['delete_institution_message'] = 'Are you sure to permanently delete this institution and all related information?';
 
-
 // Institutional Contracts Page.
 $string['institutional_contracts'] = 'Institutional Contracts';
 $string['contractnumber'] = 'Contract number';
@@ -214,6 +213,10 @@ $string['profile'] = 'Profile';
 $string['memessage'] = 'Memessage';
 $string['selectcontract'] = 'Select a contract';
 $string['bulkConfirmationMessage'] = 'Are you sure to upload the document and create the user contracts?';
+$string['contractBulkConfirmTitle'] = 'Contract creation confirmation';
+$string['bulkContractCreationReportTitle'] = 'Contract creation results';
+$string['bulkUserIndex'] = 'CSV Index';
+$string['bulkUserError'] = 'Error';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Contract Enrol';
@@ -231,8 +234,6 @@ $string['enrolUserDocumentLabel'] = 'Document Number';
 $string['enrolUserFirstName'] = 'FirstName';
 $string['enrolUserLastName'] = 'LastName';
 $string['enrolUserEmail'] = 'Email';
-
-
 
 // Class Management Page.
 $string['classmanagement'] = 'Class Management';
@@ -313,6 +314,12 @@ $string['registered_users'] = 'Registered Users';
 $string['approve_users'] = 'Approve Users';
 $string['move_to'] = 'Move to:';
 $string['current_location'] = 'Current location:';
+$string['student'] = 'Student';
+$string['message_approved'] = 'The user list for this class has been approved.';
+$string['maximum_quota_message'] = 'The selected class exceeds the maximum quota allowed.';
+$string['want_to_approve'] = 'Are you sure you want to approve it?';
+$string['mminimum_quota_message'] = 'The selected class does not have the minimum number of students allowed.';
+$string['write_reason'] = 'Write the reason';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

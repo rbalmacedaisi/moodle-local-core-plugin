@@ -1,0 +1,25 @@
+<div class="modal fade" id="bulkReportModal" tabindex="-1" role="dialog" aria-labelledby="bulkReportModalTitle" aria-hidden="true" data-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content"> 
+            <div class="modal-header justify-content-center">
+                <h5 class="modal-title">{{#str}}bulkContractCreationReportTitle, local_grupomakro_core {{/str}}</h5>
+            </div>
+            <div class="modal-body text-center">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{{#str}}bulkUserIndex, local_grupomakro_core {{/str}}</th>
+                      <th scope="col">{{#str}}bulkUserError, local_grupomakro_core {{/str}}</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulkResultTableBody">
+                    
+                  </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-primary" id="bulk-report-continue">{{#str}} continue, local_grupomakro_core {{/str}}</a>
+            </div>
+        </div>
+    </div>
+</div>

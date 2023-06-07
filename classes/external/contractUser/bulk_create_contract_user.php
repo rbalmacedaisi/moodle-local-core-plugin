@@ -34,8 +34,6 @@ use external_value;
 use stdClass;
 use Exception;
 
-
-
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
@@ -99,14 +97,17 @@ class bulk_create_contract_user extends external_api {
                 $users[] = $row;
             }
             $results = array();
-            foreach($users as $user){
+            $results['errors']=[];
+            foreach($users as $index =>$user){
                 if(!$DB->get_record('gmk_institution_contract',['id'=>$user->contractid])){
+                    $results['errors'][] = ['index'=>$index,'error'=>'El id del contrato no existe.'];
                     continue;
                 }
                 $userInfo = $DB->get_record('user',['username'=>$user->user_document]);
                 if(!$userInfo){
 
                     if($DB->get_record('user',['email'=>$user->user_email])){
+                        $results['errors'][] = ['index'=>$index,'error'=>'El correo electrónico ya esta asignado'];
                         continue;
                     }
             
@@ -121,8 +122,12 @@ class bulk_create_contract_user extends external_api {
                 }
                 
                 $createContractResults = create_contract_user(['userId'=>$userInfo->id,'contractId'=>$user->contractid,'courseIds'=>str_replace('-',',',$user->courseid)])[$userInfo->id];
+                foreach($createContractResults['failure'] as $failure){
+                    $results['errors'][] = ['index'=>$index+1,'error'=>$failure['message']];
+                }
                 $results[$userInfo->id]= $createContractResults;
             }
+
             $deleted = $file->delete();
 
             return ['result' => json_encode($results), 'message'=>'ok'];

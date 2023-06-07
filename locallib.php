@@ -900,10 +900,13 @@ function create_contract_user($user){
     $contractUserRecords->success = array();
     //loop for each course id and try to enrol the user; if so, add the record to the user contract table
     foreach($courseIds as $courseId){
-        // print_object($courseId);
+        if(!$DB->get_record('course', ['id'=>$courseId])){
+            $contractUserRecords->failure[]=['courseId'=>$courseId, 'message'=>'El curso con el id '.$courseId.' no existe'];
+        }
+        
         $instance = get_manual_enroll($courseId);
         if($DB->get_record('gmk_contract_user',['userid'=>$user['userId'], 'contractid'=>$user['contractId'], 'courseid'=>$courseId]) || !$instance){
-            $contractUserRecords->failure[]=['courseId'=>$courseId, 'message'=>'El curso '.$DB->get_record('course',['id'=>$courseId])->fullname.' ya esta matriculado para este contrato'];
+            $contractUserRecords->failure[]=['courseId'=>$courseId, 'message'=>'El curso '.$DB->get_record('course',['id'=>$courseId])->fullname.' con id '.$courseId.' ya esta matriculado para este contrato y este usuario'];
             continue;
         }
         $enrolled = $enrolplugin->enrol_user($instance, $user['userId'], 5);

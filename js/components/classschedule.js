@@ -535,7 +535,7 @@ Vue.component('classschedule',{
     created(){
         this.classitems = window.classItems;
         this.instructors = window.instructorItems;
-        this.rolInstructor =false//window.rolInstructor===1;
+        this.rolInstructor =window.rolInstructor===1;
         this.getEvents();
     },
     mounted(){

@@ -126,7 +126,7 @@ foreach ($institution->institutionInfo->contracts as $contract) {
                 'remove', $plugin_name
             ),
             'data-toggle'=>'modal', 
-            'data-target'=> '#confirmModalCenter',
+            'data-target'=> '#confirmContractDeletionModal',
             'contract-id'=>$contract->id
         )
     );

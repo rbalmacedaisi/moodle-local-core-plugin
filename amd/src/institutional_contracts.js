@@ -1,19 +1,19 @@
 import * as Ajax from 'core/ajax';
 import $ from 'jquery';
 
-const createContractButton = $('#create-contract-button')
-const removeContractButtons = $('.remove-contract')
-const removeContractConfirmButton = $('#remove-contract-confirm-button')
-const confirmContractDeletionModal = $('#confirmModalCenter')
+const createContractButton = $('#create-contract-button');
+const removeContractButtons = $('.remove-contract');
+const removeContractConfirmButton = $('#remove-contract-confirm-button');
+const confirmContractDeletionModal = $('#confirmContractDeletionModal');
 
-const viewUserDetailsButtons = $('.view-details-button')
-const userInfoName = $('#user-info-name')
-const userInfoEmail = $('#user-info-email')
-const userInfoAvatar = $('#user-info-avatar')
-const viewUserProfileButton = $('#view-profile-button')
-const userInfoContractList = $('#user-info-contract-list')
-const confirmContractUserDeletionModal = $('#confirmContractUserDeletionModal')
-const confirmContractUserDeletionButton = $('#remove-contract-_user_confirm-button')
+const viewUserDetailsButtons = $('.view-details-button');
+const userInfoName = $('#user-info-name');
+const userInfoEmail = $('#user-info-email');
+const userInfoAvatar = $('#user-info-avatar');
+const viewUserProfileButton = $('#view-profile-button');
+const userInfoContractList = $('#user-info-contract-list');
+const confirmContractUserDeletionModal = $('#confirmContractUserDeletionModal');
+const confirmContractUserDeletionButton = $('#remove-contract-user-confirm-button');
 
 const selectedUserInput = $('#selected-user')
 const contractSelectInput = $('#contractlist')
@@ -28,16 +28,19 @@ const enrolLinkInputs = [enrolLinkContractListSelect,enrolLinkCourseListSelect];
 const enrolLinkGenerateButton = $('#generate-enrol-button');
 
 const genetaredLinkInfoModal = $('#generatedLinkInfoModal')
-const enrolLinkExpirationDateContainer = $('#enrolLinkExpirationDate')
-const enrolLinkUrlContainer = $('#enrolLinkUrl')
-const enrolUrlClipboardCopyButton = $('#enrolUrlClipboardCopy')
+const enrolLinkExpirationDateContainer = $('#enrolLinkExpirationDate');
+const enrolLinkUrlContainer = $('#enrolLinkUrl');
+const enrolUrlClipboardCopyButton = $('#enrolUrlClipboardCopy');
 
 const bulkUserContractInput = $('#upload_massive_inst_users');
 const bulkConfirmModal = $('#bulkConfirmModal');
 const bulkConfirmModalButton = $('#bulkConfirmModalButton');
 const bulkCancelModalButton = $('#bulkCancelModalButton');
+const bulkReportModal = $('#bulkReportModal');
+const bulkResultTableBody = $('#bulkResultTableBody');
+const bulkReportContinueButton = $('#bulk-report-continue');
 
-const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract'
+const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract';
 
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
@@ -74,6 +77,10 @@ export const init = (institutionId, institutionContractUsers,users,contractNames
 };
 
 const handleBulkContractUserInput = () => {
+    bulkReportContinueButton.click(()=>{
+        window.location.reload()
+    })
+    
     bulkUserContractInput.on('change',(event)=>{
         bulkFile = event.target.files[0];
         bulkConfirmModal.modal('show')
@@ -105,7 +112,20 @@ const handleBulkContractUserInput = () => {
                 args
             }])[0];
             if(!bulkEnrolResponse.result)throw bulkEnrolResponse.message
-            window.location.reload()
+            const bulkResults = JSON.parse(bulkEnrolResponse.result)
+            console.log(bulkResults);
+            bulkConfirmModal.modal('hide')
+            bulkReportModal.modal('show');
+            
+            let bulkResultTableRowsHtmlString = ''
+            bulkResults.errors.forEach(record => {
+                bulkResultTableRowsHtmlString+=`<tr class="inserted-error">
+                      <th scope="row">${record.index}</th>
+                      <td>${record.error}</td>
+                    </tr>`
+            })
+            
+            bulkResultTableBody.html(bulkResultTableRowsHtmlString)
             
         }catch (error){
             errorModalContent.html(`<p class="text-center">${error}</p>`);
@@ -120,6 +140,7 @@ const handleBulkContractUserInput = () => {
         bulkConfirmModal.modal('hide')
         bulkFile=undefined;
     })
+
 }
 
 const handleEnrolUrlClipboardCopyButton = () => {

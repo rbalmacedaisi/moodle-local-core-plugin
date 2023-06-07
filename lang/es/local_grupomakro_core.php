@@ -214,6 +214,10 @@ $string['profile'] = 'Perfil';
 $string['memessage'] = 'Mensaje';
 $string['selectcontract'] = 'Seleccionar un contrato';
 $string['bulkConfirmationMessage'] = '¿Esta seguro de subir el archivo y crear todos los contratos?';
+$string['contractBulkConfirmTitle'] = 'Confirmación creación contratos';
+$string['bulkContractCreationReportTitle'] = 'Resultados creación de contratos';
+$string['bulkUserIndex'] = 'Indice CSV';
+$string['bulkUserError'] = 'Error';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Matriculación contrato';
@@ -311,6 +315,13 @@ $string['registered_users'] = 'Usuarios Inscritos';
 $string['approve_users'] = 'Aprobar Usuarios';
 $string['move_to'] = 'Mover a:';
 $string['current_location'] = 'Ubicación actual:';
+$string['student'] = 'Estudiante';
+$string['message_approved'] = 'La lista de usuarios para esta clase ha sido aprobada.';
+$string['maximum_quota_message'] = 'La clase seleccionada supera el cupo máximo permitido.';
+$string['want_to_approve'] = '¿Está seguro que desea aprobarla?';
+$string['mminimum_quota_message'] = 'La clase seleccionada no cuenta con el número mínimo de estudiantes permitidos.';
+$string['write_reason'] = 'Escribe el motivo';
+$string['users'] = 'Usuarios';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';
