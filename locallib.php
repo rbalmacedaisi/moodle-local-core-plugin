@@ -243,7 +243,8 @@ function grupomakro_core_list_classes($filters) {
 
 function grupomakro_core_list_instructors() {
     global $DB;
-    $instructors = $DB->get_records('local_learning_users',["userroleid"=>4]);
+    $teacherRoleId = $DB->get_record('role',["shortname"=>'teacher'])->id;
+    $instructors = $DB->get_records('role_assignments',["roleid"=>$teacherRoleId]);
     $uniqueInstructors= array();
     foreach($instructors as $instructor){
          if(!array_key_exists($instructor->userid, $uniqueInstructors)){
