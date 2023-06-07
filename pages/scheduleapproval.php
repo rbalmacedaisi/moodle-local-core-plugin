@@ -41,6 +41,7 @@ $PAGE->navbar->add(
 );
 
 $PAGE->set_title(get_string('scheduleapproval', $plugin_name));
+$PAGE->set_heading(get_string('scheduleapproval', $plugin_name));
 $PAGE->set_pagelayout('base');
 $id = required_param('id', PARAM_TEXT);
 
@@ -51,6 +52,28 @@ $strings->cancel = get_string('cancel',$plugin_name);
 $strings->save = get_string('save', $plugin_name);
 $strings->close = get_string('close',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
+$strings->schedules = get_string('schedules',$plugin_name);
+$strings->waitingusers = get_string('waitingusers',$plugin_name);
+$strings->approve_schedules = get_string('approve_schedules',$plugin_name);
+$strings->registered_users = get_string('registered_users',$plugin_name);
+$strings->waitinglist = get_string('waitinglist',$plugin_name);
+$strings->approved = get_string('approved',$plugin_name);
+$strings->class_schedule = get_string('class_schedule',$plugin_name);
+$strings->class_type = get_string('class_type',$plugin_name);
+$strings->quotas_enabled = get_string('quotas_enabled',$plugin_name);
+$strings->registered_users = get_string('registered_users',$plugin_name);
+$strings->remove = get_string('remove',$plugin_name);
+$strings->approve_users = get_string('approve_users',$plugin_name);
+$strings->move_to = get_string('move_to',$plugin_name);
+$strings->current_location = get_string('current_location',$plugin_name);
+$strings->actions = get_string('actions',$plugin_name);
+$strings->student = get_string('student',$plugin_name);
+$strings->message_approved = get_string('message_approved',$plugin_name);
+$strings->maximum_quota_message = get_string('maximum_quota_message',$plugin_name);
+$strings->want_to_approve = get_string('want_to_approve',$plugin_name);
+$strings->mminimum_quota_message = get_string('mminimum_quota_message',$plugin_name);
+$strings->write_reason = get_string('write_reason',$plugin_name);
+$strings->users = get_string('users',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();

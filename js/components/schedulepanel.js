@@ -11,7 +11,7 @@ Vue.component('availabilitytable',{
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
-                            <v-toolbar-title>Selección de Horarios</v-toolbar-title>
+                            <v-toolbar-title>{{lang.selection_schedules}}</v-toolbar-title>
                             <v-divider
                               class="mx-4"
                               inset
@@ -80,17 +80,16 @@ Vue.component('availabilitytable',{
                           color="primary"
                           small
                           class="rounded"
-                          @click="showschedules(item)"
+                          :href="'/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.id"
                         >
-                          Horarios
+                          {{lang.schedules}}
                         </v-btn>
                     </template>
                     <template v-slot:no-data>
-                        <span >No hay datos</span>
+                        <span >{{lang.nodata}}</span>
                     </template>
                 </v-data-table>
             </v-col>
-           
         </v-row>
     `,
     data(){

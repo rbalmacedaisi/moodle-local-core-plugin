@@ -45,7 +45,12 @@ $sql = "SELECT DISTINCT r.shortname
                     AND r.shortname IN ('teacher')";
 
 $teacherRoles = $DB->get_records_sql($sql , array($USER->id));
+
+//Check if the user is roled as a teacher
 $rolInstructor = !empty($teacherRoles);
+
+//override the teacher role if the user is an administrator
+$rolInstructor = $DB->get_record('role_assignments', array('roleid'=>1,'userid'=>$USER->id))?0:1;
 
 // Get the list of created classes
 $classes = grupomakro_core_list_classes([]);

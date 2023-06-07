@@ -310,7 +310,6 @@ $string['waitinglist'] = 'Waiting list';
 $string['approved'] = 'Approved';
 $string['class_schedule'] = 'Class schedule';
 $string['quotas_enabled'] = 'Quotas Enabled';
-$string['registered_users'] = 'Registered Users';
 $string['approve_users'] = 'Approve Users';
 $string['move_to'] = 'Move to:';
 $string['current_location'] = 'Current location:';

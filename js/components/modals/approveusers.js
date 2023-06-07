@@ -15,7 +15,7 @@ Vue.component('approveusers',{
                 class="mb-0"
                 dismissible
               >
-                La lista de usuarios para esta clase ha sido aprobada.
+                {{ lang.message_approved }}
                 <template v-slot:close>
                   <v-btn icon  class="success--text v-btn--round" small @click="$emit('close-approve')">
                     <v-icon>mdi-close</v-icon>
@@ -32,7 +32,7 @@ Vue.component('approveusers',{
                 prominent
                 class="mb-0"
               >
-                <span>La clase seleccionada supera el cupo máximo permitido. <br>¿Está seguro que desea aprobarla?</span>
+                <span>{{ lang.maximum_quota_message }} <br> {{ lang.want_to_approve }}</span>
                 <v-divider
                   class="my-4 error"
                   style="opacity: 0.22"
@@ -68,11 +68,13 @@ Vue.component('approveusers',{
                 prominent
                 class="mb-0"
               >
-                <span>La clase seleccionada no cuenta con el número mínimo de estudiantes permitidos. <br>¿Está seguro que desea aprobarla?</span>
+                <span>{{ lang.mminimum_quota_message }} <br> {{ lang.want_to_approve }}</span>
+                
                 <v-divider
                   class="my-4 warning"
                   style="opacity: 0.22"
                 ></v-divider>
+                
                 <div class="d-flex justify-center">
                   <v-btn
                       color="warning"
@@ -112,13 +114,14 @@ Vue.component('approveusers',{
                 >
                   <v-textarea
                     name="input-7-4"
-                    label="Escribe el motivo"
+                    :label="lang.write_reason"
                     value=""
                     rows="2"
                   ></v-textarea>
                 </v-col>
               </v-row>
             </v-card-text>
+            
             <v-card-actions>
               <v-spacer></v-spacer>
               <v-btn
@@ -167,5 +170,4 @@ Vue.component('approveusers',{
         return window.strings
       },
     },
-    
 })

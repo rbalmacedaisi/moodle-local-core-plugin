@@ -41,6 +41,10 @@ $PAGE->set_pagelayout('base');
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
+$strings->selection_schedules = get_string('selection_schedules',$plugin_name);
+$strings->search = get_string('search',$plugin_name);
+$strings->schedules = get_string('schedules',$plugin_name);
+$strings->nodata = get_string('nodata', $plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();

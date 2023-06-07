@@ -311,7 +311,6 @@ $string['waitinglist'] = 'Lista de Espera';
 $string['approved'] = 'Aprobado';
 $string['class_schedule'] = 'Horario de Clase';
 $string['quotas_enabled'] = 'Cupos Habilitados';
-$string['registered_users'] = 'Usuarios Inscritos';
 $string['approve_users'] = 'Aprobar Usuarios';
 $string['move_to'] = 'Mover a:';
 $string['current_location'] = 'Ubicación actual:';

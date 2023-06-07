@@ -1,4 +1,4 @@
-Vue.component('waitingusers',{
+Vue.component('registeredusers',{
     template: `
       <v-row justify="center" class="my-2 mx-0 position-relative">
         <v-col cols="12" class="py-0">
@@ -10,7 +10,7 @@ Vue.component('waitingusers',{
               app
               max-height="60"
             >
-              <v-toolbar-title>Listas de espera</v-toolbar-title>
+              <v-toolbar-title>{{ lang.registered_users }}</v-toolbar-title>
         
               <v-spacer></v-spacer>
               
@@ -597,23 +597,6 @@ Vue.component('waitingusers',{
       },
       moveItem(item){
         console.log(item)
-        /*this.folders = []
-        const index = this.selected.findIndex(selectedItem => selectedItem.student === item.student);
-        if (index === -1) {
-          this.selected.push(item);
-        } else {
-          this.selected.splice(index, 1);
-        }
-        const id = item.classid
-        this.items.forEach((element) => {
-            if(element.id != id){
-                console.log(element)
-                this.folders.push(element)
-            }
-        })
-        this.moveTitle = item.student
-        
-        this.movedialog = true*/
       },
       deleteAvailabilityRecord(item){
         

@@ -7,25 +7,26 @@ Vue.component('scheduleapproval',{
                     max-width="100%"
                   >
                     <v-card-title class="d-flex">
-                        Horarios - Maquinaría
+                        {{lang.schedules}} - Maquinaría
                         <v-spacer></v-spacer>
                         <v-btn
                           :color="$vuetify.theme.isDark ? 'primary' : 'secondary'"
                           class="mx-2 rounded text-capitalize"
                           small
                           :outlined="$vuetify.theme.isDark"
-                          @click="waitingpage"
+                          @click="userspage"
                         >
-                          usuarios en espera
+                          {{lang.users}}
                         </v-btn>
                         <v-btn
                           color="primary"
                           class="mx-2 rounded text-capitalize"
                           small
                         >
-                          Aprobar Horarios
+                          {{lang.approve_schedules}}
                         </v-btn>
-                                        </v-card-title>
+                    </v-card-title>
+                    
                     <v-divider class="my-0"></v-divider>
                 
                     <v-card-text 
@@ -74,15 +75,16 @@ Vue.component('scheduleapproval',{
                                                                 <v-icon>mdi-account-check</v-icon>
                                                             </v-list-item-icon>
                                                             <v-list-item-content>
-                                                                <v-list-item-title>Usuarios Inscritos</v-list-item-title>
+                                                                <v-list-item-title>{{lang.registered_users}}</v-list-item-title>
                                                             </v-list-item-content>
                                                         </v-list-item>
+                                                        
                                                         <v-list-item @click="waitinglist(item)">
                                                             <v-list-item-icon>
                                                                 <v-icon>mdi-account-clock</v-icon>
                                                             </v-list-item-icon>
                                                             <v-list-item-content>
-                                                                <v-list-item-title>Lista de Espera</v-list-item-title>
+                                                                <v-list-item-title>{{lang.waitinglist}}</v-list-item-title>
                                                             </v-list-item-content>
                                                         </v-list-item>
                                                     </v-list-item-group>
@@ -99,36 +101,38 @@ Vue.component('scheduleapproval',{
                                         </h5>
                                         
                                         <v-spacer></v-spacer>
+                                        
                                         <v-chip v-if="item.isApprove"
                                           class="ma-2"
                                           label
                                           small
                                           color="success"
                                         >
-                                          Aprovado
+                                          {{ lang.approved }}
                                         </v-chip>
                                     </div>
+                                    
                                     <v-row class="mt-2">
                                         <v-col cols="6" class="py-2"> 
-                                            <span class="d-block text--disabled text-subtitle-2"> Horario de Clase</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{item.start + ' - ' + item.end}}</p>
+                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.class_schedule }}</span>
+                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.start + ' - ' + item.end }}</p>
                                         </v-col>
                                         
                                         <v-col cols="6" class="py-2"> 
-                                            <span class="d-block text--disabled text-subtitle-2"> Tipo de Clase</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{item.type}}</p>
+                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.class_type }}</span>
+                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.type }}</p>
                                         </v-col>
                                         <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled  text-subtitle-2"> Cupos Habilitados</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{item.quotas}}</p>
+                                            <span class="d-block text--disabled  text-subtitle-2">{{ lang.quotas_enabled }}</span>
+                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.quotas }}</p>
                                         </v-col>
                                         <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled text-subtitle-2"> Usuarios Inscritos</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{item.users}}</p>
+                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.registered_users }}</span>
+                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.users }}</p>
                                         </v-col>
                                         <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled text-subtitle-2"> Usuarios en Espera</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{item.waitingusers}}</p>
+                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.waitingusers }}</span>
+                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.waitingusers }}</p>
                                         </v-col>
                                     </v-row>
                                 </v-card-text>
@@ -142,8 +146,9 @@ Vue.component('scheduleapproval',{
                                       @click="showdelete(item)"
                                     >
                                         <v-icon>mdi-delete-forever-outline</v-icon>
-                                      Eliminar
+                                        {{ lang.remove }}
                                     </v-btn>
+                                    
                                     <v-btn
                                       class="ma-2 rounded text-capitalize"
                                       outlined
@@ -153,15 +158,14 @@ Vue.component('scheduleapproval',{
                                       :disabled="item.users == 0"
                                     >
                                         <v-icon>mdi-account-multiple-check-outline</v-icon>
-                                    
-                                      Aprobar Usuarios
+                                        {{ lang.approve_users }}
                                     </v-btn>
                                 </v-card-actions>
                                 </v-card>
                             </v-col>
                         </v-row>
                     </v-card-text>
-                  </v-card>
+                </v-card>
             </v-col>
             
             <v-dialog
@@ -172,9 +176,11 @@ Vue.component('scheduleapproval',{
                     <v-card-title>
                         {{scheldule.title}}
                     </v-card-title>
+                    
                     <v-card-subtitle>
                       {{scheldule.days}} {{scheldule.hours}}
                     </v-card-subtitle>
+                    
                     <v-card-text>
                         <v-data-table
                             v-model="selected"
@@ -217,7 +223,7 @@ Vue.component('scheduleapproval',{
                                             mdi-folder-move-outline
                                         </v-icon>
                                     </template>
-                                    <span>Mover a</span>
+                                    <span>{{ lang.move_to }}</span>
                                 </v-tooltip>
                                 
                                 <v-tooltip bottom>
@@ -230,7 +236,7 @@ Vue.component('scheduleapproval',{
                                             mdi-delete
                                         </v-icon>
                                     </template>
-                                    <span>{{lang.remove}}</span>
+                                    <span>{{ lang.remove }}</span>
                                 </v-tooltip>
                             </template>
                         </v-data-table>
@@ -243,13 +249,13 @@ Vue.component('scheduleapproval',{
                            text
                            @click="close"
                         >
-                            {{lang.cancel}}
+                            {{ lang.cancel }}
                         </v-btn>
                         <v-btn
                            color="primary"
                            text
                         >
-                            {{lang.save}}
+                            {{ lang.save }}
                         </v-btn>
                     </v-card-actions>
                 </v-card>
@@ -261,22 +267,22 @@ Vue.component('scheduleapproval',{
             >
                 <v-card>
                     <v-card-title>
-                        Mover "{{moveTitle}}"
+                        {{ lang.move_to }} "{{moveTitle}}"
                     </v-card-title>
+                    
                     <v-card-subtitle class="d-flex align-center mt-1">
-                        Ubicación actual:
+                        {{ lang.current_location }}
                         
                         <v-btn
                           color="secondary"
                           class="rounded ml-2"
                           small
                         >
-                          <v-icon left>
-                            mdi-folder-account-outline
-                          </v-icon>
-                          {{scheldule.title}}
+                            <v-icon left>
+                                mdi-folder-account-outline
+                            </v-icon>
+                            {{scheldule.title}}
                         </v-btn>
-                        
                     </v-card-subtitle>
                     
                     <v-divider class="my-0"></v-divider>
@@ -307,7 +313,6 @@ Vue.component('scheduleapproval',{
                         
                                     <v-list-item-content>
                                         <v-list-item-title v-text="folder.name"></v-list-item-title>
-                        
                                         <v-list-item-subtitle v-text="folder.days"></v-list-item-subtitle>
                                         <v-list-item-subtitle v-text="folder.start + ' a ' + folder.end"></v-list-item-subtitle>
                                     </v-list-item-content>
@@ -369,15 +374,14 @@ Vue.component('scheduleapproval',{
                                                         </v-list-item-content>
                                                     </v-list-item>
                                                 </v-list>
-                                    
                                             </v-card>
                                         </v-menu>
                                     </v-list-item-action>
                                 </v-list-item>
                             </v-list-item-group>
                         </v-list>
-                    
                     </v-card-text>
+                    
                     <v-card-actions>
                         <v-spacer></v-spacer>
                         <v-btn
@@ -387,6 +391,7 @@ Vue.component('scheduleapproval',{
                         >
                             {{lang.cancel}}
                         </v-btn>
+                        
                         <v-btn
                            color="primary"
                            text
@@ -577,12 +582,12 @@ Vue.component('scheduleapproval',{
             selected: [],
             headers: [
               {
-                text: 'Estudiante',
+                text: window.strings.student,
                 align: 'start',
                 sortable: false,
                 value: 'student',
               },
-              { text: 'Actions', value: 'actions', sortable: false },
+              { text: window.strings.actions, value: 'actions', sortable: false },
             ],
             users: [],
             scheldule:{},
@@ -707,8 +712,8 @@ Vue.component('scheduleapproval',{
             this.approveusers =  true
             this.usersapprove = item
         },
-        waitingpage(){
-            window.location = '/local/grupomakro_core/pages/waitingusers.php'
+        userspage(){
+            window.location = '/local/grupomakro_core/pages/users.php'
         },
     },
      computed: {

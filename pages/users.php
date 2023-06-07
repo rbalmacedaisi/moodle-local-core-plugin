@@ -28,7 +28,7 @@ $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/waitingusers.php');
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/users.php');
 
 $context = context_system::instance();
 $PAGE->set_context($context);
@@ -37,11 +37,11 @@ if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('scheduleapproval', $plugin_name), new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php'));
 }
 $PAGE->navbar->add(
-    get_string('waitingusers', $plugin_name),
-    new moodle_url('/local/grupomakro_core/pages/waitingusers.php')
+    get_string('users', $plugin_name),
+    new moodle_url('/local/grupomakro_core/pages/users.php')
 );
-$PAGE->set_title(get_string('waitingusers', $plugin_name));
-$PAGE->set_title(get_string('waitingusers', $plugin_name));
+$PAGE->set_title(get_string('users', $plugin_name));
+$PAGE->set_heading(get_string('users', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $strings = new stdClass();
@@ -51,6 +51,8 @@ $strings->cancel = get_string('cancel',$plugin_name);
 $strings->save = get_string('save', $plugin_name);
 $strings->close = get_string('close',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
+$strings->users = get_string('users',$plugin_name);
+$strings->registered_users = get_string('registered_users',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -63,7 +65,7 @@ echo <<<EOT
     <v-app class="transparent">
       <v-main class="pt-0">
         <div>
-          <waitingusers></waitingusers>
+          <users></users>
         </div>
       </v-main>
     </v-app>
@@ -100,7 +102,9 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waitingusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/users.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/registeredusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();
