@@ -40,7 +40,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->libdir . '/filelib.php');
-require_once($CFG->dirroot . '/group/externallib.php');
+require_once $CFG->dirroot. '/group/lib.php';
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
@@ -210,12 +210,18 @@ class create_class extends external_api {
             
             //----------------------------------------------------Creation of group----------------------------------------------------------
             
-            //Create the group oject and create the group using the webservice.
-            $group = [['courseid'=>$coreCourseId,'name'=>$name.'-'.$newClass->id,'idnumber'=>'','description'=>'','descriptionformat'=>'1']];
-            $newClass->groupid = \core_group_external::create_groups($group)[0]['id'];
+            //Create the group .
             
-            $members = ['members'=>['groupid'=> $newClass->groupid, 'userid'=>$instructorId]];
-            $instructorAddedToGroup = \core_group_external::add_group_members($members);
+            $groupInfo = new stdClass();
+            $groupInfo->idnumber = $name.'-'.$newClass->id;
+            $groupInfo->name = $name.'-'.$newClass->id;
+            $groupInfo->courseid = $coreCourseId;
+            $groupInfo->description = 'Group for the '.$groupInfo->name.' class';
+            $groupInfo->descriptionformat = 1;
+            $newClass->groupid =groups_create_group($groupInfo);
+            
+            //Add the instructor to the class group
+            $instructorAddedToGroup = groups_add_member($newClass->groupid,$instructorId);
             
             //----------------------------------------------------Creation of course section (topic)-----------------------------------------
             

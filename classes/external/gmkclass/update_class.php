@@ -39,7 +39,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->libdir . '/externallib.php';
 require_once($CFG->libdir . '/filelib.php');
-require_once $CFG->dirroot. '/group/externallib.php';
+require_once $CFG->dirroot. '/group/lib.php';
 require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 
 /**
@@ -94,10 +94,10 @@ class update_class extends external_api {
         ) {
 
         try{
-        // Global variables.
-        global $DB,$USER;
-        
-        //Check the instructor availability
+            // Global variables.
+            global $DB,$USER;
+
+            //Check the instructor availability
             $incomingClassSchedule = explode('/', $classDays);
             $incomingInitHour = intval(substr($initTime,0,2));
             $incomingInitMinutes = substr($initTime,3,2);
@@ -176,7 +176,7 @@ class update_class extends external_api {
             
             //Delete created resources before the update
             $sectionnum = $section->section;
-            $sectioninfo = get_fast_modinfo($course)->get_section_info($sectionnum);    
+            $sectioninfo = get_fast_modinfo($course)->get_section_info($sectionnum);
             course_delete_section($course, $sectioninfo, true, true);
             rebuild_course_cache($coreCourseId, true);
     
@@ -187,13 +187,19 @@ class update_class extends external_api {
             
             //----------------------------------------Update Group-----------------------------------------
             
+            //update the group with the class update info
             $groupInfo = new stdClass();
+            $groupInfo->idnumber = $name.'-'.$classId;
             $groupInfo->id = $classInfo->groupid;
             $groupInfo->name = $name.'-'.$classId;
             $groupInfo->courseid = $coreCourseId;
-            $groupInfo->timemodified = time();
+            $groupInfo->description = 'Group for the '.$groupInfo->name.' class';
             
-            $groupUpdated = $DB->update_record('groups',$groupInfo);
+            $updateGroup =groups_update_group($groupInfo);
+            
+            //Remove the previous instructor and add the new one to the group
+            $instructorAddedToGroup = groups_remove_member($classInfo->groupid,$classInfo->instructorid);
+            $instructorAddedToGroup = groups_add_member($classInfo->groupid,$instructorId);
             
             //---------------------------------------Update Class------------------------------------------
             
