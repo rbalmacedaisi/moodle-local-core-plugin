@@ -86,7 +86,7 @@ class get_teachers_disponibility_calendar extends external_api {
         global $DB;
         
         $initDate = '2023-04-01';
-        $endDate = '2023-05-30';
+        $endDate = '2023-06-30';
         
         $filters = array();
         if($instructorId){

@@ -68,7 +68,7 @@ function grupomakro_core_create_class_activities($class) {
     $classDays = $class->classdays;
     
     $initDate = '2023-04-01';
-    $endDate = '2023-05-30';
+    $endDate = '2023-06-30';
         
     //Calculate the class session duration in seconds
     $initDateTime = DateTime::createFromFormat('H:i', $initTime);
@@ -373,7 +373,7 @@ function getClassEvents() {
     $dispatchedEvents = array();
     
     $initDate = '2023-04-01';
-    $endDate = '2023-05-30';
+    $endDate = '2023-06-30';
 
     $aux = 0;
     

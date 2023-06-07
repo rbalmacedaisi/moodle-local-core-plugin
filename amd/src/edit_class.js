@@ -180,11 +180,20 @@ const handleClassSave = () => {
         promise[0].done(function(response) {
             window.console.log(response);
             if(response.status === -1 ){
-
-                    // Add the error message to the modal content.
+                // Add the error message to the modal content.
+                try{
+                    const errorMessages = JSON.parse(response.message);
+                    let errorHTMLString = '';
+                    errorMessages.forEach(message=>{
+                        errorHTMLString += `<p class="text-center">${message}</p>`
+                    })
+                    errorModalContent.html(errorHTMLString);
+                }catch (error){
                     errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+                } finally{
                     errorModal.modal('show');
                     return
+                }
             }
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
         }).fail(function(error) {

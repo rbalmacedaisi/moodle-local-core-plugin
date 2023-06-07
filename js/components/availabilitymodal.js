@@ -193,6 +193,7 @@ Vue.component('availabilitymodal',{
                                       outlined
                                       type="error"
                                       v-show="classError"
+                                      style="white-space: pre-line"
                                     >
                                       {{classError}}
                                     </v-alert>
@@ -467,8 +468,20 @@ Vue.component('availabilitymodal',{
             const createClassResponse = await window.axios.get(this.siteUrl, { params })
             this.creatingClass = false
             if(createClassResponse.data.status === -1 ){
-                this.createClassError = createClassResponse.data.message
-                return
+                // this.createClassError = createClassResponse.data.message
+                // Add the error message to the modal content.
+                try{
+                    const errorMessages = JSON.parse(createClassResponse.data.message);
+                    let errorString = '';
+                    errorMessages.forEach(message=>{
+                        errorString += `${message} \n`
+                    })
+                    this.createClassError = errorString
+                }catch (error){
+                    this.createClassError = createClassResponse.data.message
+                } finally{
+                    return
+                }
             } 
             window.location.reload()
         },

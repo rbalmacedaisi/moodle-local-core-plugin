@@ -116,11 +116,13 @@ class update_class extends external_api {
               5 => 'Sábado',
               6 => 'Domingo'
             );
+            $errors = array();
+            
             
             for ($i = 0; $i < 7; $i++) {
                 if($incomingClassSchedule[$i]==="1" && !property_exists($availabilityRecords,$weekdays[$i])){
                     $errorString = "El instructor no esta disponible el día ".$weekdays[$i];
-                    throw new Exception($errorString);
+                    $errors[]=$errorString;
                 }
                 else if ($incomingClassSchedule[$i]==="1" && property_exists($availabilityRecords,$weekdays[$i])){
                     $foundedAvailableRange = false;
@@ -140,7 +142,7 @@ class update_class extends external_api {
                     }
                     if(!$foundedAvailableRange){
                         $errorString = "El instructor no esta disponible el día ".$weekdays[$i]." en el horário: ".$initTime." - ".$endTime ;
-                        throw new Exception($errorString);
+                         $errors[]=$errorString;
                     }
                 }
             }
@@ -157,11 +159,17 @@ class update_class extends external_api {
                     if ($incomingClassSchedule[$i] == $alreadyAsignedClassSchedule[$i] && $incomingClassSchedule[$i] === '1') {
                         if(($incomingInitTimeTS >= $classInitTime && $incomingEndTimeTS<=$classEndTime) || ($incomingInitTimeTS < $classInitTime && $incomingEndTimeTS>$classInitTime) ||($incomingInitTimeTS < $classEndTime && $incomingEndTimeTS>$classEndTime)){
                             $errorString = "La clase ".$alreadyAsignedClass->name.": ".$weekdays[$i]." (".$alreadyAsignedClass->initHourFormatted." - ".$alreadyAsignedClass->endHourFormatted.") se cruza con el horario escogido"  ;
-                            throw new Exception($errorString);
+                             $errors[]=$errorString;
                         }
                     }
                 }
             }
+            
+            if(count($errors)>0){
+                throw new Exception(json_encode($errors));
+            }
+            
+            
             // --------------------------------------------------------------------
         
             $classInfo = $DB->get_record('gmk_class', ['id'=>$classId]);
