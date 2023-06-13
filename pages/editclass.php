@@ -149,7 +149,8 @@ $templatedata = [
     'activityEndTime'=>$activityInfo?$activityInfo ->activityEndTime: null,
     'activityProposedEndTime'=>$activityInfo? ($proposedHour ? date("H:i", strtotime($proposedHour) + $class->classDuration)  : $activityInfo->activityEndTime): null,
     'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
-    'rescheduleCancelUrl'=> $CFG->wwwroot.'/local/grupomakro_core/pages/schedules.php'
+    'rescheduleCancelUrl'=> $CFG->wwwroot.'/local/grupomakro_core/pages/schedules.php',
+    'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);

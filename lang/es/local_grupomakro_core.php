@@ -321,6 +321,7 @@ $string['want_to_approve'] = '¿Está seguro que desea aprobarla?';
 $string['mminimum_quota_message'] = 'La clase seleccionada no cuenta con el número mínimo de estudiantes permitidos.';
 $string['write_reason'] = 'Escribe el motivo';
 $string['users'] = 'Usuarios';
+$string['add_schedules'] = 'Agregar Horarios';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';

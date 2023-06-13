@@ -319,6 +319,7 @@ $string['maximum_quota_message'] = 'The selected class exceeds the maximum quota
 $string['want_to_approve'] = 'Are you sure you want to approve it?';
 $string['mminimum_quota_message'] = 'The selected class does not have the minimum number of students allowed.';
 $string['write_reason'] = 'Write the reason';
+$string['add_schedules'] = 'Add Schedules';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

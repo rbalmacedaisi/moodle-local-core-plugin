@@ -67,6 +67,7 @@ $classTypes = [
 
 $templatedata = [
     'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
+    'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
     'classTypes' => $classTypes,
     'availableCareers' => $formattedAvailableCareers
 ];
