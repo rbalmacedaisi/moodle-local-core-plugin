@@ -574,7 +574,115 @@ Vue.component('scheduleapproval',{
                     isApprove: false,
                     registeredusers:[],
                     waitinglist: []
-                }
+                },
+                {
+                    id: 5,
+                    name: 'Medición de maquinaría',
+                    days: 'Jueves - Viernes ',
+                    start: "07:00 am",
+                    end: "09:00 am",
+                    instructor: "Nataly Hoyos",
+                    type: "Virtual",
+                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
+                    quotas: 30,
+                    users: 1,
+                    waitingusers: 5,
+                    isApprove: false,
+                    registeredusers:[
+                        {
+                            userid: 20,
+                            fullname: 'Andres Mejia',
+                            email: 'andresmejia@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                    ],
+                    waitinglist: [
+                        {
+                            userid: 28,
+                            fullname: 'Ismael Mejia',
+                            email: 'ismaelmejia@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 29,
+                            fullname: 'Ivan Morales',
+                            email: 'ivanmorales@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 30,
+                            fullname: 'John Morales',
+                            email: 'john@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 31,
+                            fullname: 'Laura Londoño',
+                            email: 'lauralondoño@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 32,
+                            fullname: 'Marcela Toro',
+                            email: 'marcelatoro@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                    ]
+                },
+                {
+                    id: 6,
+                    name: 'Matemáticas',
+                    days: 'Jueves - Viernes ',
+                    start: "07:00 am",
+                    end: "09:00 am",
+                    instructor: "Nataly Hoyos",
+                    type: "Virtual",
+                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
+                    quotas: 30,
+                    users: 1,
+                    waitingusers: 5,
+                    isApprove: false,
+                    registeredusers:[
+                        {
+                            userid: 65,
+                            fullname: 'Andres Mejia',
+                            email: 'andresmejia@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                    ],
+                    waitinglist: [
+                        {
+                            userid: 33,
+                            fullname: 'Ismael Mejia',
+                            email: 'ismaelmejia@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 34,
+                            fullname: 'Ivan Morales',
+                            email: 'ivanmorales@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 35,
+                            fullname: 'John Morales',
+                            email: 'john@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 36,
+                            fullname: 'Laura Londoño',
+                            email: 'lauralondoño@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                        {
+                            userid: 37,
+                            fullname: 'Marcela Toro',
+                            email: 'marcelatoro@gmail.com',
+                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                        },
+                    ]
+                },
             ],
             selectedItem: '',
             dialog: false,

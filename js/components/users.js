@@ -22,6 +22,9 @@ Vue.component('users',{
                     <section v-if="tab == 0" id="waitingusers" class="pb-10">
                         <waitingusers />
                     </section>
+                    <section v-if="tab == 1" id="incompleteschedules" class="pb-10">
+                        <incompleteschedules />
+                    </section>
             
                   </v-col>
                 </v-row>

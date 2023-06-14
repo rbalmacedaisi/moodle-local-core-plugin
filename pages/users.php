@@ -53,6 +53,9 @@ $strings->close = get_string('close',$plugin_name);
 $strings->accept = get_string('accept',$plugin_name);
 $strings->users = get_string('users',$plugin_name);
 $strings->registered_users = get_string('registered_users',$plugin_name);
+$strings->add_schedule = get_string('add_schedule',$plugin_name);
+$strings->add_schedules = get_string('add_schedules',$plugin_name);
+$strings->save = get_string('save',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -104,7 +107,7 @@ EOT;
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waitingusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/users.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/registeredusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/incompleteschedules.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();
