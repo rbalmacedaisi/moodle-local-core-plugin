@@ -485,7 +485,7 @@ Vue.component('classschedule',{
             urlClass: 'classmanagement.php',
             urlAvailability: 'availability.php',
             URLdomain: window.location.origin,
-            token: '0deabd5798084addc080286f4acccd87',
+            token: '33513bec0b3469194c7756c29bf9fb33',
             siteUrl: window.location.origin + '/webservice/rest/server.php',
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             ready: false,
@@ -577,6 +577,7 @@ Vue.component('classschedule',{
                 // If the request is successful, process the received data
                 .then(response => {
                     // Convert the JSON response to an objec.
+                    console.log(response)
                     const data = JSON.parse(response.data.events)
                     // Iterate over each element in the received data.
                     data.forEach((element) => {
