@@ -431,7 +431,9 @@ function getClassEvents() {
 }
 
 function complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds){
-    global $DB;
+    global $DB,$CFG;
+    
+    $enviromentDic = ['development'=>'-dev','staging'=>'-staging', 'production'=>''];
 
     $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
         
@@ -468,10 +470,10 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     if($event->modulename === 'bigbluebuttonbn'){
         $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
         $event->color = '#2196f3';
-        $event->bigBlueButtonActivityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
+        $event->bigBlueButtonActivityUrl = 'https://grupomakro'.$enviromentDic[$CFG->environment_type].'.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
     }else{
         $event->color = '#00bcd4';
-        $event->attendanceActivityUrl = 'https://grupomakro-dev.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
+        $event->attendanceActivityUrl = 'https://grupomakro'.$enviromentDic[$CFG->environment_type].'.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
         $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
         $event->sessionId = $sessionId;
     }
