@@ -99,10 +99,10 @@ class check_reschedule_conflicts extends external_api {
             
             $incomingInitHour = intval(substr($initTime,0,2));
             $incomingInitMinutes = substr($initTime,3,2);
-            if(!$endTime || $endTime = 'null'){
+            if(!$endTime || $endTime === 'null'){
+                var_dump('entre');
                 $endTime = date("H:i", strtotime($initTime) + $classInfo->classDuration);
             }
-
             $incomingEndHour = intval(substr($endTime,0,2));
             $incomingEndMinutes = substr($endTime,3,2);
             $incomingInitTimeTS=$incomingInitHour * 3600 + $incomingInitMinutes * 60;
@@ -136,8 +136,8 @@ class check_reschedule_conflicts extends external_api {
                 
             }
             if(!$foundedAvailableRange){
-                $errorString = "El instructor no esta disponible el día ".$incomingWeekDay." en el horário: ".$initTime." - ".$endTime ;
-                throw new Exception($errorString);
+                $errorString = "El instructor no esta disponible el día ".$incomingWeekDay." en el horário: ".$initTime." - ".$endTime.'. Esta seguro de que quiere continuar?';
+                return ['status' => 1, 'message'=>$errorString];
             }
             // --------------------------------------------------------------------
             

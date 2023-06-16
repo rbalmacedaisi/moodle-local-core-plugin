@@ -111,7 +111,7 @@ const handleActivityReschedule = () => {
             endTime:newEndTimeInput.val(),
             sessionId:searchParams.get('sessionId')!==''?searchParams.get('sessionId'):null
         };
-        console.log(args)
+        confirmRescheduleButton.hide();
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_check_reschedule_conflicts',
             args
@@ -120,8 +120,9 @@ const handleActivityReschedule = () => {
             window.console.log(response);
             rescheduleConfirmationText.html(`<p>${response.message}</p>`);
             if(response.status === -1 ){
-                confirmRescheduleButton.hide();
+                return
             } 
+            confirmRescheduleButton.show();
         }).fail(function(error) {
             window.console.error(error);
         });
