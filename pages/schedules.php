@@ -52,8 +52,13 @@ $rolInstructor = !empty($teacherRoles);
 //override the teacher role if the user is an administrator
 $rolInstructor = $DB->get_record('role_assignments', array('roleid'=>1,'userid'=>$USER->id))?0:1;
 
+
+
+//Build a instructor filter if the user is an instructor
+$classInstructorFilter = $rolInstructor ===1?['instructorid'=>$USER->id]:[];
+
 // Get the list of created classes
-$classes = grupomakro_core_list_classes([]);
+$classes = grupomakro_core_list_classes($classInstructorFilter);
 $classItems = [];
 foreach($classes as $class){
   $classItem = new stdClass();
