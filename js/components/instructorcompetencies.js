@@ -4,7 +4,10 @@ Vue.component('instructorcompetencies',{
           v-model="menu"
           :close-on-content-click="false"
           :nudge-width="200"
-          offset-x
+          bottom
+          left
+          offset-y
+          
         >
             <template v-slot:activator="{ on, attrs }">
                 <v-btn
@@ -19,7 +22,7 @@ Vue.component('instructorcompetencies',{
                 </v-btn>
             </template>
     
-            <v-card>
+            <v-card max-height="350">
                 <v-list>
                     <v-list-item>
                         <v-list-item-avatar>
@@ -35,7 +38,7 @@ Vue.component('instructorcompetencies',{
     
                 <v-divider class="my-0"></v-divider>
     
-                <v-list>
+                <v-list >
                     <template v-for="(skill,index) in skills">
                         <v-list-item :class="index % 2 === 0 ? 'even-item' : 'odd-item'" :key="index" style="border-bottom: 1px solid #b0b0b0;">
                             <v-list-item-title>{{skill}}</v-list-item-title>

@@ -108,6 +108,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waiting
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/users.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/incompleteschedules.js'));
+
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();

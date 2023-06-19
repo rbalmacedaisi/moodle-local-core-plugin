@@ -55,7 +55,6 @@ foreach($availableCareers as $careerName => $careerInfo){
 }
 // 
 
-
 echo $OUTPUT->header();
 
 $classTypes = [

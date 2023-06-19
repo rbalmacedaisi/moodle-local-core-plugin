@@ -26,8 +26,6 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 
-// require_login();
-
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/contractenrol.php');
 
 $context = context_system::instance();
@@ -43,19 +41,9 @@ $enrolLinkInfo = check_enrol_link_validity($token);
 
 echo $OUTPUT->header();
 
-// $classTypes = [
-//     ['value'=>1, 'label'=>'Virtual'],
-//     ['value'=>0, 'label'=>'Presencial'],
-//     ['value'=>2, 'label'=>'Mixta'],
-    
-// ];
-
 $templatedata = [
     'courseName'=>$enrolLinkInfo->courseName,
     'contractId'=>$enrolLinkInfo->contractId
-    // 'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
-    // 'classTypes' => $classTypes,
-    // 'availableCareers' => $formattedAvailableCareers
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/contract_enrol',$templatedata);

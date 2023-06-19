@@ -4,7 +4,9 @@ Vue.component('instructoravailability',{
           v-model="menu"
           :close-on-content-click="false"
           :nudge-width="200"
-          offset-x
+          bottom
+          left
+          offset-y
         >
             <template v-slot:activator="{ on, attrs }">
                 <v-btn
@@ -19,7 +21,7 @@ Vue.component('instructoravailability',{
                 </v-btn>
             </template>
     
-            <v-card>
+            <v-card max-height="350">
                 <v-list>
                     <v-list-item>
                         <v-list-item-avatar>

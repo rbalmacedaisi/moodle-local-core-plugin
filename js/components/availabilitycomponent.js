@@ -110,7 +110,7 @@ Vue.component('availabilitycalendar',{
         }
     },
     created(){
-        this.getDisponibilityData()
+        this.getDisponibilityData() 
     },
     mounted () {
         this.$refs.calendar.checkChange();
