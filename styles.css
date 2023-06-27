@@ -654,3 +654,22 @@ span.badge.text-white{
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+#contract-search,
+#contract-user-search{
+    width: 300px;
+    max-width: 300px;
+}
+
+#contract-apply-filter-button,
+#contract-remove-filter-button,
+#user-contract-apply-filter-button,
+#user-contract-remove-filter-button{
+    white-space:nowrap;
+    display: flex;
+    align-items: center;
+}
+#multiple-users-select{
+    width: 320px;
+    max-width: 320px;
+}

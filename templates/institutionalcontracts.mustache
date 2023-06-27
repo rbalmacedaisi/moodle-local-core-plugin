@@ -91,12 +91,15 @@
             <div class="tab-content py-5">
                 {{! Tab contracts }}
                 <div class="tab-pane active" id="contracts" role="tabpanel">
-                    <div class="d-flex">
-                        <div class="w-25">
-                            <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+                    <div class="row d-flex">
+                        <div class="col-sm-12 col-md-8 d-flex mb-1">
+                            <input class="form-control" id="contract-search" type="text" value="{{contractFilter}}" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+                            <a class="btn btn-outline-primary btn-sm mx-1" id="contract-apply-filter-button" href="#">{{#str}}apply_filter, local_grupomakro_core{{/str}}</a>
+                            <a class="btn btn-outline-secondary btn-sm" id="contract-remove-filter-button" href="#">{{#str}}remove_filter, local_grupomakro_core{{/str}}</a>
                         </div>
                         <div class="spacer"></div>
-                        <a class="btn btn-primary" id="create-contract-button" href="#">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
+                        
+                        <a class="btn btn-primary ml-3 mb-1 " id="create-contract-button" href="#">{{#str}}create_contract, local_grupomakro_core{{/str}}</a>
                     </div>
                     {{{table}}}
                 </div>

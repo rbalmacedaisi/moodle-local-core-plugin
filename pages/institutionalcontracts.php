@@ -36,8 +36,10 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_heading(get_string('institutional_contracts', $plugin_name));
 $PAGE->set_pagelayout('base');
-$institutionId = required_param('id', PARAM_TEXT);
 
+$institutionId = required_param('id', PARAM_TEXT);
+$contractFilter = optional_param('contractFilter', null, PARAM_TEXT);
+$contractUserFilter = optional_param('contractUserFilter', null, PARAM_TEXT);
 
 if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('institutionmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php'));
@@ -58,9 +60,7 @@ $users =array_values( array_map(function ($user){
     return $userMin;
 },$users));
 
-$institution = get_institution_contract_panel_info($institutionId);
-// print_object(uniqid());
-// die;
+$institution = get_institution_contract_panel_info($institutionId , $contractFilter , $contractUserFilter);
 
 $courses = $DB->get_records('course');
 $courses =array_values( array_map(function ($course){
@@ -87,8 +87,6 @@ $table->head = array(
     get_string('options', $plugin_name),
     
 );
-
-
 
 foreach ($institution->institutionInfo->contracts as $contract) {
     $displaycontract = html_writer::start_tag('div', array('class' => 'd-flex align-items-center'));
@@ -171,7 +169,7 @@ foreach ($institution->contractUsers as $contractUser) {
     
     $action_button = html_writer::tag('button',
         get_string('details', 'local_grupomakro_core'), 
-        array('class' => 'btn btn-primary btn-sm view-details-button', 'data-toggle' => 'modal', 'data-target' => '#userinfoModalLong','contract-user-id'=>$contractUser->userid)
+        array('class' => 'btn btn-outline-primary btn-sm view-details-button', 'data-toggle' => 'modal', 'data-target' => '#userinfoModalLong','contract-user-id'=>$contractUser->userid)
     );
     
     // The contract status tag is generated.
@@ -195,7 +193,9 @@ $templatedata = [
     'numberOfUsers'=>$institution->institutionInfo->numberOfUsers,
     'users'=>$users,
     'courses'=>$courses,
-    'contracts'=>$institution->institutionInfo->contractNames
+    'contracts'=>$institution->institutionInfo->contractNames,
+    'contractFilter'=>$contractFilter,
+    'contractUserFilter'=>$contractUserFilter
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/institutionalcontracts', $templatedata);

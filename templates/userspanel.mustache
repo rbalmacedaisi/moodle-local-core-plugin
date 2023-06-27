@@ -38,17 +38,18 @@
 }}
 <div class="container-fluid">
     <div class="row"> 
-        <div class="col-sm-12 d-flex align-items-center flex-wrap px-0">
-            <div class="w-25">
-                <input class="form-control" id="myInput" type="text" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
-            </div>
-            <div class="spacer"></div>
-        
-            <form action="" method='POST' enctype="multipart/form-data" class="m-1 ">
+        <div class="col-sm-12 d-flex px-0 mb-2">
+            <form action="" method='POST' enctype="multipart/form-data" class="m-1" id="multiple-users-select">
                 <input type="file" class="form-control-file form-control p-0" id="upload_massive_inst_users" data-initial-value="" name='massivecsv'>
             </form>
-            <a class="btn btn-primary m-1" data-toggle='modal' data-target='#addUserInstitutionModalLong'>{{#str}}adduser, local_grupomakro_core{{/str}}</a>
+            <div class="spacer"></div>
             <a class="btn btn-primary m-1" data-toggle='modal' data-target='#generateEnrolLinkModal'>{{#str}}generateEnrolLink, local_grupomakro_core{{/str}}</a>
+            <a class="btn btn-primary m-1" data-toggle='modal' data-target='#addUserInstitutionModalLong'>{{#str}}adduser, local_grupomakro_core{{/str}}</a>
+        </div>
+        <div class="col-sm-12 d-flex px-0">
+            <input class="form-control" id="contract-user-search" type="text" value="{{contractUserFilter}}" placeholder="{{#str}} search, local_grupomakro_core{{/str}}">
+            <a class="btn btn-outline-primary btn-sm mx-1" id="user-contract-apply-filter-button" href="#">{{#str}}apply_filter, local_grupomakro_core{{/str}}</a>
+            <a class="btn btn-outline-secondary btn-sm" id="user-contract-remove-filter-button" href="#">{{#str}}remove_filter, local_grupomakro_core{{/str}}</a>
         </div>
     </div>
     <div class="row">
