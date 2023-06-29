@@ -117,7 +117,23 @@ Vue.component('availabilitymodal',{
                                                     :rules="[requiredRule]"
                                                 ></v-select>
                                             </v-col>
-                                      
+                                            
+                                            <v-col cols="12" sm="6" v-show="showClassroomSelector">
+                                                <v-select
+                                                    outlined
+                                                    hide-selected
+                                                    dense
+                                                    v-model="newClass.classroomId"
+                                                    class="my-1"
+                                                    :placeholder="lang.classrooms"
+                                                    :items="classRooms"
+                                                    item-text="label"
+                                                    item-value="value"
+                                                    hide-details="auto"
+                                                    :rules="showClassroomSelector?[requiredRule]:[]"
+                                                ></v-select>
+                                            </v-col>
+                                            
                                             <v-col cols="12" sm="6">
                                                 <v-select
                                                     outlined
@@ -251,7 +267,8 @@ Vue.component('availabilitymodal',{
                 learningPlanId: undefined,
                 periodId: undefined,
                 courseId: undefined,
-                classDays:undefined
+                classDays:undefined,
+                classroomId:undefined
             },
             periods:[],
             courses:[],
@@ -270,7 +287,9 @@ Vue.component('availabilitymodal',{
             creatingClass:false
         }
     },
-    created(){},
+    created(){
+        console.log(window)
+    },
     watch:{
         'newClass.name':function handler(newVal,oldVal){
             this.newClassEvent.name = newVal;
@@ -399,8 +418,15 @@ Vue.component('availabilitymodal',{
                 instructorId:this.instructorId,
                 initTime:startTime,
                 endTime:endTime,
-                classDays:this.selectedDaysFormatted
+                classDays:this.selectedDaysFormatted,
+                classroomId:this.newClass.classroomId?this.newClass.classroomId:''
             }
+        },
+        classRooms(){
+            return window.classrooms;
+        },
+        showClassroomSelector(){
+            return this.newClass.type === 0 ||this.newClass.type === 2? true:false
         }
     },
     mounted () {

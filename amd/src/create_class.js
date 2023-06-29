@@ -3,7 +3,8 @@ import $ from 'jquery';
 
 let selectedInstance;
 
-const typeSelector = $('#class_type');
+const typeSelector = $('#classtype');
+const classroomSelector = $('#classroom')
 const classNameInput = $('#classname')
 const careerSelector = $('#career');
 const periodSelector = $('#period');
@@ -21,7 +22,7 @@ const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
-const selectors = [ typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector,classNameInput, initTimeInput, endTimeInput];
+const selectors = [ typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector,classNameInput, initTimeInput, endTimeInput,classroomSelector];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 
 let periods;
@@ -40,9 +41,22 @@ export const init = () => {
     handlePeriodSelection();
     handleCourseSelection();
     handleClassSave();
+    handleTypeSelector();
 };
 
-
+const handleTypeSelector = () => {
+    typeSelector.change(()=>{
+        let classroomSelectorContainer = $("#classroom-fieldset");
+        if(typeSelector.val()==='0' || typeSelector.val()==='2' ){
+            classroomSelector.prop('required', true);
+            classroomSelectorContainer.removeClass("d-none");
+        }
+        else if(typeSelector.val()==='1' ){
+            classroomSelector.removeAttr('required');
+            classroomSelectorContainer.addClass("d-none");
+        }
+    })
+}
 
 const handleClassSave = () => {
     saveButton.click(()=>{
@@ -53,6 +67,7 @@ const handleClassSave = () => {
             return selector.get(0).reportValidity();
         });
         if (!valid) {
+            console.log('error');
             return;
         }
         //
@@ -83,7 +98,8 @@ const handleClassSave = () => {
             instructorId: teacherSelector.val(),
             initTime: initTimeInput.val(),
             endTime: endTimeInput.val(),
-            classDays: formatSelectedClassDays()
+            classDays: formatSelectedClassDays(),
+            classroomId: classroomSelector.val()
         };
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_class',

@@ -70,7 +70,8 @@ class create_class extends external_api {
                 'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
                 'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
                 'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active')
+                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
+                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
             ]
         );
     }
@@ -91,7 +92,8 @@ class create_class extends external_api {
         int $instructorId,
         string $initTime,
         string $endTime,
-        string $classDays
+        string $classDays,
+        string $classroomId
         ) {
         
         // Validate the parameters passed to the function.
@@ -105,7 +107,8 @@ class create_class extends external_api {
             'instructorId' =>$instructorId,
             'initTime'=>$initTime,
             'endTime'=>$endTime,
-            'classDays'=>$classDays
+            'classDays'=>$classDays,
+            'classroomId'=>$classroomId
         ]);
         
         // Global variables.
@@ -113,7 +116,6 @@ class create_class extends external_api {
         
         
         try{
-            
             //Check the instructor availability
             $incomingClassSchedule = explode('/', $classDays);
             $incomingInitHour = intval(substr($initTime,0,2));
@@ -165,8 +167,10 @@ class create_class extends external_api {
                 }
             }
             
-            $alreadyAsignedClasses= grupomakro_core_list_classes(['instructorid'=>$instructorId]);
-
+            $classes = grupomakro_core_list_classes([]);
+            $alreadyAsignedClasses = array_filter($classes, function($class) use ($instructorId) {
+                return $class->instructorid === strval($instructorId);
+            });
             foreach($alreadyAsignedClasses as $alreadyAsignedClass){
                 $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
                 $classInitTime = $alreadyAsignedClass->inittimeTS;
@@ -181,14 +185,34 @@ class create_class extends external_api {
                     }
                 }
             }
-            
+            if($classroomId!==''){
+                $classesWithSameClassroom= array_filter($classes, function($class) use ($classroomId) {
+                    return $class->classroomid === strval($classroomId);
+                });
+                $newClassDaysArray = array_map('intval', explode('/', $classDays));
+                foreach($classesWithSameClassroom as $class){
+                    $existingClassDaysArray = array_map('intval', explode('/', $class->classdays));
+                    $length = count($newClassDaysArray);
+        
+                    for ($i = 0; $i < $length; $i++) {
+                        if ($newClassDaysArray[$i] === 1 && $existingClassDaysArray[$i] === 1) {
+                            if (
+                                ($initTime >= $class->inittime && $initTime <= $class->endtime) ||
+                                ($endTime >= $class->inittime && $endTime <= $class->endtime) ||
+                                ($class->inittime >= $initTime && $class->inittime <= $endTime) ||
+                                ($class->endtime >= $initTime && $class->endtime <= $endTime)
+                            ) {
+                                $errorString =  "El salon de clase no esta disponible el día ".$weekdays[$i]." en el horário: ".$initTime." - ".$endTime ;
+                                $errors[]=$errorString;
+                            }
+                        }
+                    }
+                }
+            }
             if(count($errors)>0){
                 throw new Exception(json_encode($errors));
             }
-            
-            // --------------------------------------------------------------------
-            
-            
+            die;
             //Get the real course Id from the courses table.
             $learningCourse= $DB->get_record('local_learning_courses',['id'=>$courseId]);
             $coreCourseId = $learningCourse->courseid;
@@ -208,12 +232,17 @@ class create_class extends external_api {
             $newClass->inittime       = $initTime;
             $newClass->endtime        = $endTime;
             $newClass->classdays      = $classDays;
+            $newClass->classroomid    = $classroomId ===''?null:$classroomId;
             $newClass->usermodified   = $USER->id;
             $newClass->timecreated    = time();
             $newClass->timemodified   = time();
             
             $newClass->id = $DB->insert_record('gmk_class', $newClass);
             
+            // --------------------------------------------------------------------
+            if($classroomId !== ''){
+                $classroomsReservations = createClassroomReservations($newClass);
+            }
             //----------------------------------------------------Creation of group----------------------------------------------------------
             
             //Create the group .

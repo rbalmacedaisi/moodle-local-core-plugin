@@ -24,6 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_active_learning_plans.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
@@ -63,12 +64,12 @@ $classTypes = [
     ['value'=>2, 'label'=>'Mixta'],
     
 ];
-
 $templatedata = [
     'cancelurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
     'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
     'classTypes' => $classTypes,
-    'availableCareers' => $formattedAvailableCareers
+    'availableCareers' => $formattedAvailableCareers,
+    'classRooms'=>get_classrooms()
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/create_class', $templatedata);

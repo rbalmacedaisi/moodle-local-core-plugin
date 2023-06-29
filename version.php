@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version =  20230623000;
+$plugin->version =  20230627000;
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

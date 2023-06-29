@@ -36,6 +36,7 @@ $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
 
 $token = required_param('token', PARAM_TEXT);
+$webServiceUrl = $CFG->wwwroot.'/webservice/rest/server.php?wstoken=33513bec0b3469194c7756c29bf9fb33&moodlewsrestformat=json&wsfunction=';
 
 $enrolLinkInfo = check_enrol_link_validity($token);
 
@@ -47,5 +48,5 @@ $templatedata = [
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/contract_enrol',$templatedata);
-$PAGE->requires->js_call_amd('local_grupomakro_core/contract_enrol', 'init', [$enrolLinkInfo->courseid,$enrolLinkInfo->contractid]);
+$PAGE->requires->js_call_amd('local_grupomakro_core/contract_enrol', 'init', [$enrolLinkInfo->courseid,$enrolLinkInfo->contractid,$webServiceUrl]);
 echo $OUTPUT->footer();

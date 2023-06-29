@@ -72,6 +72,7 @@ $strings->select_period = get_string('select_period',$plugin_name);
 $strings->select_courses = get_string('select_courses',$plugin_name);
 $strings->classdays = get_string('classdays',$plugin_name);
 $strings->create = get_string('create',$plugin_name);
+$strings->classrooms = get_string('classroom',$plugin_name);
 $strings = json_encode($strings);
 
 $classTypes = [
@@ -88,6 +89,7 @@ $instances = [
 
 $instances = json_encode($instances);
 $classTypes = json_encode($classTypes);
+$classrooms = json_encode(get_classrooms());
 
 echo $OUTPUT->header();
 
@@ -148,6 +150,7 @@ echo <<<EOT
     var strings = $strings;
     var classTypes = $classTypes;
     var instances = $instances;
+    var classrooms = $classrooms;
   </script>
 EOT;
 

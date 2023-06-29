@@ -345,6 +345,52 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20230329020, 'local', 'grupomakro_core');
     }
+    
+        if ($oldversion < 20230623000) {
+
+        // Define table gmk_class_session to be created.
+        $table = new xmldb_table('gmk_class_session');
+
+        // Adding fields to table gmk_class_session.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('sessiontype', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('classroomid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('classroomsessionid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('startdate', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('enddate', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table gmk_class_session.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Conditionally launch create table for gmk_class_session.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230623000, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20230627000) {
+
+        // Define field classroomid to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('classroomid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'coursesectionid');
+
+        // Conditionally launch add field classroomid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230627000, 'local', 'grupomakro_core');
+    }
+
 
 
     return true;

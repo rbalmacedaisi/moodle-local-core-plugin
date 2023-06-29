@@ -40,12 +40,17 @@ const bulkReportModal = $('#bulkReportModal');
 const bulkResultTableBody = $('#bulkResultTableBody');
 const bulkReportContinueButton = $('#bulk-report-continue');
 
-const contractIcon = 'https://grupomakro-dev.soluttolabs.com/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract';
+const contractSearch = $('#contract-search');
+const contractUserSearch = $('#contract-user-search');
+const contractApplyFilterButton = $('#contract-apply-filter-button');
+const userContractApplyFilterButton =$('#user-contract-apply-filter-button');
+const contractRemoveFilterButton =$('#contract-remove-filter-button');
+const userContractRemoveFilterButton =$('#user-contract-remove-filter-button');
+
+const contractIcon = window.location.href + '/theme/image.php?theme=soluttolmsadmin&amp;component=local_grupomakro_core&amp;image=t%2Fcontract';
 
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
-
-
 
 let selectedInstitutionId;
 let selectedContractId;
@@ -74,7 +79,37 @@ export const init = (institutionId, institutionContractUsers,users,contractNames
     handleEnrolLinkGenerateButtonClick()
     handleEnrolUrlClipboardCopyButton()
     handleBulkContractUserInput()
+    handleAddFilters()
+    handleRemoveFilters()
 };
+
+const handleRemoveFilters = () => {
+    contractRemoveFilterButton.click(()=>{
+        const queryParams = new URLSearchParams(window.location.search);
+        const contractUserFilter = queryParams.get('contractUserFilter')
+        window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}${contractUserFilter? `&contractUserFilter=${contractUserFilter}` : ''}`
+    })
+    
+    userContractRemoveFilterButton.click(()=>{
+        const queryParams = new URLSearchParams(window.location.search);
+        const contractFilter = queryParams.get('contractFilter')
+        window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}${contractFilter? `&contractFilter=${contractFilter}` : ''}#users`
+    })
+}
+
+const handleAddFilters = () => {
+    contractApplyFilterButton.click(()=>{
+        const queryParams = new URLSearchParams(window.location.search);
+        const contractUserFilter = queryParams.get('contractUserFilter')
+        window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}&contractFilter=${contractSearch.val()}${contractUserFilter? `&contractUserFilter=${contractUserFilter}` : ''}`
+        
+    })
+    userContractApplyFilterButton.click(()=>{
+        const queryParams = new URLSearchParams(window.location.search);
+        const contractFilter = queryParams.get('contractFilter')
+        window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}&contractUserFilter=${contractUserSearch.val()}${contractFilter? `&contractFilter=${contractFilter}` : ''}#users`
+    })
+}
 
 const handleBulkContractUserInput = () => {
     bulkReportContinueButton.click(()=>{
@@ -96,7 +131,7 @@ const handleBulkContractUserInput = () => {
             body:formData
         }
         try{
-            let bulkCSVUploadResponse = await window.fetch('https://grupomakro-dev.soluttolabs.com/webservice/upload.php', fetchParams)
+            let bulkCSVUploadResponse = await window.fetch(`${window.location.href}/webservice/upload.php`, fetchParams)
             if (!bulkCSVUploadResponse.ok) {
                 throw new Error('Request failed with status: ' + bulkCSVUploadResponse.status);
             }
@@ -190,6 +225,7 @@ const handleUserCreation = () => {
     addUserButton.click(()=>{
         selectedUserInput.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
+        
         const valid = newContractUserInputs.every(input => {
             return input.get(0).reportValidity();
         });

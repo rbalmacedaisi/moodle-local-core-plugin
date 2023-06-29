@@ -84,8 +84,8 @@
                         
                         {{! Field to select class_type }}
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
-                            <label class="w-100" for="class_type">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
-                            <select name="class_type" id="class_type" class="form-control" required>
+                            <label class="w-100" for="classtype">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
+                            <select name="classtype" id="classtype" class="form-control" required>
                                 <option value=''>{{#str}}select_type_class, local_grupomakro_core {{/str}}</option>
                                 {{#classTypes}}
                                 <option value="{{value}}">{{label}}</option>
@@ -93,6 +93,18 @@
                             </select>
                         </div>
                         {{! End Field to select class_type }}
+                        
+                        {{! Field to select classroom }}
+                        <div id="classroom-fieldset" class="col-sm-12 col-md-6 py-2 d-none">
+                            <label class="w-100" for="classroom">{{#str}}classroom, local_grupomakro_core {{/str}}</label>
+                            <select name="classroom" id="classroom" class="form-control" required>
+                                <option value=''>{{#str}}select_classroom, local_grupomakro_core {{/str}}</option>
+                                {{#classRooms}}
+                                <option value="{{value}}">{{label}}</option>
+                                {{/classRooms}}
+                            </select>
+                        </div>
+                        {{! End Field to select classroom }}
                         
                         {{! Field to select learning plans }}
                         <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">

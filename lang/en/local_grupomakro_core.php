@@ -217,6 +217,8 @@ $string['contractBulkConfirmTitle'] = 'Contract creation confirmation';
 $string['bulkContractCreationReportTitle'] = 'Contract creation results';
 $string['bulkUserIndex'] = 'CSV Index';
 $string['bulkUserError'] = 'Error';
+$string['apply_filter'] = 'Apply filter';
+$string['remove_filter'] = 'Remove filter';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Contract Enrol';
@@ -250,7 +252,10 @@ $string['number_classes'] = 'Number of classes';
 $string['start_time'] = 'Start Time';
 $string['end_time'] = 'End Time';
 $string['class_type'] = 'Class Type';
+$string['classroom'] = 'Classroom';
+$string['select_classroom'] = 'Select class room';
 $string['select_type_class'] = 'Select the type of class';
+$string['classroom_capacity'] = 'Capacity';
 $string['monday'] = 'Monday';
 $string['tuesday'] = 'Tuesday';
 $string['wednesday'] = 'Wednesday';

@@ -53,7 +53,6 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         }
     }
 }
-
 /**
  * Create or updated (delete and recreate) the activities for the given class
  *
@@ -66,6 +65,7 @@ function grupomakro_core_create_class_activities($class) {
     $initTime = $class->inittime;
     $endTime = $class->endtime;
     $classDays = $class->classdays;
+    $classroomId = $class->classroomId;
     
     $initDate = '2023-04-01';
     $endDate = '2023-06-30';
@@ -139,6 +139,89 @@ function grupomakro_core_create_class_activities($class) {
     }
     
     return ['status'=>'created'];
+}
+
+function createClassroomReservations ($classInfo){
+    
+    $initDate = '2023-06-01';
+    $endDate = '2023-06-08';
+    
+    
+    //Calculate the class session duration in seconds
+    $initDateTime = DateTime::createFromFormat('H:i', $classInfo->inittime);
+    $endDateTime = DateTime::createFromFormat('H:i', $classInfo->endtime);
+    $classDurationInSeconds = strtotime($endDateTime->format('Y-m-d H:i:s'))-strtotime($initDateTime->format('Y-m-d H:i:s'));
+    //
+    
+    //Get the period start date in seconds and the day name
+    $startDate = DateTime::createFromFormat('Y-m-d H:i:s', $initDate.' '.$classInfo->inittime.':00');
+    $startDateTS = strtotime($startDate->format('Y-m-d H:i:s'));
+    //
+    
+    //Get the period end date timestamp(seconds)
+    $endDate = DateTime::createFromFormat('Y-m-d H:i:s', $endDate.' '.$classInfo->endtime.':00');
+    $endDateTS = strtotime($endDate->format('Y-m-d H:i:s'));
+    //
+    
+    //Format the class days
+    $classDaysNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    $classDaysList = array_combine($classDaysNames,explode('/', $classInfo->classdays));
+    
+    //Define some needed constants
+    $currentDateTS = $startDateTS;
+    $dayInSeconds = 86400;
+    
+    
+    // Create a new cURL resource
+    $curl = curl_init();
+    
+    // Set the request URL
+    $url = 'https://isi-panama-staging-8577170.dev.odoo.com/api/classrooms/'.$classInfo->classroomid.'/reservations';
+    
+    $results = array('success'=>[],'failure'=>[]);
+    
+    while($currentDateTS < $endDateTS){
+        $day =  $classDaysList[date('l',$currentDateTS)];
+        if($day==='1'){
+            $data = array(
+                'name' => $classInfo->name.'-'.$classInfo->id.'-'.$currentDateTS,
+                'start_date' => $currentDateTS+3600,
+                'end_date' => $currentDateTS + $classDurationInSeconds+3600,
+                'classroom_id' => $classInfo->classroomid
+            );
+            $data_json = json_encode($data);
+            
+            // Set the options for the cURL request
+            curl_setopt($curl, CURLOPT_URL, $url);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); // Return the response as a string instead of outputting it
+            // You can set additional options such as headers, request type, data, etc. if needed
+            curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+                'Content-Type: application/json',
+                'Authorization: tokendepruebas123'
+            ));
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $data_json);
+            // Execute the cURL request and get the response
+            $response = curl_exec($curl);
+            // Check if an error occurred
+            if (curl_errno($curl)) {
+                $error = curl_error($curl);
+                // Handle the error appropriately
+                // For example, you can log the error or display a custom error message
+                echo "cURL Error: " . $error;
+            }
+            
+            // Process the response
+            if ($response) {
+                // var_dump($response);
+            }
+        }
+        $currentDateTS+=$dayInSeconds;
+    }
+    // Close the cURL resource
+    curl_close($curl);
+    
+    return $url;
+    
 }
 
 function grupomakro_core_create_class_section($classInfo, $courseId, $groupId) {
@@ -470,10 +553,10 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     if($event->modulename === 'bigbluebuttonbn'){
         $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
         $event->color = '#2196f3';
-        $event->bigBlueButtonActivityUrl = 'https://grupomakro'.$enviromentDic[$CFG->environment_type].'.soluttolabs.com/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
+        $event->bigBlueButtonActivityUrl = $CFG->wwwroot.'/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
     }else{
         $event->color = '#00bcd4';
-        $event->attendanceActivityUrl = 'https://grupomakro'.$enviromentDic[$CFG->environment_type].'.soluttolabs.com/mod/attendance/view.php?id='.$moduleInfo->id;
+        $event->attendanceActivityUrl = $CFG->wwwroot.'/mod/attendance/view.php?id='.$moduleInfo->id;
         $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
         $event->sessionId = $sessionId;
     }
@@ -721,15 +804,20 @@ function convert_time_ranges($rangesJson) {
  */
 function my_get_user_picture_url($userid, $size = 100) {
     global $DB;
-    $user = $DB->get_record('user', array('id' => $userid));
-    if (!$user) {
-        return '';
+    try{
+         $user = $DB->get_record('user', array('id' => $userid));
+        if (!$user) {
+            return '';
+        }
+        $context = \context_user::instance($user->id);
+        $url = \moodle_url::make_pluginfile_url(
+            $context->id, 'user', 'icon', null, null, null, $size
+        );
+        return $url->out();
+    }catch (Exception $error){
+        return null;
     }
-    $context = \context_user::instance($user->id);
-    $url = \moodle_url::make_pluginfile_url(
-        $context->id, 'user', 'icon', null, null, null, $size
-    );
-    return $url->out();
+   
 }
 
 function get_institutions($filters=null){
@@ -741,6 +829,7 @@ function get_institutions($filters=null){
     // Iterate through each institution
     foreach($institutions as $institution){
         // Count the number of contracts associated with the institution
+        
         $institution->contracts = get_institution_contracts(['institutionid' => $institution->id]);
         $institution->numberOfContracts = count($institution->contracts);
         
@@ -776,7 +865,7 @@ function get_institution_contracts($filters = null){
 }
 
 function get_contract_users($contractName,$filters=null){
-    global $DB; // Assuming $DB is a globally accessible database object
+    global $DB,$CFG; // Assuming $DB is a globally accessible database object
     $contractUserRecords = $DB->get_records('gmk_contract_user',$filters);
     $contractUsers = [];
     
@@ -799,7 +888,7 @@ function get_contract_users($contractName,$filters=null){
         $contractUserRecord->email = $userInfo->email;
         $contractUserRecord->fullname = $userInfo->firstname.' '.$userInfo->lastname;
         $contractUserRecord->avatar = my_get_user_picture_url($userInfo->id);
-        $contractUserRecord->profileUrl = 'https://grupomakro-dev.soluttolabs.com/user/profile.php?id='.$userInfo->id;
+        $contractUserRecord->profileUrl = $CFG->wwwroot.'/user/profile.php?id='.$userInfo->id;
         $contractUserRecord->courses=[$contractCourse->fullname];
         
         $contractUsers[$contractUserRecord->userid]= $contractUserRecord;
@@ -849,12 +938,32 @@ function get_contract_users_by_institution($institutionContracts){
     return $contractUsers;
 }
 
-function get_institution_contract_panel_info($institutionId){
+function get_institution_contract_panel_info($institutionId, $institutionContractFilter = null, $institutionContractUserFilter = null){
     $institutionDetailedInfo = new stdClass();
     $institutionDetailedInfo->institutionInfo = get_institutions(['id'=>$institutionId])[0];
-    
     $institutionDetailedInfo->contractUsers = get_contract_users_by_institution($institutionDetailedInfo->institutionInfo->contracts);
     $institutionDetailedInfo->institutionInfo->numberOfUsers = count($institutionDetailedInfo->contractUsers);
+    
+    if($institutionContractFilter){
+        $filteredContracts = [];
+        foreach($institutionDetailedInfo->institutionInfo->contracts as $institutionContract){
+            if(stripos($institutionContract->contractid, $institutionContractFilter) !== false){
+                $filteredContracts[]=$institutionContract;
+            }
+        }
+        $institutionDetailedInfo->institutionInfo->contracts = $filteredContracts;
+    }
+    
+    if($institutionContractUserFilter){
+        $filteredContractUsers = [];
+        foreach($institutionDetailedInfo->contractUsers as $institutionContractUser){
+            if(stripos($institutionContractUser->fullname, $institutionContractUserFilter) !== false || stripos($institutionContractUser->email, $institutionContractUserFilter) !== false ){
+                $filteredContractUsers[]=$institutionContractUser;
+            }
+        }
+        $institutionDetailedInfo->contractUsers = $filteredContractUsers;
+    }
+    
     return $institutionDetailedInfo;
 }
 
@@ -940,6 +1049,39 @@ function create_student_user($user){
     }
 }
 
-function create_contract_users($users){
+function get_classrooms(){
+    // Create a new cURL resource
+    $curl = curl_init();
+    // Set the request URL
+    $url = 'https://isi-panama-staging-8577170.dev.odoo.com/api/classrooms';
+    // Set the options for the cURL request
+    curl_setopt($curl, CURLOPT_URL, $url);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); // Return the response as a string instead of outputting it
+    // You can set additional options such as headers, request type, data, etc. if needed
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+        'Content-Type: application/json',
+        'Authorization: tokendepruebas123'
+    ));
+    // Execute the cURL request and get the response
+    $response = curl_exec($curl);
+    // Check if an error occurred
+    if (curl_errno($curl)) {
+        $error = curl_error($curl);
+        // Handle the error appropriately
+        // For example, you can log the error or display a custom error message
+        echo "cURL Error: " . $error;
+    }
+    // Close the cURL resource
+    curl_close($curl);
+    // Process the response
+    if ($response) {
     
+        return array_map(function($classroom){
+            return array('label'=>$classroom->name.', Cap: '.$classroom->capacity,'value'=>$classroom->id);
+        },json_decode($response)->classrooms);
+        // Handle the response data
+    } else {
+        // Handle the case when no response is received
+        return [];
+    }
 }

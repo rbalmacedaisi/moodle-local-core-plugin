@@ -19,8 +19,8 @@ const createUserEmailInput = $('#userEmail');
 const createUserInputs = [createUserIdentificationNumberInput,createUserFirstNameInput,createUserLastNameInput,createUserEmailInput];
 
 let enrolCourseId,enrolContractId,creatingAccount = false;
+let webserviceUrl;
 
-const webserviceUrl = 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php?wstoken=33513bec0b3469194c7756c29bf9fb33&moodlewsrestformat=json&wsfunction=';
 const fetchParams = {
         method: 'POST',
         headers: {
@@ -28,7 +28,8 @@ const fetchParams = {
         },
     }
 
-export const init = async (courseId,contractId) => {
+export const init = async (courseId,contractId,wsUrl) => {
+    webserviceUrl = wsUrl;
     [enrolCourseId,enrolContractId] = [courseId,contractId];
     handleEnrolButtonClick();
     handleEnrolCreateAccountButtonClick()

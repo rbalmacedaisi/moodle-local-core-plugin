@@ -83,7 +83,7 @@ const handleActivityRescheduleConfirmation = () => {
                 return
             }
             rescheduleConfirmationText.html(`<p>Todo listo, Redirigiendo al calendario...</p>`);
-            window.location.replace('https://grupomakro-dev.soluttolabs.com/local/grupomakro_core/pages/schedules.php');
+            window.location.href ='/local/grupomakro_core/pages/schedules.php';
         }).fail(function(error) {
             window.console.error(error);
         });
