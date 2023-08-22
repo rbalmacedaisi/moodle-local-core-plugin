@@ -1085,3 +1085,52 @@ function get_classrooms(){
         return [];
     }
 }
+
+function student_get_active_classes($userId){
+    global $DB;
+    
+    $userLearningPlans = $DB->get_records('local_learning_users', array('userid'=>$userId));
+    $activeClasses = array();
+    
+    foreach($userLearningPlans as $userLearningPlan){
+        $learningPlanActiveClasses = grupomakro_core_list_classes(array('learningplanid'=>$userLearningPlan->learningplanid));
+        foreach($learningPlanActiveClasses as $learningPlanActiveClass){
+            $activeSchedule = construct_active_schedule_object($learningPlanActiveClass,$userId);
+            if(!array_key_exists($learningPlanActiveClass->course->id,$activeClasses)){
+                $activeClasses[$learningPlanActiveClass->course->id]["id"] = $learningPlanActiveClass->course->id;
+                $activeClasses[$learningPlanActiveClass->course->id]["name"] = $learningPlanActiveClass->course->fullname;
+                $activeClasses[$learningPlanActiveClass->course->id]["schedules"] = [$activeSchedule];
+                $activeClasses[$learningPlanActiveClass->course->id]["selected"]?  null :$activeClasses[$learningPlanActiveClass->course->id]["selected"]=$activeSchedule->selected;
+                continue;
+            }
+            $activeClasses[$learningPlanActiveClass->course->id]["schedules"][]= $activeSchedule;
+            $activeClasses[$learningPlanActiveClass->course->id]["selected"]?  null :$activeClasses[$learningPlanActiveClass->course->id]["selected"]=$activeSchedule->selected;
+        }
+    }
+    return $activeClasses;
+}
+
+function construct_active_schedule_object($class,$userId){
+    $learningPlanActiveSchedule = new stdClass();
+    $learningPlanActiveSchedule->days = "";
+    foreach($class->selectedDaysES as $index => $classDay){
+        if($index === count($class->selectedDaysES)-1){
+            $learningPlanActiveSchedule->days .= $classDay;
+            continue;
+        }
+        $learningPlanActiveSchedule->days .= $classDay." - ";
+    }
+    $learningPlanActiveSchedule->start = $class->initHourFormatted;
+    $learningPlanActiveSchedule->end = $class->endHourFormatted;
+    $learningPlanActiveSchedule->instructor = $class->instructorName;
+    $learningPlanActiveSchedule->type = $class->typeLabel;
+    $learningPlanActiveSchedule->groupId = $class->groupid;
+    $learningPlanActiveSchedule->selected = is_user_enrolled_in_group($userId,$class->groupid);
+    $learningPlanActiveSchedule->available = true;
+    return $learningPlanActiveSchedule;
+}
+
+function is_user_enrolled_in_group($userId,$groupId){
+    global $DB;
+    return !!$DB->get_record('groups_members', ['groupid'=>$groupId, 'userid'=>$userId]);
+}

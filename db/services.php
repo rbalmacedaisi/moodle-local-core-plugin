@@ -289,4 +289,23 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_student_active_classes' => array(
+        'classname' => 'local_grupomakro_core\external\student\get_student_active_classes',
+        'methodname' => 'execute',
+        'description' => 'Get the student active classes',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_student_class_enrol' => array(
+        'classname' => 'local_grupomakro_core\external\student\student_class_enrol',
+        'methodname' => 'execute',
+        'description' => 'Enrol a student in a class group',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    
 );
