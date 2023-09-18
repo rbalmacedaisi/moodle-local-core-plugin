@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_create_class external function.
+ * Class definition for the local_grupomakro_get_course_class_schedules external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\gmkclass;
+namespace local_grupomakro_core\external\schedules;
 
 use context_system;
 use external_api;
@@ -31,9 +31,7 @@ use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
-use DateTime;
 use Exception;
-
 
 
 defined('MOODLE_INTERNAL') || die();
@@ -41,14 +39,14 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
- * External function 'local_grupomakro_create_class' implementation.
+ * External function 'local_grupomakro_get_course_class_schedules' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class create_class extends external_api {
+class get_course_class_schedules extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -60,7 +58,7 @@ class create_class extends external_api {
             [
                 'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
                 'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.',VALUE_DEFAULT,0),
+                'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
                 'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
@@ -116,7 +114,7 @@ class create_class extends external_api {
         
         
         try{
-
+            
             check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId);
             
             $classId = create_class($params);

@@ -338,7 +338,7 @@ $string['msg:send_reschedule_message:body'] = '
     <li><strong>Name: </strong>{$a->name}</li>
     <li><strong>Schedule: </strong>{$a->originalDate} ({$a->originalHour})</li>
     <li><strong>Course: </strong>{$a->coreCourseName}</li>
-    <li><strong>Type: </strong>{$a->typeLabel}</li>
+    <li><strong>Type: </strong>{$a->typelabel}</li>
 </ul>
 <h3>Proposed schedule:</h3>
 <ul>

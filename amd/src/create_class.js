@@ -4,8 +4,8 @@ import $ from 'jquery';
 let selectedInstance;
 
 const typeSelector = $('#classtype');
-const classroomSelector = $('#classroom')
-const classNameInput = $('#classname')
+const classroomSelector = $('#classroom');
+const classNameInput = $('#classname');
 const careerSelector = $('#career');
 const periodSelector = $('#period');
 const courseSelector = $('#courses');
@@ -22,12 +22,14 @@ const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
-const selectors = [ typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector,classNameInput, initTimeInput, endTimeInput,classroomSelector];
+const selectors = [typeSelector, careerSelector, periodSelector, courseSelector,
+    teacherSelector, classNameInput, initTimeInput, endTimeInput, classroomSelector];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 
 let periods;
 let courses;
 let teachers;
+let classRooms;
 
 const instanceIDs = {
     isi_panama: 0,
@@ -35,7 +37,8 @@ const instanceIDs = {
     grupomakro_mex: 2
 };
 
-export const init = () => {
+export const init = (classrooms) => {
+    classRooms = JSON.parse(classrooms);
     handleInstanceSelection();
     handleCareerSelection();
     handlePeriodSelection();
@@ -47,16 +50,15 @@ export const init = () => {
 const handleTypeSelector = () => {
     typeSelector.change(()=>{
         let classroomSelectorContainer = $("#classroom-fieldset");
-        if(typeSelector.val()==='0' || typeSelector.val()==='2' ){
+        if (typeSelector.val() === '0' || typeSelector.val() === '2') {
             classroomSelector.prop('required', true);
             classroomSelectorContainer.removeClass("d-none");
-        }
-        else if(typeSelector.val()==='1' ){
+        } else if (typeSelector.val() === '1') {
             classroomSelector.removeAttr('required');
             classroomSelectorContainer.addClass("d-none");
         }
-    })
-}
+    });
+};
 
 const handleClassSave = () => {
     saveButton.click(()=>{
@@ -67,8 +69,9 @@ const handleClassSave = () => {
             return selector.get(0).reportValidity();
         });
         if (!valid) {
-            console.log('error');
+            console.log('culpa de los demas inputs')
             return;
+
         }
         //
         // Check if the init time is less than the end time of the class
@@ -76,6 +79,7 @@ const handleClassSave = () => {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
             endTimeInput.get(0).reportValidity();
             return;
+            console.log('culpa de la fecha')
         }
         //
         // Check if at least one day of the week is selected
@@ -83,6 +87,7 @@ const handleClassSave = () => {
             return day.is(":checked");
         });
         if (!daySelected) {
+            console.log('culpa de el dia')
             mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
             mondaySwitch.get(0).reportValidity();
             return;
@@ -99,33 +104,39 @@ const handleClassSave = () => {
             initTime: initTimeInput.val(),
             endTime: endTimeInput.val(),
             classDays: formatSelectedClassDays(),
-            classroomId: classroomSelector.val()
+            classroomId: classroomSelector.val(),
+            classroomCapacity: classroomSelector.val()
+                ? classRooms.find(classroom => classroom.value == classroomSelector.val()).capacity
+                : 40
         };
+        console.log(args)
+        console.log('culpa de el objeto')
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_class',
             args
-        }, ]);
+        }]);
+        console.log('llegue hasta aqui QUE ESTAA PASAAAANDOOOOO')
         promise[0].done(function(response) {
             window.console.log(response);
-            if(response.status === -1 ){
+            if (response.status === -1) {
                 // Add the error message to the modal content.
-                try{
+                try {
                     const errorMessages = JSON.parse(response.message);
                     let errorHTMLString = '';
                     errorMessages.forEach(message=>{
-                        errorHTMLString += `<p class="text-center">${message}</p>`
-                    })
+                        errorHTMLString += `<p class="text-center">${message}</p>`;
+                    });
                     errorModalContent.html(errorHTMLString);
-                }catch (error){
+                } catch (error) {
                     errorModalContent.html(`<p class="text-center">${response.message}</p>`);
-                } finally{
+                } finally {
                     errorModal.modal('show');
-                    return
                 }
-            } 
+                return
+            }
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
         }).fail(function(error) {
-            window.console.error(error);
+           window.console.error(error);
         });
 
     });
@@ -138,7 +149,6 @@ const handleInstanceSelection = () => {
         $(this).find('.card').addClass('active');
         selectedInstance = $('input:radio:checked').val();
         $('#fields-groups').removeClass('d-none');
-        console.log(selectedInstance)
     });
 };
 
@@ -153,7 +163,7 @@ const handleCareerSelection = ()=> {
         const promise = Ajax.call([{
             methodname: 'local_sc_learningplans_get_learning_plan_periods',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
             $(".periodValue").remove();
             $(".courseValue").remove();
@@ -168,7 +178,7 @@ const handleCareerSelection = ()=> {
                 periodSelector.append(`<option class="periodValue" value="${id}">${name}</option>`);
             });
         }).fail(function(response) {
-            window.console.error(response);
+           window.console.error(response);
         });
     });
 
@@ -186,7 +196,7 @@ const handlePeriodSelection = () => {
         const promise = Ajax.call([{
             methodname: 'local_sc_learningplans_get_learning_plan_courses',
             args
-        },]);
+        }]);
         promise[0].done(function(response) {
             $(".courseValue").remove();
             $(".teacherValue").remove();
@@ -199,7 +209,7 @@ const handlePeriodSelection = () => {
                 courseSelector.append(`<option class="courseValue" value="${id}">${name}</option>`);
             });
         }).fail(function(response) {
-            window.console.error(response);
+           window.console.error(response);
         });
     });
 };
@@ -211,13 +221,13 @@ const handleCourseSelection = () => {
 }
         const args = {
             learningPlanId: careerSelector.val(),
-            // periodId: periodSelector.val(),
+            // PeriodId: periodSelector.val(),
             // courseId: courseSelector.val()
         };
         const promise = Ajax.call([{
             methodname: 'local_sc_learningplans_get_learning_plan_teachers',
             args
-        },]);
+        }]);
         promise[0].done(function(response) {
             $(".teacherValue").remove();
             teachers = JSON.parse(response.teachers);
@@ -230,7 +240,7 @@ const handleCourseSelection = () => {
                 teacherSelector.append(`<option class="teacherValue" value="${userid}">${fullname} (${email})</option>`);
             });
         }).fail(function(response) {
-            window.console.error(response);
+           window.console.error(response);
         });
     });
 };

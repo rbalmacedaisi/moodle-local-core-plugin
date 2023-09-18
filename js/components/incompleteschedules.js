@@ -147,7 +147,7 @@ Vue.component('incompleteschedules',{
           { text: 'Actions', value: 'actions', sortable: false },
         ],
         users: [
-            {
+            /*{
                 id: 1,
                 img: 'https://cdn.vuetifyjs.com/images/lists/1.jpg',
                 student: 'Jason Oner',
@@ -251,7 +251,7 @@ Vue.component('incompleteschedules',{
                 email: 'aliconnors@gmail.com',
                 schedules: 0,
                 selectedtimes: []
-            },
+            },*/
         ],
         deleteusers: false,
         itemdelete: {},

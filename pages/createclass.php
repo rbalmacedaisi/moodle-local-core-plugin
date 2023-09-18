@@ -55,6 +55,7 @@ foreach($availableCareers as $careerName => $careerInfo){
     array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName]);
 }
 // 
+$classrooms = get_classrooms();
 
 echo $OUTPUT->header();
 
@@ -69,9 +70,9 @@ $templatedata = [
     'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
     'classTypes' => $classTypes,
     'availableCareers' => $formattedAvailableCareers,
-    'classRooms'=>get_classrooms()
+    'classRooms'=>$classrooms
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/create_class', $templatedata);
-$PAGE->requires->js_call_amd('local_grupomakro_core/create_class', 'init', []);
+$PAGE->requires->js_call_amd('local_grupomakro_core/create_class', 'init', ['classrooms'=>json_encode($classrooms)]);
 echo $OUTPUT->footer();

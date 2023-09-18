@@ -57,7 +57,7 @@ echo <<<EOT
     <v-app class="transparent">
       <v-main>
         <div>
-          <availabilitytable></availabilitytable>
+          <scheduletable></scheduletable>
         </div>
       </v-main>
     </v-app>

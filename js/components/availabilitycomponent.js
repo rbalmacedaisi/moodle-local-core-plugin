@@ -105,12 +105,11 @@ Vue.component('availabilitycalendar',{
             hoursFree: [],
             times: [],
             instructorCareers:{},
-            token: '33513bec0b3469194c7756c29bf9fb33',
             selectedInstructorId:undefined
         }
     },
     created(){
-        this.getDisponibilityData() 
+        this.getDisponibilityData();
     },
     mounted () {
         this.$refs.calendar.checkChange();
@@ -130,20 +129,23 @@ Vue.component('availabilitycalendar',{
             const userAvailabilityRecord =  this.userAvailabilityRecords.find(userAvailabilityRecord => userAvailabilityRecord.id === this.selectedInstructorId )
             return {
                 daysFree:userAvailabilityRecord?userAvailabilityRecord.daysFree.map(dayItem=>(dayItem.day)):[],
-                events:userAvailabilityRecord?userAvailabilityRecord.events.map(({color,start,end,modulename,coursename,instructorName,typeLabel,timeRange,classDaysES})=>({
+                events:userAvailabilityRecord?userAvailabilityRecord.events.map(({color,start,end,modulename,coursename,instructorName,typelabel,timeRange,classDaysES})=>({
                     color,
                     end,
                     start,
                     modulename,
                     name:coursename,
                     instructor:instructorName,
-                    details:typeLabel,
+                    details:typelabel,
                     hour:timeRange,
                     days:classDaysES.join(" - "),
                     timed:true
                 })):[]
             }
             
+        },
+        token(){
+            return window.token;
         }
         
     },

@@ -1,15 +1,15 @@
 import * as Ajax from 'core/ajax';
 import $ from 'jquery';
 
-const contractNumberInput = $('#contractnumber')
-const startDateInput = $('#startdate')
-const endDateInput = $('#enddate')
-const budgetInput = $('#budget')
-const billingConditionInput = $('#billing_condition')
-const saveContractButton = $('#save-contract-button')
-const cancelContractUpdateButton = $('#cancel-contract-update-button')
+const contractNumberInput = $('#contractnumber');
+const startDateInput = $('#startdate');
+const endDateInput = $('#enddate');
+const budgetInput = $('#budget');
+const billingConditionInput = $('#billing_condition');
+const saveContractButton = $('#save-contract-button');
+const cancelContractUpdateButton = $('#cancel-contract-update-button');
 
-const contractInputs = [contractNumberInput,startDateInput,endDateInput,budgetInput,billingConditionInput]
+const contractInputs = [contractNumberInput, startDateInput, endDateInput, budgetInput, billingConditionInput];
 
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
@@ -17,12 +17,12 @@ const errorModalContent = $('#error-modal-content');
 let selectedContractId;
 let selectedInstitutionId;
 
-export const init = (contractId,institutionId) => {
-    selectedContractId = contractId
-    selectedInstitutionId = institutionId
-    handleSaveContractButtonClick()
-    handleBudgetInput()
-    handleContractCreationButtonClick()
+export const init = (contractId, institutionId) => {
+    selectedContractId = contractId;
+    selectedInstitutionId = institutionId;
+    handleSaveContractButtonClick();
+    handleBudgetInput();
+    handleContractCreationButtonClick();
 };
 
 const handleSaveContractButtonClick = () => {
@@ -36,7 +36,7 @@ const handleSaveContractButtonClick = () => {
             return;
         }
         //
-        
+
         // Check if the init time is less than the end time of the class
         if (startDateInput.val() >= endDateInput.val()) {
             endDateInput.get(0).setCustomValidity('La fecha de finalización debe ser mayor a la hora de inicio.');
@@ -44,11 +44,11 @@ const handleSaveContractButtonClick = () => {
             return;
         }
         //
-        
+
         const args = {
-            id:selectedContractId,
-            institutionId:selectedInstitutionId,
-            contractId:contractNumberInput.val(),
+            id: selectedContractId,
+            institutionId: selectedInstitutionId,
+            contractId: contractNumberInput.val(),
             initDate: startDateInput.val(),
             expectedEndDate: endDateInput.val(),
             budget: budgetInput.val(),
@@ -58,19 +58,19 @@ const handleSaveContractButtonClick = () => {
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_update_institution_contract',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
-            if(response.institutionContractId === -1 ){
+            if (response.institutionContractId === -1) {
                 errorModalContent.html(`<p class="text-center">${response.message}</p>`);
                 errorModal.modal('show');
-                return   
+                return;
             }
             window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}`;
         }).fail(function(error) {
-            console.error(error)
+            console.error(error);
         });
-    })
-}
+    });
+};
 
 const handleBudgetInput = () => {
     budgetInput.on('input', function() {
@@ -78,12 +78,12 @@ const handleBudgetInput = () => {
       value = value.replace(/\B(?=(\d{3})+(?!\d))/g, '.'); // Add dots as thousands separators
       $(this).val(value); // Set the formatted value back to the input
     });
-}
+};
 
 const handleContractCreationButtonClick = ()=>{
     cancelContractUpdateButton.click(()=>{
         window.location.href = `/local/grupomakro_core/pages/institutionalcontracts.php?id=${selectedInstitutionId}`;
-    })
-    
-}
+    });
+
+};
 

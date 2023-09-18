@@ -7,7 +7,7 @@ Vue.component('scheduleapproval',{
                     max-width="100%"
                   >
                     <v-card-title class="d-flex">
-                        {{lang.schedules}} - Maquinaría
+                        {{lang.schedules}} - Ingles
                         <v-spacer></v-spacer>
                         <v-btn
                           :color="$vuetify.theme.isDark ? 'primary' : 'secondary'"
@@ -411,164 +411,92 @@ Vue.component('scheduleapproval',{
             items:[
                 {
                     id: 1,
-                    name: 'Introducción',
-                    days: 'Lunes - Miércoles',
-                    start: "10:00 am",
-                    end: "12:00 pm",
-                    instructor: "John Leider",
-                    type: "Presencial",
+                    name: 'Ingles 1',
+                    days: 'Jueves - Viernes',
+                    start: "07:00 pm",
+                    end: "09:00 pm",
+                    instructor: "Daniel Arango",
+                    type: "Virtual",
                     picture: 'https://berrydashboard.io/vue/assets/avatar-1-8ab8bc8e.png',
-                    quotas: 30,
-                    users: 20,
+                    quotas: 40,
+                    users: 2,
                     waitingusers: 0,
-                    isApprove: true,
+                    isApprove: false,
                     registeredusers:[
                         {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com'
+                            userid: 103,
+                            fullname: 'Sandra Zapata',
+                            email: 'sandra.zapta@luhec.com',
+                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2111/user/icon/soluttolmsadmin/f1?rev=44638'
                         },
                         {
-                            userid: 21,
-                            fullname: 'Alejandro Rios',
-                            email: 'alejandrorios@gmail.com'
+                            userid: 104,
+                            fullname: 'Diana Peña',
+                            email: 'diana.pena@luhec.com',
+                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2112/user/icon/soluttolmsadmin/f1?rev=44650'
                         },
-                        {
-                            userid: 22,
-                            fullname: 'Ana Garcia',
-                            email: 'anagarcia@gmail.com'
-                        }
                     ],
                     waitinglist: [
                     ]
                 },
                 {
                     id: 2,
-                    name: 'Introducción',
-                    days: 'Martes - Jueves',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Ximena Rincon",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-3-7182280e.png',
+                    name: 'Ingles 1',
+                    days: 'Jueves - Viernes',
+                    start: "02:00 pm",
+                    end: "04:00 pm",
+                    instructor: "Daniel Arango",
+                    type: "Precencial",
+                    picture: 'https://berrydashboard.io/vue/assets/avatar-1-8ab8bc8e.png',
                     quotas: 30,
-                    users: 32,
-                    waitingusers: 5,
+                    users: 1,
+                    waitingusers: 0,
                     isApprove: false,
                     registeredusers:[
                         {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com'
+                            userid: 105,
+                            fullname: 'tatiana Ruiz',
+                            email: 'tatiana.ruiz@luhec.com',
+                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2113/user/icon/soluttolmsadmin/f1?rev=44659'
                         },
-                        {
-                            userid: 21,
-                            fullname: 'Alejandro Rios',
-                            email: 'alejandrorios@gmail.com'
-                        },
-                        {
-                            userid: 22,
-                            fullname: 'Ana Garcia',
-                            email: 'anagarcia@gmail.com'
-                        }
                     ],
                     waitinglist: [
-                        {
-                            userid: 23,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 24,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 25,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 26,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 27,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
                     ]
                 },
                 {
                     id: 3,
-                    name: 'Introducción',
-                    days: 'Jueves - Viernes ',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Luz Lopez",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
+                    name: 'Ingles 1',
+                    days: 'Lunes - Miércoles',
+                    start: "08:00 am",
+                    end: "10:00 am",
+                    instructor: "Yudy Perez",
+                    type: "Mixta",
+                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548',
                     quotas: 30,
-                    users: 1,
-                    waitingusers: 5,
+                    users: 0,
+                    waitingusers: 1,
                     isApprove: false,
                     registeredusers:[
-                        {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
                     ],
                     waitinglist: [
                         {
-                            userid: 23,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 24,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 25,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 26,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 27,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
+                            userid: 106,
+                            fullname: 'Elkin Florez',
+                            email: 'elkin.florez@luhec.com',
+                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2114/user/icon/soluttolmsadmin/f1?rev=44668'
                         },
                     ]
                 },
                 {
                     id: 4,
                     name: 'Introducción',
-                    days: 'Sabado',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Luz Lopez",
-                    type: "Presencial",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
-                    quotas: 30,
+                    days: 'Lunes - Miércoles',
+                    start: "10:00 am",
+                    end: "12:00 pm",
+                    instructor: "Yudy Perez",
+                    type: "Virtual",
+                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548',
+                    quotas: 40,
                     users: 0,
                     waitingusers: 0,
                     isApprove: false,
@@ -577,61 +505,23 @@ Vue.component('scheduleapproval',{
                 },
                 {
                     id: 5,
-                    name: 'Medición de maquinaría',
-                    days: 'Jueves - Viernes ',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Nataly Hoyos",
+                    name: 'Ingles 1',
+                    days: 'Martes',
+                    start: "07:00 pm",
+                    end: "10:00 pm",
+                    instructor: "Yudy Perez",
                     type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
-                    quotas: 30,
-                    users: 1,
-                    waitingusers: 5,
+                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548g',
+                    quotas: 40,
+                    users: 0,
+                    waitingusers: 0,
                     isApprove: false,
-                    registeredusers:[
-                        {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ],
-                    waitinglist: [
-                        {
-                            userid: 28,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 29,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 30,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 31,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 32,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ]
+                    registeredusers:[],
+                    waitinglist: []
                 },
-                {
+                /*{
                     id: 6,
-                    name: 'Matemáticas',
+                    name: 'M',
                     days: 'Jueves - Viernes ',
                     start: "07:00 am",
                     end: "09:00 am",
@@ -682,7 +572,7 @@ Vue.component('scheduleapproval',{
                             img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
                         },
                     ]
-                },
+                },*/
             ],
             selectedItem: '',
             dialog: false,
@@ -733,7 +623,7 @@ Vue.component('scheduleapproval',{
                         student: element.fullname,
                         id: element.userid,
                         email: element.email,
-                        img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png',
+                        img: element.img,
                         schedule: item.start + ' a ' + item.end,
                         instructor: item.instructor,
                         name: item.name,

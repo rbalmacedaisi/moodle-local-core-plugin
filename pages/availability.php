@@ -25,6 +25,7 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -35,6 +36,8 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('availability', $plugin_name));
 $PAGE->set_heading(get_string('availability', $plugin_name));
 $PAGE->set_pagelayout('base');
+
+$token = get_logged_user_token();
 
 $instructors = grupomakro_core_list_instructors_with_disponibility();
 $instructorItems = [];
@@ -151,6 +154,7 @@ echo <<<EOT
     var classTypes = $classTypes;
     var instances = $instances;
     var classrooms = $classrooms;
+    var token = $token;
   </script>
 EOT;
 

@@ -110,7 +110,7 @@ class send_reschedule_message extends external_api {
             }
 
             $userInfo = $DB->get_record('user',['id'=>$instructorId]);
-            $classInfo= grupomakro_core_list_classes(['id'=>$classId])[$classId];
+            $classInfo= list_classes(['id'=>$classId])[$classId];
             $instructorFullName = $userInfo->firstname.' '.$userInfo->lastname;
 
             $envDic=['development'=>'-dev','staging'=>'-staging','production'=>''];
@@ -129,7 +129,7 @@ class send_reschedule_message extends external_api {
             $strData->rescheduleUrl=$rescheduleUrl;
             $strData->name=$classInfo->name;
             $strData->coreCourseName=$classInfo->coreCourseName;
-            $strData->typeLabel=$classInfo->typeLabel;
+            $strData->typelabel=$classInfo->typelabel;
 
             $messageBody = get_string('msg:send_reschedule_message:body','local_grupomakro_core', $strData);
             $messageHtml = $OUTPUT->render_from_template( 'local_grupomakro_core/messages/reschedule_message',array('messageBody'=>$messageBody));

@@ -56,7 +56,7 @@ $activityEndTime = null;
 $activityInfo = null;
 
 //Get the class that is going to be edited
-$class =  grupomakro_core_list_classes(array('id'=>$id))[$id];
+$class =  list_classes(array('id'=>$id))[$id];
 
 if($reschedulingActivity){
     $activityInfo = getActivityInfo($moduleId,$sessionId);
@@ -147,12 +147,12 @@ $templatedata = [
     'activityInitTime'=>$activityInfo?$activityInfo ->activityInitTime: null,
     'activityProposedInitTime'=>$activityInfo? ($proposedHour ? $proposedHour : $activityInfo->activityInitTime): null,
     'activityEndTime'=>$activityInfo?$activityInfo ->activityEndTime: null,
-    'activityProposedEndTime'=>$activityInfo? ($proposedHour ? date("H:i", strtotime($proposedHour) + $class->classDuration)  : $activityInfo->activityEndTime): null,
+    'activityProposedEndTime'=>$activityInfo? ($proposedHour ? date("H:i", strtotime($proposedHour) + $class->classduration)  : $activityInfo->activityEndTime): null,
     'cancelurl'=>$CFG->wwwroot.'/local/grupomakro_core/pages/classmanagement.php',
     'rescheduleCancelUrl'=> $CFG->wwwroot.'/local/grupomakro_core/pages/schedules.php',
     'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
 ];
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);
-$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', ['reschedulingActivity'=>$reschedulingActivity]);
+$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
 echo $OUTPUT->footer();

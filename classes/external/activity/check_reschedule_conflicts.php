@@ -89,7 +89,7 @@ class check_reschedule_conflicts extends external_api {
         
         try{
 
-            $classInfo = grupomakro_core_list_classes(['id'=>$classId])[$classId];
+            $classInfo = list_classes(['id'=>$classId])[$classId];
 
             //Check the instructor availability
             $instructorUserId = $classInfo->instructorid;
@@ -100,8 +100,7 @@ class check_reschedule_conflicts extends external_api {
             $incomingInitHour = intval(substr($initTime,0,2));
             $incomingInitMinutes = substr($initTime,3,2);
             if(!$endTime || $endTime === 'null'){
-                var_dump('entre');
-                $endTime = date("H:i", strtotime($initTime) + $classInfo->classDuration);
+                $endTime = date("H:i", strtotime($initTime) + $classInfo->classduration);
             }
             $incomingEndHour = intval(substr($endTime,0,2));
             $incomingEndMinutes = substr($endTime,3,2);

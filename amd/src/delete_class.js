@@ -4,20 +4,20 @@ import $ from 'jquery';
 const deleteButtons = $('.deleteButton');
 const confirmDeleteButton = $('#confirmDeleteButton');
 
-let classId; 
+let classId;
 export const init = () => {
-    handleDeleteClass()
-    handleConfirmDeleteClass()
+    handleDeleteClass();
+    handleConfirmDeleteClass();
 };
 
 const handleDeleteClass = () => {
     deleteButtons.click(event=>{
-         classId = event.currentTarget.attributes['class-id'].value
-    })
-}
+         classId = event.currentTarget.attributes['class-id'].value;
+    });
+};
 
 const handleConfirmDeleteClass = () =>{
-    
+
     confirmDeleteButton.click(()=>{
         const args = {
             id: classId
@@ -25,7 +25,7 @@ const handleConfirmDeleteClass = () =>{
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_delete_class',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
             window.console.log(response);
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
@@ -33,5 +33,5 @@ const handleConfirmDeleteClass = () =>{
             window.console.error(error);
         });
     });
-    
-}
+
+};

@@ -1,4 +1,4 @@
-Vue.component('availabilitytable',{
+Vue.component('scheduletable',{
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="py-0">
@@ -118,25 +118,18 @@ Vue.component('availabilitytable',{
             items: [
                 {
                     id: 1,
-                    coursename: 'Maquinaría',
-                    numberclasses: 2,
-                    users: 10,
+                    coursename: 'Ingles 1',
+                    numberclasses: 5,
+                    users: 4,
                     period: 'Cuatrimestre 1'
                 },
                 {
                     id: 2,
-                    coursename: 'Matemáticas',
-                    numberclasses: 1,
-                    users: 20,
-                    period: 'Cuatrimestre 2'
-                },
-                {
-                    id: 3,
-                    coursename: 'Español',
-                    numberclasses: 3,
-                    users: 1,
+                    coursename: 'Matemáticas 1',
+                    numberclasses: 5,
+                    users: 3,
                     period: 'Cuatrimestre 1'
-                }
+                },
             ],
             dialog: false,
         }

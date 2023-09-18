@@ -84,8 +84,8 @@ Vue.component('waitingusers',{
                 >
                   <template v-slot:top>
                     <div class="px-3">
-                      <h6 class="mb-0 "> Introducción</h6>
-                      <span>Martes - Jueves 07:00 am a 09:00 am</span>
+                      <h6 class="mb-0 "> Ingles 1</h6>
+                      <span>Lunes - Miércoles 08:00 am a 10:00 am</span>
                     </div>
                   </template>
                   
@@ -134,7 +134,7 @@ Vue.component('waitingusers',{
                   </template>
                 </v-data-table>
                 
-                <v-data-table
+                <!--<v-data-table
                   v-model="selected"
                   :headers="headers"
                   :items="users2"
@@ -193,7 +193,7 @@ Vue.component('waitingusers',{
                       <span>{{lang.remove}}</span>
                     </v-tooltip>
                   </template>
-                </v-data-table>
+                </v-data-table>-->
               </v-card-text>
             </v-sheet>
           
@@ -359,11 +359,11 @@ Vue.component('waitingusers',{
         users: [
           {
             id: 1,
-            img: 'https://cdn.vuetifyjs.com/images/lists/1.jpg',
-            student: 'Jason Oner',
-            email: 'jasononer@gmail.com',
+            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2114/user/icon/soluttolmsadmin/f1?rev=44668',
+            student: 'Elkin Florez',
+            email: 'elkin.florez@luhec.com',
           },
-          {
+          /*{
             id: 2,
             img: 'https://cdn.vuetifyjs.com/images/lists/2.jpg',
             student: 'Mike Carlson',
@@ -380,7 +380,7 @@ Vue.component('waitingusers',{
             img: 'https://cdn.vuetifyjs.com/images/lists/4.jpg',
             student: 'Ali Connors',
             email: 'aliconnors@gmail.com',
-          },
+          },*/
         ],
         users2: [
           {

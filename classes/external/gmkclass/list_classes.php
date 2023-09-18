@@ -108,7 +108,7 @@ class list_classes extends external_api {
         $endTime && $endTime !== "" ? $filters['endtime']=$endTime : null;
         $classDays && $classDays !== "" ? $filters['classdays']=$classDays : null;
 
-        $classes = grupomakro_core_list_classes($filters);
+        $classes = list_classes($filters);
 
         return ['classes' => json_encode(array_values($classes))];
 

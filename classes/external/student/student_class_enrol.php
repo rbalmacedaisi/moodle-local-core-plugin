@@ -36,6 +36,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once $CFG->dirroot. '/group/lib.php';
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_grupomakro_student_class_enrol ' implementation.
@@ -55,8 +56,9 @@ class student_class_enrol extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'groupId' => new external_value(PARAM_TEXT, 'ID of the class group.'),
+                'classId' => new external_value(PARAM_TEXT, 'ID of the class.'),
                 'userId' => new external_value(PARAM_TEXT, 'ID of the student'),
+                'forceQueue' => new external_value(PARAM_BOOL, 'ID of the student', VALUE_DEFAULT,false)
             ]
         );
     }
@@ -68,22 +70,44 @@ class student_class_enrol extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-        string $groupId,
-        string $userId
+        string $classId,
+        string $userId,
+        bool $forceQueue
         ) {
         
+        global $DB;
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
-            'groupId' => $groupId,
-            'userId' => $userId
+            'classId' => $classId,
+            'userId' => $userId,
+            'forceQueue' => $forceQueue
         ]);
-        
+        $addedToQueue=false;
+        $enrolResult=false;
+        $courseAlternativeClasses = false;
         try{
-            $enrolResult = groups_add_member($groupId,$userId);
-
-            return ['status'=>'1','enrolResult'=>$enrolResult,'message'=>'ok'];
+            $selectedClass = list_classes(['id'=>$classId])[$classId];
+            $selectedClassFull = $selectedClass->classFull;
+            
+            $courseAlternativeClasses = check_course_alternative_schedules($selectedClass,$userId);
+            if(!$selectedClassFull){
+                $enrolResult = groups_add_member($selectedClass->groupid,$userId);
+            }
+            
+            else if($forceQueue || empty($courseAlternativeClasses[$selectedClass->corecourseid]['schedules'])){
+                $addedToQueue = add_user_to_class_queue($userId,$selectedClass);
+                $courseAlternativeClasses = false;
+            }
+            
+            if(!empty($courseAlternativeClasses[$selectedClass->corecourseid]['schedules'])){
+                $courseAlternativeClasses = array_map(function ($course){
+                    $course['schedules'] = array_values($course['schedules']);
+                    return $course;
+                },$courseAlternativeClasses);
+            }
+            return ['status'=>'1','enrolResult'=>$enrolResult,'addedToQueue'=>$addedToQueue,'classAlternatives'=>json_encode($courseAlternativeClasses),'message'=>'ok'];
         }catch (Exception $e) {
-            return ['status' => '-1','enrolResult'=>'', 'message' => $e->getMessage()];
+            return ['status' => '-1','enrolResult'=>false,'addedToQueue'=>false,'classAlternatives'=>false, 'message' => $e->getMessage()];
         }
     }
 
@@ -97,7 +121,9 @@ class student_class_enrol extends external_api {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_TEXT, '1 for success, -1 for failure'),
-                'enrolResult' => new external_value(PARAM_BOOL, 'True if the enrolment was successful, False otherwise, empty if error'),
+                'enrolResult' => new external_value(PARAM_BOOL, 'True if the enrolment was successful, false otherwise'),
+                'addedToQueue'=> new external_value(PARAM_BOOL, 'True if the user was added to the class queue, false otherwise'),
+                'classAlternatives'=> new external_value(PARAM_RAW, 'Json encode class alternatives'),
                 'message' => new external_value(PARAM_TEXT, 'The error message or ok.'),
             )
         );

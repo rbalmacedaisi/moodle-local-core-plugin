@@ -74,7 +74,7 @@ $functions = array(
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'local_grupomakro_calendar_get_calendar_events' => array(
-        'classname' => 'local_grupomakro_core\external\calendar_external',
+        'classname' => 'local_grupomakro_core\external\event\get_calendar_events',
         'methodname' => 'execute',
         'description' => 'Get calendar events',
         'type' => 'read',
@@ -307,5 +307,95 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    
+    
+    
+    
+    
+    
+    
+    
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Approve a class schedule and enrol all the students in pre-registry and queue tables in its group',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\change_students_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Change the student(s) schedules from one class to another, either but puting them in the class pre-registry table or if full in the class queue table',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_delete_course_class_schedule' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\delete_course_class_schedule',
+    //     'methodname' => 'execute',
+    //     'description' => 'Delete a class and all the linked records from pre-registry and queue tables, save a message with the reason',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_delete_student_from_class_schedule' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\delete_student_from_class_schedule',
+    //     'methodname' => 'execute',
+    //     'description' => 'Delete a student from class pre-registry table or queue table otherwise',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_get_class_schedules_queues' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\get_class_schedules_queues',
+    //     'methodname' => 'execute',
+    //     'description' => 'Get the students info from que course classes schedule queue',
+    //     'type' => 'read',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Enrol a student in a class group',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Enrol a student in a class group',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Enrol a student in a class group',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    // 'local_grupomakro_approve_course_class_schedules' => array(
+    //     'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
+    //     'methodname' => 'execute',
+    //     'description' => 'Enrol a student in a class group',
+    //     'type' => 'write',
+    //     'capabilities' => '',
+    //     'ajax'          => true,
+    //     'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    // ),
+    
     
 );

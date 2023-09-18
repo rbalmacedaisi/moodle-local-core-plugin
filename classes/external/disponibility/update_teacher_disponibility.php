@@ -137,7 +137,7 @@ class update_teacher_disponibility extends external_api {
                 $disponibilityDays[]=explode( '_',$dayENLabels[$day])[1];
             }
             
-            $instructorAsignedClasses = grupomakro_core_list_classes(['instructorid'=>$instructorId]);
+            $instructorAsignedClasses = list_classes(['instructorid'=>$instructorId]);
             
             $classLearningPlans = array();
             
@@ -150,20 +150,20 @@ class update_teacher_disponibility extends external_api {
                 // Check if a day that is already defined for a class is missing in the new disponibility
                 foreach($instructorAsignedClass->selectedDaysEN as $classDay){
                      if(!in_array(strtolower($classDay),$disponibilityDays)){
-                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->inithourformatted.'-'.$instructorAsignedClass->endhourformatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
                         throw new Exception($errorString);
                     }
                     
                     $foundedRange = false;
                     $dayDisponibilities = $teacherDisponibility->{'disp_'.strtolower($classDay)};
                     foreach($dayDisponibilities as $dayDisponibility){
-                        if($instructorAsignedClass->inittimeTS >= $dayDisponibility->st &&  $instructorAsignedClass->endtimeTS  <= $dayDisponibility->et){
+                        if($instructorAsignedClass->inittimets >= $dayDisponibility->st &&  $instructorAsignedClass->endtimets  <= $dayDisponibility->et){
                             $foundedRange = true;
                             break;
                         }
                     }
                     if(!$foundedRange){
-                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->initHourFormatted.'-'.$instructorAsignedClass->endHourFormatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
+                        $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->inithourformatted.'-'.$instructorAsignedClass->endhourformatted. ") ,no esta definido en la nueva disponibilidad; no se puede actualizar.";
                         throw new Exception($errorString);
                     }
                 }

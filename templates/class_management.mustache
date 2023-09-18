@@ -93,7 +93,7 @@
                 <div class="d-flex flex-wrap">
                     {{#allClasses}}
                     {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companyCode}}" style="width: 320px;">
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body position-relative pb-2">
                             {{! Class name }}
@@ -101,7 +101,9 @@
                             
                             {{! Class instructors }}
                             <div class="d-flex mb-2">
-                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <i class="mr-3">
+                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
+                                </i>
                                 <div class="d-flex flex-column">
                                     <span>{{instructorName}}</span>
                                     <span class="text-primary">Instructor</span>
@@ -114,7 +116,7 @@
                                 {{! Class type }}
                                 <div class="mb-1">
                                     <i class="{{icon}} mr-1"></i>
-                                    {{typeLabel}}
+                                    {{typelabel}}
                                 </div>
                                 {{! End Class type }}
                                 
@@ -128,7 +130,7 @@
                                 {{! Class schedule }}
                                 <div class="mb-1">
                                     <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{initHourFormatted}}</span>
+                                    <span class="text-muted startdate">{{inithourformatted}}</span>
                                     <small class="text-muted">{{classDaysString}}</small>
                                 </div>
                                 {{! End Class schedule }}
@@ -138,7 +140,7 @@
                         
                         <div class="card-footer d-flex">
                             {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyName}}</span>
+                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
                             <div class="spacer"></div>
                             {{! Options }}
                             <div class="options">
@@ -168,7 +170,7 @@
                 <div class="d-flex flex-wrap">
                     {{#colClasses}}
                     {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companyCode}}" style="width: 320px;">
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body">
                             {{! Class name }}
@@ -176,7 +178,9 @@
                             
                             {{! Class instructors }}
                             <div class="d-flex mb-2">
-                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <i class="mr-3">
+                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
+                                </i>
                                 <div class="d-flex flex-column">
                                     <span>{{instructorName}}</span>
                                     <span class="text-primary">Instructor</span>
@@ -189,7 +193,7 @@
                                 {{! Class type }}
                                 <div class="mb-1">
                                     <i class="{{icon}} mr-1"></i>
-                                    {{typeLabel}}
+                                    {{typelabel}}
                                 </div>
                                 {{! End Class type }}
                                 
@@ -203,7 +207,7 @@
                                 {{! Class schedule }}
                                 <div class="mb-1">
                                     <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{initHourFormatted}}</span>
+                                    <span class="text-muted startdate">{{inithourformatted}}</span>
                                 </div>
                                 {{! End Class schedule }}
                             </div>
@@ -212,7 +216,7 @@
                         
                         <div class="card-footer d-flex">
                             {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyName}}</span>
+                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
                             <div class="spacer"></div>
                             {{! Options }}
                             <div class="options">
@@ -242,7 +246,7 @@
                 <div class="d-flex flex-wrap">
                     {{#mexClasses}}
                     {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companyCode}}" style="width: 320px;">
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body">
                             {{! Class name }}
@@ -250,7 +254,9 @@
                             
                             {{! Class instructors }}
                             <div class="d-flex mb-2">
-                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <i class="mr-3">
+                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
+                                </i>
                                 <div class="d-flex flex-column">
                                     <span>{{instructorName}}</span>
                                     <span class="text-primary">Instructor</span>
@@ -263,7 +269,7 @@
                                 {{! Class type }}
                                 <div class="mb-1">
                                     <i class="{{icon}} mr-1"></i>
-                                    {{typeLabel}}
+                                    {{typelabel}}
                                 </div>
                                 {{! End Class type }}
                                 
@@ -277,7 +283,7 @@
                                 {{! Class schedule }}
                                 <div class="mb-1">
                                     <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{initHourFormatted}}</span>
+                                    <span class="text-muted startdate">{{inithourformatted}}</span>
                                 </div>
                                 {{! End Class schedule }}
                             </div>
@@ -286,7 +292,7 @@
                         
                         <div class="card-footer d-flex">
                             {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyName}}</span>
+                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
                             <div class="spacer"></div>
                             {{! Options }}
                             <div class="options">
@@ -316,7 +322,7 @@
                 <div class="d-flex flex-wrap">
                     {{#paClasses}}
                     {{! Class name }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companyCode}}" style="width: 320px;">
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body">
                             {{! Class name }}
@@ -324,7 +330,9 @@
                             
                             {{! Class instructors }}
                             <div class="d-flex mb-2">
-                                <i class="fa fa-user-circle avatar-default mr-3"></i>
+                                <i class="mr-3">
+                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
+                                </i>
                                 <div class="d-flex flex-column">
                                     <span>{{instructorName}}</span>
                                     <span class="text-primary">Instructor</span>
@@ -337,7 +345,7 @@
                                 {{! Class type }}
                                 <div class="mb-1">
                                     <i class="{{icon}} mr-1"></i>
-                                    {{typeLabel}}
+                                    {{typelabel}}
                                 </div>
                                 {{! End Class type }}
                                 
@@ -351,7 +359,7 @@
                                 {{! Class schedule }}
                                 <div class="mb-1">
                                     <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{initHourFormatted}}</span>
+                                    <span class="text-muted startdate">{{inithourformatted}}</span>
                                 </div>
                                 {{! End Class schedule }}
                             </div>
@@ -360,7 +368,7 @@
                         
                         <div class="card-footer d-flex">
                             {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyName}}</span>
+                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
                             <div class="spacer"></div>
                             {{! Options }}
                             <div class="options">

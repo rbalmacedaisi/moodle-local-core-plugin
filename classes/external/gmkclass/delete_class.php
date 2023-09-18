@@ -35,9 +35,7 @@ use Exception;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once $CFG->libdir . '/externallib.php';
-require_once($CFG->libdir . '/filelib.php');
-require_once $CFG->dirroot . '/group/externallib.php';
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_grupomakro_delete_class' implementation.
@@ -61,53 +59,34 @@ class delete_class extends external_api {
             ]
         );
     }
-
     /**
      * TODO describe what the function actually does.
      *
      * @param string id
      * @return mixed TODO document
      */
-    public static function execute(
-        string $id
-        ) {
-        
+    public static function execute(string $id) {
+            
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'id' => $id,
         ]);
-        
         // Global variables.
         global $DB;
         
-        $classInfo = $DB->get_record('gmk_class', ['id'=>$id]);
+        try{
+            
+            $class = $DB->get_record('gmk_class', ['id'=>$id]);
         
-        //Get the section.
-        $section = $DB->get_record('course_sections', ['id' => $classInfo->coursesectionid]);
-        
-        //Get the current course.
-        $learningCourse= $DB->get_record('local_learning_courses',['id'=>$classInfo->courseid]);
-        $coreCourseId = $learningCourse->courseid;
-        $course = $DB->get_record('course', ['id' => $coreCourseId]);
-        
-        //Delete created resources.
-        $sectionnum = $section->section;
-        $sectioninfo = get_fast_modinfo($course)->get_section_info($sectionnum);    
-        course_delete_section($course, $sectioninfo, true, true);
-        rebuild_course_cache($coreCourseId, true);
-        
-        //Delete the class group.
-        $groupIds = [$classInfo->groupid];
-        $deleteGroup = \core_group_external::delete_groups($groupIds);
-
-        //Lastly, delete the class itself.
-        $deleteClassId = $DB->delete_records('gmk_class',['id'=>$id]);
-
-        // Return the result.
-        return ['status' => $deleteClassId, 'message' => 'ok'];
+            delete_class($class);
+            
+            // Return the result.
+            return ['status' => $id, 'message' => 'ok'];
+        }
+        catch (Exception $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
     }
-
-
     /**
      * Describes the return value of the {@see self::execute()} method.
      *

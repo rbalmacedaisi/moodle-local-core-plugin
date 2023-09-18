@@ -23,7 +23,7 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
-
+require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
@@ -36,7 +36,9 @@ $PAGE->set_title(get_string('classmanagement', $plugin_name));
 $PAGE->set_heading(get_string('classmanagement', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-$classes = json_decode(\local_grupomakro_core\external\gmkclass\list_classes::execute()['classes']);
+$classes = array_values(list_classes([]));
+// print_object($classes);
+// die;
 
 echo $OUTPUT->header();
 $colClasses = array();
@@ -47,7 +49,7 @@ $definedMexClasses = false;
 $definedPaClasses = false;
 foreach ($classes as $class) {
     
-    $companyCode = $class->companyCode;
+    $companyCode = $class->companycode;
     
     if($companyCode === 'gk-col'){
         array_push($colClasses,$class);
@@ -77,6 +79,5 @@ $templatedata = [
 ]; 
 
 echo $OUTPUT->render_from_template('local_grupomakro_core/class_management', $templatedata);
-$PAGE->requires->js_call_amd('local_grupomakro_core/class_management', 'init', []);
 $PAGE->requires->js_call_amd('local_grupomakro_core/delete_class', 'init', []);
 echo $OUTPUT->footer();

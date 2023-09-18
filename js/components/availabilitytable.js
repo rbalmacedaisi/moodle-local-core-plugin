@@ -252,7 +252,7 @@ Vue.component('availabilitytable',{
                     </template>
                     
                     <template v-slot:no-data>
-                        <v-btn color="primary" @click="initialize">No hay datos</v-btn>
+                        <v-btn color="primary" text @click="initialize">No hay datos</v-btn>
                     </template>
                 </v-data-table>
             </v-col>
@@ -282,7 +282,6 @@ Vue.component('availabilitytable',{
     `,
     data(){
         return{
-            token: '33513bec0b3469194c7756c29bf9fb33',
             dialog: false,
             dialogDelete: false,
             overlay: false,
@@ -575,6 +574,9 @@ Vue.component('availabilitytable',{
         },
         editingPickedInstructorData(){
             return this.pickedInstructorId? window.instructorItems.find(instructor => instructor.id === this.selectedInstructorId):undefined
+        },
+        token(){
+            return window.token;
         }
     },
     watch: {

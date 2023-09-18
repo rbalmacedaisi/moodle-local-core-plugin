@@ -465,9 +465,6 @@ Vue.component('classschedule',{
                 week: window.strings.week,
                 day: window.strings.day,
             },
-            classitems:undefined,
-            instructors:undefined,
-            rolInstructor: undefined,
             start: null,
             end: null,
             selectedEvent: {},
@@ -485,31 +482,12 @@ Vue.component('classschedule',{
             urlClass: 'classmanagement.php',
             urlAvailability: 'availability.php',
             URLdomain: window.location.origin,
-            token: '33513bec0b3469194c7756c29bf9fb33',
             siteUrl: window.location.origin + '/webservice/rest/server.php',
             weekdays: [1, 2, 3, 4, 5, 6, 0],
             ready: false,
             lang: window.strings,
             userId: window.userid,
             value: '',
-            items: [
-                {
-                    id: 1,
-                    text: 'Cita Medica',
-                    value: 'Cita Medica'
-                },
-                {
-                    id: 2,
-                    text: 'Fallas de Internet',
-                    value: 'Fallas de Internet'
-                },
-                {
-                    id: 3,
-                    text: 'Incapacidad médica',
-                    value: 'Incapacidad médica'
-                },
-                
-            ],
             causes: [],
             date: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10),
             menu: false,
@@ -533,9 +511,6 @@ Vue.component('classschedule',{
         }
     },
     created(){
-        this.classitems = window.classItems;
-        this.instructors = window.instructorItems;
-        this.rolInstructor =window.rolInstructor===1;
         this.getEvents();
     },
     mounted(){
@@ -554,23 +529,12 @@ Vue.component('classschedule',{
             
             // Get the Moodle site URL from the siteUrl property.
             const url = this.siteUrl;
-            let params = {}
-            if(this.rolInstructor){
-                // Define the parameters of the HTTP request.
-                params = {
-                    wstoken: this.token,
-                    moodlewsrestformat: 'json',
-                    wsfunction: 'local_grupomakro_calendar_get_calendar_events',
-                    userId: this.userId
-                };
-            }else{
-                // Define the parameters of the HTTP request.
-                params = {
-                    wstoken: this.token,
-                    moodlewsrestformat: 'json',
-                    wsfunction: 'local_grupomakro_calendar_get_calendar_events',
-                };
+            let params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_calendar_get_calendar_events',
             }
+            if(this.rolInstructor)params.userId=this.userId
             
             // Make an HTTP GET request with Axios.
             window.axios.get(url, { params })
@@ -585,7 +549,7 @@ Vue.component('classschedule',{
                         this.events.push({
                             name: element.coursename,
                             instructor: element.instructorName,
-                            details: element.typeLabel,
+                            details: element.typelabel,
                             color: element.color,
                             start: element.start,
                             end: element.end,
@@ -796,6 +760,18 @@ Vue.component('classschedule',{
         
         rescheduleCauses(){
             return window.rescheduleCauses.map(cause => ({text:cause.causename,id:cause.id,value:cause.id}));
+        },
+        classitems(){
+            return window.classItems;
+        },
+        instructors(){
+            return window.instructorItems;
+        },
+        rolInstructor(){
+            return window.rolInstructor===1;
+        },
+        token(){
+            return window.token;
         }
     },
     

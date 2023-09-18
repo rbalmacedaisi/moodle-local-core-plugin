@@ -95,7 +95,7 @@ class reschedule_activity extends external_api {
             //
             $moduleInfo =  $DB->get_record('course_modules', array('id' =>$moduleId), '*', MUST_EXIST);
             $moduleActivity =  $DB->get_record('modules', array('id' =>$moduleInfo->module), '*', MUST_EXIST)->name;
-            $classInfo = grupomakro_core_list_classes(['id' =>$classId])[$classId];
+            $classInfo = list_classes(['id' =>$classId])[$classId];
             $classType = $classInfo->type;
             
 

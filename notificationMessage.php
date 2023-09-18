@@ -17,8 +17,7 @@ $message->subject = 'New message notification'; // Set the message subject
 $message->fullmessage = 'You have a new message notification in Moodle'; // Set the message body
 $message->fullmessageformat = FORMAT_PLAIN; // Set the message body format
 
-print_object($message);
-die();
+
 // Send the message notification
 $messageid = message_send($message);
 ?>

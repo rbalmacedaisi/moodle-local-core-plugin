@@ -28,8 +28,6 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
-global $DB,$USER;
-
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/schedules.php');
 
 $context = context_system::instance();
@@ -37,6 +35,8 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('schedules', $plugin_name));
 $PAGE->set_heading(get_string('schedules', $plugin_name));
 $PAGE->set_pagelayout('base');
+
+$token = get_logged_user_token();
 
 //Check if the user is an Instructor
 $sql = "SELECT DISTINCT r.shortname
@@ -52,19 +52,17 @@ $rolInstructor = !empty($teacherRoles);
 //override the teacher role if the user is an administrator
 $rolInstructor = $DB->get_record('role_assignments', array('roleid'=>1,'userid'=>$USER->id))?0:1;
 
-
-
 //Build a instructor filter if the user is an instructor
 $classInstructorFilter = $rolInstructor ===1?['instructorid'=>$USER->id]:[];
 
 // Get the list of created classes
-$classes = grupomakro_core_list_classes($classInstructorFilter);
+$classes = list_classes($classInstructorFilter);
 $classItems = [];
 foreach($classes as $class){
   $classItem = new stdClass();
-  $classItem->id = $class->coreCourseId;
+  $classItem->id = $class->corecourseid;
   $classItem->text = $class->coreCourseName;
-  $classItem->value = $class->coreCourseId;
+  $classItem->value = $class->corecourseid;
   array_push($classItems,$classItem);
 }
 $classItemsUnique = [];
@@ -76,7 +74,7 @@ foreach($classItems as $item){
 $classItemsUnique = json_encode(array_values($classItemsUnique));
 
 //Get the list of Instructors
-$instructors = grupomakro_core_list_instructors();
+$instructors = list_instructors();
 $instructorItems = [];
 foreach($instructors as $instructor){
   $instructorItem = new stdClass();
@@ -144,6 +142,7 @@ echo <<<EOT
     var strings = $strings;
     var userid = $userid;
     var rescheduleCauses = $rescheduleCauses;
+    var token = $token;
   </script>
   <style lang="scss">
     .v-current-time {

@@ -76,8 +76,12 @@ class get_student_active_classes extends external_api {
         ]);
         
         try{
-            $activeClasses = student_get_active_classes($id);
-
+            $activeClasses = student_get_active_classes($params['id']);
+            // foreach($activeClasses)
+            $activeClasses = array_map(function ($course){
+                $course['schedules'] = array_values($course['schedules']);
+                return $course;
+            },$activeClasses);
             return ['status'=>'1','classes'=>json_encode(array_values($activeClasses)),'message'=>'ok'];
         }catch (Exception $e) {
             return ['status' => '-1','classes'=>'', 'message' => $e->getMessage()];

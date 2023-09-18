@@ -37,10 +37,7 @@ use Exception;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once $CFG->libdir . '/externallib.php';
-require_once($CFG->libdir . '/filelib.php');
-require_once($CFG->dirroot.'/lib/moodlelib.php');
-require_once($CFG->dirroot . '/calendar/lib.php');
+
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
  * External function 'local_grupomakro_get_teachers_disponibility' implementation.
@@ -88,45 +85,11 @@ class get_teachers_disponibility extends external_api {
         
         
         try {
-            
-            $skillCustomFieldId = $DB->get_record('user_info_field',['shortname'=>'skills'])->id;
-            
-            $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $instructorId? ['userid'=>$instructorId]:[]);
-        
-            $weekdays = array(
-                'disp_monday' => 'Lunes',
-                'disp_tuesday' => 'Martes',
-                'disp_wednesday' => 'Miércoles',
-                'disp_thursday' => 'Jueves',
-                'disp_friday' => 'Viernes',
-                'disp_saturday' => 'Sábado',
-                'disp_sunday' => 'Domingo'
-            );
-            $teachersDisponibility = array();
-            
-            foreach($disponibilityRecords as $disponibilityRecord){
-                $teacherId = $disponibilityRecord->userid;
-                $teachersDisponibility[$teacherId]= new stdClass();
-                $teachersDisponibility[$teacherId]->instructorId = $teacherId;
-                $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
-                $teachersDisponibility[$teacherId]->instructorName = $teacherInfo->firstname.' '.$teacherInfo->lastname;
-                $teachersDisponibility[$teacherId]->instructorPicture =my_get_user_picture_url($teacherId);
-                
-                $teacherSkills = $DB->get_record('user_info_data',['userid'=>$teacherId,'fieldid'=>$skillCustomFieldId])->data;
-                $teachersDisponibility[$teacherId]->instructorSkills= !is_null($teacherSkills)? array_map('trim',explode(',',$teacherSkills)):[];
-                
-                $teachersDisponibility[$teacherId]->disponibilityRecords = array();
-                foreach($weekdays as $dayColumnName => $day){
-                     $timeSlots = convert_time_ranges($disponibilityRecord->{$dayColumnName});
-                     if(empty($timeSlots)){
-                         continue;
-                     };
-                     $teachersDisponibility[$teacherId]->disponibilityRecords[$day] = $timeSlots;
-                }
-            }
+            $teachersDisponibility = get_teachers_disponibility($instructorId);
+            $teachersDisponibilityEncoded = json_encode(array_values($teachersDisponibility));
 
             // Return the result.
-            return ['teacherAvailabilityRecords' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
+            return ['teacherAvailabilityRecords' => $teachersDisponibilityEncoded, 'message' => 'ok'];
         } catch (Exception $e) {
             return ['teacherAvailabilityRecords' => -1, 'message' => $e->getMessage()];
         }

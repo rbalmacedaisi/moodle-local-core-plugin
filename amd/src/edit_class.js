@@ -28,16 +28,15 @@ const rescheduleModal = $('#rescheduleActivityModalCenter');
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
 
-const selectors = [classNameInput,typeSelector, careerSelector, periodSelector, courseSelector, teacherSelector, initTimeInput, endTimeInput];
+const selectors = [classNameInput, typeSelector, careerSelector, periodSelector,
+    courseSelector, teacherSelector, initTimeInput, endTimeInput];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 const classId = window.location.search.substring(10,);
-let rescheduling = undefined;
 let periods;
 let courses;
 let teachers;
 
-export const init = (reschedulingActivity) => {
-    rescheduling= reschedulingActivity;
+export const init = () => {
     handleCareerSelection();
     handlePeriodSelection();
     handleCourseSelection();
@@ -50,89 +49,90 @@ export const init = (reschedulingActivity) => {
 const handleActivityRescheduleCancelation = () => {
     cancelRescheduleButton.click(()=>{
         rescheduleConfirmationText.html(`<p>Verificando disponibilidad...</p>`);
-        confirmRescheduleButton.show()
-    })
-}
+        confirmRescheduleButton.show();
+    });
+};
 
 
 const handleActivityRescheduleConfirmation = () => {
     confirmRescheduleButton.click(()=>{
         const searchParams = new URLSearchParams(window.location.search);
-        
+
         const args = {
-            classId:searchParams.get('class_id'),
-            moduleId:searchParams.get('moduleId'),
-            date:newDateInput.val(),
-            initTime:newStartTimeInput.val(),
-            endTime:newEndTimeInput.val(),
-            sessionId:searchParams.get('sessionId')!==''?searchParams.get('sessionId'):null,
+            classId: searchParams.get('class_id'),
+            moduleId: searchParams.get('moduleId'),
+            date: newDateInput.val(),
+            initTime: newStartTimeInput.val(),
+            endTime: newEndTimeInput.val(),
+            sessionId: searchParams.get('sessionId') !== '' ? searchParams.get('sessionId') : null,
         };
         rescheduleConfirmationText.html(`<p>Reprogramando actividad...</p>`);
-        confirmRescheduleButton.prop('disabled',true)
-        cancelRescheduleButton.prop('disabled',true)
+        confirmRescheduleButton.prop('disabled', true);
+        cancelRescheduleButton.prop('disabled', true);
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_reschedule_activity',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
             window.console.log(response);
-            if(response.status === -1 ){
+            if (response.status === -1) {
                 rescheduleConfirmationText.html(`<p>${response.message}</p>`);
-                confirmRescheduleButton.prop('disabled',false)
-                cancelRescheduleButton.prop('disabled',false)
-                return
+                confirmRescheduleButton.prop('disabled', false);
+                cancelRescheduleButton.prop('disabled', false);
+                return;
             }
             rescheduleConfirmationText.html(`<p>Todo listo, Redirigiendo al calendario...</p>`);
-            window.location.href ='/local/grupomakro_core/pages/schedules.php';
+            window.location.href = '/local/grupomakro_core/pages/schedules.php';
         }).fail(function(error) {
             window.console.error(error);
         });
-    })
-}
+    });
+};
 
 const handleActivityReschedule = () => {
-    rescheduleButton.click((e)=>{
+    rescheduleButton.click(()=>{
         // Check if the init time is less than the end time of the class
         if (newStartTimeInput.val() >= newEndTimeInput.val()) {
             newEndTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
             newEndTimeInput.get(0).reportValidity();
-            return false
+            return false;
         }
+        return true;
         //
-    })
-    rescheduleModal.on('show.bs.modal', function (e) {
+    });
+    rescheduleModal.on('show.bs.modal', function() {
         const searchParams = new URLSearchParams(window.location.search);
-        
+
         const args = {
-            classId:searchParams.get('class_id'),
-            moduleId:searchParams.get('moduleId'),
-            date:newDateInput.val(),
-            initTime:newStartTimeInput.val(),
-            endTime:newEndTimeInput.val(),
-            sessionId:searchParams.get('sessionId')!==''?searchParams.get('sessionId'):null
+            classId: searchParams.get('class_id'),
+            moduleId: searchParams.get('moduleId'),
+            date: newDateInput.val(),
+            initTime: newStartTimeInput.val(),
+            endTime: newEndTimeInput.val(),
+            sessionId: searchParams.get('sessionId') !== '' ? searchParams.get('sessionId') : null
         };
         confirmRescheduleButton.hide();
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_check_reschedule_conflicts',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
             window.console.log(response);
             rescheduleConfirmationText.html(`<p>${response.message}</p>`);
-            if(response.status === -1 ){
-                return
-            } 
+            if (response.status === -1) {
+                return;
+            }
             confirmRescheduleButton.show();
         }).fail(function(error) {
             window.console.error(error);
         });
-        return true
+        return true;
     });
-}
+};
 
 const handleClassSave = () => {
     saveButton.click(()=>{
-        
+
         endTimeInput.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
         const valid = selectors.every(selector => {
@@ -142,7 +142,7 @@ const handleClassSave = () => {
             return;
         }
         //
-        
+
         // Check if the init time is less than the end time of the class
         if (initTimeInput.val() >= endTimeInput.val()) {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
@@ -150,7 +150,7 @@ const handleClassSave = () => {
             return;
         }
         //
-        
+
         // Check if at least one day of the week is selected
         const daySelected = switches.some(day => {
             return day.is(":checked");
@@ -173,27 +173,25 @@ const handleClassSave = () => {
             endTime: endTimeInput.val(),
             classDays: formatSelectedClassDays(),
         };
-        console.log(args)
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_update_class',
             args
-        }, ]);
+        }]);
         promise[0].done(function(response) {
             window.console.log(response);
-            if(response.status === -1 ){
+            if (response.status === -1) {
                 // Add the error message to the modal content.
-                try{
+                try {
                     const errorMessages = JSON.parse(response.message);
                     let errorHTMLString = '';
                     errorMessages.forEach(message=>{
-                        errorHTMLString += `<p class="text-center">${message}</p>`
-                    })
+                        errorHTMLString += `<p class="text-center">${message}</p>`;
+                    });
                     errorModalContent.html(errorHTMLString);
-                }catch (error){
+                } catch (error) {
                     errorModalContent.html(`<p class="text-center">${response.message}</p>`);
-                } finally{
+                } finally {
                     errorModal.modal('show');
-                    return
                 }
             }
             window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
@@ -215,7 +213,7 @@ const args = {
 const promise = Ajax.call([{
     methodname: 'local_sc_learningplans_get_learning_plan_periods',
         args
-}, ]);
+}]);
         promise[0].done(function(response) {
             $(".periodValue").remove();
             $(".courseValue").remove();
@@ -248,7 +246,7 @@ const handlePeriodSelection = () => {
         const promise = Ajax.call([{
             methodname: 'local_sc_learningplans_get_learning_plan_courses',
             args
-        },]);
+        }]);
         promise[0].done(function(response) {
             $(".courseValue").remove();
             $(".teacherValue").remove();
@@ -277,7 +275,7 @@ const handleCourseSelection = () => {
         const promise = Ajax.call([{
             methodname: 'local_sc_learningplans_get_learning_plan_teachers',
             args
-        },]);
+        }]);
         promise[0].done(function(response) {
             $(".teacherValue").remove();
             teachers = JSON.parse(response.teachers);

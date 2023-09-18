@@ -25,6 +25,7 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -35,6 +36,9 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('availability_panel', $plugin_name));
 $PAGE->set_heading(get_string('availability_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
+
+$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
+$token = json_encode(external_generate_token_for_current_user($service)->token);
 
 //Get the list of Instructors
 
@@ -134,6 +138,7 @@ echo <<<EOT
    <script>
     var instructorItems = $instructorItems;
     var strings = $strings;
+    var token = $token;
   </script>
   
 EOT;
