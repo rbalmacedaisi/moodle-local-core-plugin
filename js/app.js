@@ -3,7 +3,7 @@
 // with a script in the HTML.
 
 // URL of the API to query.
-const url = 'https://grupomakro-dev.soluttolabs.com/webservice/rest/server.php';
+const url = 'https://lxp-dev.soluttolabs.com/webservice/rest/server.php';
 
 // Parameters to send with the API request.
 const params = {

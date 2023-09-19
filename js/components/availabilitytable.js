@@ -576,7 +576,7 @@ Vue.component('availabilitytable',{
             return this.pickedInstructorId? window.instructorItems.find(instructor => instructor.id === this.selectedInstructorId):undefined
         },
         token(){
-            return window.token;
+            return window.userToken;
         }
     },
     watch: {

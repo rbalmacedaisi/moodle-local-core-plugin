@@ -138,7 +138,7 @@ echo <<<EOT
    <script>
     var instructorItems = $instructorItems;
     var strings = $strings;
-    var token = $token;
+    var userToken = $token;
   </script>
   
 EOT;
