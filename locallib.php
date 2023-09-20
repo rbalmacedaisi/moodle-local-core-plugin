@@ -445,8 +445,15 @@ function list_classes($filters) {
         $class->coreCourseName = $class->course->fullname;
         $class->coursesectionid = $class->coursesectionid;
         $class->startDate =  date('Y-m-d');
-        $class->numberOfParticipants = get_class_number_of_participants($class->groupid);
-        $class->classFull = $class->numberOfParticipants >= $class->classroomcapacity;
+        
+        $class->available = !$class->approved;
+        //Set the number os students registered for the class
+        $classParticipants = get_class_participants($class); 
+        $class->enroledStudents = count($classParticipants->enroledStudents)-1;
+        $class->preRegisteredStudents = count($classParticipants->preRegisteredStudents);
+        $class->queuedStudents = count($classParticipants->queuedStudents);
+        
+        $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
         
         $class->instructorProfileImage = get_user_picture_url($class->instructorid);
     }
@@ -537,14 +544,18 @@ function fill_compute_class_values($class,$classParams){
         $class->companyname =$companies[$classParams["instance"]];
         $class->companycode =$companyCodes[$classParams["instance"]];
     }
-
+    
     return $class;
 }
 
-function get_class_number_of_participants($classGroupId){
+function get_class_participants($class){
     global $DB;
-    $classParticipants = $DB->get_records('groups_members',['groupid'=>$classGroupId]);
-    return count($classParticipants);
+    
+    $classParticipants = new stdClass();
+    $classParticipants->enroledStudents =  $DB->get_records('groups_members',['groupid'=>$class->groupid]);
+    $classParticipants->preRegisteredStudents = $DB->get_records('gmk_class_pre_registration',['classid'=>$class->id]);
+    $classParticipants->queuedStudents = $DB->get_records('gmk_class_queue',['classid'=>$class->id]);
+    return $classParticipants;
 }
 
 function check_course_alternative_schedules($selectedClass, $userId){
@@ -572,6 +583,20 @@ function add_user_to_class_queue($userId,$class){
     $classQueueRecord->courseid = $class->corecourseid;
     
     return !!$DB->insert_record('gmk_class_queue',$classQueueRecord);
+}
+
+function add_user_to_class_pre_registry($userId,$class){
+    global $DB,$USER;
+
+    $classPreRegistryRecord = new stdClass();
+    $classPreRegistryRecord->timecreated = time();
+    $classPreRegistryRecord->timeupdated = time();
+    $classPreRegistryRecord->usermodified = $USER->id;
+    $classPreRegistryRecord->userid = $userId;
+    $classPreRegistryRecord->classid = $class->id;
+    $classPreRegistryRecord->courseid = $class->corecourseid;
+    
+    return !!$DB->insert_record('gmk_class_pre_registration',$classPreRegistryRecord);
 }
 
 
@@ -1419,7 +1444,9 @@ function construct_active_schedule_object($class,$userId){
     $learningPlanActiveSchedule->groupId = $class->groupid;
     $learningPlanActiveSchedule->classId = $class->id;
     $learningPlanActiveSchedule->selected = is_user_enrolled_in_group($userId,$class->groupid);
-    $learningPlanActiveSchedule->available = true;
+    $learningPlanActiveSchedule->available = $class->available;
+    $learningPlanActiveSchedule->preRegisteredStudents = $class->preRegisteredStudents;
+    $learningPlanActiveSchedule->queuedStudents = $class->queuedStudents;
     $learningPlanActiveSchedule->classFull = $class->classFull;
     return $learningPlanActiveSchedule;
 }

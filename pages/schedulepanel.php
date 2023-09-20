@@ -36,9 +36,6 @@ $PAGE->set_title(get_string('schedule_panel', $plugin_name));
 $PAGE->set_heading(get_string('schedule_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-
-
-
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
 $strings->selection_schedules = get_string('selection_schedules',$plugin_name);

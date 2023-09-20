@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_change_students_schedules external function.
+ * Class definition for the local_grupomakro_get_class_schedules_queues external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\schedules;
+namespace local_grupomakro_core\external\schedule;
 
 use context_system;
 use external_api;
@@ -39,14 +39,14 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
- * External function 'local_grupomakro_change_students_schedules' implementation.
+ * External function 'local_grupomakro_get_class_schedules_queues' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class change_students_schedules extends external_api {
+class get_class_schedules_queues extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.

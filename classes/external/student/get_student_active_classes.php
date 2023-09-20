@@ -77,7 +77,7 @@ class get_student_active_classes extends external_api {
         
         try{
             $activeClasses = student_get_active_classes($params['id']);
-            // foreach($activeClasses)
+            
             $activeClasses = array_map(function ($course){
                 $course['schedules'] = array_values($course['schedules']);
                 return $course;

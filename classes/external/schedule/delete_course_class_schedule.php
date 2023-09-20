@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\schedules;
+namespace local_grupomakro_core\external\schedule;
 
 use context_system;
 use external_api;

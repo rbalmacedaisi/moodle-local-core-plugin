@@ -549,6 +549,20 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20230913000, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20230919001) {
+
+        // Define field approved to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('approved', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'companycode');
+
+        // Conditionally launch add field approved.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20230919001, 'local', 'grupomakro_core');
+    }
 
     return true;
 }

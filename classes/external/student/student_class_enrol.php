@@ -89,21 +89,25 @@ class student_class_enrol extends external_api {
             $selectedClass = list_classes(['id'=>$classId])[$classId];
             $selectedClassFull = $selectedClass->classFull;
             
-            $courseAlternativeClasses = check_course_alternative_schedules($selectedClass,$userId);
             if(!$selectedClassFull){
-                $enrolResult = groups_add_member($selectedClass->groupid,$userId);
+                $enrolResult = add_user_to_class_pre_registry($userId,$selectedClass);
             }
-            
-            else if($forceQueue || empty($courseAlternativeClasses[$selectedClass->corecourseid]['schedules'])){
+            else if($forceQueue){
                 $addedToQueue = add_user_to_class_queue($userId,$selectedClass);
-                $courseAlternativeClasses = false;
             }
             
-            if(!empty($courseAlternativeClasses[$selectedClass->corecourseid]['schedules'])){
-                $courseAlternativeClasses = array_map(function ($course){
-                    $course['schedules'] = array_values($course['schedules']);
-                    return $course;
-                },$courseAlternativeClasses);
+            if(!$enrolResult && !$addedToQueue){
+                $courseAlternativeClasses = check_course_alternative_schedules($selectedClass,$userId);
+                
+                if(empty($courseAlternativeClasses[$selectedClass->corecourseid]['schedules'])){
+                    $addedToQueue = add_user_to_class_queue($userId,$selectedClass);
+                }
+                else{
+                    $courseAlternativeClasses = array_map(function ($course){
+                        $course['schedules'] = array_values($course['schedules']);
+                        return $course;
+                    },$courseAlternativeClasses);    
+                }
             }
             return ['status'=>'1','enrolResult'=>$enrolResult,'addedToQueue'=>$addedToQueue,'classAlternatives'=>json_encode($courseAlternativeClasses),'message'=>'ok'];
         }catch (Exception $e) {

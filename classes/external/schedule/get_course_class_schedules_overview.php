@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\schedules;
+namespace local_grupomakro_core\external\schedule;
 
 use context_system;
 use external_api;
@@ -56,18 +56,7 @@ class get_course_class_schedules_overview extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
-                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
-                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
-                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
-                'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
-                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
-                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
-                'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
+                'name' => new external_value(PARAM_TEXT, 'Name of the class.')
             ]
         );
     }
@@ -79,41 +68,18 @@ class get_course_class_schedules_overview extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-        string $name,
-        int $type,
-        int $instance,
-        int $learningPlanId,
-        int $periodId,
-        int $courseId,
-        int $instructorId,
-        string $initTime,
-        string $endTime,
-        string $classDays,
-        string $classroomId,
-        int $classroomCapacity
+        string $name
         ) {
 
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
-            'name' => $name,
-            'type' =>$type,
-            'instance'=>$instance,
-            'learningPlanId'=>$learningPlanId,
-            'periodId' =>$periodId,
-            'courseId' =>$courseId,
-            'instructorId' =>$instructorId,
-            'initTime'=>$initTime,
-            'endTime'=>$endTime,
-            'classDays'=>$classDays,
-            'classroomId'=>$classroomId,
-            'classroomCapacity'=>$classroomCapacity
+            'name' => $name
         ]);
-        
-        // Global variables.
-        global $DB, $USER;
         
         
         try{
+            print_object($params);
+            die;
             
             check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId);
             
