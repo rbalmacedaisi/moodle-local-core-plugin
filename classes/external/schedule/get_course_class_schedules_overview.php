@@ -54,11 +54,11 @@ class get_course_class_schedules_overview extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
-            [
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.')
-            ]
-        );
+        return new external_function_parameters([
+                'learningPlanId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
+                'periodId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
+                'courseId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null)
+            ]);
     }
 
     /**
@@ -68,28 +68,27 @@ class get_course_class_schedules_overview extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-        string $name
+        $learningPlanId,
+        $periodId,
+        $courseId
         ) {
-
+        
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
-            'name' => $name
+            'learningPlanId' => $learningPlanId,
+            'periodId' => $periodId,
+            'courseId' => $courseId,
         ]);
         
-        
         try{
-            print_object($params);
-            die;
             
-            check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId);
-            
-            $classId = create_class($params);
+            $schedulesOverview = get_class_schedules_overview($params);
 
             // Return the result.
-            return ['status' => $classId, 'message' => 'ok'];
+            return ['status' => 1, 'schedulesOverview'=>json_encode($schedulesOverview) , 'message' => 'ok'];
         }
         catch (Exception $e) {
-            return ['status' => -1, 'message' => $e->getMessage()];
+            return ['status' => -1,'message' => $e->getMessage()];
         }
         
     }
@@ -103,8 +102,9 @@ class get_course_class_schedules_overview extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'schedulesOverview' => new external_value(PARAM_RAW, 'JSON encoded object with the schedules overview', VALUE_DEFAULT, null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.')
             )
         );
     }

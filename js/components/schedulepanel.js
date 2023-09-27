@@ -50,11 +50,11 @@ Vue.component('scheduletable',{
                         {{item.numberclasses}}
                         <div class="d-flex>">
                             <span
-                              v-for="n in item.numberclasses"
-                              :key="n"
+                              v-for="(schedule, index) in item.schedules"
+                              :key="schedule.id"
                               class="rounded-circle mr-1"
                               style="width: 10px; height: 10px;display: inline-flex;"
-                              :class="getColor(item.users)"
+                              :class="getColor(schedule)"
                             ></span>
                         </div>
                       </div>
@@ -62,7 +62,7 @@ Vue.component('scheduletable',{
                     
                     <template v-slot:item.users="{ item }">
                       <v-chip
-                        :color="getColor(item.users)"
+                        color="primary"
                         small
                         light
                       >
@@ -94,7 +94,6 @@ Vue.component('scheduletable',{
     `,
     data(){
         return{
-            token: '33513bec0b3469194c7756c29bf9fb33',
             dialog: false,
             search: '',
             headers: [
@@ -115,38 +114,78 @@ Vue.component('scheduletable',{
                 { text: 'Acciones', value: 'actions', sortable: false, align: 'center' },
                 
             ],
-            items: [
-                {
-                    id: 1,
-                    coursename: 'Ingles 1',
-                    numberclasses: 5,
-                    users: 4,
-                    period: 'Cuatrimestre 1'
-                },
-                {
-                    id: 2,
-                    coursename: 'Matemáticas 1',
-                    numberclasses: 5,
-                    users: 3,
-                    period: 'Cuatrimestre 1'
-                },
-            ],
+            items: [],
             dialog: false,
         }
     },
     props:{},
     created(){
+        this.getitems()
     }, 
     mounted(){},  
     methods:{
-        getColor (num) {
+        getitems(){
+            const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_course_class_schedules_overview',
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    //console.log(response)
+                    // Converts the data returned from the API from JSON string format to object format.
+                    const data = JSON.parse(response.data.schedulesOverview)
+                    //console.log(data)
+                    
+                    const arrayEntries = Object.entries(data);
+                    const array = arrayEntries.map(([clave, valor]) => valor);
+                    
+                    // Add the availability data for each instructor to the current instance's item array.
+                    array.forEach((element)=>{
+                        this.items.push({
+                            //id: element.courseId,
+                            coursename: element.courseName,
+                            numberclasses: element.numberOfClasses,
+                            users: element.totalParticipants,
+                            period: element.periodName,
+                            schedules: element.schedules,
+                            periodId: element.periodId,
+                            capacityColor: element.capacityColor,
+                            capacityPercent: element.capacityPercent,
+                            learningPlanId: element.learningPlanId,
+                            learningPlanNames: element.learningPlanNames,
+                            remainingCapacity: element.remainingCapacity,
+                            totalCapacity: element.totalCapacity
+                        })
+                    })
+                    
+                    this.items.forEach((item) => {
+                        item.schedules.forEach((schedule) => {
+                            // Calculate the percentage and round to a whole number.
+                            const percent = Math.round((schedule.preRegisteredStudents / schedule.classroomcapacity) * 100);
+                            schedule.capacitypercentage = percent;
+                        });
+                    });
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });  
+        },
+        getColor (item) {
+            console.log(item)
+            
             if(!this.$vuetify.theme.dark){
-                if (num >= 20) return ' red accent-2'
-                else if (num >= 10) return 'amber lighten-4'
+                if (item.capacitypercentage >= 70) return ' red accent-2'
+                else if (item.capacitypercentage >= 50) return 'amber lighten-4'
                 else return 'green accent-3'
             }else{
-                if (num >= 20) return 'red accent-2'
-                else if (num >= 10) return 'amber lighten-4'
+                if (item.capacitypercentage >= 70) return 'red accent-2'
+                else if (item.capacitypercentage >= 50) return 'amber lighten-4'
                 else return 'green accent-4'
             }
         },
@@ -158,6 +197,12 @@ Vue.component('scheduletable',{
         lang(){
             return window.strings
         },
+        siteUrl(){
+            return window.location.origin + '/webservice/rest/server.php';
+        },
+        token(){
+            return window.userToken;
+        }
     },
     watch: {
         

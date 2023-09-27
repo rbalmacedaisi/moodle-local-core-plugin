@@ -37,41 +37,30 @@ $PAGE->set_heading(get_string('classmanagement', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $classes = array_values(list_classes([]));
-// print_object($classes);
-// die;
 
-echo $OUTPUT->header();
-$colClasses = array();
-$mexClasses = array();
-$paClasses = array();
-$definedColClasses = false;
-$definedMexClasses = false;
-$definedPaClasses = false;
+$colClasses = [];
+$mexClasses = [];
+$paClasses = [];
 foreach ($classes as $class) {
     
     $companyCode = $class->companycode;
     
     if($companyCode === 'gk-col'){
-        array_push($colClasses,$class);
-        $definedColClasses = true;
+        $colClasses[]=$class;
     }else if($companyCode === 'gk-mex'){
-        array_push($mexClasses,$class);
-        $definedMexClasses = true;
+        $mexClasses[]=$class;
     }else if($companyCode=== 'isi-pa'){
-        array_push($paClasses,$class);
-        $definedPaClasses = true;
+        $paClasses[]=$class;
     }
-    $class->icon = $class->type ==='0' ? 'fa fa-group':'fa fa-desktop';
-    $class->classDaysString = implode('-',$class->selectedDaysES);
 }
-
+echo $OUTPUT->header();
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
     'url' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
     'allClasses' => $classes,
-    'definedColClasses' => $definedColClasses,
-    'definedMexClasses' => $definedMexClasses,
-    'definedPaClasses' => $definedPaClasses,
+    'definedColClasses' => !empty($colClasses),
+    'definedMexClasses' => !empty($mexClasses),
+    'definedPaClasses' => !empty($paClasses),
     'colClasses' => $colClasses,
     'mexClasses' => $mexClasses,
     'paClasses' => $paClasses,

@@ -69,9 +69,7 @@ const handleClassSave = () => {
             return selector.get(0).reportValidity();
         });
         if (!valid) {
-            console.log('culpa de los demas inputs')
             return;
-
         }
         //
         // Check if the init time is less than the end time of the class
@@ -79,7 +77,6 @@ const handleClassSave = () => {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
             endTimeInput.get(0).reportValidity();
             return;
-            console.log('culpa de la fecha')
         }
         //
         // Check if at least one day of the week is selected
@@ -87,7 +84,6 @@ const handleClassSave = () => {
             return day.is(":checked");
         });
         if (!daySelected) {
-            console.log('culpa de el dia')
             mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
             mondaySwitch.get(0).reportValidity();
             return;
@@ -109,15 +105,11 @@ const handleClassSave = () => {
                 ? classRooms.find(classroom => classroom.value == classroomSelector.val()).capacity
                 : 40
         };
-        console.log(args)
-        console.log('culpa de el objeto')
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_class',
             args
         }]);
-        console.log('llegue hasta aqui QUE ESTAA PASAAAANDOOOOO')
         promise[0].done(function(response) {
-            window.console.log(response);
             if (response.status === -1) {
                 // Add the error message to the modal content.
                 try {

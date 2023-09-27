@@ -25,6 +25,7 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
@@ -43,6 +44,10 @@ $strings->search = get_string('search',$plugin_name);
 $strings->schedules = get_string('schedules',$plugin_name);
 $strings->nodata = get_string('nodata', $plugin_name);
 $strings = json_encode($strings);
+
+$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
+$token = json_encode(external_generate_token_for_current_user($service)->token);
+
 
 echo $OUTPUT->header();
 
@@ -74,6 +79,7 @@ echo <<<EOT
    
   <script>
     var strings = $strings;
+    var userToken = $token;
   </script>
   
 EOT;
