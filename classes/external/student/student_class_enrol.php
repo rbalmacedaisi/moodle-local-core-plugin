@@ -89,7 +89,7 @@ class student_class_enrol extends external_api {
             $selectedClass = list_classes(['id'=>$classId])[$classId];
             $selectedClassFull = $selectedClass->classFull;
             
-            if(!$selectedClassFull){
+            if(!$selectedClassFull && !$forceQueue ){
                 $enrolResult = add_user_to_class_pre_registry($userId,$selectedClass);
             }
             else if($forceQueue){

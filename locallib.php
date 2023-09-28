@@ -657,7 +657,113 @@ function add_user_to_class_pre_registry($userId,$class){
     return !!$DB->insert_record('gmk_class_pre_registration',$classPreRegistryRecord);
 }
 
+function get_class_schedules_overview($params){
+    global $DB;
+    
+    $learningPlansCoursesSchedules=get_learning_plan_course_schedules($params);
+    
+    $learningPlansCoursesSchedules = array_map(function($course){
+        $course->numberOfClasses = count($course->schedules);
+        $course->totalParticipants = 0;
+        $course->totalCapacity = 0;
+        foreach($course->schedules as $schedule){
+            $course->totalCapacity += $schedule->classroomcapacity;
+            $course->totalParticipants += $schedule->preRegisteredStudents + $schedule->queuedStudents;
+        }
+        $course->remainingCapacity =$course->totalCapacity- $course->totalParticipants;
+        $course->capacityPercent = $course->remainingCapacity / $course->totalCapacity;
+        
+        $course->capacityColor = '#FFECB3';
+        $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : $course->capacityPercent < 0.20? '#FF5252' : null;
+        return $course;
+    },$learningPlansCoursesSchedules);
+    return $learningPlansCoursesSchedules;
+}
 
+function get_learning_plan_course_schedules($params){
+    global $DB;
+
+    //Set the filters if provided
+    $filters = ['closed'=>0];
+    $params['learningPlanId']? $filters['learningplanid'] = $params['learningPlanId'] : null;
+    $params['periodId']? $filters['periodid'] = $params['periodId'] : null;
+    $params['courseId']? $filters['corecourseid'] = $params['courseId'] : null;
+    $openClasses = list_classes($filters);
+    
+    $classesByCoursePeriodAndLearningPlan = [];
+    
+    foreach($openClasses as $class){
+        
+        $containerKey = $class->coreCourseName.'-'.$class->periodName.'-'.($class->course->tc?'tc':$class->learningplanid);
+
+        if(!array_key_exists($containerKey,$classesByCoursePeriodAndLearningPlan)){
+            $course = new stdClass();
+            $course->classId = $class->id;
+            $course->courseId = $class->corecourseid;
+            $course->courseName = $class->coreCourseName;
+            $course->periodName = $class->periodName;
+            $course->periodId = $class->periodid;
+            $course->learningPlanId = $class->course->tc ? null : $class->learningplanid;
+            $course->learningPlanNames = [$class->learningPlanName];
+            $course->schedules = [$class];
+            
+            $classesByCoursePeriodAndLearningPlan[$containerKey] = $course;
+            continue;
+        }
+        if($class->course->tc && !in_array($class->learningPlanName, $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames)){
+            $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames[] = $class->learningPlanName;
+        }
+        $classesByCoursePeriodAndLearningPlan[$containerKey]->schedules[]=$class;
+    }
+    
+    $classesByCoursePeriodAndLearningPlan = array_map(function ($course){
+        $course->learningPlanNames = implode($course->learningPlanNames,',');
+        return $course;
+    },$classesByCoursePeriodAndLearningPlan);
+    
+    return $classesByCoursePeriodAndLearningPlan;
+}
+
+function approve_course_schedules($approvingSchedules){
+    global $DB,$USER;
+    
+    $approveResults = [];
+    foreach($approvingSchedules as $schedule){
+        $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration');
+        $scheduleQueuedStudents = $DB->get_records('gmk_class_queue');
+
+        $class = $DB->get_record('gmk_class',['id'=>$schedule['classId']]);
+        
+        if($class->approved){
+            throw new Exception('Class already approved');
+        }
+        
+        $enrolmentResults = enrolApprovedScheduleStudents(array_merge($schedulePreRegisteredStudents,$scheduleQueuedStudents),$class->groupid);
+        
+        $class->approved = 1;
+        $classApproved = $DB->update_record('gmk_class',$class);
+        
+        $classApprovedMessage = new stdClass();
+        $classApprovedMessage->classid = $schedule['classId'];
+        $classApprovedMessage->approvalmessage = $schedule['approvalMessage'];
+        $classApprovedMessage->usermodified = $USER->id;
+        $classApprovedMessage->timecreated = time();
+        $classApprovedMessage->timemodified = time();
+        
+        $classApprovedMessage->id = $DB->insert_record('gmk_class_approval_message',$classApprovedMessage);
+        
+        $approveResults[$schedule['classId']] = ["enrolmentResults"=> $enrolmentResults, 'classApproved' => $classApproved, 'approvalMessageSaved'=>!!$classApprovedMessage->id];
+    }
+    return $approveResults;
+}
+
+function enrolApprovedScheduleStudents ($students,$groupId){
+    $enrolmentResults = [];
+    foreach($students as $student){
+        $enrolmentResults[$student->userid] = groups_add_member($groupId, $student->userid);
+    }
+    return $enrolmentResults;
+}
 
 
 //Por revisar
@@ -1522,73 +1628,6 @@ function is_user_registered_in_class($userId,$classId){
     return !!$DB->get_record('gmk_class_pre_registration', ['classid'=>$classId, 'userid'=>$userId]);
 }
 
-function get_class_schedules_overview($params){
-    global $DB;
-    
-    $learningPlansCoursesSchedules=get_learning_plan_course_schedules($params);
-    
-    $learningPlansCoursesSchedules = array_map(function($course){
-        $course->numberOfClasses = count($course->schedules);
-        $course->totalParticipants = 0;
-        $course->totalCapacity = 0;
-        foreach($course->schedules as $schedule){
-            $course->totalCapacity += $schedule->classroomcapacity;
-            $course->totalParticipants += $schedule->preRegisteredStudents + $schedule->queuedStudents;
-        }
-        $course->remainingCapacity =$course->totalCapacity- $course->totalParticipants;
-        $course->capacityPercent = $course->remainingCapacity / $course->totalCapacity;
-        
-        $course->capacityColor = '#FFECB3';
-        $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : $course->capacityPercent < 0.20? '#FF5252' : null;
-        return $course;
-    },$learningPlansCoursesSchedules);
-    return $learningPlansCoursesSchedules;
-}
-
-// function get_learning_plan_course_schedules($learningPlanId = null, $periodId = null , $courseId = null){
-function get_learning_plan_course_schedules($params){
-    global $DB;
-
-    //Set the filters if provided
-    $filters = ['closed'=>0];
-    $params['learningPlanId']? $filters['learningplanid'] = $params['learningPlanId'] : null;
-    $params['periodId']? $filters['periodid'] = $params['periodId'] : null;
-    $params['courseId']? $filters['corecourseid'] = $params['courseId'] : null;
-    $openClasses = list_classes($filters);
-    
-    $classesByCoursePeriodAndLearningPlan = [];
-    
-    foreach($openClasses as $class){
-        
-        $containerKey = $class->coreCourseName.'-'.$class->periodName.'-'.($class->course->tc?'tc':$class->learningplanid);
-
-        if(!array_key_exists($containerKey,$classesByCoursePeriodAndLearningPlan)){
-            $course = new stdClass();
-            $course->classId = $class->id;
-            $course->courseId = $class->corecourseid;
-            $course->courseName = $class->coreCourseName;
-            $course->periodName = $class->periodName;
-            $course->periodId = $class->periodid;
-            $course->learningPlanId = $class->course->tc ? null : $class->learningplanid;
-            $course->learningPlanNames = [$class->learningPlanName];
-            $course->schedules = [$class];
-            
-            $classesByCoursePeriodAndLearningPlan[$containerKey] = $course;
-            continue;
-        }
-        if($class->course->tc && !in_array($class->learningPlanName, $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames)){
-            $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames[] = $class->learningPlanName;
-        }
-        $classesByCoursePeriodAndLearningPlan[$containerKey]->schedules[]=$class;
-    }
-    
-    $classesByCoursePeriodAndLearningPlan = array_map(function ($course){
-        $course->learningPlanNames = implode($course->learningPlanNames,',');
-        return $course;
-    },$classesByCoursePeriodAndLearningPlan);
-    
-    return $classesByCoursePeriodAndLearningPlan;
-}
 
 //Util functions
 

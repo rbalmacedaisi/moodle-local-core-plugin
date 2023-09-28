@@ -29,6 +29,7 @@ use external_api;
 use external_description;
 use external_function_parameters;
 use external_single_structure;
+use external_multiple_structure;
 use external_value;
 use stdClass;
 use Exception;
@@ -54,20 +55,16 @@ class approve_course_class_schedules extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
-            [
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
-                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
-                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
-                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
-                'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
-                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
-                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
-                'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
-            ]
+            array(
+                'approvingSchedules' => new external_multiple_structure(
+                    new external_single_structure(
+                        array(
+                            'classId' => new external_value(PARAM_INT, 'schedule id (class ID)'),
+                            'approvalMessage' => new external_value(PARAM_TEXT, 'Approval message', VALUE_DEFAULT, ''),
+                        )
+                    ),
+                ),
+            )
         );
     }
 
@@ -78,48 +75,21 @@ class approve_course_class_schedules extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-        string $name,
-        int $type,
-        int $instance,
-        int $learningPlanId,
-        int $periodId,
-        int $courseId,
-        int $instructorId,
-        string $initTime,
-        string $endTime,
-        string $classDays,
-        string $classroomId,
-        int $classroomCapacity
+        $approvingSchedules
         ) {
+        
 
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
-            'name' => $name,
-            'type' =>$type,
-            'instance'=>$instance,
-            'learningPlanId'=>$learningPlanId,
-            'periodId' =>$periodId,
-            'courseId' =>$courseId,
-            'instructorId' =>$instructorId,
-            'initTime'=>$initTime,
-            'endTime'=>$endTime,
-            'classDays'=>$classDays,
-            'classroomId'=>$classroomId,
-            'classroomCapacity'=>$classroomCapacity
+            'approvingSchedules' => $approvingSchedules
         ]);
-        
-        // Global variables.
-        global $DB, $USER;
-        
         
         try{
             
-            check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId);
-            
-            $classId = create_class($params);
+            $approveResults = approve_course_schedules($params["approvingSchedules"]);
 
             // Return the result.
-            return ['status' => $classId, 'message' => 'ok'];
+            return ['status' => 1,'approveResults'=>json_encode($approveResults) ,'message' => 'ok'];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -136,7 +106,8 @@ class approve_course_class_schedules extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'approveResults' => new external_value(PARAM_RAW, 'The result of every user enrolment, a check indicating if the approval message was saved and other check if tha class was flagged as approved', VALUE_DEFAULT,null),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
             )
         );
