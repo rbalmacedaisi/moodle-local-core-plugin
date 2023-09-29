@@ -55,7 +55,7 @@ class delete_class extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'id' => new external_value(PARAM_TEXT, 'ID of the class to be delete.')
+                'id' => new external_value(PARAM_TEXT, 'ID of the class to be delete.',VALUE_REQUIRED)
             ]
         );
     }
@@ -78,10 +78,10 @@ class delete_class extends external_api {
             
             $class = $DB->get_record('gmk_class', ['id'=>$id]);
         
-            delete_class($class);
+            delete_class($class,'Class deleted from class management');
             
             // Return the result.
-            return ['status' => $id, 'message' => 'ok'];
+            return ['status' => $id];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -96,7 +96,7 @@ class delete_class extends external_api {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

@@ -276,8 +276,8 @@ function create_class_section($class) {
     return $classSection->id;
 }
 
-function delete_class($class){
-    global $DB;
+function delete_class($class, $reason =  null){
+    global $DB,$USER;
     
     //Delete section if it's already created and all the activities in it.
     if ($class->coursesectionid){
@@ -290,6 +290,19 @@ function delete_class($class){
     if ($class->groupid){
         groups_delete_group($class->groupid);
     }
+
+    //Delete registry and queue record related to the class
+    $DB->delete_records('gmk_class_pre_registration',['classid'=>$class->id]);
+    $DB->delete_records('gmk_class_queue',['classid'=>$class->id]);
+    
+    //Add the deletion message to the table
+    $classDeletionMessage = new stdClass();
+    $classDeletionMessage->classid = $class->id;
+    $classDeletionMessage->deletionmessage = $reason;
+    $classDeletionMessage->usermodified = $USER->id;
+    $classDeletionMessage->timecreated = time();
+    $classDeletionMessage->timemodified = time();
+    $DB->insert_record('gmk_class_deletion_message',$classDeletionMessage);
     
     //Delete the class
     return $DB->delete_records('gmk_class',['id'=>$class->id]);
