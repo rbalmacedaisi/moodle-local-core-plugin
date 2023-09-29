@@ -634,7 +634,7 @@ function add_user_to_class_queue($userId,$class){
 
     $classQueueRecord = new stdClass();
     $classQueueRecord->timecreated = time();
-    $classQueueRecord->timeupdated = time();
+    $classQueueRecord->timemodified= time();
     $classQueueRecord->usermodified = $USER->id;
     $classQueueRecord->userid = $userId;
     $classQueueRecord->classid = $class->id;
@@ -648,7 +648,7 @@ function add_user_to_class_pre_registry($userId,$class){
 
     $classPreRegistryRecord = new stdClass();
     $classPreRegistryRecord->timecreated = time();
-    $classPreRegistryRecord->timeupdated = time();
+    $classPreRegistryRecord->timemodified = time();
     $classPreRegistryRecord->usermodified = $USER->id;
     $classPreRegistryRecord->userid = $userId;
     $classPreRegistryRecord->classid = $class->id;
@@ -763,6 +763,65 @@ function enrolApprovedScheduleStudents ($students,$groupId){
         $enrolmentResults[$student->userid] = groups_add_member($groupId, $student->userid);
     }
     return $enrolmentResults;
+}
+
+function change_students_schedules($movingStudents){
+    global $DB,$USER;
+    $changeResults = [];
+    $fetchedClasses = [];
+    
+    foreach($movingStudents as $changeInfo){
+        $isPreregisteredStudent = $DB->get_record('gmk_class_pre_registration',['classid'=>$changeInfo["currentClassId"],'userid'=>$changeInfo["studentId"]]);
+
+        $newClass = list_classes(['id'=> $changeInfo["newClassId"]])[$changeInfo["newClassId"]];
+        if($isPreregisteredStudent){
+            if($newClass->classFull){
+                $newClassQueueStudent = createSchedulePreregistryOrQueueObject($changeInfo["studentId"],$newClass->id, $newClass->corecourseid);
+                $newClassQueueStudent->id = $DB->insert_record('gmk_class_queue',$newClassQueueStudent);
+                $DB->delete_records('gmk_class_pre_registration',['id'=>$isPreregisteredStudent->id]);
+                
+                $changeResults[$changeInfo["studentId"]] = ['changedSchedule' => !!$newClassQueueStudent->id , 'sendedTo'=> 'Queue'];
+                continue;
+            }
+            
+            $isPreregisteredStudent->classid = $changeInfo["newClassId"];
+            $isPreregisteredStudent->timemodified = time();
+            $isPreregisteredStudent->usermodified = $USER->id;
+            $changeResults[$changeInfo["studentId"]] = ['changedSchedule' =>$DB->update_record('gmk_class_pre_registration',$isPreregisteredStudent),'sendedTo'=> 'Preregistry'];
+        }
+        
+        $isQueuedStudent = $DB->get_record('gmk_class_queue',['classid'=>$changeInfo["currentClassId"],'userid'=>$changeInfo["studentId"]]);
+        if($isQueuedStudent){
+             if(!$newClass->classFull){
+                $newClassPreregistryStudent = createSchedulePreregistryOrQueueObject($changeInfo["studentId"],$newClass->id, $newClass->corecourseid);
+                $newClassPreregistryStudent->id = $DB->insert_record('gmk_class_pre_registration',$newClassPreregistryStudent);
+                $DB->delete_records('gmk_class_queue',['id'=>$isQueuedStudent->id]);
+                
+                $changeResults[$changeInfo["studentId"]] = ['changedSchedule' => !!$newClassPreregistryStudent->id , 'sendedTo'=> 'Preregistry'];
+                continue;
+            }
+            
+            $isQueuedStudent->classid = $changeInfo["newClassId"];
+            $isQueuedStudent->timemodified = time();
+            $isQueuedStudent->usermodified = $USER->id;
+            $changeResults[$changeInfo["studentId"]] = ['changedSchedule' =>$DB->update_record('gmk_class_queue',$isQueuedStudent),'sendedTo'=> 'Queue'];
+        
+        }
+    }
+    return $changeResults;
+}
+
+function createSchedulePreregistryOrQueueObject($userId,$classId,$courseId){
+    global $USER;
+    $preregistryOrQueueObject = new stdClass();
+    $preregistryOrQueueObject->userid =$userId;
+    $preregistryOrQueueObject->classid = $classId;
+    $preregistryOrQueueObject->courseid = $courseId;
+    $preregistryOrQueueObject->timecreated = time();
+    $preregistryOrQueueObject->timemodified = time();
+    $preregistryOrQueueObject->usermodified = $USER->id;
+    
+    return $preregistryOrQueueObject;
 }
 
 

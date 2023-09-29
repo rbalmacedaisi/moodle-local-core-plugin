@@ -59,7 +59,7 @@ class approve_course_class_schedules extends external_api {
                 'approvingSchedules' => new external_multiple_structure(
                     new external_single_structure(
                         array(
-                            'classId' => new external_value(PARAM_INT, 'schedule id (class ID)'),
+                            'classId' => new external_value(PARAM_INT, 'schedule id (class ID)',VALUE_REQUIRED),
                             'approvalMessage' => new external_value(PARAM_TEXT, 'Approval message', VALUE_DEFAULT, ''),
                         )
                     ),
@@ -89,7 +89,7 @@ class approve_course_class_schedules extends external_api {
             $approveResults = approve_course_schedules($params["approvingSchedules"]);
 
             // Return the result.
-            return ['status' => 1,'approveResults'=>json_encode($approveResults) ,'message' => 'ok'];
+            return ['status' => 1,'approveResults'=>json_encode($approveResults)];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -108,7 +108,7 @@ class approve_course_class_schedules extends external_api {
             array(
                 'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
                 'approveResults' => new external_value(PARAM_RAW, 'The result of every user enrolment, a check indicating if the approval message was saved and other check if tha class was flagged as approved', VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }
