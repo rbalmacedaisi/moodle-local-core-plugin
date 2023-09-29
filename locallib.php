@@ -837,6 +837,16 @@ function createSchedulePreregistryOrQueueObject($userId,$classId,$courseId){
     return $preregistryOrQueueObject;
 }
 
+function deleteStudentFromClassSchedule($deletedStudents){
+    global $DB;
+    
+    foreach($deletedStudents as $student){
+        $deletedFromPreregistry = $DB->delete_records('gmk_class_pre_registration',['classid'=>$student['classId'],'userid'=>$student['studentId']]);
+        $deletedFromQueue = $DB->delete_records('gmk_class_queue',['classid'=>$student['classId'],'userid'=>$student['studentId']]);
+    }
+
+    return;
+}
 
 //Por revisar
 

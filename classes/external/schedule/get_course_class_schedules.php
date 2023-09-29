@@ -81,11 +81,9 @@ class get_course_class_schedules extends external_api {
         ]);
         try{
             $courseSchedules = get_learning_plan_course_schedules($params);
-            
-            print_object($courseSchedules);
-            die;
+
             // Return the result.
-            return ['status' => 1, 'courseSchedules'=>json_encode($courseSchedules) ,'message' => 'ok'];
+            return ['status' => 1, 'courseSchedules'=>json_encode($courseSchedules) ];
         }
         catch (Exception $e) {
             return ['status' => -1,'message' => $e->getMessage()];
@@ -104,7 +102,7 @@ class get_course_class_schedules extends external_api {
             array(
                 'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
                 'courseSchedules' => new external_value(PARAM_RAW, 'JSON encoded object with the schedules', VALUE_DEFAULT, null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.')
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.', VALUE_DEFAULT, 'ok')
             )
         );
     }

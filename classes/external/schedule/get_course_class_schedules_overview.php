@@ -85,7 +85,7 @@ class get_course_class_schedules_overview extends external_api {
             $schedulesOverview = get_class_schedules_overview($params);
 
             // Return the result.
-            return ['status' => 1, 'schedulesOverview'=>json_encode($schedulesOverview) , 'message' => 'ok'];
+            return ['status' => 1, 'schedulesOverview'=>json_encode($schedulesOverview)];
         }
         catch (Exception $e) {
             return ['status' => -1,'message' => $e->getMessage()];
@@ -104,7 +104,7 @@ class get_course_class_schedules_overview extends external_api {
             array(
                 'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
                 'schedulesOverview' => new external_value(PARAM_RAW, 'JSON encoded object with the schedules overview', VALUE_DEFAULT, null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.')
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.', VALUE_DEFAULT,'ok')
             )
         );
     }
