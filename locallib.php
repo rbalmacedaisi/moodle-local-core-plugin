@@ -848,6 +848,31 @@ function deleteStudentFromClassSchedule($deletedStudents){
     return;
 }
 
+function get_course_students_by_class_schedule($classId){
+    global $DB;
+    $classStudents = get_class_participants($DB->get_record('gmk_class',['id'=>$classId]));
+    
+    $classStudents->preRegisteredStudents = array_map(function ($student){
+        $studentInfo = user_get_users_by_id([$student->userid])[$student->userid];
+        $student->email = $studentInfo->email;
+        $student->firstname = $studentInfo->firstname;
+        $student->lastname = $studentInfo->lastname;
+        return $student;
+    },$classStudents->preRegisteredStudents);
+    
+    $classStudents->queuedStudents = array_map(function ($student){
+        $studentInfo = user_get_users_by_id([$student->userid])[$student->userid];
+        $student->email = $studentInfo->email;
+        $student->firstname = $studentInfo->firstname;
+        $student->lastname = $studentInfo->lastname;
+        return $student;
+    },$classStudents->queuedStudents);
+    
+    unset($classStudents->enroledStudents);
+    
+    return $classStudents;
+}
+
 //Por revisar
 
 function get_class_events($userId) {
