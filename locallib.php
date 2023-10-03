@@ -697,12 +697,12 @@ function get_learning_plan_course_schedules($params){
     global $DB;
 
     //Set the filters if provided
-    $filters = ['closed'=>0];
-    $params['learningPlanId']? $filters['learningplanid'] = $params['learningPlanId'] : null;
-    $params['periodId']? $filters['periodid'] = $params['periodId'] : null;
-    $params['courseId']? $filters['corecourseid'] = $params['courseId'] : null;
-    $openClasses = list_classes($filters);
-    
+    $filters = construct_course_schedules_filter($params);
+    $openClasses = [];
+    foreach($filters as $filter){
+        $openClasses = array_merge($openClasses,list_classes($filter));
+    }
+
     $classesByCoursePeriodAndLearningPlan = [];
     
     foreach($openClasses as $class){
@@ -711,13 +711,13 @@ function get_learning_plan_course_schedules($params){
 
         if(!array_key_exists($containerKey,$classesByCoursePeriodAndLearningPlan)){
             $course = new stdClass();
-            $course->classId = $class->id;
             $course->courseId = $class->corecourseid;
             $course->courseName = $class->coreCourseName;
-            $course->periodName = $class->periodName;
-            $course->periodId = $class->periodid;
-            $course->learningPlanId = $class->course->tc ? null : $class->learningplanid;
+            $course->periodNames = [$class->periodName];
+            $course->periodIds= [$class->periodid];
+            $course->learningPlanIds = [$class->learningplanid];
             $course->learningPlanNames = [$class->learningPlanName];
+            $course->tc =  $class->course->tc;
             $course->schedules = [$class];
             
             $classesByCoursePeriodAndLearningPlan[$containerKey] = $course;
@@ -725,16 +725,42 @@ function get_learning_plan_course_schedules($params){
         }
         if($class->course->tc && !in_array($class->learningPlanName, $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames)){
             $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanNames[] = $class->learningPlanName;
+            $classesByCoursePeriodAndLearningPlan[$containerKey]->learningPlanIds[] = $class->learningplanid;
+        }
+        if($class->course->tc && !in_array($class->periodid, $classesByCoursePeriodAndLearningPlan[$containerKey]->periodIds)){
+            $classesByCoursePeriodAndLearningPlan[$containerKey]->periodIds[] = $class->periodid;
+            !in_array( $class->periodName, $classesByCoursePeriodAndLearningPlan[$containerKey]->periodNames) ? $classesByCoursePeriodAndLearningPlan[$containerKey]->periodNames[] = $class->periodName:null;
         }
         $classesByCoursePeriodAndLearningPlan[$containerKey]->schedules[]=$class;
     }
     
     $classesByCoursePeriodAndLearningPlan = array_map(function ($course){
         $course->learningPlanNames = implode($course->learningPlanNames,',');
+        $course->periodIds = implode($course->periodIds,',');
+        $course->periodNames = implode($course->periodNames,',');
+        $course->learningPlanIds = implode($course->learningPlanIds,',');
         return $course;
     },$classesByCoursePeriodAndLearningPlan);
     
     return $classesByCoursePeriodAndLearningPlan;
+}
+
+function construct_course_schedules_filter($params){
+    $filtersArray = [];
+    $filters = ['closed'=>0];
+    $params['courseId']? $filters['corecourseid'] = $params['courseId']:null;
+    
+    if($params['periodIds']){
+        $periods = explode(",",$params['periodIds']);
+        foreach($periods as $period){
+            $filtersCopy = $filters;
+            $filtersCopy['periodid']= $period;
+            $filtersArray[] = $filtersCopy;
+        }
+    }else{
+        $filtersArray[]=$filters;
+    }
+    return $filtersArray;
 }
 
 function approve_course_schedules($approvingSchedules){
@@ -857,6 +883,7 @@ function get_course_students_by_class_schedule($classId){
         $student->email = $studentInfo->email;
         $student->firstname = $studentInfo->firstname;
         $student->lastname = $studentInfo->lastname;
+        $student->profilePicture = get_user_picture_url($student->userid);
         return $student;
     },$classStudents->preRegisteredStudents);
     
@@ -865,12 +892,42 @@ function get_course_students_by_class_schedule($classId){
         $student->email = $studentInfo->email;
         $student->firstname = $studentInfo->firstname;
         $student->lastname = $studentInfo->lastname;
+        $student->profilePicture = get_user_picture_url($student->userid);
         return $student;
     },$classStudents->queuedStudents);
     
     unset($classStudents->enroledStudents);
     
     return $classStudents;
+}
+
+function get_scheduleless_students($params){
+    global $DB;
+    $periods = explode(",",$params['periodIds']);
+    $usersInPeriods = [];
+    
+    $usersInPeriods = array_merge(...array_map(function ($period) use ($DB){
+        return $DB->get_records("local_learning_users",['currentperiodid'=>$period]);
+    },$periods));
+    
+    $schedulelessUsers = array_filter($usersInPeriods,function ($user) use ($DB,$params){
+        if(!!$DB->get_record('gmk_class_pre_registration',['userid'=>$user->userid,'courseid'=>$params['courseId']]) || !!$DB->get_record('gmk_class_queue',['userid'=>$user->userid,'courseid'=>$params['courseId']])){
+            return;
+        }
+        return $user;
+    });
+    $schedulelessUsers = array_map(function ($user){
+        $studentInfo = user_get_users_by_id([$user->userid])[$user->userid];
+        $student = new stdClass();
+        $student->id = $user->userid;
+        $student->email = $studentInfo->email;
+        $student->firstname = $studentInfo->firstname;
+        $student->lastname = $studentInfo->lastname;
+        $student->profilePicture = get_user_picture_url($student->id);
+        return $student;
+    },$schedulelessUsers);
+   
+    return $schedulelessUsers;
 }
 
 //Por revisar

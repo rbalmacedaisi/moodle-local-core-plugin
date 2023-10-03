@@ -56,7 +56,7 @@ class get_course_class_schedules_overview extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
                 'learningPlanId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
-                'periodId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
+                'periodIds' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
                 'courseId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null)
             ]);
     }
@@ -69,14 +69,14 @@ class get_course_class_schedules_overview extends external_api {
      */
     public static function execute(
         $learningPlanId,
-        $periodId,
+        $periodIds,
         $courseId
         ) {
         
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'learningPlanId' => $learningPlanId,
-            'periodId' => $periodId,
+            'periodIds' => $periodIds,
             'courseId' => $courseId,
         ]);
         

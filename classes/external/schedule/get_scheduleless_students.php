@@ -56,18 +56,9 @@ class get_scheduleless_students extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
-                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.'),
-                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
-                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
-                'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
-                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
-                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
-                'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
+                'courseId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
+                'periodIds' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
+                'learningPlanId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_DEFAULT,null)
             ]
         );
     }
@@ -79,48 +70,24 @@ class get_scheduleless_students extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-        string $name,
-        int $type,
-        int $instance,
-        int $learningPlanId,
-        int $periodId,
-        int $courseId,
-        int $instructorId,
-        string $initTime,
-        string $endTime,
-        string $classDays,
-        string $classroomId,
-        int $classroomCapacity
+        $courseId,
+        $periodIds,
+        $learningPlanId
         ) {
 
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
-            'name' => $name,
-            'type' =>$type,
-            'instance'=>$instance,
-            'learningPlanId'=>$learningPlanId,
-            'periodId' =>$periodId,
-            'courseId' =>$courseId,
-            'instructorId' =>$instructorId,
-            'initTime'=>$initTime,
-            'endTime'=>$endTime,
-            'classDays'=>$classDays,
-            'classroomId'=>$classroomId,
-            'classroomCapacity'=>$classroomCapacity
+            'courseId' => $courseId,
+            'periodIds' =>$periodIds,
+            'learningPlanId'=>$learningPlanId
         ]);
-        
-        // Global variables.
-        global $DB, $USER;
-        
-        
+
         try{
             
-            check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId);
+            $schedulelessStudents = get_scheduleless_students($params);
             
-            $classId = create_class($params);
-
             // Return the result.
-            return ['status' => $classId, 'message' => 'ok'];
+            return ['status' => 1, 'schedulelessStudents' =>json_encode($schedulelessStudents)];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -137,8 +104,9 @@ class get_scheduleless_students extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise'),
+                'schedulelessStudents' => new external_value(PARAM_RAW, 'json encoded array with the scheduleless students',VALUE_DEFAULT, null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
             )
         );
     }
