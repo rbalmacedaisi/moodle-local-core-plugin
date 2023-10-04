@@ -363,7 +363,7 @@ Vue.component('waitingusers',{
             student: 'Elkin Florez',
             email: 'elkin.florez@luhec.com',
           },
-          /*{
+          {
             id: 2,
             img: 'https://cdn.vuetifyjs.com/images/lists/2.jpg',
             student: 'Mike Carlson',
@@ -380,7 +380,7 @@ Vue.component('waitingusers',{
             img: 'https://cdn.vuetifyjs.com/images/lists/4.jpg',
             student: 'Ali Connors',
             email: 'aliconnors@gmail.com',
-          },*/
+          },
         ],
         users2: [
           {

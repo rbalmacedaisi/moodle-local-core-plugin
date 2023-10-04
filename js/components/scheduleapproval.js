@@ -7,7 +7,11 @@ Vue.component('scheduleapproval',{
                     max-width="100%"
                   >
                     <v-card-title class="d-flex">
-                        {{lang.schedules}} - Ingles
+                        <div class="d-flex flex-column">
+                            <span>{{lang.schedules}} - {{dataCourse.name}}</span>
+                            <span class="text-caption text--secondary">{{dataCourse.periodNames}}</span>
+                        </div>
+                        
                         <v-spacer></v-spacer>
                         <v-btn
                           :color="$vuetify.theme.isDark ? 'primary' : 'secondary'"
@@ -40,127 +44,127 @@ Vue.component('scheduleapproval',{
                                     style="border-color: rgb(208,208,208) !important;"
                                     width="100%"
                                 >
-                                <v-list flat color="transparent">
-                                    <v-list-item>
-                                        <v-list-item-avatar size="65">
-                                          <img
-                                            :src="item.picture" alt="picture" width="72"
-                                          >
-                                        </v-list-item-avatar>
-                        
-                                        <v-list-item-content>
-                                          <v-list-item-title>{{item.instructor}}</v-list-item-title>
-                                          <v-list-item-subtitle>Instructor</v-list-item-subtitle>
-                                        </v-list-item-content>
-                        
-                                        <v-list-item-action>
-                                            <v-menu
-                                                bottom
-                                                left
+                                    <v-list flat color="transparent">
+                                        <v-list-item>
+                                            <v-list-item-avatar size="65">
+                                              <img
+                                                :src="item.picture" alt="picture" width="72"
+                                              >
+                                            </v-list-item-avatar>
+                            
+                                            <v-list-item-content>
+                                              <v-list-item-title>{{item.instructor}}</v-list-item-title>
+                                              <v-list-item-subtitle>Instructor</v-list-item-subtitle>
+                                            </v-list-item-content>
+                            
+                                            <v-list-item-action>
+                                                <v-menu
+                                                    bottom
+                                                    left
+                                                >
+                                                    <template v-slot:activator="{ on, attrs }">
+                                                      <v-btn
+                                                        icon
+                                                        v-bind="attrs"
+                                                        v-on="on"
+                                                      >
+                                                        <v-icon>mdi-dots-horizontal</v-icon>
+                                                      </v-btn>
+                                                    </template>
+                                        
+                                                    <v-list dense>
+                                                        <v-list-item-group  v-model="selectedItem" color="primary">
+                                                            <v-list-item @click="scheduleSelected(item)">
+                                                                <v-list-item-icon>
+                                                                    <v-icon>mdi-account-check</v-icon>
+                                                                </v-list-item-icon>
+                                                                <v-list-item-content>
+                                                                    <v-list-item-title>{{lang.registered_users}}</v-list-item-title>
+                                                                </v-list-item-content>
+                                                            </v-list-item>
+                                                            
+                                                            <v-list-item @click="waitinglist(item)">
+                                                                <v-list-item-icon>
+                                                                    <v-icon>mdi-account-clock</v-icon>
+                                                                </v-list-item-icon>
+                                                                <v-list-item-content>
+                                                                    <v-list-item-title>{{lang.waitinglist}}</v-list-item-title>
+                                                                </v-list-item-content>
+                                                            </v-list-item>
+                                                        </v-list-item-group>
+                                                    </v-list>
+                                                  </v-menu>
+                                            </v-list-item-action>
+                                      </v-list-item>
+                                    </v-list>
+                                
+                                    <v-card-text class="pt-2">
+                                        <div class="d-flex"> 
+                                            <h5 class="mb-0 d-flex flex-column">{{item.name}}
+                                                <small class="text--disabled text-subtitle-2">{{item.days}}</small>
+                                            </h5>
+                                            
+                                            <v-spacer></v-spacer>
+                                            
+                                            <v-chip v-if="item.isApprove > 0"
+                                              class="ma-2"
+                                              label
+                                              small
+                                              color="success"
                                             >
-                                                <template v-slot:activator="{ on, attrs }">
-                                                  <v-btn
-                                                    icon
-                                                    v-bind="attrs"
-                                                    v-on="on"
-                                                  >
-                                                    <v-icon>mdi-dots-horizontal</v-icon>
-                                                  </v-btn>
-                                                </template>
-                                    
-                                                <v-list dense>
-                                                    <v-list-item-group  v-model="selectedItem" color="primary">
-                                                        <v-list-item @click="scheduleSelected(item)">
-                                                            <v-list-item-icon>
-                                                                <v-icon>mdi-account-check</v-icon>
-                                                            </v-list-item-icon>
-                                                            <v-list-item-content>
-                                                                <v-list-item-title>{{lang.registered_users}}</v-list-item-title>
-                                                            </v-list-item-content>
-                                                        </v-list-item>
-                                                        
-                                                        <v-list-item @click="waitinglist(item)">
-                                                            <v-list-item-icon>
-                                                                <v-icon>mdi-account-clock</v-icon>
-                                                            </v-list-item-icon>
-                                                            <v-list-item-content>
-                                                                <v-list-item-title>{{lang.waitinglist}}</v-list-item-title>
-                                                            </v-list-item-content>
-                                                        </v-list-item>
-                                                    </v-list-item-group>
-                                                </v-list>
-                                              </v-menu>
-                                        </v-list-item-action>
-                                  </v-list-item>
-                                </v-list>
+                                              {{ lang.approved }}
+                                            </v-chip>
+                                        </div>
+                                        
+                                        <v-row class="mt-2">
+                                            <v-col cols="6" class="py-2"> 
+                                                <span class="d-block text--disabled text-subtitle-2">{{ lang.class_schedule }}</span>
+                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.start + ' - ' + item.end }}</p>
+                                            </v-col>
+                                            
+                                            <v-col cols="6" class="py-2"> 
+                                                <span class="d-block text--disabled text-subtitle-2">{{ lang.class_type }}</span>
+                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.type }}</p>
+                                            </v-col>
+                                            <v-col cols="6" class="py-2">
+                                                <span class="d-block text--disabled  text-subtitle-2">{{ lang.quotas_enabled }}</span>
+                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.quotas }}</p>
+                                            </v-col>
+                                            <v-col cols="6" class="py-2">
+                                                <span class="d-block text--disabled text-subtitle-2">{{ lang.registered_users }}</span>
+                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.users }}</p>
+                                            </v-col>
+                                            <v-col cols="6" class="py-2">
+                                                <span class="d-block text--disabled text-subtitle-2">{{ lang.waitingusers }}</span>
+                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.waitingusers }}</p>
+                                            </v-col>
+                                        </v-row>
+                                    </v-card-text>
                                 
-                                <v-card-text class="pt-2">
-                                    <div class="d-flex"> 
-                                        <h5 class="mb-0 d-flex flex-column">{{item.name}}
-                                            <small class="text--disabled text-subtitle-2">{{item.days}}</small>
-                                        </h5>
-                                        
-                                        <v-spacer></v-spacer>
-                                        
-                                        <v-chip v-if="item.isApprove"
-                                          class="ma-2"
-                                          label
+                                    <v-card-actions class="justify-center">
+                                        <v-btn
+                                          class="ma-2 rounded text-capitalize"
+                                          outlined
+                                          color="secondary"
                                           small
-                                          color="success"
+                                          @click="showdelete(item)"
                                         >
-                                          {{ lang.approved }}
-                                        </v-chip>
-                                    </div>
-                                    
-                                    <v-row class="mt-2">
-                                        <v-col cols="6" class="py-2"> 
-                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.class_schedule }}</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.start + ' - ' + item.end }}</p>
-                                        </v-col>
+                                            <v-icon>mdi-delete-forever-outline</v-icon>
+                                            {{ lang.remove }}
+                                        </v-btn>
                                         
-                                        <v-col cols="6" class="py-2"> 
-                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.class_type }}</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.type }}</p>
-                                        </v-col>
-                                        <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled  text-subtitle-2">{{ lang.quotas_enabled }}</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.quotas }}</p>
-                                        </v-col>
-                                        <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.registered_users }}</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.users }}</p>
-                                        </v-col>
-                                        <v-col cols="6" class="py-2">
-                                            <span class="d-block text--disabled text-subtitle-2">{{ lang.waitingusers }}</span>
-                                            <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.waitingusers }}</p>
-                                        </v-col>
-                                    </v-row>
-                                </v-card-text>
-                                
-                                <v-card-actions class="justify-center">
-                                    <v-btn
-                                      class="ma-2 rounded text-capitalize"
-                                      outlined
-                                      color="secondary"
-                                      small
-                                      @click="showdelete(item)"
-                                    >
-                                        <v-icon>mdi-delete-forever-outline</v-icon>
-                                        {{ lang.remove }}
-                                    </v-btn>
-                                    
-                                    <v-btn
-                                      class="ma-2 rounded text-capitalize"
-                                      outlined
-                                      color="primary"
-                                      small
-                                      @click="showapprove(item)"
-                                      :disabled="item.users == 0"
-                                    >
-                                        <v-icon>mdi-account-multiple-check-outline</v-icon>
-                                        {{ lang.approve_users }}
-                                    </v-btn>
-                                </v-card-actions>
+                                        <v-btn
+                                          class="ma-2 rounded text-capitalize"
+                                          outlined
+                                          color="primary"
+                                          small
+                                          @click="showapprove(item)"
+                                          :disabled="item.users == 0"
+                                        >
+                                            <v-icon>mdi-account-multiple-check-outline</v-icon>
+                                            {{ lang.approve_users }}
+                                        </v-btn>
+                                    </v-card-actions>
                                 </v-card>
                             </v-col>
                         </v-row>
@@ -300,6 +304,7 @@ Vue.component('scheduleapproval',{
                                 <v-list-item
                                     v-for="folder in folders"
                                     :key="folder.title"
+                                    @click="newClassSelected(folder)"
                                 >
                                     <v-list-item-avatar>
                                         <v-icon
@@ -395,6 +400,57 @@ Vue.component('scheduleapproval',{
                         <v-btn
                            color="primary"
                            text
+                           @click="saveClass"
+                        >
+                            {{lang.save}}
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+            
+            <v-dialog
+              v-model="approvalReasonField"
+              persistent
+              max-width="600px"
+            >
+                <v-card>
+                    <v-card-title>
+                        <span class="text-h5">Mensaje para Aprobación</span>
+                    </v-card-title>
+                    <v-card-text class="pb-0">
+                        <v-container>
+                            <v-row>
+                                <v-col
+                                   cols="12"
+                                   class="px-0"
+                                >
+                                    <v-textarea
+                                      outlined
+                                      name="message"
+                                      label="Mensaje"
+                                      v-model="messageAproval"
+                                      hint="Mensaje para justificar aprovación de horario."
+                                      rows="3"
+                                    ></v-textarea>
+                                </v-col>
+                            </v-row>
+                        </v-container>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn
+                           outlined
+                           color="primary"
+                           small
+                           @click="approvalReasonField = false"
+                        >
+                            {{lang.cancel}}
+                        </v-btn>
+                        <v-btn
+                            color="primary"
+                            text
+                            @click="sendMessage"
+                            small
                         >
                             {{lang.save}}
                         </v-btn>
@@ -408,172 +464,7 @@ Vue.component('scheduleapproval',{
     `,
     data(){
         return{
-            items:[
-                {
-                    id: 1,
-                    name: 'Ingles 1',
-                    days: 'Jueves - Viernes',
-                    start: "07:00 pm",
-                    end: "09:00 pm",
-                    instructor: "Daniel Arango",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-1-8ab8bc8e.png',
-                    quotas: 40,
-                    users: 2,
-                    waitingusers: 0,
-                    isApprove: false,
-                    registeredusers:[
-                        {
-                            userid: 103,
-                            fullname: 'Sandra Zapata',
-                            email: 'sandra.zapta@luhec.com',
-                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2111/user/icon/soluttolmsadmin/f1?rev=44638'
-                        },
-                        {
-                            userid: 104,
-                            fullname: 'Diana Peña',
-                            email: 'diana.pena@luhec.com',
-                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2112/user/icon/soluttolmsadmin/f1?rev=44650'
-                        },
-                    ],
-                    waitinglist: [
-                    ]
-                },
-                {
-                    id: 2,
-                    name: 'Ingles 1',
-                    days: 'Jueves - Viernes',
-                    start: "02:00 pm",
-                    end: "04:00 pm",
-                    instructor: "Daniel Arango",
-                    type: "Precencial",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-1-8ab8bc8e.png',
-                    quotas: 30,
-                    users: 1,
-                    waitingusers: 0,
-                    isApprove: false,
-                    registeredusers:[
-                        {
-                            userid: 105,
-                            fullname: 'tatiana Ruiz',
-                            email: 'tatiana.ruiz@luhec.com',
-                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2113/user/icon/soluttolmsadmin/f1?rev=44659'
-                        },
-                    ],
-                    waitinglist: [
-                    ]
-                },
-                {
-                    id: 3,
-                    name: 'Ingles 1',
-                    days: 'Lunes - Miércoles',
-                    start: "08:00 am",
-                    end: "10:00 am",
-                    instructor: "Yudy Perez",
-                    type: "Mixta",
-                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548',
-                    quotas: 30,
-                    users: 0,
-                    waitingusers: 1,
-                    isApprove: false,
-                    registeredusers:[
-                    ],
-                    waitinglist: [
-                        {
-                            userid: 106,
-                            fullname: 'Elkin Florez',
-                            email: 'elkin.florez@luhec.com',
-                            img: 'https://lxp-dev.soluttolabs.com/pluginfile.php/2114/user/icon/soluttolmsadmin/f1?rev=44668'
-                        },
-                    ]
-                },
-                {
-                    id: 4,
-                    name: 'Introducción',
-                    days: 'Lunes - Miércoles',
-                    start: "10:00 am",
-                    end: "12:00 pm",
-                    instructor: "Yudy Perez",
-                    type: "Virtual",
-                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548',
-                    quotas: 40,
-                    users: 0,
-                    waitingusers: 0,
-                    isApprove: false,
-                    registeredusers:[],
-                    waitinglist: []
-                },
-                {
-                    id: 5,
-                    name: 'Ingles 1',
-                    days: 'Martes',
-                    start: "07:00 pm",
-                    end: "10:00 pm",
-                    instructor: "Yudy Perez",
-                    type: "Virtual",
-                    picture: 'https://lxp-dev.soluttolabs.com/pluginfile.php/399/user/icon/soluttolmsadmin/f1?rev=44548g',
-                    quotas: 40,
-                    users: 0,
-                    waitingusers: 0,
-                    isApprove: false,
-                    registeredusers:[],
-                    waitinglist: []
-                },
-                /*{
-                    id: 6,
-                    name: 'M',
-                    days: 'Jueves - Viernes ',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Nataly Hoyos",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
-                    quotas: 30,
-                    users: 1,
-                    waitingusers: 5,
-                    isApprove: false,
-                    registeredusers:[
-                        {
-                            userid: 65,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ],
-                    waitinglist: [
-                        {
-                            userid: 33,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 34,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 35,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 36,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 37,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ]
-                },*/
-            ],
+            items:[],
             selectedItem: '',
             dialog: false,
             singleSelect: false,
@@ -600,10 +491,17 @@ Vue.component('scheduleapproval',{
             itemdelete: {},
             approveusers: false,
             usersapprove: {},
-            approved: false
+            approved: false,
+            dataCourse: {},
+            schedulesAproveds: [],
+            approvalReasonField: false,
+            messageAproval: '',
+            messagesOk: false,
+            params: {},
+            horariosparams:[]
         }
     },
-    props:['data'],
+    props:{},
     created(){
       this.getData()
     },
@@ -612,57 +510,181 @@ Vue.component('scheduleapproval',{
     },  
     methods:{
         getData(){
-            const data = this.data
+            // Obtén la URL actual de la página
+            var currentURL = window.location.href;
+            
+            // Obtén el valor del parámetro "id" de la URL actual
+            var siteurl = new URL(currentURL);
+            var id = siteurl.searchParams.get("id");
+            
+            // Obtén el valor del parámetro "periodsid35,33" de la URL actual
+            var periods = siteurl.searchParams.get("periodsid");
+            
+            const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_course_class_schedules',
+                courseId: this.courseId,
+                periodIds: periods
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    console.log(response)
+                    // Converts the data returned from the API from JSON string format to object format.
+                    const data = JSON.parse(response.data.courseSchedules)
+                    const arrayEntries = Object.entries(data);
+                    const array = arrayEntries.map(([clave, valor]) => valor);
+                    console.log(array[0])
+                    
+                    this.dataCourse.name = array[0].courseName
+                    this.dataCourse.id = array[0].courseId
+                    this.dataCourse.learningPlanIds = array[0].learningPlanIds
+                    this.dataCourse.learningPlanNames = array[0].learningPlanNames
+                    this.dataCourse.periodIds = array[0].periodIds
+                    this.dataCourse.periodNames = array[0].periodNames
+                    this.dataCourse.schedules = array[0].schedules
+                    
+                    // Add the availability data for each instructor to the current instance's item array.
+                    this.dataCourse.schedules.forEach((element)=>{
+                        this.items.push({
+                            id: element.id,
+                            name: element.name,
+                            days: element.classDaysString,
+                            start: element.inithourformatted,
+                            end: element.endhourformatted,
+                            instructor: element.instructorName,
+                            type: element.typelabel,
+                            picture: element.instructorProfileImage,
+                            quotas: element.classroomcapacity,
+                            users: element.preRegisteredStudents,
+                            waitingusers: element.queuedStudents,
+                            isApprove: element.approved,
+                            clasId: element.id,
+                            registeredusers: [],
+                            waitinglist:[]
+                        })
+                    })
+                    
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
         },
         scheduleSelected(item){
-            console.log(item)
             this.users = []
-            if(item.registeredusers.length > 0){
-                item.registeredusers.forEach((element) => {
-                    this.users.push({
-                        student: element.fullname,
-                        id: element.userid,
-                        email: element.email,
-                        img: element.img,
-                        schedule: item.start + ' a ' + item.end,
-                        instructor: item.instructor,
-                        name: item.name,
-                        quotas: item.quotas,
-                        type: item.type,
-                        users: item.users,
-                        waitingusers: item.waitingusers,
-                        days: item.days,
-                        classid: item.id
-                    })
+            const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_course_students_by_class_schedule',
+                classId: item.clasId
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    const data = JSON.parse(response.data.classStudents)
+                    console.log(data)
+                    const preRegisteredStudents = data.preRegisteredStudents
+                    
+                    // Convertir los datos en un array
+                    var dataArray = Object.values(preRegisteredStudents);
+                    
+                    // Ahora, dataArray es un array que contiene los objetos de usuario
+                    console.log(dataArray);
+                    
+                    if(dataArray.length > 0){
+                        dataArray.forEach((element) => {
+                            this.users.push({
+                                student: element.firstname + ' ' + element.lastname,
+                                id: element.userid,
+                                email: element.email,
+                                img: element.profilePicture,
+                                classid: element.classid,
+                                //schedule: item.start + ' a ' + item.end,
+                                //instructor: item.instructor,
+                                //name: item.name,
+                                /*quotas: item.quotas,
+                                type: item.type,
+                                users: item.users,
+                                waitingusers: item.waitingusers,
+                                days: item.days,
+                                classid: item.id*/
+                            })
+                        })
+                    }
+                    
                 })
-            }
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
+    
             this.scheldule.title = item.name
             this.scheldule.days = item.days
             this.scheldule.hours = item.start + ' a ' + item.end
             this.dialog = true
         },
         waitinglist(item){
+            console.log(item)
             this.users = []
             this.tabletitle = ''
-            if(item.waitinglist.length > 0){
-                item.waitinglist.forEach((element) => {
-                    this.users.push({
-                        student: element.fullname,
-                        id: element.userid,
-                        email: element.email,
-                        img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png',
-                        schedule: item.start + ' a ' + item.end,
-                        instructor: item.instructor,
-                        name: item.name,
-                        quotas: item.quotas,
-                        type: item.type,
-                        users: item.users,
-                        waitingusers: item.waitingusers,
-                        days: item.days,
-                        classid: item.id
-                    })
+            
+            const url = this.siteUrl;
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_course_students_by_class_schedule',
+                classId: item.clasId
+            };
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    const data = JSON.parse(response.data.classStudents)
+                    console.log(data)
+                    const queuedStudents = data.queuedStudents
+                    
+                    // Convertir los datos en un array
+                    var dataArray = Object.values(queuedStudents);
+                    
+                    // Ahora, dataArray es un array que contiene los objetos de usuario
+                    console.log(dataArray);
+                    
+                    if(dataArray.length > 0){
+                        dataArray.forEach((element) => {
+                            this.users.push({
+                                student: element.firstname + ' ' + element.lastname,
+                                id: element.userid,
+                                email: element.email,
+                                img: element.profilePicture,
+                                classid: element.classid,
+                                //schedule: item.start + ' a ' + item.end,
+                                //instructor: item.instructor,
+                                //name: item.name,
+                                /*quotas: item.quotas,
+                                type: item.type,
+                                users: item.users,
+                                waitingusers: item.waitingusers,
+                                days: item.days,
+                                classid: item.id*/
+                            })
+                        })
+                    }
+                    
                 })
-            }
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
+            
             this.scheldule.title = item.name
             this.scheldule.days = item.days
             this.scheldule.hours = item.start + ' a ' + item.end
@@ -682,12 +704,11 @@ Vue.component('scheduleapproval',{
             if (index === -1) {
               this.selected.push(item);
             } else {
-              this.selected.splice(index, 1);
+              //this.selected.splice(index, 1);
             }
             const id = item.classid
             this.items.forEach((element) => {
-                if(element.id != id){
-                    console.log(element)
+                if(element.id != id && element.isApprove  == 0){
                     this.folders.push(element)
                 }
             })
@@ -696,7 +717,6 @@ Vue.component('scheduleapproval',{
             this.movedialog = true
         },
         showdelete(item){
-            console.log(item)
             this.itemdelete = item
             this.deleteclass = true
         },
@@ -707,12 +727,133 @@ Vue.component('scheduleapproval',{
             this.approveusers = false
         },
         showapprove(item){
-            this.approveusers =  true
-            this.usersapprove = item
+            this.params = {}
+            console.log(item)
+            this.messageAproval = ''
+            this.schedulesAproveds.push(item)
+            
+            const url = this.siteUrl;
+            this.params.wstoken = this.token
+            this.params.moodlewsrestformat = 'json'
+            this.params.wsfunction = 'local_grupomakro_approve_course_class_schedules'
+            
+            // Loop through the selected array and generate the parameters.
+            for (let i = 0; i < this.schedulesAproveds.length; i++) {
+              const schedule = this.schedulesAproveds[i];
+              this.params[`approvingSchedules[${i}][classId]`] = schedule.clasId;
+              this.schedulesAproveds[i].paramsid = schedule.clasId
+              if(schedule.quotas > schedule.users + schedule.waitingusers  || schedule.quotas < schedule.users + schedule.waitingusers){
+                this.approvalReasonField = true
+              }else{
+                this.approvalReasonField = false
+                this.approvedClass(this.params)
+              }
+            }
+            
+           // 
+           
+            
+        },
+        sendMessage(){
+            for (let i = 0; i < this.schedulesAproveds.length; i++) {
+              const schedule = this.schedulesAproveds[i];
+                //this.schedulesAproveds[i].paramsmesage = this.messageAproval
+                this.params[`approvingSchedules[${i}][approvalMessage]`] = this.messageAproval; 
+            }
+            this.approvalReasonField = false
+            this.approvedClass(this.params)
+        },
+        approvedClass(params){
+            console.log(params)
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    console.log(response)
+                    this.approveusers =  true
+                    setInterval(()=>{
+                        location.reload();
+                    },5000)
+                    //
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
         },
         userspage(){
             window.location = '/local/grupomakro_core/pages/users.php'
         },
+        newClassSelected(schedule){
+            
+            const url = this.siteUrl;
+            // Create an object to store dynamic parameters.
+            const params = {};
+            // Loop through the selected array and generate the parameters.
+            for (let i = 0; i < this.selected.length; i++) {
+              const student = this.selected[i];
+              params[`movingStudents[${i}][studentId]`] = student.id;
+              params[`movingStudents[${i}][currentClassId]`] = student.classid;
+              params[`movingStudents[${i}][newClassId]`] = schedule.clasId; 
+            }
+            
+            params.wstoken = this.token
+            params.moodlewsrestformat = 'json'
+            params.wsfunction = 'local_grupomakro_change_students_schedules'
+            
+            this.saveClass(params)
+            
+        },
+        saveClass(params){
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    console.log(response.data)
+                    this.movedialog = false
+                    this.dialog = false
+                    location.reload();
+                    
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
+        },
+        deleteAvailabilityRecord(item){
+            console.log(item)
+            const url = this.siteUrl;
+            // Create an object to store dynamic parameters.
+            const params = {};
+            // Loop through the selected array and generate the parameters.
+            for (let i = 0; i < this.selected.length; i++) {
+              const student = this.selected[i];
+              params[`deletedStudents[${i}][studentId]`] = student.id;
+              params[`deletedStudents[${i}][classId]`] = student.classid;
+            }
+            
+            params.wstoken = this.token
+            params.moodlewsrestformat = 'json'
+            params.wsfunction = 'local_grupomakro_delete_student_from_class_schedule'
+            
+            this.deleteStudent(params)
+        },
+        deleteStudent(params){
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    console.log(response.data)
+                    this.movedialog = false
+                    this.dialog = false
+                    location.reload();
+                    
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
+        }
     },
      computed: {
         // This method returns a validation rule function for use with vee-validate library.
@@ -726,5 +867,11 @@ Vue.component('scheduleapproval',{
         lang(){
             return window.strings
         },
+        token(){
+            return window.userToken;
+        },
+        courseId(){
+            return window.courseid;
+        }
     },
 })

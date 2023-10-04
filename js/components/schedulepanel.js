@@ -40,6 +40,7 @@ Vue.component('scheduletable',{
                                 <v-list-item-content>
                                     <v-list-item-title>{{ item.coursename }}</v-list-item-title>
                                     <v-list-item-subtitle class="text-caption" v-text="item.period"></v-list-item-subtitle>
+                                    <!--<v-list-item-subtitle class="text-caption" v-text="item.learningPlanName"></v-list-item-subtitle>-->
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -80,7 +81,7 @@ Vue.component('scheduletable',{
                           color="primary"
                           small
                           class="rounded"
-                          :href="'/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.id"
+                          :href="'/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.numberid + '&periodsid=' + item.periodIds"
                         >
                           {{lang.schedules}}
                         </v-btn>
@@ -139,25 +140,25 @@ Vue.component('scheduletable',{
                     //console.log(response)
                     // Converts the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.schedulesOverview)
-                    //console.log(data)
+                    
                     
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
-                    
+                    console.log(array)
                     // Add the availability data for each instructor to the current instance's item array.
                     array.forEach((element)=>{
                         this.items.push({
-                            //id: element.courseId,
+                            numberid: element.courseId,
                             coursename: element.courseName,
                             numberclasses: element.numberOfClasses,
                             users: element.totalParticipants,
-                            period: element.periodName,
+                            period: element.periodNames,
                             schedules: element.schedules,
-                            periodId: element.periodId,
+                            periodIds: element.periodIds,
                             capacityColor: element.capacityColor,
                             capacityPercent: element.capacityPercent,
                             learningPlanId: element.learningPlanId,
-                            learningPlanNames: element.learningPlanNames,
+                            learningPlanName: element.learningPlanNames,
                             remainingCapacity: element.remainingCapacity,
                             totalCapacity: element.totalCapacity
                         })
@@ -177,7 +178,7 @@ Vue.component('scheduletable',{
             });  
         },
         getColor (item) {
-            console.log(item)
+            //console.log(item)
             
             if(!this.$vuetify.theme.dark){
                 if (item.capacitypercentage >= 70) return ' red accent-2'
