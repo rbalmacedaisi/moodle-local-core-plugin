@@ -325,6 +325,10 @@ $string['want_to_approve'] = 'Are you sure you want to approve it?';
 $string['mminimum_quota_message'] = 'The selected class does not have the minimum number of students allowed.';
 $string['write_reason'] = 'Write the reason';
 $string['add_schedules'] = 'Add Schedules';
+$string['deleteusersclass'] = 'The selected class has enrolled students.  Are you sure you want to delete the selected class?';
+$string['deleteclassMessage'] = 'Are you sure you want to delete the selected class?';
+$string['waitinglists'] = 'waitinglists';
+$string['selectall'] = 'Select all';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

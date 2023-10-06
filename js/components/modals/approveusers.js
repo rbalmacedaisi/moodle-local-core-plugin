@@ -7,24 +7,20 @@ Vue.component('approveusers',{
           max-width="550"
         >
           <v-card class="pa-0">
-            <div v-if="itemapprove.waitingusers == 0 && itemapprove.users <= itemapprove.quotas">
+            <div v-if="itemapprove.quotas == itemapprove.users + itemapprove.waitingusers">
               <v-alert
                 outlined
                 type="success"
                 text
                 class="mb-0"
-                dismissible
+                icon="mdi-clock-fast"
+                prominent
               >
                 {{ lang.message_approved }}
-                <template v-slot:close>
-                  <v-btn icon  class="success--text v-btn--round" small @click="$emit('close-approve')">
-                    <v-icon>mdi-close</v-icon>
-                  </v-btn>
-                </template>
               </v-alert>
             </div>
             
-            <div v-if="itemapprove.users > itemapprove.quotas">
+            <!--<div >
               <v-alert
                 text
                 type="error"
@@ -58,9 +54,9 @@ Vue.component('approveusers',{
                   </v-btn>
                 </div>
               </v-alert>
-            </div>
+            </div>-->
             
-            <div v-if="itemapprove.users < 10">
+            <div v-if="itemapprove.quotas > itemapprove.users + itemapprove.waitingusers || itemapprove.quotas < itemapprove.users + itemapprove.waitingusers">
                <v-alert
                 text
                 type="warning"
@@ -81,7 +77,7 @@ Vue.component('approveusers',{
                       outlined
                       small
                       class="ma-2 rounded"
-                      @click="$emit('close-approve')"
+                      @click="cancel"
                     >
                       {{lang.cancel}}
                   </v-btn>
@@ -103,43 +99,50 @@ Vue.component('approveusers',{
         <v-dialog
           v-model="dialogconfirm"
           persistent
-          max-width="500"
+          max-width="600px"
         >
-          <v-card class="py-4">
-            <v-card-text >
-              <v-row justify="center">
-                <v-col
-                  cols="12"
-                  md="12"
-                >
-                  <v-textarea
-                    name="input-7-4"
-                    :label="lang.write_reason"
-                    value=""
-                    rows="2"
-                  ></v-textarea>
-                </v-col>
-              </v-row>
+          <v-card>
+            <v-card-title>
+                <span class="text-h5">Mensaje para Aprobación</span>
+            </v-card-title>
+            <v-card-text class="pb-0">
+              <v-container>
+                <v-row>
+                  <v-col
+                     cols="12"
+                     class="px-0"
+                  >
+                    <v-textarea
+                      outlined
+                      name="message"
+                      :label="lang.write_reason"
+                      v-model="messageAproval"
+                      hint="Mensaje para justificar aprovación de horario."
+                      rows="3"
+                    ></v-textarea>
+                  </v-col>
+                </v-row>
+              </v-container>
             </v-card-text>
             
             <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn
-                color="primary"
-                outlined
-                small
-                class="rounded"
-              >
-                {{lang.cancel}}
-              </v-btn>
-              <v-btn
-                color="primary"
-                small
-                class="rounded"
-                @click="dialogconfirm = false ,$emit('close-approve') "
-              >
-                {{lang.save}}
-              </v-btn>
+                <v-spacer></v-spacer>
+                <v-btn
+                   outlined
+                   color="primary"
+                   small
+                   @click="cancel"
+                >
+                    {{lang.cancel}}
+                </v-btn>
+                <v-btn
+                    color="primary"
+                    text
+                    @click="save"
+                    small
+                >
+                    {{lang.save}}
+                </v-btn>
             </v-card-actions>
           </v-card>
         </v-dialog>
@@ -148,7 +151,8 @@ Vue.component('approveusers',{
     data(){
       return{
         dialog: true,
-        dialogconfirm: false
+        dialogconfirm: false,
+        messageAproval: ''
       }
     },
     props:{
@@ -164,6 +168,14 @@ Vue.component('approveusers',{
           this.dialogconfirm = true
         }
       },
+      save(){
+        this.$emit('send-message', this.messageAproval)
+        this.$emit('close-approve')
+      },
+      cancel(){
+        this.$emit('close-approve')
+        this.messageAproval = ''
+      }
     },
     computed: {
       lang(){

@@ -29,8 +29,11 @@ $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/scheduleapproval.php');
+$id = required_param('id', PARAM_INT);
+$periodsid = required_param('periodsid', PARAM_ALPHANUM);
+global $DB;
 
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php', ['id' => $id, 'periodsid' => $periodsid]));
 $context = context_system::instance();
 $PAGE->set_context($context);
 if (is_siteadmin()) {
@@ -38,7 +41,7 @@ if (is_siteadmin()) {
 }
 $PAGE->navbar->add(
     get_string('scheduleapproval', $plugin_name),
-    new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php')
+    new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php', ['id' => $id, 'periodsid' => $periodsid])
 );
 
 $PAGE->set_title(get_string('scheduleapproval', $plugin_name));
@@ -78,6 +81,8 @@ $strings->want_to_approve = get_string('want_to_approve',$plugin_name);
 $strings->mminimum_quota_message = get_string('mminimum_quota_message',$plugin_name);
 $strings->write_reason = get_string('write_reason',$plugin_name);
 $strings->users = get_string('users',$plugin_name);
+$strings->deleteusersclass = get_string('deleteusersclass',$plugin_name);
+$strings->deleteclassMessage = get_string('deleteclassMessage',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();

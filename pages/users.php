@@ -23,26 +23,33 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/externallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/users.php');
 
+$id = required_param('courseid', PARAM_INT);
+$periodsid = required_param('periodsid', PARAM_ALPHANUM);
+
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/users.php', ['courseid' => $id, 'periodsid' => $periodsid]));
 $context = context_system::instance();
 $PAGE->set_context($context);
 if (is_siteadmin()) {
     $PAGE->navbar->add(get_string('schedule_panel', $plugin_name), new moodle_url('/local/grupomakro_core/pages/schedulepanel.php'));
-    $PAGE->navbar->add(get_string('scheduleapproval', $plugin_name), new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php'));
+    $PAGE->navbar->add(get_string('scheduleapproval', $plugin_name), new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php', ['id' => $id, 'periodsid' => $periodsid]));
 }
 $PAGE->navbar->add(
     get_string('users', $plugin_name),
-    new moodle_url('/local/grupomakro_core/pages/users.php')
+    new moodle_url('/local/grupomakro_core/pages/users.php', ['courseid' => $id, 'periodsid' => $periodsid])
 );
 $PAGE->set_title(get_string('users', $plugin_name));
 $PAGE->set_heading(get_string('users', $plugin_name));
 $PAGE->set_pagelayout('base');
+
+$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
+$token = json_encode(external_generate_token_for_current_user($service)->token);
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
@@ -55,7 +62,10 @@ $strings->users = get_string('users',$plugin_name);
 $strings->registered_users = get_string('registered_users',$plugin_name);
 $strings->add_schedule = get_string('add_schedule',$plugin_name);
 $strings->add_schedules = get_string('add_schedules',$plugin_name);
-$strings->save = get_string('save',$plugin_name);
+$strings->waitinglists = get_string('waitinglists',$plugin_name);
+$strings->move_to = get_string('move_to',$plugin_name);
+$strings->remove = get_string('remove',$plugin_name);
+$strings->selectall = get_string('selectall',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -100,10 +110,14 @@ echo <<<EOT
    
   <script>
     var strings = $strings;
+    var courseid = $id ;
+    var periodsid = $periodsid;
+    var userToken = $token;
   </script>
   
 EOT;
 
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waitingtable.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waitingusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/users.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));

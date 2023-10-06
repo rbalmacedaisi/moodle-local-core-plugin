@@ -18,7 +18,7 @@ Vue.component('scheduleapproval',{
                           class="mx-2 rounded text-capitalize"
                           small
                           :outlined="$vuetify.theme.isDark"
-                          @click="userspage"
+                          :href="'/local/grupomakro_core/pages/users.php?courseid=' + this.courseId + '&periodsid=' + this.periodIds"
                         >
                           {{lang.users}}
                         </v-btn>
@@ -141,7 +141,7 @@ Vue.component('scheduleapproval',{
                                         </v-row>
                                     </v-card-text>
                                 
-                                    <v-card-actions class="justify-center">
+                                    <v-card-actions v-if="item.isApprove == 0" class="justify-center">
                                         <v-btn
                                           class="ma-2 rounded text-capitalize"
                                           outlined
@@ -408,58 +408,8 @@ Vue.component('scheduleapproval',{
                 </v-card>
             </v-dialog>
             
-            <v-dialog
-              v-model="approvalReasonField"
-              persistent
-              max-width="600px"
-            >
-                <v-card>
-                    <v-card-title>
-                        <span class="text-h5">Mensaje para Aprobación</span>
-                    </v-card-title>
-                    <v-card-text class="pb-0">
-                        <v-container>
-                            <v-row>
-                                <v-col
-                                   cols="12"
-                                   class="px-0"
-                                >
-                                    <v-textarea
-                                      outlined
-                                      name="message"
-                                      label="Mensaje"
-                                      v-model="messageAproval"
-                                      hint="Mensaje para justificar aprovación de horario."
-                                      rows="3"
-                                    ></v-textarea>
-                                </v-col>
-                            </v-row>
-                        </v-container>
-                    </v-card-text>
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <v-btn
-                           outlined
-                           color="primary"
-                           small
-                           @click="approvalReasonField = false"
-                        >
-                            {{lang.cancel}}
-                        </v-btn>
-                        <v-btn
-                            color="primary"
-                            text
-                            @click="sendMessage"
-                            small
-                        >
-                            {{lang.save}}
-                        </v-btn>
-                    </v-card-actions>
-                </v-card>
-            </v-dialog>
-            
             <deleteclass v-if="deleteclass" :itemdelete="itemdelete" @close-delete="closedelete"></deleteclass>
-            <approveusers v-if="approveusers" :itemapprove="usersapprove" @close-approve="closeapprove"></approveusers>
+            <approveusers v-if="approveusers" :itemapprove="usersapprove" @send-message="sendMessage" @close-approve="closeapprove"></approveusers>
         </v-row>
     `,
     data(){
@@ -495,10 +445,10 @@ Vue.component('scheduleapproval',{
             dataCourse: {},
             schedulesAproveds: [],
             approvalReasonField: false,
-            messageAproval: '',
             messagesOk: false,
             params: {},
-            horariosparams:[]
+            horariosparams:[],
+            periodsIds: ''
         }
     },
     props:{},
@@ -510,15 +460,12 @@ Vue.component('scheduleapproval',{
     },  
     methods:{
         getData(){
-            // Obtén la URL actual de la página
+            // Get the current URL of the page.
             var currentURL = window.location.href;
-            
-            // Obtén el valor del parámetro "id" de la URL actual
             var siteurl = new URL(currentURL);
-            var id = siteurl.searchParams.get("id");
-            
-            // Obtén el valor del parámetro "periodsid35,33" de la URL actual
+            // Get the value of the "periodsid" parameter from the current URL.
             var periods = siteurl.searchParams.get("periodsid");
+            this.periodIds = periods
             
             const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
@@ -727,40 +674,41 @@ Vue.component('scheduleapproval',{
             this.approveusers = false
         },
         showapprove(item){
+            this.approveusers =  false
             this.params = {}
             console.log(item)
-            this.messageAproval = ''
             this.schedulesAproveds.push(item)
+            this.usersapprove = item
             
             const url = this.siteUrl;
             this.params.wstoken = this.token
             this.params.moodlewsrestformat = 'json'
             this.params.wsfunction = 'local_grupomakro_approve_course_class_schedules'
-            
+            var counter = 0
             // Loop through the selected array and generate the parameters.
             for (let i = 0; i < this.schedulesAproveds.length; i++) {
+                counter ++
               const schedule = this.schedulesAproveds[i];
               this.params[`approvingSchedules[${i}][classId]`] = schedule.clasId;
               this.schedulesAproveds[i].paramsid = schedule.clasId
               if(schedule.quotas > schedule.users + schedule.waitingusers  || schedule.quotas < schedule.users + schedule.waitingusers){
-                this.approvalReasonField = true
+                this.approveusers =  true
               }else{
+                  if(counter == this.schedulesAproveds.length){
+                    this.approvedClass(this.params)
+                    this.approveusers =  true
+                  }
                 this.approvalReasonField = false
-                this.approvedClass(this.params)
               }
             }
-            
-           // 
-           
-            
         },
-        sendMessage(){
+        sendMessage(message){
+            console.log(message)
             for (let i = 0; i < this.schedulesAproveds.length; i++) {
               const schedule = this.schedulesAproveds[i];
                 //this.schedulesAproveds[i].paramsmesage = this.messageAproval
-                this.params[`approvingSchedules[${i}][approvalMessage]`] = this.messageAproval; 
+                this.params[`approvingSchedules[${i}][approvalMessage]`] = message; 
             }
-            this.approvalReasonField = false
             this.approvedClass(this.params)
         },
         approvedClass(params){
@@ -770,19 +718,12 @@ Vue.component('scheduleapproval',{
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     console.log(response)
-                    this.approveusers =  true
-                    setInterval(()=>{
-                        location.reload();
-                    },5000)
-                    //
+                    location.reload();
                 })
                 // If the request fails, log an error to the console.
                 .catch(error => {
                     console.error(error);
             });
-        },
-        userspage(){
-            window.location = '/local/grupomakro_core/pages/users.php'
         },
         newClassSelected(schedule){
             

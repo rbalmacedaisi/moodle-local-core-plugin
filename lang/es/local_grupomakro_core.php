@@ -323,10 +323,14 @@ $string['student'] = 'Estudiante';
 $string['message_approved'] = 'La lista de usuarios para esta clase ha sido aprobada.';
 $string['maximum_quota_message'] = 'La clase seleccionada supera el cupo máximo permitido.';
 $string['want_to_approve'] = '¿Está seguro que desea aprobarla?';
-$string['mminimum_quota_message'] = 'La clase seleccionada no cuenta con el número mínimo de estudiantes permitidos.';
+$string['mminimum_quota_message'] = 'La clase seleccionada no cuenta con el número de estudiantes permitidos.';
 $string['write_reason'] = 'Escribe el motivo';
 $string['users'] = 'Usuarios';
 $string['add_schedules'] = 'Agregar Horarios';
+$string['deleteusersclass'] = 'La clase seleccionada tiene estudiantes inscritos. ¿Está seguro que desea eliminarla?';
+$string['deleteclassMessage'] = '¿Está seguro que desea eliminar la clase seleccionada?';
+$string['waitinglists'] = 'Listas de espera';
+$string['selectall'] = 'Seleccionar todo';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';

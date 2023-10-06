@@ -137,7 +137,7 @@ Vue.component('scheduletable',{
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
-                    //console.log(response)
+                    console.log(response)
                     // Converts the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.schedulesOverview)
                     
