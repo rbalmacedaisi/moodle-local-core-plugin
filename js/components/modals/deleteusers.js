@@ -9,7 +9,7 @@ Vue.component('deleteusers',{
           <v-card class="py-4">
             <v-card-text class="text-subtitle-1 font-weight-medium text-center">
               <div> 
-                ¿Está seguro que desea eliminar los usuarios seleccionados?
+                {{lang.deleteusersmessage}}
               </div>
             </v-card-text>
             
@@ -26,6 +26,7 @@ Vue.component('deleteusers',{
               <v-btn
                 color="primary"
                 small
+                @click="deleteuser"
               >
                 {{lang.accept}}
               </v-btn>
@@ -41,14 +42,15 @@ Vue.component('deleteusers',{
         dialogconfirm: false
       }
     },
-    props:{
-      itemdelete: Object
-    },
+    props:{},
     created(){
     },
     mounted(){
     },  
     methods:{
+      deleteuser(){
+        this.$emit('delete-users')
+      }
     },
     computed: {
       lang(){

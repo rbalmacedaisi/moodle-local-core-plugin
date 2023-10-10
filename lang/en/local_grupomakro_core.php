@@ -329,6 +329,9 @@ $string['deleteusersclass'] = 'The selected class has enrolled students.  Are yo
 $string['deleteclassMessage'] = 'Are you sure you want to delete the selected class?';
 $string['waitinglists'] = 'waitinglists';
 $string['selectall'] = 'Select all';
+$string['deleteusersmessage'] = 'Are you sure you want to delete the selected users?';
+$string['class'] = 'Class';
+$string['approval_message_title'] = 'Approval message';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

@@ -137,7 +137,6 @@ Vue.component('approveusers',{
                 </v-btn>
                 <v-btn
                     color="primary"
-                    text
                     @click="save"
                     small
                 >
@@ -163,23 +162,48 @@ Vue.component('approveusers',{
     mounted(){
     },  
     methods:{
-      confirmApprove(){
-        if(this.itemapprove.users > 0){
-          this.dialogconfirm = true
+        /**
+         * Opens the confirmation dialog for approving with a message if there are users to approve.
+         * If there are users to approve, sets `dialogconfirm` to `true`.
+         */
+        confirmApprove(){
+            // Check if there are users to approve.
+            if(this.itemapprove.users > 0){
+                this.dialogconfirm = true
+            }
+        },
+        /**
+         * Saves the approval message and emits an event to send the message to the parent component.
+         * Additionally, emits an event to close the approval dialog.
+         */
+        save(){
+            // Emit an event to send the approval message to the parent component.
+            this.$emit('send-message', this.messageAproval)
+            
+            // Emit an event to close the approval dialog.
+            this.$emit('close-approve')
+        },
+        /**
+         * Cancels the approval process and emits an event to close the approval dialog.
+         * Resets the approval message.
+         */
+        cancel(){
+            // Emit an event to close the approval dialog.
+            this.$emit('close-approve')
+            
+            // Reset the approval message.
+            this.messageAproval = ''
         }
-      },
-      save(){
-        this.$emit('send-message', this.messageAproval)
-        this.$emit('close-approve')
-      },
-      cancel(){
-        this.$emit('close-approve')
-        this.messageAproval = ''
-      }
     },
     computed: {
-      lang(){
-        return window.strings
-      },
+        /**
+         * A computed property that returns language-related data from the 'window.strings' object.
+         * It allows access to language strings for localization purposes.
+         *
+         * @returns '{object}' - Language-related data.
+         */
+        lang(){
+            return window.strings
+        },
     },
 })

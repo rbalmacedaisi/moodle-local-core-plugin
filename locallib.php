@@ -748,6 +748,8 @@ function get_learning_plan_course_schedules($params){
 function construct_course_schedules_filter($params){
     $filtersArray = [];
     $filters = ['closed'=>0];
+    
+    $params['skipApproved']? $filters['approved'] = '0':null;
     $params['courseId']? $filters['corecourseid'] = $params['courseId']:null;
     
     if($params['periodIds']){
@@ -1421,8 +1423,6 @@ function checkRangeArray($rangeArray, $inputRange) {
         return $rangeArray;
     }
 
-
-
 function replaceAttendanceSession($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$groupId){
     
     global $DB;
@@ -1445,7 +1445,6 @@ function replaceAttendanceSession($moduleId,$sessionIdToBeRemoved,$sessionDate,$
     
     return true;
 }
-
 
 function getActivityInfo($moduleId,$sessionId=null){
     

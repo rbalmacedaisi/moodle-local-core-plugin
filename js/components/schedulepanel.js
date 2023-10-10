@@ -125,27 +125,29 @@ Vue.component('scheduletable',{
     }, 
     mounted(){},  
     methods:{
+        // Retrieves data for the data table by making a GET request to a RESTful API.
         getitems(){
+            // URL of the API to be used for data retrieval.
             const url = this.siteUrl;
-            // Create a params object with the parameters needed to make an API call.
+           
+            // Parameters required for making the API call.
             const params = {
                 wstoken: this.token,
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_get_course_class_schedules_overview',
             };
-            // Make a GET request to the specified URL, passing the parameters as query options.
+            
+            // Perform a GET request to the specified URL, passing the parameters as query options.
             window.axios.get(url, { params })
-                // If the request is resolved successfully, perform the following operations.
                 .then(response => {
-                    console.log(response)
-                    // Converts the data returned from the API from JSON string format to object format.
+                    // Parse the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.schedulesOverview)
                     
-                    
+                    // Convert the object into an array of values.
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
-                    console.log(array)
-                    // Add the availability data for each instructor to the current instance's item array.
+                    
+                    // Add availability data for each instructor to the current instance's item array.
                     array.forEach((element)=>{
                         this.items.push({
                             numberid: element.courseId,
@@ -164,9 +166,9 @@ Vue.component('scheduletable',{
                         })
                     })
                     
+                    // Calculate the percentage capacity for each schedule and round to a whole number.
                     this.items.forEach((item) => {
                         item.schedules.forEach((schedule) => {
-                            // Calculate the percentage and round to a whole number.
                             const percent = Math.round((schedule.preRegisteredStudents / schedule.classroomcapacity) * 100);
                             schedule.capacitypercentage = percent;
                         });
@@ -177,35 +179,58 @@ Vue.component('scheduletable',{
                     console.error(error);
             });  
         },
+        /**
+         * Determines the color class based on the capacity percentage of an item.
+         * @param '{Object} item' - The item containing capacity percentage information.
+         * @returns '{string}' - The color class to apply based on the item's capacity percentage.
+         */
         getColor (item) {
-            //console.log(item)
-            
+            // Check if the Vuetify theme is not dark.
             if(!this.$vuetify.theme.dark){
                 if (item.capacitypercentage >= 70) return ' red accent-2'
                 else if (item.capacitypercentage >= 50) return 'amber lighten-4'
                 else return 'green accent-3'
             }else{
+                // If the Vuetify theme is dark.
                 if (item.capacitypercentage >= 70) return 'red accent-2'
                 else if (item.capacitypercentage >= 50) return 'amber lighten-4'
                 else return 'green accent-4'
             }
         },
+        /**
+         * Redirects to the schedule approval page for a specific item.
+         * @param {Object} item - The item for which the schedule approval page should be displayed.
+         */
         showschedules(item){
+            // Redirects to the schedule approval page with the ID of the selected item.
             window.location = '/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.id
         }
     },
     computed: {
+        /**
+         * A computed property that returns language-related data from the 'window.strings' object.
+         * It allows access to language strings for localization purposes.
+         *
+         * @returns '{object}' - Language-related data.
+         */
         lang(){
             return window.strings
         },
+        /**
+         * A computed property that returns the site URL for making API requests.
+         * It combines the current origin with the API endpoint path.
+         *
+         * @returns '{string}' - The constructed site URL.
+         */
         siteUrl(){
             return window.location.origin + '/webservice/rest/server.php';
         },
+        /** A computed property that returns the user token from the 'window.userToken' variable.
+         *
+         * @returns '{string}' - The user token.
+         */
         token(){
             return window.userToken;
         }
-    },
-    watch: {
-        
     },
 })

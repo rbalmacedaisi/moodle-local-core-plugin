@@ -25,9 +25,8 @@ Vue.component('users',{
                     <section v-if="tab == 1" id="incompleteschedules" class="pb-10">
                         <incompleteschedules />
                     </section>
-            
-                  </v-col>
-                </v-row>
+                </v-col>
+            </v-row>
         </div>
     `,
     data(){

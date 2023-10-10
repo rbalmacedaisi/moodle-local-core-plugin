@@ -331,6 +331,9 @@ $string['deleteusersclass'] = 'La clase seleccionada tiene estudiantes inscritos
 $string['deleteclassMessage'] = '¿Está seguro que desea eliminar la clase seleccionada?';
 $string['waitinglists'] = 'Listas de espera';
 $string['selectall'] = 'Seleccionar todo';
+$string['deleteusersmessage'] = '¿Está seguro que desea eliminar los usuarios seleccionados?';
+$string['class'] = 'Clases';
+$string['approval_message_title'] = 'Mensaje de Aprobación';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';

@@ -14,7 +14,7 @@ Vue.component('waitingusers',{
         
                         <v-spacer></v-spacer>
               
-                        <div v-if="totalSelectedUsers.length > 1"  class="px-3 mb-0 d-flex">
+                        <div v-if="totalSelectedUsers.length > 0"  class="px-3 mb-0 d-flex">
                             <v-spacer></v-spacer>
                             
                             <v-tooltip bottom>
@@ -30,7 +30,7 @@ Vue.component('waitingusers',{
                                         <v-icon
                                           v-bind="attrs"
                                           v-on="on"
-                                          @click="moveItem(item)"
+                                          @click="moveAllItems"
                                         >
                                             mdi-folder-move-outline
                                         </v-icon>
@@ -47,7 +47,7 @@ Vue.component('waitingusers',{
                                       v-bind="attrs"
                                       v-on="on"
                                       large
-                                      @click="deleteAll"
+                                      @click="deleteUsers"
                                     >
                                         <v-icon
                                           v-bind="attrs"
@@ -86,6 +86,9 @@ Vue.component('waitingusers',{
                               class="mb-8"
                               :selectusers="selectAll"
                               @selection-changed="updateTotalSelected"
+                              @delete-users="deleteUsers"
+                              @move-item="moveAll"
+                              :icondisabled="icondisabled"
                               ref="waitingtable"
                             ></waitingtable>
                         </v-card-text>
@@ -103,314 +106,32 @@ Vue.component('waitingusers',{
                 </v-card>
             </v-col>
         
-            <v-dialog
-              v-model="movedialog"
-              max-width="600"
-            >
-                <v-card>
-                    <v-card-title>Mover a:</v-card-title>
-                  
-                    <v-divider class="my-0"></v-divider>
-          
-                    <v-card-text>
-                        <v-list  subheader three-line>
-                            <v-subheader class="text-h6">Clases</v-subheader>
-                            <v-list-item-group
-                              v-model="selectedClass"
-                              color="primary"
-                            >
-                                <v-list-item
-                                    v-for="folder in folders"
-                                    :key="folder.title"
-                                >
-                                    <v-list-item-avatar>
-                                        <v-icon
-                                          class="grey lighten-1"
-                                          small
-                                          :dark="!$vuetify.theme.isDark"
-                                        >
-                                            mdi-folder
-                                        </v-icon>
-                                    </v-list-item-avatar>
-                            
-                                    <v-list-item-content>
-                                        <v-list-item-title v-text="folder.name"></v-list-item-title>
-                                        <v-list-item-subtitle v-text="folder.days"></v-list-item-subtitle>
-                                        <v-list-item-subtitle v-text="folder.start + ' a ' + folder.end"></v-list-item-subtitle>
-                                    </v-list-item-content>
-                            
-                                    <v-list-item-action>
-                                        <v-menu
-                                          :close-on-content-click="false"
-                                          :nudge-width="180"
-                                          bottom
-                                          left
-                                          open-on-hover
-                                        >
-                                            <template v-slot:activator="{ on, attrs }">
-                                                <v-btn
-                                                  icon
-                                                  v-bind="attrs"
-                                                  v-on="on"
-                                                >
-                                                    <v-icon color="grey lighten-1">mdi-information</v-icon>
-                                                </v-btn>
-                                            </template>
-                                  
-                                            <v-card>
-                                                <v-list dense>
-                                                    <v-list-item>
-                                                        <v-list-item-avatar>
-                                                            <img
-                                                              :src="folder.picture"
-                                                              alt="profile"
-                                                            >
-                                                        </v-list-item-avatar>
-                                    
-                                                        <v-list-item-content>
-                                                            <v-list-item-title>{{folder.instructor}}</v-list-item-title>
-                                                            <v-list-item-subtitle>Instructor</v-list-item-subtitle>
-                                                        </v-list-item-content>
-                                                    </v-list-item>
-                                                </v-list>
-                                    
-                                                <v-divider class="my-0"></v-divider>
-                                    
-                                                <v-list dense>
-                                                    <v-list-item>
-                                                        <v-list-item-icon>
-                                                            <v-icon v-if="folder.type === 'Virtual'">mdi-desktop-mac</v-icon>
-                                                            <v-icon v-else >mdi-account-group</v-icon>
-                                                        </v-list-item-icon>
-                                                        
-                                                        <v-list-item-content>
-                                                            <v-list-item-title>{{folder.type}}</v-list-item-title>
-                                                        </v-list-item-content>
-                                                    </v-list-item>
-                                      
-                                                    <v-list-item>
-                                                        <v-list-item-icon>
-                                                            <v-icon>mdi-account-multiple-check</v-icon>
-                                                        </v-list-item-icon>
-                                                        
-                                                        <v-list-item-content>
-                                                            <v-list-item-title>{{folder.users}}</v-list-item-title>
-                                                        </v-list-item-content>
-                                                    </v-list-item>
-                                                </v-list>
-                                            </v-card>
-                                        </v-menu>
-                                    </v-list-item-action>
-                                </v-list-item>
-                            </v-list-item-group>
-                        </v-list>
-                    </v-card-text>
-                
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        <v-btn
-                           color="primary"
-                           text
-                           @click="movedialog = false"
-                        >
-                            {{lang.cancel}}
-                        </v-btn>
-                        <v-btn
-                           color="primary"
-                           text
-                        >
-                            {{lang.save}}
-                        </v-btn>
-                    </v-card-actions>
-                </v-card>
-            </v-dialog> 
-        
-            <deleteusers v-if="deleteusers" :itemdelete="itemdelete" @close-delete="closedelete"></deleteusers>
+            
+            <movestudents v-if="movedialog" @classmoveselected="moveItem" @close="closeMove" @class-all-emit="classallemit" :icondisabled="icondisabled"></movestudents>
+            <deleteusers v-if="deleteusers" @delete-users="deleteAvailabilityRecord" @close-delete="closedelete"></deleteusers>
         </v-row>
     `,
     data(){
         return{
             selectAll: false,
-            folders:[
-                {
-                    id: 1,
-                    name: 'Introducción',
-                    days: 'Lunes - Miércoles',
-                    start: "10:00 am",
-                    end: "12:00 pm",
-                    instructor: "John Leider",
-                    type: "Presencial",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-1-8ab8bc8e.png',
-                    quotas: 30,
-                    users: 20,
-                    waitingusers: 0,
-                    registeredusers:[
-                        {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com'
-                        },
-                        {
-                            userid: 21,
-                            fullname: 'Alejandro Rios',
-                            email: 'alejandrorios@gmail.com'
-                        },
-                        {
-                            userid: 22,
-                            fullname: 'Ana Garcia',
-                            email: 'anagarcia@gmail.com'
-                        }
-                    ],
-                    waitinglist: []
-                },
-                {
-                    id: 2,
-                    name: 'Introducción',
-                    days: 'Martes - Jueves',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Ximena Rincon",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-3-7182280e.png',
-                    quotas: 30,
-                    users: 32,
-                    waitingusers: 5,
-                    registeredusers:[
-                        {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com'
-                        },
-                        {
-                            userid: 21,
-                            fullname: 'Alejandro Rios',
-                            email: 'alejandrorios@gmail.com'
-                        },
-                        {
-                            userid: 22,
-                            fullname: 'Ana Garcia',
-                            email: 'anagarcia@gmail.com'
-                        }
-                    ],
-                    waitinglist: [
-                        {
-                            userid: 23,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 24,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 25,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 26,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 27,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ]
-                },
-                {
-                    id: 3,
-                    name: 'Introducción',
-                    days: 'Jueves - Viernes ',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Luz Lopez",
-                    type: "Virtual",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
-                    quotas: 30,
-                    users: 1,
-                    waitingusers: 5,
-                    registeredusers:[
-                        {
-                            userid: 20,
-                            fullname: 'Andres Mejia',
-                            email: 'andresmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ],
-                    waitinglist: [
-                        {
-                            userid: 23,
-                            fullname: 'Ismael Mejia',
-                            email: 'ismaelmejia@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 24,
-                            fullname: 'Ivan Morales',
-                            email: 'ivanmorales@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 25,
-                            fullname: 'John Morales',
-                            email: 'john@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 26,
-                            fullname: 'Laura Londoño',
-                            email: 'lauralondoño@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                        {
-                            userid: 27,
-                            fullname: 'Marcela Toro',
-                            email: 'marcelatoro@gmail.com',
-                            img: 'https://berrydashboard.io/vue/assets/avatar-4-3b96be4a.png'
-                        },
-                    ]
-                },
-                {
-                    id: 4,
-                    name: 'Introducción',
-                    days: 'Sabado',
-                    start: "07:00 am",
-                    end: "09:00 am",
-                    instructor: "Luz Lopez",
-                    type: "Presencial",
-                    picture: 'https://berrydashboard.io/vue/assets/avatar-7-8fe392c1.png',
-                    quotas: 30,
-                    users: 0,
-                    waitingusers: 0,
-                    registeredusers:[],
-                    waitinglist: []
-                }
-            ],
             movedialog: false,
             deleteusers: false,
             itemdelete: {},
-            selectedClass: '',
             classArray: [],
             selectAllStudents: false,
             selected: [],
             totalSelectedUsers: [],
             indeterminate: false,
             totalStudent: 0,
-            valuechecked: false
+            valuechecked: false,
+            icondisabled: false,
+            individualmoveclass: {},
+            
         }
     },
     props:{},
     created(){
         this.getUsers()
-        this.getschedules()
     }, 
     mounted(){
     },  
@@ -432,7 +153,7 @@ Vue.component('waitingusers',{
                     //console.log(response)
                     // Converts the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.courseSchedulesQueues)
-                    //console.log(data)
+                    console.log(data)
                 
                     this.classArray = data
                     this.calculateTotalStudents()
@@ -442,63 +163,97 @@ Vue.component('waitingusers',{
                     console.error(error);
             });
         },
-        getschedules(){
+        moveAll(item){
+            this.movedialog = true
+            this.individualmoveclass = item
+        },
+        deleteUsers(item){
+            this.deleteusers = true
+            this.itemdelete = {}
+        },
+        deleteAvailabilityRecord(){
+            // Create an object to store dynamic parameters.
+            const params = {};
+            // Loop through the selected array and generate the parameters.
+            for (let i = 0; i < this.totalSelectedUsers.length; i++) {
+              const student = this.totalSelectedUsers[i];
+              params[`deletedStudents[${i}][studentId]`] = student.userid;
+              params[`deletedStudents[${i}][classId]`] = student.classid;
+            }
+            
+            params.wstoken = this.token
+            params.moodlewsrestformat = 'json'
+            params.wsfunction = 'local_grupomakro_delete_student_from_class_schedule'
+            
+            this.deleteStudent(params)
+        },
+        deleteStudent(params){
             const url = this.siteUrl;
-            // Create a params object with the parameters needed to make an API call.
-            const params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_grupomakro_get_course_class_schedules',
-                courseId: this.courseId,
-                periodIds: this.periodsid
-            };
+            console.log(params)
             // Make a GET request to the specified URL, passing the parameters as query options.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     console.log(response)
-                    // Converts the data returned from the API from JSON string format to object format.
-                    const data = JSON.parse(response.data.courseSchedules)
-                    const arrayEntries = Object.entries(data);
-                    const array = arrayEntries.map(([clave, valor]) => valor);
-                    console.log(array[0])
+                    location.reload();
+                    this.closedelete()
                 })
                 // If the request fails, log an error to the console.
                 .catch(error => {
                     console.error(error);
             });
         },
-        moveAll(){
-            this.movedialog = true
-        },
-        deleteAll(){
-            this.deleteusers = true
-            this.itemdelete = {}
-        },
         closedelete(){
             this.deleteusers = false
         },
         moveItem(item){
             console.log(item)
-            this.folders = []
-            const index = this.selected.findIndex(selectedItem => selectedItem.student === item.student);
-            if (index === -1) {
-                this.selected.push(item);
-            } else {
-                this.selected.splice(index, 1);
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_change_students_schedules',
+                'movingStudents[0][studentId]': this.individualmoveclass.userid,
+                'movingStudents[0][currentClassId]': this.individualmoveclass.classid,
+                'movingStudents[0][newClassId]': item.classid
+            };
+            console.log(params)
+            this.updateclassselected(params)
+        },
+        classallemit(item){
+            // Create an object to store dynamic parameters.
+            const params = {};
+            // Loop through the selected array and generate the parameters.
+            for (let i = 0; i < this.totalSelectedUsers.length; i++) {
+              const student = this.totalSelectedUsers[i];
+              params[`movingStudents[${i}][studentId]`] = student.userid;
+              params[`movingStudents[${i}][currentClassId]`] = student.classid;
+              params[`movingStudents[${i}][newClassId]`] = item.classid; 
             }
-            const id = item.classid
-            this.items.forEach((element) => {
-                if(element.id != id){
-                    console.log(element)
-                    this.folders.push(element)
-                }
-            })
-            this.moveTitle = item.student
-        
+            
+            params.wstoken = this.token
+            params.moodlewsrestformat = 'json'
+            params.wsfunction = 'local_grupomakro_change_students_schedules'
+            console.log(params)
+            this.updateclassselected(params)
+        },
+        moveAllItems(){
             this.movedialog = true
         },
-        deleteAvailabilityRecord(item){
+        updateclassselected(params){
+            const url = this.siteUrl;
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    console.log(response.data)
+                    this.movedialog = false
+                    location.reload();
+                    
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
         },
         updateTotalSelected(e) {
             //console.log(this.$refs.waitingtable)
@@ -510,11 +265,11 @@ Vue.component('waitingusers',{
                     this.totalSelectedUsers.push(item)
                 })
             })
+            this.totalSelectedUsers.length < 1 ? this.icondisabled = false : this.icondisabled = true
             this.inputvalue()
         },
         calculateTotalStudents(){
-            this.totalStudent = 0
-            ;
+            this.totalStudent = 0;
             this.classArray.forEach((clase) => {
               if (clase.queue && clase.queue.queuedStudents) {
                 this.totalStudent += Object.keys(clase.queue.queuedStudents).length;
@@ -531,6 +286,10 @@ Vue.component('waitingusers',{
                 this.valuechecked = false
                 this.selectAll = false
             }
+        },
+        closeMove(){
+            this.movedialog = false
+            this.individualmoveclass = {}
         }
     },
     computed: {
@@ -555,15 +314,13 @@ Vue.component('waitingusers',{
             return periods
         },
         filteredClassArray() {
-          // Filtra las clases que tienen estudiantes en la cola
-          return this.classArray.filter(classData => {
-            return Object.keys(classData.queue.queuedStudents).length > 0;
-          });
+            // Filter classes that have students in the queue.
+            return this.classArray.filter(classData => {
+                return Object.keys(classData.queue.queuedStudents).length > 0;
+            });
         },
     },
     watch: {
-        inputvalue(value){
-            console.log(value)
-        }
+        
     }
 })

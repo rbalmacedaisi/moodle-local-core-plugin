@@ -10,7 +10,6 @@ Vue.component('waitingtable',{
           hide-default-footer
           class="check-table"
           @input="itemselect"
-          @item-selected="checkItem"
         >
             <template v-slot:top>
                 <div class="px-3">
@@ -42,6 +41,7 @@ Vue.component('waitingtable',{
                          v-bind="attrs"
                          v-on="on"
                          @click="moveItem(item)"
+                         :disabled="icondisabled"
                         >
                             mdi-folder-move-outline
                         </v-icon>
@@ -55,6 +55,7 @@ Vue.component('waitingtable',{
                          @click="deleteAvailabilityRecord(item)" 
                          v-bind="attrs"
                          v-on="on"
+                         :disabled="icondisabled"
                         >
                             mdi-trash-can-outline
                         </v-icon>
@@ -62,16 +63,20 @@ Vue.component('waitingtable',{
                     <span>{{lang.remove}}</span>
                 </v-tooltip>
             </template>
+            <template v-slot:no-data>
+                <span >{{lang.nodata}}</span>
+            </template>
         </v-data-table>
     `,
     data(){
         return{
-            selected: []
+            selected: [],
         }
     },
     props: {
         classData: Object ,
-        selectusers: Boolean
+        selectusers: Boolean,
+        icondisabled: Boolean()
     },
     created(){
     }, 
@@ -80,11 +85,13 @@ Vue.component('waitingtable',{
         itemselect(e){
             this.$emit('selection-changed', this.selected);
         },
-        // Esta función se ejecutará cuando se marque o desmarque un elemento
-        checkItem({ item, value }) {
-          //console.log(value);
-          
+        deleteAvailabilityRecord(item){
+            this.$emit('delete-users', item);
         },
+        moveItem(item){
+            console.log(item)
+            this.$emit('move-item', item);
+        }
     },
     computed: {
       lang(){
@@ -110,8 +117,6 @@ Vue.component('waitingtable',{
     watch: {
         selectusers(value) {
             this.selected = value ? [...this.students] : [];
-            //console.log('selected in watch:', this.selected); // Verificar la selección
-            //this.$emit('selection-changed', this.selected);
         },
         selected() {
             //console.log(this.selected.length); // Verificar la selección

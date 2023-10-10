@@ -56,8 +56,9 @@ class get_course_class_schedules extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'learningPlanId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
-            'periodIds' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED,null),
-            'courseId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED)
+            'periodIds' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED),
+            'courseId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED),
+            'skipApproved'=>new external_value(PARAM_BOOL, 'skip approved courses', VALUE_DEFAULT,false)
         ]);
     }
 
@@ -70,7 +71,8 @@ class get_course_class_schedules extends external_api {
     public static function execute(
         $learningPlanId,
         $periodIds,
-        $courseId
+        $courseId,
+        $skipApproved
         ) {
 
         // Validate the parameters passed to the function.
@@ -78,8 +80,10 @@ class get_course_class_schedules extends external_api {
             'learningPlanId' => $learningPlanId,
             'periodIds' => $periodIds,
             'courseId' => $courseId,
+            'skipApproved' => $skipApproved
         ]);
         try{
+            
             $courseSchedules = get_learning_plan_course_schedules($params);
             // Return the result.
             return ['status' => 1, 'courseSchedules'=>json_encode($courseSchedules) ];

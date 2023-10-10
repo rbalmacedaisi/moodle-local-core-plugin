@@ -66,6 +66,8 @@ $strings->waitinglists = get_string('waitinglists',$plugin_name);
 $strings->move_to = get_string('move_to',$plugin_name);
 $strings->remove = get_string('remove',$plugin_name);
 $strings->selectall = get_string('selectall',$plugin_name);
+$strings->deleteusersmessage = get_string('deleteusersmessage',$plugin_name);
+$strings->classschedule = get_string('class',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -122,6 +124,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/waiting
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/users.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/incompleteschedules.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/movestudents.js'));
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 

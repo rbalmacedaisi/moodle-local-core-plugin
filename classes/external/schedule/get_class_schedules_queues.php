@@ -57,7 +57,7 @@ class get_class_schedules_queues extends external_api {
         return new external_function_parameters(
             [
                 'courseId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
-                'periodId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_DEFAULT,null),
+                'periodIds' => new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED),
                 'learningPlanId' => new external_value(PARAM_TEXT, 'Course ID',VALUE_DEFAULT,null)
             ]
         );
@@ -78,7 +78,7 @@ class get_class_schedules_queues extends external_api {
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'courseId' => $courseId,
-            'periodId' =>$periodId,
+            'periodIds' =>$periodId,
             'learningPlanId'=>$learningPlanId
         ]);
 

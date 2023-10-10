@@ -83,6 +83,8 @@ $strings->write_reason = get_string('write_reason',$plugin_name);
 $strings->users = get_string('users',$plugin_name);
 $strings->deleteusersclass = get_string('deleteusersclass',$plugin_name);
 $strings->deleteclassMessage = get_string('deleteclassMessage',$plugin_name);
+$strings->classschedule = get_string('class',$plugin_name);
+$strings->approval_message_title = get_string('class',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
