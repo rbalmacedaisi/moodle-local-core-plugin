@@ -332,6 +332,12 @@ $string['selectall'] = 'Select all';
 $string['deleteusersmessage'] = 'Are you sure you want to delete the selected users?';
 $string['class'] = 'Class';
 $string['approval_message_title'] = 'Approval message';
+$string['course'] = 'Course';
+$string['no_users_message'] = 'It does not have the number of students allowed.';
+$string['aproved_message_hinit'] = 'Message to justify schedule approval.';
+$string['onhold'] = 'On hold';
+$string['noschedule'] = 'No schedule';
+$string['nouserswaitinglist'] = 'There are no Users on the Waiting List.';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

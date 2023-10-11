@@ -100,47 +100,72 @@ Vue.component('deleteclass',{
     props:{
       itemdelete: Object
     },
-    created(){
-    },
+    created(){},
     mounted(){},  
     methods:{
+        // Prepares and initiates the deletion process for a class schedule, with optional confirmation.
         confirmDelete(){
+            // Set the required parameters for the API call.
             this.params.wstoken = this.token
             this.params.moodlewsrestformat = 'json'
             this.params.wsfunction = 'local_grupomakro_delete_course_class_schedule'
             this.params.classId = this.itemdelete.clasId
             
+            // Check if there are enrolled users or waiting users for the class.
             if(this.itemdelete.users > 0 || this.itemdelete.waitingusers > 0){
+                // Display a confirmation dialog for deletion.
                 this.dialogconfirm = true
             }else{
+                // If no enrolled or waiting users, proceed with deletion without a message.
                 this.params.deletionMessage = ''
                 this.removeClas(this.params)
             }
         },
+        // Initiates the removal of a class schedule with a specified deletion message.
         save(){
+            // Set the deletion message in the parameters.
             this.params.deletionMessage = this.messageDelete
+            
+            // Call the 'removeClas' method to remove the class schedule.
             this.removeClas(this.params)
         },
+        /**
+         * Sends an API request to remove a class schedule with the specified parameters.
+         * @param '{Object} params' - The parameters required for the removal request.
+         */
         removeClas(params){
+            // Define the URL for the API endpoint.
             const url = this.siteUrl;
-            console.log(this.params)
             
+            // Make a GET request to the specified URL, passing the parameters as query parameters.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
-                    console.log(response)
+                    // Reload the current page to reflect the changes after successful removal.
                     location.reload();
                 })
-                // If the request fails, log an error to the console.
+                // Log an error message to the console if the request fails.
                 .catch(error => {
                     console.error(error);
             });
         }
     },
     computed: {
+        /**
+         * A computed property that returns language-related data from the 'window.strings' object.
+         * It allows access to language strings for localization purposes.
+         *
+         * @returns '{object}' - Language-related data.
+         */
         lang(){
             return window.strings
         },
+        /**
+         * A computed property that returns the site URL for making API requests.
+         * It combines the current origin with the API endpoint path.
+         *
+         * @returns '{string}' - The constructed site URL.
+         */
         siteUrl(){
             return window.location.origin + '/webservice/rest/server.php'
         },

@@ -68,6 +68,9 @@ $strings->remove = get_string('remove',$plugin_name);
 $strings->selectall = get_string('selectall',$plugin_name);
 $strings->deleteusersmessage = get_string('deleteusersmessage',$plugin_name);
 $strings->classschedule = get_string('class',$plugin_name);
+$strings->onhold = get_string('onhold',$plugin_name);
+$strings->noschedule = get_string('noschedule',$plugin_name);
+$strings->nouserswaitinglist = get_string('nouserswaitinglist',$plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();

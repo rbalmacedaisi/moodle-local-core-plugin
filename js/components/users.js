@@ -32,22 +32,11 @@ Vue.component('users',{
     data(){
         return{
             tab: null,
-            items: [ "En espera", "Sin horario"],  
+            items: [ window.strings.onhold, window.strings.noschedule],  
         }
     },
-    props:{},
-    created(){
-    }, 
+    created(){}, 
     mounted(){},  
-    methods:{
-      
-    },
-    computed: {
-      lang(){
-        return window.strings
-      },
-    },
-    watch: {
-      
-    }
+    methods:{},
+    computed: {},
 })

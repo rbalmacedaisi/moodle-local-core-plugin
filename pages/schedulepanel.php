@@ -43,6 +43,11 @@ $strings->selection_schedules = get_string('selection_schedules',$plugin_name);
 $strings->search = get_string('search',$plugin_name);
 $strings->schedules = get_string('schedules',$plugin_name);
 $strings->nodata = get_string('nodata', $plugin_name);
+$strings->course = get_string('course', $plugin_name);
+$strings->item_class = get_string('class', $plugin_name);
+$strings->users = get_string('users', $plugin_name);
+$strings->actions = get_string('actions', $plugin_name);
+
 $strings = json_encode($strings);
 
 $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));

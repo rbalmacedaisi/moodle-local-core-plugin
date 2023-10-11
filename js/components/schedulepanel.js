@@ -40,7 +40,7 @@ Vue.component('scheduletable',{
                                 <v-list-item-content>
                                     <v-list-item-title>{{ item.coursename }}</v-list-item-title>
                                     <v-list-item-subtitle class="text-caption" v-text="item.period"></v-list-item-subtitle>
-                                    <!--<v-list-item-subtitle class="text-caption" v-text="item.learningPlanName"></v-list-item-subtitle>-->
+                                    <v-list-item-subtitle v-if="item.tc ==1" class="text-caption">TC</v-list-item-subtitle>
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -62,18 +62,10 @@ Vue.component('scheduletable',{
                     </template>
                     
                     <template v-slot:item.users="{ item }">
-                      <v-chip
-                        color="primary"
-                        small
-                        light
-                      >
                         {{ item.users }}
-                      </v-chip>
                     </template>
                     
-                    <template v-slot:item.periods="{ item }">
-                      
-                    </template>
+                    <template v-slot:item.periods="{ item }"></template>
                     
                     <template v-slot:item.actions="{ item }">
                         <v-btn
@@ -99,21 +91,20 @@ Vue.component('scheduletable',{
             search: '',
             headers: [
                 {
-                    text: 'Curso',
+                    text: window.strings.course,
                     align: 'start',
                     sortable: false,
                     value: 'coursename',
                 },
                 {
-                    text: 'Clases',
+                    text: window.strings.item_class,
                     sortable: false,
                     value: 'numberclasses',
                     align: 'center',
                 },
-                { text: 'Usuarios', value: 'users',sortable: false, align: 'center', },
+                { text: window.strings.users, value: 'users',sortable: false, align: 'center', },
                 { text: 'periods', value: 'period', sortable: false, class: 'd-none' },
-                { text: 'Acciones', value: 'actions', sortable: false, align: 'center' },
-                
+                { text: window.strings.actions, value: 'actions', sortable: false, align: 'center' },
             ],
             items: [],
             dialog: false,
@@ -162,7 +153,8 @@ Vue.component('scheduletable',{
                             learningPlanId: element.learningPlanId,
                             learningPlanName: element.learningPlanNames,
                             remainingCapacity: element.remainingCapacity,
-                            totalCapacity: element.totalCapacity
+                            totalCapacity: element.totalCapacity,
+                            tc: element.tc
                         })
                     })
                     

@@ -334,6 +334,12 @@ $string['selectall'] = 'Seleccionar todo';
 $string['deleteusersmessage'] = '¿Está seguro que desea eliminar los usuarios seleccionados?';
 $string['class'] = 'Clases';
 $string['approval_message_title'] = 'Mensaje de Aprobación';
+$string['course'] = 'Curso';
+$string['no_users_message'] = 'no cuenta con el número de estudiantes permitidos.';
+$string['aproved_message_hinit'] = 'Mensaje para justificar aprovación de horario.';
+$string['onhold'] = 'En espera';
+$string['noschedule'] = 'Sin horario';
+$string['nouserswaitinglist'] = 'No hay Usurios en Lista de espera.';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';

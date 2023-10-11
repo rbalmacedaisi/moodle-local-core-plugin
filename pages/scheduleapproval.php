@@ -84,8 +84,14 @@ $strings->users = get_string('users',$plugin_name);
 $strings->deleteusersclass = get_string('deleteusersclass',$plugin_name);
 $strings->deleteclassMessage = get_string('deleteclassMessage',$plugin_name);
 $strings->classschedule = get_string('class',$plugin_name);
-$strings->approval_message_title = get_string('class',$plugin_name);
+$strings->approval_message_title = get_string('approval_message_title',$plugin_name);
+$strings->userlist = get_string('userlist',$plugin_name);
+$strings->no_users_message = get_string('no_users_message',$plugin_name);
+$strings->aproved_message_hinit = get_string('aproved_message_hinit',$plugin_name);
 $strings = json_encode($strings);
+
+$aproved_img = $CFG->wwwroot.'/local/grupomakro_core/pix/aproved.png';
+$aproved_img = json_encode($aproved_img);
 
 echo $OUTPUT->header();
 
@@ -114,7 +120,12 @@ echo <<<EOT
       margin-right: 15px !important;
     }
     .v-alert--prominent .v-alert__icon {
-        align-self: start !important;
+      align-self: start !important;
+    }
+    .img-aproved{
+      position: absolute;
+      bottom: 1px;
+      right: 1px;
     }
   </style>
    
@@ -122,6 +133,7 @@ echo <<<EOT
     var strings = $strings;
     var userToken = $token;
     var courseid = $id;
+    var aprovedImg = $aproved_img;
   </script>
   
 EOT;
@@ -129,6 +141,9 @@ EOT;
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/scheduleapproval.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteclass.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/approveusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/userslist.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/availableschedulesdialog.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/schedulevalidationdialog.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();
