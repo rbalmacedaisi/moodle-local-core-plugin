@@ -16,7 +16,7 @@ Vue.component('userslist',{
                             hide-default-footer
                         >
                             <template v-slot:top>
-                                <h6>{{lang.users}}</h6>
+                                <h6 class="pt-6" >{{lang.users}}</h6>
                             </template>
                             
                             <template v-slot:item.student="{ item }">
