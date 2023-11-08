@@ -7,7 +7,7 @@ const url = window.location.origin+'/webservice/rest/server.php';
 
 // Parameters to send with the API request.
 const params = {
-  wstoken: window.userToken,
+  wstoken: '943a55babc7ac145d983b6e3d7cd29df',
   moodlewsrestformat: 'json',
   wsfunction: 'local_soluttolms_core_get_theme_settings',
   themename: 'soluttolmsadmin'
@@ -20,7 +20,6 @@ let secondarycolor;
 let secondarycolordark;
 let darkMode = false;
 
-console.log(window);
 // Make a GET request to the API using Axios and the specified parameters.
 axios.get(url, { params })
   .then(response => {
