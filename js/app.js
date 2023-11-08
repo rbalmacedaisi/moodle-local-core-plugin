@@ -3,11 +3,11 @@
 // with a script in the HTML.
 
 // URL of the API to query.
-const url = 'https://lxp-dev.soluttolabs.com/webservice/rest/server.php';
+const url = window.location.origin+'/webservice/rest/server.php';
 
 // Parameters to send with the API request.
 const params = {
-  wstoken: '943a55babc7ac145d983b6e3d7cd29df',
+  wstoken: window.userToken,
   moodlewsrestformat: 'json',
   wsfunction: 'local_soluttolms_core_get_theme_settings',
   themename: 'soluttolmsadmin'
@@ -20,6 +20,7 @@ let secondarycolor;
 let secondarycolordark;
 let darkMode = false;
 
+console.log(window);
 // Make a GET request to the API using Axios and the specified parameters.
 axios.get(url, { params })
   .then(response => {

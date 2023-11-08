@@ -532,7 +532,6 @@ Vue.component('availabilitytable',{
             
             // Parse the data from the API response and assign it to the 'teacherAvailabilityRecords' array.
             this.teacherAvailabilityRecords = JSON.parse(availabilityResponse.data.teacherAvailabilityRecords)
-            console.log(JSON.parse(availabilityResponse.data.teacherAvailabilityRecords))
             // Extract available days for each instructor.
             this.teacherAvailabilityRecords.forEach(record => {
               const days = Object.keys(record.disponibilityRecords);
