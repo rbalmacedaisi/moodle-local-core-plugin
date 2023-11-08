@@ -65,6 +65,7 @@ $users =array_values( array_map(function ($user){
 
 $institution = get_institution_contract_panel_info($institutionId , $contractFilter , $contractUserFilter);
 
+
 $courses = $DB->get_records('course');
 $courses =array_values( array_map(function ($course){
     $courseMin = new stdClass();

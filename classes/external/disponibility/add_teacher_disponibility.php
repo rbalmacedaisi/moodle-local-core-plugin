@@ -24,21 +24,16 @@
 
 namespace local_grupomakro_core\external\disponibility;
 
-use context_system;
 use external_api;
 use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_multiple_structure;
 use external_value;
-use stdClass;
 use Exception;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once $CFG->libdir . '/externallib.php';
-require_once($CFG->libdir . '/filelib.php');
-require_once($CFG->dirroot.'/lib/moodlelib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
  * External function 'local_grupomakro_add_teacher_disponibility' implementation.
@@ -71,7 +66,12 @@ class add_teacher_disponibility extends external_api {
                         'Record for a single day of availability'
                     ),
                     'Array of availability records for each day of the week'
-                )
+                ),
+                'skills'=>
+                    new external_multiple_structure(
+                        new external_value(PARAM_INT, 'Array of skills IDs', VALUE_DEFAULT, []),
+                        'Array of skills IDs'
+                ),
             ],
             'Parameters for setting instructor availability'
         );
@@ -89,49 +89,21 @@ class add_teacher_disponibility extends external_api {
      * @external
      */
     public static function execute(
-        $instructorId,$newDisponibilityRecords
+        $instructorId,$newDisponibilityRecords,$skills
         ) {
         
         try {
             // Validate the parameters passed to the function.
             $params = self::validate_parameters(self::execute_parameters(), [
                 'instructorId' => $instructorId,
-                'newDisponibilityRecords' => $newDisponibilityRecords
+                'newDisponibilityRecords' => $newDisponibilityRecords,
+                'skills'=>$skills
             ]);
             
-            // Global variables.
-            global $DB;
-            
-            $dayENLabels = array(
-                'lunes' => 'disp_monday',
-                'martes' => 'disp_tuesday',
-                'miercoles' => 'disp_wednesday',
-                'jueves' => 'disp_thursday',
-                'viernes' => 'disp_friday',
-                'sabado' => 'disp_saturday',
-                'domingo' => 'disp_sunday'
-            );
-    
-            $teacherDisponibility = new stdClass();
-            $teacherDisponibility->userid =$instructorId;
-            
-            foreach($newDisponibilityRecords as $newDisponibilityRecord){
-                $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
-                $teacherDisponibility->{$dayENLabels[$day]}=json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
-            }
-            
-            foreach($dayENLabels as $dayLabel){
-                !property_exists( $teacherDisponibility,$dayLabel)?$teacherDisponibility->{$dayLabel}="[]" :null;
-            }
-            
-            try {
-                $disponibilityRecordId = $DB->insert_record('gmk_teacher_disponibility',$teacherDisponibility);
-            } catch (Exception $e) {
-                $disponibilityRecordId = -1;
-            }
+            $disponibilityRecordId = add_teacher_disponibility($params);
             
             // Return the result.
-            return ['status' => $disponibilityRecordId, 'message' => 'ok'];
+            return [ 'disponibilityRecordId' => $disponibilityRecordId];
         } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
@@ -146,8 +118,9 @@ class add_teacher_disponibility extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the disponibility record or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_INT, 'The ID of the disponibility record or -1 if there was an error.',VALUE_DEFAULT,1),
+                'disponibilityRecordId' => new external_value(PARAM_INT, 'The ID of the disponibility record or null if there was an error.',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

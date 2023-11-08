@@ -273,6 +273,7 @@ $string['check_availability'] = 'Ver disponibilidad de instructores';
 $string['rescheduling_activity'] = 'Reprogramando actividad de ';
 $string['reschedule'] = 'Reprogramar';
 $string['confirm_reschedule_title'] = 'Confirmacion reprogramación';
+$string['see_availability'] = 'Ver disponibilidad';
 
 // Pagina de Horarios.
 $string['schedules'] = 'Horarios';
@@ -363,3 +364,10 @@ $string['msg:send_reschedule_message:body'] = '
 <p>Para reprogramar la sesión haz click <a href="{$a->rescheduleUrl}">aquí.</a></p>';
 $string['msg:send_reschedule_message:subject'] ='Solicitud de reprogramación nueva';
 $string['msg:send_reschedule_message:contexturlname'] ='Reprogramar sesión';
+$string['enter_name'] ='Ingrese un nombre';
+$string['general_data'] ='Datos Generales';
+$string['class_schedule_days'] ='Horario y días de clase';
+$string['list_available_instructors'] ='Lista de Instructores Disponibles';
+
+// Pagina Panel de Disponivilidad.
+$string['availability_bulk_load'] ='Carga masiva de disponibilidad';

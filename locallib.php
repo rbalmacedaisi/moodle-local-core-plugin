@@ -53,10 +53,21 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     }
 }
 
-function get_teachers_disponibility($instructorId) {
+function get_teachers_disponibility($params) {
+    $timePattern = "/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/";
+    $params['initTime'] = preg_match($timePattern, $params['initTime'])?$params['initTime']: null;
+    $params['endTime'] = preg_match($timePattern, $params['endTime'])?$params['endTime']: null;
+    
+    $incomingTimestampRange = $params['initTime'] && $params['endTime'] ? convert_time_range_to_timestamp_range([$params['initTime'],$params['endTime']]) : null;
+    $incomingTimestampRangeObject = new stdClass();
+    if($incomingTimestampRange){
+        $incomingTimestampRangeObject->st = $incomingTimestampRange['initTS'];
+        $incomingTimestampRangeObject->et = $incomingTimestampRange['endTS'];
+    }
+    
     global $DB;
-    $skillCustomFieldId = $DB->get_record('user_info_field',['shortname'=>'skills'])->id;
-    $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $instructorId? ['userid'=>$instructorId]:[]);
+    $teacherSkills = $DB->get_records('gmk_teacher_skill');
+    $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $params['instructorId']? ['userid'=>$params['instructorId']]:[]);
     $weekdays = array(
         'disp_monday' => 'Lunes',
         'disp_tuesday' => 'Martes',
@@ -76,23 +87,40 @@ function get_teachers_disponibility($instructorId) {
         $teachersDisponibility[$teacherId]->instructorName = $teacherInfo->firstname.' '.$teacherInfo->lastname;
         $teachersDisponibility[$teacherId]->instructorPicture =get_user_picture_url($teacherId);
         
-        $teacherSkills = $DB->get_record('user_info_data',['userid'=>$teacherId,'fieldid'=>$skillCustomFieldId])->data;
-        $teachersDisponibility[$teacherId]->instructorSkills= !is_null($teacherSkills)? array_map('trim',explode(',',$teacherSkills)):[];
+        
+        $teacherSkillsRelations = $DB->get_records('gmk_teacher_skill_relation',['userid'=>$teacherId]);
+        $teachersDisponibility[$teacherId]->instructorSkills = [];
+        foreach($teacherSkillsRelations as $teacherSkillsRelation){
+            $teachersDisponibility[$teacherId]->instructorSkills[]=['name'=>$teacherSkills[$teacherSkillsRelation->skillid]->name,'id'=>$teacherSkillsRelation->skillid];    
+        }
         
         $teachersDisponibility[$teacherId]->disponibilityRecords = array();
+        
+        $teachersDisponibility[$teacherId]->rangeFilterFounded=false;
         foreach($weekdays as $dayColumnName => $day){
+            if($incomingTimestampRange && !$teachersDisponibility[$teacherId]->rangeFilterFounded){
+                $teachersDisponibility[$teacherId]->rangeFilterFounded = check_if_time_range_is_contained(json_decode($disponibilityRecord->{$dayColumnName}),$incomingTimestampRangeObject);
+            }
             $timeSlots = convert_timestamp_ranges_to_time_ranges($disponibilityRecord->{$dayColumnName});
             if(empty($timeSlots)){
                 continue;
             };
             $teachersDisponibility[$teacherId]->disponibilityRecords[$day] = $timeSlots;
+            $teachersDisponibility[$teacherId]->days[]=$day;
         }
     }
+    if($incomingTimestampRange){
+        $teachersDisponibility = array_filter($teachersDisponibility,function($teacherDisponibilityRecord){
+            return $teacherDisponibilityRecord->rangeFilterFounded;
+        });
+    }
+
     return $teachersDisponibility;
 }
 
 function check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,$classroomId='', $classId = null){
     //Check the instructor availability
+    global $DB;
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
@@ -105,11 +133,12 @@ function check_class_schedule_availability($instructorId,$classDays, $initTime ,
     $errors = array();
     
     $incomingClassSchedule = explode('/', $classDays);
-    
     $incomingTimestampRange = convert_time_range_to_timestamp_range([$initTime,$endTime]);
-    
-    $availabilityRecords = get_teachers_disponibility($instructorId)[$instructorId]->disponibilityRecords;
+
+    $availabilityRecords = get_teachers_disponibility(['instructorId'=>$instructorId])[$instructorId]->disponibilityRecords;
+
     for ($i = 0; $i < 7; $i++) {
+
         if($incomingClassSchedule[$i]==="1" && !array_key_exists($weekdays[$i],$availabilityRecords)){
             $errorString = "El instructor no esta disponible el día ".$weekdays[$i];
             $errors[]=$errorString;
@@ -129,10 +158,7 @@ function check_class_schedule_availability($instructorId,$classDays, $initTime ,
             }
         }
     }
-    $classes = list_classes([]);
-    $alreadyAsignedClasses = array_filter($classes, function($class) use ($instructorId) {
-        return $class->instructorid === strval($instructorId);
-    });
+    $alreadyAsignedClasses = list_classes(['instructorid'=>strval($instructorId)]);
     
     if($classId){
         unset($alreadyAsignedClasses[$classId]);
@@ -177,10 +203,142 @@ function check_class_schedule_availability($instructorId,$classDays, $initTime ,
     //         }
     //     }
     // }
-    if(count($errors)>0){
+    if(!empty($errors)){
         throw new Exception(json_encode($errors));
     }
+    return true;
+}
 
+function get_potential_class_teachers($params){
+    global $USER, $DB;
+    $timePattern = "/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/";
+    $weekdays = array(
+        0 => 'Lunes',
+        1 => 'Martes',
+        2 => 'Miércoles',
+        3 => 'Jueves',
+        4 => 'Viernes',
+        5 => 'Sábado',
+        6 => 'Domingo'
+    );
+    
+    $params['classDays'] = $params['classDays'] !== '0/0/0/0/0/0/0'?$params['classDays']: null;
+    $params['initTime'] = preg_match($timePattern, $params['initTime'])?$params['initTime']: null;
+    $params['endTime'] = preg_match($timePattern, $params['endTime'])?$params['endTime']: null;
+    
+    
+    $teacherSkills = $DB->get_records('gmk_teacher_skill');
+    
+    //Get the learning plan teachers and complete fullname, email and skills attributes
+    $learningPlanTeachers = $DB->get_records("local_learning_users", ['learningplanid' => $params['learningPlanId'], 'userroleid' => 4]);
+    
+    $learningPlanTeachers = array_map(function ($teacher) use ($DB,$teacherSkills){
+        $coreUser = $DB->get_record('user',['id'=>$teacher->userid]);
+        $teacher->id = $coreUser->id;
+        $teacher->fullname = $coreUser->firstname.' '.$coreUser->lastname;
+        $teacher->email = $coreUser->email;
+        $teacherSkillsRelations = $DB->get_records('gmk_teacher_skill_relation',['userid'=>$teacher->userid]);
+        $teacher->instructorSkills = [];
+        foreach($teacherSkillsRelations as $teacherSkillsRelation){
+            $teacher->instructorSkills[]=$teacherSkills[$teacherSkillsRelation->skillid]->name;    
+        }
+        return $teacher;
+    },$learningPlanTeachers);
+    
+    
+    //Get the learning plan course for the course id given
+    
+    if($params['courseId']){
+        $learningPlanCourse =  $DB->get_record("local_learning_courses", ['id' => $params['courseId']]);
+        $learningPlanCourse->fullname = $DB->get_record("course", ['id' => $learningPlanCourse->courseid])->fullname;
+        
+        $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($DB,$params,$learningPlanCourse){
+            $teacherHasSkill = false;
+            foreach($teacher->instructorSkills as $teacherSkill){
+                if(containsSubstringIgnoringCaseAndTildes($teacherSkill,$learningPlanCourse->fullname)){
+                    return $teacher;
+                }
+            }
+            return null;
+        },$learningPlanTeachers));
+    }
+    
+    
+    
+    if($params['classDays'] && !$params['initTime'] && !$params['endTime'] ){
+        $incomingClassSchedule = explode('/', $params['classDays']);
+        $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($incomingClassSchedule,$weekdays){
+            $availabilityRecords = get_teachers_disponibility(['instructorId'=>$teacher->userid])[$teacher->userid]->disponibilityRecords;
+            for ($i = 0; $i < 7; $i++) {
+                if($incomingClassSchedule[$i]==="1" && !array_key_exists($weekdays[$i],$availabilityRecords)){
+                    return null;
+                }
+            }
+            return $teacher;
+        },$learningPlanTeachers));
+    }
+    
+    if($params['initTime'] || $params['endTime']){
+        
+        $initTime = $params['initTime'] ? $params['initTime'] : updateTimeByMinutes($params['endTime'],-1) ;
+        $endTime = $params['endTime'] ? $params['endTime'] : updateTimeByMinutes($params['initTime'],1);
+        $classDays =$params['classDays'] ?$params['classDays']:'1/1/1/1/1/1/1';
+        $incomingClassSchedule = explode('/', $classDays);
+        $incomingTimestampRange = convert_time_range_to_timestamp_range([$initTime,$endTime]);
+        
+        $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($initTime,$endTime,$incomingClassSchedule,$incomingTimestampRange,$weekdays,$classDays){
+            $availableDays=[];
+            $availabilityRecords = get_teachers_disponibility(['instructorId'=>$teacher->userid])[$teacher->userid]->disponibilityRecords;
+            for ($i = 0; $i < 7; $i++) {
+                
+                if($classDays && $incomingClassSchedule[$i]==="1" && !array_key_exists($weekdays[$i],$availabilityRecords)){
+                    return null;
+                }
+                if ($incomingClassSchedule[$i]==="1" && array_key_exists($weekdays[$i],$availabilityRecords)){;
+                    $foundedAvailableRange = false;
+                    foreach($availabilityRecords[$weekdays[$i]] as $timeRange){
+                        $availabilityTimestampRange = convert_time_range_to_timestamp_range(explode(', ',$timeRange));
+                        if($incomingTimestampRange["initTS"] >=$availabilityTimestampRange["initTS"] && $incomingTimestampRange["endTS"] <=$availabilityTimestampRange["endTS"]){
+                            $foundedAvailableRange = true;
+                            break;
+                        }
+                    }
+                    if($foundedAvailableRange){
+                        $availableDays[]=$weekdays[$i];
+                    }
+                }
+            }
+            $availableDays = array_filter($availableDays);
+            // print_object($availableDays);
+            if(!$availableDays){
+                return null;
+            }
+            $alreadyAsignedClasses = list_classes(['instructorid'=>$teacher->userid]);
+            foreach($alreadyAsignedClasses as $alreadyAsignedClass){
+                $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
+                $classInitTime = $alreadyAsignedClass->inittimets;
+                $classEndTime = $alreadyAsignedClass->endtimets;
+                
+                for ($i = 0; $i < 7; $i++) {
+                    if ($incomingClassSchedule[$i] == $alreadyAsignedClassSchedule[$i] && $incomingClassSchedule[$i] === '1') {
+                        if(($incomingTimestampRange["initTS"] >= $classInitTime && $incomingTimestampRange["endTS"]<=$classEndTime) || ($incomingTimestampRange["initTS"]< $classInitTime && $incomingTimestampRange["endTS"]>$classInitTime) ||($incomingTimestampRange["initTS"]< $classEndTime && $incomingTimestampRange["endTS"]>$classEndTime)){
+                            $index = array_search($weekdays[$i], $availableDays);
+                            if ($index !== false) {
+                                unset($availableDays[$index]);
+                            }
+                        }
+                    }
+                }
+            }
+            $availableDays = array_filter($availableDays);
+            if(!$availableDays){
+                return null;
+            }
+            return $teacher;
+        },$learningPlanTeachers));
+        
+    }
+    return $learningPlanTeachers;
 }
 
 function create_class($classParams){
@@ -579,8 +737,8 @@ function update_class_group($class,$oldInstructorId){
     }
 
     //Remove the previous instructor and add the new one to the group
-    $instructorAddedToGroup = groups_remove_member($class->groupid,$oldInstructorId);
-    $instructorAddedToGroup = groups_add_member($class->groupid,$class->instructorid);
+    $groupInstructorRemoved = groups_remove_member($class->groupid,$oldInstructorId);
+    $groupInstructorAdded = groups_add_member($class->groupid,$class->instructorid);
 
     return $updatedClassGroup->updatedGroup;
 }
@@ -687,7 +845,7 @@ function get_class_schedules_overview($params){
         $course->capacityPercent = $course->remainingCapacity / $course->totalCapacity;
         
         $course->capacityColor = '#FFECB3';
-        $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : $course->capacityPercent < 0.20? '#FF5252' : null;
+        $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : ($course->capacityPercent < 0.20? '#FF5252' : null);
         return $course;
     },$learningPlansCoursesSchedules);
     return $learningPlansCoursesSchedules;
@@ -938,6 +1096,408 @@ function get_scheduleless_students($params){
     },$schedulelessUsers);
    
     return $schedulelessUsers;
+}
+
+function add_teacher_disponibility($params){
+    global $DB, $USER;
+    $errors = [];
+    if($DB->get_record('gmk_teacher_disponibility',['userid'=>$params['instructorId']])){
+        $errors[]='Disponibility already defined for the user with id '.$params['instructorId'].'.';
+    }
+    $dayENLabels = array(
+        'lunes' => 'disp_monday',
+        'martes' => 'disp_tuesday',
+        'miercoles' => 'disp_wednesday',
+        'jueves' => 'disp_thursday',
+        'viernes' => 'disp_friday',
+        'sabado' => 'disp_saturday',
+        'domingo' => 'disp_sunday'
+    );
+    
+    $fetchedSkills = [];
+    foreach($params['skills'] as $skillId){
+        if(!$skill = $DB->get_record('gmk_teacher_skill',['id'=>$skillId])){
+            $errors[]='Invalid skill id: '.$skillId.'.';
+        }
+        $fectchedSkills[$skillId]=$skill;
+    }
+
+    $teacherDisponibility = new stdClass();
+    $teacherDisponibility->userid =$params['instructorId'];
+    
+    foreach($params['newDisponibilityRecords'] as $newDisponibilityRecord){
+        $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+        $teacherDisponibility->{$dayENLabels[$day]}=json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
+    }
+    foreach($dayENLabels as $dayLabel){
+        !property_exists( $teacherDisponibility,$dayLabel)?$teacherDisponibility->{$dayLabel}="[]" :null;
+    }
+    if(!empty($errors)){
+        throw new Exception(json_encode($errors));
+    }
+    $disponibilityRecordId = $DB->insert_record('gmk_teacher_disponibility',$teacherDisponibility);
+    foreach($params['skills'] as $skillId){
+        $teacherSkillRelation = new stdClass();
+        $teacherSkillRelation->skillid = $skillId;
+        $teacherSkillRelation->userid = $params['instructorId'];
+        $teacherSkillRelation->usermodified = $USER->id;
+        $teacherSkillRelation->timecreated =time();
+        $teacherSkillRelation->timemodified = time();
+        
+        $DB->insert_record('gmk_teacher_skill_relation',$teacherSkillRelation);
+        
+    }
+    
+    return $disponibilityRecordId;
+}
+
+function update_teacher_disponibility($params){
+    global $DB,$USER ;
+    $errors = [];
+    $dayENLabels = array(
+        'lunes' => 'disp_monday',
+        'martes' => 'disp_tuesday',
+        'miercoles' => 'disp_wednesday',
+        'jueves' => 'disp_thursday',
+        'viernes' => 'disp_friday',
+        'sabado' => 'disp_saturday',
+        'domingo' => 'disp_sunday'
+    );
+    $weekdays = [
+        "Monday" => "Lunes",
+        "Tuesday" => "Martes",
+        "Wednesday" => "Miércoles",
+        "Thursday" => "Jueves",
+        "Friday" => "Viernes",
+        "Saturday" => "Sábado",
+        "Sunday" => "Domingo"
+    ];
+    
+    foreach($params['skills'] as $skillId){
+        if(!$DB->get_record('gmk_teacher_skill',['id'=>$skillId])){
+            $errors[]='Invalid skill id: '.$skillId.'.';
+        }
+    }
+    
+    $teacherDisponibilityId= $DB->get_record('gmk_teacher_disponibility',['userid'=>$params['instructorId']])->id;
+            
+    $teacherDisponibility = new stdClass();
+    $teacherDisponibility->id = $teacherDisponibilityId;
+    $teacherDisponibility->userid = $params['instructorId'];
+    
+    $disponibilityDays = array();
+    foreach($params['newDisponibilityRecords'] as $newDisponibilityRecord){
+        $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+        $teacherDisponibility->{$dayENLabels[$day]}=calculate_disponibility_range($newDisponibilityRecord['timeslots']);
+        $disponibilityDays[]=explode( '_',$dayENLabels[$day])[1];
+    }
+    
+    $instructorAsignedClasses = list_classes(['instructorid'=>$params['instructorId']]);
+    $classLearningPlans = array();
+            
+    foreach($instructorAsignedClasses as $instructorAsignedClass){
+        
+        if(!in_array($instructorAsignedClass->learningplanid, $classLearningPlans)){
+            $classLearningPlans[]=$instructorAsignedClass->learningplanid;
+        }
+
+        // Check if a day that is already defined for a class is missing in the new disponibility
+        foreach($instructorAsignedClass->selectedDaysEN as $classDay){
+             if(!in_array(strtolower($classDay),$disponibilityDays)){
+                $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->inithourformatted.'-'.$instructorAsignedClass->endhourformatted. "), no esta definido en la nueva disponibilidad; no se puede actualizar.";
+                $errors[]=$errorString;
+            }
+            
+            $foundedRange = false;
+            $dayDisponibilities = $teacherDisponibility->{'disp_'.strtolower($classDay)};
+            foreach($dayDisponibilities as $dayDisponibility){
+                if($instructorAsignedClass->inittimets >= $dayDisponibility->st &&  $instructorAsignedClass->endtimets  <= $dayDisponibility->et){
+                    $foundedRange = true;
+                    break;
+                }
+            }
+            if(!$foundedRange){
+                $errorString = "El horario de la clase ".$instructorAsignedClass->coreCourseName." con id=".$instructorAsignedClass->id." (".$weekdays[$classDay]." ".$instructorAsignedClass->inithourformatted.'-'.$instructorAsignedClass->endhourformatted. "), no esta definido en la nueva disponibilidad; no se puede actualizar.";
+                $errors[]=$errorString;
+            }
+        }
+    }
+    
+    
+    //Check if there is a change in the user availability owner
+    if($params['newInstructorId'] && $params['newInstructorId'] !== $params['instructorId'] && empty($errors)){
+        $validNewInstructor = true;
+        if($DB->get_record('gmk_teacher_disponibility', array('userid'=>$params['newInstructorId']))){
+            $errorString = 'El nuevo instructor ya tiene una disponibilidad definida.';
+            $errors[]=$errorString;
+            $validNewInstructor = false;
+        }
+        
+        foreach($classLearningPlans as $classLearningPlan){
+            if(!$DB->get_record('local_learning_users', array('userid'=>$params['newInstructorId'], 'learningplanid'=>$classLearningPlan, 'userrolename'=>'teacher'))){
+                $errorString = 'El nuevo instructor no esta en el plan de aprendizaje '.$DB->get_record('local_learning_plans', array('id'=>$classLearningPlan))->name.' ('.$classLearningPlan.')';
+                $errors[]=$errorString;
+                $validNewInstructor = false;
+            }
+        }
+        
+        if($validNewInstructor){
+            foreach($instructorAsignedClasses as $instructorAsignedClass ){
+                $classRecord = $DB->get_record('gmk_class',array('id'=>$instructorAsignedClass->id));
+                $classRecord->instructorid = $params['newInstructorId'];
+                $updateClassInstructor = $DB->update_record('gmk_class',$classRecord);
+                
+                //Update the group with the new instructor
+                $classGroupId = $instructorAsignedClass->groupid;
+                
+                $groupInstructorRemoved = groups_remove_member($classGroupId,$params['instructorId']);
+                $groupInstructorAdded = groups_add_member($classGroupId,$params['newInstructorId']);
+            }
+            $teacherDisponibility->userid=$params['newInstructorId'];
+        }
+    }
+    foreach($teacherDisponibility as $columnKey => $columnValue){
+        if(strpos($columnKey, 'disp_')!== false){
+            $teacherDisponibility->{$columnKey} = json_encode($columnValue);
+        }
+    }
+    foreach($dayENLabels as $dayLabel){
+        !property_exists( $teacherDisponibility,$dayLabel)?$teacherDisponibility->{$dayLabel}="[]" :null;
+    }
+    if(!empty($errors)){
+        throw new Exception(json_encode($errors));
+    }
+    $disponibilityRecordUpdated = $DB->update_record('gmk_teacher_disponibility',$teacherDisponibility);
+    
+    $DB->delete_records('gmk_teacher_skill_relation',['userid'=>$params['instructorId']]);
+    foreach($params['skills'] as $skillId){
+        $teacherSkillRelation = new stdClass();
+        $teacherSkillRelation->skillid = $skillId;
+        $teacherSkillRelation->userid = $teacherDisponibility->userid;
+        $teacherSkillRelation->usermodified = $USER->id;
+        $teacherSkillRelation->timecreated =time();
+        $teacherSkillRelation->timemodified = time();
+        $DB->insert_record('gmk_teacher_skill_relation',$teacherSkillRelation);
+    }
+    
+    return $disponibilityRecordUpdated;
+}
+
+function bulk_update_teachers_disponibilities($disponibilityRecords){
+    $results = [];
+    
+    global $DB;
+    foreach($disponibilityRecords as $disponibilityRecord){
+        $results[$disponibilityRecord['instructorId']]=[];
+        $results[$disponibilityRecord['instructorId']]['instructorId']=$disponibilityRecord['instructorId'];
+        
+        try{
+            if(!$DB->get_record('gmk_teacher_disponibility',['userid'=>$disponibilityRecord['instructorId']])){
+                $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
+                $results[$disponibilityRecord['instructorId']]['status']=1;
+                $results[$disponibilityRecord['instructorId']]['message']='Disponibility created with id '.$newDisponibilityId;
+                continue;
+            }
+            $disponibilityUpdated = update_teacher_disponibility($disponibilityRecord);
+            $results[$disponibilityRecord['instructorId']]['status']=1;
+            $results[$disponibilityRecord['instructorId']]['message']='Disponibility updated';
+        }catch (Exception $e){
+            $results[$disponibilityRecord['instructorId']]['status']=-1;
+            $results[$disponibilityRecord['instructorId']]['message']=$e->getMessage();
+        }
+    }
+
+    return $results;
+}
+
+function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
+    // File found. Read the content of the file.
+    $filecontent = $bulkDisponibilitiesFile->get_content();
+    $disponibilityCSVRows = explode(PHP_EOL, $filecontent);
+    $disponibilityCSVHeaders = str_getcsv(array_shift($disponibilityCSVRows));
+    
+    $requiredHeaders =[ 
+        'instructor_id'=>'instructorId',
+        'monday_disponibility'=>'lunes',
+        'tuesday_disponibility'=>'martes',
+        'wednesday_disponibility'=>'miercoles',
+        'thursday_disponibility'=>'jueves',
+        'friday_disponibility'=>'viernes',
+        'saturday_disponibility'=>'sabado',
+        'sunday_disponibility'=>'domingo',
+        'skills'=>'skills'
+    ];
+
+    foreach($requiredHeaders as $csvHeader=>$key){
+         if (!in_array($csvHeader, $disponibilityCSVHeaders)) {
+            throw new Exception('Missing required header: '.$csvHeader);
+        }
+    }
+
+    $errors=[];
+    $rowIndex = 1;
+    
+    $disponibilityRecords = array_filter(array_map(function($disponibilityRow)use($disponibilityCSVHeaders,$requiredHeaders, &$errors, &$rowIndex){
+        $rowData = str_getcsv($disponibilityRow);
+        $rowIndex += 1;
+        $disponibilityRecord= [];
+        $disponibilityRecord['newDisponibilityRecords']=[];
+        foreach ($disponibilityCSVHeaders as $index => $header) {
+            if(!$rowData[$index]){
+                continue;
+            }
+            if($header==='instructor_id'){
+                $disponibilityRecord[$requiredHeaders[$header]] = $rowData[$index];
+                continue;
+            }
+            else if($header === 'skills'){
+                $teacherSkills = parse_bulk_skills($rowData[$index]);
+                if(!$teacherSkills){
+                    $errors[]="Error en columna: ".$header.", linea: ".$rowIndex;
+                }else{
+                    $disponibilityRecord[$requiredHeaders[$header]] = $teacherSkills;
+                }
+                continue;
+            }else{
+                $teacherDayDisponibility = [];
+                $teacherDayDisponibility['timeslots']=parse_bulk_time_ranges($rowData[$index]);
+                if(!$teacherDayDisponibility['timeslots']){
+                    $errors[]="Error en columna: ".$header.", linea: ".$rowIndex;
+                    continue;
+                }
+                $teacherDayDisponibility['day']=$requiredHeaders[$header];
+                $disponibilityRecord['newDisponibilityRecords'][]=$teacherDayDisponibility;
+            }
+        }
+        if(!$disponibilityRecord['instructorId']){
+            return null;
+        }
+        return $disponibilityRecord;
+        
+    },$disponibilityCSVRows));
+    
+    if(!empty($errors)){
+        throw new Exception(json_encode($errors));
+    }
+    return $disponibilityRecords;
+}
+
+function parse_bulk_time_ranges($timeRanges){
+    $fullStringPattern = '/^(\[\d{2}:\d{2}-\d{2}:\d{2}\])+$/';
+    if(!preg_match($fullStringPattern,$timeRanges)){
+        return false;
+    }
+    $pattern = '/\[(\d{2}:\d{2}-\d{2}:\d{2})\]/';
+    preg_match_all($pattern, $timeRanges, $matches);
+    $timeslots = [];
+    foreach ($matches[1] as $match) {
+        $range = str_replace('-', ', ', $match);
+        $timeslots[] = $range;
+    }
+    return $timeslots;
+}
+
+function parse_bulk_skills($skillsIds){
+    
+    $fullStringPattern = '/^(\[\d{1,}\])+$/';
+    if(!preg_match($fullStringPattern,$skillsIds)){
+        return false;
+    }
+    $pattern = '/\[(\d{1,})\]/';
+    preg_match_all($pattern, $skillsIds, $matches);
+    $skills = [];
+    foreach ($matches[1] as $match) {
+        $skills[] = $match;
+    }
+    return $skills;
+}
+
+function close_current_period(){
+    global $DB,$USER;
+    
+    $prerequisiteCustomFieldId = $DB->get_record('customfield_field',['shortname'=>'pre'])->id;
+    $studentRoleId = $DB->get_record('role',['shortname'=>'student'])->id;
+    $enrolplugin = enrol_get_plugin('manual');
+    $learningPlans = $DB->get_records('local_learning_plans');
+    
+    $learningPlans = ['35'=>$learningPlans['35']];
+    
+    foreach($learningPlans as $learningPlan){
+        
+        $learningPlanPeriods = $DB->get_records('local_learning_periods',['learningplanid'=>$learningPlan->id]);
+        $learningPlanCourses = $DB->get_records('local_learning_courses',['learningplanid'=>$learningPlan->id]);
+        
+        foreach($learningPlanPeriods as $learningPlanPeriod){
+            
+            $LPPeriodStudents = $DB->get_records('local_learning_users',['learningplanid'=>$learningPlan->id,'currentperiodid'=>$learningPlanPeriod->id,'userroleid'=>5]);
+            if(!$LPPeriodStudents){
+                continue;
+            }
+            $nextPeriod = $learningPlanPeriods[$learningPlanPeriod->id+1];
+            if(!$nextPeriod){
+                continue;
+            }
+            $nextPeriodCourses = array_filter($learningPlanCourses,function ($course) use ($learningPlanPeriod){
+                return $course->periodid == $learningPlanPeriod->id+1;
+            });
+            
+            $DB->get_records('local_learning_courses',['learningplanid'=>$learningPlan->id,'periodid'=>$learningPlanPeriod->id]);
+            $nextPeriodCourses =  $DB->get_records('local_learning_courses',['learningplanid'=>$learningPlan->id,'periodid'=>$nextPeriod->id]);
+            
+            foreach($nextPeriodCourses as $nextPeriodCourse){
+                $course = get_course($nextPeriodCourse->courseid);
+                $coursePreRequisites = explode(',',$DB->get_record('customfield_data',['fieldid'=>$prerequisiteCustomFieldId,'instanceid'=>$nextPeriodCourse->courseid])->value);
+                
+                foreach($LPPeriodStudents as $LPPeriodStudent){
+                    $LPPeriodStudent->currentperiodid = $nextPeriod->id;
+                    $DB->update_record('local_learning_users',$LPPeriodStudent);
+                    
+                    if($coursePreRequisites){
+                        $preRequisitesComplete = true;
+                        
+                        foreach($coursePreRequisites as $coursePreRequisite){
+                            $preRequisiteCourse = $DB->get_record('course',['shortname'=>$coursePreRequisite]);
+                            $preRequisiteCourseCompletion = new completion_info($preRequisiteCourse);
+                            $preRequisiteCourseComplete = $preRequisiteCourseCompletion->is_course_complete($LPPeriodStudent->userid);
+                            
+                            if(!$preRequisiteCourseComplete){
+                                $preRequisitesComplete = false;
+                                break;
+                            }
+                        }
+                        if(!$preRequisitesComplete){
+                            continue;
+                        }
+                    }
+                    $courseInstance = get_manual_enroll($course->id);
+                    $enrolled = $enrolplugin->enrol_user($courseInstance, $LPPeriodStudent->userid, $studentRoleId);
+                }
+            }
+        }
+    }
+
+    die;
+}
+
+function get_teacher_available_courses($params){
+    global $DB;
+    
+    $teacherSkills = $DB->get_records('gmk_teacher_skill_relation',['userid'=>$params['instructorId']]);
+    
+    $learningPlanPeriodCourses = $DB->get_records('local_learning_courses',['learningplanid'=>$params['learningPlanId'],'periodid'=>$params['periodId']]);
+    $learningPlanPeriodCourses = array_filter(array_map(function ($course) use ($DB,$teacherSkills){
+        $course->name = $DB->get_record('course',['id'=>$course->courseid])->fullname;
+        $foundedRequiredSkill = false;
+        foreach($teacherSkills as $teacherSkill){
+            $teacherSkillName = $DB->get_record('gmk_teacher_skill',['id'=>$teacherSkill->skillid])->name;
+            $foundedRequiredSkill = containsSubstringIgnoringCaseAndTildes($teacherSkillName,$course->name);
+            if($foundedRequiredSkill){
+                return $course;
+            }
+        }
+        return null;
+    },$learningPlanPeriodCourses));
+    return $learningPlanPeriodCourses;
 }
 
 //Por revisar
@@ -1281,7 +1841,7 @@ function get_teacher_disponibility_calendar($instructorId){
             
             if(array_key_exists($day,$eventsTimesToSubstract)){
                 foreach($eventsTimesToSubstract[$day] as $event){
-                    $result[$day] = checkRangeArray($result[$day], $event);
+                    $result[$day] = substract_timerange_from_teacher_disponibility($result[$day], $event);
                 }
 
             }
@@ -1395,42 +1955,6 @@ function calculate_disponibility_range($timeRanges){
     return($result);
 }
 
-function checkRangeArray($rangeArray, $inputRange) {
-        foreach ($rangeArray as $key => $range) {
-            if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
-                // input range is fully contained within the current range
-                if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
-                    // input range is identical to current range, so remove it completely
-                    unset($rangeArray[$key]);
-                } else {
-                    // input range is within current range, so split it
-                    $newRange1 = new stdClass();
-                    $newRange1->st = $range->st;
-                    $newRange1->et = $inputRange->st;// - 1;
-    
-                    $newRange2 = new stdClass();
-                    $newRange2->st = $inputRange->et;// + 1;
-                    $newRange2->et = $range->et;
-    
-                    // remove the current range from the range array and add the two new ranges
-                    unset($rangeArray[$key]);
-    
-                    // if the input range is not completely contained in the beginning of the current range
-                    if ($newRange1->et > $newRange1->st) {
-                        $rangeArray[] = $newRange1;
-                    }
-    
-                    // if the input range is not completely contained in the end of the current range
-                    if ($newRange2->et > $newRange2->st) {
-                        $rangeArray[] = $newRange2;
-                    }
-                }
-                return $rangeArray;
-            } 
-        }
-        return $rangeArray;
-    }
-
 function replaceAttendanceSession($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$groupId){
     
     global $DB;
@@ -1517,6 +2041,8 @@ function get_institution_contracts($filters = null){
     
     // Retrieve records from the 'gmk_institution' table
     $institutionContracts = $DB->get_records('gmk_institution_contract',$filters);
+
+    
     foreach($institutionContracts as $institutionContract){
          $institutionContract->formattedInitDate = date('Y-m-d',$institutionContract->initdate);
          $institutionContract->formattedExpectedEndDate = date('Y-m-d',$institutionContract->expectedenddate);
@@ -1636,22 +2162,6 @@ function get_institution_contract_panel_info($institutionId, $institutionContrac
     return $institutionDetailedInfo;
 }
 
-/**
- * Get instance of manual enrol
- *
- * @param int $courseid
- * @return stdClass instance
- */
-function get_manual_enroll($courseid) {
-    $instances = enrol_get_instances($courseid, true);
-    foreach ($instances as $instance) {
-        if ($instance->enrol = 'manual') {
-            return $instance;
-        }
-    }
-    return false;
-}
-
 function check_enrol_link_validity($token){
     global $DB;
     
@@ -1719,15 +2229,15 @@ function create_student_user($user){
 }
 
 function get_classrooms(){
-    
+    // return [['label'=>'classroom test, Cap: 40', 'value'=>5,'capacity'=>40]];
     // Set the request URL
-    $url = 'https://isi-panama-staging-8577170.dev.odoo.com/api/classrooms';
+    $url = 'https://isi-panama-staging-10390570.dev.odoo.com/api/classrooms';
     $curl = curl_init($url);
     // Set the options for the cURL request
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); 
     curl_setopt($curl, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json',
-        'Authorization: tokendepruebas123'
+        'Authorization: solutto123'
     ));
     
     // Execute the cURL request and get the response
@@ -1737,6 +2247,7 @@ function get_classrooms(){
     }
     // Close the cURL resource
     curl_close($curl);
+
     // Process the response
     if ($response) {
         return array_map(function($classroom){
@@ -1775,6 +2286,9 @@ function student_get_active_classes($userId,$courseId = null){
 }
 
 function construct_active_schedule_object($class,$userId){
+    
+    global $DB;
+    
     $learningPlanActiveSchedule = new stdClass();
     $learningPlanActiveSchedule->days = "";
     foreach($class->selectedDaysES as $index => $classDay){
@@ -1786,7 +2300,7 @@ function construct_active_schedule_object($class,$userId){
     $learningPlanActiveSchedule->type = $class->typelabel;
     $learningPlanActiveSchedule->groupId = $class->groupid;
     $learningPlanActiveSchedule->classId = $class->id;
-    $learningPlanActiveSchedule->selected = is_user_registered_in_class($userId,$class->id);
+    $learningPlanActiveSchedule->selected = !!$DB->get_record('gmk_class_pre_registration', ['classid'=>$class->id, 'userid'=>$userId]);;
     $learningPlanActiveSchedule->available = $class->available;
     $learningPlanActiveSchedule->preRegisteredStudents = $class->preRegisteredStudents;
     $learningPlanActiveSchedule->queuedStudents = $class->queuedStudents;
@@ -1794,13 +2308,7 @@ function construct_active_schedule_object($class,$userId){
     return $learningPlanActiveSchedule;
 }
 
-function is_user_registered_in_class($userId,$classId){
-    global $DB;
-    return !!$DB->get_record('gmk_class_pre_registration', ['classid'=>$classId, 'userid'=>$userId]);
-}
-
-
-//Util functions
+//Util functions------------------------------------------------------------------------------------------------------------------------------
 
 function convert_time_range_to_timestamp_range($timeRange){
     $rangeInitHour = intval(substr($timeRange[0],0,2));
@@ -1872,4 +2380,114 @@ function get_logged_user_token(){
     global $DB,$USER;
     $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
     return json_encode(external_generate_token_for_current_user($service)->token);
+}
+
+function containsSubstringIgnoringCaseAndTildes($needle, $haystack) {
+    // Convert both strings to lowercase
+    $needle = mb_strtolower($needle, 'UTF-8');
+    $haystack = mb_strtolower($haystack, 'UTF-8');
+    
+    $transliterator = Transliterator::create('NFD;[:Nonspacing Mark:] Remove;NFC');
+
+    // Remove diacritic marks (tildes) using iconv
+    $needle = $transliterator->transliterate($needle);
+    $haystack = $transliterator->transliterate($haystack);
+
+    // Use strpos to check if $needle is in $haystack
+    return strpos($haystack, $needle) !== false;
+}
+
+function updateTimeByMinutes($timeString, $minutesToAdd = 1) {
+    list($hour, $minute) = explode(":", $timeString);
+
+    // Convert hour and minute to integers
+    $hour = intval($hour);
+    $minute = intval($minute);
+
+    // Check if we should add or subtract minutes
+    if ($minutesToAdd >= 0) {
+        $minute += $minutesToAdd;
+    } else {
+        $minute -= abs($minutesToAdd);
+    }
+
+    // Handle overflow and underflow
+    while ($minute < 0) {
+        $hour -= 1;
+        $minute += 60;
+    }
+
+    while ($minute > 59) {
+        $hour += 1;
+        $minute -= 60;
+    }
+
+    // Format the updated time back into "HH:MM"
+    $updatedTime = sprintf("%02d:%02d", $hour, $minute);
+
+    return $updatedTime;
+}
+
+function check_if_time_range_is_contained($rangeArray,$inputRange){
+    $rangeContained = false;
+    foreach ($rangeArray as $key => $range) {
+        if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
+            // input range is fully contained within the current range
+            $rangeContained = true;
+            break;
+        } 
+    }
+    return $rangeContained;
+}
+
+function substract_timerange_from_teacher_disponibility($rangeArray, $inputRange) {
+    foreach ($rangeArray as $key => $range) {
+        if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
+            // input range is fully contained within the current range
+            if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
+                // input range is identical to current range, so remove it completely
+                unset($rangeArray[$key]);
+            } else {
+                // input range is within current range, so split it
+                $newRange1 = new stdClass();
+                $newRange1->st = $range->st;
+                $newRange1->et = $inputRange->st;// - 1;
+
+                $newRange2 = new stdClass();
+                $newRange2->st = $inputRange->et;// + 1;
+                $newRange2->et = $range->et;
+
+                // remove the current range from the range array and add the two new ranges
+                unset($rangeArray[$key]);
+
+                // if the input range is not completely contained in the beginning of the current range
+                if ($newRange1->et > $newRange1->st) {
+                    $rangeArray[] = $newRange1;
+                }
+
+                // if the input range is not completely contained in the end of the current range
+                if ($newRange2->et > $newRange2->st) {
+                    $rangeArray[] = $newRange2;
+                }
+            }
+            return $rangeArray;
+        } 
+    }
+    return $rangeArray;
+}
+
+/**
+ * Get instance of manual enrol
+ *
+ * @param int $courseid
+ * @return stdClass instance
+ */
+function get_manual_enroll($courseid) {
+    $instances = enrol_get_instances($courseid, true);
+    foreach ($instances as $instance) {
+        if ($instance->enrol = 'manual') {
+            return $instance;
+        }
+    }
+    return false;
 }

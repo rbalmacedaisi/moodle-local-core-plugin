@@ -15,10 +15,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_delete_teacher_disponibility external function.
+ * Class definition for the local_bulk_update_teachers_disponibility external function.
  *
  * @package    local_grupomakro_core
- * @copyright  2023 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -30,72 +30,78 @@ use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
+use stdClass;
 use Exception;
-
 
 defined('MOODLE_INTERNAL') || die();
 
+// require_once $CFG->libdir . '/externallib.php';
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
 /**
- * External function 'local_grupomakro_delete_teacher_disponibility' implementation.
+ * External function 'local_bulk_update_teachers_disponibility' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
- * @copyright   2023 Solutto Consulting <devs@soluttoconsulting.com>
+ * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class delete_teacher_disponibility extends external_api {
+class bulk_update_teachers_disponibility extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
      */
-    public static function execute_parameters(): external_function_parameters {
+     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_INT, 'ID of the instructor', VALUE_REQUIRED),
-            ],
-            'Parameters for deleting instructor availability'
+                'contextId' => new external_value(PARAM_INT, 'CSV File context Id',VALUE_REQUIRED),    
+                'itemId' => new external_value(PARAM_INT, 'CSV File item Id',VALUE_REQUIRED),    
+                'filename' => new external_value(PARAM_TEXT, 'CSV File name',VALUE_REQUIRED),    
+            ]
         );
     }
+
     /**
      * TODO describe what the function actually does.
      *
-     * @param int instructorId
+     * @param int $userid
      * @return mixed TODO document
      */
     public static function execute(
-            $instructorId
+            $contextId,$itemId,$filename
         ) {
+            
+         $params = self::validate_parameters(self::execute_parameters(), [
+            'contextId' => $contextId,
+            'itemId' =>$itemId,
+            'filename'=>$filename,
+        ]);
+
         
         try{
-            // Validate the parameters passed to the function.
-            $params = self::validate_parameters(self::execute_parameters(), [
-                'instructorId' => $instructorId,
-            ]);
-            
-            // Global variables.
-            global $DB;
-            
-            
-            $instructorAsignedClasses = $DB->get_records('gmk_class',['instructorid'=>$params['instructorId']]);
-            
-            if(count($instructorAsignedClasses)>0){
-                $errorString = "El instructor tiene clases asignadas, no se puede eliminar la disponibilidad.";
-                throw new Exception($errorString);
-            }
-            $deleteDisponibilityRecord = $DB->delete_records('gmk_teacher_disponibility',['userid'=>$instructorId]);
-            $deleteTeacherSkillRelations = $DB->delete_records('gmk_teacher_skill_relation',['userid'=>$instructorId]);
+            $fs = get_file_storage();
+            $bulkDisponibilitiesFile = $fs->get_file($params['contextId'],'user','draft',$params['itemId'],'/',$params['filename']);
 
-            // Return the result.
-            return ['status' => $deleteDisponibilityRecord];
+            if (!$bulkDisponibilitiesFile) {
+                throw new Exception('File not found.');
+            }
+            
+            $disponibilityRecords = parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile);
+            
+            $bulkUpdateResults = bulk_update_teachers_disponibilities($disponibilityRecords);
+
+            $bulkDisponibilitiesFileDeleted = $bulkDisponibilitiesFile->delete();
+
+            return ['result' => json_encode($bulkUpdateResults)];
         }
+        
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
-    }
-    
 
+    }
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
@@ -104,7 +110,8 @@ class delete_teacher_disponibility extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'The ID of the delete class or -1 if there was an error.'),
+                'status' => new external_value(PARAM_INT, '1 if success, -1 otherwise',VALUE_DEFAULT,1),
+                'result' => new external_value(PARAM_RAW, 'Bulk update results',VALUE_DEFAULT,null),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );

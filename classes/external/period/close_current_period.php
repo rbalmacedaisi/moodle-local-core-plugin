@@ -15,16 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 
-/**
- * External calendar API
- *
- * @package    core_calendar
- * @category   external
- * @copyright  2012 Ankit Agarwal
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @since Moodle 2.5
- */
-namespace local_grupomakro_core\external\event;
+namespace local_grupomakro_core\external\period;
  
 use stdClass;
 use external_api;
@@ -39,14 +30,10 @@ defined('MOODLE_INTERNAL') || die;
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
-class get_calendar_events extends external_api {
+class close_current_period extends external_api {
     
     public static function execute_parameters(): external_function_parameters{
-         return new external_function_parameters(
-            [
-                'userId' => new external_value(PARAM_INT, 'Id of the user',  VALUE_DEFAULT, null, NULL_ALLOWED),
-            ]
-        );
+         return new external_function_parameters([]);
     }
     
     /**
@@ -55,19 +42,15 @@ class get_calendar_events extends external_api {
      * @param int $year The year to be shown
      * @return  array
      */
-    public static function execute($userId = null) {
+    public static function execute() {
         global $DB, $USER, $PAGE;
-
-        // Parameter validation.
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'userId' => $userId,
-        ]);
         
         try{
-            $eventDaysFiltered = get_class_events($params['userId']);
-            return ['status'=>1,'events' => json_encode(array_values($eventDaysFiltered)),'message'=>'ok'];
+            $periodClosureResult = close_current_period();
+            
+            return ['status'=>1];
         }catch (Exception $e){
-            return ['status'=>1,'events' => json_encode(array_values($eventDaysFiltered)),'message'=>$e->getMessage()];
+            return ['status'=>-1,'message'=>$e->getMessage()];
         }
     }
 
@@ -80,8 +63,7 @@ class get_calendar_events extends external_api {
         return new external_single_structure(
             array(
                 'status' =>new external_value(PARAM_INT, '1 or -1 if success/error'),
-                'events' => new external_value(PARAM_RAW, 'Events for the month'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

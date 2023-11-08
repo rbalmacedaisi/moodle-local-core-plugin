@@ -940,7 +940,7 @@ Vue.component('scheduleapproval',{
          *    - Refreshes the current page using 'location.reload()'.
          * 4. Handles errors by logging them to the console.
          *
-         * @param '{object}'' params - Parameters for the DELETE request.
+         * @param {Object} params - Parameters for the DELETE request.
          */
         deleteStudent(params){
             // Construct the URL for the HTTP GET request.
@@ -963,21 +963,40 @@ Vue.component('scheduleapproval',{
                     console.error(error);
             });
         },
+        /**
+         * Set the 'usersClasId' property and show the 'userslis' component.
+         *
+         * @param {Object} item - The item containing class-related information.
+         */
         userslist(item){
+            // Set the 'usersClasId' property.
             this.usersClasId = item.clasId
+            // Show the 'userslis' component.
             this.userslis =  true
         },
+        /**
+         * Close the 'userslis' component and reset the 'usersClasId' property.
+         */
         closeList(){
+            // Hide the 'userslis' component.
             this.userslis = false
+            // Reset the 'usersClasId' property to 0.
             this.usersClasId = 0
         },
+        /**
+         * Close the move dialog and reset the 'moveTitle'.
+         */
         closemovedialog(){
+            // Reset the 'moveTitle' property.
             this.moveTitle = ''
-            
-            //Hide the 'availableschedulesdialog' to facilitate the move operation.
+            // Hide the 'availableschedulesdialog' to facilitate the move operation.
             this.availableschedulesdialog = false
         },
+        /**
+         * Close the 'showDialog' component.
+         */
         closeShowDialog(){
+            // Hide the 'showDialog' component.
             this.showDialog = false
         }
     },
@@ -1025,6 +1044,9 @@ Vue.component('scheduleapproval',{
         courseId(){
             return window.courseid;
         },
+        /**
+         * Computed property that returns the approved image stored in the global 'aprovedImg'.
+         */
         img(){
             return window.aprovedImg
         }

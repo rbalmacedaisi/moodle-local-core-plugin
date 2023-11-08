@@ -55,6 +55,8 @@ foreach($instructors as $instructor){
 }
 $instructorItems = json_encode(array_values($instructorItems));
 
+$teacherSkills = json_encode(array_values($DB->get_records('gmk_teacher_skill')));
+
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
@@ -79,6 +81,9 @@ $strings->search = get_string('search', $plugin_name);
 $strings->save = get_string('save', $plugin_name);
 $strings->delete_available_confirm = get_string('delete_available_confirm', $plugin_name);
 $strings->unable_complete_action = get_string('unable_complete_action', $plugin_name);
+$strings->availability_bulk_load = get_string('availability_bulk_load', $plugin_name);
+$strings->competences = get_string('competences', $plugin_name);
+$strings->apply_filter = get_string('apply_filter', $plugin_name);
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -130,7 +135,8 @@ echo <<<EOT
     .theme--dark.v-application {
       background: transparent;
     }
-    .paneltable td:nth-child(4n){
+    .paneltable td:nth-child(4n),
+    .paneltable td:nth-child(5n){
       display: none !important;
     }
    </style>
@@ -139,6 +145,7 @@ echo <<<EOT
     var instructorItems = $instructorItems;
     var strings = $strings;
     var userToken = $token;
+    var teacherSkills = $teacherSkills;
   </script>
   
 EOT;
@@ -146,5 +153,8 @@ EOT;
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitytable.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/instructoravailability.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/instructorcompetencies.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/availabilityPanel/deletemodal.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/availabilityPanel/dialogbulkmodal.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/availabilityPanel/errormodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

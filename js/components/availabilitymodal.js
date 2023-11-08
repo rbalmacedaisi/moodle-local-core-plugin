@@ -86,22 +86,7 @@ Vue.component('availabilitymodal',{
                                                     hide-details="auto"
                                                 ></v-text-field>
                                             </v-col>
-                                            <v-col cols="12" sm="6">
-                                                <v-select
-                                                    outlined
-                                                    hide-selected
-                                                    dense
-                                                    v-model="newClass.instance"
-                                                    class="my-1"
-                                                    :placeholder="lang.select_instance"
-                                                    :items="instances"
-                                                    item-text="label"
-                                                    item-value="value"
-                                                    hide-details="auto"
-                                                    :rules="[requiredRule]"
-                                                ></v-select>
-                                            </v-col>
-                                      
+                                            
                                             <v-col cols="12" sm="6">
                                                 <v-select
                                                     outlined
@@ -263,7 +248,6 @@ Vue.component('availabilitymodal',{
             newClass:{
                 name:undefined,
                 type:undefined,
-                instance: undefined,
                 learningPlanId: undefined,
                 periodId: undefined,
                 courseId: undefined,
@@ -272,7 +256,6 @@ Vue.component('availabilitymodal',{
             },
             periods:[],
             courses:[],
-            token: '33513bec0b3469194c7756c29bf9fb33',
             daysOfWeek : [
               { value: "Domingo", label: "Domingo", disabled: false},
               { value: "Lunes", label: "Lunes", disabled: false },
@@ -287,9 +270,7 @@ Vue.component('availabilitymodal',{
             creatingClass:false
         }
     },
-    created(){
-        console.log(window)
-    },
+    created(){ },
     watch:{
         'newClass.name':function handler(newVal,oldVal){
             this.newClassEvent.name = newVal;
@@ -411,7 +392,6 @@ Vue.component('availabilitymodal',{
             return {
                 name:this.newClass.name,
                 type:this.newClass.type,
-                instance:this.newClass.instance,
                 learningPlanId:this.newClass.learningPlanId,
                 periodId:this.newClass.periodId,
                 courseId:this.newClass.courseId,
@@ -427,6 +407,12 @@ Vue.component('availabilitymodal',{
         },
         showClassroomSelector(){
             return this.newClass.type === 0 ||this.newClass.type === 2? true:false
+        },
+        /**
+         * Computed property that returns the authentication token from the global 'token'.
+         */
+        token(){
+            return window.token;
         }
     },
     mounted () {
@@ -464,9 +450,10 @@ Vue.component('availabilitymodal',{
             const params = {
                 wstoken: this.token,
                 moodlewsrestformat: 'json',
-                wsfunction: 'local_sc_learningplans_get_learning_plan_courses',
+                wsfunction: 'local_grupomakro_get_teacher_available_courses',
                 learningPlanId:this.newClass.learningPlanId,
-                periodId:this.periodId,
+                periodId:this.newClass.periodId,
+                instructorId:this.instructorId
             };
             
             window.axios.get(this.siteUrl, { params })
@@ -491,6 +478,8 @@ Vue.component('availabilitymodal',{
                 wsfunction: 'local_grupomakro_create_class',
                 ...this.newClassFormatted
             };
+
+            
             const createClassResponse = await window.axios.get(this.siteUrl, { params })
             this.creatingClass = false
             if(createClassResponse.data.status === -1 ){
@@ -511,7 +500,39 @@ Vue.component('availabilitymodal',{
             } 
             window.location.reload()
         },
+        getSelectedTimeRangeAvailableDays(){
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_teacher_available_days',
+                initTime:this.newClassFormatted.initTime,
+                endTime:this.newClassFormatted.endTime,
+                instructorId:this.instructorId
+            };
+            
+            window.axios.get(this.siteUrl, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Converts the data returned from the API from JSON string format to object format.
+                    const availableDays = JSON.parse(response.data.days)
+                    this.daysOfWeek.forEach(day=>{
+                        if(!availableDays.includes(day.value)){
+                            day.disabled=true;
+                            return
+                        }
+                        day.disabled=false;
+                    })
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });  
+            
+        },
+        
         showEvent({ nativeEvent}) {
+            this.getSelectedTimeRangeAvailableDays();
+            
             const open = () => {
                 requestAnimationFrame(() =>
                     requestAnimationFrame(() => (this.selectedOpen = true))

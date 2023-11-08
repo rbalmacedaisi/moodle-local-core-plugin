@@ -673,3 +673,8 @@ span.badge.text-white{
     width: 320px;
     max-width: 320px;
 }
+#page-local-grupomakro_core-pages-testeditclass #page-content,
+#page-local-grupomakro_core-pages-testeditclass div#region-main-box,
+#page-local-grupomakro_core-pages-testeditclass #region-main{
+    height: 100% !important;
+}

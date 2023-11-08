@@ -109,22 +109,182 @@ Vue.component('availabilitycalendar',{
         }
     },
     created(){
-        this.getDisponibilityData();
+        // this.getDisponibilityData();
     },
     mounted () {
         this.$refs.calendar.checkChange();
     },
+    methods: {
+        /**
+         * Calls a web service to retrieve instructors' availability information and updates the userAvailabilityRecords array.
+         */
+        getDisponibilityData(instructorId){
+            // URL for the API request.
+            const url = this.siteUrl;
+            
+            // Create an object with the parameters required for the API call
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_teachers_disponibility_calendar',
+                instructorId
+            };
+            
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                .then(response => {
+                    // Parse the JSON data returned from the API.
+                    const teachersAvailability = JSON.parse(response.data.disponibility)
+                    
+                    // Transform the data into a format suitable for the userAvailabilityRecords array.
+                    this.userAvailabilityRecords = teachersAvailability.map(availabilityRecord => ({
+                        id:availabilityRecord.id,
+                        name:availabilityRecord.name,
+                        events:availabilityRecord.events,
+                        daysFree:Object.keys(availabilityRecord.daysFree).map(date=>({day:date,hours:availabilityRecord.daysFree[date]}))
+                    }))
+                })
+                // Log any errors to the console in case of a request failure.
+                .catch(error => {
+                    console.error(error);
+            });  
+        },
+        /**
+         * Clear the current focus date to reset the calendar view to the current date.
+         */
+        setToday () {
+            // Clear the focus to reset the calendar to the current date.
+            this.focus = ''
+        },
+        /**
+         * Navigate to the previous view or time period in the calendar.
+         */
+        prev () {
+            // Use the Vue.js calendar component's 'prev' method to navigate back.
+            this.$refs.calendar.prev()
+        },
+        /**
+         * Navigate to the next view or time period in the calendar.
+         */
+        next () {
+            // Use the Vue.js calendar component's 'next' method to navigate forward.
+            this.$refs.calendar.next()
+        },
+        /**
+         * Update the availability information for the selected instructor, adding it to the daysFree and events arrays.
+         *
+         * @param {Object} instructor - The selected instructor for which to retrieve availability data.
+         */
+        selectInstructor(instructor){
+            // Return early if no instructor is selected.
+            if (!instructor) return
+            
+            // Set the selected instructor's ID.
+            this.selectedInstructorId = instructor.id
+            
+            // Clear the instructorCareers data.
+            this.instructorCareers={}
+            
+            // Create parameters for making an API request.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_sc_learningplans_get_active_learning_plans',
+                instructorId:instructor.id
+                
+            };
+            
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(this.siteUrl, { params })
+                .then(response => {
+                    // Parse the JSON data returned from the API.
+                    this.instructorCareers = JSON.parse(response.data.availablecareers)
+                })
+                // Log any errors to the console in case of a request failure.
+                .catch(error => {
+                console.error(error);
+            });
+            
+            this.getDisponibilityData(instructor.id);
+            
+        },
+        /**
+         * Show or hide the availability modal for a specific date.
+         *
+         * @param {Date} date - The date for which to show or hide the availability modal.
+         * @param {String} day - The day of the week associated with the date.
+         * @param {Array} time - The available time slots for the selected date.
+         */
+        toggleDayFree(date,day,time){
+            // Check if the date is in the list of available days, and set the dayModal accordingly.
+            this.selectedInstructor.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
+            
+            // Set the selected date for the availability modal.
+            this.dayTo = date
+        },
+        /**
+         * Close the availability modal.
+         */
+        closeDialog(){
+            // Set the 'dayModal' property to false to hide the modal.
+            this.dayModal = false
+        },
+        /**
+         * Update the availability information of the selected instructor based on the date selected in the calendar.
+         *
+         * @param {Object} date - The date object representing the selected date in the calendar.
+         */
+        showEvent ( date ) {
+            if(this.select){
+                // Find the user's availability record based on the selected instructor's name.
+                const user = this.userAvailabilityRecords.find(user => user.name === this.select.value)
+                
+                // Iterate through the daysFree array to find availability for the selected date.
+                user.daysFree.forEach((element) => {
+                    if(element.day === date.date){
+                        // Update the hoursFree array with the available hours for the selected date.
+                        this.hoursFree = element.hours
+                    }
+                })
+                
+                // Initialize the 'times' array to store time slots.
+                this.times = [];
+                
+                // Split the 'hoursFree' array into pairs of start and end times.
+                for (let i = 0; i < this.hoursFree.length; i += 2) {
+                    this.times.push({
+                        startTime: this.hoursFree[i],
+                        endTime: this.hoursFree[i+1]
+                    })
+                }
+            }else{
+                // Return false if no instructor is selected
+                return false
+            }
+        },
+    },
     computed:{
+        /**
+         * Computed property that returns the language strings stored in the global 'strings' object.
+         */
         lang(){
             return window.strings
         },
-        
+        /**
+         * Computed property that constructs the API endpoint URL using the current window location.
+         */
         siteUrl(){
             return window.location.origin + '/webservice/rest/server.php';
         },
+        /**
+         * Computed property that returns the list of instructors from the global 'instructorItems'.
+         */
         instructors(){
             return window.instructorItems
         },
+        /**
+         * Computed property that retrieves and formats data for the selected instructor.
+         */
         selectedInstructor(){
             const userAvailabilityRecord =  this.userAvailabilityRecords.find(userAvailabilityRecord => userAvailabilityRecord.id === this.selectedInstructorId )
             return {
@@ -142,110 +302,12 @@ Vue.component('availabilitycalendar',{
                     timed:true
                 })):[]
             }
-            
         },
+        /**
+         * Computed property that returns the authentication token from the global 'token'.
+         */
         token(){
             return window.token;
         }
-        
-    },
-    methods: {
-        // This method calls a web service to get the instructors' availability information and adds it to the users array.
-        getDisponibilityData(){
-            const url = this.siteUrl;
-            // Create a params object with the parameters needed to make an API call.
-            const params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_grupomakro_get_teachers_disponibility_calendar',
-            };
-            // Make a GET request to the specified URL, passing the parameters as query options.
-            window.axios.get(url, { params })
-                // If the request is resolved successfully, perform the following operations.
-                .then(response => {
-                    // Converts the data returned from the API from JSON string format to object format.
-                    const teachersAvailability = JSON.parse(response.data.disponibility)
-                    // Add the availability data for each instructor to the current instance's item array.
-                    
-                    this.userAvailabilityRecords = teachersAvailability.map(availabilityRecord => ({
-                        id:availabilityRecord.id,
-                        name:availabilityRecord.name,
-                        events:availabilityRecord.events,
-                        daysFree:Object.keys(availabilityRecord.daysFree).map(date=>({day:date,hours:availabilityRecord.daysFree[date]}))
-                    }))
-                })
-                // If the request fails, log an error to the console.
-                .catch(error => {
-                    console.error(error);
-            });  
-        },
-        // This method sets the selected date on the calendar as the current date.
-        setToday () {
-            this.focus = ''
-        },
-        // This method displays the previous month, week, or day on the calendar.
-        prev () {
-            this.$refs.calendar.prev()
-        },
-        // This method displays the next month, week, or day on the calendar.
-        next () {
-            this.$refs.calendar.next()
-        },
-        // This method updates the availability information for the selected instructor 
-        // and adds it to the daysFree and events arrays.
-        selectInstructor(instructor){
-            if (!instructor) return
-            this.selectedInstructorId = instructor.id
-            this.instructorCareers={}
-            
-            const params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_sc_learningplans_get_active_learning_plans',
-                instructorId:instructor.id
-                
-            };
-            
-            window.axios.get(this.siteUrl, { params })
-                // If the request is resolved successfully, perform the following operations.
-                .then(response => {
-                    // Converts the data returned from the API from JSON string format to object format.
-                    this.instructorCareers = JSON.parse(response.data.availablecareers)
-                })
-                // If the request fails, log an error to the console.
-                .catch(error => {
-                console.error(error);
-            });  
-            
-        },
-        // This method shows or hides the availability modal.
-        toggleDayFree(date,day,time){
-            this.selectedInstructor.daysFree.indexOf(date.toString()) !== -1 ? this.dayModal = true : this.dayModal = false
-            this.dayTo = date
-        },
-        // This method closes the availability modal.
-        closeDialog(){
-            this.dayModal = false
-        },
-        // This method updates the availability information of the selected instructor based on the date selected in the calendar.
-        showEvent ( date ) {
-            if(this.select){
-                const user = this.userAvailabilityRecords.find(user => user.name === this.select.value)
-                user.daysFree.forEach((element) => {
-                    if(element.day === date.date){
-                        this.hoursFree = element.hours
-                    }
-                })
-                this.times = [];
-                for (let i = 0; i < this.hoursFree.length; i += 2) {
-                    this.times.push({
-                        startTime: this.hoursFree[i],
-                        endTime: this.hoursFree[i+1]
-                    })
-                }
-            }else{
-                return false
-            }
-        },
     },
 })

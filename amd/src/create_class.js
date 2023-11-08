@@ -22,8 +22,7 @@ const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
-const selectors = [typeSelector, careerSelector, periodSelector, courseSelector,
-    teacherSelector, classNameInput, initTimeInput, endTimeInput, classroomSelector];
+const selectors = [typeSelector, careerSelector, periodSelector, courseSelector, classNameInput, initTimeInput, endTimeInput, classroomSelector];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 
 let periods;
@@ -42,7 +41,6 @@ export const init = (classrooms) => {
     handleInstanceSelection();
     handleCareerSelection();
     handlePeriodSelection();
-    handleCourseSelection();
     handleClassSave();
     handleTypeSelector();
 };
@@ -62,6 +60,8 @@ const handleTypeSelector = () => {
 
 const handleClassSave = () => {
     saveButton.click(()=>{
+        
+        console.log('entro')
         endTimeInput.get(0).setCustomValidity('');
         mondaySwitch.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
@@ -69,6 +69,7 @@ const handleClassSave = () => {
             return selector.get(0).reportValidity();
         });
         if (!valid) {
+            console.error('algun selector esta mal')
             return;
         }
         //
@@ -76,6 +77,7 @@ const handleClassSave = () => {
         if (initTimeInput.val() >= endTimeInput.val()) {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
             endTimeInput.get(0).reportValidity();
+            console.error('el tiempo esta mal')
             return;
         }
         //
@@ -86,9 +88,15 @@ const handleClassSave = () => {
         if (!daySelected) {
             mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
             mondaySwitch.get(0).reportValidity();
+            console.error('algun dia esta mal')
             return;
         }
         //
+        const instructorId = document.getElementById('instructorId')
+        if(instructorId.value == ''){
+            console.error('no hay id de instructor')
+            return;
+        }
         const args = {
             name: classNameInput.val(),
             type: typeSelector.val(),
@@ -96,7 +104,7 @@ const handleClassSave = () => {
             learningPlanId: careerSelector.val(),
             periodId: periodSelector.val(),
             courseId: courseSelector.val(),
-            instructorId: teacherSelector.val(),
+            instructorId: instructorId.value,
             initTime: initTimeInput.val(),
             endTime: endTimeInput.val(),
             classDays: formatSelectedClassDays(),
@@ -105,6 +113,7 @@ const handleClassSave = () => {
                 ? classRooms.find(classroom => classroom.value == classroomSelector.val()).capacity
                 : 40
         };
+        console.error(args)
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_class',
             args
@@ -179,8 +188,8 @@ const handleCareerSelection = ()=> {
 const handlePeriodSelection = () => {
     periodSelector.change(()=> {
         if (periodSelector.val() === '') {
- return;
-}
+            return;
+        }
         const args = {
             learningPlanId: careerSelector.val(),
             periodId: periodSelector.val()
@@ -206,36 +215,6 @@ const handlePeriodSelection = () => {
     });
 };
 
-const handleCourseSelection = () => {
-    courseSelector.change(()=> {
-        if (courseSelector.val() === '') {
- return;
-}
-        const args = {
-            learningPlanId: careerSelector.val(),
-            // PeriodId: periodSelector.val(),
-            // courseId: courseSelector.val()
-        };
-        const promise = Ajax.call([{
-            methodname: 'local_sc_learningplans_get_learning_plan_teachers',
-            args
-        }]);
-        promise[0].done(function(response) {
-            $(".teacherValue").remove();
-            teachers = JSON.parse(response.teachers);
-            if (!teachers.length) {
-                teacherSelector.val('').change();
-                return;
-            }
-            teacherSelector.prop('disabled', false);
-            teachers.forEach(({userid, fullname, email}) => {
-                teacherSelector.append(`<option class="teacherValue" value="${userid}">${fullname} (${email})</option>`);
-            });
-        }).fail(function(response) {
-           window.console.error(response);
-        });
-    });
-};
 
 const formatSelectedClassDays = ()=> {
     let daysString = '';
@@ -244,3 +223,4 @@ const formatSelectedClassDays = ()=> {
     });
     return daysString.substring(0, daysString.length - 1);
 };
+

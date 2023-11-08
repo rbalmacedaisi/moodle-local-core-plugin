@@ -82,6 +82,13 @@
                             <!--<hr> </hr>-->
                         </div>
                         
+                        {{! Class name field }}
+                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
+                            <input type="text" class="form-control" id="classname" required>
+                        </div>
+                        {{! Class name field }}
+                        
                         {{! Field to select class_type }}
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classtype">{{#str}}class_type, local_grupomakro_core {{/str}}</label>
@@ -136,22 +143,6 @@
                         </div>
                         {{! End Field to select courses }}
                         
-                        {{! Field to select the Instructors }}
-                        <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
-                            <select name="instructor" id="instructor" class="form-control" required>
-                                <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
-                            </select>
-                        </div>
-                        {{! End Field to select the Instructors }}
-                        
-                        {{! Class name field }}
-                        <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
-                            <label class="w-100" for="classname">{{#str}}class_name, local_grupomakro_core {{/str}}</label>
-                            <input type="text" class="form-control" id="classname" required>
-                        </div>
-                        {{! Class name field }}
-                        
                         {{! Field for start time }}
                         <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="starttime">{{#str}}start_time, local_grupomakro_core {{/str}}</label>
@@ -202,6 +193,16 @@
                             </div>
                         </div>
                         {{! End Section to choose class days }}
+                        
+                        {{! Field to select the Instructors }}
+                        <div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
+                            <label class="w-100" for="instructor">{{#str}}instructor, local_grupomakro_core {{/str}}</label>
+                            <select name="instructor" id="instructor" class="form-control" required>
+                                <option value=''>{{#str}}select_instructor, local_grupomakro_core {{/str}}</option>
+                            </select>
+                        </div>
+                        {{! End Field to select the Instructors }}
+                        
                         <div class="py-2 mx-0 px-2"><a href="{{availabilityPanelUrl}}" target="blank">{{#str}} check_availability, local_grupomakro_core {{/str}}</a></div>
                     </div>   
                     

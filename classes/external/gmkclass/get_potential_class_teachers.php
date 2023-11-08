@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_get_teachers_disponibility external function.
+ * Class definition for the local_grupomakro_get_potential_class_teachers external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\disponibility;
+namespace local_grupomakro_core\external\gmkclass;
 
 use context_system;
 use external_api;
@@ -30,22 +30,21 @@ use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
-use stdClass;
 use Exception;
+
 
 defined('MOODLE_INTERNAL') || die();
 
-
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 /**
- * External function 'local_grupomakro_get_teachers_disponibility' implementation.
+ * External function 'local_grupomakro_get_potential_class_teachers implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2023 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_teachers_disponibility extends external_api {
+class get_potential_class_teachers extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -55,47 +54,49 @@ class get_teachers_disponibility extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null),
-                'initTime' => new external_value(PARAM_TEXT, 'init time filter', VALUE_DEFAULT,null),
-                'endTime' => new external_value(PARAM_TEXT, 'end time filter', VALUE_DEFAULT,null)
+                'courseId' => new external_value(PARAM_INT, 'Course ID', VALUE_DEFAULT,null),
+                'initTime' => new external_value(PARAM_TEXT, 'Class init time', VALUE_DEFAULT,null),
+                'endTime' => new external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
+                'classDays' => new external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),
+                'learningPlanId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED)
             ]
         );
     }
-
     /**
-     * get teacher disponibility
+     * TODO describe what the function actually does.
      *
-     * @param string|null $instructorId ID of the teacher (optional)
-     *
-     * @throws moodle_exception
-     *
-     * @external
+     * @param int instructorId
+     * @return mixed TODO document
      */
     public static function execute(
-            $instructorId,
+            $courseId,
             $initTime,
-            $endTime
-            
+            $endTime,
+            $classDays,
+            $learningPlanId
         ) {
         
-        // Validate the parameters passed to the function.
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'instructorId' => $instructorId,
-            'initTime' => $initTime,
-            'endTime' => $endTime,
-        ]);
-        
-        try {
-            $teachersDisponibility = get_teachers_disponibility($params);
-            
+        try{
+            // Validate the parameters passed to the function.
+            $params = self::validate_parameters(self::execute_parameters(), [
+                'courseId' => $courseId,
+                'initTime' => $initTime,
+                'endTime' => $endTime,
+                'classDays' => $classDays,
+                'learningPlanId' => $learningPlanId
+            ]);
 
-            // Return the result.
-            return ['status'=>1,'teacherAvailabilityRecords' =>json_encode(array_values($teachersDisponibility))];
-        } catch (Exception $e) {
-            return ['status'=>-1, 'message' => $e->getMessage()];
-        }
+            $potentialTeachers =  get_potential_class_teachers($params);
+
         
+            // Return the result.
+            return ['status' => 1, 'teachers'=>json_encode(array_values($potentialTeachers))];
+        }
+        catch (Exception $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
     }
+    
 
     /**
      * Describes the return value of the {@see self::execute()} method.
@@ -105,8 +106,8 @@ class get_teachers_disponibility extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if successs, -1 otherwise'),
-                'teacherAvailabilityRecords' => new external_value(PARAM_RAW, 'The availability records of the teachers',VALUE_DEFAULT,null),
+                'status' => new external_value(PARAM_INT, '1 if success or -1 if there was an error.'),
+                'teachers' => new external_value(PARAM_RAW, 'The list of potntial teachers for the class',VALUE_DEFAULT,null),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );

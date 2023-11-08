@@ -171,6 +171,8 @@ class check_reschedule_conflicts extends external_api {
             // Return the result.
             if(count($groupMembersWithConflicts)!==0){
                 $errorString=count($groupMembersWithConflicts).' de los ('.count($groupMembers).') miembros del grupo presentan conflictos con el nuevo horario; no se puede reprogramar.';
+                return ['status' => 1, 'message'=>$errorString];
+                
             }
             return ['status' => 1, 'message'=>'La reprogramación no presenta ningun conflicto, puedes continuar'];
             

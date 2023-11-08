@@ -272,6 +272,7 @@ $string['check_availability'] = "View instructor's availability";
 $string['rescheduling_activity'] = 'Rescheduling activity of ';
 $string['reschedule'] = 'Reschedule';
 $string['confirm_reschedule_title'] = 'Reschedule Confirmation';
+$string['see_availability'] = 'See availability';
 
 // Schedules page.
 $string['schedules'] = 'Schedules';
@@ -362,3 +363,10 @@ $string['msg:send_reschedule_message:body'] = '
 
 $string['msg:send_reschedule_message:subject'] ='New reschedule request';
 $string['msg:send_reschedule_message:contexturlname'] ='Reschedule session';
+$string['enter_name'] ='Enter a name';
+$string['general_data'] ='General data';
+$string['class_schedule_days'] ='Class schedule and days';
+$string['list_available_instructors'] ='List of Available Instructors';
+
+// Pagina Panel de Disponivilidad.
+$string['availability_bulk_load'] ='Availability Bulk Load';

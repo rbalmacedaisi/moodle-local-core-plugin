@@ -15,7 +15,7 @@ const userInfoContractList = $('#user-info-contract-list');
 const confirmContractUserDeletionModal = $('#confirmContractUserDeletionModal');
 const confirmContractUserDeletionButton = $('#remove-contract-user-confirm-button');
 
-const selectedUserInput = $('#selected-user');
+const selectedUserInput = $('#selected-user');bulkConfirmModalButton
 const contractSelectInput = $('#contractlist');
 const coursesSelectInput = $('#courselist');
 const newContractUserInputs = [selectedUserInput, contractSelectInput, coursesSelectInput];

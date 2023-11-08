@@ -38,8 +38,8 @@ Vue.component('instructoravailability',{
                 <v-divider class="my-0"></v-divider>
     
                 <v-list>
-                    <template v-for="(item, index) in items">
-                        <v-list-item :class="index % 2 === 0 ? 'even-item' : 'odd-item'" :key="item.id" style="border-bottom: 1px solid #b0b0b0;">
+                    <template v-for="(item,index) in items">
+                        <v-list-item :class="index % 2 === 0 ? 'even-item' : 'odd-item'" :key="index" style="border-bottom: 1px solid #b0b0b0;">
                             <v-list-item-title>{{item.text}}</v-list-item-title>
                         </v-list-item>
                     </template>
@@ -64,27 +64,51 @@ Vue.component('instructoravailability',{
             menu: false,
             message: false,
             hints: true,
-            items:[]
+            availabilityDays:[]
         }
     },
     props:['data'],
     created(){
-      this.getData()
+    //   this.getData()
     },
     mounted(){
         
     },  
     methods:{
-        getData(){
-            const data = this.data
-            var flat = 20
-            for (let day in data.disponibilityRecords) {
-                flat++
-                this.items.push({
-                    text: `${day}: ${data.disponibilityRecords[day].join(' - ')}`,
-                    id: flat
+        // getData(){
+        //     const data = this.data
+        //     console.log(data)
+        //     var flat = 20
+        //     for (let day in data.disponibilityRecords) {
+        //         flat++
+        //         this.items.push({
+        //             text: `${day}: ${data.disponibilityRecords[day].join(' - ')}`,
+        //             id: flat,
+        //             day: `${day}`
+        //         })
+        //     }
+        // }
+    },
+    computed:{
+       days(){
+            this.items.forEach((element) => {
+               this.availabilityDays.push(element.day)
+            })
+            return this.availabilityDays
+        },
+        items(){
+            let items = [];
+            // let flat = 20;
+            
+            for (const day in this.data.disponibilityRecords) {
+              if (Object.hasOwnProperty.call(this.data.disponibilityRecords, day)) {
+                items.push({
+                    text: `${day}: ${this.data.disponibilityRecords[day].join(' - ')}`,
+                    day: `${day}`
                 })
+              }
             }
+            return items;
         }
     },
 })

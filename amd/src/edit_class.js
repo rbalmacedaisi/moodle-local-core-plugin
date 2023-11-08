@@ -266,32 +266,23 @@ const handlePeriodSelection = () => {
 
 const handleCourseSelection = () => {
     courseSelector.change(()=> {
-        if (courseSelector.val() === '') {
- return;
-}
-        const args = {
-            learningPlanId: careerSelector.val(),
-        };
-        const promise = Ajax.call([{
-            methodname: 'local_sc_learningplans_get_learning_plan_teachers',
-            args
-        }]);
-        promise[0].done(function(response) {
-            $(".teacherValue").remove();
-            teachers = JSON.parse(response.teachers);
-            if (!teachers.length) {
-                teacherSelector.val('').change();
-                return;
-            }
-            teacherSelector.prop('disabled', false);
-            teachers.forEach(({userid, fullname, email}) => {
-                teacherSelector.append(`<option class="teacherValue" value="${userid}">${fullname} (${email})</option>`);
-            });
-        }).fail(function(response) {
-            window.console.error(response);
-        });
+        get_potential_teachers()
     });
 };
+
+const handleDateTimeInputs = () => {
+    initTimeInput.change(()=>{
+        get_potential_teachers()
+    })
+    endTimeInput.change(()=>{
+        get_potential_teachers()
+    })
+    switches.forEach(switche => {
+        switche.change(()=>{
+            get_potential_teachers()
+        })
+    })
+}
 
 const formatSelectedClassDays = ()=> {
     let daysString = '';
@@ -300,3 +291,42 @@ const formatSelectedClassDays = ()=> {
     });
     return daysString.substring(0, daysString.length - 1);
 };
+
+const get_potential_teachers = () => {
+    if(!courseSelector.val() || !initTimeInput.val() || !endTimeInput.val() ){
+        return
+    }
+    // Check if at least one day of the week is selected
+    const daySelected = switches.some(day => {
+        return day.is(":checked");
+    });
+    if (!daySelected) {
+        return;
+    }
+    const args = {
+        courseId: courseSelector.val(),
+        initTime:initTimeInput.val(),
+        endTime:endTimeInput.val(),
+        classDays: formatSelectedClassDays(),
+    };
+    const promise = Ajax.call([{
+        methodname: 'local_grupomakro_get_potential_class_teachers',
+        args
+    }]);
+    promise[0].done(function(response) {
+        window.console.log(response)
+        $(".teacherValue").remove();
+        teachers = JSON.parse(response.teachers);
+        if (!teachers.length) {
+            teacherSelector.val('').change();
+            return;
+        }
+        teacherSelector.prop('disabled', false);
+        teachers.forEach(({userid, fullname, email}) => {
+            teacherSelector.append(`<option class="teacherValue" value="${userid}">${fullname} (${email})</option>`);
+        });
+    }).fail(function(response) {
+      window.console.error(response);
+    });
+    
+}
