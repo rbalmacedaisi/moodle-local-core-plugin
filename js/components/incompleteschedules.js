@@ -195,6 +195,7 @@ Vue.component('incompleteschedules',{
                     // Convert the data object to an array.
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
+                    console.log(array)
                     
                     // Iterate through the array and add student information to the 'users' array.
                     array.forEach((element)=>{

@@ -214,7 +214,7 @@ Vue.component('scheduleapproval',{
                     
                     <v-card-text>
                         <v-data-table
-                            v-model="selected"
+                            v-model="selectedStudents"
                             :headers="headers"
                             :items="users"
                             item-key="student"
@@ -224,7 +224,54 @@ Vue.component('scheduleapproval',{
                             hide-default-footer
                         >
                             <template v-slot:top>
-                                <h6>{{tabletitle}}</h6>
+                                <div class="d-flex">
+                                    <h6>{{tabletitle}}</h6>
+                                    <v-spacer></v-spacer>
+                                    <div v-if="selectedStudents.length > 0"  class="px-3 mb-0 d-flex">
+                                        <!--<v-tooltip bottom>
+                                            <template v-slot:activator="{ on, attrs }">
+                                                <v-btn
+                                                  :color="!$vuetify.theme.isDark ? 'secondary' : 'primary'"
+                                                  icon
+                                                  v-bind="attrs"
+                                                  v-on="on"
+                                                  small
+                                                >
+                                                    <v-icon
+                                                      v-bind="attrs"
+                                                      v-on="on"
+                                                      
+                                                    >
+                                                        mdi-folder-move-outline
+                                                    </v-icon>
+                                                </v-btn>
+                                            </template>
+                                            <span>{{lang.move_to}}</span>
+                                        </v-tooltip> -->
+                                        
+                                
+                                        <v-tooltip bottom>
+                                            <template v-slot:activator="{ on, attrs }">
+                                                <v-btn
+                                                  :color="!$vuetify.theme.isDark ? 'secondary' : 'primary'"
+                                                  icon
+                                                  v-bind="attrs"
+                                                  v-on="on"
+                                                  small
+                                                  @click="openDeleteUsersFromCourseClassScheduleDialog"
+                                                >
+                                                    <v-icon
+                                                      v-bind="attrs"
+                                                      v-on="on"
+                                                    >
+                                                        mdi-delete
+                                                    </v-icon>
+                                                </v-btn>
+                                            </template>
+                                            <span>{{ lang.remove }}</span>
+                                        </v-tooltip>
+                                    </div>
+                                </div>
                             </template>
                             
                             <template v-slot:item.student="{ item }">
@@ -260,9 +307,10 @@ Vue.component('scheduleapproval',{
                                 <v-tooltip bottom>
                                     <template v-slot:activator="{ on, attrs }">
                                         <v-icon 
-                                           @click="deleteAvailabilityRecord(item)" 
+                                           @click="openDeleteUserFromCourseClassScheduleDialog(item)" 
                                            v-bind="attrs"
                                            v-on="on"
+                                           :disabled="selectedStudents.length > 0"
                                         >
                                             mdi-delete
                                         </v-icon>
@@ -313,6 +361,8 @@ Vue.component('scheduleapproval',{
             
             <deleteclass v-if="deleteclass" :itemdelete="itemdelete" @close-delete="closedelete"></deleteclass>
             
+            <deleteusers :show="showDeleteUserConfirmationDialog" @confirm="deleteStudentFromCourseClassSchedule" @close="closeDeleteUserConfirmationDialog"></deleteusers>
+            
             <approveusers v-if="approveusers" :itemapprove="usersapprove" @send-message="sendMessage" @close-approve="closeapprove"></approveusers>
             
             <userslist v-if="userslis" :classId="usersClasId" @close-list="closeList"></userslist>
@@ -323,7 +373,6 @@ Vue.component('scheduleapproval',{
             items:[],
             selectedItem: '',
             dialog: false,
-            selected: [],
             headers: [
               {
                 text: window.strings.student,
@@ -361,7 +410,10 @@ Vue.component('scheduleapproval',{
             usersClasId: 0,
             userslis: false,
             disabled: false,
-            availableschedulesdialog: false
+            availableschedulesdialog: false,
+            selectedStudents: [],
+            selectedStudent:undefined,
+            showDeleteUserConfirmationDialog:false
         }
     },
     props:{},
@@ -499,6 +551,8 @@ Vue.component('scheduleapproval',{
             
             // Open the dialog to display the selected schedule's information and enrolled students.
             this.dialog = true
+            
+            this.tabletitle = this.lang.registered_users
         },
         /**
          * This method is triggered when the "Waiting List" button is clicked for a class schedule.
@@ -582,6 +636,9 @@ Vue.component('scheduleapproval',{
             
             // Clear the 'selectedItem' variable, which may hold selected items.
             this.selectedItem = ''
+            
+            this.selectedStudents = [];
+            this.selectedStudent = undefined;
         },
         /**
          * Initiates the process of moving students from one class schedule to another.
@@ -591,14 +648,15 @@ Vue.component('scheduleapproval',{
          * @param '{Object} item' - The student item to be moved.
          */
         moveItem(item){
+            console.log(item)
             // Initialize the 'folders' array to store available class schedules for moving.
             this.folders = []
             // Check if the student item is already selected for moving.
-            const index = this.selected.findIndex(selectedItem => selectedItem.student === item.student);
+            const index = this.selectedStudents.findIndex(selectedItem => selectedItem.student === item.student);
             
             // If the student item is not already selected, add it to the 'selected' array.
             if (index === -1) {
-              this.selected.push(item);
+              this.selectedStudents.push(item);
             }
             
             // Get the ID of the current class schedule.
@@ -851,8 +909,8 @@ Vue.component('scheduleapproval',{
             // Create an object to store dynamic parameters.
             const params = {};
             // Loop through the selected array and generate the parameters for moving students.
-            for (let i = 0; i < this.selected.length; i++) {
-              const student = this.selected[i];
+            for (let i = 0; i < this.selectedStudents.length; i++) {
+              const student = this.selectedStudents[i];
               params[`movingStudents[${i}][studentId]`] = student.id;
               params[`movingStudents[${i}][currentClassId]`] = student.classid;
               params[`movingStudents[${i}][newClassId]`] = schedule.clasId; 
@@ -898,37 +956,18 @@ Vue.component('scheduleapproval',{
                     console.error(error);
             });
         },
-        /**
-         * Sends an HTTP GET request to delete student availability records based on the selected students.
-         * This method performs the following actions:
-         * 1. Creates an object 'params' to store dynamic parameters.
-         * 2. Iterates through the 'selected' array to generate parameters for selected students.
-         * 3. Makes an HTTP GET request to the specified URL with 'params' as query options.
-         * 4. Handles the response from the server:
-         *    - Closes the 'movedialog' and 'dialog' components.
-         *    - Refreshes the current page using 'location.reload()'.
-         * 5. Handles errors by logging them to the console.
-         *
-         * @param {object} item - The selected student's information.
-         */
-        deleteAvailabilityRecord(item){
-            // Create an object to store dynamic parameters.
-            const params = {};
-            
-            // Loop through the 'selected' array and generate the parameters.
-            for (let i = 0; i < this.selected.length; i++) {
-              const student = this.selected[i];
-              params[`deletedStudents[${i}][studentId]`] = student.id;
-              params[`deletedStudents[${i}][classId]`] = student.classid;
-            }
-            
-            // Set fixed parameters for the HTTP GET request.
-            params.wstoken = this.token
-            params.moodlewsrestformat = 'json'
-            params.wsfunction = 'local_grupomakro_delete_student_from_class_schedule'
-            
-            // Call the 'deleteStudent' method with the generated 'params'.
-            this.deleteStudent(params)
+        openDeleteUserFromCourseClassScheduleDialog(selectedStudent){
+            this.selectedStudents = [];
+            this.selectedStudent = selectedStudent;
+            this.showDeleteUserConfirmationDialog = true
+        },
+        openDeleteUsersFromCourseClassScheduleDialog(){
+            this.selectedStudent = undefined
+            this.showDeleteUserConfirmationDialog = true
+        },
+        closeDeleteUserConfirmationDialog(){
+            this.selectedStudent = undefined
+            this.showDeleteUserConfirmationDialog = false
         },
         /**
          * Sends an HTTP GET request to delete student records from a class schedule.
@@ -942,10 +981,26 @@ Vue.component('scheduleapproval',{
          *
          * @param {Object} params - Parameters for the DELETE request.
          */
-        deleteStudent(params){
-            // Construct the URL for the HTTP GET request.
-            const url = this.siteUrl;
+        deleteStudentFromCourseClassSchedule(){
+            // Create an object to store dynamic parameters.
+            const params = {};
+            const studentToBeEliminated = this.selectedStudent? [this.selectedStudent] : this.selectedStudents;
+
+            // Loop through the 'selected' array and generate the parameters.
+            for (let i = 0; i < studentToBeEliminated.length; i++) {
+              const student = studentToBeEliminated[i];
+              params[`deletedStudents[${i}][studentId]`] = student.id;
+              params[`deletedStudents[${i}][classId]`] = student.classid;
+            }
             
+            // Set fixed parameters for the HTTP GET request.
+            params.wstoken = this.token
+            params.moodlewsrestformat = 'json'
+            params.wsfunction = 'local_grupomakro_delete_student_from_class_schedule'
+            // Construct the URL for the HTTP GET request.
+            
+            const url = this.siteUrl;
+
             // Make a GET request to the specified URL, passing the parameters as query options.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
@@ -955,7 +1010,7 @@ Vue.component('scheduleapproval',{
                     this.dialog = false
                     
                     // Refresh the current page.
-                    location.reload();
+                    window.location.reload();
                     
                 })
                 // If the request fails, log an error to the console.

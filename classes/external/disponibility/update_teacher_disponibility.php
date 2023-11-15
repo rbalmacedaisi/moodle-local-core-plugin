@@ -104,7 +104,7 @@ class update_teacher_disponibility extends external_api {
             $disponibilityUpdated = update_teacher_disponibility($params);
             
             // Return the result.
-            return ['disponibilityUpdated' => $disponibilityUpdated, 'message' => 'ok'];
+            return ['disponibilityUpdated' => $disponibilityUpdated];
         } catch (Exception $e) {
             return ['status' => -1,'disponibilityUpdated'=>-1, 'message' => $e->getMessage()];
         }

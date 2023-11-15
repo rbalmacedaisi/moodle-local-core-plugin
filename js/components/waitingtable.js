@@ -27,7 +27,7 @@ Vue.component('waitingtable',{
 
                         <v-list-item-content>
                             <v-list-item-title>{{item.student}}</v-list-item-title>
-                            <v-list-item-subtitle>{{item.email}}</v-list-item-subtitle>
+                            <v-list-item-subtitle id="v-email">{{item.email}}</v-list-item-subtitle>
                         </v-list-item-content>
                     </v-list-item>
                 </v-list>

@@ -136,7 +136,8 @@ echo <<<EOT
       background: transparent;
     }
     .paneltable td:nth-child(4n),
-    .paneltable td:nth-child(5n){
+    .paneltable td:nth-child(5n),
+    .paneltable td:nth-child(6n){
       display: none !important;
     }
    </style>

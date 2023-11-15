@@ -58,7 +58,8 @@ class get_potential_class_teachers extends external_api {
                 'initTime' => new external_value(PARAM_TEXT, 'Class init time', VALUE_DEFAULT,null),
                 'endTime' => new external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
                 'classDays' => new external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),
-                'learningPlanId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED)
+                'learningPlanId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_REQUIRED),
+                'classId' => new external_value(PARAM_TEXT, 'LearnningPlanId', VALUE_DEFAULT,NULL)
             ]
         );
     }
@@ -73,7 +74,8 @@ class get_potential_class_teachers extends external_api {
             $initTime,
             $endTime,
             $classDays,
-            $learningPlanId
+            $learningPlanId,
+            $classId
         ) {
         
         try{
@@ -83,7 +85,8 @@ class get_potential_class_teachers extends external_api {
                 'initTime' => $initTime,
                 'endTime' => $endTime,
                 'classDays' => $classDays,
-                'learningPlanId' => $learningPlanId
+                'learningPlanId' => $learningPlanId,
+                'classId' => $classId,
             ]);
 
             $potentialTeachers =  get_potential_class_teachers($params);

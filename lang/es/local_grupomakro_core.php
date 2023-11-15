@@ -29,6 +29,7 @@ $string['class_management'] = 'Administrar clases';
 $string['class_schedules'] = 'Horarios de clases';
 $string['availability_panel'] = 'Panel de disponibilidad';
 $string['availability_calendar'] = 'Calendario de disponibilidad';
+$string['schedules_panel'] = 'Panel de horarios';
 $string['institution_management'] = 'Administrar instituciones';
 
 // Capabilities.
@@ -337,10 +338,11 @@ $string['class'] = 'Clases';
 $string['approval_message_title'] = 'Mensaje de Aprobación';
 $string['course'] = 'Curso';
 $string['no_users_message'] = 'no cuenta con el número de estudiantes permitidos.';
-$string['aproved_message_hinit'] = 'Mensaje para justificar aprovación de horario.';
+$string['aproved_message_hinit'] = 'Mensaje para justificar aprobación de horario.';
 $string['onhold'] = 'En espera';
 $string['noschedule'] = 'Sin horario';
 $string['nouserswaitinglist'] = 'No hay Usurios en Lista de espera.';
+$string['deletion_message'] = 'Mensaje de Eliminación';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Envio mensaje de reagendamiento';

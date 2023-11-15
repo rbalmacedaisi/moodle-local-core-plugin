@@ -41,7 +41,7 @@ Vue.component('instructorcompetencies',{
                 <v-list >
                     <template v-for="(skill,index) in skills">
                         <v-list-item :class="index % 2 === 0 ? 'even-item' : 'odd-item'" :key="index" style="border-bottom: 1px solid #b0b0b0;">
-                            <v-list-item-title>{{skill.name}}</v-list-item-title>
+                            <v-list-item-title>{{skill}}</v-list-item-title>
                         </v-list-item>
                     </template>
                 </v-list>
@@ -72,7 +72,7 @@ Vue.component('instructorcompetencies',{
     },
     computed:{
         skills(){
-            return this.instructorData.instructorSkills
+            return this.instructorData.skills
         }
     },
 })

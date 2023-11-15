@@ -282,6 +282,7 @@ Vue.component('availabilitytable',{
                     <template v-slot:item.instructorSkills="{ item }"></template>
                     
                     <template v-slot:item.days="{ item }"></template>
+                    <template v-slot:item.skills="{ item }"></template>
                     
                     <template v-slot:item.actions="{ item }">
                         <v-tooltip bottom>
@@ -388,6 +389,7 @@ Vue.component('availabilitytable',{
                 { text: 'Disponibilidad', value: 'availability',sortable: false },
                 { text: 'instructorSkills', value: 'instructorSkills',sortable: false, class: 'd-none'},
                 { text: 'days', value: 'days',sortable: false, class: 'd-none'},
+                { text: 'skills', value: 'skills',sortable: false, class: 'd-none'},
                 { text: 'Actions', value: 'actions', sortable: false },
             ],
             teacherAvailabilityRecords:[],
@@ -398,7 +400,7 @@ Vue.component('availabilitytable',{
             applyActiveButton: true,
             dialogBulk:false,
             selectedskills: [],
-            instructorsSkills:[]
+            instructorsSkills:[],
         }
     },
     created(){
@@ -437,7 +439,6 @@ Vue.component('availabilitytable',{
                 // Send a POST request to upload the CSV file.
                 const uploadDisponibilityCSVResponse = await window.axios.post(`${window.location.origin}/webservice/upload.php`,uploadDisponibilityCSVRequestParams, {headers});
                 console.log(uploadDisponibilityCSVResponse)
-                
                 // Check the response status and data.
                 if(uploadDisponibilityCSVResponse.status !== 200 || !(uploadDisponibilityCSVResponse.data && uploadDisponibilityCSVResponse.data[0])){
                     throw new Error('Error uploading the CSV file');
@@ -467,21 +468,28 @@ Vue.component('availabilitytable',{
         /**
          * Opens a dialog for bulk file upload and validation.
          * This method performs the following actions:
-         * 1. Checks if the selected file is in CSV format, and if not, shows an alert and resets the file input.
-         * 2. If the file is in CSV format, it opens the bulk upload dialog.
+         * 1. Checks if the selected file is in Excel format, and if not, shows an alert and resets the file input.
+         * 2. If the file is in Excel format, it opens the bulk upload dialog.
          *
          * @param {Event} event - The event object triggered when a file is selected for upload.
          */
         openBulkDialog(event){
-            // Check if the selected file is not in CSV format.
-            if(event.target.files[0].type !== 'text/csv'){
+            
+            let fileName =event.target.files[0].name;
+
+            // Use the split method to separate the file name and extension
+            let parts = fileName.split('.');
+            let fileExtension = parts[parts.length - 1];
+
+            // Check if the selected file is not in Excel format.
+            if( fileExtension !== 'xlsx'){
                 // Reset the file input and display an alert
                 this.bulkForm.reset();
-                window.alert('El archivo debe estar en formato CSV');
+                window.alert('El archivo debe estar en formato Excel');
                 return 
             }
             
-            // If the file is in CSV format, open the bulk upload dialog.
+            // If the file is in Excel format, open the bulk upload dialog.
             this.dialogBulk = true
             return
         },
@@ -491,6 +499,7 @@ Vue.component('availabilitytable',{
          * @param {string} errorMessage - The error message to be displayed in the dialog.
          */
         openErrorDialog(errorMessage){
+            
             // Set the error message to be displayed in the dialog.
             this.errorMessage = errorMessage;
             // Open the error dialog
@@ -532,11 +541,20 @@ Vue.component('availabilitytable',{
             
             // Parse the data from the API response and assign it to the 'teacherAvailabilityRecords' array.
             this.teacherAvailabilityRecords = JSON.parse(availabilityResponse.data.teacherAvailabilityRecords)
+            
+            let array_skill = []
             // Extract available days for each instructor.
             this.teacherAvailabilityRecords.forEach(record => {
-              const days = Object.keys(record.disponibilityRecords);
-              record.days = days;
+                const days = Object.keys(record.disponibilityRecords);
+                record.days = days;
+              
+              
+                const skillsArray = record.instructorSkills.map(skill => skill.name);
+                // Asigna el array de skills a la propiedad skills del instructor
+                this.$set(record, 'skills', skillsArray);
+              
             });
+            
         },
         /**
          * Initiates the editing of an instructor's availability.
@@ -553,6 +571,8 @@ Vue.component('availabilitytable',{
         editItem ({instructorId}) {
             // Activate edit mode.
             this.editMode = true
+            
+            this.selectedskills = []
             
             // Set the selected instructor for editing.
             this.selectedInstructorId = instructorId
@@ -713,7 +733,8 @@ Vue.component('availabilitytable',{
                 // Handle the response from the web service.
                 if(saveResponse.data.status === -1){
                     this.dialog= false
-                    this.openErrorDialog(saveResponse.data.message)
+
+                    this.openErrorDialog(JSON.parse(saveResponse.data.message).join('\n'))
                     return
                 }
                 
@@ -946,7 +967,7 @@ Vue.component('availabilitytable',{
         closeDialogError(){
             this.errorDialog = false
             this.errorMessage = ''
-        }
+        },
     },
     computed: {
         /**
@@ -1053,7 +1074,7 @@ Vue.component('availabilitytable',{
          */
         teacherSkills(){
             return window.teacherSkills
-        }
+        },
     },
     watch: {
         // Watch the 'dialog' property.
@@ -1067,6 +1088,6 @@ Vue.component('availabilitytable',{
             handler: 'groupSchedulesPerDay',
             // Watch changes deeply within the 'schedules' property.
             deep: true
-        }
+        },
     },
 })

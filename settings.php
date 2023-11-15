@@ -46,6 +46,11 @@ if ($hassiteconfig) {
         get_string('availability_calendar', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/availability.php')
     );
+    $schedulesPanelPage =new admin_externalpage(
+        'grupomakro_core_schedules_panel',
+        get_string('schedules_panel', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/schedulepanel.php')
+    );
     $institutionManagementPage =new admin_externalpage(
         'grupomakro_core_institution_management',
         get_string('institution_management', 'local_grupomakro_core'),
@@ -55,6 +60,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityCalendarPage);
+    $ADMIN->add('grupomakrocore_plugin', $schedulesPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $institutionManagementPage);
     
     

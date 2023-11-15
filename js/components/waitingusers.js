@@ -93,18 +93,6 @@ Vue.component('waitingusers',{
                             ></waitingtable>
                         </v-card-text>
                     </v-sheet>
-          
-                    <v-card-actions>
-                        <v-spacer></v-spacer>
-                        
-                        <v-btn color="primary" text>
-                            {{lang.cancel}}
-                        </v-btn>
-                        
-                        <v-btn color="primary" text>
-                            {{lang.save}}
-                        </v-btn>
-                    </v-card-actions>
                 </v-card>
             </v-col>
             

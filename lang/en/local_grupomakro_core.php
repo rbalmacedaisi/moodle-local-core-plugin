@@ -30,6 +30,7 @@ $string['class_management'] = 'Class Management';
 $string['class_schedules'] = 'Class Schedules';
 $string['availability_panel'] = 'Availability Panel';
 $string['availability_calendar'] = 'Availability Calendar';
+$string['schedules_panel'] = 'Schedules Panel';
 $string['institution_management'] = 'Institution Management';
 
 // Capabilities.
@@ -339,6 +340,7 @@ $string['aproved_message_hinit'] = 'Message to justify schedule approval.';
 $string['onhold'] = 'On hold';
 $string['noschedule'] = 'No schedule';
 $string['nouserswaitinglist'] = 'There are no Users on the Waiting List.';
+$string['deletion_message'] = 'Deletion message';
 
 //Message providers names
 $string['messageprovider:send_reschedule_message'] = 'Send reschedule message';

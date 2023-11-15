@@ -1,3 +1,7 @@
+const removeDiacriticAndLowerCase = (string) => {
+    return string.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+}
+
 Vue.component('scheduletable',{
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
@@ -8,6 +12,7 @@ Vue.component('scheduletable',{
                    class="elevation-1 paneltable"
                    :search="search"
                    dense
+                   :custom-filter="tableFilter"
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
@@ -104,7 +109,7 @@ Vue.component('scheduletable',{
                 },
                 { text: window.strings.users, value: 'users',sortable: false, align: 'center', },
                 { text: 'periods', value: 'period', sortable: false, class: 'd-none' },
-                { text: window.strings.actions, value: 'actions', sortable: false, align: 'center' },
+                { text: window.strings.actions, value: 'actions', sortable: false, align: 'center',filterable: false },
             ],
             items: [],
             dialog: false,
@@ -196,8 +201,11 @@ Vue.component('scheduletable',{
         showschedules(item){
             // Redirects to the schedule approval page with the ID of the selected item.
             window.location = '/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.id
-        }
-    },
+        },
+        tableFilter (value, search, item) {
+            return removeDiacriticAndLowerCase(value.toString()).includes(removeDiacriticAndLowerCase(search))
+          },
+        },
     computed: {
         /**
          * A computed property that returns language-related data from the 'window.strings' object.

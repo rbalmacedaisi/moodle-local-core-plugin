@@ -2,7 +2,7 @@ Vue.component('deleteusers',{
     template: `
         <div>
             <v-dialog
-              v-model="dialog"
+              v-model="show"
               persistent
               max-width="450"
             >
@@ -18,7 +18,7 @@ Vue.component('deleteusers',{
                         <v-btn
                           color="primary"
                           outlined
-                          @click="dialog = false, $emit('close-delete')"
+                          @click="$emit('close')"
                           small
                         >
                             {{lang.cancel}}
@@ -26,7 +26,7 @@ Vue.component('deleteusers',{
                         <v-btn
                           color="primary"
                           small
-                          @click="deleteuser"
+                          @click="$emit('confirm')"
                         >
                             {{lang.accept}}
                         </v-btn>
@@ -37,22 +37,14 @@ Vue.component('deleteusers',{
         </div>
     `,
     data(){
-        return{
-            dialog: true,
-            dialogconfirm: false
-        }
+        return{};
     },
-    props:{},
-    created(){
+    props:{
+        show:Boolean
     },
+    created(){},
     mounted(){},  
-    methods:{
-        // Emits a 'delete-users' event to initiate the user deletion process.
-        deleteuser(){
-            // Emit the 'delete-users' event to trigger the user deletion process.
-            this.$emit('delete-users')
-        }
-    },
+    methods:{},
     computed: {
         /**
          * A computed property that returns language-related data from the 'window.strings' object.

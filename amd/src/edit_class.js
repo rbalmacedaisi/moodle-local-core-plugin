@@ -132,72 +132,72 @@ const handleActivityReschedule = () => {
 
 const handleClassSave = () => {
     saveButton.click(()=>{
+        console.log('save')
+        // endTimeInput.get(0).setCustomValidity('');
+        // // Check the select inputs and the time inputs
+        // const valid = selectors.every(selector => {
+        //     return selector.get(0).reportValidity();
+        // });
+        // if (!valid) {
+        //     return;
+        // }
+        // //
 
-        endTimeInput.get(0).setCustomValidity('');
-        // Check the select inputs and the time inputs
-        const valid = selectors.every(selector => {
-            return selector.get(0).reportValidity();
-        });
-        if (!valid) {
-            return;
-        }
-        //
+        // // Check if the init time is less than the end time of the class
+        // if (initTimeInput.val() >= endTimeInput.val()) {
+        //     endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
+        //     endTimeInput.get(0).reportValidity();
+        //     return;
+        // }
+        // //
 
-        // Check if the init time is less than the end time of the class
-        if (initTimeInput.val() >= endTimeInput.val()) {
-            endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
-            endTimeInput.get(0).reportValidity();
-            return;
-        }
-        //
-
-        // Check if at least one day of the week is selected
-        const daySelected = switches.some(day => {
-            return day.is(":checked");
-        });
-        if (!daySelected) {
-            mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
-            mondaySwitch.get(0).reportValidity();
-            return;
-        }
-        //
-        const args = {
-            classId,
-            name: classNameInput.val(),
-            type: typeSelector.val(),
-            learningPlanId: careerSelector.val(),
-            periodId: periodSelector.val(),
-            courseId: courseSelector.val(),
-            instructorId: teacherSelector.val(),
-            initTime: initTimeInput.val(),
-            endTime: endTimeInput.val(),
-            classDays: formatSelectedClassDays(),
-        };
-        const promise = Ajax.call([{
-            methodname: 'local_grupomakro_update_class',
-            args
-        }]);
-        promise[0].done(function(response) {
-            window.console.log(response);
-            if (response.status === -1) {
-                // Add the error message to the modal content.
-                try {
-                    const errorMessages = JSON.parse(response.message);
-                    let errorHTMLString = '';
-                    errorMessages.forEach(message=>{
-                        errorHTMLString += `<p class="text-center">${message}</p>`;
-                    });
-                    errorModalContent.html(errorHTMLString);
-                } catch (error) {
-                    errorModalContent.html(`<p class="text-center">${response.message}</p>`);
-                } finally {
-                    errorModal.modal('show');
-                }
-            }
-            window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
-        }).fail(function(error) {
-            window.console.error(error);
-        });
+        // // Check if at least one day of the week is selected
+        // const daySelected = switches.some(day => {
+        //     return day.is(":checked");
+        // });
+        // if (!daySelected) {
+        //     mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
+        //     mondaySwitch.get(0).reportValidity();
+        //     return;
+        // }
+        // //
+        // const args = {
+        //     classId,
+        //     name: classNameInput.val(),
+        //     type: typeSelector.val(),
+        //     learningPlanId: careerSelector.val(),
+        //     periodId: periodSelector.val(),
+        //     courseId: courseSelector.val(),
+        //     instructorId: teacherSelector.val(),
+        //     initTime: initTimeInput.val(),
+        //     endTime: endTimeInput.val(),
+        //     classDays: formatSelectedClassDays(),
+        // };
+        // const promise = Ajax.call([{
+        //     methodname: 'local_grupomakro_update_class',
+        //     args
+        // }]);
+        // promise[0].done(function(response) {
+        //     window.console.log(response);
+        //     if (response.status === -1) {
+        //         // Add the error message to the modal content.
+        //         try {
+        //             const errorMessages = JSON.parse(response.message);
+        //             let errorHTMLString = '';
+        //             errorMessages.forEach(message=>{
+        //                 errorHTMLString += `<p class="text-center">${message}</p>`;
+        //             });
+        //             errorModalContent.html(errorHTMLString);
+        //         } catch (error) {
+        //             errorModalContent.html(`<p class="text-center">${response.message}</p>`);
+        //         } finally {
+        //             errorModal.modal('show');
+        //         }
+        //     }
+        //     window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
+        // }).fail(function(error) {
+        //     window.console.error(error);
+        // });
 
     });
 };

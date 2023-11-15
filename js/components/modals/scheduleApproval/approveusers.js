@@ -4,9 +4,10 @@ Vue.component('approveusers',{
             <v-dialog
               v-model="dialog"
               persistent
-              max-width="550"
+              max-width="400"
             >
-                <v-card class="pa-0">
+                <v-card class="pa-4">
+                
                     <div v-if="itemapprove.quotas == itemapprove.users + itemapprove.waitingusers">
                         <v-alert
                           outlined
@@ -21,26 +22,17 @@ Vue.component('approveusers',{
                     </div>
                 
                     <div v-if="itemapprove.quotas > itemapprove.users + itemapprove.waitingusers || itemapprove.quotas < itemapprove.users + itemapprove.waitingusers">
-                        <v-alert
-                          text
-                          type="warning"
-                          icon="mdi-cloud-alert"
-                          prominent
-                          class="mb-0"
-                        >
-                            <span>{{ lang.mminimum_quota_message }} <br> {{ lang.want_to_approve }}</span>
                         
-                            <v-divider
-                              class="my-4 warning"
-                              style="opacity: 0.22"
-                            ></v-divider>
+                            <span class="d-flex text-center">{{ lang.mminimum_quota_message }} <br> {{ lang.want_to_approve }}</span>
+                        
+                            <v-divider class="mb-4 mt-4"></v-divider>
                         
                             <div class="d-flex justify-center">
                                 <v-btn
                                   color="warning"
                                   outlined
                                   small
-                                  class="ma-2 rounded"
+                                  class="mx-2 rounded"
                                   @click="cancel"
                                 >
                                     {{lang.cancel}}
@@ -50,13 +42,13 @@ Vue.component('approveusers',{
                                   color="warning"
                                   outlined
                                   small
-                                  class="ma-2 rounded"
+                                  class="mx-2 rounded"
                                   @click="dialogconfirm = true"
                                 >
                                     {{lang.accept}}
                                 </v-btn>
                             </div>
-                        </v-alert>
+                        
                     </div>
                 </v-card>
             </v-dialog>

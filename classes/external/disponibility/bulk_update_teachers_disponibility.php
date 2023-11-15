@@ -24,6 +24,9 @@
 
 namespace local_grupomakro_core\external\disponibility;
 
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+defined('MOODLE_INTERNAL') || die();
+
 use context_system;
 use external_api;
 use external_description;
@@ -33,10 +36,8 @@ use external_value;
 use stdClass;
 use Exception;
 
-defined('MOODLE_INTERNAL') || die();
 
 // require_once $CFG->libdir . '/externallib.php';
-require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_bulk_update_teachers_disponibility' implementation.
@@ -83,7 +84,7 @@ class bulk_update_teachers_disponibility extends external_api {
         try{
             $fs = get_file_storage();
             $bulkDisponibilitiesFile = $fs->get_file($params['contextId'],'user','draft',$params['itemId'],'/',$params['filename']);
-
+            
             if (!$bulkDisponibilitiesFile) {
                 throw new Exception('File not found.');
             }
@@ -91,8 +92,6 @@ class bulk_update_teachers_disponibility extends external_api {
             $disponibilityRecords = parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile);
             
             $bulkUpdateResults = bulk_update_teachers_disponibilities($disponibilityRecords);
-
-            $bulkDisponibilitiesFileDeleted = $bulkDisponibilitiesFile->delete();
 
             return ['result' => json_encode($bulkUpdateResults)];
         }

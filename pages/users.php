@@ -111,6 +111,9 @@ echo <<<EOT
     .check-table thead .v-data-table__checkbox.v-simple-checkbox{
       display: none !important;
     }
+    #v-email {
+      width: 160px;
+    }
   </style>
    
   <script>

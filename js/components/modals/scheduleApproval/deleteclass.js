@@ -7,7 +7,6 @@ Vue.component('deleteclass',{
               max-width="450"
             >
                 <v-card class="py-4">
-                
                     <v-card-text class="text-subtitle-1 font-weight-medium text-center">
                         <div v-if="itemdelete.users > 0">
                             {{lang.deleteusersclass}}
@@ -45,8 +44,8 @@ Vue.component('deleteclass',{
               max-width="600"
             >
                 <v-card class="">
-                    <v-card-title>
-                        <span class="text-h5">Mensaje para Eliminación</span>
+                    <v-card-title class="pb-0">
+                        <span class="text-h6">{{lang.deletion_message}}</span>
                     </v-card-title>
                     <v-card-text class="pb-0">
                         <v-container>
@@ -67,7 +66,7 @@ Vue.component('deleteclass',{
                         </v-container>
                     </v-card-text>
                     
-                    <v-card-actions class="pb-3">
+                    <v-card-actions class="pb-4 px-6">
                         <v-spacer></v-spacer>
                         <v-btn
                            color="primary"
@@ -81,6 +80,7 @@ Vue.component('deleteclass',{
                            color="primary"
                            @click="save"
                            small
+                           :disabled="!messageDelete"
                         >
                             {{lang.save}}
                         </v-btn>
@@ -123,9 +123,12 @@ Vue.component('deleteclass',{
         },
         // Initiates the removal of a class schedule with a specified deletion message.
         save(){
+            this.params.wstoken = this.token
+            this.params.moodlewsrestformat = 'json'
+            this.params.wsfunction = 'local_grupomakro_delete_course_class_schedule'
+            this.params.classId = this.itemdelete.clasId
             // Set the deletion message in the parameters.
             this.params.deletionMessage = this.messageDelete
-            
             // Call the 'removeClas' method to remove the class schedule.
             this.removeClas(this.params)
         },
@@ -168,6 +171,14 @@ Vue.component('deleteclass',{
          */
         siteUrl(){
             return window.location.origin + '/webservice/rest/server.php'
+        },
+        /**
+         * A computed property that returns the user token from the 'window.userToken' variable.
+         *
+         * @returns '{string}' - The user token.
+         */
+        token(){
+            return window.userToken;
         },
     },
     

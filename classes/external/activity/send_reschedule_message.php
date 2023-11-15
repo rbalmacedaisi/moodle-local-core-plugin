@@ -149,30 +149,21 @@ class send_reschedule_message extends external_api {
             $messageDefinition->contexturl =$rescheduleUrl;
             $messageDefinition->contexturlname = get_string('msg:send_reschedule_message:contexturlname','local_grupomakro_core');;
             // -------------------------------
-
     
-            // // Find the users that have administrator role---------------------------
+            // Find the users that have administrator role---------------------------
     
-            $managers = $DB->get_records('role_assignments', array('roleid'=>1));
-            $managerIds = array_map(function($element) {
-                return $element->userid;
-            }, $managers);
-            
-            // // -----------------------------------------------------------------------
-            
-            //Add my user for test purposes
-            $managerIds[]=70;
-            
-            // // Loop the managers array and send the reschedule message-------------------------------------------------------------------------
+            $adminIds = array_keys(get_admins());
+        
+            // Loop the managers array and send the reschedule message-------------------------------------------------------------------------
     
-            foreach (array_unique($managerIds) as $adminId) {
+            foreach ($adminIds as $adminId) {
                 
                 $messageDefinition->userto=$adminId;
                 // Send the message notification
                 $messageid = message_send($messageDefinition);
             }
             
-            // // ---------------------------------------------------------------------------------------------------------------------------------
+            // ---------------------------------------------------------------------------------------------------------------------------------
 
             return ['status' => 1, 'message' => 'ok'];
         }catch (Exception $e) {

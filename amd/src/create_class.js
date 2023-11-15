@@ -52,6 +52,7 @@ const handleTypeSelector = () => {
             classroomSelector.prop('required', true);
             classroomSelectorContainer.removeClass("d-none");
         } else if (typeSelector.val() === '1') {
+            classroomSelector.val("")
             classroomSelector.removeAttr('required');
             classroomSelectorContainer.addClass("d-none");
         }
@@ -66,6 +67,7 @@ const handleClassSave = () => {
         mondaySwitch.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
         const valid = selectors.every(selector => {
+            console.log(selector)
             return selector.get(0).reportValidity();
         });
         if (!valid) {
@@ -113,7 +115,7 @@ const handleClassSave = () => {
                 ? classRooms.find(classroom => classroom.value == classroomSelector.val()).capacity
                 : 40
         };
-        console.error(args)
+        
         const promise = Ajax.call([{
             methodname: 'local_grupomakro_create_class',
             args

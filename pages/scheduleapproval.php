@@ -88,6 +88,8 @@ $strings->approval_message_title = get_string('approval_message_title',$plugin_n
 $strings->userlist = get_string('userlist',$plugin_name);
 $strings->no_users_message = get_string('no_users_message',$plugin_name);
 $strings->aproved_message_hinit = get_string('aproved_message_hinit',$plugin_name);
+$strings->deletion_message = get_string('deletion_message',$plugin_name);
+$strings->deleteusersmessage = get_string('deleteusersmessage',$plugin_name);
 $strings = json_encode($strings);
 
 $aproved_img = $CFG->wwwroot.'/local/grupomakro_core/pix/aproved.png';
@@ -139,11 +141,12 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/scheduleapproval.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteclass.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/approveusers.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/userslist.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/availableschedulesdialog.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/schedulevalidationdialog.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/deleteclass.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/approveusers.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/userslist.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/availableschedulesdialog.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/schedulevalidationdialog.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/deleteusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();

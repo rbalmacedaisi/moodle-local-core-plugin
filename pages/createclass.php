@@ -58,15 +58,13 @@ foreach($availableCareers as $careerName => $careerInfo){
 // 
 $classrooms = get_classrooms();
 
-
-echo $OUTPUT->header();
-
 $classTypes = [
     ['value'=>1, 'label'=>'Virtual'],
     ['value'=>0, 'label'=>'Presencial'],
     ['value'=>2, 'label'=>'Mixta'],
     
 ];
+
 $classTypes = json_encode(array_values($classTypes));
 $classrooms = json_encode(array_values($classrooms));
 $formattedAvailableCareers = json_encode(array_values($formattedAvailableCareers));
@@ -109,6 +107,7 @@ $strings->see_availability = get_string('see_availability', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
 $strings = json_encode($strings);
 
+echo $OUTPUT->header();
 
 echo <<<EOT
 <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
