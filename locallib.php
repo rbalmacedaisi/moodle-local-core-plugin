@@ -1309,7 +1309,7 @@ function update_teacher_disponibility($params){
 
 function bulk_update_teachers_disponibilities($disponibilityRecords){
     $results = [];
-    
+
     global $DB;
     $userDocumentCustomFieldId = $DB->get_record('user_info_field',['shortname'=>'documentnumber'])->id;
     foreach($disponibilityRecords as $disponibilityRecord){
@@ -1344,7 +1344,13 @@ function bulk_update_teachers_disponibilities($disponibilityRecords){
 }
 
 function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
+    global $DB;
     
+    $teacherSkills = $DB->get_records('gmk_teacher_skill');
+    $teacherSkillsMinimized = [];
+    foreach($teacherSkills as $teacherSkill){
+        $teacherSkillsMinimized[cleanString($teacherSkill->name)]=$teacherSkill->id;
+    }
     $disponibilityRecords=[];
     
     $days = [
@@ -1416,19 +1422,25 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
             continue;
         }
         
-        $skillId = $skillsSheet->getCell('B' . $row->getRowIndex())->getValue();
-        if (!is_numeric($skillId)){
-            $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser númerico.';
+        $skill = $skillsSheet->getCell('B' . $row->getRowIndex())->getValue();
+        // $teacherSkills
+        if (!$skill){
+            // $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser númerico.';
+            continue;
+        }
+        $skill = cleanString($skill);
+        if(!array_key_exists($skill,$teacherSkillsMinimized)){
+            $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. La competencia '.$skill.' no es valida.';
             continue;
         }
         
         if(!isset($disponibilityRecords[$instructorId])){
             $disponibilityRecords[$instructorId]['instructorId']=$instructorId;
             $disponibilityRecords[$instructorId]['newDisponibilityRecords']=[];
-            $disponibilityRecords[$instructorId]['skills']=[$skillId];
+            $disponibilityRecords[$instructorId]['skills']=[$teacherSkillsMinimized[$skill]];
             continue;
         }
-        $disponibilityRecords[$instructorId]['skills'][]=$skillId;
+        $disponibilityRecords[$instructorId]['skills'][]=$teacherSkillsMinimized[$skill];
     }
     
     unlink($tempFilePath);
@@ -1447,7 +1459,6 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
         },$disponibilityRecord['newDisponibilityRecords']);
         return $disponibilityRecord;
     },$disponibilityRecords);
-    
     return $disponibilityRecords;
 }
 
