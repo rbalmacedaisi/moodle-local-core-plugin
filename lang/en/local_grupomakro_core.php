@@ -370,5 +370,8 @@ $string['general_data'] ='General data';
 $string['class_schedule_days'] ='Class schedule and days';
 $string['list_available_instructors'] ='List of Available Instructors';
 
-// Pagina Panel de Disponivilidad.
+// Availability Panel Page.
 $string['availability_bulk_load'] ='Availability Bulk Load';
+
+// Academic Dashboard Page
+$string['academic_panel'] = 'Academic panel';

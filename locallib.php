@@ -1311,26 +1311,35 @@ function bulk_update_teachers_disponibilities($disponibilityRecords){
     $results = [];
     
     global $DB;
+    $userDocumentCustomFieldId = $DB->get_record('user_info_field',['shortname'=>'documentnumber'])->id;
     foreach($disponibilityRecords as $disponibilityRecord){
-        $results[$disponibilityRecord['instructorId']]=[];
-        $results[$disponibilityRecord['instructorId']]['instructorId']=$disponibilityRecord['instructorId'];
+        $instructorDocument = $disponibilityRecord['instructorId'];
         
+        $results[$instructorDocument]=[];
+        $results[$instructorDocument]['instructorId']=$instructorDocument;
+        
+        $disponibilityRecord['instructorId'] = $DB->get_record_sql(
+            "SELECT userid FROM {user_info_data} WHERE fieldid = ? AND " . $DB->sql_compare_text('data') . " = ?",
+            [$userDocumentCustomFieldId, $disponibilityRecord['instructorId']]
+        )->userid;
         try{
+            if(!$disponibilityRecord['instructorId']){
+                throw new Exception('No hay usuario con el número de documento '.$instructorDocument);
+            }
             if(!$DB->get_record('gmk_teacher_disponibility',['userid'=>$disponibilityRecord['instructorId']])){
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
-                $results[$disponibilityRecord['instructorId']]['status']=1;
-                $results[$disponibilityRecord['instructorId']]['message']='Disponibility created with id '.$newDisponibilityId;
+                $results[$instructorDocument]['status']=1;
+                $results[$instructorDocument]['message']='Disponibility created with id '.$newDisponibilityId;
                 continue;
             }
             $disponibilityUpdated = update_teacher_disponibility($disponibilityRecord);
-            $results[$disponibilityRecord['instructorId']]['status']=1;
-            $results[$disponibilityRecord['instructorId']]['message']='Disponibility updated';
+            $results[$instructorDocument]['status']=1;
+            $results[$instructorDocument]['message']='Disponibility updated';
         }catch (Exception $e){
-            $results[$disponibilityRecord['instructorId']]['status']=-1;
-            $results[$disponibilityRecord['instructorId']]['message']=$e->getMessage();
+            $results[$instructorDocument]['status']=-1;
+            $results[$instructorDocument]['message']=$e->getMessage();
         }
     }
-
     return $results;
 }
 
@@ -1363,8 +1372,8 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
     $rangeSheet = $spreadsheet->getSheet(0);
     foreach ($rangeSheet->getRowIterator(2) as $row) {
         $instructorId = $rangeSheet->getCell('A' . $row->getRowIndex())->getValue();
-        if (!is_numeric($instructorId)){
-            $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El ID debe ser númerico.';
+        if (!$instructorId){
+            // $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El número de documento es requerido.';
             continue;
         }
         
@@ -1399,10 +1408,11 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
 
     // Process the sheet with skills
     $skillsSheet = $spreadsheet->getSheet(1);
+    
     foreach ($skillsSheet->getRowIterator(2) as $row) {
         $instructorId = $skillsSheet->getCell('A' . $row->getRowIndex())->getValue();
-        if (!is_numeric($instructorId)){
-            $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El ID debe ser númerico.';
+        if (!$instructorId){
+            // $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El número de documento es requerido.';
             continue;
         }
         
@@ -1437,8 +1447,6 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
         },$disponibilityRecord['newDisponibilityRecords']);
         return $disponibilityRecord;
     },$disponibilityRecords);
-    
-    
     
     return $disponibilityRecords;
 }

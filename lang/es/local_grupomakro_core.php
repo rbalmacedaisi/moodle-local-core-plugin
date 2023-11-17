@@ -319,7 +319,7 @@ $string['approved'] = 'Aprobado';
 $string['class_schedule'] = 'Horario de Clase';
 $string['quotas_enabled'] = 'Cupos Habilitados';
 $string['approve_users'] = 'Aprobar Usuarios';
-$string['move_to'] = 'Mover a:';
+$string['move_to'] = 'Mover';
 $string['current_location'] = 'Ubicación actual:';
 $string['student'] = 'Estudiante';
 $string['message_approved'] = 'La lista de usuarios para esta clase ha sido aprobada.';
@@ -373,3 +373,6 @@ $string['list_available_instructors'] ='Lista de Instructores Disponibles';
 
 // Pagina Panel de Disponivilidad.
 $string['availability_bulk_load'] ='Carga masiva de disponibilidad';
+
+// Pagina del Panel Academico
+$string['academic_panel'] = 'Panel académico';

@@ -54,7 +54,7 @@ class get_potential_class_teachers extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'courseId' => new external_value(PARAM_INT, 'Course ID', VALUE_DEFAULT,null),
+                'courseId' => new external_value(PARAM_TEXT, 'Course ID', VALUE_DEFAULT,null),
                 'initTime' => new external_value(PARAM_TEXT, 'Class init time', VALUE_DEFAULT,null),
                 'endTime' => new external_value(PARAM_TEXT, 'Class end time', VALUE_DEFAULT,null),
                 'classDays' => new external_value(PARAM_TEXT, 'Class days', VALUE_DEFAULT,null),

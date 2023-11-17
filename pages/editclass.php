@@ -162,6 +162,7 @@ $strings->close = get_string('close', $plugin_name);
 $strings = json_encode($strings);
 
 $templatedata = json_encode([
+    'classId'=> $class->id,
     'className'=> $class->name,
     'classTypes' => $classTypes,
     'classLearningPlans' => $classLearningPlans,
@@ -186,39 +187,51 @@ $templatedata = json_encode([
 echo $OUTPUT->header();
 
 echo <<<EOT
-<link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-  <div id="app">
-    <v-app class="transparent" style="background: transparent;">
-      <v-main>
-        <div>
-            <editclass></editclass>
-        </div>
-      </v-main>
-    </v-app>
-  </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <style>
+        /* Add any additional styles here */
+    </style>
+</head>
+<body>
 
-  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <style>
-    
-   </style>
-   
-   <script>
-        var strings = $strings;
-        var templatedata = $templatedata;
-        var userToken = $token;
-  </script>
-  
+<script>
+    var strings = $strings || {};
+    var templatedata = $templatedata || {};
+    var userToken = $token || null;
+</script>
+
+<div id="app">
+    <v-app class="transparent" style="background: transparent;">
+        <v-main>
+            <div>
+                <editclass></editclass>
+            </div>
+        </v-main>
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<!-- Additional scripts if needed -->
+
+</body>
+</html>
 EOT;
 
 
-$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/editclass.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
+$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
 echo $OUTPUT->footer();
 
 // echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);

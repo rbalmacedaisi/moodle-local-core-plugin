@@ -37,13 +37,13 @@ let courses;
 let teachers;
 
 export const init = () => {
-    handleCareerSelection();
-    handlePeriodSelection();
-    handleCourseSelection();
-    handleClassSave();
-    handleActivityReschedule();
-    handleActivityRescheduleConfirmation();
-    handleActivityRescheduleCancelation();
+    // handleCareerSelection();
+    // handlePeriodSelection();
+    // handleCourseSelection();
+    // handleClassSave();
+    // handleActivityReschedule();
+    // handleActivityRescheduleConfirmation();
+    // handleActivityRescheduleCancelation();
 };
 
 const handleActivityRescheduleCancelation = () => {
@@ -202,67 +202,67 @@ const handleClassSave = () => {
     });
 };
 
-const handleCareerSelection = ()=> {
-    careerSelector.change(()=> {
-        if (careerSelector.val() === '') {
- return;
-}
-const args = {
-    learningPlanId: careerSelector.val()
-};
-const promise = Ajax.call([{
-    methodname: 'local_sc_learningplans_get_learning_plan_periods',
-        args
-}]);
-        promise[0].done(function(response) {
-            $(".periodValue").remove();
-            $(".courseValue").remove();
-            $(".teacherValue").remove();
+// const handleCareerSelection = ()=> {
+//     careerSelector.change(()=> {
+//         if (careerSelector.val() === '') {
+//  return;
+// }
+// const args = {
+//     learningPlanId: careerSelector.val()
+// };
+// const promise = Ajax.call([{
+//     methodname: 'local_sc_learningplans_get_learning_plan_periods',
+//         args
+// }]);
+//         promise[0].done(function(response) {
+//             $(".periodValue").remove();
+//             $(".courseValue").remove();
+//             $(".teacherValue").remove();
 
-            periods = JSON.parse(response.periods);
-            if (!periods.length) {
-                periodSelector.val('').change();
-                return;
-            }
-            periods.forEach(({id, name}) => {
-                periodSelector.append(`<option class="periodValue" value="${id}">${name}</option>`);
-            });
-        }).fail(function(response) {
-            window.console.error(response);
-        });
-    });
+//             periods = JSON.parse(response.periods);
+//             if (!periods.length) {
+//                 periodSelector.val('').change();
+//                 return;
+//             }
+//             periods.forEach(({id, name}) => {
+//                 periodSelector.append(`<option class="periodValue" value="${id}">${name}</option>`);
+//             });
+//         }).fail(function(response) {
+//             window.console.error(response);
+//         });
+//     });
 
-};
+// };
 
-const handlePeriodSelection = () => {
-    periodSelector.change(()=> {
-        if (periodSelector.val() === '') {
- return;
-}
-        const args = {
-            learningPlanId: careerSelector.val(),
-            periodId: periodSelector.val()
-        };
-        const promise = Ajax.call([{
-            methodname: 'local_sc_learningplans_get_learning_plan_courses',
-            args
-        }]);
-        promise[0].done(function(response) {
-            $(".courseValue").remove();
-            $(".teacherValue").remove();
-            courses = JSON.parse(response.courses);
-            if (!courses.length) {
-                courseSelector.val('').change();
-                return;
-            }
-            courses.forEach(({id, name}) => {
-                courseSelector.append(`<option class="courseValue" value="${id}">${name}</option>`);
-            });
-        }).fail(function(response) {
-            window.console.error(response);
-        });
-    });
-};
+// const handlePeriodSelection = () => {
+//     periodSelector.change(()=> {
+//         if (periodSelector.val() === '') {
+//  return;
+// }
+//         const args = {
+//             learningPlanId: careerSelector.val(),
+//             periodId: periodSelector.val()
+//         };
+//         const promise = Ajax.call([{
+//             methodname: 'local_sc_learningplans_get_learning_plan_courses',
+//             args
+//         }]);
+//         promise[0].done(function(response) {
+//             $(".courseValue").remove();
+//             $(".teacherValue").remove();
+//             courses = JSON.parse(response.courses);
+//             if (!courses.length) {
+//                 courseSelector.val('').change();
+//                 return;
+//             }
+//             courses.forEach(({id, name}) => {
+//                 courseSelector.append(`<option class="courseValue" value="${id}">${name}</option>`);
+//             });
+//         }).fail(function(response) {
+//             window.console.error(response);
+//         });
+//     });
+// };
 
 const handleCourseSelection = () => {
     courseSelector.change(()=> {
