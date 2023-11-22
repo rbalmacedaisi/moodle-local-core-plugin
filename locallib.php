@@ -285,7 +285,6 @@ function get_potential_class_teachers($params){
             return $teacher;
         },$learningPlanTeachers));
     }
-    // print_r($learningPlanTeachers);
     if($params['initTime'] || $params['endTime']){
 
         $initTime = $params['initTime'] ? $params['initTime'] : updateTimeByMinutes($params['endTime'],-1) ;
@@ -360,9 +359,7 @@ function get_potential_class_teachers($params){
 
 function create_class($classParams){
     global $DB, $USER;
-    // $newClass = $DB->get_record('gmk_class',["id"=>34]);
-    // create_class_activities($newClass);
-    // die;
+
     try{
         $newClass = new stdClass();
         $newClass->name           = $classParams["name"];
@@ -518,6 +515,9 @@ function create_class_activities($class) {
     $isVirtualOrMixed = ($classType === 1 || $classType === 2);
     $isPhysicalOrMixed = ($classType === 0 || $classType === 2);
     
+    $BBBmoduleId = $DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id;
+    $classSectionNumber = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
+    
     // Start looping from the startDate to the endDate
     while ($currentDateTS < $endDateTS) {
         $day =  $classDaysList[date('l', $currentDateTS)];
@@ -525,7 +525,7 @@ function create_class_activities($class) {
         if ($isVirtualOrMixed && $day === '1') {
             // Create Big Blue Button activity
             $activityEndTS = $currentDateTS + (int)$class->classduration;
-            create_big_blue_button_activity($class, $currentDateTS, $activityEndTS);
+            create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
         }
     
         if ($isPhysicalOrMixed && $day === '1') {
@@ -539,7 +539,7 @@ function create_class_activities($class) {
     }
     // If the class type is physical or mixed, create the attendance activity and add sessions
     if ($isPhysicalOrMixed) { 
-        $attendanceActivityInfo = create_attendance_activity($class);
+        $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
         $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
         $context = \context_module::instance($attendanceCourseModule->id);
         $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
@@ -549,9 +549,8 @@ function create_class_activities($class) {
     return ['status'=>'created'];
 }
 
-function create_big_blue_button_activity($class,$initDateTS,$endDateTS){
+function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmoduleId,$classSectionId){
     
-    global $DB;
     $bbbActivityDefinition                                  = new stdClass();
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
     $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
@@ -561,14 +560,14 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS){
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"role","selectionid":"5","role":"viewer"}]';
     $bbbActivityDefinition->openingtime                     = $initDateTS;
     $bbbActivityDefinition->closingtime                     = $endDateTS;
-    $bbbActivityDefinition->section                         = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
-    $bbbActivityDefinition->module                          = $DB->get_record('modules',['name'=>$bbbActivityDefinition->modulename])->id;
+    $bbbActivityDefinition->section                         = $classSectionId;
+    $bbbActivityDefinition->module                          = $BBBmoduleId;
 
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
     return $bbbActivityInfo;
 }
 
-function create_attendance_activity($class){
+function create_attendance_activity($class,$classSectionNumber){
     
     global $DB;
     
@@ -577,7 +576,7 @@ function create_attendance_activity($class){
     $attendanceActivityDefinition->name                       = $class->name.'-'.$class->id;
     $attendanceActivityDefinition->visible                    = 1;
     $attendanceActivityDefinition->intro                      = "Registro de asistencia para la clase ".$class->name;
-    $attendanceActivityDefinition->section                    = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
+    $attendanceActivityDefinition->section                    = $classSectionNumber;
     $attendanceActivityDefinition->module                     = $DB->get_record('modules',['name'=>$attendanceActivityDefinition->modulename])->id;
     $attendanceActivityDefinition->subnet                     = '';
     
@@ -586,11 +585,11 @@ function create_attendance_activity($class){
         
 }
 
-function create_attendance_session_object($class,$initDateTS){
+function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds=null){
     
     $attendanceSessionDefinition = new stdClass();
     $attendanceSessionDefinition->sessdate = $initDateTS;
-    $attendanceSessionDefinition->duration = (int)$class->classduration;
+    $attendanceSessionDefinition->duration = $classDurationInSeconds ? $classDurationInSeconds : (int)$class->classduration;
     $attendanceSessionDefinition->groupid = $class->groupid;
     $attendanceSessionDefinition->timemodified = time();
     $attendanceSessionDefinition->calendarevent = 1;
@@ -601,6 +600,26 @@ function create_attendance_session_object($class,$initDateTS){
     $attendanceSessionDefinition->rotateqrcode = 1;
 
     return $attendanceSessionDefinition;
+}
+
+function replace_attendance_session($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$class){
+    
+    global $DB;
+    
+    $attendanceCourseModule = get_coursemodule_from_id('attendance', $moduleId, 0, false, MUST_EXIST);
+    $attendanceRecord = $DB->get_record('attendance',['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
+    $context = \context_module::instance($attendanceCourseModule->id);
+    $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
+    
+    //Remove the attendance session that will be reschedule
+    
+    $attendance->delete_sessions([$sessionIdToBeRemoved]);
+    
+    //Create the new attendance session with the new values
+
+    $attendanceSession = create_attendance_session_object($class,$sessionDate,$classDurationInSeconds);
+    
+    return $attendance->add_sessions([$attendanceSession]);
 }
 
 function list_classes($filters) {
@@ -1569,6 +1588,157 @@ function get_teacher_available_courses($params){
     return $learningPlanPeriodCourses;
 }
 
+function check_reschedule_conflicts($params){
+    
+    global $DB;
+    
+    $errors = [];
+    $weekdays = array(
+      'Monday' => 'Lunes',
+      'Tuesday'=> 'Martes',
+      'Wednesday' => 'Miércoles',
+      'Thursday' => 'Jueves',
+      'Friday' => 'Viernes',
+      'Saturday' => 'Sábado',
+      'Sunday' => 'Domingo'
+    );
+    
+    $classInfo = list_classes(['id'=>$params['classId']])[$params['classId']];
+    
+    //Check the instructor availability
+    $instructorUserId = $classInfo->instructorid;
+
+    //Get the day of the week in English from the Unix timestamp
+    $incomingWeekDay= $weekdays[date('l', strtotime($params['date']))];
+    $incomingTimeRangeTS = convert_time_range_to_timestamp_range([$params['initTime'],$params['endTime']]);
+    
+    $instructorEvents = get_teacher_disponibility_calendar($instructorUserId)[$instructorUserId];
+    $incomingDayAvailableTime = $instructorEvents->daysFree[$params['date']];
+    
+    $foundedAvailableRange = false;
+    for ($i = 0; $i < count($incomingDayAvailableTime); $i+=2) {
+        $freeTimeRangeTS = convert_time_range_to_timestamp_range([$incomingDayAvailableTime[$i],$incomingDayAvailableTime[$i+1]]);
+        if($incomingTimeRangeTS['initTS'] >=$freeTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS'] <=$freeTimeRangeTS['endTS']){
+            $foundedAvailableRange = true;
+            break;
+        }
+    }
+    if(!$foundedAvailableRange){
+        $errors[] = "El instructor no esta disponible el día ".$incomingWeekDay." en el horario ".$params['initTime']." - ".$params['endTime'].'.';
+    }
+    
+    //Check the group members and count how many students are in conflict with the new date and time
+
+    $groupMembers = $DB->get_records('groups_members',array('groupid'=>$classInfo->groupid));
+
+    foreach ($groupMembers as $key => $groupMember) {
+        if ($groupMember->userid == $instructorUserId) {
+            unset($groupMembers[$key]);
+            continue;
+        }
+        $studentEvents = get_class_events($groupMember->userid);
+        foreach($studentEvents as $studentEvent){
+            $eventStart = explode(' ',$studentEvent->start);
+            $eventEnd = explode(' ',$studentEvent->end);
+            if($eventStart[0] === $date){
+                continue;
+            }
+            $eventTimeRangeTS = convert_time_range_to_timestamp_range([$eventStart[1],$eventEnd[1]]);
+            
+            if(($incomingTimeRangeTS['initTS'] >= $eventTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS']<=$eventTimeRangeTS['endTS']) 
+                ||($incomingTimeRangeTS['initTS'] < $eventTimeRangeTS['initTS'] && $incomingTimeRangeTS['endTS']>$eventTimeRangeTS['initTS']) 
+                ||($incomingTimeRangeTS['initTS'] < $eventTimeRangeTS['endTS'] && $incomingTimeRangeTS['endTS']>$eventTimeRangeTS['endTS'])){
+                $userInfo = $DB->get_record('user',['id'=>$groupMember->userid]);
+                $errors[]='El estudiante '.$userInfo->firstname.' '.$userInfo->lastname.' presenta conflictos con el horario de la clase '.$studentEvent->className;
+                break;
+            }
+            
+        }
+    }
+    // --------------------------------------------------------------------
+    $rescheduleConflicts = !empty($errors);
+    
+    return ['hasConflicts'=>$rescheduleConflicts, 'conflicts'=>$errors];
+}
+
+function reschedule_class_activity($params){
+    global $DB;
+    
+    //First we get the modules id defined in the modules table, this can vary between moodle installations, so we make sure we hace the correct ids
+    $attendanceModuleId = $DB->get_record('modules', array('name' =>'attendance'), '*', MUST_EXIST)->id;
+    $bigBlueButtonModuleId = $DB->get_record('modules', array('name' =>'bigbluebuttonbn'), '*', MUST_EXIST)->id;
+    
+    //Get the module activity and the class type
+    $moduleInfo =  $DB->get_record('course_modules', array('id' =>$params['moduleId']), '*', MUST_EXIST);
+    $courseModule = $DB->get_record('modules', array('id' =>$moduleInfo->module), '*', MUST_EXIST);
+    $moduleActivity =  $DB->get_record('modules', array('id' =>$moduleInfo->module), '*', MUST_EXIST)->name;
+    $classInfo = list_classes(['id' =>$params['classId']])[$params['classId']];
+    $classSectionNumber = $DB->get_record('course_sections',['id'=>$classInfo->coursesectionid])->section;
+    
+    $initDateTime = $params['date'].' '.$params['initTime'];
+    $endDateTime = $params['date'].' '.$params['endTime'];
+    $initTimestamp = strtotime($initDateTime);
+    $endTimestamp = strtotime($endDateTime);
+    $classDurationInSeconds = $endTimestamp-$initTimestamp;
+    
+    $BBBmoduleId = $DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id;
+    
+    // If the class type is 0 (presencial), just replace the session on the attendance module
+    if($classInfo->type === '0'){
+        $attendanceSessionRescheduled = replace_attendance_session($params['moduleId'],$params['sessionId'],$initTimestamp,$classDurationInSeconds,$classInfo);
+    }
+    
+    // If the class type is 1 (virtual), we need to replace the big blue button module
+    else if($classInfo->type === '1'){
+        course_delete_module($params['moduleId']);
+        $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo,$initTimestamp,$endTimestamp,$BBBmoduleId,$classSectionNumber);
+    }
+     // If the class type is 2 (mixta), we need to reschedule both big blue button activity and attendance session
+    else if($classInfo->type === '2'){
+        
+        // print_object($moduleInfo->id);
+        // die;
+        if ($moduleActivity === 'bigbluebuttonbn'){
+            $bigBlueButtonInstanceModuleId = $moduleInfo->id;
+            $bigBlueButtonActivityInfo =  $DB->get_record('bigbluebuttonbn',['id'=>$moduleInfo->instance]);
+            $bigBlueButtonActivityInitTS = $bigBlueButtonActivityInfo->openingtime;
+            
+            // If the reschedule was triggered from the big blue button activity, we must search the attendance session that begins with the same timestamp 
+            $classAttendanceModule = $DB->get_record('course_modules',['section'=>$classInfo->coursesectionid , 'module'=>$attendanceModuleId]);
+            $classAttendanceModuleId = $classAttendanceModule->id;
+            $classAttendanceSessionId = $DB->get_record('attendance_sessions',['attendanceid'=>$classAttendanceModule->instance, 'sessdate'=>$bigBlueButtonActivityInitTS])->id;
+        }
+        else if ($moduleActivity === 'attendance'){
+            $classAttendanceModuleId = $moduleInfo->id;
+            $classAttendanceSessionId = $params['sessionId'];
+            
+            // If the reschedule was triggered from the attendance session, we must search the big bluebutton activity that begins with the same timestamp 
+            $classAttendanceSessionInitTS = $DB->get_record('attendance_sessions',[ 'id'=>$classAttendanceSessionId])->sessdate;
+            $bigBlueButtonActivityInfo = null;
+            $bigBlueButtonActivityItems= $DB->get_records('bigbluebuttonbn',['openingtime'=>$classAttendanceSessionInitTS, 'name'=>$classInfo->name.'-'.$classInfo->id.'-'.$classAttendanceSessionInitTS]);
+            foreach($bigBlueButtonActivityItems as $bigBlueButtonActivityItem){
+                if (!$bigBlueButtonActivityInfo){
+                    $bigBlueButtonActivityInfo = $bigBlueButtonActivityItem;
+                    continue;
+                }
+                $bigBlueButtonActivityInfo = $bigBlueButtonActivityItem->timecreated >$bigBlueButtonActivityInfo->timecreated ?$bigBlueButtonActivityItem :$bigBlueButtonActivityInfo;
+            }
+            $bigBlueButtonInstanceModuleId = $DB->get_record('course_modules',['instance'=>$bigBlueButtonActivityInfo->id , 'module'=>$bigBlueButtonModuleId])->id;
+        }
+        
+        //With the ids required to do the reschedule setted, lets use the methods to reschedute them
+        
+        //For attendance
+        $attendanceSessionRescheduled = replace_attendance_session($classAttendanceModuleId,$classAttendanceSessionId,$initTimestamp,$classDurationInSeconds,$classInfo);
+        
+        //For BBB
+        course_delete_module($bigBlueButtonInstanceModuleId);
+        $bigBluebuttonActivityRescheduled = create_big_blue_button_activity($classInfo,$initTimestamp,$endTimestamp,$BBBmoduleId,$classSectionNumber);
+
+    }
+    return true;
+}
+
 //Por revisar
 
 function get_class_events($userId) {
@@ -1633,9 +1803,7 @@ function get_class_events($userId) {
         $learningPlanUserRoles =  $DB->get_records('local_learning_users', ['userid'=>$userId]);
         
         if (!$learningPlanUserRoles){
-            return [
-            'events' => 'invalidUserId','message'=>'invalidUserId'
-            ];
+            return [];
         }
         
         $eventsFiltered = array();
@@ -2025,29 +2193,6 @@ function calculate_disponibility_range($timeRanges){
         $result[] = (object)['st' => $range->st - strtotime('today'), 'et' => $range->et - strtotime('today')];
     }
     return($result);
-}
-
-function replaceAttendanceSession($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$groupId){
-    
-    global $DB;
-    
-    $cm = get_coursemodule_from_id('attendance', $moduleId, 0, false, MUST_EXIST);
-    $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
-    $att = $DB->get_record('attendance', array('id' => $cm->instance), '*', MUST_EXIST);
-    $context = \context_module::instance($cm->id);
-    $att = new \mod_attendance_structure($att, $cm, $course, $context, $pageparams);
-    
-    //Remove the attendance session that will be reschedule
-    
-    $att->delete_sessions(array($sessionIdToBeRemoved));
-    
-    //Create the new attendance session with the new values
-
-    $attendanceSession = createAttendanceSessionObject($sessionDate,$classDurationInSeconds,$groupId);
-    
-    $att->add_sessions(array($attendanceSession)); 
-    
-    return true;
 }
 
 function getActivityInfo($moduleId,$sessionId=null){

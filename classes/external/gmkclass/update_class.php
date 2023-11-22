@@ -110,7 +110,6 @@ class update_class extends external_api {
         ]);
         
         try{
-            
             check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,'', $classId);
             
             update_class($params);

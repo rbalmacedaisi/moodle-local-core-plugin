@@ -116,9 +116,6 @@ class create_class extends external_api {
         
         
         try{
-            // die;
-            // $instructorId = $DB->get_record('local_learning_users',['id'=> $params['instructorId']])->userid;
-            // $params['instructorId'] =$instructorId;
             
             check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId']);
             

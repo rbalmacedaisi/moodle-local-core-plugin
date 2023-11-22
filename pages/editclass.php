@@ -147,6 +147,7 @@ $strings->instructor = get_string('instructor', $plugin_name);
 $strings->check_availability = get_string('check_availability', $plugin_name);
 $strings->cancel = get_string('cancel', $plugin_name);
 $strings->save = get_string('save', $plugin_name);
+$strings->accept = get_string('accept',$plugin_name);
 $strings->select_type_class = get_string('select_type_class', $plugin_name);
 $strings->select_classroom = get_string('select_classroom', $plugin_name);
 $strings->select_careers = get_string('select_careers', $plugin_name);
@@ -159,6 +160,9 @@ $strings->class_schedule_days = get_string('class_schedule_days', $plugin_name);
 $strings->list_available_instructors = get_string('list_available_instructors', $plugin_name);
 $strings->see_availability = get_string('see_availability', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
+$strings->rescheduling_activity = get_string('rescheduling_activity', $plugin_name);
+$strings->new_date = get_string('new_date', $plugin_name);
+$strings->reschedule = get_string('reschedule', $plugin_name);
 $strings = json_encode($strings);
 
 $templatedata = json_encode([
@@ -173,6 +177,8 @@ $templatedata = json_encode([
     'endTime'=>$class->endtime,
     'classDays'=>$classDays,
     'reschedulingActivity' => $reschedulingActivity,
+    'moduleId'=>$activityInfo?$moduleId : null,
+    'sessionId'=>$activityInfo?$sessionId : null,
     'activityInitDate'=>$activityInfo?$activityInfo ->activityInitDate: null,
     'activityProposedDate'=>$activityInfo? ($proposedDate ? $proposedDate : $activityInfo->activityInitDate): null,
     'activityInitTime'=>$activityInfo?$activityInfo ->activityInitTime: null,
@@ -229,9 +235,7 @@ EOT;
 
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/editclass.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/errormodal.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/classForm/reschedulemodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
-
-$PAGE->requires->js_call_amd('local_grupomakro_core/edit_class', 'init', []);
 echo $OUTPUT->footer();
-
-// echo $OUTPUT->render_from_template('local_grupomakro_core/editclass', $templatedata);

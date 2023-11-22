@@ -17,30 +17,30 @@ Vue.component('editclass',{
         <div class="row">
             <div class="col-sm-12 px-md-0">
                 <div class="card py-3 px-4">
-                    <!-- <div v-if="templatedata.reschedulingActivity" id="fields-groups" class="row pb-5 mt-2 mx-0">
+                    <div v-if="reschedulingActivity" id="fields-groups" class="row pb-5 mt-2 mx-0">
                         <div class="col-12">
-                            <h5 class="text-secondary mb-0">{{className}}</h5>
+                            <h5 class="text-secondary mb-0">{{lang.rescheduling_activity}} {{reschedulingActivityTitle}}</h5>
                             <hr> </hr>
                         </div>
                         
                         <div id="newDate-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="newDate">{{lang.new_date}}</label>
-                            <input type="date" class="form-control" id="newDate" :value="templatedata.activityProposedDate" required>
+                            <input v-model="activityRescheduleData.activityProposedDate" type="date" class="form-control" id="newDate" ref="newDate" required>
                         </div>
                         
                         <div id="newStartTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="newStartTime">{{lang.start_time}}</label>
-                            <input type="time" class="form-control" id="newStartTime" :value="templatedata.activityProposedInitTime" required>
+                            <input v-model="activityRescheduleData.activityProposedInitTime" type="time" class="form-control" id="newStartTime" ref="newInitTime" required>
                         </div>
                         
                         <div id="newEndTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="newEndTime">{{lang.end_time}}</label>
-                            <input type="time" class="form-control" id="newEndTime" :value="templatedata.activityProposedEndTime" required>
+                            <input v-model="activityRescheduleData.activityProposedEndTime" type="time" class="form-control" id="newEndTime" ref="newEndTime" required>
                         </div>
-                    </div> -->
+                    </div>
                     
                     
-                    <div id="fields-groups" class="row pb-5 mt-2 mx-0">
+                    <div v-if="!reschedulingActivity" id="fields-groups" class="row pb-5 mt-2 mx-0">
                         <div class="col-12">
                             <h5 class="text-secondary mb-0">{{ classData.name}}</h5>
                             <hr> </hr>
@@ -135,71 +135,81 @@ Vue.component('editclass',{
                             </div>
                         </div>
                         
-                        <v-divider></v-divider>
+                        
                             
-                        <div class="d-flex px-3 mt-6">
-                            <h6>{{lang.list_available_instructors}}</h6>
-                            <v-spacer></v-spacer>
-                            <v-btn
-                              text
-                              color="primary"
-                              small
-                              class="text-decoration-underline text-capitalize"
-                              href="/local/grupomakro_core/pages/availabilitypanel.php"
-                              target="blank"
-                            >
-                              {{lang.see_availability}}
-                            </v-btn>
+                        <div v-if="!reschedulingActivity">
+                            <v-divider></v-divider>
+                            <div class="d-flex px-3 mt-6">
+                                <h6>{{lang.list_available_instructors}}</h6>
+                                <v-spacer></v-spacer>
+                                <v-btn
+                                  text
+                                  color="primary"
+                                  small
+                                  class="text-decoration-underline text-capitalize"
+                                  href="/local/grupomakro_core/pages/availabilitypanel.php"
+                                  target="blank"
+                                >
+                                  {{lang.see_availability}}
+                                </v-btn>
+                            </div>
+                            <input  ref="hiddenTeacherInput" style="visibility:hidden;">
+                            <v-list dense two-line>
+                                <v-list-item-group v-model="classData.teacherIndex">
+                                    <template v-for="(item, index) in teachers">
+                                        <v-list-item color="success">
+                                            <template v-slot:default="{ active }">
+                                                <v-list-item-icon>
+                                                    <v-icon>mdi-school</v-icon>
+                                                </v-list-item-icon>
+                                                <v-list-item-content>
+                                                    <v-list-item-title>{{ item.fullname }} <span v-if="item.id === classTeacherId">(Actual)</span></v-list-item-title>
+                                                    <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
+                                                </v-list-item-content>
+                                        
+                                                <v-list-item-action>
+                                                    <v-checkbox
+                                                      :input-value="active"
+                                                      color="success"
+                                                      
+                                                    ></v-checkbox>
+                                                </v-list-item-action>
+                                            </template>
+                                        </v-list-item>
+                                    </template>
+                                </v-list-item-group>
+                            </v-list>
                         </div>
-                        <input  ref="hiddenTeacherInput" style="visibility:hidden;">
-                        <v-list dense two-line>
-                            <v-list-item-group v-model="classData.teacherIndex">
-                                <template v-for="(item, index) in teachers">
-                                    <v-list-item color="success">
-                                        <template v-slot:default="{ active }">
-                                            <v-list-item-icon>
-                                                <v-icon>mdi-school</v-icon>
-                                            </v-list-item-icon>
-                                            <v-list-item-content>
-                                                <v-list-item-title>{{ item.fullname }} <span v-if="item.id === classTeacherId">(Actual)</span></v-list-item-title>
-                                                <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
-                                            </v-list-item-content>
-                                    
-                                            <v-list-item-action>
-                                                <v-checkbox
-                                                  :input-value="active"
-                                                  color="success"
-                                                  
-                                                ></v-checkbox>
-                                            </v-list-item-action>
-                                        </template>
-                                    </v-list-item>
-                                </template>
-                            </v-list-item-group>
-                        </v-list>
-                    
-                        <!--<div v-if="templatedata.reschedulingActivity" class="d-flex card-footer bg-transparent px-0">
-                            <div class="spacer"></div>
-                            <a href="#" class="btn btn-secondary m-1"></a>
-                            <a id="rescheduleActivityButton" data-target='#rescheduleActivityModalCenter' data-toggle='modal' class="btn btn-primary m-1"></a>
-                        </div>-->
                     
                         <div class="d-flex card-footer bg-transparent px-0">
                             <div class="spacer"></div>
-                            <v-btn @click="cancelUrl" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
-                            <v-btn @click="saveClass" id="saveClassButton" class="ma-2" small color="primary">{{lang.save}}</v-btn>
+                            <v-btn @click="returnToLastPage" :disabled="savingClass || checkingRescheduling" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
+                            <v-btn @click="handleActionButtonClick" :loading="savingClass || checkingRescheduling" id="saveClassButton" class="ma-2" small color="primary">{{buttonLabel}}</v-btn>
                         </div>
                     
                 </div>
             </div>
             
         </div>
+        <errormodal :show="showErrorDialog" :message="errorMessage" @close="closeErrorDialog"/>
+        <reschedulemodal :loading="rescheduling" :show="showRescheduleDialog" :message="rescheduleMessage" @close="closeRescheduleDialog" @confirm="rescheduleActivity"/>
     </div>
     `,
     props:{},
     data(){
         return{
-            dialog: false,
+            showErrorDialog: false,
+            showRescheduleDialog:false,
+            activityRescheduleData:{
+                activityInitDate:undefined,
+                activityInitTime:undefined,
+                activityEndTime:undefined,
+                activityProposedDate:undefined,
+                activityProposedInitTime:undefined,
+                activityProposedEndTime:undefined,
+                moduleId:undefined,
+                sessionId:undefined
+            },
             classData:{
                 id:undefined,
                 name: undefined,
@@ -226,15 +236,23 @@ Vue.component('editclass',{
             periods:[],
             courses:[],
             teachers:[],
-            classTeacherId
+            classTeacherId,
+            errorMessage:undefined,
+            rescheduleMessage:undefined,
+            savingClass:false,
+            rescheduling:false,
+            checkingRescheduling:false
         }
     },
     created(){
         this.fillInputs()
     },
     methods:{
-        cancelUrl(){
-            window.location = '/local/grupomakro_core/pages/classmanagement.php'
+        returnToLastPage(){
+            window.location = this.reschedulingActivity ? '/local/grupomakro_core/pages/schedules.php' : '/local/grupomakro_core/pages/classmanagement.php';
+            this.savingClass = false;
+            this.rescheduling = false;
+            this.checkingRescheduling = false;
         },
         fillInputs(){
             
@@ -261,6 +279,17 @@ Vue.component('editclass',{
             
             this.teachers = classData.classTeachers;
             this.classData.teacherIndex  = this.teachers.findIndex(teacher => teacher.id === classTeacherId)
+            
+            if(this.reschedulingActivity){
+                this.activityRescheduleData.activityEndTime = classData.activityEndTime
+                this.activityRescheduleData.activityInitDate = classData.activityInitDate
+                this.activityRescheduleData.activityInitTime = classData.activityInitTime
+                this.activityRescheduleData.activityProposedDate = classData.activityProposedDate
+                this.activityRescheduleData.activityProposedEndTime = classData.activityProposedEndTime
+                this.activityRescheduleData.activityProposedInitTime = classData.activityProposedInitTime
+                this.activityRescheduleData.moduleId = classData.moduleId
+                this.activityRescheduleData.sessionId = classData.sessionId
+            }
             
             setTimeout(()=>{
                 this.filledInputs = true;
@@ -295,7 +324,6 @@ Vue.component('editclass',{
             }
         },
         async getPotentialTeachers(){
-            
             if(!this.classData.learningPlanId|| !this.filledInputs){
                 return;
             }
@@ -311,10 +339,17 @@ Vue.component('editclass',{
                 console.error(error)
             }
         },
-        validateInputs(){
+        handleActionButtonClick(){
+            if(this.reschedulingActivity){
+                this.checkRescheduleAvailability();
+                return
+            }  
+            this.saveClass();
+        },
+        validateClassInputs(){
             this.$refs.classEndTime.setCustomValidity('');
             
-            const valid = this.inputs.every(input => {
+            const valid = this.classInputs.every(input => {
                 return input.reportValidity();
             });
             if(!valid){
@@ -331,7 +366,6 @@ Vue.component('editclass',{
                 return false
             }
             if(!this.selectedClassTeacher){
-                console.log('no se selecciono instructor')
                 this.$refs.hiddenTeacherInput.setCustomValidity('Se debe seleccionar un instructor.')
                 this.$refs.hiddenTeacherInput.reportValidity();
                 return false
@@ -340,58 +374,109 @@ Vue.component('editclass',{
         },
         async saveClass(){
             
-            if(!this.validateInputs()){
+            if(!this.validateClassInputs()){
                 return;
             }
+            this.savingClass = true;
+            
             try{
-                let {data} =await window.axios.get(wsurl, { params:this.saveClassParameters })
-                console.log(data)
+                let {data} =await window.axios.get(wsurl, { params:this.saveClassParameters });
+                let {status, message,exception} = data;
+                if(status === -1){
+                    throw new Error(JSON.parse(message).join('\n'));
+                }
+                else if(exception){
+                    throw new Error(message);
+                }
+                
+                this.returnToLastPage()
             }
             catch(error){
                 console.error(error)
+                this.errorMessage = error.message;
+                this.showErrorDialog = true;
+                this.savingClass = false;
+            }
+        },
+        validateRescheduleInputs(){
+            this.$refs.newEndTime.setCustomValidity('');
+            
+            const valid = this.rescheduleInputs.every(input => {
+                return input.reportValidity();
+            });
+            if(!valid){
+                return false
             }
             
-            // const args = {
-            //     classId,
-            //     name: classNameInput.val(),
-            //     type: typeSelector.val(),
-            //     learningPlanId: careerSelector.val(),
-            //     periodId: periodSelector.val(),
-            //     courseId: courseSelector.val(),
-            //     instructorId: teacherSelector.val(),
-            //     initTime: initTimeInput.val(),
-            //     endTime: endTimeInput.val(),
-            //     classDays: formatSelectedClassDays(),
-            // };
-            // const promise = Ajax.call([{
-            //     methodname: 'local_grupomakro_update_class',
-            //     args
-            // }]);
-            // promise[0].done(function(response) {
-            //     window.console.log(response);
-            //     if (response.status === -1) {
-            //         // Add the error message to the modal content.
-            //         try {
-            //             const errorMessages = JSON.parse(response.message);
-            //             let errorHTMLString = '';
-            //             errorMessages.forEach(message=>{
-            //                 errorHTMLString += `<p class="text-center">${message}</p>`;
-            //             });
-            //             errorModalContent.html(errorHTMLString);
-            //         } catch (error) {
-            //             errorModalContent.html(`<p class="text-center">${response.message}</p>`);
-            //         } finally {
-            //             errorModal.modal('show');
-            //         }
-            //     }
-            //     window.location.href = '/local/grupomakro_core/pages/classmanagement.php';
-            // }).fail(function(error) {
-            //     window.console.error(error);
-            // });
+            if(!this.validRescheduleTimeRange){
+                this.$refs.newEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
+                this.$refs.newEndTime.reportValidity();
+                return false
+            }
+            return true
+        },
+        async checkRescheduleAvailability(){
+
+            if(!this.validateRescheduleInputs()){
+                return;
+            }
+            this.checkingRescheduling =true;
+            try{
+                let {data} =await window.axios.get(wsurl, { params:this.checkRescheduleActivityParameters });
+                this.checkingRescheduling = false;
+                let {status, message,exception} = data
+                if(status === -1){
+                    throw new Error(JSON.parse(message));
+                }
+                else if(exception){
+                    throw new Error(message);
+                }
+                this.rescheduleMessage = JSON.parse(message).join('\n');
+                this.showRescheduleDialog = true;
+            }
+            catch(error){
+                console.error(error)
+                this.errorMessage = error.message;
+                this.showErrorDialog = true;
+                this.checkingRescheduling =false;
+            }
+        },
+        async rescheduleActivity(){
+            if(!this.validateRescheduleInputs()){
+                return;
+            }
+            this.rescheduling = true;
+            try{
+                let {data} =await window.axios.get(wsurl, { params:this.rescheduleActivityParameters });
+                let {status, message,exception} = data
+                if(status === -1){
+                    throw new Error(JSON.parse(message));
+                }
+                else if(exception){
+                    throw new Error(message);
+                }
+                this.returnToLastPage()
+            }
+            catch(error){
+                console.error(error)
+                this.rescheduling = false;
+                this.showRescheduleDialog =false;
+                this.errorMessage = error.message;
+                this.showErrorDialog = true;
+            }
+
+        },
+        closeErrorDialog(){
+            this.errorMessage = undefined;
+            this.showErrorDialog=false;
+        },
+        closeRescheduleDialog(){
+            this.rescheduleMessage = undefined;
+            this.showRescheduleDialog = false;
         }
     },
     computed:{
-        inputs(){
+        classInputs(){
             return [
                 this.$refs.className,
                 this.$refs.classType,
@@ -402,8 +487,18 @@ Vue.component('editclass',{
                 this.$refs.classEndTime
             ]  
         },
+        rescheduleInputs(){
+            return [
+                this.$refs.newDate,
+                this.$refs.newInitTime,
+                this.$refs.newEndTime,
+            ]  
+        },
         validTimeRange(){
             return this.classData.initTime < this.classData.endTime
+        },
+        validRescheduleTimeRange(){
+            return this.activityRescheduleData.activityProposedInitTime < this.activityRescheduleData.activityProposedEndTime
         },
         selectedClassTeacher(){
           return this.teachers[this.classData.teacherIndex]  
@@ -433,6 +528,28 @@ Vue.component('editclass',{
                 classDays:this.classDaysString,
                 learningPlanId:this.classData.learningPlanId,
                 classId:this.classData.id,
+            }
+        },
+        checkRescheduleActivityParameters(){
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_grupomakro_check_reschedule_conflicts',
+                classId: this.classData.id,
+                date: this.activityRescheduleData.activityProposedDate,
+                initTime: this.activityRescheduleData.activityProposedInitTime,
+                endTime: this.activityRescheduleData.activityProposedEndTime
+            }
+        },
+        rescheduleActivityParameters(){
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_grupomakro_reschedule_activity',
+                classId: this.classData.id,
+                moduleId: this.activityRescheduleData.moduleId,
+                date: this.activityRescheduleData.activityProposedDate,
+                initTime: this.activityRescheduleData.activityProposedInitTime,
+                endTime: this.activityRescheduleData.activityProposedEndTime,
+                sessionId: this.activityRescheduleData.sessionId
             }
         },
         saveClassParameters(){
@@ -465,6 +582,15 @@ Vue.component('editclass',{
             ];
             return days.join('/');
         },
+        reschedulingActivity(){
+            return classData.reschedulingActivity;
+        },
+        reschedulingActivityTitle(){
+            return `${this.classData.name} (${this.activityRescheduleData.activityInitDate} ${this.activityRescheduleData.activityInitTime}-${this.activityRescheduleData.activityEndTime})`  
+        },
+        buttonLabel(){
+            return this.reschedulingActivity? this.lang.reschedule : this.lang.save
+        },
         lang(){
             return window.strings;
         }
@@ -478,6 +604,7 @@ Vue.component('editclass',{
             if (!newVal){
                 this.periods = [];
                 this.classData.teacherIndex = undefined;
+                console.log('cambio de lea')
                 this.teachers = [];
             }
             this.classData.periodId = ""

@@ -30,8 +30,6 @@ use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
-use stdClass;
-use DateTime;
 use Exception;
 
 defined('MOODLE_INTERNAL') || die();
@@ -77,11 +75,15 @@ class get_teachers_disponibility_calendar extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), [
             'instructorId' => $instructorId,
         ]);
-
-        $teachersDisponibility = get_teacher_disponibility_calendar($params['instructorId']);
         
-        // Return the result.
-        return ['disponibility' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
+        try{
+            
+            $teachersDisponibility = get_teacher_disponibility_calendar($params['instructorId']);
+
+            return ['disponibility' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
+        }catch (Exception $e){
+            return ['status' => -1, 'message' => $e->getMessage()];
+        }
     }
     
     /**
@@ -92,8 +94,9 @@ class get_teachers_disponibility_calendar extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'disponibility' => new external_value(PARAM_RAW, 'The ID of the delete class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status'=> new external_value(PARAM_INT, '1 if success, -1 otherwise.', VALUE_DEFAULT,1),
+                'disponibility' => new external_value(PARAM_RAW, 'The disponibility information.',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }
