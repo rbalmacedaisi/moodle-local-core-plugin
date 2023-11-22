@@ -1,3 +1,7 @@
+const removeDiacriticAndLowerCase = (string) => {
+    return string.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+}
+
 Vue.component('availabilitytable',{
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
@@ -8,6 +12,7 @@ Vue.component('availabilitytable',{
                    class="elevation-1 paneltable"
                    dense
                    :search="search"
+                   :custom-filter="tableFilter"
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
@@ -387,12 +392,13 @@ Vue.component('availabilitytable',{
                     text: 'Competencias',
                     sortable: false,
                     value: 'competencies',
+                    filterable:false
                 },
-                { text: 'Disponibilidad', value: 'availability',sortable: false },
+                { text: 'Disponibilidad', value: 'availability',sortable: false,filterable:false },
                 { text: 'instructorSkills', value: 'instructorSkills',sortable: false, class: 'd-none'},
                 { text: 'days', value: 'days',sortable: false, class: 'd-none'},
                 { text: 'skills', value: 'skills',sortable: false, class: 'd-none'},
-                { text: 'Actions', value: 'actions', sortable: false },
+                { text: 'Actions', value: 'actions', sortable: false,filterable:false },
             ],
             teacherAvailabilityRecords:[],
             selectedInstructorId:undefined,
@@ -985,6 +991,13 @@ Vue.component('availabilitytable',{
             this.errorDialog = false
             this.errorMessage = ''
         },
+        tableFilter(value, search, item) {
+            try{
+                return removeDiacriticAndLowerCase(value.toString()).includes(removeDiacriticAndLowerCase(search))
+            }catch(error){
+                console.error(error)
+            }
+        }
     },
     computed: {
         /**

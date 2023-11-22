@@ -203,9 +203,13 @@ Vue.component('scheduletable',{
             window.location = '/local/grupomakro_core/pages/scheduleapproval.php?id=' + item.id
         },
         tableFilter (value, search, item) {
-            return removeDiacriticAndLowerCase(value.toString()).includes(removeDiacriticAndLowerCase(search))
-          },
-        },
+            try{
+                return removeDiacriticAndLowerCase(value.toString()).includes(removeDiacriticAndLowerCase(search))
+            }catch (error){
+                console.error(error)
+            }
+        }
+    },
     computed: {
         /**
          * A computed property that returns language-related data from the 'window.strings' object.
