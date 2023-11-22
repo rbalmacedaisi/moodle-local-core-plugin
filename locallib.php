@@ -1343,7 +1343,7 @@ function bulk_update_teachers_disponibilities($disponibilityRecords){
         )->userid;
         try{
             if(!$disponibilityRecord['instructorId']){
-                throw new Exception('No hay usuario con el número de documento '.$instructorDocument);
+                throw new Exception(json_encode(['No hay usuario con el número de documento '.$instructorDocument]));
             }
             if(!$DB->get_record('gmk_teacher_disponibility',['userid'=>$disponibilityRecord['instructorId']])){
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);

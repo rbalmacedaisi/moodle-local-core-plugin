@@ -341,9 +341,11 @@ Vue.component('availabilitytable',{
             </deletemodal>
             
             <dialogbulkmodal 
-              v-if="dialogBulk"
-              @cancel-upload="cancelUploadBulkDisponibilities"
-              @upload-disponibilities="uploadDisponibilities"
+              :show="dialogBulk"
+              :uploading="uploadingDisponibilities"
+              :uploadBulkResults="uploadBulkResults"
+              @close="cancelUploadBulkDisponibilities"
+              @confirm="uploadDisponibilities"
             >
             </dialogbulkmodal>
             
@@ -401,6 +403,8 @@ Vue.component('availabilitytable',{
             dialogBulk:false,
             selectedskills: [],
             instructorsSkills:[],
+            uploadingDisponibilities:false,
+            uploadBulkResults:undefined
         }
     },
     created(){
@@ -421,6 +425,7 @@ Vue.component('availabilitytable',{
          * 8. Log the responses and handle errors.
          */
         async uploadDisponibilities(){
+            this.uploadingDisponibilities=true
             try{
                 // Define request headers.
                 const headers = {
@@ -459,9 +464,20 @@ Vue.component('availabilitytable',{
                
                 // Send a GET request to update teachers' disponibilities.
                 const updateTeachersDisponibilitiesResponse = await window.axios.get(this.siteUrl,{params:updateTeachersDisponibilitiesRequestParams});
-                window.console.log(updateTeachersDisponibilitiesResponse)
-                window.location.reload();
+                this.uploadingDisponibilities=false
+                if(updateTeachersDisponibilitiesResponse.data.exception){
+                    throw new Error(updateTeachersDisponibilitiesResponse.data.message)
+                }
+                else if(updateTeachersDisponibilitiesResponse.data.status === -1){
+                    throw new Error(JSON.parse(updateTeachersDisponibilitiesResponse.data.message).join('\n'));
+                }
+                this.uploadBulkResults=JSON.parse(updateTeachersDisponibilitiesResponse.data.result);
+                // window.location.reload();
             }catch(error){
+                
+                this.cancelUploadBulkDisponibilities()
+                this.errorMessage = error.message;
+                this.errorDialog = true;
                 window.console.error(error)
             }
         },
@@ -936,6 +952,7 @@ Vue.component('availabilitytable',{
          * It resets the bulk form and closes the dialog for bulk uploading.
          */
         cancelUploadBulkDisponibilities(){
+            this.uploadingDisponibilities = false;
             // Reset the bulk form.
             this.bulkForm.reset();
             
