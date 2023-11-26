@@ -375,3 +375,4 @@ $string['availability_bulk_load'] ='Availability Bulk Load';
 
 // Academic Dashboard Page
 $string['academic_panel'] = 'Academic panel';
+$string['academic_record'] = 'Academic record';

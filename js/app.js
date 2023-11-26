@@ -29,6 +29,7 @@ axios.get(url, { params })
     darkPrimarycolor = data.brandcolordark;
     secondarycolor = data.secondarycolor;
     secondarycolordark = data.secondarycolordark;
+    bgcolordark = data.bgcolordark
     
     // Get the value of the 'data-preset' attribute from the root element of the document.
     const preset = document.documentElement.getAttribute('data-preset');
@@ -50,13 +51,15 @@ axios.get(url, { params })
               primary: primarycolor,
               secondary: secondarycolor,
               availabilityColor: '#0ed456',
-              success: '#3cd4a0'
+              success: '#3cd4a0',
+              base: '#f8f9fa'
             },
             dark: {
               primary: darkPrimarycolor,
               secondary: secondarycolordark,
               availabilityColor: '#0ed456',
-              success: '#3cd4a0'
+              success: '#3cd4a0',
+              base: bgcolordark
             }
           },
         },

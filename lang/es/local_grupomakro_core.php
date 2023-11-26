@@ -376,3 +376,4 @@ $string['availability_bulk_load'] ='Carga masiva de disponibilidad';
 
 // Pagina del Panel Academico
 $string['academic_panel'] = 'Panel académico';
+$string['academic_record'] = 'Historial Académico';

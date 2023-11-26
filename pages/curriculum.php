@@ -29,12 +29,12 @@ require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/academicpanel.php');
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/curriculum.php');
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('academic_panel', $plugin_name));
-$PAGE->set_heading(get_string('academic_panel', $plugin_name));
+$PAGE->set_title(get_string('academic_record', $plugin_name));
+//$PAGE->set_heading(get_string('academic_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $strings = new stdClass();
@@ -64,7 +64,7 @@ echo <<<EOT
     <v-app class="transparent">
       <v-main>
         <div>
-          <academicpanel></academicpanel>
+          <curriculum></curriculum>
         </div>
       </v-main>
     </v-app>
@@ -74,34 +74,56 @@ echo <<<EOT
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <style>
-    .theme--light.v-application{
-      background: transparent !important;
+    .theme--light.v-application,
+    .theme--dark.v-application{
+        background: transparent !important;
     }
-    .panel-content{
-      -webkit-column-gap: 1.25rem;
-      -moz-column-gap: 1.25rem;
-      column-gap: 1.25rem !important;
-      grid-template-columns: repeat(4,1fr);
-      display: grid;
-      gap: 0.5rem;
+    
+    .curriculum-card{
+        border-color: #404650 !important
+        background: var(--v-background-base) !important
     }
-    ul.list{
-      display: grid;
-      grid-template-columns: repeat(1,1fr);
-      margin-top: 1rem;
+    .v-card-border-w{
+        border-width: 1px 1px 2px !important
     }
-    ul.list li{
-      list-style: none;
-      display: flex;
-      align-items: center;
+    .period-title:before {
+        border-bottom: 1px solid #c4c4c4;
+        content: " ";
+        display: block;
+        height: 15px;
+        width: 100%;
+        position: absolute;
     }
-    ul.list a.learning-link{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex: 1 1;
-      text-decoration: none;
+    .period-title span{
+        border: 1px solid #c4c4c4;
+        border-radius: 15px;
+        left: 50%;
+        margin: 0 auto;
+        padding: 0.25rem 0.75rem;
+        position: absolute;
+        -webkit-transform: translate(-50%);
+        -moz-transform: translate(-50%);
+        -o-transform: translate(-50%);
+        -ms-transform: translate(-50%);
+        transform: translate(-50%);
+        z-index: 20;
+        
+    }
+    [data-preset="default"] .period-title span{
+        background-color: #f8f9fa;
+    }
+    [data-preset="dark"] .period-title span{
+        background-color: #13131a;
+    }
+    .course-content{
+        grid-template-columns: repeat(4,1fr);
+        grid-gap: 1rem;
+        display: grid;
+        margin-top: 1.5rem;
+        padding: 2rem 0;
+    }
+    #page.drawers .main-inner{
+      margin-top: 0px !important;
     }
   </style>
   
@@ -112,9 +134,6 @@ echo <<<EOT
   
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

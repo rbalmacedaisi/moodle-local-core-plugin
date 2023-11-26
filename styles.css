@@ -3,7 +3,7 @@
     width: 36px !important;
     height: 35px !important;
 }
-.v-chip {
+/*.v-chip {
     border-radius: 4px !important;
     align-items: center;
     cursor: default;
@@ -47,7 +47,7 @@
     position: absolute;
     top: 0;
     left: 0;
-}
+}*/
 .v-chip.state_v {
     color: var(--primary) !important;
     caret-color: var(--primary) !important;
