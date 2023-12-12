@@ -231,6 +231,7 @@ Vue.component('createclass',{
                 // If not selected, clear the value of 'instructorId'.
                 instructorId.value = ''
             }
+            console.log(instructorId.value)
         },
         // Fetches a list of teachers based on specified parameters.
         getTeachers(){

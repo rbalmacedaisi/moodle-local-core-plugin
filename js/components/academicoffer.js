@@ -14,7 +14,7 @@ Vue.component('academicoffer',{
                     ></v-text-field>
                 </v-col>
                 <v-spacer></v-spacer>
-                <v-btn color="primary" class="rounded">Gestionar Carreras</v-btn>
+                <v-btn color="primary" class="rounded">{{ lang.manage_careers }}</v-btn>
             </v-row>
             
             <ul class="list mt-6 mx-0 px-0">
@@ -43,26 +43,21 @@ Vue.component('academicoffer',{
                                 {{ item.learningplanName }}
                             </h5>
                             <p class="LearningPathsListItem-content-info text-body-2 text--secondary mb-0">
-                                {{item.periods + " Cuatrimestres" + " | " + item.courses + " cursos"}}
+                                {{item.periods + ' ' + lang.quarters + " | " + item.courses + ' ' + lang.courses}}
                             </p>
                         </div>
                     </a>
-                    <v-tooltip bottom>
-                        <template v-slot:activator="{ on, attrs }">
-                          <v-btn
-                            v-bind="attrs"
-                            v-on="on"
-                            outlined
-                            color="primary"
-                            small
-                            class="mx-6 rounded"
-                            href="/local/grupomakro_core/pages/curriculum.php"
-                            target="_blank"
-                            >Ver Malla</v-btn
-                          >
-                        </template>
-                        <span>Ver Historial Academico</span>
-                    </v-tooltip>
+                        
+                    <v-btn
+                      outlined
+                      color="primary"
+                      small
+                      class="mx-6 rounded"
+                      :href="'/local/grupomakro_core/pages/curriculum.php?lp_id='+ item.id"
+                      target="_blank"
+                    >
+                        {{ lang.see_curriculum }}
+                    </v-btn>
                 </li>
             </ul>
         </div>
@@ -70,67 +65,82 @@ Vue.component('academicoffer',{
     data(){
         return{
             search: '',
-            items: [
-                {
-                    id: 1,
-                    learningplanName: "TÉCNICO SUPERIOR EN TRIPULANTE DE CABINA",
-                    img: "https://lxp-dev.soluttolabs.com/pluginfile.php/1/local_sc_learningplans/learningplan_image/20/fotomaqueta_01.png",
-                    periods: 4,
-                    courses: 26,
-                    percentage: 15,
-                    color: "#6cc3ef33",
-                },
-                {
-                    id: 2,
-                    learningplanName:
-                    "TÉCNICO SUPERIOR EN LOGÍSTICA Y COMERCIO INTERNACIONAL",
-                    img: "https://lxp-dev.soluttolabs.com/pluginfile.php/1/local_sc_learningplans/learningplan_image/20/fotomaqueta_01.png",
-                    periods: 4,
-                    courses: 26,
-                    percentage: 30,
-                    color: "#f7956433",
-                },
-                {
-                    id: 3,
-                    learningplanName:
-                    "TÉCNICO SUPERIOR EN MECÁNICA DE EQUIPO PESADO",
-                    img: "https://lxp-dev.soluttolabs.com/pluginfile.php/1/local_sc_learningplans/learningplan_image/20/fotomaqueta_01.png",
-                    periods: 4,
-                    courses: 25,
-                    percentage: 30,
-                    color: "#f7956433",
-                },
-                {
-                    id: 4,
-                    learningplanName:
-                    "ELECTRICIDAD CON ÉNFASIS EN CENTRALES HIDROELÉCTRICAS",
-                    img: "https://lxp-dev.soluttolabs.com/pluginfile.php/1/local_sc_learningplans/learningplan_image/20/fotomaqueta_01.png",
-                    periods: 4,
-                    courses: 23,
-                    percentage: 30,
-                    color: "#f7956433",
-                },
-                {
-                    id: 5,
-                    learningplanName:
-                    "DISEÑO DE OBRAS CIVILES",
-                    img: "https://lxp-dev.soluttolabs.com/pluginfile.php/1/local_sc_learningplans/learningplan_image/20/fotomaqueta_01.png",
-                    periods: 4,
-                    courses: 26,
-                    percentage: 30,
-                    color: "#f7956433",
-                },
-            ],
+            items: [],
         }
     },
     created(){
-        
+        this.getOfferAcademic()
     },  
     methods:{
+        /**
+         * Fetches academic program offerings from the Moodle API and populates the component's items array.
+         *
+         * @method getOfferAcademic
+         * @async
+         * @throws {Error} Throws an error if the API request fails.
+         * @returns {Promise<void>} A Promise that resolves when the API request is successful.
+         *
+         * @example
+         * // Call the getOfferAcademic method to fetch and process academic program offerings.
+         * getOfferAcademic();
+         */
+        getOfferAcademic(){
+            // URL for the API request.
+            const url = this.siteUrl;
+            
+            // Create an object with the parameters required for the API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_learning_plan_list'
+            };
+            
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Parse the JSON data returned from the API.
+                    const carrers = JSON.parse(response.data.learningPlans)
+                    
+                    // Iterate through the retrieved data and populate the items array.
+                    carrers.forEach((element) => {
+                        this.items.push({
+                            id:element.id,
+                            learningplanName: element.name,
+                            img: element.imageUrl ? element.imageUrl : window.defaultImage,
+                            periods: element.periodCount,
+                            courses: element.courseCount
+                        })
+                    })
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error("Error fetching academic program offerings:", error);
+            });
+        },
+        /**
+         * Calculates the background color based on the provided index.
+         *
+         * This method takes an index and determines the background color from a predefined
+         * array of colors. The calculated color is returned as an object with a 'background' property.
+         *
+         * @method calculateBackgroundColor
+         * @param {number} index - The index used to determine the background color.
+         * @returns {Object} An object containing the calculated background color.
+         *
+         * @example
+         * // Call the calculateBackgroundColor method to get the background color for a specific index.
+         * const backgroundColor = calculateBackgroundColor(3);
+         * // Example result: { background: "#E0F2F1" }
+         */
         calculateBackgroundColor(index) {
+            // Predefined array of colors for background.
             const colors = ["#FFF3E0", "#F3E5F5", "#E3F2FD", "#E0F2F1", "#FCE4EC"];
+            
+            // Calculate the color index based on the provided index.
             const colorIndex = index % colors.length;
             
+            // Return an object with the calculated background color.
             return {
                 background: colors[colorIndex]
             };
@@ -163,11 +173,35 @@ Vue.component('academicoffer',{
         token(){
             return window.userToken;
         },
+        /**
+         * Returns a filtered list of items based on the search term.
+         *
+         * This computed property filters the 'items' array based on the provided
+         * search term. It performs a case-insensitive search on the 'learningplanName'
+         * property of each item and returns the filtered list.
+         *
+         * @computed filteredItems
+         * @returns {Array} An array containing the items that match the search term.
+         *
+         * @example
+         * // Access the filteredItems computed property to get items matching the search term.
+         * const filteredResults = filteredItems;
+         * // Example result: [{ id: 1, learningplanName: "Computer Science", ... }, ...]
+         */
         filteredItems() {
+            // Convert the search term to lowercase for case-insensitive comparison.
             const searchTerm = this.search.toLowerCase();
+            
+            // Use the Array.filter method to filter items based on the search term.
             return this.items.filter(item =>
                 item.learningplanName.toLowerCase().includes(searchTerm)
             );
         },
+        /**
+         * Computed property that returns the approved image stored in the global 'aprovedImg'.
+         */
+        img(){
+            return window.defaultImage
+        }
     },
 })

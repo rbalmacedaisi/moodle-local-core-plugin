@@ -365,6 +365,13 @@ $string['msg:send_reschedule_message:body'] = '
 
 $string['msg:send_reschedule_message:subject'] ='New reschedule request';
 $string['msg:send_reschedule_message:contexturlname'] ='Reschedule session';
+
+//Revalidation Message Body.
+$string['msg:send_revalidation_message:body'] = '
+<h2>The course<strong>{$a->courseName}</strong> can be revalidated.</h2>
+<p>Click <a href={$a->payRevalidUrl}>here</a> to pay the revalid.</p>';
+$string['msg:send_revalidation_message:subject'] ='New pending revalid';
+$string['msg:send_revalidation_message:contexturlname'] ='Pay revalid';
 $string['enter_name'] ='Enter a name';
 $string['general_data'] ='General data';
 $string['class_schedule_days'] ='Class schedule and days';
@@ -376,3 +383,12 @@ $string['availability_bulk_load'] ='Availability Bulk Load';
 // Academic Dashboard Page
 $string['academic_panel'] = 'Academic panel';
 $string['academic_record'] = 'Academic record';
+$string['prerequisites'] = 'Prerequisites';
+$string['hours'] = 'Hours';
+$string['quarters'] = 'Quarters';
+$string['courses'] = 'Courses';
+$string['see_curriculum'] = 'See Curriculum';
+$string['students_per_page'] = 'Students per Page';
+$string['students_list'] = 'Students list';
+$string['revalidation'] = 'Revalidation';
+$string['there_no_data'] = 'There is no data';

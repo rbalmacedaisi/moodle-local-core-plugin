@@ -37,6 +37,8 @@ $PAGE->set_title(get_string('academic_record', $plugin_name));
 //$PAGE->set_heading(get_string('academic_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
 
+$id = required_param('lp_id', PARAM_TEXT);
+
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
 $strings->selection_schedules = get_string('selection_schedules',$plugin_name);
@@ -47,12 +49,13 @@ $strings->course = get_string('course', $plugin_name);
 $strings->item_class = get_string('class', $plugin_name);
 $strings->users = get_string('users', $plugin_name);
 $strings->actions = get_string('actions', $plugin_name);
+$strings->prerequisites = get_string('prerequisites', $plugin_name);
+$strings->hours = get_string('hours', $plugin_name);
 
 $strings = json_encode($strings);
 
 $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
 $token = json_encode(external_generate_token_for_current_user($service)->token);
-
 
 echo $OUTPUT->header();
 
@@ -76,54 +79,78 @@ echo <<<EOT
   <style>
     .theme--light.v-application,
     .theme--dark.v-application{
-        background: transparent !important;
+      background: transparent !important;
     }
     
     .curriculum-card{
-        border-color: #404650 !important
-        background: var(--v-background-base) !important
+      border-color: #404650 !important
+      background: var(--v-background-base) !important
     }
     .v-card-border-w{
-        border-width: 1px 1px 2px !important
+      border-width: 1px 1px 2px !important
     }
     .period-title:before {
-        border-bottom: 1px solid #c4c4c4;
-        content: " ";
-        display: block;
-        height: 15px;
-        width: 100%;
-        position: absolute;
+      border-bottom: 1px solid #c4c4c4;
+      content: " ";
+      display: block;
+      height: 15px;
+      width: 100%;
+      position: absolute;
     }
     .period-title span{
-        border: 1px solid #c4c4c4;
-        border-radius: 15px;
-        left: 50%;
-        margin: 0 auto;
-        padding: 0.25rem 0.75rem;
-        position: absolute;
-        -webkit-transform: translate(-50%);
-        -moz-transform: translate(-50%);
-        -o-transform: translate(-50%);
-        -ms-transform: translate(-50%);
-        transform: translate(-50%);
-        z-index: 20;
-        
+      border: 1px solid #c4c4c4;
+      border-radius: 15px;
+      left: 50%;
+      margin: 0 auto;
+      padding: 0.25rem 0.75rem;
+      position: absolute;
+      -webkit-transform: translate(-50%);
+      -moz-transform: translate(-50%);
+      -o-transform: translate(-50%);
+      -ms-transform: translate(-50%);
+      transform: translate(-50%);
+      z-index: 20;
     }
     [data-preset="default"] .period-title span{
-        background-color: #f8f9fa;
+      background-color: #f8f9fa;
     }
     [data-preset="dark"] .period-title span{
-        background-color: #13131a;
+      background-color: #13131a;
     }
     .course-content{
-        grid-template-columns: repeat(4,1fr);
-        grid-gap: 1rem;
-        display: grid;
-        margin-top: 1.5rem;
-        padding: 2rem 0;
+      grid-template-columns: repeat(4,1fr);
+      grid-gap: 1rem;
+      display: grid;
+      margin-top: 1.5rem;
+      padding: 2rem 0;
     }
     #page.drawers .main-inner{
       margin-top: 0px !important;
+    }
+    
+    @media only screen and (max-width: 1366px){
+      .course-content {
+        grid-template-columns: repeat(3,1fr);
+      }
+    }
+    @media only screen and (max-width: 992px){
+      .course-content {
+        grid-template-columns: repeat(3,1fr);
+      }
+      #page.drawers{
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+      }
+    }
+    @media only screen and (max-width: 768px){
+      .course-content {
+        grid-template-columns: repeat(2,1fr);
+      }
+    }
+    @media only screen and (max-width: 600px){
+      .course-content {
+        grid-template-columns: repeat(1,1fr);
+      }
     }
   </style>
   

@@ -1,6 +1,6 @@
 Vue.component('academicpanel',{
     template: `
-        <v-container fluid style="max-width: 100% !importand;" class="w-100">
+        <v-container fluid style="max-width: 100% !important;" class="w-100">
             <v-row justify="center" class="my-2 mx-0 ">
                 <v-col cols="12" class="py-0 px-0">
                     <div class="panel-content">
@@ -48,9 +48,7 @@ Vue.component('academicpanel',{
                     </section>
                 </v-col>
             </v-row>  
-            
         </v-container>
-        
     `,
     data(){
         return{

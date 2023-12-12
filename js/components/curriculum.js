@@ -1,11 +1,11 @@
 Vue.component('curriculum',{
     template: `
-        <div class="w-100 h-100 pb-16">
-            <v-container>
+        <div class="w-100 h-100 pb-16" v-resize="onResize">
+            <v-container class="curriculum-container" style="max-width: 100% !important;">
                 <v-row justify="center">
-                    <v-col cols="12" sm="10">
+                    <v-col cols="12" sm="12" md="12" lg="12" xl="10">
                         <h2 class="px-4">Historial Académico</h2>
-                        <span class="text-secondary px-4">TÉCNICO SUPERIOR EN TRIPULANTE DE CABINA</span>
+                        <span class="text-secondary px-4">{{lpName}}</span>
                         <div class="mt-5">
                             <div v-for="(item, index) in items" :key="index" class="period-content"> 
                                 <h6 class="period-title">
@@ -18,55 +18,48 @@ Vue.component('curriculum',{
                                       :key="course.id"
                                       class="my-3 v-card-border-w rounded-lg position-relative"
                                       max-width="100%"
-                                      
+                                      :width="windowSize.x > 992 ? '300' : '100%'"
+                                      height="115"
                                       outlined
                                       :style="getCardBorderStyle(item.period)"
                                       style="background: var(--v-background-base) !important"
                                     >
                                         <v-card-title>
-                                            <div class="text-body-1">{{ course.name }}</div>
+                                            <div class="text-body-2">{{ course.coursefullname }}</div>
                             
                                             <v-spacer></v-spacer>
                             
                                             <v-menu
-                                              v-if="course.requirements.length > 0 "
+                                              v-if="course.prerequisite_fullnames.length > 0 "
                                             >
                                                 <template v-slot:activator="{ on: menu, attrs }">
                                                     <v-tooltip bottom>
                                                       <template v-slot:activator="{ on: tooltip }">
                                                         <v-icon
-                                                          v-if="course.status == 'No Disponible'"
                                                           v-bind="attrs"
                                                           v-on="{ ...tooltip, ...menu }"
                                                           >mdi-book-lock-outline</v-icon
                                                         >
-                                                        <v-icon
-                                                          v-if="course.status != 'No Disponible'"
-                                                          v-bind="attrs"
-                                                          v-on="{ ...tooltip, ...menu }"
-                                                          >mdi-book-lock-open-outline</v-icon
-                                                        >
                                                       </template>
-                                                      <span>Prerrequisitos</span>
+                                                      <span>{{ lang.prerequisites }}</span>
                                                     </v-tooltip>
                                                 </template>
                             
                                                 <v-list>
                                                     <v-list-item
-                                                      v-for="(requerimen, index) in course.requirements"
+                                                      v-for="(requerimen, index) in course.prerequisite_fullnames"
                                                       :key="index"
                                                     >
                                                         <v-list-item-avatar>
-                                                            <v-icon large :color="requerimen.color">mdi-card</v-icon>
+                                                            <v-icon large color="error">mdi-card</v-icon>
                                                         </v-list-item-avatar>
+                                                        
                                                         <v-list-item-content>
-                                                            <v-list-item-title>{{ requerimen.name }}</v-list-item-title>
+                                                            <v-list-item-title>{{ requerimen }}</v-list-item-title>
                                                         </v-list-item-content>
+                                                        
                                                         <v-list-item-action>
-                                                            <v-btn v-if="requerimen.status == 'complete'" icon>
-                                                                <v-icon color="success">mdi-lock-open-outline</v-icon>
-                                                            </v-btn>
-                                                            <v-btn v-else icon>
+                                                            <v-btn icon>
                                                                 <v-icon color="error">mdi-lock-outline</v-icon>
                                                             </v-btn>
                                                         </v-list-item-action>
@@ -74,16 +67,20 @@ Vue.component('curriculum',{
                                                 </v-list>
                                             </v-menu>
                                         </v-card-title>
-                                        <v-card-subtitle class="pb-3"> {{ course.code }}</v-card-subtitle>
                                         
-                                        <v-card-actions :style="getCardActionsStyle(item.period)">
-                                            <span>Créditos: <b>{{ course.credit }}</b></span>
+                                        <v-card-subtitle class="pb-3"> {{ course.courseshortname }}</v-card-subtitle>
+                                        
+                                        <v-card-actions :style="getCardActionsStyle(item.period)" style="bottom: 0px; position: absolute; width: 100%;">
+                                            <span>Créditos: <b>{{ course.credits }}</b></span>
+                                            
                                             <v-spacer></v-spacer>
                                             
                                             <div class="d-flex">
-                                                <b>Horas:</b>
-                                                <span class="mr-1">T: 32</span>
-                                                <span>P: 32</span>
+                                                <b>{{ lang.hours }}:</b>
+                                                <div class="d-flex ml-1 px-2 rounded-pill" :style="getCardBorderStyle(item.period)" style="border-width: 0.5px; border-style: solid;">
+                                                    <span class="mr-1">T: {{course.teoricalHours}}</span>
+                                                    <span>P: {{course.practicalHours}}</span>
+                                                </div>
                                             </div>
                                         </v-card-actions>
                                     </v-card>
@@ -97,304 +94,86 @@ Vue.component('curriculum',{
     `,
     data(){
         return{
-            items: [
-                {
-                    period: "I CUATRIMESTRE",
-                    id: 1,
-                    status: "activo",
-                    courses: [
-                        {
-                            name: "Matemática 1",
-                            credit: 2,
-                            progress: 100,
-                            grade: "100",
-                            status: "Aprobada",
-                            requirements: [],
-                            id: 20,
-                            color: "#BBDEFB",
-                            code: 'MATE-I',
-                            modules: [
-                                {
-                                    modname: "1 Actividad Matemáticas",
-                                    id: 30,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "2 Actividad Matemáticas",
-                                    id: 31,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "3 Actividad Matemáticas",
-                                    id: 32,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "4 Actividad Matemáticas",
-                                    id: 33,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "5 Actividad Matemáticas",
-                                    id: 34,
-                                    grade: 10,
-                                },
-                            ],
-                        },
-                        {
-                            name: "Inglés I",
-                            credit: 3,
-                            progress: 100,
-                            grade: "100",
-                            status: "Aprobada",
-                            requirements: [],
-                            id: 22,
-                            color: "#7986CB",
-                            code: 'INGL-I',
-                            modules: [
-                                {
-                                    modname: "1 Actividad Inglés",
-                                    id: 35,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "2 Actividad Inglés",
-                                    id: 36,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "3 Actividad Inglés",
-                                    id: 37,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "4 Actividad Inglés",
-                                    id: 38,
-                                    grade: 10,
-                                },
-                                {
-                                    modname: "5 Actividad Inglés",
-                                    id: 39,
-                                    grade: 10,
-                                },
-                            ],
-                        },
-                        {
-                            name: "Informática Aplicada",
-                            credit: 3,
-                            progress: 100,
-                            grade: "30",
-                            status: "Reprobada",
-                            requirements: [],
-                            id: 23,
-                            color: "#dbdbdb",
-                            code: 'INFO',
-                            modules: [],
-                        },
-                        {
-                            name: "Expresión Oral y Escrita",
-                            credit: 2,
-                            progress: 100,
-                            grade: "30",
-                            status: "Reprobada",
-                            requirements: [],
-                            id: 53,
-                            color: "#dbdbdb",
-                            code: 'EOES-I',
-                            modules: [],
-                        },
-                    ],
-                },
-                {
-                    period: "II CUATRIMESTRE",
-                    id: 2,
-                    status: "activo",
-                    courses: [
-                        {
-                            name: "Legislación Aeronáutica",
-                            credit: 4,
-                            progress: 10,
-                            grade: "10",
-                            status: "Cursando",
-                            requirements: [],
-                            id: 24,
-                            color: "#9575CD",
-                            code: 'LAER',
-                            modules: [],
-                        },
-                        {
-                            name: "Meteorología Básica",
-                            credit: 3,
-                            progress: 0,
-                            grade: "0",
-                            status: "Disponible",
-                            requirements: [],
-                            id: 25,
-                            color: "#FF5252",
-                            code: 'MBAS',
-                            modules: [],
-                        },
-                        {
-                            name: "Inglés II",
-                            credit: 3,
-                            progress: 100,
-                            grade: "0",
-                            status: "Reprobada",
-                            requirements: [
-                                {
-                                    name: "Inglés I",
-                                    status: "complete",
-                                    color: "#7986CB",
-                                },
-                            ],
-                            id: 26,
-                            color: "#b0b0b0",
-                            code: 'INGL-II',
-                            modules: [],
-                        },
-                        {
-                            name: "Historia de Panamá",
-                            credit: 2,
-                            progress: 100,
-                            grade: "0",
-                            status: "Reprobada",
-                            requirements: [
-                                
-                            ],
-                            id: 56,
-                            color: "#b0b0b0",
-                            code: 'HIST',
-                            modules: [],
-                        },
-                    ],
-                },
-                {
-                    period: "III CUATRIMESTRE",
-                    id: 3,
-                    status: "inactivo",
-                    courses: [
-                        {
-                            name: "Inglés III",
-                            credit: 3,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [
-                                {
-                                    name: "Inglés I",
-                                    status: "complete",
-                                    color: "#7986CB",
-                                },
-                                {
-                                    name: "Inglés II",
-                                    status: "incomplete",
-                                    color: "#7986CB",
-                                },
-                            ],
-                            id: 27,
-                            color: "#EC407A",
-                            code: 'INGL-III',
-                            modules: [],
-                        },
-                        {
-                            name: "Servicio a Bordo",
-                            credit: 6,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 28,
-                            color: "#E040FB",
-                            code: 'SBOR',
-                            modules: [],
-                        },
-                        {
-                            name: "Gestión Empresarial",
-                            credit: 5,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 29,
-                            color: "#1DE9B6",
-                            code: 'GEMP',
-                            modules: [],
-                        },
-                        {
-                            name: "Gestión de Recursos",
-                            credit: 5,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 59,
-                            color: "#1DE9B6",
-                            code: 'GREC',
-                            modules: [],
-                        },
-                    ],
-                },
-                {
-                    period: "IV CUATRIMESTRE",
-                    id: 3,
-                    status: "inactivo",
-                    courses: [
-                        {
-                            name: "Desarrollo de la personalidad",
-                            credit: 4,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 47,
-                            color: "#EC407A",
-                            code: 'DPER',
-                            modules: [],
-                        },
-                        {
-                            name: "Natación",
-                            credit: 4,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 48,
-                            color: "#E040FB",
-                            code: 'NATA',
-                            modules: [],
-                        },
-                        {
-                            name: "Supervivencia y Contraincendios",
-                            credit: 10,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 29,
-                            color: "#1DE9B6",
-                            code: 'SCON',
-                            modules: [],
-                        },
-                        {
-                            name: "Práctica Profesional",
-                            credit: 10,
-                            progress: 0,
-                            grade: "0",
-                            status: "No Disponible",
-                            requirements: [],
-                            id: 69,
-                            color: "#1DE9B6",
-                            code: 'PRPR',
-                            modules: [],
-                        },
-                    ],
-                },
-            ],
+            items: [],
+            lpId: null,
+            lpName: '',
+            windowSize: {
+                x: 0,
+                y: 0,
+            },
         }
     },
     created(){
-    },  
+        this.getCurriculum()
+    },
+    mounted() {
+        this.onResize();
+    },
     methods:{
+        /**
+         * Retrieves curriculum data for a learning plan from the Moodle API.
+         *
+         * This method makes a GET request to a specified API endpoint, fetches
+         * curriculum data for a learning plan, and processes the response to
+         * populate the component's data properties.
+         *
+         * @method getCurriculum
+         * @async
+         * @throws {Error} Throws an error if the API request fails.
+         * @returns {Promise<void>} A Promise that resolves when the API request is successful.
+         *
+         * @example
+         * // Call the getCurriculum method to fetch and process curriculum data.
+         * getCurriculum();
+         */
+        getCurriculum(){
+            // Get the current URL of the page.
+            var currentURL = window.location.href;
+            var siteurl = new URL(currentURL);
+            
+            // Get the value of the "periodsid" parameter from the current URL.
+            var id = siteurl.searchParams.get("lp_id");
+            
+            // Set the learning plan ID in the component's data.
+            this.lpId = id
+            
+            // Define the API request URL.
+            const url = this.siteUrl;
+            
+            // Create a params object with the parameters needed to make an API call.
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_get_learning_plan_pensum',
+                learningPlanId: this.lpId,
+            };
+            
+            // Make a GET request to the specified URL, passing the parameters as query options.
+            window.axios.get(url, { params })
+                // If the request is resolved successfully, perform the following operations.
+                .then(response => {
+                    // Parse the data returned from the API from JSON string format to object format.
+                    const data = JSON.parse(response.data.pensum)
+                    
+                    // Extract learning plan details.
+                    const learningPlanArray = Object.values(data.learningPlan);
+                    this.lpName = data.learningPlanName
+                    
+                    // Populate the items array with schedule data.
+                    learningPlanArray.forEach((element)=>{
+                        this.items.push({
+                            period: element.periodName,
+                            id: element.periodId,
+                            status: "activo",
+                            courses: element.courses
+                        })
+                    })
+                })
+                // If the request fails, log an error to the console.
+                .catch(error => {
+                    console.error(error);
+            });
+        },
         getCardBorderStyle(period) {
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
 
@@ -426,9 +205,26 @@ Vue.component('curriculum',{
             }
             return {}; // No se aplica ningún estilo de borde por defecto
         },
+        /**
+         * Determines the border style for a curriculum card based on the specified period.
+         *
+         * This method calculates and returns the border color for a curriculum card
+         * based on the theme (light or dark) and the specified period.
+         *
+         * @method getCardBorderStyle
+         * @param {string} period - The period for which the border color is determined.
+         * @returns {Object} An object containing the border color for the specified period.
+         *
+         * @example
+         * // Call the getCardBorderStyle method to get the border style for a specific period.
+         * const borderStyle = getCardBorderStyle("I CUATRIMESTRE");
+         * // Example result: { borderColor: "#214745" }
+         */
         getCardActionsStyle(period) {
+            // Determine the current theme (light or dark) using Vuetify's theme.
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
-
+            
+            // Define theme-specific colors for curriculum card borders.
             const themeColors = {
                 dark: {
                     curriculumBgCard1: "#172327",
@@ -457,7 +253,8 @@ Vue.component('curriculum',{
                     curriculumTextCard4: "#0077ba",
                 },
             };
-
+            
+            // Determine the border color based on the specified period.
             if (period === "I CUATRIMESTRE") {
                 return {
                     background: themeColors[theme].curriculumBgCard1,
@@ -479,11 +276,29 @@ Vue.component('curriculum',{
                     color: themeColors[theme].curriculumTextCard4,
                 };
             }
-
+            
+            // Default: No specific border style is applied.
             return {};
         },
+        /**
+         * Determines the color for a curriculum card based on the specified period and theme.
+         *
+         * This method calculates and returns the background color for a curriculum card
+         * based on the theme (light or dark) and the specified period.
+         *
+         * @method getColor
+         * @param {string} period - The period for which the color is determined.
+         * @returns {string} The background color for the specified period.
+         *
+         * @example
+         * // Call the getColor method to get the color for a specific period.
+         * const cardColor = getColor("I CUATRIMESTRE");
+         * // Example result: "#b0d4cd"
+         */
         getColor(period) {
+            // Check if the current theme is dark or light using Vuetify's theme.
             if (this.$vuetify.theme.dark) {
+                // Dark theme colors based on the specified period.
                 if (period === "I CUATRIMESTRE") {
                     return "#b0d4cd";
                 } else if (period === "II CUATRIMESTRE") {
@@ -494,6 +309,7 @@ Vue.component('curriculum',{
                     return "#acd2e8";
                 }
             } else {
+                // Light theme colors based on the specified period.
                 if (period === "I CUATRIMESTRE") {
                     return "#2ca58d";
                 } else if (period === "II CUATRIMESTRE") {
@@ -504,6 +320,23 @@ Vue.component('curriculum',{
                     return "#0077ba";
                 }
             }
+        },
+        /**
+         * Updates the component's state with the current width and height of the window.
+         *
+         * This method is triggered when the window is resized and updates the
+         * `windowSize` property with the new width and height.
+         *
+         * @method onResize
+         * @returns {void} This method does not return any value.
+         *
+         * @example
+         * // Attach the onResize method to the window resize event.
+         * window.addEventListener("resize", onResize);
+         */
+        onResize() {
+            // Update the component's state with the current window width and height.
+            this.windowSize = { x: window.innerWidth, y: window.innerHeight };
         },
     },
     computed: {
@@ -534,6 +367,4 @@ Vue.component('curriculum',{
             return window.userToken;
         },
     },
-    watch: {
-    }
 })

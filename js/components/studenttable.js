@@ -4,21 +4,25 @@ Vue.component('studenttable',{
             <v-col cols="12" class="py-0 px-0">
                 <v-data-table
                    :headers="headers"
-                   :items="items"
-                   class="elevation-1 paneltable"
-                   dense
-                   :search="search"
+                    :items="students"
+                    :options.sync="options"
+                    :server-items-length="totalDesserts"
+                    :loading="loading"
+                    class="elevation-1"
+                    :footer-props="{ 
+                        'items-per-page-text': lang.students_per_page,
+                        'items-per-page-options': [5, 10,15],
+                    }"
                 >
                     <template v-slot:top>
                         <v-toolbar flat>
-                            <v-toolbar-title>Lista de estudiantes</v-toolbar-title>
+                            <v-toolbar-title>{{ lang.students_list }}</v-toolbar-title>
                         </v-toolbar>
                         
                         <v-row justify="start" class="ma-0 mr-3 mb-2">
-                            
                             <v-col cols="4">
                                 <v-text-field
-                                   v-model="search"
+                                   v-model="options.search"
                                    append-icon="mdi-magnify"
                                    :label="lang.search"
                                    hide-details
@@ -34,7 +38,7 @@ Vue.component('studenttable',{
                             <v-list-item>
                                 <v-list-item-avatar>
                                     <img
-                                      src="https://cdn.vuetifyjs.com/images/john.jpg"
+                                      :src="item.img"
                                       alt="John"
                                     >
                                 </v-list-item-avatar>
@@ -48,7 +52,23 @@ Vue.component('studenttable',{
                     </template>
                     
                     <template v-slot:item.carrers="{ item }">
-                        <span>{{item.carrers}}</span>
+                        <v-list dense class="transparent">
+                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index">
+                                <v-list-item-content class="py-0">
+                                    <v-list-item-subtitle>{{carrer}}</v-list-item-subtitle>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </v-list>
+                    </template>
+                    
+                    <template v-slot:item.periods="{ item }">
+                        <v-list dense class="transparent">
+                            <v-list-item v-for="(periods, index) in item.periods" :key="index">
+                                <v-list-item-content class="py-0">
+                                    <v-list-item-subtitle>{{periods}}</v-list-item-subtitle>
+                                </v-list-item-content>
+                            </v-list-item>
+                        </v-list>
                     </template>
                     
                     <template v-slot:item.revalidate="{ item }">
@@ -58,8 +78,7 @@ Vue.component('studenttable',{
                           text-color="white"
                           small
                         >
-                         
-                          Revalida
+                          {{ lang.revalidation }}
                         </v-chip>
                     </template>
                     
@@ -75,7 +94,7 @@ Vue.component('studenttable',{
                     </template>
                 
                     <template v-slot:no-data>
-                        <v-btn color="primary" text>No hay datos</v-btn>
+                        <v-btn text>{{ lang.there_no_data }}</v-btn>
                     </template>
                 </v-data-table>
             </v-col>
@@ -83,92 +102,139 @@ Vue.component('studenttable',{
     `,
     data(){
         return{
-            search: '',
             headers: [
                 {
-                    text: 'Nombre',
+                    text: window.strings.name,
                     align: 'start',
                     sortable: false,
                     value: 'name',
                 },
                 {
-                    text: 'Carrera',
+                    text: window.strings.careers,
                     sortable: false,
                     value: 'carrers',
                 },
-                { text: 'Cuatrimestre', value: 'periods',sortable: false },
-                { text: 'Revalida', value: 'revalidate',sortable: false},
-                { text: 'Estado', value: 'status',sortable: false, },
+                { text: window.strings.quarters, value: 'periods',sortable: false },
+                { text: window.strings.revalidation, value: 'revalidate',sortable: false},
+                { text: window.strings.state, value: 'status',sortable: false, },
             ],
-            items: [
-                {
-                    name: 'Paulie Durber',
-                    email: 'pdurber1c@gov.uk',
-                    id: 1,
-                    carrers: 'TÉCNICO SUPERIOR EN TRIPULANTE DE CABINA',
-                    periods: 'I CUATRIMESTRE',
-                    revalidate: true,
-                    status: 'Activo'
-                },
-                {
-                    name: 'Onfre Wind',
-                    email: 'owind1b@yandex.ru',
-                    id: 2,
-                    carrers: 'TÉCNICO SUPERIOR EN LOGÍSTICA Y COMERCIO INTERNACIONAL',
-                    periods: 'II CUATRIMESTRE',
-                    revalidate: false,
-                    status: 'Inactivo'
-                },
-                {
-                    name: 'Karena Courtliff',
-                    email: 'kcourtliff1a@bbc.co.uk',
-                    id: 3,
-                    carrers: 'TÉCNICO SUPERIOR EN MECÁNICA DE EQUIPO PESADO',
-                    periods: 'I CUATRIMESTRE',
-                    revalidate: false,
-                    status: 'Reingreso'
-                },
-                {
-                    name: 'Saunder Offner',
-                    email: 'soffner19@mac.com',
-                    id: 4,
-                    carrers: 'TÉCNICO SUPERIOR EN MECÁNICA DE EQUIPO PESADO',
-                    periods: 'I CUATRIMESTRE',
-                    revalidate: true,
-                    status: 'Suspendido'
-                },
-                {
-                    name: 'Corrie Perot',
-                    email: 'cperot18@goo.ne.jp',
-                    id: 5,
-                    carrers: 'ELECTRICIDAD CON ÉNFASIS EN CENTRALES HIDROELÉCTRICAS',
-                    periods: 'II CUATRIMESTRE',
-                    revalidate: false,
-                    status: 'Aplazado'
-                },
-            ]
+            totalDesserts: 0,
+            loading: true,
+            options: {
+                page: 1, 
+                itemsPerPage: 5, 
+                search: '',
+            },
+            students: [],
         }
     },
-    created(){
-        
-    },  
+    created(){},
+    watch: {
+      options: {
+        handler () {
+          this.getDataFromApi()
+        },
+        deep: true,
+      },
+    },
     methods:{
+        /**
+         * Fetches student information from the Moodle API and updates the component's state.
+         *
+         * This method makes an asynchronous GET request to the specified API endpoint,
+         * retrieves student information based on specified options, and updates the
+         * component's state with the fetched data.
+         *
+         * @method getDataFromApi
+         * @async
+         * @throws {Error} Throws an error if the API request fails.
+         * @returns {Promise<void>} A Promise that resolves when the API request is successful.
+         *
+         * @example
+         * // Call the getDataFromApi method to fetch student information from the API.
+         * getDataFromApi();
+         */
+        async getDataFromApi () {
+            // Set loading to true to indicate that data is being fetched.
+            this.loading = true;
+            try {
+                // Define the API request URL.
+                const url = this.siteUrl;
+                
+                // Create an object with the parameters required for the API call.
+                const params = {
+                    wstoken: this.token,
+                    moodlewsrestformat: 'json',
+                    wsfunction: 'local_grupomakro_get_student_info',
+                    page: this.options.page,
+                    resultsperpage: this.options.itemsPerPage,
+                    search: this.options.search,
+                };
+                
+                // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
+                const response = await window.axios.get(url, { params });
+                
+                // Parse the JSON data returned from the API.
+                const data = JSON.parse(response.data.dataUsers);
+                
+                // Update the component's state with the fetched data.
+                this.totalDesserts = response.data.totalResults
+                this.students = [];
+    
+                // Iterate through the retrieved data and populate the students array.
+                data.forEach((element) => {
+                    this.students.push({
+                        name: element.nameuser,
+                        email: element.email,
+                        id: element.userid,
+                        carrers: element.careers,
+                        periods: element.periods,
+                        revalidate: false,
+                        status: element.status,
+                        img: element.profileimage
+                    });
+                });
+            } catch (error) {
+                // Log any errors to the console in case of a request failure.
+                console.error("Error fetching student information:", error);
+            } finally {
+                // Set loading to false to indicate that data fetching is complete.
+                this.loading = false;
+            }
+        },
+        /**
+         * Determines the style (background color and text color) for a chip based on the status of an item.
+         *
+         * This method calculates and returns the chip style based on the theme (light or dark) and the status of the item.
+         *
+         * @method getChipStyle
+         * @param {Object} item - The item for which the chip style is determined.
+         * @returns {Object} An object containing the background and text colors for the chip.
+         *
+         * @example
+         * // Call the getChipStyle method to get the chip style for a specific item.
+         * const chipStyle = getChipStyle({ status: "Activo" });
+         * // Example result: { background: "#b5e8b8", color: "#143f34" }
+         */
         getChipStyle(item){
+            // Determine the current theme (light or dark) using Vuetify's theme.
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
 
+            // Define theme-specific colors for chip styles.
             const themeColors = {
-                    BgChip1: "#b5e8b8",
-                    TextChip1: "#143f34",
-                    BgChip2: "#F8F0E5",
-                    TextChip2: "#D1A55A",
-                    BgChip3: "#E8EAF6",
-                    TextChip3: "#3F51B4",
-                    BgChip4: "#F3BFBF",
-                    TextChip4: "#8F130A",
-                    BgChip5: "#B9C5D5",
-                    TextChip5: "#2F445E",
-             };
-
+                BgChip1: "#b5e8b8",
+                TextChip1: "#143f34",
+                BgChip2: "#F8F0E5",
+                TextChip2: "#D1A55A",
+                BgChip3: "#E8EAF6",
+                TextChip3: "#3F51B4",
+                BgChip4: "#F3BFBF",
+                TextChip4: "#8F130A",
+                BgChip5: "#B9C5D5",
+                TextChip5: "#2F445E",
+            };
+            
+            // Determine the chip style based on the item's status.
             if (item.status === "Activo") {
                 return {
                     background: themeColors.BgChip1,
@@ -190,10 +256,11 @@ Vue.component('studenttable',{
                     color: themeColors.TextChip4,
                 };
             }
+            // Default: Apply a generic style for items with other statuses.
             return {
                 background: themeColors.BgChip5,
                 color: themeColors.TextChip5,
-            };// No se aplica ningún estilo por defecto
+            };
         }
     },
     computed: {

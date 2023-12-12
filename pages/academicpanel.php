@@ -47,11 +47,25 @@ $strings->course = get_string('course', $plugin_name);
 $strings->item_class = get_string('class', $plugin_name);
 $strings->users = get_string('users', $plugin_name);
 $strings->actions = get_string('actions', $plugin_name);
+$strings->manage_careers = get_string('manage_careers', $plugin_name);
+$strings->quarters = get_string('quarters', $plugin_name);
+$strings->courses = get_string('courses', $plugin_name);
+$strings->see_curriculum = get_string('see_curriculum', $plugin_name);
+$strings->students_per_page = get_string('students_per_page', $plugin_name);
+$strings->students_list = get_string('students_list', $plugin_name);
+$strings->revalidation = get_string('revalidation', $plugin_name);
+$strings->there_no_data = get_string('there_no_data', $plugin_name);
+$strings->name = get_string('name', $plugin_name);
+$strings->careers = get_string('careers', $plugin_name);
+$strings->quarters = get_string('quarters', $plugin_name);
+$strings->state = get_string('state', $plugin_name);
 
 $strings = json_encode($strings);
 
 $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
 $token = json_encode(external_generate_token_for_current_user($service)->token);
+$default_carrer_img = $CFG->wwwroot.'/local/grupomakro_core/pix/img-default.jpg';
+$default_carrer_img = json_encode($default_carrer_img);
 
 
 echo $OUTPUT->header();
@@ -108,6 +122,7 @@ echo <<<EOT
   <script>
     var strings = $strings;
     var userToken = $token;
+    var defaultImage = $default_carrer_img;
   </script>
   
 EOT;

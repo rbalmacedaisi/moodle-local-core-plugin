@@ -366,6 +366,13 @@ $string['msg:send_reschedule_message:body'] = '
 <p>Para reprogramar la sesión haz click <a href="{$a->rescheduleUrl}">aquí.</a></p>';
 $string['msg:send_reschedule_message:subject'] ='Solicitud de reprogramación nueva';
 $string['msg:send_reschedule_message:contexturlname'] ='Reprogramar sesión';
+
+//Revalidation Message Body.
+$string['msg:send_revalidation_message:body'] = '
+<h2>El curso <strong>{$a->courseName}</strong> puede ser revalidado.</h2>
+<p>Haz click <a href="{$a->payRevalidUrl}">aquí</a> para pagar la revalida.</p>';
+$string['msg:send_revalidation_message:subject'] ='Nueva revalida pendiente';
+$string['msg:send_revalidation_message:contexturlname'] ='Pagar revalida.';
 $string['enter_name'] ='Ingrese un nombre';
 $string['general_data'] ='Datos Generales';
 $string['class_schedule_days'] ='Horario y días de clase';
@@ -377,3 +384,12 @@ $string['availability_bulk_load'] ='Carga masiva de disponibilidad';
 // Pagina del Panel Academico
 $string['academic_panel'] = 'Panel académico';
 $string['academic_record'] = 'Historial Académico';
+$string['prerequisites'] = 'Prerrequisitos';
+$string['hours'] = 'Horas';
+$string['quarters'] = 'Cuatrimestres';
+$string['courses'] = 'Cursos';
+$string['see_curriculum'] = 'Ver Malla';
+$string['students_per_page'] = 'Estudiantes por Página';
+$string['students_list'] = 'Lista de estudiantes';
+$string['revalidation'] = 'Revalida';
+$string['there_no_data'] = 'No hay datos';
