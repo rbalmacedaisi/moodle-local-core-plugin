@@ -58,7 +58,7 @@ Vue.component('academicpanel',{
                     icon: 'mdi-calendar-text',
                     iconColor: '#F4B4DB',
                     iconText: '#492053',
-                    url: ''
+                    url: '/local/grupomakro_core/pages/academiccalendar.php'
                 },
                 {
                     name: 'Clases',

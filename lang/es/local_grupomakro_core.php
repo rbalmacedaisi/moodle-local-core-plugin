@@ -28,6 +28,7 @@ $string['emailtemplates_settingspage'] = 'Plantillas de correo electrónico';
 $string['class_management'] = 'Administrar clases';
 $string['class_schedules'] = 'Horarios de clases';
 $string['availability_panel'] = 'Panel de disponibilidad';
+$string['academic_calendar'] = 'Calendario académico';
 $string['availability_calendar'] = 'Calendario de disponibilidad';
 $string['schedules_panel'] = 'Panel de horarios';
 $string['institution_management'] = 'Administrar instituciones';
@@ -393,3 +394,28 @@ $string['students_per_page'] = 'Estudiantes por Página';
 $string['students_list'] = 'Lista de estudiantes';
 $string['revalidation'] = 'Revalida';
 $string['there_no_data'] = 'No hay datos';
+
+//Academic Calendar Table.
+$string['academiccalendar:academic_calendar_title'] = 'Calendario Académico';
+$string['academiccalendar:upload_calendar_label'] = 'Cargar calendario';
+$string['academiccalendar:calendar_table_title'] = 'Períodos Académicos';
+$string['academiccalendar:upload_modal_title'] = '¿Cargar archivo de Excel y actualizar períodos académicos?';
+$string['academiccalendar:academic_calendar_breadcrumb:academic_panel'] = 'Panel Académico';
+$string['academiccalendar:academic_calendar_breadcrumb:academic_calendar'] = 'Calendario';
+
+$string['academiccalendar:academic_calendar_table:period_header'] = 'Períodos';
+$string['academiccalendar:academic_calendar_table:bimesters_header'] = 'Bimestres';
+$string['academiccalendar:academic_calendar_table:period_init_header'] = 'Inicio';
+$string['academiccalendar:academic_calendar_table:period_end_header'] = 'Fin';
+$string['academiccalendar:academic_calendar_table:induction_header'] = 'Inducción';
+$string['academiccalendar:academic_calendar_table:final_exam_header'] = 'Examen Final';
+$string['academiccalendar:academic_calendar_table:loadnotesandclosesubjects_header'] = 'Notas y cierre de Materias';
+$string['academiccalendar:academic_calendar_table:delivoflistforrevalbyteach_header'] = 'Entrega Listados Revalidas Docente';
+$string['academiccalendar:academic_calendar_table:notiftostudforrevalidations_header'] = 'Notificación para Revalidas';
+$string['academiccalendar:academic_calendar_table:deadlforpayofrevalidations_header'] = 'Pago de Revalidas';
+$string['academiccalendar:academic_calendar_table:revalidationprocess_header'] = 'Realización de Revalidas';
+$string['academiccalendar:academic_calendar_table:registration_header'] = 'Matriculación';
+$string['academiccalendar:academic_calendar_table:graduationdate_header'] = 'Fecha de Graduación';
+
+$string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'Del {$a->examFrom} Al {$a->examUntil}';
+$string['academiccalendar:academic_calendar_table:registration_cell'] = 'Del {$a->registrationFrom} Al {$a->registrationUntil}';

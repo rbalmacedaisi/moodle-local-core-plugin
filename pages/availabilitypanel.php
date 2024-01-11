@@ -112,11 +112,11 @@ echo <<<EOT
     .tiemfield-to.v-text-field--filled.v-input--dense.v-text-field--single-line>.v-input__control>.v-input__slot{
       background: rgb(131 200 117 / 25%) !important;
     }
-    .even-item {
+    [data-preset="default"] .even-item {
       background-color: #71dc7421;
     }
     
-    .odd-item {
+    [data-preset="default"] .odd-item {
       background-color: #7199dc21;
     }
     .theme--light.v-application{

@@ -11,7 +11,7 @@ Vue.component('studenttable',{
                     class="elevation-1"
                     :footer-props="{ 
                         'items-per-page-text': lang.students_per_page,
-                        'items-per-page-options': [5, 10,15],
+                        'items-per-page-options': [15],
                     }"
                 >
                     <template v-slot:top>
@@ -39,7 +39,7 @@ Vue.component('studenttable',{
                                 <v-list-item-avatar>
                                     <img
                                       :src="item.img"
-                                      alt="John"
+                                      alt="picture-profile"
                                     >
                                 </v-list-item-avatar>
     
@@ -72,14 +72,7 @@ Vue.component('studenttable',{
                     </template>
                     
                     <template v-slot:item.revalidate="{ item }">
-                        <v-chip v-if="item.revalidate"
-                          color="#EC407A"
-                          label
-                          text-color="white"
-                          small
-                        >
-                          {{ lang.revalidation }}
-                        </v-chip>
+                        <revalidatestudents :studentsData="item"></revalidatestudents>
                     </template>
                     
                     <template v-slot:item.status="{ item }">
@@ -115,14 +108,14 @@ Vue.component('studenttable',{
                     value: 'carrers',
                 },
                 { text: window.strings.quarters, value: 'periods',sortable: false },
-                { text: window.strings.revalidation, value: 'revalidate',sortable: false},
+                { text: window.strings.revalidation, value: 'revalidate',sortable: false, align: 'center',},
                 { text: window.strings.state, value: 'status',sortable: false, },
             ],
             totalDesserts: 0,
             loading: true,
             options: {
                 page: 1, 
-                itemsPerPage: 5, 
+                itemsPerPage: 15, 
                 search: '',
             },
             students: [],
@@ -176,7 +169,6 @@ Vue.component('studenttable',{
                 
                 // Parse the JSON data returned from the API.
                 const data = JSON.parse(response.data.dataUsers);
-                
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];
@@ -189,7 +181,7 @@ Vue.component('studenttable',{
                         id: element.userid,
                         carrers: element.careers,
                         periods: element.periods,
-                        revalidate: false,
+                        revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
                         status: element.status,
                         img: element.profileimage
                     });

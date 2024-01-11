@@ -29,6 +29,7 @@ $string['emailtemplates_settingspage'] = 'Email templates';
 $string['class_management'] = 'Class Management';
 $string['class_schedules'] = 'Class Schedules';
 $string['availability_panel'] = 'Availability Panel';
+$string['academic_calendar'] = 'Academic calendar';
 $string['availability_calendar'] = 'Availability Calendar';
 $string['schedules_panel'] = 'Schedules Panel';
 $string['institution_management'] = 'Institution Management';
@@ -278,7 +279,6 @@ $string['see_availability'] = 'See availability';
 // Schedules page.
 $string['schedules'] = 'Schedules';
 $string['availability'] = 'Availability';
-$string['availability_panel'] = 'Availability panel';
 $string['today'] = 'Today';
 $string['add'] = 'Add';
 $string['day'] = 'Day';
@@ -392,3 +392,28 @@ $string['students_per_page'] = 'Students per Page';
 $string['students_list'] = 'Students list';
 $string['revalidation'] = 'Revalidation';
 $string['there_no_data'] = 'There is no data';
+
+//Academic Calendar Table.
+$string['academiccalendar:academic_calendar_title'] = 'Academic Calendar';
+$string['academiccalendar:upload_calendar_label'] = 'Upload Calendar';
+$string['academiccalendar:calendar_table_title'] = 'Academic Periods';
+$string['academiccalendar:upload_modal_title'] = 'Upload Excel file and update Calendar Periods?';
+$string['academiccalendar:academic_calendar_breadcrumb:academic_panel'] = 'Academic Panel';
+$string['academiccalendar:academic_calendar_breadcrumb:academic_calendar'] = 'Calendar';
+
+$string['academiccalendar:academic_calendar_table:period_header'] = 'Periods';
+$string['academiccalendar:academic_calendar_table:bimesters_header'] = 'Bimesters';
+$string['academiccalendar:academic_calendar_table:period_init_header'] = 'Start';
+$string['academiccalendar:academic_calendar_table:period_end_header'] = 'End';
+$string['academiccalendar:academic_calendar_table:induction_header'] = 'Induction';
+$string['academiccalendar:academic_calendar_table:final_exam_header'] = 'Final Exam';
+$string['academiccalendar:academic_calendar_table:loadnotesandclosesubjects_header'] = 'Notes and closing of Subjects';
+$string['academiccalendar:academic_calendar_table:delivoflistforrevalbyteach_header'] = 'Delivery of Teacher Revalidation Lists';
+$string['academiccalendar:academic_calendar_table:notiftostudforrevalidations_header'] = 'Notification for Revalidations';
+$string['academiccalendar:academic_calendar_table:deadlforpayofrevalidations_header'] = 'Revalidation Payment';
+$string['academiccalendar:academic_calendar_table:revalidationprocess_header'] = 'Conducting Revalidations';
+$string['academiccalendar:academic_calendar_table:registration_header'] = 'Registration';
+$string['academiccalendar:academic_calendar_table:graduationdate_header'] = 'Graduation date';
+
+$string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'From {$a->examFrom} To {$a->examUntil}';
+$string['academiccalendar:academic_calendar_table:registration_cell'] = 'From {$a->registrationFrom} To {$a->registrationUntil}';

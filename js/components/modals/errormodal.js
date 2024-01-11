@@ -16,18 +16,7 @@ Vue.component('errormodal',{
       show:Boolean,
       message: String
     },
-    data(){return {}},
-    created(){},
-    methods:{},
-    computed: {
-        /**
-         * A computed property that returns language-related data from the 'window.strings' object.
-         * It allows access to language strings for localization purposes.
-         *
-         * @returns '{object}' - Language-related data.
-         */
-        lang(){
-            return window.strings
-        },
-    },
+    data(){return {
+        lang:window.strings
+    }},
 })

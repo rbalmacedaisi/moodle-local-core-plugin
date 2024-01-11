@@ -59,6 +59,7 @@ $strings->name = get_string('name', $plugin_name);
 $strings->careers = get_string('careers', $plugin_name);
 $strings->quarters = get_string('quarters', $plugin_name);
 $strings->state = get_string('state', $plugin_name);
+$strings->close = get_string('close', $plugin_name);
 
 $strings = json_encode($strings);
 
@@ -117,6 +118,12 @@ echo <<<EOT
       flex: 1 1;
       text-decoration: none;
     }
+    [data-preset="default"] .even-item {
+      background-color: #FFEBEE;
+    }
+    [data-preset="default"] .odd-item {
+      background-color: #FFCDD2;
+    }
   </style>
   
   <script>
@@ -131,5 +138,6 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academi
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();
