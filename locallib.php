@@ -29,9 +29,12 @@ require_once($CFG->dirroot.'/calendar/lib.php');
 require_once($CFG->dirroot.'/user/lib.php');
 require_once($CFG->dirroot.'/vendor/autoload.php');
 require_once($CFG->libdir .'/externallib.php');
+
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 defined('MOODLE_INTERNAL') || die();
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 /**
  * This function is the extend_navigation function for the plugin.
  * 
@@ -397,7 +400,7 @@ function create_class($classParams){
         $updatedClass = $DB->update_record('gmk_class', $newClass);
         
         create_class_activities($newClass);
-        
+
     }catch (Exception $e){
         delete_class($newClass);
         throw $e;
@@ -518,6 +521,9 @@ function create_class_activities($class) {
     $BBBmoduleId = $DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id;
     $classSectionNumber = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
     
+    $BBBModuleIds = [];
+    $attendanceModuleId = null;
+    
     // Start looping from the startDate to the endDate
     while ($currentDateTS < $endDateTS) {
         $day =  $classDaysList[date('l', $currentDateTS)];
@@ -525,7 +531,8 @@ function create_class_activities($class) {
         if ($isVirtualOrMixed && $day === '1') {
             // Create Big Blue Button activity
             $activityEndTS = $currentDateTS + (int)$class->classduration;
-            create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
+            $BBBModuleId = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
+            $BBBModuleIds[]= $BBBModuleId;
         }
     
         if ($isPhysicalOrMixed && $day === '1') {
@@ -546,6 +553,11 @@ function create_class_activities($class) {
         $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
         $attendance->add_sessions($sessions);
     }
+
+    $class->bbbmoduleids = !empty($BBBModuleIds)? join(',',$BBBModuleIds):null;
+    $class->attendancemoduleid = $attendanceActivityInfo?$attendanceActivityInfo->coursemodule:null;
+    $DB->update_record('gmk_class',$class);
+    
     return ['status'=>'created'];
 }
 
@@ -562,9 +574,13 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->section                         = $classSectionId;
     $bbbActivityDefinition->module                          = $BBBmoduleId;
-
+    $bbbActivityDefinition->completionunlocked = 1;
+    $bbbActivityDefinition->completion = 1;
+    $bbbActivityDefinition->completionview = 1;
+    $bbbActivityDefinition->completionexpected =0;
+    
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
-    return $bbbActivityInfo;
+    return $bbbActivityInfo->coursemodule;
 }
 
 function create_attendance_activity($class,$classSectionNumber){
@@ -579,6 +595,7 @@ function create_attendance_activity($class,$classSectionNumber){
     $attendanceActivityDefinition->section                    = $classSectionNumber;
     $attendanceActivityDefinition->module                     = $DB->get_record('modules',['name'=>$attendanceActivityDefinition->modulename])->id;
     $attendanceActivityDefinition->subnet                     = '';
+    $attendanceActivityDefinition->groupmode                  = 1;
     
     $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
     return $attendanceActivityInfo;
@@ -964,16 +981,14 @@ function approve_course_schedules($approvingSchedules){
     
     $approveResults = [];
     foreach($approvingSchedules as $schedule){
-        $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration');
-        $scheduleQueuedStudents = $DB->get_records('gmk_class_queue');
-
         $class = $DB->get_record('gmk_class',['id'=>$schedule['classId']]);
-        
         if($class->approved){
             throw new Exception('Class already approved');
         }
-        
-        $enrolmentResults = enrolApprovedScheduleStudents(array_merge($schedulePreRegisteredStudents,$scheduleQueuedStudents),$class->groupid);
+        $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration',['classid'=>$schedule['classId']]);
+        $scheduleQueuedStudents = $DB->get_records('gmk_class_queue',['classid'=>$schedule['classId']]);
+
+        $enrolmentResults = enrolApprovedScheduleStudents(array_merge($schedulePreRegisteredStudents,$scheduleQueuedStudents),$class);
         
         $class->approved = 1;
         $classApproved = $DB->update_record('gmk_class',$class);
@@ -992,10 +1007,14 @@ function approve_course_schedules($approvingSchedules){
     return $approveResults;
 }
 
-function enrolApprovedScheduleStudents ($students,$groupId){
+function enrolApprovedScheduleStudents ($students,$class){
     $enrolmentResults = [];
     foreach($students as $student){
-        $enrolmentResults[$student->userid] = groups_add_member($groupId, $student->userid);
+        $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
+        if($enrolmentResults[$student->userid]){
+            local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class);
+        }
+        
     }
     return $enrolmentResults;
 }
@@ -1360,6 +1379,157 @@ function bulk_update_teachers_disponibilities($disponibilityRecords){
         }
     }
     return $results;
+}
+
+function get_academic_calendar_period($filters){
+    global $DB;
+    
+    $calendarRecords = $DB->get_records('gmk_academic_calendar',$filters);
+    // print_object($calendarRecords);
+    $calendarRecordsFormatted = [];
+    foreach($calendarRecords as $calendarRecord){
+        if(!array_key_exists($calendarRecord->period,$calendarRecordsFormatted)){
+            $periodRecordFormatted = new stdClass();
+            $calendarRecordsFormatted[$calendarRecord->period] = $periodRecordFormatted;
+        }
+        else {
+            $periodRecordFormatted = $calendarRecordsFormatted[$calendarRecord->period];
+        }
+        $bimesterNumber = $calendarRecord->bimesternumber;
+        
+        $periodRecordFormatted->period = $calendarRecord->period;
+        $periodRecordFormatted->bimesters[$bimesterNumber] = $calendarRecord->bimester;
+        
+        
+        $periodRecordFormatted->start[$bimesterNumber] = date('d-m-Y',$calendarRecord->periodstart);
+        $periodRecordFormatted->end[$bimesterNumber] = date('d-m-Y',$calendarRecord->periodend);
+        $periodRecordFormatted->induction = date('d-m-Y', $calendarRecord->induction);
+        
+        $finalExamRangeStrData = new stdClass();
+        $finalExamRangeStrData->examFrom=date('d-m-y', $calendarRecord->finalexamfrom);
+        $finalExamRangeStrData->examUntil=date('d-m-y', $calendarRecord->finalexamuntil);
+        
+        $periodRecordFormatted->finalExamRange[$bimesterNumber] = get_string('academiccalendar:academic_calendar_table:final_exam_cell','local_grupomakro_core', $finalExamRangeStrData);
+        
+        $periodRecordFormatted->loadnotesandclosesubjects[$bimesterNumber] = date('d-m-Y',$calendarRecord->loadnotesandclosesubjects);
+        $periodRecordFormatted->delivoflistforrevalbyteach[$bimesterNumber] = date('d-m-Y',$calendarRecord->delivoflistforrevalbyteach);
+        $periodRecordFormatted->notiftostudforrevalidations[$bimesterNumber] = date('d-m-Y',$calendarRecord->notiftostudforrevalidations);
+        $periodRecordFormatted->deadlforpayofrevalidations[$bimesterNumber] = date('d-m-Y',$calendarRecord->deadlforpayofrevalidations);
+        $periodRecordFormatted->revalidationprocess[$bimesterNumber] =$calendarRecord->revalidationprocess === "0" ? '':date('d-m-Y',$calendarRecord->revalidationprocess);
+        
+        if($calendarRecord->registrationsfrom === '0' || $calendarRecord->registrationsuntil === '0'){
+            $periodRecordFormatted->registrationRange[$bimesterNumber] = '';
+        }
+        else{
+            $registrationRangeStrData = new stdClass();
+            $registrationRangeStrData->registrationFrom=date('d-m-y', $calendarRecord->registrationsfrom);
+            $registrationRangeStrData->registrationUntil=date('d-m-y', $calendarRecord->registrationsuntil);
+            $periodRecordFormatted->registrationRange[$bimesterNumber] = get_string('academiccalendar:academic_calendar_table:registration_cell','local_grupomakro_core', $registrationRangeStrData);
+        }
+        $periodRecordFormatted->graduationdate[$bimesterNumber] =$calendarRecord->graduationdate === "0" ? '':date('d-m-Y',$calendarRecord->graduationdate);
+    }
+    return $calendarRecordsFormatted;
+}
+
+function parse_academic_calendar_period_excel($academicCalendarPeriod){
+    
+    define('COLUMN_PERIOD', 'A');
+    define('COLUMN_BIMESTER', 'B');
+    define('COLUMN_PERIOD_START', 'C');
+    define('COLUMN_PERIOD_END', 'D');
+    define('COLUMN_INDUCTION', 'E');
+    define('COLUMN_FINAL_EXAM_FROM', 'F');
+    define('COLUMN_FINAL_EXAM_UNTIL', 'G');
+    define('COLUMN_LOAD_NOTES', 'H');
+    define('COLUMN_DELIVERY_LIST', 'I');
+    define('COLUMN_NOTIFICATION', 'J');
+    define('COLUMN_DEADLINES', 'K');
+    define('COLUMN_REVALIDATION', 'L');
+    define('COLUMN_REGISTRATIONS_FROM', 'M');
+    define('COLUMN_REGISTRATIONS_UNTIL', 'N');
+    define('COLUMN_GRADUATION_DATE', 'O');
+    
+    $romanNumerals = [
+        'I' => 1,
+        'II' => 2,
+        'III' => 3,
+        'IV' => 4,
+        'V' => 5,
+        'VI' => 6,
+    ];
+    
+    
+    $content = $academicCalendarPeriod->get_content();
+    // Create a temporary file to load the content
+    $tempFilePath = tempnam(sys_get_temp_dir(), 'xlsx');
+    file_put_contents($tempFilePath, $content);
+
+    // Load the XLSX file using PhpSpreadsheet
+    $spreadsheet = IOFactory::load($tempFilePath);
+
+    // Process the sheet with ranges
+    $rangeSheet = $spreadsheet->getSheet(0);
+    
+    $bimesterDatesRecords = [];
+    $createdBimesterDatesRecordsIds = [];
+    $updatedBimesterDatesRecordsIds = [];
+    
+    global $DB,$USER;
+    
+    try{
+        foreach ($rangeSheet->getRowIterator(2) as $row) {
+            
+            // Create an instance of stdClass
+            $bimesterDates = new stdClass();
+            $bimesterDates->period = $rangeSheet->getCell(COLUMN_PERIOD . $row->getRowIndex())->getValue();
+            
+            if(!$bimesterDates->period){
+                continue;
+            }
+            
+            $periodExploded = explode('-', $bimesterDates->period);
+            $bimesterDates->year = $periodExploded[0];
+            $bimesterDates->yearquarter = $romanNumerals[$periodExploded[1]];
+            $bimesterDates->bimester = $rangeSheet->getCell(COLUMN_BIMESTER . $row->getRowIndex())->getValue();
+            $bimesterDates->bimesternumber = $romanNumerals[explode(' ', $bimesterDates->bimester)[0]];
+            $bimesterDates->periodstart = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_PERIOD_START . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->periodend = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_PERIOD_END . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->induction = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_INDUCTION . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->finalexamfrom = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_FINAL_EXAM_FROM . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->finalexamuntil = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_FINAL_EXAM_UNTIL . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->loadnotesandclosesubjects = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_LOAD_NOTES . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->delivoflistforrevalbyteach = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_DELIVERY_LIST . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->notiftostudforrevalidations = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_NOTIFICATION . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->deadlforpayofrevalidations = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_DEADLINES . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->revalidationprocess = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_REVALIDATION . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->registrationsfrom = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_REGISTRATIONS_FROM . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->registrationsuntil = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_REGISTRATIONS_UNTIL . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->graduationdate = Date::excelToDateTimeObject($rangeSheet->getCell(COLUMN_GRADUATION_DATE . $row->getRowIndex())->getValue())->getTimestamp();
+            $bimesterDates->academicperiodid = $bimesterDates->year.$bimesterDates->yearquarter.$bimesterDates->bimesternumber;
+    
+            $bimesterDatesRecords[] = $bimesterDates;
+        }
+        
+        foreach($bimesterDatesRecords as $bimesterDates){
+            $bimesterDates->timemodified = time();
+            $bimesterDates->usermodified = $USER->id;
+            if($bimerterDateId = $DB->get_field('gmk_academic_calendar','id',['academicperiodid'=>$bimesterDates->academicperiodid])){
+                $bimesterDates->id = $bimerterDateId;
+                $DB->update_record('gmk_academic_calendar',$bimesterDates);
+                $updatedBimesterDatesRecordsIds[]=$bimesterDates->id;
+                continue;
+            }
+            $bimesterDates->timecreated = time();
+            $createdBimesterDatesRecordsIds[] = $DB->insert_record('gmk_academic_calendar',$bimesterDates);
+        }
+        
+        $academicCalendarPeriod->delete();
+        return ['created'=>$createdBimesterDatesRecordsIds,'updatded'=>$updatedBimesterDatesRecordsIds];
+    }catch (Exception $e){
+        $academicCalendarPeriod->delete();
+        $DB->delete_records_list('gmk_academic_calendar','id',$createdBimesterDatesRecordsIds);
+        throw $e;
+    }
 }
 
 function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile){
@@ -1743,7 +1913,7 @@ function reschedule_class_activity($params){
 
 function get_class_events($userId) {
     global $DB;
-    $initDate = '2023-01-01';
+    $initDate = '2023-06-01';
     $endDate = '2023-12-30';
     
     $fetchedClasses = array();
@@ -1751,7 +1921,11 @@ function get_class_events($userId) {
     $eventDaysFiltered = array();
     $dispatchedEvents = array();
     $events = calendar_get_events(strtotime($initDate),strtotime($endDate),false,true,true,false,false,false);
+    // $events = calendar_get_events(strtotime($initDate),strtotime($endDate),false,false,64,false,true,false);
     
+    // print_object(count($events));
+    // print_object($events);
+    // die;
     $copyEvents = array_slice($events, 0);
     
     $copyEvents = array_map(function($item) {
@@ -2001,7 +2175,7 @@ function get_teacher_disponibility_calendar($instructorId){
     
     global $DB;
     
-    $initDate = '2023-01-01';
+    $initDate = '2023-06-01';
     $endDate = '2023-12-31';
     
     $filters = array();
@@ -2593,8 +2767,29 @@ function get_user_picture_url($userid, $size = 100) {
    
 }
 
+function get_learning_plan_image($learningPlanId){
+        
+    $fs = get_file_storage();
+    $context = context_system::instance();
+    $files = $fs->get_area_files($context->id, 'local_sc_learningplans', 'learningplan_image', $learningPlanId);
+    $urlimg = '';
+    foreach ($files as $file) {
+        $imageurl = \moodle_url::make_pluginfile_url(
+            $file->get_contextid(),
+            $file->get_component(),
+            $file->get_filearea(),
+            $file->get_itemid(),
+            $file->get_filepath(),
+            $file->get_filename(),
+            false
+        );
+        $urlimg = $imageurl->out(false);
+    }
+    return $urlimg;
+}
+
 function get_logged_user_token(){
-    global $DB,$USER;
+    global $DB;
     $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
     return json_encode(external_generate_token_for_current_user($service)->token);
 }

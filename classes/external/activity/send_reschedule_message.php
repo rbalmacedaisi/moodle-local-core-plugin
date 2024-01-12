@@ -115,7 +115,7 @@ class send_reschedule_message extends external_api {
 
             $envDic=['development'=>'-dev','staging'=>'-staging','production'=>''];
             
-            $rescheduleUrl=  'https://grupomakro'.$envDic[$CFG->environment_type].'.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'&proposedDate='.$proposedDate.'&proposedHour='.$proposedHour;
+            $rescheduleUrl=  'https://lxp'.$envDic[$CFG->environment_type].'.soluttolabs.com/local/grupomakro_core/pages/editclass.php?class_id='.$classId.'&moduleId='.$moduleId.'&sessionId='.$sessionId.'&proposedDate='.$proposedDate.'&proposedHour='.$proposedHour;
             
             // Set the html message----------------------------------------------------------------------------------------------------------------------------------------------------
             

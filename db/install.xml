@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/grupomakro_core/db" VERSION="20231030" COMMENT="XMLDB file for Moodle local/grupomakro_core"
+<XMLDB PATH="local/grupomakro_core/db" VERSION="20240102" COMMENT="XMLDB file for Moodle local/grupomakro_core"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -90,6 +90,8 @@
         <FIELD NAME="approved" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="closed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="subperiodid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="bbbmoduleids" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="attendancemoduleid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
@@ -305,6 +307,65 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="name" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="shortname" TYPE="char" LENGTH="16" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_course_progre" COMMENT="Default comment for the table, please edit me">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="periodid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="periodname" TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="unnamed" SEQUENCE="false"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="coursename" TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="unnamed" SEQUENCE="false"/>
+        <FIELD NAME="progress" TYPE="number" LENGTH="3" NOTNULL="false" DEFAULT="0.0" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="grade" TYPE="number" LENGTH="3" NOTNULL="true" DEFAULT="0.0" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="credits" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="prerequisites" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="tc" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="practicalhours" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="teoricalhours" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="learningplanid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="classid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="groupid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="gmk_academic_calendar" COMMENT="Default comment for the table, please edit me">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="academicperiodid" TYPE="char" LENGTH="8" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="period" TYPE="char" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="year" TYPE="char" LENGTH="4" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="yearquarter" TYPE="char" LENGTH="1" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="bimester" TYPE="char" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="bimesternumber" TYPE="char" LENGTH="1" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="periodstart" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="periodend" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="induction" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="finalexamfrom" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="finalexamuntil" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="loadnotesandclosesubjects" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="delivoflistforrevalbyteach" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="notiftostudforrevalidations" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="deadlforpayofrevalidations" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="revalidationprocess" TYPE="int" LENGTH="16" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="registrationsfrom" TYPE="int" LENGTH="16" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="registrationsuntil" TYPE="int" LENGTH="16" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="graduationdate" TYPE="int" LENGTH="16" NOTNULL="false" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

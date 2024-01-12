@@ -653,6 +653,157 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20231030000, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20231127000) {
+
+        // Define table gmk_course_progre to be created.
+        $table = new xmldb_table('gmk_course_progre');
+
+        // Adding fields to table gmk_course_progre.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('periodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('periodname', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, 'unnamed');
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('coursename', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, 'unnamed');
+        $table->add_field('progress', XMLDB_TYPE_NUMBER, '3, 2', null, null, null, '0.0');
+        $table->add_field('grade', XMLDB_TYPE_NUMBER, '3, 2', null, XMLDB_NOTNULL, null, '0.0');
+        $table->add_field('credits', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('prerequisites', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('tc', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('practicalhours', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('teoricalhours', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('status', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_course_progre.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Conditionally launch create table for gmk_course_progre.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20231127000, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20231127001) {
+
+        // Define field bbbmoduleids to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('bbbmoduleids', XMLDB_TYPE_TEXT, null, null, null, null, null, 'subperiodid');
+
+        // Conditionally launch add field bbbmoduleids.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20231127001, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20231127002) {
+
+        // Define field attendancemoduleid to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('attendancemoduleid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'bbbmoduleids');
+
+        // Conditionally launch add field attendancemoduleid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20231127002, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20231207000) {
+
+        // Define field classid to be added to gmk_course_progre.
+        $table = new xmldb_table('gmk_course_progre');
+        $classIdField = new xmldb_field('classid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'status');
+        $groupIdField = new xmldb_field('groupid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'classid');
+
+        // Conditionally launch add field classid.
+        if (!$dbman->field_exists($table, $classIdField)) {
+            $dbman->add_field($table, $classIdField);
+        }
+        if (!$dbman->field_exists($table, $groupIdField)) {
+            $dbman->add_field($table, $groupIdField);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20231207000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20240102000) {
+
+        // Define table gmk_academic_calendar to be created.
+        $table = new xmldb_table('gmk_academic_calendar');
+
+        // Adding fields to table gmk_academic_calendar.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('academicperiodid', XMLDB_TYPE_CHAR, '8', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('period', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('year', XMLDB_TYPE_CHAR, '4', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('yearquarter', XMLDB_TYPE_CHAR, '1', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('bimester', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('bimesternumber', XMLDB_TYPE_CHAR, '1', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('periodstart', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('periodend', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('induction', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('finalexamfrom', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('finalexamuntil', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('loadnotesandclosesubjects', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('delivoflistforrevalbyteach', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('notiftostudforrevalidations', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('deadlforpayofrevalidations', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('revalidationprocess', XMLDB_TYPE_INTEGER, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('registrationsfrom', XMLDB_TYPE_INTEGER, '16', null, null, null, '0');
+        $table->add_field('registrationsuntil', XMLDB_TYPE_INTEGER, '16', null, null, null, '0');
+        $table->add_field('graduationdate', XMLDB_TYPE_INTEGER, '16', null, null, null, '0');
+
+        // Adding keys to table gmk_academic_calendar.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Conditionally launch create table for gmk_academic_calendar.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240102000, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20240102001) {
+
+        // Define field usermodified to be added to gmk_academic_calendar.
+        $table = new xmldb_table('gmk_academic_calendar');
+        $field = new xmldb_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'graduationdate');
+
+        // Conditionally launch add field usermodified.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        $field = new xmldb_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'usermodified');
+
+        // Conditionally launch add field timecreated.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        $field = new xmldb_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timecreated');
+
+        // Conditionally launch add field timemodified.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240102001, 'local', 'grupomakro_core');
+    }
 
     return true;
 }

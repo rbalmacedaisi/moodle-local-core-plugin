@@ -1,31 +1,65 @@
 <?php
 
+// defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../../../config.php');
 
-require_once($CFG->libdir.'/modinfolib.php');
-require_once($CFG->dirroot.'/course/lib.php');
-require_once($CFG->dirroot.'/mod/resource/lib.php');
-require_once($CFG->dirroot.'/course/modlib.php');
+print_object(get_courses());
+// print_object($DB->get_records('course'));
+die;
 
-$course = get_course(64);
+// require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+// local_grupomakro_progress_manager::
 
-$coursemod = get_fast_modinfo(64,116);
-print_object($coursemod);
+global $DB;
+// // print_object($courses);
 
-$module= $coursemod->get_cm(2460);
-// print_object($module);
-// print_object($course->get_cm(2362)->get_modinfo	());
-// print_object($course->get_groups());
+// foreach($courses as $course){
+//     try{
+//         $newClassGroup = new stdClass();
+//         $newClassGroup->idnumber ='rev-'.$course->shortname;
+//         $newClassGroup->name = 'Revalida';
+//         $newClassGroup->courseid = $course->id;
+//         $newClassGroup->description = 'Group for revalidating '.$course->shortname.' course';
+//         $newClassGroup->descriptionformat = 1;
+//         $newClassGroup->id =groups_create_group($newClassGroup);
+        
+//         print_object($newClassGroup);
+//         $section = course_create_section($course->id);
+//         course_update_section($course->id,$section,[
+//             'name'=>'Reválida',
+//             'availability'=> '{"op":"&","c":[{"type":"group","id":'.$newClassGroup->id.'}],"showc":[true]}'
+//         ]);
+        
+//     }
+//     catch(Exception $e){
+//         echo $e->getMessage();
+//     }
+// }
 
-$completion = new completion_info($course);
-// print_object($completion->get_activities());
-print_object($completion->get_data($module,false,116,null));
+
+// course_create_section(78);
+// course_update_section(78);
+
+// local_grupomakro_period_manager::close_class_grades_and_open_revalids();
 
 
-// $completionInfo = $completion->get_completions(116,null);
-// print_object($completionInfo);
-print_object($completion->is_course_complete(116));
+// $gmkPeriodManager->close_class_grades_and_open_revalids();
 
+// $courseId = 53;
+// $userId = 116;
+// $coursemod = get_fast_modinfo($courseId,$userId); //
+// $course = $coursemod->get_course();
+// $moduleId = 2724;
+// $module= $coursemod->get_cm($moduleId);
 
-print_object($completion->get_progress_all('',array(),152));
-print_object(core_completion\progress::get_course_progress_percentage($course,116));
+// $completion = new completion_info($course);
+// $completion->delete_all_completion_data();
+// print_object($completion->is_course_complete($userId));
+// print_object($completion->get_progress_all('',array(),166));
+// $newCourseProgressPorcentaje = core_completion\progress::get_course_progress_percentage(get_course($courseId),$userId);
+// print_object($newCourseProgressPorcentaje);
+
+// print_object(grade_get_course_grades($courseId,  $userId));
+// print_object(grade_get_course_grade($userId,$courseId));
+// print_object(grade_get_grade_items_for_activity($module));
+// print_object(grade_is_user_graded_in_activity($module,$userId));
