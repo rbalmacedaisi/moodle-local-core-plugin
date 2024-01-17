@@ -394,6 +394,7 @@ $string['students_per_page'] = 'Estudiantes por Página';
 $string['students_list'] = 'Lista de estudiantes';
 $string['revalidation'] = 'Revalida';
 $string['there_no_data'] = 'No hay datos';
+$string['grades'] = 'Calificaciones';
 
 //Academic Calendar Table.
 $string['academiccalendar:academic_calendar_title'] = 'Calendario Académico';

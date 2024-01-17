@@ -60,6 +60,7 @@ $strings->careers = get_string('careers', $plugin_name);
 $strings->quarters = get_string('quarters', $plugin_name);
 $strings->state = get_string('state', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
+$strings->grades = get_string('grades', $plugin_name);
 
 $strings = json_encode($strings);
 
@@ -124,6 +125,34 @@ echo <<<EOT
     [data-preset="default"] .odd-item {
       background-color: #FFCDD2;
     }
+    ul.modules-item-list{
+      display: grid;
+      grid-template-columns: repeat(1,1fr);
+      padding: 0 1rem;
+      list-style-type: none;
+    }
+    ul.modules-item-list li{
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin: 0;
+      padding: 0.75rem;
+      border-radius: 0.75rem;
+      transition: all .3s ease-in-out;
+      gap: 1rem;
+      cursor: pointer;
+    }
+    ul.modules-item-list li .list-item-info{
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      justify-content: space-between;
+    }
+    ul.modules-item-list li .list-item-info-text{
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
   </style>
   
   <script>
@@ -139,5 +168,6 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/student
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

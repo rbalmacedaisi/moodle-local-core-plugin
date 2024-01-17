@@ -381,7 +381,7 @@ $string['list_available_instructors'] ='List of Available Instructors';
 $string['availability_bulk_load'] ='Availability Bulk Load';
 
 // Academic Dashboard Page
-$string['academic_panel'] = 'Academic panel';
+$string['academic_panel'] = 'Dashboard';
 $string['academic_record'] = 'Academic record';
 $string['prerequisites'] = 'Prerequisites';
 $string['hours'] = 'Hours';
@@ -392,6 +392,7 @@ $string['students_per_page'] = 'Students per Page';
 $string['students_list'] = 'Students list';
 $string['revalidation'] = 'Revalidation';
 $string['there_no_data'] = 'There is no data';
+$string['grades'] = 'Grades';
 
 //Academic Calendar Table.
 $string['academiccalendar:academic_calendar_title'] = 'Academic Calendar';

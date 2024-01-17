@@ -53,7 +53,7 @@ Vue.component('studenttable',{
                     
                     <template v-slot:item.carrers="{ item }">
                         <v-list dense class="transparent">
-                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index">
+                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
                                     <v-list-item-subtitle>{{carrer}}</v-list-item-subtitle>
                                 </v-list-item-content>
@@ -63,7 +63,7 @@ Vue.component('studenttable',{
                     
                     <template v-slot:item.periods="{ item }">
                         <v-list dense class="transparent">
-                            <v-list-item v-for="(periods, index) in item.periods" :key="index">
+                            <v-list-item v-for="(periods, index) in item.periods" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
                                     <v-list-item-subtitle>{{periods}}</v-list-item-subtitle>
                                 </v-list-item-content>
@@ -73,6 +73,10 @@ Vue.component('studenttable',{
                     
                     <template v-slot:item.revalidate="{ item }">
                         <revalidatestudents :studentsData="item"></revalidatestudents>
+                    </template>
+                    
+                    <template v-slot:item.grade="{ item }">
+                        <v-btn color="info" x-small @click="gradeDialog(item)">Notas</v-btn>
                     </template>
                     
                     <template v-slot:item.status="{ item }">
@@ -91,6 +95,8 @@ Vue.component('studenttable',{
                     </template>
                 </v-data-table>
             </v-col>
+            
+            <grademodal v-if="studentsGrades" :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
         </v-row>
     `,
     data(){
@@ -110,6 +116,7 @@ Vue.component('studenttable',{
                 { text: window.strings.quarters, value: 'periods',sortable: false },
                 { text: window.strings.revalidation, value: 'revalidate',sortable: false, align: 'center',},
                 { text: window.strings.state, value: 'status',sortable: false, },
+                { text: 'Calificaciones', value: 'grade',sortable: false, },
             ],
             totalDesserts: 0,
             loading: true,
@@ -119,6 +126,8 @@ Vue.component('studenttable',{
                 search: '',
             },
             students: [],
+            studentsGrades: false,
+            studentGradeSelected: {},
         }
     },
     created(){},
@@ -253,6 +262,44 @@ Vue.component('studenttable',{
                 background: themeColors.BgChip5,
                 color: themeColors.TextChip5,
             };
+        },
+        /**
+         * The gradeDialog method opens a dialog or section for displaying student grades based on the provided item.
+         *
+         * @function
+         * @name gradeDialog
+         * @memberof YourComponent
+         *
+         * @param {Object} item - The item representing a student or course for which grades will be displayed.
+         *
+         * @example
+         * // Call this method when you want to display grades for a specific student or course.
+         * gradeDialog(item);
+         */
+        gradeDialog(item){
+            // Set the studentsGrades property to true to open the dialog or section.
+            this.studentsGrades = true
+            
+            // Store the selected item for further processing or display.
+            this.studentGradeSelected = item
+        },
+        /**
+         * The closeDialog method closes the dialog or section that displays student grades.
+         *
+         * @function
+         * @name closeDialog
+         * @memberof YourComponent
+         *
+         * @example
+         * // Call this method when you want to close the dialog or section displaying student grades.
+         * closeDialog();
+         */
+        closeDialog(){
+            // Set the studentsGrades property to false to close the dialog or section.
+            this.studentsGrades = false
+            
+            // Reset the selected student or course information.
+            this.studentGradeSelected = {}
         }
     },
     computed: {

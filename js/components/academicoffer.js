@@ -14,7 +14,7 @@ Vue.component('academicoffer',{
                     ></v-text-field>
                 </v-col>
                 <v-spacer></v-spacer>
-                <v-btn color="primary" class="rounded">{{ lang.manage_careers }}</v-btn>
+                <v-btn href="/local/sc_learningplans/index.php" color="primary" class="rounded">{{ lang.manage_careers }}</v-btn>
             </v-row>
             
             <ul class="list mt-6 mx-0 px-0">
@@ -23,7 +23,7 @@ Vue.component('academicoffer',{
                   v-for="(item, index) in filteredItems"
                   :key="index"
                 >
-                    <a href="" class="learning-link">
+                    <a :href="'/local/grupomakro_core/pages/curriculum.php?lp_id='+ item.id" class="learning-link">
                         <div>
                             <div
                               class="rounded-xl pa-4 mb-3"
