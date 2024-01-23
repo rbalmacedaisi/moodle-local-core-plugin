@@ -3,7 +3,7 @@ Vue.component('studenttable',{
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="py-0 px-0">
                 <v-data-table
-                   :headers="headers"
+                    :headers="headers"
                     :items="students"
                     :options.sync="options"
                     :server-items-length="totalDesserts"
@@ -55,7 +55,7 @@ Vue.component('studenttable',{
                         <v-list dense class="transparent">
                             <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
-                                    <v-list-item-subtitle>{{carrer}}</v-list-item-subtitle>
+                                    <v-list-item-subtitle>{{carrer.career}}</v-list-item-subtitle>
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -75,10 +75,6 @@ Vue.component('studenttable',{
                         <revalidatestudents :studentsData="item"></revalidatestudents>
                     </template>
                     
-                    <template v-slot:item.grade="{ item }">
-                        <v-btn color="info" x-small @click="gradeDialog(item)">Notas</v-btn>
-                    </template>
-                    
                     <template v-slot:item.status="{ item }">
                         <v-chip
                           class="rounded-xl py-2 justify-center"
@@ -89,14 +85,18 @@ Vue.component('studenttable',{
                           {{item.status}}
                         </v-chip>
                     </template>
+                    
+                    <template v-slot:item.grade="{ item }">
+                        <v-btn  class="rounded" color="info" width="60" x-small @click="gradeDialog(item)">Notas</v-btn>
+                    </template>
                 
                     <template v-slot:no-data>
                         <v-btn text>{{ lang.there_no_data }}</v-btn>
                     </template>
                 </v-data-table>
             </v-col>
+            <grademodal v-if="studentsGrades"  :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
             
-            <grademodal v-if="studentsGrades" :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
         </v-row>
     `,
     data(){
@@ -181,7 +181,7 @@ Vue.component('studenttable',{
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];
-    
+                console.log(data)
                 // Iterate through the retrieved data and populate the students array.
                 data.forEach((element) => {
                     this.students.push({

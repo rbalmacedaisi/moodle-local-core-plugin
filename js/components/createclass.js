@@ -7,69 +7,69 @@ Vue.component('createclass',{
                     <form>
                         <div id="fields-groups" class="row pb-5 mt-2 mx-0">
                             <div class="col-sm-12 pb-0">
-                                <h6>{{lang.general_data}}</h6>
+                                <h6>{{lang.class_general_data}}</h6>
                             </div>
                             <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="classname">{{lang.class_name}}</label>
-                                <input type="text" class="form-control" id="classname" required :placeholder="lang.enter_name">
+                                <input type="text" class="form-control" id="classname" required :placeholder="lang.class_name_placeholder">
                             </div>
                             
                             <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="classtype">{{lang.class_type}}</label>
                                 <select name="classtype" id="classtype" class="form-control" required>
-                                    <option value=''>{{lang.select_type_class}}</option>
+                                    <option value=''>{{lang.class_type_placeholder}}</option>
                                     <option v-for="(item, index) in classTypes" :value="item.value">{{item.label}}</option>
                                 </select>
                             </div>
                             
                             <div id="classroom-fieldset" class="col-sm-12 col-md-6 py-2 d-none">
-                                <label class="w-100" for="classroom">{{lang.classroom}}</label>
+                                <label class="w-100" for="classroom">{{lang.class_room}}</label>
                                 <select name="classroom" id="classroom" class="form-control" required>
-                                    <option value=''>{{lang.select_classroom}}</option>
+                                    <option value=''>{{lang.class_room_placeholder}}</option>
                                     <option v-for="(item, index) in classrooms" :value="item.value">{{item.label}}</option>
                                 </select>
                             </div>
                             
                             <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="career">{{lang.manage_careers}}</label>
+                                <label class="w-100" for="career">{{lang.class_learning_plan}}</label>
                                 <select name="career" id="career" class="form-control" required @change="getTeachers">
-                                    <option value=''>{{lang.select_careers}}</option>
+                                    <option value=''>{{lang.class_learningplan_placeholder}}</option>
                                     <option v-for="(item, index) in availableCareers" :value="item.value">{{item.label}}</option>
                                 </select>
                             </div>
                            
                             <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="period">{{lang.period}}</label>
+                                <label class="w-100" for="period">{{lang.class_period}}</label>
                                 <select name="period" id="period" class="form-control" required>
-                                   <option value=''>{{lang.select_period}}</option>
+                                   <option value=''>{{lang.class_period_placeholder}}</option>
                                 </select>
                             </div>
                             
                             <div id="courses-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="courses">{{lang.courses}}</label>
+                                <label class="w-100" for="courses">{{lang.class_course}}</label>
                                 <select name="courses" id="courses" class="form-control" required @change="getTeachers">
-                                   <option value=''>{{lang.select_courses}}</option>
+                                   <option value=''>{{lang.class_course_placeholder}}</option>
                                 </select>
                             </div>
                             
                             <div class="col-sm-12 pb-0">
                                 <v-divider></v-divider>
-                                <h6 class="mt-6">{{lang.class_schedule_days}}</h6>
+                                <h6 class="mt-6">{{lang.class_date_time}}</h6>
                             </div>
                             
                             <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                                <label class="w-100" for="starttime">{{lang.start_time}}</label>
+                                <label class="w-100" for="starttime">{{lang.class_start_time}}</label>
                                 <input type="time" class="form-control" id="starttime" required @change="getTeachers">
                             </div>
                             
                             <div id="endtime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                                <label class="w-100" for="endtime">{{lang.end_time}}</label>
+                                <label class="w-100" for="endtime">{{lang.class_end_time}}</label>
                                 <input type="time" class="form-control" id="endtime" required @change="getTeachers">
                             </div>
                           
                             <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
                                 <div class="col-12 pb-0">
-                                    <label>{{lang.classdays}}</label>
+                                    <label>{{lang.class_days}}</label>
                                 </div>
                             
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
@@ -105,16 +105,9 @@ Vue.component('createclass',{
                         </div>
                         
                         <v-divider></v-divider>
-                            
-                        <!--<div id="instructor-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="instructor">{{lang.instructor}}</label>
-                            <select name="instructor" id="instructor" class="form-control" required>
-                                <option value=''>{{lang.select_instructor}}</option>
-                            </select>
-                        </div>-->
                         
                         <div class="d-flex px-3 mt-6">
-                            <h6>{{lang.list_available_instructors}}</h6>
+                            <h6>{{lang.class_available_instructors}}</h6>
                             <v-spacer></v-spacer>
                             <v-btn
                               text

@@ -23,6 +23,7 @@ Vue.component('curriculum',{
                                       outlined
                                       :style="getCardBorderStyle(item.period)"
                                       style="background: var(--v-background-base) !important"
+                                      :href="'/course/view.php?id=' + course.courseId"
                                     >
                                         <v-card-title>
                                             <div class="text-body-2">{{ course.coursefullname }}</div>
@@ -154,7 +155,7 @@ Vue.component('curriculum',{
                 .then(response => {
                     // Parse the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.pensum)
-                    
+                    console.log(data)
                     // Extract learning plan details.
                     const learningPlanArray = Object.values(data.learningPlan);
                     this.lpName = data.learningPlanName
@@ -174,6 +175,20 @@ Vue.component('curriculum',{
                     console.error(error);
             });
         },
+        /**
+         * The getCardBorderStyle method calculates and returns the border style for a card based on the specified period.
+         *
+         * @function
+         * @name getCardBorderStyle
+         * @memberof YourComponent
+         * @param {string} period - The period for which the border style is calculated.
+         * @returns {Object} - An object containing the borderColor property for the card border style.
+         *
+         * @example
+         * // Call this method to get the border style for a card based on the specified period.
+         * const borderStyle = getCardBorderStyle("I CUATRIMESTRE");
+         * // Example result: { borderColor: "#214745" }
+         */
         getCardBorderStyle(period) {
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
 
@@ -190,8 +205,9 @@ Vue.component('curriculum',{
                     curriculumBorderCard3: "#3307b2",
                     curriculumBorderCard4: "#0077ba",
                 },
-             };
-
+            };
+            
+            // Determine the border color based on the specified period and theme.
             if (period === "I CUATRIMESTRE") {
                 return {
                     borderColor: themeColors[theme].curriculumBorderCard1,
@@ -203,7 +219,9 @@ Vue.component('curriculum',{
             } else if (period === "IV CUATRIMESTRE") {
                 return { borderColor: themeColors[theme].curriculumBorderCard4 };
             }
-            return {}; // No se aplica ningún estilo de borde por defecto
+            
+            // Return an empty object if no specific style is applied.
+            return {};
         },
         /**
          * Determines the border style for a curriculum card based on the specified period.

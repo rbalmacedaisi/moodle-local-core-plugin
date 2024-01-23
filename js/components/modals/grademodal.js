@@ -1,32 +1,36 @@
 Vue.component('grademodal',{
     template: `
         <div>
+            
             <v-dialog
               v-model="dialog"
               persistent
-              max-width="450"
+              max-width="500"
             >
                 <v-card>
                     <v-card-title class="text-h5">{{ lang.grades }}</v-card-title>
                     
-                    <v-card-subtitle class="pt-1">{{ dataStudent.name }}</v-card-subtitle>
+                    <v-card-subtitle class="pt-1 font-weight-bold">{{ dataStudent.name }}</v-card-subtitle>
                     
                     <div class="modlist">
-                        <ul class="modules-item-list">
-                            <li v-for="(grade, index) in grades" :key="index" class="item-list" @click="gradebook(grade)">
+                        <ul v-for="(career, careerIndex) in carresData.carrers" :key="careerIndex" class="modules-item-list">
+                            <span class="font-weight-bold text--secondary text-subtitle-2">{{ career.career }}</span>
+                            
+                            <li v-for="(course, courseIndex) in career.courses" :key="courseIndex" class="item-list" @click="gradebook(course)">
                                 <v-avatar size="35">
-                                  <v-icon color="success">mdi-notebook-multiple</v-icon>
+                                    <v-icon color="success">mdi-notebook-multiple</v-icon>
                                 </v-avatar>
+                                
                                 <div class="list-item-info">
                                     <div class="list-item-info-text">
-                                        <p class="ma-0 text-body-2">{{ grade.coursename }}</p>
+                                        <p class="ma-0 text-body-2">{{ course.coursename }}</p>
                                     </div>
                                 </div>
-                                
+                
                                 <v-spacer></v-spacer>
-                                
+                
                                 <div class="grades d-flex pr-3">
-                                    <span class="text-body-2">Nota: <span class="px-1">{{ grade.grade }}</span></span>
+                                    <span class="text-body-2">Nota: <span class="px-1">{{ course.grade }}</span></span>
                                 </div>
                             </li>
                         </ul>
@@ -40,6 +44,7 @@ Vue.component('grademodal',{
                       <v-btn
                         color="green darken-1"
                         text
+                        class="rounded"
                         @click="close"
                       >
                         {{ lang.close }}
@@ -51,129 +56,18 @@ Vue.component('grademodal',{
     `,
     data(){
         return{
-            dialog: true,
-            grades: []
+            dialog: false,
+            carreData:{}
         };
     },
     props:{
         dataStudent: Object
     },
     created(){
-        this.getDataGrades()
+        this.getpensum()
     },
     mounted(){},  
     methods:{
-        /**
-         * The getDataGrades method is responsible for fetching grades data for a specific student from the Moodle API.
-         * It retrieves the grades for each course, including the course ID, grade, raw grade, and course name.
-         *
-         * @async
-         * @function
-         * @name getDataGrades
-         * @memberof YourComponent
-         * @returns {Promise<void>}
-         *
-         * @throws {Error} If an error occurs during the API request.
-         *
-         * @example
-         * // This method is typically called when you need to fetch and display grades data for a student.
-         * await getDataGrades();
-         */
-        async getDataGrades() {
-            try {
-                // Define the API request URL.
-                const url = this.siteUrl;
-                
-                // Create an object with the parameters required for the API call.
-                const params = {
-                    wstoken: this.token,
-                    moodlewsrestformat: 'json',
-                    wsfunction: 'gradereport_overview_get_course_grades',
-                    userid: this.dataStudent.id,
-                };
-                
-                // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
-                const response = await window.axios.get(url, { params });
-                
-                // Extract the grades data from the response.
-                const data = response.data.grades;
-                
-                // Iterate over the grades data and populate the 'grades' array.
-                data.forEach((element) => {
-                    this.grades.push({
-                        courseid: element.courseid,
-                        grade: element.grade,
-                        rawgrade: element.rawgrade,
-                        coursename: ''
-                    });
-                });
-                
-                // Create parameters for a new API request to get course information based on course IDs.
-                const paramsStudent = {};
-                for (let index = 0; index < this.grades.length; index++) {
-                    const element = this.grades[index];
-                    paramsStudent[`options[ids][${index}]`] = element.courseid
-                }
-                
-                // Set common parameters for the API request.
-                paramsStudent.wstoken = this.token;
-                paramsStudent.moodlewsrestformat = 'json';
-                paramsStudent.wsfunction = 'core_course_get_courses';
-                
-                // Call the courseInfo method to get additional information for each course.
-                this.courseInfo(paramsStudent)
-            } catch (error) {
-                // Log any errors that occur during the API request.
-                console.error(error);
-                throw new Error('An error occurred during the grades data fetching process.');
-            }
-        },
-        /**
-         * The courseInfo method is responsible for fetching additional course information for each course in the 'grades' array.
-         * It updates the 'coursename' property for each grade based on the corresponding course information.
-         *
-         * @async
-         * @function
-         * @name courseInfo
-         * @memberof YourComponent
-         * @param {Object} params - The parameters required for the API request to get course information.
-         * @throws {Error} If an error occurs during the API request.
-         * @returns {Promise<void>}
-         *
-         * @example
-         * // This method is typically called after fetching grades data to get additional information for each course.
-         * const paramsStudent = {
-         *   wstoken: 'yourAuthToken',
-         *   moodlewsrestformat: 'json',
-         *   wsfunction: 'core_course_get_courses',
-         *   // Add other necessary parameters as needed for the API request.
-         * };
-         * await courseInfo(paramsStudent);
-         */
-        async courseInfo(params){
-            try {
-                // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
-                const response = await window.axios.get(url, { params });
-                
-                // Extract course information from the API response.
-                const coursesinfo = response.data
-                
-                // Iterate over the grades and update the 'coursename' property based on the corresponding course information.
-                this.grades.forEach((grade) => {
-                  // Find the corresponding course in coursesInfo based on course ID.
-                  const matchingCourse = coursesinfo.find((course) => course.id === grade.courseid);
-                
-                  // If a matching course is found, update the 'coursename' property.
-                  if (matchingCourse) {
-                    grade.coursename = matchingCourse.fullname;
-                  }
-                });         
-            } catch (error) {
-                // Log any errors that occur during the API request.
-                console.error(error);
-                throw new Error('An error occurred during the course information fetching process.');
-            }
-        },
         /**
          * The gradebook method redirects the user to the gradebook page for a specific course.
          *
@@ -214,6 +108,51 @@ Vue.component('grademodal',{
             
             // Emit an event to notify the parent component about the dialog closure.
             this.$emit('close-dialog')
+        },
+        async getpensum() {
+            const coursestc = []
+            // Iterar sobre cada carrera y obtener los datos
+            for (const element of this.dataStudent.carrers) {
+                const data = await this.getcarrers(element.planid);
+                // Actualizar la propiedad 'courses' en cada carrera
+                element.courses = data;
+            }
+        
+            // Imprimir el objeto dataStudent actualizado
+            console.log(this.dataStudent);
+            console.log('hola')
+            this.dialog = true
+        },
+        async getcarrers(id) {
+            try {
+                // Define el objeto de parámetros requerido para la llamada a la API.
+                const params = {
+                    wstoken: this.token,
+                    moodlewsrestformat: 'json',
+                    wsfunction: 'local_grupomakro_get_student_learning_plan_pensum',
+                    userId: this.dataStudent.id,
+                    learningPlanId: id
+                };
+
+                // Realiza una solicitud GET asincrónica a la URL especificada, pasando los parámetros como opciones de consulta.
+                const response = await window.axios.get(this.siteUrl, { params });
+        
+                // Extrae los datos del pensum desde la respuesta.
+                const data = JSON.parse(response.data.pensum);
+                const dataArray = Object.values(data);
+                
+                
+                // Filtra los cursos según si el periodName coincide con periods
+                const filteredDataArray = dataArray.filter(course => course.periodName === this.dataStudent.carrers.find(career => career.planid === id).periods);
+        
+                // Extrae solo la propiedad 'courses' de cada objeto y aplánala
+                const coursesArray = filteredDataArray.map(course => course.courses).flat();
+        
+                // Retorna el array de cursos directamente
+                return coursesArray;
+            } catch (error) {
+                console.error(error);
+            }
         }
     },
     computed: {
@@ -243,6 +182,11 @@ Vue.component('grademodal',{
         siteUrl(){
             return window.location.origin + '/webservice/rest/server.php'
         },
+        carresData(){
+            this.carreData = this.dataStudent
+            return this.dataStudent
+        }
     },
+    
     
 })

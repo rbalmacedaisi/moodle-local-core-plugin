@@ -65,7 +65,7 @@ Vue.component('revalidatestudents',{
         </v-menu>
         
         <span v-else class="d-block text-center"> {{ studentsData.revalidate }} </span>
-        </div>
+    </div>
     `,
     data(){
         return{
@@ -87,7 +87,15 @@ Vue.component('revalidatestudents',{
             return window.strings
         },
         courses(){
-            return this.studentsData.revalidate
+            // Create a Set of unique course IDs
+            const coursesSet = new Set(this.studentsData.revalidate.map(course => course.courseid));
+            // Transform the Set back into an array of unique courses
+            const uniqueCoursesArray = Array.from(coursesSet).map(courseid => {
+                return this.studentsData.revalidate.find(course => course.courseid === courseid);
+            });
+            
+            // Return the array of unique courses
+            return uniqueCoursesArray;
         }
     },
 })

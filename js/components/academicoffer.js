@@ -56,7 +56,7 @@ Vue.component('academicoffer',{
                       :href="'/local/grupomakro_core/pages/curriculum.php?lp_id='+ item.id"
                       target="_blank"
                     >
-                        {{ lang.see_curriculum }}
+                        {{ lang.pensum }}
                     </v-btn>
                 </li>
             </ul>
@@ -101,7 +101,7 @@ Vue.component('academicoffer',{
                 .then(response => {
                     // Parse the JSON data returned from the API.
                     const carrers = JSON.parse(response.data.learningPlans)
-                    
+                    console.log(carrers)
                     // Iterate through the retrieved data and populate the items array.
                     carrers.forEach((element) => {
                         this.items.push({

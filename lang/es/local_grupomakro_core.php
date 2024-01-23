@@ -114,11 +114,7 @@ $string['manage_careers'] = 'Gestionar Carreras';
 $string['select_careers'] = 'Seleccionar una carrera';
 $string['payment_type'] = 'Tipo de Pago';
 $string['select_payment_type'] = 'Seleccionar Tipo de pago';
-$string['cancel'] = 'Cancelar';
-$string['continue'] = 'Continuar';
-$string['next'] = 'Siguiente';
-$string['save'] = 'Guardar';
-$string['back'] = 'Atrás';
+
 $string['credit_terms'] = 'Términos del crédito';
 $string['select_periodicity'] = 'Selecciona la periodicidad';
 $string['number_quotas'] = 'Número Cuotas';
@@ -159,7 +155,6 @@ $string['defer'] = 'Aplazar';
 $string['re_asign'] = 'Reasignar';
 $string['user'] = 'Usuario';
 $string['msndeferring'] = 'Al aplazar el contrato, todos los pagos relacionados quedarán congelados y el contrato inactivo.';
-$string['accept'] = 'Aceptar';
 $string['list_advisers'] = 'Lista de asesores';
 $string['select_advisor'] = 'Selecciona un asesor';
 $string['reassign_contract'] = 'Reasignar Contrato';
@@ -241,41 +236,43 @@ $string['enrolUserLastName'] = 'Apellidos';
 $string['enrolUserEmail'] = 'Correo electrónico';
 
 // Pagina Gestión de clases.
-$string['classmanagement'] = 'Gestión de clases';
-$string['createclass'] = 'Crear Clase';
 $string['allclasses'] = 'Todas las Clases';
 $string['confirm_delete_class'] = 'Confirmación eliminación de clase';
-$string['instances'] = 'Instancias';
-$string['select_instance'] = 'Seleccionar Instancia';
-$string['period'] = 'Periodos';
-$string['select_period'] = 'Seleccionar Periodo';
-$string['instructor'] = 'Instructor';
-$string['select_instructor'] = 'Seleccionar Instructor';
 $string['number_classes'] = 'Número de clases';
-$string['start_time'] = 'Hora de inicio';
-$string['end_time'] = 'Hora de finalización';
-$string['class_type'] = 'Tipo de Clase';
-$string['classroom'] = 'Aula de clase';
-$string['select_classroom'] = 'Selecciona el aula de clase';
-$string['select_type_class'] = 'Selecciona el Tipo de Clase';
 $string['classroom_capacity'] = 'Capacidad';
-$string['monday'] = 'Lunes';
-$string['tuesday'] = 'Martes';
-$string['wednesday'] = 'Miércoles';
-$string['thursday'] = 'Jueves';
-$string['friday'] = 'Viernes';
-$string['saturday'] = 'Sábado';
-$string['sunday'] = 'Domingo';
-$string['classdays'] = 'Días de clase';
 $string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
-$string['edit_class'] = 'Editar Clase';
-$string['class_name'] = 'Nombre clase';
 $string['new_date'] = 'Nueva fecha';
 $string['check_availability'] = 'Ver disponibilidad de instructores';
 $string['rescheduling_activity'] = 'Reprogramando actividad de ';
 $string['reschedule'] = 'Reprogramar';
 $string['confirm_reschedule_title'] = 'Confirmacion reprogramación';
+
+//Class creation and edition labels and texts
+$string['class_management'] = 'Gestión de clases';
+$string['create_class'] = 'Crear Clase';
+$string['edit_class'] = 'Editar Clase';
+$string['class_general_data'] ='Datos Generales';
+$string['class_name'] = 'Nombre de clase';
+$string['class_type'] = 'Tipo de clase';
+$string['class_room'] = 'Aula de clase';
+$string['class_learning_plan'] = 'Plan de aprendizaje';
+$string['class_period'] = 'Período';
+$string['class_course'] = 'Curso';
+$string['class_date_time'] ='Horario y días de clase';
+$string['class_start_time'] = 'Hora de inicio';
+$string['class_end_time'] = 'Hora de finalización';
+$string['class_days'] = 'Días de clase';
+$string['class_available_instructors'] ='Lista de Instructores Disponibles';
 $string['see_availability'] = 'Ver disponibilidad';
+
+//Class creation and edition input placeholders
+
+$string['class_name_placeholder'] ='Ingrese un nombre';
+$string['class_type_placeholder'] = 'Seleccionar Tipo de clase';
+$string['class_room_placeholder'] = 'Seleccionar Aula de clase';
+$string['class_learningplan_placeholder'] = 'Seleccionar Plan de aprendizaje';
+$string['class_period_placeholder'] = 'Seleccionar Período';
+$string['class_course_placeholder'] = 'Seleccionar Curso';
 
 // Pagina de Horarios.
 $string['schedules'] = 'Horarios';
@@ -288,7 +285,6 @@ $string['week'] = 'Semana';
 $string['month'] = 'Mes';
 $string['instructors'] = 'Instructores';
 $string['scheduledclasses'] = 'Clases Programadas';
-$string['close'] = 'Cerrar';
 $string['reschedule'] = 'Reprogramar';
 $string['desc_rescheduling'] = 'Describa el motivo de la reprogramación';
 $string['available_hours'] = 'Horas Disponibles';
@@ -374,10 +370,6 @@ $string['msg:send_revalidation_message:body'] = '
 <p>Haz click <a href="{$a->payRevalidUrl}">aquí</a> para pagar la revalida.</p>';
 $string['msg:send_revalidation_message:subject'] ='Nueva revalida pendiente';
 $string['msg:send_revalidation_message:contexturlname'] ='Pagar revalida.';
-$string['enter_name'] ='Ingrese un nombre';
-$string['general_data'] ='Datos Generales';
-$string['class_schedule_days'] ='Horario y días de clase';
-$string['list_available_instructors'] ='Lista de Instructores Disponibles';
 
 // Pagina Panel de Disponivilidad.
 $string['availability_bulk_load'] ='Carga masiva de disponibilidad';
@@ -395,6 +387,7 @@ $string['students_list'] = 'Lista de estudiantes';
 $string['revalidation'] = 'Revalida';
 $string['there_no_data'] = 'No hay datos';
 $string['grades'] = 'Calificaciones';
+$string['pensum'] = 'Pénsum';
 
 //Academic Calendar Table.
 $string['academiccalendar:academic_calendar_title'] = 'Calendario Académico';
@@ -420,3 +413,23 @@ $string['academiccalendar:academic_calendar_table:graduationdate_header'] = 'Fec
 
 $string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'Del {$a->examFrom} Al {$a->examUntil}';
 $string['academiccalendar:academic_calendar_table:registration_cell'] = 'Del {$a->registrationFrom} Al {$a->registrationUntil}';
+
+//Utils
+
+////Days
+$string['monday'] = 'Lunes';
+$string['tuesday'] = 'Martes';
+$string['wednesday'] = 'Miércoles';
+$string['thursday'] = 'Jueves';
+$string['friday'] = 'Viernes';
+$string['saturday'] = 'Sábado';
+$string['sunday'] = 'Domingo';
+
+////Button Labels
+$string['accept'] = 'Aceptar';
+$string['cancel'] = 'Cancelar';
+$string['continue'] = 'Continuar';
+$string['next'] = 'Siguiente';
+$string['save'] = 'Guardar';
+$string['back'] = 'Atrás';
+$string['close'] = 'Cerrar';

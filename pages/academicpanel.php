@@ -61,6 +61,7 @@ $strings->quarters = get_string('quarters', $plugin_name);
 $strings->state = get_string('state', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
 $strings->grades = get_string('grades', $plugin_name);
+$strings->pensum = get_string('pensum', $plugin_name);
 
 $strings = json_encode($strings);
 
@@ -128,7 +129,7 @@ echo <<<EOT
     ul.modules-item-list{
       display: grid;
       grid-template-columns: repeat(1,1fr);
-      padding: 0 1rem;
+      padding: 0 1.5rem;
       list-style-type: none;
     }
     ul.modules-item-list li{
@@ -136,7 +137,7 @@ echo <<<EOT
       display: flex;
       align-items: center;
       margin: 0;
-      padding: 0.75rem;
+      padding: 0.35rem 0;
       border-radius: 0.75rem;
       transition: all .3s ease-in-out;
       gap: 1rem;

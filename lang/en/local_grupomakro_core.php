@@ -114,11 +114,8 @@ $string['manage_careers'] = 'Manage Careers';
 $string['select_careers'] = 'Select Careers';
 $string['payment_type'] = 'Payment Type';
 $string['select_payment_type'] = 'Select Payment type';
-$string['cancel'] = 'Cancel';
-$string['continue'] = 'Continue';
-$string['next'] = 'Next';
-$string['save'] = 'Save';
-$string['back'] = 'Back';
+
+
 $string['credit_terms'] = 'Credit Terms';
 $string['select_periodicity'] = 'Select the periodicity';
 $string['number_quotas'] = 'Number of Quotas';
@@ -159,7 +156,7 @@ $string['defer'] = 'Defer';
 $string['re_asign'] = 'Re asign';
 $string['user'] = 'User';
 $string['msndeferring'] = 'By deferring the contract, all related payments will be frozen and the contract inactive.';
-$string['accept'] = 'Accept';
+
 $string['list_advisers'] = 'List of advisers';
 $string['select_advisor'] = 'Select an advisor';
 $string['reassign_contract'] = 'Reassign contract';
@@ -240,41 +237,44 @@ $string['enrolUserLastName'] = 'LastName';
 $string['enrolUserEmail'] = 'Email';
 
 // Class Management Page.
-$string['classmanagement'] = 'Class Management';
-$string['createclass'] = 'Create Class';
 $string['allclasses'] = 'All the classes';
 $string['confirm_delete_class'] = 'Delete class confirmation';
-$string['instances'] = 'Instances';
-$string['select_instance'] = 'Select instance';
-$string['period'] = 'Periods';
-$string['select_period'] = 'Select period';
-$string['instructor'] = 'Instructor';
-$string['select_instructor'] = 'Select Instructor';
 $string['number_classes'] = 'Number of classes';
-$string['start_time'] = 'Start Time';
-$string['end_time'] = 'End Time';
-$string['class_type'] = 'Class Type';
-$string['classroom'] = 'Classroom';
-$string['select_classroom'] = 'Select class room';
 $string['select_type_class'] = 'Select the type of class';
 $string['classroom_capacity'] = 'Capacity';
-$string['monday'] = 'Monday';
-$string['tuesday'] = 'Tuesday';
-$string['wednesday'] = 'Wednesday';
-$string['thursday'] = 'Thursday';
-$string['friday'] = 'Friday';
-$string['saturday'] = 'Saturday';
-$string['sunday'] = 'Sunday';
-$string['classdays'] = 'Class days';
 $string['delete_class'] = 'Are you sure to permanently delete this class and all related information?';
-$string['edit_class'] = 'Edit Class';
-$string['class_name'] = 'Class Name';
 $string['new_date'] = 'New date';
 $string['check_availability'] = "View instructor's availability";
 $string['rescheduling_activity'] = 'Rescheduling activity of ';
 $string['reschedule'] = 'Reschedule';
 $string['confirm_reschedule_title'] = 'Reschedule Confirmation';
+
+//Class creation and edition labels and texts
+$string['class_management'] = 'Class Management';
+$string['create_class'] = 'Create Class';
+$string['edit_class'] = 'Edit Class';
+$string['class_general_data'] ='General data';
+$string['class_name'] = 'Class Name';
+$string['class_type'] = 'Class Type';
+$string['class_room'] = 'Classroom';
+$string['class_learning_plan'] = 'Learning Plan';
+$string['class_period'] = 'Period';
+$string['class_course'] = 'Course';
+$string['class_date_time'] ='Class schedule and days';
+$string['class_start_time'] = 'Start Time';
+$string['class_end_time'] = 'End Time';
+$string['class_days'] = 'Class days';
+$string['class_available_instructors'] ='Class available instructors';
 $string['see_availability'] = 'See availability';
+
+//Class creation and edition input placeholders
+
+$string['class_name_placeholder'] ='Ingrese un nombre';
+$string['class_type_placeholder'] = 'Select Type';
+$string['class_room_placeholder'] = 'Select Class Room';
+$string['class_learningplan_placeholder'] = 'Select Learning Plan';
+$string['class_period_placeholder'] = 'Select Period';
+$string['class_course_placeholder'] = 'Select Course';
 
 // Schedules page.
 $string['schedules'] = 'Schedules';
@@ -286,7 +286,6 @@ $string['week'] = 'Week';
 $string['month'] = 'Month';
 $string['instructors'] = 'Instructors';
 $string['scheduledclasses'] = 'Scheduled classes';
-$string['close'] = 'Close';
 $string['reschedule'] = 'Reschedule';
 $string['desc_rescheduling'] = 'Describe the reason for rescheduling';
 $string['available_hours'] = 'Available Hours';
@@ -373,9 +372,6 @@ $string['msg:send_revalidation_message:body'] = '
 $string['msg:send_revalidation_message:subject'] ='New pending revalid';
 $string['msg:send_revalidation_message:contexturlname'] ='Pay revalid';
 $string['enter_name'] ='Enter a name';
-$string['general_data'] ='General data';
-$string['class_schedule_days'] ='Class schedule and days';
-$string['list_available_instructors'] ='List of Available Instructors';
 
 // Availability Panel Page.
 $string['availability_bulk_load'] ='Availability Bulk Load';
@@ -393,6 +389,7 @@ $string['students_list'] = 'Students list';
 $string['revalidation'] = 'Revalidation';
 $string['there_no_data'] = 'There is no data';
 $string['grades'] = 'Grades';
+$string['pensum'] = 'Pensum';
 
 //Academic Calendar Table.
 $string['academiccalendar:academic_calendar_title'] = 'Academic Calendar';
@@ -418,3 +415,23 @@ $string['academiccalendar:academic_calendar_table:graduationdate_header'] = 'Gra
 
 $string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'From {$a->examFrom} To {$a->examUntil}';
 $string['academiccalendar:academic_calendar_table:registration_cell'] = 'From {$a->registrationFrom} To {$a->registrationUntil}';
+
+//Utils
+
+////Days
+$string['monday'] = 'Monday';
+$string['tuesday'] = 'Tuesday';
+$string['wednesday'] = 'Wednesday';
+$string['thursday'] = 'Thursday';
+$string['friday'] = 'Friday';
+$string['saturday'] = 'Saturday';
+$string['sunday'] = 'Sunday';
+
+////Button Labels
+$string['accept'] = 'Accept';
+$string['cancel'] = 'Cancel';
+$string['continue'] = 'Continue';
+$string['next'] = 'Next';
+$string['save'] = 'Save';
+$string['back'] = 'Back';
+$string['close'] = 'Close';
