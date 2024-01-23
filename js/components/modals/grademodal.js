@@ -109,23 +109,42 @@ Vue.component('grademodal',{
             // Emit an event to notify the parent component about the dialog closure.
             this.$emit('close-dialog')
         },
+        /**
+         * Fetches and updates the curriculum for each career in the student's data.
+         *
+         * @function
+         * @memberof YourComponent
+         * 
+         * @async
+         */
         async getpensum() {
+            // Create an empty array to store courses for each career.
             const coursestc = []
-            // Iterar sobre cada carrera y obtener los datos
+            
+            // Iterate over each career in the student's data.
             for (const element of this.dataStudent.carrers) {
+                // Call the getcarrers method to fetch curriculum data for each career.
                 const data = await this.getcarrers(element.planid);
-                // Actualizar la propiedad 'courses' en cada carrera
+                
+                // Update the 'courses' property for each career with the fetched data.
                 element.courses = data;
             }
-        
-            // Imprimir el objeto dataStudent actualizado
-            console.log(this.dataStudent);
-            console.log('hola')
+            
+            // Set the 'dialog' property to true to display the curriculum dialog.
             this.dialog = true
         },
+        /**
+         * Fetches the curriculum for a specific career using the provided learning plan ID.
+         *
+         * @function
+         * @memberof YourComponent
+         * @async
+         * @param {number} id - The learning plan ID for the career.
+         * @returns {Array} - An array of courses for the specified career.
+         */
         async getcarrers(id) {
             try {
-                // Define el objeto de parámetros requerido para la llamada a la API.
+                // Define the object with parameters required for the API call.
                 const params = {
                     wstoken: this.token,
                     moodlewsrestformat: 'json',
@@ -134,21 +153,21 @@ Vue.component('grademodal',{
                     learningPlanId: id
                 };
 
-                // Realiza una solicitud GET asincrónica a la URL especificada, pasando los parámetros como opciones de consulta.
+                // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
                 const response = await window.axios.get(this.siteUrl, { params });
         
-                // Extrae los datos del pensum desde la respuesta.
+                // Parse the curriculum data from the response.
                 const data = JSON.parse(response.data.pensum);
                 const dataArray = Object.values(data);
                 
                 
-                // Filtra los cursos según si el periodName coincide con periods
+                // Filter the courses based on whether periodName matches periods
                 const filteredDataArray = dataArray.filter(course => course.periodName === this.dataStudent.carrers.find(career => career.planid === id).periods);
         
-                // Extrae solo la propiedad 'courses' de cada objeto y aplánala
+                // Extract only the 'courses' property from each object and flatten it.
                 const coursesArray = filteredDataArray.map(course => course.courses).flat();
         
-                // Retorna el array de cursos directamente
+                // Return the array of courses directly
                 return coursesArray;
             } catch (error) {
                 console.error(error);
@@ -187,6 +206,4 @@ Vue.component('grademodal',{
             return this.dataStudent
         }
     },
-    
-    
 })

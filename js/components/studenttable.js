@@ -181,7 +181,7 @@ Vue.component('studenttable',{
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];
-                console.log(data)
+                
                 // Iterate through the retrieved data and populate the students array.
                 data.forEach((element) => {
                     this.students.push({
