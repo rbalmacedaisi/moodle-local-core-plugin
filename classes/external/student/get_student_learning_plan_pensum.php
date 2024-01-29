@@ -115,13 +115,15 @@ class get_student_learning_plan_pensum extends external_api {
                 if(!array_key_exists($userPensumCourse->periodname,$groupedUserPensumCourses)){
                     $groupedUserPensumCourses[$userPensumCourse->periodname]['id']=$userPensumCourse->periodid;
                     $groupedUserPensumCourses[$userPensumCourse->periodname]['periodName']=$userPensumCourse->periodname;
-                    $groupedUserPensumCourses[$userPensumCourse->periodname]['courses'] = [$userPensumCourse];
-                    continue;
+                }
+                if($userPensumCourse->tc ==='1'){
+                    $commonTrunkCourseRecords = $DB->get_records('gmk_course_progre',['userid'=>$params['userId'],'courseid'=>$userPensumCourse->courseid]);
+                    foreach($commonTrunkCourseRecords as $commonTrunkCourseRecord){
+                        $userPensumCourse->grade = $userPensumCourse->grade < $commonTrunkCourseRecord->grade?$commonTrunkCourseRecord->grade:$userPensumCourse->grade;
+                    }
                 }
                 $groupedUserPensumCourses[$userPensumCourse->periodname]['courses'][]=$userPensumCourse;
             }
-           /* print_object($groupedUserPensumCourses);
-            die;*/
             return ['pensum'=>json_encode($groupedUserPensumCourses)];
         }catch (Exception $e) {
             return ['status' => -1,'message' => $e->getMessage()];

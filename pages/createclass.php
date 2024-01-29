@@ -31,21 +31,21 @@ $plugin_name = 'local_grupomakro_core';
 
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/test.php');
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/createclass.php');
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('createclass', $plugin_name));
-$PAGE->set_heading(get_string('createclass', $plugin_name));
+$PAGE->set_title(get_string('create_class', $plugin_name));
+$PAGE->set_heading(get_string('create_class', $plugin_name));
 $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
 
 if (is_siteadmin()) {
-    $PAGE->navbar->add(get_string('classmanagement', $plugin_name), new moodle_url('/local/grupomakro_core/pages/classmanagement.php'));
+    $PAGE->navbar->add(get_string('class_management', $plugin_name), new moodle_url('/local/grupomakro_core/pages/classmanagement.php'));
 }
 $PAGE->navbar->add(
-    get_string('createclass', $plugin_name),
-    new moodle_url('/local/grupomakro_core/pages/test.php')
+    get_string('create_class', $plugin_name),
+    new moodle_url('/local/grupomakro_core/pages/createclass.php')
 );
 
 // Get the active learning plans with careers and format the object passed to the mustache
@@ -73,15 +73,27 @@ $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobi
 $token = json_encode(external_generate_token_for_current_user($service)->token);
 
 $strings = new stdClass();
+$strings->class_general_data = get_string('class_general_data', $plugin_name);
 $strings->class_name = get_string('class_name', $plugin_name);
 $strings->class_type = get_string('class_type', $plugin_name);
-$strings->classroom = get_string('classroom', $plugin_name);
-$strings->manage_careers = get_string('manage_careers', $plugin_name);
-$strings->period = get_string('period', $plugin_name);
-$strings->courses = get_string('courses', $plugin_name);
-$strings->start_time = get_string('start_time', $plugin_name);
-$strings->end_time = get_string('end_time', $plugin_name);
-$strings->classdays = get_string('classdays', $plugin_name);
+$strings->class_room = get_string('class_room', $plugin_name);
+$strings->class_learning_plan = get_string('class_learning_plan', $plugin_name);
+$strings->class_period = get_string('class_period', $plugin_name);
+$strings->class_course = get_string('class_course', $plugin_name);
+$strings->class_date_time = get_string('class_date_time', $plugin_name);
+$strings->class_start_time = get_string('class_start_time', $plugin_name);
+$strings->class_end_time = get_string('class_end_time', $plugin_name);
+$strings->class_days = get_string('class_days', $plugin_name);
+$strings->class_available_instructors = get_string('class_available_instructors', $plugin_name);
+$strings->see_availability = get_string('see_availability', $plugin_name);
+
+$strings->class_name_placeholder = get_string('class_name_placeholder', $plugin_name);
+$strings->class_type_placeholder = get_string('class_type_placeholder', $plugin_name);
+$strings->class_room_placeholder = get_string('class_room_placeholder', $plugin_name);
+$strings->class_learningplan_placeholder = get_string('class_learningplan_placeholder', $plugin_name);
+$strings->class_period_placeholder = get_string('class_period_placeholder', $plugin_name);
+$strings->class_course_placeholder = get_string('class_course_placeholder', $plugin_name);
+
 $strings->monday = get_string('monday', $plugin_name);
 $strings->tuesday = get_string('tuesday', $plugin_name);
 $strings->wednesday = get_string('wednesday', $plugin_name);
@@ -89,22 +101,11 @@ $strings->thursday = get_string('thursday', $plugin_name);
 $strings->friday = get_string('friday', $plugin_name);
 $strings->saturday = get_string('saturday', $plugin_name);
 $strings->sunday = get_string('sunday', $plugin_name);
-$strings->instructor = get_string('instructor', $plugin_name);
-$strings->check_availability = get_string('check_availability', $plugin_name);
+
 $strings->cancel = get_string('cancel', $plugin_name);
 $strings->save = get_string('save', $plugin_name);
-$strings->select_type_class = get_string('select_type_class', $plugin_name);
-$strings->select_classroom = get_string('select_classroom', $plugin_name);
-$strings->select_careers = get_string('select_careers', $plugin_name);
-$strings->select_period = get_string('select_period', $plugin_name);
-$strings->select_courses = get_string('select_courses', $plugin_name);
-$strings->select_instructor = get_string('select_instructor', $plugin_name);
-$strings->enter_name = get_string('enter_name', $plugin_name);
-$strings->general_data = get_string('general_data', $plugin_name);
-$strings->class_schedule_days = get_string('class_schedule_days', $plugin_name);
-$strings->list_available_instructors = get_string('list_available_instructors', $plugin_name);
-$strings->see_availability = get_string('see_availability', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
+
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();

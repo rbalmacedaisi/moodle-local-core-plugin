@@ -33,6 +33,7 @@ defined('MOODLE_INTERNAL') || die();
 // require_once($CFG->dirroot.'/group/lib.php');
 
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 define('COURSE_PRACTICAL_HOURS_SHORTNAME','p');
     
@@ -105,30 +106,80 @@ class local_grupomakro_core_observer {
         local_grupomakro_progress_manager::create_learningplan_user_progress($learningPlanUserId,$learningPlanId,$userRoleId);
     }
     public static function course_module_completion_updated(\core\event\course_module_completion_updated  $event) {
-        $content = json_encode($eventdata, JSON_PRETTY_PRINT);
-        
-        $folderPath = __DIR__.'/';
-        $filePath = $folderPath . 'module_updated.txt';
-        
-        $fileHandle = fopen($filePath, 'w');
+        $eventData = $event->get_data();
 
-        // Check if the file was opened successfully
-        if ($fileHandle) {
-            // Write content to the file
-            fwrite($fileHandle, $content);
+        $courseId = $eventData['courseid'];
+        $userId = $eventData['userid'];
+        $moduleId = $eventData['contextinstanceid'];
+        $completionState = $eventData['other']['completionstate'];
         
-            // Close the file handle
-            // echo "File created successfully.";
-        } else {
-            // echo "Failed to open the file for writing.";
+        local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$userId,$moduleId,$completionState);
+    }
+    
+    public static function attendance_taken_by_student(\mod_attendance\event\attendance_taken_by_student $event){
+        global $DB, $CFG, $PAGE;
+        require_once($CFG->dirroot.'/mod/attendance/lib.php');
+        require_once($CFG->dirroot.'/mod/attendance/classes/attendance_webservices_handler.php');
+
+        $eventdata    = $event->get_data();
+        $studentId    = $eventdata['userid'];
+        $sessid       = $eventdata['other']['sessionid'];
+        $courseId     = $eventdata['courseid'];
+        $attendanceId = $eventdata['objectid'];
+        
+        //Reset attendance Log in user taken asist, only taken with scan QR two times
+        $resetLog = delete_asist_attendance($sessid, $studentId, $attendanceId);
+
+        $now = time();
+        $logAttendanceTmp = new stdClass();
+        $logAttendanceTmp->sessionid = $sessid;
+        $logAttendanceTmp->studentid = $studentId;
+        $logAttendanceTmp->courseid  = $courseId;
+        $logAttendanceTmp->timetaken = $now;
+        $logAttendanceTmp->takenby   = $studentId;
+        
+        //Insert into table Temp by check if user scan QR fisrt time 
+        $logid = $DB->insert_record('local_grupomakro_attendance', $logAttendanceTmp, false);
+        
+        //Check if students are scanning the attendance QR for the first time
+        $logSecondTime = $DB->get_records('local_grupomakro_attendance', array('sessionid' => $sessid, 'studentid' => $studentId));
+        
+        //LogSecondTime is two Scan QR
+        if(count($logSecondTime) > 1){ 
+            $pageparams = new mod_attendance_sessions_page_params();
+            $attforsession = $DB->get_record('attendance_sessions', array('id' => $sessid), '*', MUST_EXIST);
+            $attendance = $DB->get_record('attendance', array('id' => $attendanceId), '*', MUST_EXIST);
+            $cm = get_coursemodule_from_instance('attendance', $attendanceId, 0, false, MUST_EXIST);
+            $course = $DB->get_record('course', array('id' => $courseId), '*', MUST_EXIST);
+            
+            $pageparams->sessionid = $sessid;
+            
+            $att = new mod_attendance_structure($attendance, $cm, $course, $PAGE->context, $pageparams);
+            
+            $statusId  = attendance_session_get_highest_status($att, $attforsession);
+            $statusset = implode(',', array_keys(attendance_get_statuses($attendanceId, true, $attforsession->statusset)));
+            $recordAttendance = attendance_handler::update_user_status($sessid,$studentId,$studentId,$statusId,$statusset);
+            
+            $content = json_encode($eventdata, JSON_PRETTY_PRINT);
+        
+            $folderPath = __DIR__.'/';
+            $filePath = $folderPath . 'attendance_taken.txt';
+            
+            $fileHandle = fopen($filePath, 'w');
+    
+            // Check if the file was opened successfully
+            if ($fileHandle) {
+                // Write content to the file
+                fwrite($fileHandle, $cm);
+            
+                // Close the file handle
+                // echo "File created successfully.";
+            } else {
+                // echo "Failed to open the file for writing.";
+            }
+            
+            //If you scan the QR 2 times your successful attendance is marked
+            local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$studentId,$eventdata['contextinstanceid']);
         }
-        
-        // die;
-        
-        $eventdata = $event->get_data();
-        $courseId = $eventdata['courseid'];
-        $userId = $eventdata['userid'];
-        
-        local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$userId);
     }
 }

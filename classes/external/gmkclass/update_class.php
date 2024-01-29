@@ -115,7 +115,7 @@ class update_class extends external_api {
             update_class($params);
             
             // Return the result.
-            return ['status' => 1, 'message' => 'ok'];
+            return [];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -131,8 +131,8 @@ class update_class extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, 'True if the class is updated, -1 otherwise.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' => new external_value(PARAM_INT, '1 if class is updated, -1 otherwise.',VALUE_DEFAULT,1),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

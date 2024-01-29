@@ -804,6 +804,82 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20240102001, 'local', 'grupomakro_core');
     }
+    
+    if ($oldversion < 20240116000) {
+
+        // Define field usermodified to be added to gmk_academic_calendar.
+        $table = new xmldb_table('local_grupomakro_attendance');
+        
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('studentid', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('courseid', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timetaken', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('takenby', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, null);
+        
+        // Adding keys to table gmk_academic_calendar.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        
+        // Conditionally launch create table for gmk_academic_calendar.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240102000, 'local', 'grupomakro_core');
+    }
+    
+    if ($oldversion < 20240116001) {
+
+        // Define field usermodified to be added to gmk_academic_calendar.
+        $table = new xmldb_table('local_grupomakro_attendance');
+        $field = new xmldb_field('timetaken', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'takensession');
+
+        // Conditionally launch add field usermodified.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240102001, 'local', 'grupomakro_core');
+    }
+    
+    if ($oldversion < 20240122000) {
+
+        // Define field instance to be dropped from gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('instance');
+
+        // Conditionally launch drop field instance.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240122000, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20240122001) {
+
+        // Define field companyname to be dropped from gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('companyname');
+
+        // Conditionally launch drop field companyname.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+        
+        // Define field companycode to be dropped from gmk_class.
+        $field = new xmldb_field('companycode');
+        
+        // Conditionally launch drop field companycode.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+        
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240122001, 'local', 'grupomakro_core');
+    }
 
     return true;
 }

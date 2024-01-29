@@ -236,20 +236,12 @@ $string['enrolUserFirstName'] = 'FirstName';
 $string['enrolUserLastName'] = 'LastName';
 $string['enrolUserEmail'] = 'Email';
 
-// Class Management Page.
-$string['allclasses'] = 'All the classes';
-$string['confirm_delete_class'] = 'Delete class confirmation';
-$string['number_classes'] = 'Number of classes';
-$string['select_type_class'] = 'Select the type of class';
-$string['classroom_capacity'] = 'Capacity';
-$string['delete_class'] = 'Are you sure to permanently delete this class and all related information?';
-$string['new_date'] = 'New date';
-$string['check_availability'] = "View instructor's availability";
-$string['rescheduling_activity'] = 'Rescheduling activity of ';
-$string['reschedule'] = 'Reschedule';
-$string['confirm_reschedule_title'] = 'Reschedule Confirmation';
+// Class Management Page.-------------------------------------------------------
 
 //Class creation and edition labels and texts
+$string['delete_class'] = 'Are you sure to permanently delete this class and all related information?';
+$string['confirm_delete_class'] = 'Delete class confirmation';
+$string['allclasses'] = 'All the classes';
 $string['class_management'] = 'Class Management';
 $string['create_class'] = 'Create Class';
 $string['edit_class'] = 'Edit Class';
@@ -269,12 +261,21 @@ $string['see_availability'] = 'See availability';
 
 //Class creation and edition input placeholders
 
-$string['class_name_placeholder'] ='Ingrese un nombre';
+$string['class_name_placeholder'] ='Enter a name';
 $string['class_type_placeholder'] = 'Select Type';
 $string['class_room_placeholder'] = 'Select Class Room';
 $string['class_learningplan_placeholder'] = 'Select Learning Plan';
 $string['class_period_placeholder'] = 'Select Period';
 $string['class_course_placeholder'] = 'Select Course';
+
+//Class activity reschedule labels and placeholders
+$string['rescheduling_activity'] = 'Rescheduling activity of ';
+$string['activity_new_date'] = 'New date';
+$string['activity_start_time'] = 'Start Time';
+$string['activity_end_time'] = 'End Time';
+$string['reschedule'] = 'Reschedule';
+
+//------------------------------------------------------------------------------
 
 // Schedules page.
 $string['schedules'] = 'Schedules';

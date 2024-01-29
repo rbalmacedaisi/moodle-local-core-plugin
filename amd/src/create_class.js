@@ -22,7 +22,7 @@ const saturdaySwitch = $('#customSwitchSaturday');
 const sundaySwitch = $('#customSwitchSunday');
 const errorModal = $('#errorModal');
 const errorModalContent = $('#error-modal-content');
-const selectors = [typeSelector, careerSelector, periodSelector, courseSelector, classNameInput, initTimeInput, endTimeInput, classroomSelector];
+const selectors = [classNameInput,typeSelector, classroomSelector, careerSelector, periodSelector, courseSelector, initTimeInput, endTimeInput];
 const switches = [mondaySwitch, tuesdaySwitch, wednesdaySwitch, thursdaySwitch, fridaySwitch, saturdaySwitch, sundaySwitch];
 
 let periods;
@@ -61,17 +61,13 @@ const handleTypeSelector = () => {
 
 const handleClassSave = () => {
     saveButton.click(()=>{
-        
-        console.log('entro')
         endTimeInput.get(0).setCustomValidity('');
         mondaySwitch.get(0).setCustomValidity('');
         // Check the select inputs and the time inputs
         const valid = selectors.every(selector => {
-            console.log(selector)
             return selector.get(0).reportValidity();
         });
         if (!valid) {
-            console.error('algun selector esta mal')
             return;
         }
         //
@@ -79,7 +75,6 @@ const handleClassSave = () => {
         if (initTimeInput.val() >= endTimeInput.val()) {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
             endTimeInput.get(0).reportValidity();
-            console.error('el tiempo esta mal')
             return;
         }
         //
@@ -90,13 +85,11 @@ const handleClassSave = () => {
         if (!daySelected) {
             mondaySwitch.get(0).setCustomValidity('Se debe seleccionar al menos un día de clase.');
             mondaySwitch.get(0).reportValidity();
-            console.error('algun dia esta mal')
             return;
         }
         //
         const instructorId = document.getElementById('instructorId')
         if(instructorId.value == ''){
-            console.error('no hay id de instructor')
             return;
         }
         const args = {

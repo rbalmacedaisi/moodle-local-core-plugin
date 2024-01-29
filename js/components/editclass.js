@@ -24,17 +24,17 @@ Vue.component('editclass',{
                         </div>
                         
                         <div id="newDate-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="newDate">{{lang.new_date}}</label>
+                            <label class="w-100" for="newDate">{{lang.activity_new_date}}</label>
                             <input v-model="activityRescheduleData.activityProposedDate" type="date" class="form-control" id="newDate" ref="newDate" required>
                         </div>
                         
                         <div id="newStartTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="newStartTime">{{lang.start_time}}</label>
+                            <label class="w-100" for="newStartTime">{{lang.activity_start_time}}</label>
                             <input v-model="activityRescheduleData.activityProposedInitTime" type="time" class="form-control" id="newStartTime" ref="newInitTime" required>
                         </div>
                         
                         <div id="newEndTime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="newEndTime">{{lang.end_time}}</label>
+                            <label class="w-100" for="newEndTime">{{lang.activity_end_time}}</label>
                             <input v-model="activityRescheduleData.activityProposedEndTime" type="time" class="form-control" id="newEndTime" ref="newEndTime" required>
                         </div>
                     </div>
@@ -48,59 +48,59 @@ Vue.component('editclass',{
                             
                         <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="className">{{ lang.class_name }}</label>
-                            <input v-model="classData.name" ref="className" type="text" class="form-control" id="className" required>
+                            <input v-model="classData.name" ref="className" type="text" class="form-control" id="className" :placeholder="lang.class_name_placeholder" required>
                         </div>
                             
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classType">{{ lang.class_type }}</label>
                             <select v-model="classData.type" ref="classType" id="classType" class="form-control" required>
-                                <option value=''>{{ lang.select_type_class }}</option>
+                                <option value=''>{{ lang.class_type_placeholder }}</option>
                                 <option v-for="(item, index) in classTypes" :value="item.value">{{item.label}}</option> 
                             </select>
                         </div>
                             
                         <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
-                            <label class="w-100" for="classLearningPlan">{{ lang.manage_careers }}</label>
+                            <label class="w-100" for="classLearningPlan">{{ lang.class_learning_plan }}</label>
                             <select v-model="classData.learningPlanId" ref="classLearningPlan" id="classLearningPlan" class="form-control" required @change="handleLearningPlanChange">
-                                <option value=''>{{ lang.select_careers }}</option>
+                                <option value=''>{{ lang.class_learningplan_placeholder }}</option>
                                 <option v-for="(item, index) in learningPlans" :value="item.value">{{item.label}}</option>
                             </select>
                         </div>
                             
                         <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
-                            <label class="w-100" for="classPeriod">{{ lang.period }}</label>
+                            <label class="w-100" for="classPeriod">{{ lang.class_period }}</label>
                             <select v-model="classData.periodId" ref="classPeriod" id="classPeriod" class="form-control" required @change="handleLearningPlanPeriodChange">
-                               <option value=''>{{ lang.select_period }}</option>
+                               <option value=''>{{ lang.class_period_placeholder }}</option>
                                <option v-for="(item, index) in periods" :value="item.value">{{item.label}}</option>
                             </select>
                         </div>
                             
                         <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="classCourse">{{ lang.courses }}</label>
+                            <label class="w-100" for="classCourse">{{ lang.class_course }}</label>
                             <select v-model="classData.courseId" ref="classCourse" id="classCourse" class="form-control" required @change="getPotentialTeachers">
-                                <option value=''>{{ lang.select_courses }}</option>
+                                <option value=''>{{ lang.class_course_placeholder }}</option>
                                 <option v-for="(item, index) in courses" :value="item.value">{{item.label}}</option>
                             </select>
                         </div>
                         
                         <div class="col-sm-12 pb-0">
                             <v-divider></v-divider>
-                            <h6 class="mt-6">{{lang.class_schedule_days}}</h6>
+                            <h6 class="mt-6">{{lang.class_date_time}}</h6>
                         </div>
                             
                         <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="classInitTime">{{ lang.start_time }}</label>
+                            <label class="w-100" for="classInitTime">{{ lang.class_start_time }}</label>
                             <input v-model="classData.initTime" ref="classInitTime" type="time" class="form-control" id="classInitTime" @change="getPotentialTeachers" required>
                         </div>
                             
                         <div id="endtime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                            <label class="w-100" for="classEndTime">{{ lang.end_time }}</label>
+                            <label class="w-100" for="classEndTime">{{ lang.class_end_time }}</label>
                             <input v-model="classData.endTime" ref="classEndTime" type="time" class="form-control" id="classEndTime" @change="getPotentialTeachers" required>
                         </div>
                             
                         <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
                             <div class="col-12">
-                                <label>{{ lang.classdays}}</label>
+                                <label>{{ lang.class_days}}</label>
                             </div>
                         
                             <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
@@ -140,7 +140,7 @@ Vue.component('editclass',{
                         <div v-if="!reschedulingActivity">
                             <v-divider></v-divider>
                             <div class="d-flex px-3 mt-6">
-                                <h6>{{lang.list_available_instructors}}</h6>
+                                <h6>{{lang.class_available_instructors}}</h6>
                                 <v-spacer></v-spacer>
                                 <v-btn
                                   text

@@ -32,38 +32,18 @@ $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/classmanagement.php
 
 $context = context_system::instance();
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('classmanagement', $plugin_name));
-$PAGE->set_heading(get_string('classmanagement', $plugin_name));
+$PAGE->set_title(get_string('class_management', $plugin_name));
+$PAGE->set_heading(get_string('class_management', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $classes = array_values(list_classes([]));
 
-$colClasses = [];
-$mexClasses = [];
-$paClasses = [];
-foreach ($classes as $class) {
-    
-    $companyCode = $class->companycode;
-    
-    if($companyCode === 'gk-col'){
-        $colClasses[]=$class;
-    }else if($companyCode === 'gk-mex'){
-        $mexClasses[]=$class;
-    }else if($companyCode=== 'isi-pa'){
-        $paClasses[]=$class;
-    }
-}
 echo $OUTPUT->header();
+
 $templatedata = [
     'createurl' => $CFG->wwwroot.'/local/grupomakro_core/pages/createcontract.php',
     'url' => $CFG->wwwroot.'/local/grupomakro_core/pages/contractmanagement.php',
     'allClasses' => $classes,
-    'definedColClasses' => !empty($colClasses),
-    'definedMexClasses' => !empty($mexClasses),
-    'definedPaClasses' => !empty($paClasses),
-    'colClasses' => $colClasses,
-    'mexClasses' => $mexClasses,
-    'paClasses' => $paClasses,
     'createclass_url' => $CFG->wwwroot . '/local/grupomakro_core/pages/createclass.php'
 ]; 
 

@@ -60,7 +60,6 @@ class create_class extends external_api {
             [
                 'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
                 'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'instance' => new external_value(PARAM_INT, 'Id of the instance.',VALUE_DEFAULT,0),
                 'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
@@ -83,7 +82,6 @@ class create_class extends external_api {
     public static function execute(
         string $name,
         int $type,
-        int $instance,
         int $learningPlanId,
         int $periodId,
         int $courseId,
@@ -91,7 +89,7 @@ class create_class extends external_api {
         string $initTime,
         string $endTime,
         string $classDays,
-        string $classroomId,
+        string $classroomId=null,
         int $classroomCapacity
         ) {
 
@@ -99,7 +97,6 @@ class create_class extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), [
             'name' => $name,
             'type' =>$type,
-            'instance'=>$instance,
             'learningPlanId'=>$learningPlanId,
             'periodId' =>$periodId,
             'courseId' =>$courseId,
@@ -116,7 +113,6 @@ class create_class extends external_api {
         
         
         try{
-            
             check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId']);
             
             $classId = create_class($params);

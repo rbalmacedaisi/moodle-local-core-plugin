@@ -88,7 +88,6 @@ class get_student_info extends external_api {
             ORDER BY u.firstname';
             
             $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
-
             $resultsOnPage = [];
             $userData      = [];
             $filteredUsers = [];
@@ -98,7 +97,7 @@ class get_student_info extends external_api {
             $totalPages    = 0;
             
             foreach ($infoUsers as $user) {
-                
+               
                 // Get profile User Image
                 $profileimage = get_user_picture_url($user->userid);
                 
@@ -125,16 +124,19 @@ class get_student_info extends external_api {
 
                 // Create or update user entry in $userData array
                 $userData[$user->userid]['periods'][] = $period->name;
-                $userData[$user->userid]['careers'][] = $user->career;
+                //$userData[$user->userid]['careers'][] = $user->career;
+                //$userData[$user->userid]['careers'][] = ['planid' => $user->planid, 'career' => $user->career];
+                $userData[$user->userid]['careers'][] = [
+                    'planid' => $user->planid,
+                    'career' => $user->career,
+                    'periods' => $period->name,
+                ];
                 $userData[$user->userid]['userid'] = $user->userid;
                 $userData[$user->userid]['email'] = $user->email;
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;
                 $userData[$user->userid]['profileimage'] = $profileimage;
                 $userData[$user->userid]['status'] = 'Activo';
             } 
-              
-
-            
             // Convert the associative array into indexed array
             $dataUsers = array_values($userData);
             
@@ -156,19 +158,17 @@ class get_student_info extends external_api {
             
             if(!empty($search)){
                 foreach ($dataUsers as $userfilter) {
-                    
                     if (
                         stripos($userfilter['nameuser'], $search) !== false ||
                         stripos($userfilter['email'], $search) !== false ||
                         stripos($userfilter['status'], $search) !== false ||
-                        // Check in the array 'careers' str search
+                        // Check in the array 'careers' str search and 'periods'
                         array_reduce($userfilter['careers'], function ($carry, $item) use ($search) {
-                            return $carry || stripos($item, $search) !== false;
+                            $careerFilter = stripos($item['career'], $search) !== false;
+                            $periodFilter = stripos($item['periods'], $search) !== false;
+                            
+                            return $carry || $careerFilter || $periodFilter;
                         }, false) || 
-                        // Check in the array 'periods' str search
-                        array_reduce($userfilter['periods'], function ($carry, $item) use ($search) {
-                            return $carry || stripos($item, $search) !== false;
-                        }, false) ||
                         // Check in the array 'revalidate' str search
                         array_filter($userfilter['revalidate'], function ($item) use ($search) {
                             return stripos($item['coursename'], $search) !== false;

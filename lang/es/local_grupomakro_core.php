@@ -235,19 +235,12 @@ $string['enrolUserFirstName'] = 'Nombre';
 $string['enrolUserLastName'] = 'Apellidos';
 $string['enrolUserEmail'] = 'Correo electrónico';
 
-// Pagina Gestión de clases.
-$string['allclasses'] = 'Todas las Clases';
-$string['confirm_delete_class'] = 'Confirmación eliminación de clase';
-$string['number_classes'] = 'Número de clases';
-$string['classroom_capacity'] = 'Capacidad';
-$string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
-$string['new_date'] = 'Nueva fecha';
-$string['check_availability'] = 'Ver disponibilidad de instructores';
-$string['rescheduling_activity'] = 'Reprogramando actividad de ';
-$string['reschedule'] = 'Reprogramar';
-$string['confirm_reschedule_title'] = 'Confirmacion reprogramación';
+// Pagina Gestión de clases.----------------------------------------------------
 
-//Class creation and edition labels and texts
+//Class management pages labels and texts
+$string['confirm_delete_class'] = 'Confirmación eliminación de clase';
+$string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
+$string['allclasses'] = 'Todas las Clases';
 $string['class_management'] = 'Gestión de clases';
 $string['create_class'] = 'Crear Clase';
 $string['edit_class'] = 'Editar Clase';
@@ -273,6 +266,15 @@ $string['class_room_placeholder'] = 'Seleccionar Aula de clase';
 $string['class_learningplan_placeholder'] = 'Seleccionar Plan de aprendizaje';
 $string['class_period_placeholder'] = 'Seleccionar Período';
 $string['class_course_placeholder'] = 'Seleccionar Curso';
+
+//Class activity reschedule labels and placeholders
+$string['rescheduling_activity'] = 'Reprogramando actividad de ';
+$string['activity_new_date'] = 'Nueva fecha';
+$string['activity_start_time'] = 'Hora de inicio';
+$string['activity_end_time'] = 'Hora de finalización';
+$string['reschedule'] = 'Reprogramar';
+
+//------------------------------------------------------------------------------
 
 // Pagina de Horarios.
 $string['schedules'] = 'Horarios';

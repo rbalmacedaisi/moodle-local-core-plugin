@@ -45,7 +45,7 @@
             <div class="card p-3">
                 {{! Button to create classes }}
                 <div class="pb-4">
-                    <a type="button" class="btn btn-primary btn-block shadow-sm" href="{{createclass_url}}">{{#str}}createclass, local_grupomakro_core{{/str}}</a>
+                    <a type="button" class="btn btn-primary btn-block shadow-sm" href="{{createclass_url}}">{{#str}}create_class, local_grupomakro_core{{/str}}</a>
                 </div>
                 {{! End Button to create classes }}
                 
@@ -59,26 +59,6 @@
                         </a>
                     </li>
                     {{! End Tab all classes }}
-                    
-                    {{! Grupo Makro classes tab }}
-                    {{#definedColClasses}}
-                    <li class="nav-item d-none">
-                        <a class="nav-link" href="#gk-col" data-toggle="tab" data-target="#gk-col">Grupo Makro Colombia</a>
-                    </li>
-                    {{/definedColClasses}}
-                    {{! End Grupo Makro classes tab }}
-                    
-                    {{#definedMexClasses}}
-                    <li class="nav-item d-none">
-                        <a class="nav-link" href="#gk-mex" data-toggle="tab" data-target="#gk-mex">Grupo Makro México</a>
-                    </li>
-                    {{/definedMexClasses}}
-                    
-                    {{#definedPaClasses}}
-                    <li class="nav-item d-none">
-                        <a class="nav-link" href="#isi-pa" data-toggle="tab" data-target="#isi-pa">Isi Panamá</a>
-                    </li>
-                    {{/definedPaClasses}}
                 </ul>
                 {{! End Class filter }}
             </div>
@@ -93,7 +73,7 @@
                 <div class="d-flex flex-wrap">
                     {{#allClasses}}
                     {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
+                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
                         <div class="v-alert__border v-alert__border--top"></div>
                         <div class="card-body position-relative pb-2">
                             {{! Class name }}
@@ -139,8 +119,6 @@
                         </div>
                         
                         <div class="card-footer d-flex">
-                            {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
                             <div class="spacer"></div>
                             {{! Options }}
                             <div class="options">
@@ -164,235 +142,6 @@
                 </div>
             </div>
             {{! ENd Tab content all classes }}
-            
-            {{! Tab content Grupo Makro Colombia classes }}
-            <div class="tab-pane" id="gk-col" role="tabpanel" aria-labelledby="gk-col-tab">
-                <div class="d-flex flex-wrap">
-                    {{#colClasses}}
-                    {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
-                        <div class="v-alert__border v-alert__border--top"></div>
-                        <div class="card-body">
-                            {{! Class name }}
-                            <h6 class="card-title">{{name}}</h6>
-                            
-                            {{! Class instructors }}
-                            <div class="d-flex mb-2">
-                                <i class="mr-3">
-                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
-                                </i>
-                                <div class="d-flex flex-column">
-                                    <span>{{instructorName}}</span>
-                                    <span class="text-primary">Instructor</span>
-                                </div>
-                            </div>
-                            {{! End Class instructors }}
-                            
-                            {{! Class details }}
-                            <div class="d-flex pl-2 flex-column">
-                                {{! Class type }}
-                                <div class="mb-1">
-                                    <i class="{{icon}} mr-1"></i>
-                                    {{typelabel}}
-                                </div>
-                                {{! End Class type }}
-                                
-                                {{! Class start date }}
-                                <div class="mb-1">
-                                    <i class="fa fa-calendar-o mr-2"></i>
-                                    <span class="text-muted startdate">{{startDate}}</span>
-                                </div>
-                                {{! End Class start date }}
-                                
-                                {{! Class schedule }}
-                                <div class="mb-1">
-                                    <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{inithourformatted}}</span>
-                                </div>
-                                {{! End Class schedule }}
-                            </div>
-                            {{! End Class details }}
-                        </div>
-                        
-                        <div class="card-footer d-flex">
-                            {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
-                            <div class="spacer"></div>
-                            {{! Options }}
-                            <div class="options">
-                                {{! Edit }}
-                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}} modify, local_grupomakro_core{{/str}}">
-                                    <i class="fa fa-gear mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Edit }}
-                                
-                                {{! Delete }}
-                                <a data-placement='bottom' title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
-                                    <i class="fa fa-trash mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Delete }}
-                            </div>
-                            {{! End Options }}
-                        </div>
-                    </div>
-                    {{! End Class card }}
-                    {{/colClasses}}
-                </div>
-            </div>
-            {{! End Tab content Grupo Makro Colombia classes }}
-            
-            {{! Tab content Grupo Makro Mex classes }}
-            <div class="tab-pane" id="gk-mex" role="tabpanel" aria-labelledby="gk-mex-tab">
-                <div class="d-flex flex-wrap">
-                    {{#mexClasses}}
-                    {{! Class card }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
-                        <div class="v-alert__border v-alert__border--top"></div>
-                        <div class="card-body">
-                            {{! Class name }}
-                            <h6 class="card-title">{{name}}</h6>
-                            
-                            {{! Class instructors }}
-                            <div class="d-flex mb-2">
-                                <i class="mr-3">
-                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
-                                </i>
-                                <div class="d-flex flex-column">
-                                    <span>{{instructorName}}</span>
-                                    <span class="text-primary">Instructor</span>
-                                </div>
-                            </div>
-                            {{! End Class instructors }}
-                            
-                            {{! Class details }}
-                            <div class="d-flex pl-2 flex-column">
-                                {{! Class type }}
-                                <div class="mb-1">
-                                    <i class="{{icon}} mr-1"></i>
-                                    {{typelabel}}
-                                </div>
-                                {{! End Class type }}
-                                
-                                {{! Class start date }}
-                                <div class="mb-1">
-                                    <i class="fa fa-calendar-o mr-2"></i>
-                                    <span class="text-muted startdate">{{startDate}}</span>
-                                </div>
-                                {{! End Class start date }}
-                                
-                                {{! Class schedule }}
-                                <div class="mb-1">
-                                    <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{inithourformatted}}</span>
-                                </div>
-                                {{! End Class schedule }}
-                            </div>
-                            {{! End Class details }}
-                        </div>
-                        
-                        <div class="card-footer d-flex">
-                            {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
-                            <div class="spacer"></div>
-                            {{! Options }}
-                            <div class="options">
-                                {{! Edit }}
-                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}} modify, local_grupomakro_core{{/str}}">
-                                    <i class="fa fa-gear mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Edit }}
-                                
-                                {{! Delete }}
-                                <a data-placement='bottom' title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
-                                    <i class="fa fa-trash mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Delete }}
-                            </div>
-                            {{! End Options }}
-                        </div>
-                    </div>
-                    {{! End Class card }}
-                    {{/mexClasses}}
-                </div>
-            </div>
-            {{! End Tab content Grupo Makro Mex classes }}
-            
-            {{! Tab content Isi Panama classes }}
-            <div class="tab-pane" id="isi-pa" role="tabpanel" aria-labelledby="isi-pa-tab">
-                <div class="d-flex flex-wrap">
-                    {{#paClasses}}
-                    {{! Class name }}
-                    <div class="card position-relative border-0 mx-2 mb-3 shadow-sm {{companycode}}" style="width: 320px;">
-                        <div class="v-alert__border v-alert__border--top"></div>
-                        <div class="card-body">
-                            {{! Class name }}
-                            <h6 class="card-title">{{name}}</h6>
-                            
-                            {{! Class instructors }}
-                            <div class="d-flex mb-2">
-                                <i class="mr-3">
-                                    <img src="{{instructorProfileImage}}" class="rounded-circle" style="width:40px"/>
-                                </i>
-                                <div class="d-flex flex-column">
-                                    <span>{{instructorName}}</span>
-                                    <span class="text-primary">Instructor</span>
-                                </div>
-                            </div>
-                            {{! End Class instructors }}
-                            
-                            {{! Class details }}
-                            <div class="d-flex pl-2 flex-column">
-                                {{! Class type }}
-                                <div class="mb-1">
-                                    <i class="{{icon}} mr-1"></i>
-                                    {{typelabel}}
-                                </div>
-                                {{! End Class type }}
-                                
-                                {{! Class start date }}
-                                <div class="mb-1">
-                                    <i class="fa fa-calendar-o mr-2"></i>
-                                    <span class="text-muted startdate">{{startDate}}</span>
-                                </div>
-                                {{! End Class start date }}
-                                
-                                {{! Class schedule }}
-                                <div class="mb-1">
-                                    <i class="fa fa-clock-o mr-2"></i>
-                                    <span class="text-muted startdate">{{inithourformatted}}</span>
-                                </div>
-                                {{! End Class schedule }}
-                            </div>
-                            {{! End Class details }}
-                        </div>
-                        
-                        <div class="card-footer d-flex">
-                            {{! Class company }}
-                            <span class="badge badge-pill p-2 text-white">{{companyname}}</span>
-                            <div class="spacer"></div>
-                            {{! Options }}
-                            <div class="options">
-                                {{! Edit }}
-                                <a data-toggle='tooltip' data-placement='bottom' title="{{#str}} modify, local_grupomakro_core{{/str}}">
-                                    <i class="fa fa-gear mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Edit }}
-                                
-                                {{! Delete }}
-                                <a data-placement='bottom' title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton" class-id="{{id}}" data-target='#deleteClassModalCenter'>
-                                    <i class="fa fa-trash mx-1" style="font-size:20px"></i>
-                                </a>
-                                {{! End Delete }}
-                            </div>
-                            {{! End Options }}
-                        </div>
-                    </div>
-                    {{! End Class name }}
-                    {{/paClasses}}
-                </div>
-            </div>
-            {{! End Tab content Isi Panama classes }}
-            
         </div>
         {{! Tab content classes }}
     </div>

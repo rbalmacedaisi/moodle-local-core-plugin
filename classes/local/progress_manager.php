@@ -109,56 +109,52 @@ class local_grupomakro_progress_manager {
         }
     }
     
-    public static function calculate_learning_plan_user_course_progress($courseId,$userId){
-        global $DB;
+    public static function mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord, $bbbModuleInstance){
+        global $DB,$CFG;
+        require_once($CFG->dirroot . '/mod/attendance/classes/attendance_webservices_handler.php');
+        // use mod_bigbluebuttonbn\instance;
+        $BBBOpeningTime = $DB->get_field('bigbluebuttonbn','openingtime',['id'=>$bbbModuleInstance]);
+
+        $attendanceInstance = $attendanceModuleRecord->instance;
+        $attendanceDBRecord = $DB->get_record('attendance',['id'=>$attendanceInstance]);
+        $attendanceBBBRelatedSession = $DB->get_record('attendance_sessions',['attendanceid'=>$attendanceInstance,'sessdate'=>$BBBOpeningTime]);
+        $attendanceStructure = new mod_attendance_structure($attendanceDBRecord,$attendanceModuleRecord,$course);
+        
+        $attendanceHiguestStatus = attendance_session_get_highest_status($attendanceStructure,$attendanceBBBRelatedSession);
+        $attendanceStatusSet = implode(',', array_keys(attendance_get_statuses($attendanceInstance)));
+        
+        attendance_handler::update_user_status($attendanceBBBRelatedSession->id,$userId,$userId,$attendanceHiguestStatus,$attendanceStatusSet);
+        $attendanceStructure->update_users_grade([$userId]);
+    }
+    
+    public static function calculate_learning_plan_user_course_progress($courseId,$userId,$moduleId,$completionState=0){
+        global $DB,$CFG;
         
         $coursemod = get_fast_modinfo($courseId,$userId);
+        $moduleUpdated = $coursemod->get_cm($moduleId);
+        $moduleUpdatedRecord= $moduleUpdated->get_course_module_record(true);
         $course = $coursemod->get_course();
-        $userGroups = $coursemod->get_groups()[0];
-        $groupClass = $DB->get_record('gmk_class',['groupid'=>$userGroups]);
+        $completion = new completion_info($course);
+        $userGroups = $coursemod->get_groups();
         
-        if($groupClass){
-            $isVirtualOrMixed = ($groupClass->type == 1 || $groupClass->type == 2);
-            $isPhysicalOrMixed = ($groupClass->type == 0 || $groupClass->type == 2);
-        
-            $attendancePercentage = null;
-            $bbbPercentage = null;
+        if($groupClass = $DB->get_record('gmk_class',['coursesectionid'=>$moduleUpdated->section])){
             
-            if($isPhysicalOrMixed){
-                $attendanceModuleId = $groupClass->attendancemoduleid;
-                $attendanceModule= $coursemod->get_cm($attendanceModuleId);
-                $attendanceInstance = $attendanceModule->get_course_module_record()->instance;
-                $attendance = new mod_attendance_summary($attendanceInstance, [$userId]);
-                $attendancePercentage =(float)rtrim($attendance->get_all_sessions_summary_for($userId)->allsessionspercentage, '%') ;
-            }
-            if($isVirtualOrMixed){
-                $activitiesCompleted = 0;
+            $moduleComponent = $moduleUpdated->get_module_type_name()->get_component();
+            $attendanceModule= $coursemod->get_cm($groupClass->attendancemoduleid);
+            $attendanceModuleRecord = $attendanceModule->get_course_module_record(false);
+            
+            if($moduleComponent==='bigbluebuttonbn' && $completionState){
                 
-                $classActivities = explode(',',$groupClass->bbbmoduleids);
-                $totalActivities = count($classActivities);
-                $completion = new completion_info($course);
-                $userGroupModuleProgress = $completion->get_progress_all('',array(),$userGroups)[$userId]->progress;
-                foreach($classActivities as $classActivity){
-                   if(array_key_exists($classActivity,$userGroupModuleProgress) && $userGroupModuleProgress[$classActivity]->completionstate ==1){
-                       $activitiesCompleted+=1;
-                   }
+                $bbbClassModules = array_map('intval', explode(',', $groupClass->bbbmoduleids));
+                
+                if(in_array($moduleId,$bbbClassModules)){
+                    self::mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord,$moduleUpdatedRecord->instance);
                 }
-                $bbbPercentage=round(($activitiesCompleted/$totalActivities)*100);
+
             }
-            
-            if (isset($attendancePercentage) && isset($bbbPercentage)) {
-                // Calculate the average if both variables exist
-                $combinedPercentage = ($attendancePercentage + $bbbPercentage) / 2;
-            } elseif (isset($attendancePercentage)) {
-                // Use the value of $attendancePercentage if only it exists
-                $combinedPercentage = $attendancePercentage;
-            } elseif (isset($bbbPercentage)) {
-                // Use the value of $bbbPercentage if only it exists
-                $combinedPercentage = $bbbPercentage;
-            } else {
-                // Default value if neither variable exists
-                $combinedPercentage = 0;  // Change this to whatever default value you want
-            }
+            $attendanceInstance = $attendanceModuleRecord->instance;
+            $attendance = new mod_attendance_summary($attendanceInstance, [$userId]);
+            $attendancePercentage =(float)rtrim($attendance->get_all_sessions_summary_for($userId)->allsessionspercentage, '%');
             
             //Calculate the obtained grade based on the gradable activities
             $gradableActivities = grade_get_gradable_activities($courseId);
@@ -170,7 +166,7 @@ class local_grupomakro_progress_manager {
                 $module = $coursemod->get_cm($sectionModule);
                 $moduleRecord= $module->get_course_module_record(true);
                 $moduleType= $moduleRecord->modname;
-                if($moduleType === 'attendance' || $moduleType === 'bigbluebuttonbn'){
+                if($moduleType === 'bigbluebuttonbn'){
                     continue;
                 }
                 if(!array_key_exists($moduleRecord->id,$gradableActivities)){
@@ -179,6 +175,7 @@ class local_grupomakro_progress_manager {
                 $numActivities +=1;
                 
                 $moduleGrade = grade_get_grades($courseId,'mod',$moduleType,$moduleRecord->instance,$userId)->items[0];
+
                 $moduleMaxGrade = $moduleGrade->grademax;
                 $moduleUserGrade = $moduleGrade->grades[$userId]->grade;
                 
@@ -195,9 +192,9 @@ class local_grupomakro_progress_manager {
             //Save the updated progress;
             
             $userCourseProgress = $DB->get_record('gmk_course_progre',['userid'=>$userId, 'courseid'=>$courseId]);
-            $userCourseProgress->progress = $combinedPercentage;
+            $userCourseProgress->progress = $attendancePercentage;
             $userCourseProgress->grade = $finalGrade;
-            if($combinedPercentage == 100){
+            if($attendancePercentage == 100){
                 $userCourseProgress->status = COURSE_COMPLETED;
             }
                     

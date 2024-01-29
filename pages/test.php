@@ -3,14 +3,23 @@
 // defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../../../config.php');
 
-print_object(get_courses());
+/*print_object(get_courses());
 // print_object($DB->get_records('course'));
+die;*/
+
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+$courseId = 53;
+$userId = 3;
+$moduleId = 3128;
+$completionState = 1;
+$cm = get_coursemodule_from_instance('attendance', 109, 0, false, MUST_EXIST);
+
+print_object($cm);
+
+$cm = get_fast_modinfo(53);
+print_object($cm->instances['attendance'][109]->get_course_module_record());
+// local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$userId,$moduleId,$completionState);
 die;
-
-// require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-// local_grupomakro_progress_manager::
-
-global $DB;
 // // print_object($courses);
 
 // foreach($courses as $course){

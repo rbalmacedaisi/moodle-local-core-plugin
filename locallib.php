@@ -367,7 +367,6 @@ function create_class($classParams){
         $newClass = new stdClass();
         $newClass->name           = $classParams["name"];
         $newClass->type           = $classParams["type"];
-        $newClass->instance       = $classParams["instance"];
         $newClass->learningplanid = $classParams["learningPlanId"];
         $newClass->periodid       = $classParams["periodId"];
         $newClass->courseid       = $classParams["courseId"];
@@ -375,7 +374,7 @@ function create_class($classParams){
         $newClass->inittime       = $classParams["initTime"];
         $newClass->endtime        = $classParams["endTime"];
         $newClass->classdays      = $classParams["classDays"];
-        $newClass->classroomid    = $classParams["classroomId"] ===''?null:$classParams["classroomId"];
+        $newClass->classroomid    = $classParams["classroomId"];
         $newClass->classroomcapacity= $classParams["classroomCapacity"];
         $newClass->usermodified   = $USER->id;
         $newClass->timecreated    = time();
@@ -430,25 +429,13 @@ function create_class_group($class){
 }
 
 function create_class_section($class) {
-    global $DB;
     
-    $lastsection = (int)$DB->get_field_sql('SELECT max(section) from {course_sections} WHERE course = ?', [$class->corecourseid]);
-    
-    //Create the course section object for the class.
-    $classSection= new stdClass();
-    $classSection->course           = $class->corecourseid;
-    $classSection->section          = $lastsection + 1;
-    $classSection->name             = $class->name.'-'.$class->id;
-    $classSection->summary          = '';
-    $classSection->summaryformat    = 1;
-    $classSection->sequence         = '';
-    $classSection->visible          = 1;
-    $classSection->availability     = '{"op":"&","c":[{"type":"group","id":'.$class->groupid.'}],"showc":[true]}';
-    $classSection->timemodified     = time();
-    
-    $classSection->id = $DB->insert_record('course_sections', $classSection);
-    rebuild_course_cache($class->corecourseid, true);
-    return $classSection->id;
+    $section = course_create_section($class->corecourseid);
+    course_update_section($class->corecourseid,$section,[
+        'name'=>$class->name.'-'.$class->id,
+        'availability'=>'{"op":"&","c":[{"type":"group","id":'.$class->groupid.'}],"showc":[true]}'
+    ]);
+    return $section->id;
 }
 
 function delete_class($class, $reason =  null){
@@ -456,9 +443,8 @@ function delete_class($class, $reason =  null){
     
     //Delete section if it's already created and all the activities in it.
     if ($class->coursesectionid){
-        $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid]);
-        course_delete_section( $class->corecourseid, $section->section, true, true);
-        rebuild_course_cache($class->corecourseid, true);
+        $section = $DB->get_field('course_sections','section', ['id' => $class->coursesectionid]);
+        course_delete_section( $class->corecourseid, $section, true, true);
     }
     
     //Delete class group if it's already created
@@ -494,8 +480,8 @@ function create_class_activities($class) {
     //     }
     $initDate =  date('Y-m-d');
     $endDate = date('Y-m-d', strtotime('+2 months'));
-
-    $class->course = $DB->get_record('course',["id"=>$class->corecourseid]);
+    
+    $class->course = get_course($class->corecourseid);
     
     //Get the period start date in seconds and the day name
     $startDate = DateTime::createFromFormat('Y-m-d H:i:s', $initDate.' '.$class->inittime.':00');
@@ -512,14 +498,14 @@ function create_class_activities($class) {
     //Define some needed constants
     $currentDateTS = $startDateTS;
     $dayInSeconds = 86400;
-    $classType = (int) $class->type ;
+    // $classType = (int) $class->type ;
     
     // Determine the class type
-    $isVirtualOrMixed = ($classType === 1 || $classType === 2);
-    $isPhysicalOrMixed = ($classType === 0 || $classType === 2);
+    // $isVirtualOrMixed = ($classType === 1 || $classType === 2);
+    // $isPhysicalOrMixed = ($classType === 0 || $classType === 2);
     
-    $BBBmoduleId = $DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id;
-    $classSectionNumber = $DB->get_record('course_sections',['id'=>$class->coursesectionid])->section;
+    $BBBmoduleId = $DB->get_field('modules','id',['name'=>'bigbluebuttonbn']);
+    $classSectionNumber = $DB->get_field('course_sections','section',['id'=>$class->coursesectionid]);
     
     $BBBModuleIds = [];
     $attendanceModuleId = null;
@@ -528,31 +514,33 @@ function create_class_activities($class) {
     while ($currentDateTS < $endDateTS) {
         $day =  $classDaysList[date('l', $currentDateTS)];
         
-        if ($isVirtualOrMixed && $day === '1') {
-            // Create Big Blue Button activity
-            $activityEndTS = $currentDateTS + (int)$class->classduration;
-            $BBBModuleId = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
-            $BBBModuleIds[]= $BBBModuleId;
-        }
-    
-        if ($isPhysicalOrMixed && $day === '1') {
+        if($day === '1'){
             // Create attendance session
             $attendanceSession = create_attendance_session_object($class,$currentDateTS);
             $sessions[] = $attendanceSession;
+            
+            if($class->type !== 0){
+                // Create Big Blue Button activity
+                $activityEndTS = $currentDateTS + (int)$class->classduration;
+                $BBBModuleId = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
+                $BBBModuleIds[]= $BBBModuleId;
+            }
         }
-    
         // Move to the next day
         $currentDateTS += $dayInSeconds;
     }
-    // If the class type is physical or mixed, create the attendance activity and add sessions
-    if ($isPhysicalOrMixed) { 
-        $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
-        $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
-        $context = \context_module::instance($attendanceCourseModule->id);
-        $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
-        $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
-        $attendance->add_sessions($sessions);
-    }
+    
+    // Create the attendance module for the class.
+    
+    $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
+    $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
+    $context = \context_module::instance($attendanceCourseModule->id);
+    $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
+    $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
+    $attendance->add_sessions($sessions);
+    
+    
+    
 
     $class->bbbmoduleids = !empty($BBBModuleIds)? join(',',$BBBModuleIds):null;
     $class->attendancemoduleid = $attendanceActivityInfo?$attendanceActivityInfo->coursemodule:null;
@@ -564,16 +552,28 @@ function create_class_activities($class) {
 function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmoduleId,$classSectionId){
     
     $bbbActivityDefinition                                  = new stdClass();
-    $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
+    
+    $bbbActivityDefinition->type                            = '0';
     $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
-    $bbbActivityDefinition->visible                         = 1;
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
-    $bbbActivityDefinition->intro                           = "Sala de clases online de la clase ".$class->name;
-    $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"role","selectionid":"5","role":"viewer"}]';
+    $bbbActivityDefinition->wait                            = 1;
+    $bbbActivityDefinition->record                          = 1;
+    $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
     $bbbActivityDefinition->openingtime                     = $initDateTS;
     $bbbActivityDefinition->closingtime                     = $endDateTS;
+    $bbbActivityDefinition->visible                         = 1;
+    $bbbActivityDefinition->cmidnumber                      = $class->name.'-'.$class->id.'-'.$initDateTS;
+    $bbbActivityDefinition->groupmode                       = '1';
+    // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"group","id":'.$class->groupid.'}],"showc":[true]}';
+    // $bbbActivityDefinition->completionunlocked              = 1;
+    // $bbbActivityDefinition->completion                      = 2;
+    // $bbbActivityDefinition->completionattendanceenabled     = 1;
+    // $bbbActivityDefinition->completionattendance            = 2;
+    $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
+    $bbbActivityDefinition->intro                           = "Sala de clases online de la clase ".$class->name;
     $bbbActivityDefinition->section                         = $classSectionId;
     $bbbActivityDefinition->module                          = $BBBmoduleId;
+
     $bbbActivityDefinition->completionunlocked = 1;
     $bbbActivityDefinition->completion = 1;
     $bbbActivityDefinition->completionview = 1;
@@ -610,11 +610,12 @@ function create_attendance_session_object($class,$initDateTS,$classDurationInSec
     $attendanceSessionDefinition->groupid = $class->groupid;
     $attendanceSessionDefinition->timemodified = time();
     $attendanceSessionDefinition->calendarevent = 1;
-    $attendanceSessionDefinition->automark = 1;
-    $attendanceSessionDefinition->preventsharedip = 2;
     $attendanceSessionDefinition->description ="Sesión de asistencia para la clase ".$class->name;
     $attendanceSessionDefinition->includeqrcode = 1;
     $attendanceSessionDefinition->rotateqrcode = 1;
+    $attendanceSessionDefinition->studentscanmark = 1;
+    $attendanceSessionDefinition->autoassignstatus = 1;
+    $attendanceSessionDefinition->studentsearlyopentime = 3600;
 
     return $attendanceSessionDefinition;
 }
@@ -745,7 +746,7 @@ function get_class_course_info($coreCourseId){
 function update_class($classParams){
     global $DB, $USER;
     $class = $DB->get_record('gmk_class', ['id'=>$classParams['classId']]);
-    $classOldInfo = list_classes(['id'=>$classParams['classId']])[$classParams['classId']];
+    $classOldInstructorId = $class->instructorid;
 
     $class->name           = $classParams["name"];
     $class->type           = $classParams["type"];
@@ -763,16 +764,14 @@ function update_class($classParams){
     
     $classUpdated = $DB->update_record('gmk_class', $class);
     
-    $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid]);
-    course_delete_section($class->corecourseid, $section->section,true,true);
+    $section = $DB->get_field('course_sections','section', ['id' => $class->coursesectionid]);
+    course_delete_section($class->corecourseid, $section,true,true);
     $class->coursesectionid = create_class_section($class);
     
     $classUpdated = $DB->update_record('gmk_class', $class);
     
-    update_class_group($class, $classOldInfo->instructorid);
-    
+    update_class_group($class, $classOldInstructorId);
     create_class_activities($class);
-    
 }
 
 function update_class_group($class,$oldInstructorId){
@@ -805,12 +804,12 @@ function fill_compute_class_values($class,$classParams){
     $class->typelabel = $classLabels[$classParams["type"]];
     
     //Core course ID
-    $learningCourse= $DB->get_record('local_learning_courses',['id'=>$classParams["courseId"]]);
-    $course= $DB->get_record('course',['id'=>$learningCourse->courseid]);
+    $learningCourseId= $DB->get_field('local_learning_courses','courseid',['id'=>$classParams["courseId"]]);
+    $course=get_course($learningCourseId);
     $class->corecourseid = $course->id;
     
     //Instructor learning plan ID
-    $class->instructorlpid= $DB->get_record('local_learning_users',['userid'=>$classParams["instructorId"], 'learningplanid'=>$classParams["learningPlanId"]])->id;
+    $class->instructorlpid= $DB->get_field('local_learning_users','id',['userid'=>$classParams["instructorId"], 'learningplanid'=>$classParams["learningPlanId"]]);
     
     //Hours formatted, hours timestamps (seconds after midnight) and classduration (seconds)
     $class->inithourformatted = date('h:i A', strtotime($classParams["initTime"]));
@@ -819,13 +818,6 @@ function fill_compute_class_values($class,$classParams){
     $class->inittimets = $classTimestamps["initTS"];
     $class->endtimets = $classTimestamps["endTS"];
     $class->classduration = $classTimestamps["endTS"]-$classTimestamps["initTS"];
-    //Company name and code
-    if(!$classParams["instance"]){
-        $companies = ['Isi Panamá','Grupo Makro Colombia','Grupo Makro México'];
-        $companyCodes = ['isi-pa','gk-col','gk-mex'];
-        $class->companyname =$companies[$classParams["instance"]];
-        $class->companycode =$companyCodes[$classParams["instance"]];
-    }
     
     return $class;
 }
@@ -1913,84 +1905,70 @@ function reschedule_class_activity($params){
 
 function get_class_events($userId) {
     global $DB;
-    $initDate = '2023-06-01';
-    $endDate = '2023-12-30';
+    $initDate = '2022-01-01';
+    $endDate = '2024-12-30';
+    $moduleIds = ["bigbluebuttonbn"=>$DB->get_field('modules','id',['name'=>'bigbluebuttonbn']),"attendance"=>$DB->get_field('modules','id',['name'=>'attendance'])];
     
-    $fetchedClasses = array();
-    $fetchedCourses = array();
-    $eventDaysFiltered = array();
-    $dispatchedEvents = array();
-    $events = calendar_get_events(strtotime($initDate),strtotime($endDate),false,true,true,false,false,false);
-    // $events = calendar_get_events(strtotime($initDate),strtotime($endDate),false,false,64,false,true,false);
+    $fetchedClasses=[];
+    $fetchedCourses = [];
+    $eventDaysFiltered = [];
     
-    // print_object(count($events));
-    // print_object($events);
-    // die;
-    $copyEvents = array_slice($events, 0);
+    $events = calendar_get_events(strtotime($initDate),strtotime($endDate),$userId,true,true,false,false,false);
+    $eventsWithoutUnsetedEvents = $events;
     
-    $copyEvents = array_map(function($item) {
-        return clone (object)$item; // Perform a shallow copy of each object
-    }, $events);
-    
-    $moduleIds = ["bigbluebuttonbn"=>$DB->get_record('modules',['name'=>'bigbluebuttonbn'])->id,"attendance"=>$DB->get_record('modules',['name'=>'attendance'])->id];
     foreach($events as $eventKey => $event){
-        $eventComplete = null;
-        if(array_search($eventKey, $dispatchedEvents)){
+        if(!array_key_exists($eventKey,$eventsWithoutUnsetedEvents)){
             continue;
         }
+        unset($eventsWithoutUnsetedEvents[$eventKey]);
         
         if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
-            $dispatchedEvents[]=$eventKey;
-            continue;
-        }
-        // print_object($event);
-        list($eventComplete,$fetchedClasses,$fetchedCourses) = complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds);
-        
-        if(!$eventComplete){ 
-            $dispatchedEvents[]=$eventKey;
             continue;
         }
         
-        if($eventComplete->classType === '2'){
-            foreach ($events as $pairEventKey => $pairEvent) {
-                if(array_search($eventKey, $dispatchedEvents)){
-                    continue;
-                }
+        list($event,$fetchedClasses,$fetchedCourses) = complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds);
+        
+        if(!$event){
+            continue;
+        }
+
+        if($event->classType !== '0'){
+            foreach ($eventsWithoutUnsetedEvents as $pairEventKey => $pairEvent) {
+
                 list($pairEvent,$fetchedClasses,$fetchedCourses) = complete_class_event_information($pairEvent,$fetchedClasses,$fetchedCourses,$moduleIds);
                 
-                
-                if ($pairEvent->classId === $eventComplete->classId && $pairEvent->timestart === $eventComplete->timestart && $pairEvent->modulename !== $eventComplete->modulename) {
+                if ($pairEvent->classId === $event->classId && $pairEvent->timestart === $event->timestart) {
+                    if($event->modulename ==='bigbluebuttonbn'){
+                        $event->attendanceActivityUrl = $pairEvent->attendanceActivityUrl;
+                        $event->sessionId = $pairEvent->sessionId;
+                    }else if($event->modulename ==='attendance'){
+                        $event->bigBlueButtonActivityUrl = $pairEvent->bigBlueButtonActivityUrl;
+                    } 
+                    unset($eventsWithoutUnsetedEvents[$pairEventKey]);
                     break;
                 }
             }
-            $eventComplete->modulename ==='bigbluebuttonbn'?$eventComplete->attendanceActivityUrl = $pairEvent->attendanceActivityUrl : $eventComplete->bigBlueButtonActivityUrl = $pairEvent->attendanceActivityUrl;
-            $eventComplete->color = '#673ab7';
-            $eventComplete = clone($eventComplete);
-            $dispatchedEvents[]=$pairEventKey;
         }
-
-        $dispatchedEvents[]=$eventKey;
-        $eventDaysFiltered[]=$eventComplete;
+        $eventDaysFiltered[]=$event;
     }
-
+    
     if($userId){
-        $learningPlanUserRoles =  $DB->get_records('local_learning_users', ['userid'=>$userId]);
+        $learningPlanUserRoles = $DB->get_records('local_learning_users', ['userid'=>$userId],'','id,userroleid,learningplanid');
         
         if (!$learningPlanUserRoles){
-            return [];
+            throw new Exception('The user has no learning plans.');
         }
         
-        $eventsFiltered = array();
+        $eventsFiltered = [];
         
         foreach($learningPlanUserRoles as $learningPlanUserRole){
             
             $userLearningPlanRole = $learningPlanUserRole->userroleid;
             $learningPlanUserId = $learningPlanUserRole->id;
             
-            
             if ($userLearningPlanRole === '4'){
 
-                $eventsFilteredByTeacher=array();
+                $eventsFilteredByTeacher=[];
                 foreach($eventDaysFiltered as $event){
                     if($event->instructorlpid ===$learningPlanUserId){
                         $event->role = 'teacher';
@@ -1999,14 +1977,17 @@ function get_class_events($userId) {
                 }
                 $eventsFiltered = array_merge($eventsFiltered, $eventsFilteredByTeacher);
             }
-            elseif($userLearningPlanRole === '5'){
-                $asignedGroups = $DB->get_records('groups_members', array("userid"=>$userId));
-                $asignedClasses = array();
+            else if($userLearningPlanRole === '5'){
+                $asignedGroups = $DB->get_records('groups_members', ["userid"=>$userId],'','groupid');
+            
+                $asignedClasses = [];
+                
                 foreach($asignedGroups as $asignedGroup){
-                    $groupClassId = $DB->get_record('gmk_class', array("groupid"=>$asignedGroup->groupid , "learningplanid"=>$learningPlanUserRole->learningplanid))->id;
+                    
+                    $groupClassId = $DB->get_field('gmk_class','id', ["groupid"=>$asignedGroup->groupid]);
+                    // $groupClassId = $DB->get_field('gmk_class','id', ["groupid"=>$asignedGroup->groupid , "learningplanid"=>$learningPlanUserRole->learningplanid]);
                     $groupClassId? $asignedClasses[]=$groupClassId :null;
                 }
-
                 $eventsFilteredByClass=array();
                 foreach($eventDaysFiltered as $event){
                     if(in_array($event->classId,$asignedClasses)){
@@ -2028,23 +2009,33 @@ function get_class_events($userId) {
 function complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds){
     global $DB,$CFG;
     
-    $enviromentDic = ['development'=>'-dev','staging'=>'-staging', 'production'=>''];
+    define('PRESENCIAL_CLASS_TYPE_INDEX','0');
+    define('VIRTUAL_CLASS_TYPE_INDEX','1');
+    define('MIXTA_CLASS_TYPE_INDEX','2');
+    define('PRESENCIAL_CLASS_COLOR','#00bcd4');
+    define('VIRTUAL_CLASS_COLOR','#2196f3');
+    define('MIXTA_CLASS_COLOR','#673ab7');
+    
+    $eventColors = [
+        PRESENCIAL_CLASS_TYPE_INDEX=>PRESENCIAL_CLASS_COLOR,
+        VIRTUAL_CLASS_TYPE_INDEX=>VIRTUAL_CLASS_COLOR,
+        MIXTA_CLASS_TYPE_INDEX=>MIXTA_CLASS_COLOR];
 
-    $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]]);
+    $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]],'id,section');
     $moduleSectionId = $moduleInfo->section;
     
     //Save the fetched classes to minimize db queries
     if(array_key_exists($moduleSectionId,$fetchedClasses)){
         $gmkClass = $fetchedClasses[$moduleSectionId];
     }else {
-        $class = $DB->get_record('gmk_class', ['coursesectionid'=>$moduleSectionId]);
-        if(!$class){
+        
+        if(!$classId = $DB->get_field('gmk_class', 'id',['coursesectionid'=>$moduleSectionId])){
             return [false,$fetchedClasses,$fetchedCourses];
         }
-        $gmkClass =list_classes(["id"=>$class->id])[$class->id];
+        
+        $gmkClass =list_classes(["id"=>$classId])[$classId];
         $fetchedClasses[$moduleSectionId] = $gmkClass;
     }
-
     //Set the class information for the event
     $event->moduleId = $moduleInfo->id;
     $event->instructorName = $gmkClass->instructorName;
@@ -2057,18 +2048,16 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     $event->classId = $gmkClass->id;
     $event->instructorlpid = $gmkClass->instructorlpid;
     $event->groupid = $gmkClass->groupid;
+    $event->timeduration = $gmkClass->classduration;
+    $event->color = $eventColors[ $gmkClass->type];
+    
+    //Set the module url
 
-    // The big blue button event doesn't come with the timeduration, so we calculate it and added to the event object
-    // Asign the event color for both cases
     if($event->modulename === 'bigbluebuttonbn'){
-        $event->color = '#2196f3';
         $event->bigBlueButtonActivityUrl = $CFG->wwwroot.'/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
-        $event->timeduration = $DB->get_record('bigbluebuttonbn', ['id'=>$event->instance])->closingtime - $event->timestart;
-    }else{
-        $event->color = '#00bcd4';
+    }else if ($event->modulename === 'attendance'){
         $event->attendanceActivityUrl = $CFG->wwwroot.'/mod/attendance/view.php?id='.$moduleInfo->id;
-        $sessionId = $DB->get_record('attendance_sessions',array('attendanceid'=>$event->instance, 'caleventid'=>$event->id))->id;
-        $event->sessionId = $sessionId;
+        $event->sessionId = $DB->get_field('attendance_sessions','id',['attendanceid'=>$event->instance, 'caleventid'=>$event->id]);
     }
     
     //Set the initial date and the end date of the event
@@ -2079,10 +2068,10 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     if(array_key_exists($event->courseid,$fetchedCourses)){
         $event->coursename = $fetchedCourses[$event->courseid];
     }else {
-        $event->coursename = $DB->get_record('course', ['id'=>$event->courseid])->fullname;
+        $event->coursename = $DB->get_field('course','fullname', ['id'=>$event->courseid])->fullname;
         $fetchedCourses[$event->courseid] = $event->coursename;
     }
-
+    
     return [$event,$fetchedClasses,$fetchedCourses];
 }
 
@@ -2912,4 +2901,23 @@ function get_manual_enroll($courseid) {
         }
     }
     return false;
+}
+
+function delete_asist_attendance($sessionid, $studentid, $attid){
+    global $DB, $CFG;
+    require_once($CFG->dirroot.'/mod/attendance/classes/structure.php');
+ 
+    $session = $DB->delete_records('attendance_log', array('sessionid' => $sessionid, 'studentid' => $studentid));
+    $attendance = $DB->get_record('attendance', array('id' => $attid), '*', MUST_EXIST);
+    $cm = get_coursemodule_from_instance('attendance', $attid, 0, false, MUST_EXIST);
+    $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+    $context = context_module::instance($cm->id);
+    
+    // Get attendance.
+    $attendance = new mod_attendance_structure($attendance, $cm, $course, $context);
+
+    // Update users grade session.
+    attendance_update_users_grade($attendance);
+
+    return true;
 }

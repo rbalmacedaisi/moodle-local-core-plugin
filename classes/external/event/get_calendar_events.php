@@ -56,7 +56,6 @@ class get_calendar_events extends external_api {
      * @return  array
      */
     public static function execute($userId = null) {
-        global $DB, $USER, $PAGE;
 
         // Parameter validation.
         $params = self::validate_parameters(self::execute_parameters(), [
@@ -65,9 +64,10 @@ class get_calendar_events extends external_api {
         
         try{
             $eventDaysFiltered = get_class_events($params['userId']);
-            return ['status'=>1,'events' => json_encode(array_values($eventDaysFiltered)),'message'=>'ok'];
+
+            return ['events' => json_encode(array_values($eventDaysFiltered))];
         }catch (Exception $e){
-            return ['status'=>1,'events' => json_encode(array_values($eventDaysFiltered)),'message'=>$e->getMessage()];
+            return ['status'=>-1,'message'=>$e->getMessage()];
         }
     }
 
@@ -79,9 +79,9 @@ class get_calendar_events extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' =>new external_value(PARAM_INT, '1 or -1 if success/error'),
-                'events' => new external_value(PARAM_RAW, 'Events for the month'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'status' =>new external_value(PARAM_INT, '1 or -1 if success/error',VALUE_DEFAULT,1),
+                'events' => new external_value(PARAM_RAW, 'Events for the month',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }
