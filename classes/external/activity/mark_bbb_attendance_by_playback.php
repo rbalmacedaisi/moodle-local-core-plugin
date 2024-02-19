@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_reschedule_activity external function.
+ * Class definition for the local_grupomakro_check_reschedule_conflicts external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
@@ -30,8 +30,8 @@ use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
+use mod_bigbluebuttonbn\recording;
 use stdClass;
-use DateTime;
 use Exception;
 
 defined('MOODLE_INTERNAL') || die();
@@ -39,14 +39,14 @@ defined('MOODLE_INTERNAL') || die();
 require_once $CFG->dirroot. '/local/grupomakro_core/locallib.php';
 
 /**
- * External function 'local_grupomakro_reschedule_activity' implementation.
+ * External function 'local_grupomakro_check_reschedule_conflicts' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class reschedule_activity extends external_api {
+class mark_bbb_attendance_by_playback extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -56,12 +56,9 @@ class reschedule_activity extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [   
-                'classId'=> new external_value(PARAM_TEXT, 'Id of the class.',VALUE_REQUIRED),
-                'moduleId'=> new external_value(PARAM_TEXT, 'Id of the course module.',VALUE_REQUIRED),
-                'date' => new external_value(PARAM_TEXT, 'The date that will be assigned to the activity',VALUE_REQUIRED),
-                'initTime' => new external_value(PARAM_TEXT, 'The init time for the session',VALUE_REQUIRED),
-                'endTime' => new external_value(PARAM_TEXT, 'The end time for the session',VALUE_REQUIRED),
-                'sessionId'=> new external_value(PARAM_TEXT, 'Id of the attendance session.', VALUE_DEFAULT,null),
+                'moduleId'=> new external_value(PARAM_TEXT, 'Id of the bbb module.',VALUE_REQUIRED),
+                'userId'=> new external_value(PARAM_TEXT, 'User ID',VALUE_REQUIRED),
+                'courseId'=>new external_value(PARAM_TEXT, 'Course ID',VALUE_REQUIRED)
             ]
         );
     }
@@ -72,38 +69,30 @@ class reschedule_activity extends external_api {
      * @param int $userid
      * @return mixed TODO document
      */
-    public static function execute(
-            $classId,
-            $moduleId,
-            $date,
-            $initTime,
-            $endTime,
-            $sessionId
-        ) {
-        // Global variables.
-        global $DB;
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'classId'=>$classId,
-            'moduleId'=>$moduleId,
-            'date' =>$date,
-            'initTime'=>$initTime,
-            'endTime' =>$endTime,
-            'sessionId'=>$sessionId
-        ]);
+    public static function execute($moduleId,$userId,$courseId){
         
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'moduleId'=>$moduleId,
+            'userId'=>$userId,
+            'courseId'=>$courseId,
+        ]);
+
         try{
             
-            $activityRescheduled = reschedule_class_activity($params);
-            // Return the result.
-            return ['status' => $activityRescheduled, 'message'=>'ok'];
+            $courseModuleInfo = get_fast_modinfo($courseId,$userId);
+            $course = $courseModuleInfo->get_course();
+            $moduleInfo = $courseModuleInfo->get_cm($moduleId);
+            $courseCompletionInfo = new \completion_info($course);
+            
+            $courseCompletionInfo->update_state($moduleInfo,1,$userId,true);
+            
+            return [];
             
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
-        
     }
-
 
     /**
      * Describes the return value of the {@see self::execute()} method.
@@ -113,7 +102,7 @@ class reschedule_activity extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 if the activity was rescheduled, -1 otherwise',VALUE_DEFAULT,1),
+                'status' => new external_value(PARAM_INT, 'The url of the BBB session or recording',VALUE_DEFAULT,1),
                 'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT,'ok'),
             )
         );

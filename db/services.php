@@ -523,4 +523,22 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_bbb_module_url' => array(
+        'classname' => 'local_grupomakro_core\external\activity\get_bbb_module_url',
+        'methodname' => 'execute',
+        'description' => 'Get the URL of the BBB session or recording',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_mark_bbb_attendance_by_playback' => array(
+        'classname' => 'local_grupomakro_core\external\activity\mark_bbb_attendance_by_playback',
+        'methodname' => 'execute',
+        'description' => 'Get the URL of the BBB session or recording',
+        'type' => 'write',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

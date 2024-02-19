@@ -880,6 +880,89 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20240122001, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20240129000) {
+        
+        // Define table gmk_attendance_temp to be renamed to gmk_attendance_temp.
+        $table = new xmldb_table('local_grupomakro_attendance');
+
+        // Launch rename table for gmk_attendance_temp.
+        $dbman->rename_table($table, 'gmk_attendance_temp');
+
+        // Changing type of field courseid on table gmk_attendance_temp to int.
+        $table = new xmldb_table('gmk_attendance_temp');
+        $field = new xmldb_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'studentid');
+
+        // Launch change of type for field courseid.
+        $dbman->change_field_type($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240129000, 'local', 'grupomakro_core');
+    }
+    
+    if ($oldversion < 20240130000) {
+
+        // Define table gmk_bbb_attendance_relation to be created.
+        $table = new xmldb_table('gmk_bbb_attendance_relation');
+
+        // Adding fields to table gmk_bbb_attendance_relation.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('attendancesessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('bbbmoduleid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('classid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_bbb_attendance_relation.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        // Conditionally launch create table for gmk_bbb_attendance_relation.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240130000, 'local', 'grupomakro_core');
+    }
+  if ($oldversion < 20240130001) {
+
+        // Define field attendancemoduleid to be added to gmk_bbb_attendance_relation.
+        $table = new xmldb_table('gmk_bbb_attendance_relation');
+        $field = new xmldb_field('attendancemoduleid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+
+        // Conditionally launch add field attendancemoduleid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        $field = new xmldb_field('attendanceid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'attendancemoduleid');
+
+        // Conditionally launch add field attendanceid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        $field = new xmldb_field('sectionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'attendanceid');
+
+        // Conditionally launch add field attendanceid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        
+        // Define field companyname to be dropped from gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('bbbmoduleids');
+
+        // Conditionally launch drop field companyname.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240130001, 'local', 'grupomakro_core');
+    }
+
 
     return true;
 }

@@ -79,29 +79,28 @@ class get_student_course_pensum_activities extends external_api {
         
         try{
             global $DB;
-            $coursemod = get_fast_modinfo($courseId,$userId);
+            $coursemod = get_fast_modinfo($params['courseId'],$params['userId']);
+
             $userGroups = $coursemod->get_groups();
+
             $completion = new \completion_info($coursemod->get_course());
-            $gradableActivities = grade_get_gradable_activities($courseId);
-            
+            $gradableActivities = grade_get_gradable_activities($params['courseId']);
+
             $activities = [];
             
             foreach($userGroups as $userGroup){
-                $groupClass = $DB->get_record('gmk_class',['groupid'=>$userGroup]);
                 
-                if(!$groupClass){
+                $groupClassSection = $DB->get_field('gmk_class','coursesectionid',['groupid'=>$userGroup]);
+                
+                if(!$groupClassSection){
                     continue;
                 }
-                
-                $classSectionNumber = $coursemod->get_section_info_by_id($groupClass->coursesectionid)->__get('section');
+                $classSectionNumber = $coursemod->get_section_info_by_id($groupClassSection)->__get('section');
                 foreach($coursemod->get_sections()[$classSectionNumber] as $sectionModule){
                     $module = $coursemod->get_cm($sectionModule);
                     $moduleRecord= $module->get_course_module_record(true);
                     $moduleType= $moduleRecord->modname;
-                    if($moduleType === 'attendance' || $moduleType === 'bigbluebuttonbn'){
-                        continue;
-                    }
-                    if(!array_key_exists($moduleRecord->id,$gradableActivities)){
+                    if($moduleType === 'attendance' || $moduleType === 'bigbluebuttonbn' || !array_key_exists($moduleRecord->id,$gradableActivities)){
                         continue;
                     }
                     $activityInfo = new \stdClass();

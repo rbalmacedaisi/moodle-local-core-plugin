@@ -21,7 +21,8 @@
  * @copyright  2022 Solutto Consulting <dev@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-require_once(__DIR__ .'/../../config.php');
+defined('MOODLE_INTERNAL') || die();
+
 require_once($CFG->dirroot.'/group/lib.php');
 require_once($CFG->dirroot.'/course/modlib.php');
 require_once($CFG->dirroot.'/mod/attendance/locallib.php');
@@ -29,12 +30,11 @@ require_once($CFG->dirroot.'/calendar/lib.php');
 require_once($CFG->dirroot.'/user/lib.php');
 require_once($CFG->dirroot.'/vendor/autoload.php');
 require_once($CFG->libdir .'/externallib.php');
-
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-defined('MOODLE_INTERNAL') || die();
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
+
 /**
  * This function is the extend_navigation function for the plugin.
  * 
@@ -445,6 +445,7 @@ function delete_class($class, $reason =  null){
     if ($class->coursesectionid){
         $section = $DB->get_field('course_sections','section', ['id' => $class->coursesectionid]);
         course_delete_section( $class->corecourseid, $section, true, true);
+        $DB->delete_records('gmk_bbb_attendance_relation',['classid'=>$class->id]);
     }
     
     //Delete class group if it's already created
@@ -474,7 +475,7 @@ function delete_class($class, $reason =  null){
  * @return array
  */
 function create_class_activities($class) {
-    global $DB;
+    global $DB,$USER;
     // if($classParams["classroomId"]!== ''){
     //         $classroomsReservations = createClassroomReservations($newClass);
     //     }
@@ -498,11 +499,6 @@ function create_class_activities($class) {
     //Define some needed constants
     $currentDateTS = $startDateTS;
     $dayInSeconds = 86400;
-    // $classType = (int) $class->type ;
-    
-    // Determine the class type
-    // $isVirtualOrMixed = ($classType === 1 || $classType === 2);
-    // $isPhysicalOrMixed = ($classType === 0 || $classType === 2);
     
     $BBBmoduleId = $DB->get_field('modules','id',['name'=>'bigbluebuttonbn']);
     $classSectionNumber = $DB->get_field('course_sections','section',['id'=>$class->coursesectionid]);
@@ -515,9 +511,8 @@ function create_class_activities($class) {
         $day =  $classDaysList[date('l', $currentDateTS)];
         
         if($day === '1'){
-            // Create attendance session
-            $attendanceSession = create_attendance_session_object($class,$currentDateTS);
-            $sessions[] = $attendanceSession;
+            
+            $BBBModuleId = null;
             
             if($class->type !== 0){
                 // Create Big Blue Button activity
@@ -525,25 +520,35 @@ function create_class_activities($class) {
                 $BBBModuleId = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
                 $BBBModuleIds[]= $BBBModuleId;
             }
+            // Create attendance session
+            $attendanceSession = create_attendance_session_object($class,$currentDateTS,(int)$class->classduration,$BBBModuleId);
+            $attendanceSessions[] = $attendanceSession;
         }
+        $dateTime = new DateTime('@' . $currentDateTS);
+        $dateTime->modify('+1 day');
+        $currentDateTS = $dateTime->getTimestamp();
         // Move to the next day
-        $currentDateTS += $dayInSeconds;
+        // $currentDateTS += $dayInSeconds;
     }
     
     // Create the attendance module for the class.
     
     $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
     $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
-    $context = \context_module::instance($attendanceCourseModule->id);
     $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
-    $attendance = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course, $context);
-    $attendance->add_sessions($sessions);
-    
-    
-    
-
-    $class->bbbmoduleids = !empty($BBBModuleIds)? join(',',$BBBModuleIds):null;
-    $class->attendancemoduleid = $attendanceActivityInfo?$attendanceActivityInfo->coursemodule:null;
+    $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+    foreach($attendanceSessions as $session){
+        $attendanceSessionId = $attendanceStructure->add_session($session);   
+        $classAttendanceBBBRelation = new stdClass();
+        $classAttendanceBBBRelation->attendancesessionid=$attendanceSessionId;
+        $classAttendanceBBBRelation->bbbmoduleid=$session->bbbModuleId;
+        $classAttendanceBBBRelation->classid=$class->id;
+        $classAttendanceBBBRelation->attendancemoduleid=$attendanceActivityInfo->coursemodule;
+        $classAttendanceBBBRelation->attendanceid=$attendanceCourseModule->instance;
+        $classAttendanceBBBRelation->sectionid=$class->coursesectionid;
+        $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
+    }
+    $class->attendancemoduleid = $attendanceActivityInfo->coursemodule;
     $DB->update_record('gmk_class',$class);
     
     return ['status'=>'created'];
@@ -558,26 +563,25 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
     $bbbActivityDefinition->wait                            = 1;
     $bbbActivityDefinition->record                          = 1;
+    // $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
-    $bbbActivityDefinition->openingtime                     = $initDateTS;
-    $bbbActivityDefinition->closingtime                     = $endDateTS;
+    // $bbbActivityDefinition->openingtime                     = $initDateTS;
+    // $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->visible                         = 1;
     $bbbActivityDefinition->cmidnumber                      = $class->name.'-'.$class->id.'-'.$initDateTS;
-    $bbbActivityDefinition->groupmode                       = '1';
-    // $bbbActivityDefinition->availabilityconditionsjson      = '{"op":"&","c":[{"type":"group","id":'.$class->groupid.'}],"showc":[true]}';
-    // $bbbActivityDefinition->completionunlocked              = 1;
-    // $bbbActivityDefinition->completion                      = 2;
-    // $bbbActivityDefinition->completionattendanceenabled     = 1;
-    // $bbbActivityDefinition->completionattendance            = 2;
+    $bbbActivityDefinition->groupmode                       = '0';
+    $bbbActivityDefinition->completionunlocked              = 1;
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
     $bbbActivityDefinition->intro                           = "Sala de clases online de la clase ".$class->name;
     $bbbActivityDefinition->section                         = $classSectionId;
     $bbbActivityDefinition->module                          = $BBBmoduleId;
 
-    $bbbActivityDefinition->completionunlocked = 1;
-    $bbbActivityDefinition->completion = 1;
-    $bbbActivityDefinition->completionview = 1;
-    $bbbActivityDefinition->completionexpected =0;
+    $bbbActivityDefinition->completion                      = 2;
+    $bbbActivityDefinition->completionattendanceenabled     = 1;
+    $bbbActivityDefinition->completionattendance            = 1;
+    // $bbbActivityDefinition->completion = 1;
+    // $bbbActivityDefinition->completionview = 1;
+    // $bbbActivityDefinition->completionexpected =0;
     
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
     return $bbbActivityInfo->coursemodule;
@@ -602,20 +606,21 @@ function create_attendance_activity($class,$classSectionNumber){
         
 }
 
-function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds=null){
+function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds,$BBBModuleId=null){
     
     $attendanceSessionDefinition = new stdClass();
     $attendanceSessionDefinition->sessdate = $initDateTS;
-    $attendanceSessionDefinition->duration = $classDurationInSeconds ? $classDurationInSeconds : (int)$class->classduration;
+    $attendanceSessionDefinition->duration = $classDurationInSeconds;
     $attendanceSessionDefinition->groupid = $class->groupid;
     $attendanceSessionDefinition->timemodified = time();
     $attendanceSessionDefinition->calendarevent = 1;
-    $attendanceSessionDefinition->description ="Sesión de asistencia para la clase ".$class->name;
+    $attendanceSessionDefinition->description ="Sesión de asistencia - bbbModule:".$BBBModuleId;
     $attendanceSessionDefinition->includeqrcode = 1;
     $attendanceSessionDefinition->rotateqrcode = 1;
     $attendanceSessionDefinition->studentscanmark = 1;
     $attendanceSessionDefinition->autoassignstatus = 1;
     $attendanceSessionDefinition->studentsearlyopentime = 3600;
+    $attendanceSessionDefinition->bbbModuleId= $BBBModuleId;
 
     return $attendanceSessionDefinition;
 }
@@ -766,6 +771,7 @@ function update_class($classParams){
     
     $section = $DB->get_field('course_sections','section', ['id' => $class->coursesectionid]);
     course_delete_section($class->corecourseid, $section,true,true);
+    $DB->delete_records('gmk_bbb_attendance_relation',['classid'=>$class->id]);
     $class->coursesectionid = create_class_section($class);
     
     $classUpdated = $DB->update_record('gmk_class', $class);
@@ -2901,23 +2907,4 @@ function get_manual_enroll($courseid) {
         }
     }
     return false;
-}
-
-function delete_asist_attendance($sessionid, $studentid, $attid){
-    global $DB, $CFG;
-    require_once($CFG->dirroot.'/mod/attendance/classes/structure.php');
- 
-    $session = $DB->delete_records('attendance_log', array('sessionid' => $sessionid, 'studentid' => $studentid));
-    $attendance = $DB->get_record('attendance', array('id' => $attid), '*', MUST_EXIST);
-    $cm = get_coursemodule_from_instance('attendance', $attid, 0, false, MUST_EXIST);
-    $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
-    $context = context_module::instance($cm->id);
-    
-    // Get attendance.
-    $attendance = new mod_attendance_structure($attendance, $cm, $course, $context);
-
-    // Update users grade session.
-    attendance_update_users_grade($attendance);
-
-    return true;
 }

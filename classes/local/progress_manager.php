@@ -15,6 +15,8 @@ define('COURSE_APPROVED',4);
 define('COURSE_FAILED',5);
 define('COURSE_PENDING_REVALID',6);
 define('COURSE_REVALIDATING',7);
+define('MINIMUM_ATTENDANCE_TIME_PERCENTAGE',90);
+define('MINIMUM_ATTENDANCE_TIME_EXTEND_PERCENTAGE',105);
 
 class local_grupomakro_progress_manager {
     
@@ -109,15 +111,14 @@ class local_grupomakro_progress_manager {
         }
     }
     
-    public static function mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord, $bbbModuleInstance){
+    public static function mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord, $bbbModuleInstance,$classAttendanceBBBRelatedSessionid){
         global $DB,$CFG;
         require_once($CFG->dirroot . '/mod/attendance/classes/attendance_webservices_handler.php');
         // use mod_bigbluebuttonbn\instance;
-        $BBBOpeningTime = $DB->get_field('bigbluebuttonbn','openingtime',['id'=>$bbbModuleInstance]);
 
         $attendanceInstance = $attendanceModuleRecord->instance;
         $attendanceDBRecord = $DB->get_record('attendance',['id'=>$attendanceInstance]);
-        $attendanceBBBRelatedSession = $DB->get_record('attendance_sessions',['attendanceid'=>$attendanceInstance,'sessdate'=>$BBBOpeningTime]);
+        $attendanceBBBRelatedSession = $DB->get_record('attendance_sessions',['id'=>$classAttendanceBBBRelatedSessionid]);
         $attendanceStructure = new mod_attendance_structure($attendanceDBRecord,$attendanceModuleRecord,$course);
         
         $attendanceHiguestStatus = attendance_session_get_highest_status($attendanceStructure,$attendanceBBBRelatedSession);
@@ -132,12 +133,13 @@ class local_grupomakro_progress_manager {
         
         $coursemod = get_fast_modinfo($courseId,$userId);
         $moduleUpdated = $coursemod->get_cm($moduleId);
-        $moduleUpdatedRecord= $moduleUpdated->get_course_module_record(true);
-        $course = $coursemod->get_course();
-        $completion = new completion_info($course);
-        $userGroups = $coursemod->get_groups();
-        
-        if($groupClass = $DB->get_record('gmk_class',['coursesectionid'=>$moduleUpdated->section])){
+
+        if($groupClass = $DB->get_record('gmk_class',['coursesectionid'=>$moduleUpdated->section],'id,attendancemoduleid,coursesectionid')){
+            
+            $moduleUpdatedRecord= $moduleUpdated->get_course_module_record(true);
+            $course = $coursemod->get_course();
+            $completion = new completion_info($course);
+            $userGroups = $coursemod->get_groups();
             
             $moduleComponent = $moduleUpdated->get_module_type_name()->get_component();
             $attendanceModule= $coursemod->get_cm($groupClass->attendancemoduleid);
@@ -145,14 +147,15 @@ class local_grupomakro_progress_manager {
             
             if($moduleComponent==='bigbluebuttonbn' && $completionState){
                 
-                $bbbClassModules = array_map('intval', explode(',', $groupClass->bbbmoduleids));
+                $classAttendanceBBBRelatedSessionid = $DB->get_field('gmk_bbb_attendance_relation','attendancesessionid',['classid'=>$groupClass->id,'bbbmoduleid'=>$moduleId]);
                 
-                if(in_array($moduleId,$bbbClassModules)){
-                    self::mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord,$moduleUpdatedRecord->instance);
+                if($classAttendanceBBBRelatedSessionid){
+                    self::mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord,$moduleUpdatedRecord->instance,$classAttendanceBBBRelatedSessionid);
                 }
 
             }
             $attendanceInstance = $attendanceModuleRecord->instance;
+            
             $attendance = new mod_attendance_summary($attendanceInstance, [$userId]);
             $attendancePercentage =(float)rtrim($attendance->get_all_sessions_summary_for($userId)->allsessionspercentage, '%');
             
@@ -197,7 +200,6 @@ class local_grupomakro_progress_manager {
             if($attendancePercentage == 100){
                 $userCourseProgress->status = COURSE_COMPLETED;
             }
-                    
             $DB->update_record('gmk_course_progre',$userCourseProgress);
         }
     }
@@ -317,5 +319,65 @@ class local_grupomakro_progress_manager {
             $revalidCoursesData[]=$revalidInfo;
         }
         return $revalidCoursesData;
+    }
+    
+    public static function handle_qr_marked_attendance($courseId,$studentId,$attendanceModuleId,$attendanceId,$attendanceSessionId){
+        global $CFG,$DB;
+        require_once($CFG->dirroot.'/mod/attendance/classes/attendance_webservices_handler.php');
+        
+        $courseMod = get_fast_modinfo($courseId);
+        $course = $courseMod->get_course();
+        $attendanceModule = $courseMod->get_cm($attendanceModuleId);
+        $attendanceModuleRecord =$attendanceModule->get_course_module_record(true);
+        $attendanceDBRecord = $DB->get_record('attendance',['id'=>$attendanceId]);
+        $attendanceSession = $DB->get_record('attendance_sessions',['attendanceid'=>$attendanceId,'id'=>$attendanceSessionId]);
+        
+        $attendanceTakenTempRecords = array_values($DB->get_records('gmk_attendance_temp',['sessionid'=>$attendanceSessionId, 'studentid'=>$studentId,'courseid'=>$courseId]));
+        $attendanceStructure = new mod_attendance_structure($attendanceDBRecord, $attendanceModuleRecord, $course);
+        
+        if(empty($attendanceTakenTempRecords)){
+            self::delete_assist_attendance($attendanceSessionId, $studentId,$attendanceStructure);
+            self::insert_attendance_temp_record($courseId, $studentId,$attendanceSessionId );
+            return;
+        }
+        
+        if($sessionTempRecords = count($attendanceTakenTempRecords)){
+            $nowTimestamp = time();
+            $percentageOfSessionTimeElapsed = (($nowTimestamp-$attendanceTakenTempRecords[0]->timetaken)/$attendanceSession->duration)*100;
+            if($percentageOfSessionTimeElapsed>MINIMUM_ATTENDANCE_TIME_EXTEND_PERCENTAGE ||$sessionTempRecords>1 ){
+                return;
+            }
+            if($percentageOfSessionTimeElapsed<MINIMUM_ATTENDANCE_TIME_PERCENTAGE){
+                self::delete_assist_attendance($attendanceSessionId, $studentId,$attendanceStructure);
+                return;
+            }
+            $statusId  = attendance_session_get_highest_status($attendanceStructure, $attendanceSession);
+            $statusset = implode(',', array_keys(attendance_get_statuses($attendanceId, true, $attendanceSession->statusset)));
+            $recordAttendance = attendance_handler::update_user_status($attendanceSessionId,$studentId,$studentId,$statusId,$statusset);
+            $attendanceStructure->update_users_grade([$studentId]);
+            self::insert_attendance_temp_record($courseId, $studentId,$attendanceSessionId );
+            self::calculate_learning_plan_user_course_progress($courseId,$studentId,$attendanceModuleId);
+        }
+    }
+    
+    public static function insert_attendance_temp_record($courseId,$studentId,$attendanceSessionId){
+        global $DB;
+        
+        $logAttendanceTemp = new stdClass();
+        $logAttendanceTemp->sessionid = $attendanceSessionId;
+        $logAttendanceTemp->studentid = $studentId;
+        $logAttendanceTemp->courseid  = $courseId;
+        $logAttendanceTemp->timetaken = time();
+        $logAttendanceTemp->takenby   = $studentId;
+        
+        $DB->insert_record('gmk_attendance_temp', $logAttendanceTemp, false);
+    }
+    
+    public static function delete_assist_attendance($attendanceSessionId, $studentId,$attendanceStructure){
+        global $DB;
+     
+        $DB->delete_records('attendance_log', ['sessionid' => $attendanceSessionId, 'studentid' => $studentId]);
+        attendance_update_users_grade($attendanceStructure);
+        return;
     }
 } 

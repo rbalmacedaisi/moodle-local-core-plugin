@@ -1,23 +1,55 @@
 <?php
 
-// defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../../../config.php');
 
-/*print_object(get_courses());
-// print_object($DB->get_records('course'));
-die;*/
-
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $courseId = 53;
-$userId = 3;
-$moduleId = 3128;
+$studentId = 3;
+$attendanceModuleId = 3192;
+$attendanceId = 110;
 $completionState = 1;
-$cm = get_coursemodule_from_instance('attendance', 109, 0, false, MUST_EXIST);
+$attendanceSessionId=1151;
 
-print_object($cm);
+// date_default_timezone_set('America/Bogota');
+// print_object(date_default_timezone_get());
+// foreach(array_keys(groups_get_members(216)) as $groupMemberId){
+//     if($DB->get_record('gmk_course_progre',['userid'=>$groupMemberId,'courseid'=>$courseId])){
+//         local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,116,$attendanceModuleId);
+//     }
+//     // local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$studentId,$attendanceModuleId);
+// }
 
-$cm = get_fast_modinfo(53);
-print_object($cm->instances['attendance'][109]->get_course_module_record());
+// $timezone = new DateTimeZone('America/Bogota');
+print_object(date('Y-m-d H:i:s',1710363600));
+// die;
+
+    
+// $cm = get_coursemodule_from_instance('attendance', 109, 0, false, MUST_EXIST);
+
+// print_object($cm);
+
+// global $DB, $CFG;
+// require_once($CFG->dirroot.'/mod/attendance/classes/structure.php');
+
+// $coursemod = get_fast_modinfo($courseId);
+// print_object($coursemod->instances['attendance'][109]->get_course_module_record());
+
+// $attendance = $DB->get_record('attendance', array('id' => 109), '*', MUST_EXIST);
+// print_object($attendance);
+
+// $cm = get_coursemodule_from_instance('attendance', 109, 0, false, MUST_EXIST);
+// print_object($cm);
+
+// $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
+
+// // Get attendance.
+// $attendance_structure = new mod_attendance_structure($attendance, $cm, $course);
+// print_object($attendance_structure);
+
+// local_grupomakro_progress_manager::handle_qr_marked_attendance($courseId,$studentId,$attendanceModuleId,$attendanceId,$attendanceSessionId);
+
+// $cm = get_fast_modinfo(53);
+// print_object($cm->instances['attendance'][109]->get_course_module_record());
 // local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$userId,$moduleId,$completionState);
 die;
 // // print_object($courses);
