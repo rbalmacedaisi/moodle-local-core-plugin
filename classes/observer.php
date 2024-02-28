@@ -109,7 +109,7 @@ class local_grupomakro_core_observer {
         $eventData = $event->get_data();
 
         $courseId = $eventData['courseid'];
-        $userId = $eventData['userid'];
+        $userId = $eventData['relateduserid'];
         $moduleId = $eventData['contextinstanceid'];
         $completionState = $eventData['other']['completionstate'];
         

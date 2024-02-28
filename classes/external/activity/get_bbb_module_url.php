@@ -77,20 +77,22 @@ class get_bbb_module_url extends external_api {
 
         try{
             
+            global $DB;
+            
             $courseModuleInfo = get_fast_modinfo($courseId);
             $moduleInfo = $courseModuleInfo->get_cm($moduleId)->get_course_module_record();
             $BBBMeetingInfo = \mod_bigbluebuttonbn\external\meeting_info::execute($moduleInfo->instance,0);
             $BBBRecordings = \mod_bigbluebuttonbn\external\get_recordings::execute($moduleInfo->instance);
-            // print_object(json_decode($BBBRecordings['tabledata']['data'])[0]->playback);
-            // die;
+            
+            $recordingId = $DB->get_field('bigbluebuttonbn_recordings','recordingid',['bigbluebuttonbnid'=>$moduleInfo->instance]);
 
             $meetingInfo = new stdClass();
             $meetingInfo->opened = $BBBMeetingInfo['statusopen'];
-            $meetingInfo->closed = $BBBMeetingInfo['statusclosed'];
+            $meetingInfo->closed = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
             $meetingInfo->running = $BBBMeetingInfo['statusrunning'];
             $meetingInfo->message = $BBBMeetingInfo['statusmessage'];
             $meetingInfo->joinUrl = $BBBMeetingInfo['canjoin']? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url']:null;
-            $meetingInfo->recordingUrl = "https://bbb-test.soluttolabs.com/playback/presentation/2.3/df5b867f9fe206b70af83444cf331332b0943a77-1707333483767";
+            $meetingInfo->recordingUrl = $recordingId?  "https://bbb-test.soluttolabs.com/playback/presentation/2.3/".$recordingId:null;
             return ['BBBInfo'=>json_encode($meetingInfo)];
             
         }
