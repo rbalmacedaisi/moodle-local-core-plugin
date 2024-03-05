@@ -2617,31 +2617,41 @@ function create_student_user($user){
 function get_classrooms(){
     // return [['label'=>'classroom test, Cap: 40', 'value'=>5,'capacity'=>40]];
     // Set the request URL
-    $url = 'https://isi-panama-staging-10390570.dev.odoo.com/api/classrooms';
+    $url = 'https://isi-panama.odoo.com//api/classrooms';
     $curl = curl_init($url);
     // Set the options for the cURL request
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); 
     curl_setopt($curl, CURLOPT_HTTPHEADER, array(
         'Content-Type: application/json',
-        'Authorization: solutto123'
+        'Authorization: Solutto123*'
     ));
+    try{
+        $response = curl_exec($curl);
     
-    // Execute the cURL request and get the response
-    $response = curl_exec($curl);
-    if (curl_errno($curl)) {
-        throw new Exception(curl_error($ch)); 
-    }
-    // Close the cURL resource
-    curl_close($curl);
-
-    // Process the response
-    if ($response) {
+        if (curl_errno($curl)) {
+            throw new Exception(curl_error($curl)); 
+        }
+        
+        // Close the cURL resource
+        curl_close($curl);
+        
+        // Process the response
+        if (!$response = json_decode($response)) {
+            throw new Exception('Error al obtener lo salones de clases');
+            
+        }
         return array_map(function($classroom){
-            return array('label'=>$classroom->name.', Cap: '.$classroom->capacity,'value'=>$classroom->id, 'capacity'=>$classroom->capacity);
-        },json_decode($response)->classrooms);
-    } else {
-        throw new Exception('No se obtuvo ninguna respuesta');
+            return array(
+                'label'=>$classroom->name.', Cap: '.$classroom->capacity,
+                'value'=>$classroom->id,
+                'capacity'=>$classroom->capacity
+            );
+        },$response->classrooms);
+    }catch (Exception $e){
+        return [];
     }
+    // Execute the cURL request and get the response
+    
 }
 
 function student_get_active_classes($userId,$courseId = null){
