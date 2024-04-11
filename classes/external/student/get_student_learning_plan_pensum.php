@@ -101,20 +101,32 @@ class get_student_learning_plan_pensum extends external_api {
         
         global $DB;
         try{
-            $userPensumCourses = $DB->get_records('gmk_course_progre',['userid'=>$params['userId'],'learningplanid'=>$params['learningPlanId']]);
+            $userPensumCourses = $userPensumCourses = $DB->get_records_sql("
+                SELECT gc.*, lpc.position
+                FROM {gmk_course_progre} gc
+                JOIN {local_learning_courses} lpc ON lpc.courseid =  gc.courseid 
+                WHERE gc.userid = :userid AND gc.learningplanid = :learningplanid 
+                AND lpc.learningplanid = :lpid
+                ORDER BY lpc.position ASC", 
+                ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]);
+
             $groupedUserPensumCourses = [];
             foreach($userPensumCourses as $userPensumCourse){
+                $periodName = $DB->get_record('local_learning_periods',['id' => $userPensumCourse->periodid]);
                 
-                $userPensumCourse->statusLabel = self::get_status_label($userPensumCourse->status);
-                $userPensumCourse->statusColor = self::get_status_color($userPensumCourse->status);
+                $course = get_course($userPensumCourse->courseid);
+                $userPensumCourse->coursename = $course->fullname;
+                $userPensumCourse->periodname = $periodName->name;
+                $userPensumCourse->statusLabel = $userPensumCourse->status==1?self::get_status_label(2):self::get_status_label($userPensumCourse->status);
+                $userPensumCourse->statusColor = $userPensumCourse->status==1?self::get_status_color(2):self::get_status_color($userPensumCourse->status);
                 $userPensumCourse->prerequisites = json_decode($userPensumCourse->prerequisites);
                 foreach($userPensumCourse->prerequisites as $prerequisite){
                     $completion = new \completion_info(get_course($prerequisite->id));
                     $prerequisite->completed = $completion->is_course_complete($params['userId']);
                 }
-                if(!array_key_exists($userPensumCourse->periodname,$groupedUserPensumCourses)){
-                    $groupedUserPensumCourses[$userPensumCourse->periodname]['id']=$userPensumCourse->periodid;
-                    $groupedUserPensumCourses[$userPensumCourse->periodname]['periodName']=$userPensumCourse->periodname;
+                if(!array_key_exists($userPensumCourse->periodid,$groupedUserPensumCourses)){
+                    $groupedUserPensumCourses[$userPensumCourse->periodid]['id']=$userPensumCourse->periodid;
+                    $groupedUserPensumCourses[$userPensumCourse->periodid]['periodName']=$userPensumCourse->periodname;
                 }
                 if($userPensumCourse->tc ==='1'){
                     $commonTrunkCourseRecords = $DB->get_records('gmk_course_progre',['userid'=>$params['userId'],'courseid'=>$userPensumCourse->courseid]);
@@ -122,8 +134,10 @@ class get_student_learning_plan_pensum extends external_api {
                         $userPensumCourse->grade = $userPensumCourse->grade < $commonTrunkCourseRecord->grade?$commonTrunkCourseRecord->grade:$userPensumCourse->grade;
                     }
                 }
-                $groupedUserPensumCourses[$userPensumCourse->periodname]['courses'][]=$userPensumCourse;
+                $groupedUserPensumCourses[$userPensumCourse->periodid]['courses'][]=$userPensumCourse;
             }
+            //print_object($groupedUserPensumCourses);
+            //die;
             return ['pensum'=>json_encode($groupedUserPensumCourses)];
         }catch (Exception $e) {
             return ['status' => -1,'message' => $e->getMessage()];

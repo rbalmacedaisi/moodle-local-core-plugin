@@ -376,6 +376,8 @@ $string['enter_name'] ='Enter a name';
 
 // Availability Panel Page.
 $string['availability_bulk_load'] ='Availability Bulk Load';
+$string['start_time'] = 'Start time';
+$string['end_time'] = 'End time';
 
 // Academic Dashboard Page
 $string['academic_panel'] = 'Dashboard';

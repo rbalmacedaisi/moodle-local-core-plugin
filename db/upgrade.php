@@ -962,6 +962,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20240130001, 'local', 'grupomakro_core');
     }
+    
+    if ($oldversion < 20240327000) {
+
+        // Define field bbbmoduleids to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('bbbmoduleids', XMLDB_TYPE_TEXT, null, null, null, null, null, 'attendancemoduleid');
+
+        // Conditionally launch add field bbbmoduleids.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240327000, 'local', 'grupomakro_core');
+    }
 
 
     return true;

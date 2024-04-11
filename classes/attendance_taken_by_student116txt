@@ -1,0 +1,22 @@
+{
+    "eventname": "\\mod_attendance\\event\\attendance_taken_by_student",
+    "component": "mod_attendance",
+    "action": "student",
+    "target": "attendance_taken_by",
+    "objecttable": "attendance_log",
+    "objectid": "166",
+    "crud": "u",
+    "edulevel": 2,
+    "contextid": 3816,
+    "contextlevel": 70,
+    "contextinstanceid": "3428",
+    "userid": "116",
+    "courseid": "53",
+    "relateduserid": null,
+    "anonymous": 0,
+    "other": {
+        "sessionid": 1500,
+        "grouptype": 0
+    },
+    "timecreated": 1710996029
+}

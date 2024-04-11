@@ -9,7 +9,6 @@ const wsDefaultParams = {
 for (let day in classData.classDays) {
   classData.classDays[day]=classData.classDays[day]==="1"?true:false;
 }
-console.log(window);
 
 Vue.component('editclass',{
     template: `

@@ -82,6 +82,8 @@ class get_bbb_module_url extends external_api {
             $courseModuleInfo = get_fast_modinfo($courseId);
             $moduleInfo = $courseModuleInfo->get_cm($moduleId)->get_course_module_record();
             $BBBMeetingInfo = \mod_bigbluebuttonbn\external\meeting_info::execute($moduleInfo->instance,0);
+            // print_object('aqui estoy');
+            // die;
             $BBBRecordings = \mod_bigbluebuttonbn\external\get_recordings::execute($moduleInfo->instance);
             
             $recordingId = $DB->get_field('bigbluebuttonbn_recordings','recordingid',['bigbluebuttonbnid'=>$moduleInfo->instance]);

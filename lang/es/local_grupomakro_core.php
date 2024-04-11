@@ -375,6 +375,8 @@ $string['msg:send_revalidation_message:contexturlname'] ='Pagar revalida.';
 
 // Pagina Panel de Disponivilidad.
 $string['availability_bulk_load'] ='Carga masiva de disponibilidad';
+$string['start_time'] = 'Hora de inicio';
+$string['end_time'] = 'Hora de finalización';
 
 // Pagina del Panel Academico
 $string['academic_panel'] = 'Panel académico';

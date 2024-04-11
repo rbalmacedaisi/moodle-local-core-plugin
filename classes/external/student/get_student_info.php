@@ -37,6 +37,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/user/profile/lib.php'); // For profile_load_data function.
 
 /**
  * External function 'local_grupomakro_get_student_info' implementation.
@@ -96,8 +97,32 @@ class get_student_info extends external_api {
             $offset        = 0;
             $totalPages    = 0;
             
+            //Get field id profile student status
+            $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
+
             foreach ($infoUsers as $user) {
-               
+                
+                //Get user info data Custom Fields
+                $user_info_data = $DB->get_records_sql("
+                    SELECT d.*
+                    FROM {user_info_data} d
+                    JOIN {user} u ON u.id = d.userid
+                    WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
+                ", array($field->id, $user->userid));
+                
+                $user_info = reset($user_info_data); // Get First element to array
+                $customfield_value = $user_info->data;
+                
+                if(empty($customfield_value)){
+                    $customfield_value = 'Activo';
+                }
+                
+                /*if($customfield_value == 'Inactivo' || $customfield_value == 'Suspendido' || $customfield_value == 'Expulsado'){
+                    $userobj = $DB->get_record('user', array('id' => $user_info->userid));
+                    $userobj->suspended = 1;
+                    $result = $DB->update_record('user', $userobj);
+                }*/
+                
                 // Get profile User Image
                 $profileimage = get_user_picture_url($user->userid);
                 
@@ -135,8 +160,8 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['email'] = $user->email;
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;
                 $userData[$user->userid]['profileimage'] = $profileimage;
-                $userData[$user->userid]['status'] = 'Activo';
-            } 
+                $userData[$user->userid]['status'] = $customfield_value;
+            }
             // Convert the associative array into indexed array
             $dataUsers = array_values($userData);
             

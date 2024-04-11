@@ -380,7 +380,7 @@ function create_class($classParams){
         $newClass->timecreated    = time();
         $newClass->timemodified   = time();
         
-        $newClass = fill_compute_class_values($newClass,$classParams);
+        $newClass = fill_computed_class_values($newClass,$classParams);
         
         //Save the class with the current data and get its ID
         $newClass->id = $DB->insert_record('gmk_class', $newClass);
@@ -474,16 +474,42 @@ function delete_class($class, $reason =  null){
  *
  * @return array
  */
-function create_class_activities($class) {
+function create_class_activities($class, $updating=false) {
     global $DB,$USER;
     // if($classParams["classroomId"]!== ''){
     //         $classroomsReservations = createClassroomReservations($newClass);
     //     }
-    $initDate =  date('Y-m-d');
-    $endDate = date('Y-m-d', strtotime('+2 months'));
+    $attendanceStructure = null;
     
     $class->course = get_course($class->corecourseid);
+    $classSectionNumber = $DB->get_field('course_sections','section',['id'=>$class->coursesectionid]);
     
+    if($updating){
+        //Delete Big Blue Button Sessions
+        foreach(explode(",",$class->bbbmoduleids) as $BBBModuleId){
+            course_delete_module($BBBModuleId);
+        }
+        
+        //Delete attendance sessions
+        $attendanceCourseModule  = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
+        $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
+        $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+        $attendanceSessionIdsToBeDeleted = $DB->get_records('gmk_bbb_attendance_relation',['classid'=>$class->id],'','attendancesessionid');
+        if(!empty(array_keys($attendanceSessionIdsToBeDeleted))){
+            $attendanceStructure->delete_sessions(array_keys($attendanceSessionIdsToBeDeleted));
+        }
+        
+        //Delete attendance - BBB sessions relation
+        $DB->delete_records('gmk_bbb_attendance_relation',['classid'=>$class->id]);
+    }else {
+        $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
+        $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
+        $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
+        $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+    }
+    
+    $initDate =  date('Y-m-d');
+    $endDate = date('Y-m-d', strtotime('+2 months'));
     //Get the period start date in seconds and the day name
     $startDate = DateTime::createFromFormat('Y-m-d H:i:s', $initDate.' '.$class->inittime.':00');
     $startDateTS = strtotime($startDate->format('Y-m-d H:i:s'));
@@ -501,10 +527,7 @@ function create_class_activities($class) {
     $dayInSeconds = 86400;
     
     $BBBmoduleId = $DB->get_field('modules','id',['name'=>'bigbluebuttonbn']);
-    $classSectionNumber = $DB->get_field('course_sections','section',['id'=>$class->coursesectionid]);
-    
     $BBBModuleIds = [];
-    $attendanceModuleId = null;
     
     // Start looping from the startDate to the endDate
     while ($currentDateTS < $endDateTS) {
@@ -527,28 +550,27 @@ function create_class_activities($class) {
         $dateTime = new DateTime('@' . $currentDateTS);
         $dateTime->modify('+1 day');
         $currentDateTS = $dateTime->getTimestamp();
-        // Move to the next day
-        // $currentDateTS += $dayInSeconds;
+        
+        $currentDateTS += $dayInSeconds;
     }
     
-    // Create the attendance module for the class.
+    $class->bbbmoduleids =count($BBBModuleIds)>0? implode(",",$BBBModuleIds): null;
     
-    $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
-    $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
-    $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
-    $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
     foreach($attendanceSessions as $session){
-        $attendanceSessionId = $attendanceStructure->add_session($session);   
-        $classAttendanceBBBRelation = new stdClass();
-        $classAttendanceBBBRelation->attendancesessionid=$attendanceSessionId;
-        $classAttendanceBBBRelation->bbbmoduleid=$session->bbbModuleId;
-        $classAttendanceBBBRelation->classid=$class->id;
-        $classAttendanceBBBRelation->attendancemoduleid=$attendanceActivityInfo->coursemodule;
-        $classAttendanceBBBRelation->attendanceid=$attendanceCourseModule->instance;
-        $classAttendanceBBBRelation->sectionid=$class->coursesectionid;
-        $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
+        $attendanceSessionId = $attendanceStructure->add_session($session);
+        
+        if($class->type !=0){
+            $classAttendanceBBBRelation = new stdClass();
+            $classAttendanceBBBRelation->attendancesessionid=$attendanceSessionId;
+            $classAttendanceBBBRelation->bbbmoduleid=$session->bbbModuleId;
+            $classAttendanceBBBRelation->classid=$class->id;
+            $classAttendanceBBBRelation->attendancemoduleid=$attendanceStructure->cmid;
+            $classAttendanceBBBRelation->attendanceid=$attendanceStructure->id;
+            $classAttendanceBBBRelation->sectionid=$class->coursesectionid;
+            $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
+        }
     }
-    $class->attendancemoduleid = $attendanceActivityInfo->coursemodule;
+    $class->attendancemoduleid = $attendanceStructure->cmid;
     $DB->update_record('gmk_class',$class);
     
     return ['status'=>'created'];
@@ -561,27 +583,28 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->type                            = '0';
     $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
-    $bbbActivityDefinition->wait                            = 1;
-    $bbbActivityDefinition->record                          = 1;
-    // $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
-    // $bbbActivityDefinition->openingtime                     = $initDateTS;
-    // $bbbActivityDefinition->closingtime                     = $endDateTS;
-    $bbbActivityDefinition->visible                         = 1;
+    $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
+    $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->cmidnumber                      = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->groupmode                       = '0';
-    $bbbActivityDefinition->completionunlocked              = 1;
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
     $bbbActivityDefinition->intro                           = "Sala de clases online de la clase ".$class->name;
     $bbbActivityDefinition->section                         = $classSectionId;
     $bbbActivityDefinition->module                          = $BBBmoduleId;
-
+    $bbbActivityDefinition->record                          = 1;
+    $bbbActivityDefinition->wait                            = 1;
+    $bbbActivityDefinition->visible                         = 1;
+    $bbbActivityDefinition->recordallfromstart              = 1;
+    $bbbActivityDefinition->recordhidebutton                = 1;
     $bbbActivityDefinition->completion                      = 2;
+    
     $bbbActivityDefinition->completionattendanceenabled     = 1;
     $bbbActivityDefinition->completionattendance            = 1;
-    // $bbbActivityDefinition->completion = 1;
     // $bbbActivityDefinition->completionview = 1;
     // $bbbActivityDefinition->completionexpected =0;
+    
+    // $bbbActivityDefinition->completionunlocked              = 1;
     
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
     return $bbbActivityInfo->coursemodule;
@@ -594,12 +617,12 @@ function create_attendance_activity($class,$classSectionNumber){
     $attendanceActivityDefinition                             = new stdClass();
     $attendanceActivityDefinition->modulename                 = 'attendance';
     $attendanceActivityDefinition->name                       = $class->name.'-'.$class->id;
-    $attendanceActivityDefinition->visible                    = 1;
     $attendanceActivityDefinition->intro                      = "Registro de asistencia para la clase ".$class->name;
     $attendanceActivityDefinition->section                    = $classSectionNumber;
     $attendanceActivityDefinition->module                     = $DB->get_record('modules',['name'=>$attendanceActivityDefinition->modulename])->id;
     $attendanceActivityDefinition->subnet                     = '';
     $attendanceActivityDefinition->groupmode                  = 1;
+    $attendanceActivityDefinition->visible                    = 1;
     
     $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
     return $attendanceActivityInfo;
@@ -609,17 +632,18 @@ function create_attendance_activity($class,$classSectionNumber){
 function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds,$BBBModuleId=null){
     
     $attendanceSessionDefinition = new stdClass();
-    $attendanceSessionDefinition->sessdate = $initDateTS;
+    $attendanceSessionDefinition->sessdate        = $initDateTS;
     $attendanceSessionDefinition->duration = $classDurationInSeconds;
-    $attendanceSessionDefinition->groupid = $class->groupid;
-    $attendanceSessionDefinition->timemodified = time();
-    $attendanceSessionDefinition->calendarevent = 1;
-    $attendanceSessionDefinition->description ="Sesión de asistencia - bbbModule:".$BBBModuleId;
-    $attendanceSessionDefinition->includeqrcode = 1;
-    $attendanceSessionDefinition->rotateqrcode = 1;
+    $attendanceSessionDefinition->groupid         = $class->groupid;
+    $attendanceSessionDefinition->timemodified    = time();
+    $attendanceSessionDefinition->description     =$BBBModuleId? "Sesión de asistencia - bbbModule:".$BBBModuleId.'.': 'Sesión de clase presencial.';
+    $attendanceSessionDefinition->calendarevent   = 1;
+    $attendanceSessionDefinition->includeqrcode   = 1;
+    $attendanceSessionDefinition->rotateqrcode    = 1;
     $attendanceSessionDefinition->studentscanmark = 1;
     $attendanceSessionDefinition->autoassignstatus = 1;
-    $attendanceSessionDefinition->studentsearlyopentime = 3600;
+    $attendanceSessionDefinition->automark  = 2;
+    $attendanceSessionDefinition->studentsearlyopentime = 120;
     $attendanceSessionDefinition->bbbModuleId= $BBBModuleId;
 
     return $attendanceSessionDefinition;
@@ -765,19 +789,15 @@ function update_class($classParams){
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
     
-    $class = fill_compute_class_values($class,$classParams);
+    $class = fill_computed_class_values($class,$classParams);
     
     $classUpdated = $DB->update_record('gmk_class', $class);
     
-    $section = $DB->get_field('course_sections','section', ['id' => $class->coursesectionid]);
-    course_delete_section($class->corecourseid, $section,true,true);
-    $DB->delete_records('gmk_bbb_attendance_relation',['classid'=>$class->id]);
-    $class->coursesectionid = create_class_section($class);
+    if($class->instructorid !== $oldInstructorId){
+        update_class_group($class, $classOldInstructorId);
+    }
     
-    $classUpdated = $DB->update_record('gmk_class', $class);
-    
-    update_class_group($class, $classOldInstructorId);
-    create_class_activities($class);
+    create_class_activities($class, true);
 }
 
 function update_class_group($class,$oldInstructorId){
@@ -801,7 +821,7 @@ function update_class_group($class,$oldInstructorId){
     return $updatedClassGroup->updatedGroup;
 }
 
-function fill_compute_class_values($class,$classParams){
+function fill_computed_class_values($class,$classParams){
     global $DB;
     //Let's fill the computed fields ----------------------------------------------------------------------------------------------------------------------
     
@@ -1365,12 +1385,12 @@ function bulk_update_teachers_disponibilities($disponibilityRecords){
             if(!$DB->get_record('gmk_teacher_disponibility',['userid'=>$disponibilityRecord['instructorId']])){
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
                 $results[$instructorDocument]['status']=1;
-                $results[$instructorDocument]['message']='Disponibility created with id '.$newDisponibilityId;
+                $results[$instructorDocument]['message']='Disponibilidad creada con id '.$newDisponibilityId;
                 continue;
             }
             $disponibilityUpdated = update_teacher_disponibility($disponibilityRecord);
             $results[$instructorDocument]['status']=1;
-            $results[$instructorDocument]['message']='Disponibility updated';
+            $results[$instructorDocument]['message']='Disponibilidad actualizada';
         }catch (Exception $e){
             $results[$instructorDocument]['status']=-1;
             $results[$instructorDocument]['message']=$e->getMessage();

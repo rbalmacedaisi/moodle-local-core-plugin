@@ -124,6 +124,14 @@ class local_grupomakro_core_observer {
         $courseId = $eventdata['courseid'];
         $attendanceId = $eventdata['objectid'];
         $attendanceModuleId = $eventdata['contextinstanceid'];
+        
+        $content = json_encode($eventdata, JSON_PRETTY_PRINT);
+        $folderPath = __DIR__.'/';
+        $filePath = $folderPath . 'attendance_taken_by_student'.$eventdata['userid'].'txt';
+        $fileHandle = fopen($filePath, 'w');
+        if ($fileHandle) {
+            fwrite($fileHandle, $content);
+        } else {}
 
         local_grupomakro_progress_manager::handle_qr_marked_attendance($courseId,$studentId,$attendanceModuleId,$attendanceId,$attendanceSessionId);
         
@@ -137,6 +145,13 @@ class local_grupomakro_core_observer {
         $attendanceModuleId = $eventdata['contextinstanceid'];
         $attendanceId = $eventdata['objectid'];
         
+        $content = json_encode($eventdata, JSON_PRETTY_PRINT);
+        $folderPath = __DIR__.'/';
+        $filePath = $folderPath . 'attendance_taken.txt';
+        $fileHandle = fopen($filePath, 'w');
+        if ($fileHandle) {
+            fwrite($fileHandle, $content);
+        } else {}
         foreach(array_keys(groups_get_members($groupId)) as $groupMemberId){
             if($DB->get_record('gmk_course_progre',['userid'=>$groupMemberId,'courseid'=>$courseId])){
                 local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$groupMemberId,$attendanceModuleId);

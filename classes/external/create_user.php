@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_create_user external function.
+     * Class definition for the local_grupomakro_create_user external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
@@ -78,6 +78,11 @@ class create_user extends external_api {
         string $accountmanager = '',
         string $documenttype = '',
         string $documentnumber = '') {
+            
+            // Verificar si firstname y lastname están vacíos o son false
+            if (empty($firstname) || empty($lastname) || $firstname === false || $lastname === false) {
+                return ['status' => -1, 'message' => 'Los campos "firstname" y "lastname" son obligatorios.'];
+            }
 
         // Global variables.
         global $DB;
@@ -158,7 +163,11 @@ class create_user extends external_api {
 
         // Let's update the user's profile fields.
         profile_save_custom_fields($user->id, [
-            'usertype' => $params['usertype'],
+            'usertype' => 
+            
+            
+            
+            ['usertype'],
             'accountmanager' => $params['accountmanager'],
             'documenttype' => $params['documenttype'],
             'documentnumber' => $params['documentnumber'],

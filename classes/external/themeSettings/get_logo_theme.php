@@ -15,38 +15,40 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Class definition for the local_grupomakro_student_class_enrol external function.
+ * Class definition for the local_grupomakro_get_learning_plan_list external function.
  *
  * @package    local_grupomakro_core
  * @copyright  2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_grupomakro_core\external\student;
+namespace local_grupomakro_core\external\themeSettings;
 
 use context_system;
 use external_api;
+use core_component;
 use external_description;
 use external_function_parameters;
 use external_single_structure;
 use external_value;
 use stdClass;
 use Exception;
-use local_grupomakro_progress_manager;
+use theme_config;
+use moodle_url;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
- * External function 'local_grupomakro_student_class_enrol ' implementation.
+ * External function 'local_grupomakro_get_logo_theme' implementation.
  *
  * @package     local_grupomakro_core
  * @category    external
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class student_get_revalids extends external_api {
+class get_logo_theme extends external_api {
 
     /**
      * Describes parameters of the {@see self::execute()} method.
@@ -54,11 +56,9 @@ class student_get_revalids extends external_api {
      * @return external_function_parameters
      */
     public static function execute_parameters(): external_function_parameters {
-        return new external_function_parameters(
-            [
-                'userId' => new external_value(PARAM_TEXT, 'ID of the student.',VALUE_REQUIRED)
-            ]
-        );
+        return new external_function_parameters([
+            'themename' => new external_value(PARAM_TEXT, 'Name of theme in use in site.',VALUE_REQUIRED,VALUE_DEFAULT,null),
+        ]);
     }
 
     /**
@@ -67,22 +67,33 @@ class student_get_revalids extends external_api {
      * @param string id
      * @return mixed TODO document
      */
-    public static function execute(
-            $userId
-        ) {
-        $params = self::validate_parameters(self::execute_parameters(), [
-            'userId' => $userId
+    public static function execute($themename) {
+        global $CFG;
+
+        // Re-validate parameter.
+        [
+            'themename' => $themename,
+        ] = self::validate_parameters(self::execute_parameters(), [
+            'themename' => $themename,
         ]);
-
-        try{
-
-            $revalidActivities = local_grupomakro_progress_manager::get_revalids_for_user($params['userId']);
         
-            return ['revalidActivities'=>json_encode($revalidActivities)];
-        }catch (Exception $e) {
-            return ['status' =>-1,'message' => $e->getMessage()];
+        if($CFG->theme == $themename){
+            $themeInUse = $themename;
+        }else{
+            $themeInUse = $CFG->theme;
         }
+     
+        $theme = theme_config::load($themeInUse);
+        $themeobj = $theme->settings;
+        
+        $themeobj->logo = basename($themeobj->logo);
+        $logoUrl = $themeobj->logodefaulturl = $CFG->wwwroot . '/theme/' . $themeInUse . '/pix/static/' . rawurlencode($themeobj->logo);
+
+        return ['LogoUrl' => json_encode($logoUrl)];
+            
     }
+
+
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
@@ -91,9 +102,7 @@ class student_get_revalids extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, '1 for success, -1 for failure',VALUE_DEFAULT, 1),
-                'revalidActivities'=> new external_value(PARAM_RAW, 'The revalid activities for the user.',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT, 'ok'),
+                'LogoUrl' => new external_value(PARAM_TEXT, ''),
             )
         );
     }

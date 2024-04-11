@@ -1,0 +1,221 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Usuario": "E-8-181167",
+            "Tabla": "Docente-basico",
+            "Fila": 2,
+            "Error": "Username already exists: e-8-181167"
+        },
+        {
+            "Usuario": "E-8-139686",
+            "Tabla": "Docente-basico",
+            "Fila": 3,
+            "Error": "Username already exists: e-8-139686"
+        },
+        {
+            "Usuario": 1014234918,
+            "Tabla": "Docente-basico",
+            "Fila": 4,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "4-704-37",
+            "Tabla": "Docente-basico",
+            "Fila": 5,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-341-9914",
+            "Tabla": "Docente-basico",
+            "Fila": 6,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-251-594",
+            "Tabla": "Docente-basico",
+            "Fila": 7,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-186093",
+            "Tabla": "Docente-basico",
+            "Fila": 8,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "4-742-1480",
+            "Tabla": "Docente-basico",
+            "Fila": 9,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-106318",
+            "Tabla": "Docente-basico",
+            "Fila": 10,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-142547",
+            "Tabla": "Docente-basico",
+            "Fila": 11,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-511-916",
+            "Tabla": "Docente-basico",
+            "Fila": 12,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "6-82-598",
+            "Tabla": "Docente-basico",
+            "Fila": 13,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-446-515",
+            "Tabla": "Docente-basico",
+            "Fila": 14,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-93958",
+            "Tabla": "Docente-basico",
+            "Fila": 15,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-199397",
+            "Tabla": "Docente-basico",
+            "Fila": 16,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "3-84-429",
+            "Tabla": "Docente-basico",
+            "Fila": 17,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "N-20-2285",
+            "Tabla": "Docente-basico",
+            "Fila": 18,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 120276473,
+            "Tabla": "Docente-basico",
+            "Fila": 19,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 8531097,
+            "Tabla": "Docente-basico",
+            "Fila": 20,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-700-444",
+            "Tabla": "Docente-basico",
+            "Fila": 21,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-731-1771",
+            "Tabla": "Docente-basico",
+            "Fila": 22,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-739-1345",
+            "Tabla": "Docente-basico",
+            "Fila": 23,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "3-742-2086",
+            "Tabla": "Docente-basico",
+            "Fila": 24,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "E-8-145676",
+            "Tabla": "Docente-basico",
+            "Fila": 25,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-917-2",
+            "Tabla": "Docente-basico",
+            "Fila": 26,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "3-725-1574",
+            "Tabla": "Docente-basico",
+            "Fila": 27,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 179148509,
+            "Tabla": "Docente-basico",
+            "Fila": 28,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "N-21-1269",
+            "Tabla": "Docente-basico",
+            "Fila": 29,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 148015076,
+            "Tabla": "Docente-basico",
+            "Fila": 30,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 9809098,
+            "Tabla": "Docente-basico",
+            "Fila": 31,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 655584,
+            "Tabla": "Docente-basico",
+            "Fila": 32,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 1035432905,
+            "Tabla": "Docente-basico",
+            "Fila": 33,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": 1017245233,
+            "Tabla": "Docente-basico",
+            "Fila": 34,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "AW172857",
+            "Tabla": "Docente-basico",
+            "Fila": 35,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "AR926336",
+            "Tabla": "Docente-basico",
+            "Fila": 36,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        },
+        {
+            "Usuario": "8-418-485",
+            "Tabla": "Docente-basico",
+            "Fila": 37,
+            "Error": "Se supero el limite de maestros creados para esta prueba."
+        }
+    ]
+}

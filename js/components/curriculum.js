@@ -9,24 +9,28 @@ Vue.component('curriculum',{
                         <div class="mt-5">
                             <div v-for="(item, index) in items" :key="index" class="period-content"> 
                                 <h6 class="period-title">
-                                    <span :style="getCardBorderStyle(item.period)">{{ item.period }}</span>
+                                    <span :style="getCardBorderStyle(item.period, index)">{{ item.period }}</span>
                                 </h6>
                                 
                                 <div class="course-content">
                                     <v-card
-                                      v-for="(course, index) in item.courses"
+                                      v-for="course in item.courses"
                                       :key="course.id"
                                       class="my-3 v-card-border-w rounded-lg position-relative"
                                       max-width="100%"
                                       :width="windowSize.x > 992 ? '300' : '100%'"
                                       height="115"
                                       outlined
-                                      :style="getCardBorderStyle(item.period)"
+                                      :style="getCardBorderStyle(item.period, index)"
                                       style="background: var(--v-background-base) !important"
-                                      :href="'/course/view.php?id=' + course.courseId"
+                                      
                                     >
                                         <v-card-title>
-                                            <div class="text-body-2">{{ course.coursefullname }}</div>
+                                            <div class="text-body-2">
+                                                <a class="text-dark" :href="'/course/view.php?id=' + course.courseId">
+                                                    {{ course.coursefullname }}
+                                                </a>
+                                            </div>
                             
                                             <v-spacer></v-spacer>
                             
@@ -71,14 +75,14 @@ Vue.component('curriculum',{
                                         
                                         <v-card-subtitle class="pb-3"> {{ course.courseshortname }}</v-card-subtitle>
                                         
-                                        <v-card-actions :style="getCardActionsStyle(item.period)" style="bottom: 0px; position: absolute; width: 100%;">
+                                        <v-card-actions :style="getCardActionsStyle(item.period, index)" style="bottom: 0px; position: absolute; width: 100%;">
                                             <span>Créditos: <b>{{ course.credits }}</b></span>
                                             
                                             <v-spacer></v-spacer>
                                             
                                             <div class="d-flex">
                                                 <b>{{ lang.hours }}:</b>
-                                                <div class="d-flex ml-1 px-2 rounded-pill" :style="getCardBorderStyle(item.period)" style="border-width: 0.5px; border-style: solid;">
+                                                <div class="d-flex ml-1 px-2 rounded-pill" :style="getCardBorderStyle(item.period, index)" style="border-width: 0.5px; border-style: solid;">
                                                     <span class="mr-1">T: {{course.teoricalHours}}</span>
                                                     <span>P: {{course.practicalHours}}</span>
                                                 </div>
@@ -189,7 +193,7 @@ Vue.component('curriculum',{
          * const borderStyle = getCardBorderStyle("I CUATRIMESTRE");
          * // Example result: { borderColor: "#214745" }
          */
-        getCardBorderStyle(period) {
+        getCardBorderStyle(period, index) {
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
 
             const themeColors = {
@@ -208,15 +212,15 @@ Vue.component('curriculum',{
             };
             
             // Determine the border color based on the specified period and theme.
-            if (period === "I CUATRIMESTRE") {
+            if (index === 0) {
                 return {
                     borderColor: themeColors[theme].curriculumBorderCard1,
                 };
-            } else if (period === "II CUATRIMESTRE") {
+            } else if (index === 1) {
                 return { borderColor: themeColors[theme].curriculumBorderCard2 };
-            } else if (period === "III CUATRIMESTRE") {
+            } else if (index === 2) {
                 return { borderColor: themeColors[theme].curriculumBorderCard3 };
-            } else if (period === "IV CUATRIMESTRE") {
+            } else if (index === 3) {
                 return { borderColor: themeColors[theme].curriculumBorderCard4 };
             }
             
@@ -238,7 +242,7 @@ Vue.component('curriculum',{
          * const borderStyle = getCardBorderStyle("I CUATRIMESTRE");
          * // Example result: { borderColor: "#214745" }
          */
-        getCardActionsStyle(period) {
+        getCardActionsStyle(period, index) {
             // Determine the current theme (light or dark) using Vuetify's theme.
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
             
@@ -273,22 +277,22 @@ Vue.component('curriculum',{
             };
             
             // Determine the border color based on the specified period.
-            if (period === "I CUATRIMESTRE") {
+            if (index === 0) {
                 return {
                     background: themeColors[theme].curriculumBgCard1,
                     color: themeColors[theme].curriculumTextCard1,
                 };
-            } else if (period === "II CUATRIMESTRE") {
+            } else if (index === 1) {
                 return {
                     background: themeColors[theme].curriculumBgCard2,
                     color: themeColors[theme].curriculumTextCard2,
                 };
-            } else if (period === "III CUATRIMESTRE") {
+            } else if (index === 2) {
                 return {
                     background: themeColors[theme].curriculumBgCard3,
                     color: themeColors[theme].curriculumTextCard3,
                 };
-            } else if (period === "IV CUATRIMESTRE") {
+            } else if (index === 3) {
                 return {
                     background: themeColors[theme].curriculumBgCard4,
                     color: themeColors[theme].curriculumTextCard4,
@@ -313,28 +317,28 @@ Vue.component('curriculum',{
          * const cardColor = getColor("I CUATRIMESTRE");
          * // Example result: "#b0d4cd"
          */
-        getColor(period) {
+        getColor(period, index) {
             // Check if the current theme is dark or light using Vuetify's theme.
             if (this.$vuetify.theme.dark) {
                 // Dark theme colors based on the specified period.
-                if (period === "I CUATRIMESTRE") {
+                if (index === 0) {
                     return "#b0d4cd";
-                } else if (period === "II CUATRIMESTRE") {
+                } else if (index === 1) {
                     return "#ecc1d8";
-                } else if (period === "III CUATRIMESTRE") {
+                } else if (index === 2) {
                     return "#d2c6f7";
-                } else if (period === "IV CUATRIMESTRE") {
+                } else if (index === 3) {
                     return "#acd2e8";
                 }
             } else {
                 // Light theme colors based on the specified period.
-                if (period === "I CUATRIMESTRE") {
+                if (index === 0) {
                     return "#2ca58d";
-                } else if (period === "II CUATRIMESTRE") {
+                } else if (index === 1) {
                     return "#eb408d";
-                } else if (period === "III CUATRIMESTRE") {
+                } else if (index === 2) {
                     return "#5e35b1";
-                } else if (period === "IV CUATRIMESTRE") {
+                } else if (index === 3) {
                     return "#0077ba";
                 }
             }

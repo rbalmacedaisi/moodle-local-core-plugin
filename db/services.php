@@ -541,4 +541,13 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_logo_theme' => array(
+        'classname' => 'local_grupomakro_core\external\themeSettings\get_logo_theme',
+        'methodname' => 'execute',
+        'description' => 'Get the theme settings and logo',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

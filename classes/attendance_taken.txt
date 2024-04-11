@@ -4,19 +4,19 @@
     "action": "taken",
     "target": "attendance",
     "objecttable": "attendance_log",
-    "objectid": "118",
+    "objectid": "205",
     "crud": "u",
     "edulevel": 1,
-    "contextid": 3560,
+    "contextid": 4418,
     "contextlevel": 70,
-    "contextinstanceid": "3192",
+    "contextinstanceid": "3955",
     "userid": "3",
     "courseid": "53",
     "relateduserid": null,
     "anonymous": 0,
     "other": {
-        "sessionid": 1224,
-        "grouptype": 216
+        "sessionid": 2011,
+        "grouptype": 255
     },
-    "timecreated": 1706718992
+    "timecreated": 1712193422
 }

@@ -134,6 +134,7 @@ class get_learning_plan_pensum extends external_api {
             $query .= "
                 WHERE lpc.learningplanid = :learningplanid
                 GROUP BY c.id
+                ORDER BY lpc.position ASC
             ";
             
             $learningPlanPensum = $DB->get_records_sql($query, ['learningplanid' => $params['learningPlanId']]);

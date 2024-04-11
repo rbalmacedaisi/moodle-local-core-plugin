@@ -96,6 +96,7 @@ class get_student_course_pensum_activities extends external_api {
                     continue;
                 }
                 $classSectionNumber = $coursemod->get_section_info_by_id($groupClassSection)->__get('section');
+
                 foreach($coursemod->get_sections()[$classSectionNumber] as $sectionModule){
                     $module = $coursemod->get_cm($sectionModule);
                     $moduleRecord= $module->get_course_module_record(true);
