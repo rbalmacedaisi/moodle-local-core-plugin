@@ -826,7 +826,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         }
 
         // Grupomakro_core savepoint reached.
-        upgrade_plugin_savepoint(true, 20240102000, 'local', 'grupomakro_core');
+        upgrade_plugin_savepoint(true, 20240116000, 'local', 'grupomakro_core');
     }
     
     if ($oldversion < 20240116001) {
@@ -841,7 +841,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         }
 
         // Grupomakro_core savepoint reached.
-        upgrade_plugin_savepoint(true, 20240102001, 'local', 'grupomakro_core');
+        upgrade_plugin_savepoint(true, 20240116001, 'local', 'grupomakro_core');
     }
     
     if ($oldversion < 20240122000) {
