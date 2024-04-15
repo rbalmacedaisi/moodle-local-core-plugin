@@ -2709,7 +2709,15 @@ function student_get_active_classes($userId,$courseId = null){
         // print_object($neededCourses);
         foreach($neededCourses as $neededCourse){
             $classFilter = ['corecourseid'=>$neededCourse->courseid, 'approved'=>'0', 'closed'=>'0'];
-            $neededCourse->tc ==='0' ? $classFilter['learningplanid']=$userLearningPlan->learningplanid :null; 
+            
+            $courseCustomFields = $courseCustomFieldhandler->get_instance_data($neededCourse->courseid);
+            $tc='0';
+            foreach($courseCustomFields as $customField){
+                if($customField->get_field()->get('shortname')==='tc'){
+                    $tc=$customField->get_value();
+                }
+            }   
+            $tc === 0 ? $classFilter['learningplanid']=$userLearningPlan->learningplanid :null; 
             $courseActiveClasses = list_classes($classFilter);
             
             foreach($courseActiveClasses as $courseActiveClass){
