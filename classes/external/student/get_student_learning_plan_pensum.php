@@ -117,8 +117,8 @@ class get_student_learning_plan_pensum extends external_api {
                 $course = get_course($userPensumCourse->courseid);
                 $userPensumCourse->coursename = $course->fullname;
                 $userPensumCourse->periodname = $periodName->name;
-                $userPensumCourse->statusLabel = $userPensumCourse->status==1?self::get_status_label(2):self::get_status_label($userPensumCourse->status);
-                $userPensumCourse->statusColor = $userPensumCourse->status==1?self::get_status_color(2):self::get_status_color($userPensumCourse->status);
+                $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status];
+                $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status];
                 $userPensumCourse->prerequisites = json_decode($userPensumCourse->prerequisites);
                 foreach($userPensumCourse->prerequisites as $prerequisite){
                     $completion = new \completion_info(get_course($prerequisite->id));
@@ -156,14 +156,6 @@ class get_student_learning_plan_pensum extends external_api {
                 'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
             )
         );
-    }
-    
-    public function get_status_label($status){
-        return self::STATUS_LABEL[$status];
-    }
-    
-    public function get_status_color($status){
-        return self::STATUS_COLOR[$status];
     }
 
 }

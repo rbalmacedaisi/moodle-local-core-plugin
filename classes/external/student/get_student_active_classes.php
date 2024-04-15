@@ -69,7 +69,7 @@ class get_student_active_classes extends external_api {
     public static function execute(
         string $id
         ) {
-        
+        global $USER;
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'id' => $id,
@@ -77,7 +77,6 @@ class get_student_active_classes extends external_api {
         
         try{
             $activeClasses = student_get_active_classes($params['id']);
-            
             $activeClasses = array_map(function ($course){
                 $course['schedules'] = array_values($course['schedules']);
                 return $course;

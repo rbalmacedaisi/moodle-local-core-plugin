@@ -2676,29 +2676,94 @@ function get_classrooms(){
 
 function student_get_active_classes($userId,$courseId = null){
     global $DB;
+    $courseCustomFieldhandler = core_course\customfield\course_handler::create();
     
     $userLearningPlans = $DB->get_records('local_learning_users', array('userid'=>$userId));
     $activeClasses = array();
     
     foreach($userLearningPlans as $userLearningPlan){
-        $classFilter = ['learningplanid'=>$userLearningPlan->learningplanid];
-        $courseId ? $classFilter['corecourseid']=$courseId :null; 
-        $learningPlanActiveClasses = list_classes($classFilter);
-        foreach($learningPlanActiveClasses as $learningPlanActiveClass){
-            $activeSchedule = construct_active_schedule_object($learningPlanActiveClass,$userId);
-            $activeSchedule->learningPlanId = $userLearningPlan->learningplanid;
-            if(!array_key_exists($learningPlanActiveClass->course->id,$activeClasses)){
-                $activeClasses[$learningPlanActiveClass->course->id]["id"] = $learningPlanActiveClass->course->id;
-                $activeClasses[$learningPlanActiveClass->course->id]["name"] = $learningPlanActiveClass->course->fullname;
-                $activeClasses[$learningPlanActiveClass->course->id]["schedules"] = [$activeSchedule->classId =>$activeSchedule ];
-                $activeClasses[$learningPlanActiveClass->course->id]["selected"]?  null :$activeClasses[$learningPlanActiveClass->course->id]["selected"]=$activeSchedule->selected;
-                continue;
+        $courseFilter = ['learningplanid'=>$userLearningPlan->learningplanid];
+        $courseId?$courseFilter['courseid']=$courseId:null;
+        
+        $learningPlanUserCourses = $DB->get_records('gmk_course_progre',$courseFilter);
+        $learningPlanUserCoursesIndexed = [];
+        foreach ($learningPlanUserCourses as $learningPlanUserCourse) {
+            // Use the course ID as the index for the new array
+            $learningPlanUserCourse->prerequisites = json_decode($learningPlanUserCourse->prerequisites);
+            $learningPlanUserCoursesIndexed[$learningPlanUserCourse->courseid] = $learningPlanUserCourse;
+        }
+        $learningPlanUserCourses=$learningPlanUserCoursesIndexed;
+        
+        // Initialize an array to store failed prerequisites
+        $neededCourses  = [];
+
+        // Iterate over each course in the learning plan
+        foreach ($learningPlanUserCourses as $courseId => $course) {
+            // Check if the course belongs to the current period
+            if ($course->periodid != $userLearningPlan->currentperiodid) {
+                continue;   
             }
-            $activeClasses[$learningPlanActiveClass->course->id]["schedules"][$activeSchedule->classId]= $activeSchedule;
-            $activeClasses[$learningPlanActiveClass->course->id]["selected"]?  null :$activeClasses[$learningPlanActiveClass->course->id]["selected"]=$activeSchedule->selected;
+            // Check the status of prerequisites
+            $neededCourses = $neededCourses+checkPrerequisites($course, $learningPlanUserCourses);
+        }
+        // print_object($neededCourses);
+        foreach($neededCourses as $neededCourse){
+            $classFilter = ['corecourseid'=>$neededCourse->courseid, 'approved'=>'0', 'closed'=>'0'];
+            $neededCourse->tc ==='0' ? $classFilter['learningplanid']=$userLearningPlan->learningplanid :null; 
+            $courseActiveClasses = list_classes($classFilter);
+            
+            foreach($courseActiveClasses as $courseActiveClass){
+                
+                $activeSchedule = construct_active_schedule_object($courseActiveClass,$userId);
+                if(!array_key_exists($neededCourse->courseid,$activeClasses)){
+                    $activeClasses[$neededCourse->courseid]["id"] = $neededCourse->courseid;
+                    $activeClasses[$neededCourse->courseid]["name"] = $courseActiveClass->course->fullname;
+                    $activeClasses[$neededCourse->courseid]["schedules"] = [$activeSchedule->classId =>$activeSchedule ];
+                    $activeClasses[$neededCourse->courseid]["selected"]?  null :$activeClasses[$neededCourse->courseid]["selected"]=$activeSchedule->selected;
+                    continue;
+                }
+                $activeClasses[$neededCourse->courseid]["schedules"][$activeSchedule->classId]= $activeSchedule;
+                $activeClasses[$neededCourse->courseid]["selected"]?  null :$activeClasses[$neededCourse->courseid]["selected"]=$activeSchedule->selected;
+            }
         }
     }
     return $activeClasses;
+}
+
+function checkPrerequisites($course, $learningPlanUserCourses) {
+    
+    $neededCourses = [];
+    $failedPrerequisites = [];
+    
+    foreach ($course->prerequisites as $prerequisite) {
+       
+        $prerequisiteCourseId = $prerequisite->id;
+        if (!isset($learningPlanUserCourses[$prerequisiteCourseId])) {
+           continue;
+        }
+        
+        $prerequisiteCourse = $learningPlanUserCourses[$prerequisiteCourseId];
+            
+        if ($prerequisiteCourse->status == 4) {
+            continue;   
+        }
+        // Prerequisite not completed, recursively check its prerequisites
+        $nestedFailedPrerequisites = checkPrerequisites($prerequisiteCourse, $learningPlanUserCourses);
+        $failedPrerequisites = $failedPrerequisites + $nestedFailedPrerequisites;
+        
+        $courseInSamePeriod = true;
+        foreach($failedPrerequisites as $failedPrerequisite){
+            if($failedPrerequisite->periodid !== $course->periodid){
+                $courseInSamePeriod=false;
+            }
+        }
+        if($courseInSamePeriod){
+            $failedPrerequisites = $failedPrerequisites + [$course->courseid=>$course];
+        }
+        
+    }
+    $neededCourses = empty($failedPrerequisites)?[$course->courseid=>$course]:$failedPrerequisites;
+    return $neededCourses;
 }
 
 function construct_active_schedule_object($class,$userId){
