@@ -70,7 +70,6 @@ const handleClassSave = () => {
         if (!valid) {
             return;
         }
-        //
         // Check if the init time is less than the end time of the class
         if (initTimeInput.val() >= endTimeInput.val()) {
             endTimeInput.get(0).setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
