@@ -158,7 +158,7 @@ window.Vue.component('createclass',{
                         
                     <div class="d-flex card-footer bg-transparent mt-3 px-0">
                         <div class="spacer"></div>
-                        <v-btn @click="cancelCreation" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
+                        <v-btn @click="returnToClassManagement" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
                         <v-btn id="saveClassButton" :loading="savingClass" class="ma-2" small color="primary" @click="saveClass">{{lang.save}}</v-btn>
                     </div>
                 </div>
@@ -276,7 +276,7 @@ window.Vue.component('createclass',{
                     throw new Error(message);
                 }
                 this.savingClass = false
-                // this.returnToLastPage()
+                this.returnToClassManagement()
             }
             catch(error){
                 console.error(error)
@@ -317,7 +317,7 @@ window.Vue.component('createclass',{
         /**
          * Redirect to the specified URL when cancel action is triggered.
          */
-        cancelCreation(){
+        returnToClassManagement(){
             // Redirect the user to the '/local/grupomakro_core/pages/classmanagement.php' URL
             window.location = '/local/grupomakro_core/pages/classmanagement.php'
         },
