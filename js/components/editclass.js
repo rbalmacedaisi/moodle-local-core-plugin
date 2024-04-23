@@ -10,7 +10,7 @@ for (let day in classData.classDays) {
   classData.classDays[day]=classData.classDays[day]==="1"?true:false;
 }
 
-Vue.component('editclass',{
+window.Vue.component('editclass',{
     template: `
     <div class="container-fluid">
         <div class="row">
@@ -53,32 +53,32 @@ Vue.component('editclass',{
                         <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classType">{{ lang.class_type }}</label>
                             <select v-model="classData.type" ref="classType" id="classType" class="form-control" required>
-                                <option value=''>{{ lang.class_type_placeholder }}</option>
-                                <option v-for="(item, index) in classTypes" :value="item.value">{{item.label}}</option> 
+                                <option :value="undefined">{{ lang.class_type_placeholder }}</option>
+                                <option v-for="classType in classTypes" :value="classType.value">{{classType.label}}</option> 
                             </select>
                         </div>
                             
                         <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classLearningPlan">{{ lang.class_learning_plan }}</label>
                             <select v-model="classData.learningPlanId" ref="classLearningPlan" id="classLearningPlan" class="form-control" required @change="handleLearningPlanChange">
-                                <option value=''>{{ lang.class_learningplan_placeholder }}</option>
-                                <option v-for="(item, index) in learningPlans" :value="item.value">{{item.label}}</option>
+                                <option :value="undefined">{{ lang.class_learningplan_placeholder }}</option>
+                                <option v-for="learningPlan in learningPlans" :value="learningPlan.value">{{learningPlan.label}}</option>
                             </select>
                         </div>
                             
                         <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classPeriod">{{ lang.class_period }}</label>
                             <select v-model="classData.periodId" ref="classPeriod" id="classPeriod" class="form-control" required @change="handleLearningPlanPeriodChange">
-                               <option value=''>{{ lang.class_period_placeholder }}</option>
-                               <option v-for="(item, index) in periods" :value="item.value">{{item.label}}</option>
+                               <option :value="undefined">{{ lang.class_period_placeholder }}</option>
+                               <option v-for="period in periods" :value="period.value">{{period.label}}</option>
                             </select>
                         </div>
                             
                         <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="classCourse">{{ lang.class_course }}</label>
                             <select v-model="classData.courseId" ref="classCourse" id="classCourse" class="form-control" required @change="getPotentialTeachers">
-                                <option value=''>{{ lang.class_course_placeholder }}</option>
-                                <option v-for="(item, index) in courses" :value="item.value">{{item.label}}</option>
+                                <option :value="undefined">{{ lang.class_course_placeholder }}</option>
+                                <option v-for="course in courses" :value="course.value">{{course.label}}</option>
                             </select>
                         </div>
                         
@@ -103,88 +103,88 @@ Vue.component('editclass',{
                             </div>
                         
                             <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
-                                    <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
-                                </div>
-                                
-                                <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
-                                    <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
-                                    <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
-                                    <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
-                                    <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
-                                    <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
-                                    <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
-                                </div>
+                                <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
+                                <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
+                            </div>
+                            
+                            <div class="custom-control custom-switch col-6 col-sm-4">
+                                <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
+                                <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
+                                <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
+                                <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4">
+                                <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
+                                <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
+                                <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
+                                <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4">
+                                <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
+                                <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
+                            </div>
+                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
+                                <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
+                                <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
                             </div>
                         </div>
+                    </div>
                         
                         
                             
-                        <div v-if="!reschedulingActivity">
-                            <v-divider></v-divider>
-                            <div class="d-flex px-3 mt-6">
-                                <h6>{{lang.class_available_instructors}}</h6>
-                                <v-spacer></v-spacer>
-                                <v-btn
-                                  text
-                                  color="primary"
-                                  small
-                                  class="text-decoration-underline text-capitalize"
-                                  href="/local/grupomakro_core/pages/availabilitypanel.php"
-                                  target="blank"
-                                >
-                                  {{lang.see_availability}}
-                                </v-btn>
-                            </div>
-                            <input  ref="hiddenTeacherInput" style="visibility:hidden;">
-                            <v-list dense two-line>
-                                <v-list-item-group v-model="classData.teacherIndex">
-                                    <template v-for="(item, index) in teachers">
-                                        <v-list-item color="success">
-                                            <template v-slot:default="{ active }">
-                                                <v-list-item-icon>
-                                                    <v-icon>mdi-school</v-icon>
-                                                </v-list-item-icon>
-                                                <v-list-item-content>
-                                                    <v-list-item-title>{{ item.fullname }} <span v-if="item.id === classTeacherId">(Actual)</span></v-list-item-title>
-                                                    <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
-                                                </v-list-item-content>
-                                        
-                                                <v-list-item-action>
-                                                    <v-checkbox
-                                                      :input-value="active"
-                                                      color="success"
-                                                      
-                                                    ></v-checkbox>
-                                                </v-list-item-action>
-                                            </template>
-                                        </v-list-item>
-                                    </template>
-                                </v-list-item-group>
-                            </v-list>
+                    <div v-if="!reschedulingActivity">
+                        <v-divider></v-divider>
+                        <div class="d-flex px-3 mt-6">
+                            <h6>{{lang.class_available_instructors}}</h6>
+                            <v-spacer></v-spacer>
+                            <v-btn
+                              text
+                              color="primary"
+                              small
+                              class="text-decoration-underline text-capitalize"
+                              href="/local/grupomakro_core/pages/availabilitypanel.php"
+                              target="blank"
+                            >
+                              {{lang.see_availability}}
+                            </v-btn>
                         </div>
+                        <input  ref="hiddenTeacherInput" style="visibility:hidden;">
+                        <v-list dense two-line>
+                            <v-list-item-group v-model="classData.teacherIndex">
+                                <template v-for="(item, index) in teachers">
+                                    <v-list-item color="success">
+                                        <template v-slot:default="{ active }">
+                                            <v-list-item-icon>
+                                                <v-icon>mdi-school</v-icon>
+                                            </v-list-item-icon>
+                                            <v-list-item-content>
+                                                <v-list-item-title>{{ item.fullname }} <span v-if="item.id === classTeacherId">(Actual)</span></v-list-item-title>
+                                                <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
+                                            </v-list-item-content>
+                                    
+                                            <v-list-item-action>
+                                                <v-checkbox
+                                                  :input-value="active"
+                                                  color="success"
+                                                  
+                                                ></v-checkbox>
+                                            </v-list-item-action>
+                                        </template>
+                                    </v-list-item>
+                                </template>
+                            </v-list-item-group>
+                        </v-list>
+                    </div>
                     
-                        <div class="d-flex card-footer bg-transparent px-0">
-                            <div class="spacer"></div>
-                            <v-btn @click="returnToLastPage" :disabled="savingClass || checkingRescheduling" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
-                            <v-btn @click="handleActionButtonClick" :loading="savingClass || checkingRescheduling" id="saveClassButton" class="ma-2" small color="primary">{{buttonLabel}}</v-btn>
-                        </div>
+                    <div class="d-flex card-footer bg-transparent px-0">
+                        <div class="spacer"></div>
+                        <v-btn @click="returnToLastPage" :disabled="savingClass || checkingRescheduling" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
+                        <v-btn @click="handleActionButtonClick" :loading="savingClass || checkingRescheduling" id="saveClassButton" class="ma-2" small color="primary">{{buttonLabel}}</v-btn>
+                    </div>
                     
                 </div>
             </div>
@@ -552,19 +552,19 @@ Vue.component('editclass',{
             }
         },
         saveClassParameters(){
-            const classData=this.classData
+            const {id,name,type,learningPlanId,periodId,courseId,initTime,endTime}=this.classData
             return {
                 ...wsDefaultParams,
                 wsfunction:'local_grupomakro_update_class',
-                classId: classData.id,
-                name: classData.name,
-                type: classData.type,
-                learningPlanId: classData.learningPlanId,
-                periodId: classData.periodId,
-                courseId: classData.courseId,
+                classId: id,
+                name,
+                type,
+                learningPlanId,
+                periodId,
+                courseId,
                 instructorId: this.selectedClassTeacher.id,
-                initTime: classData.initTime,
-                endTime: classData.endTime,
+                initTime,
+                endTime,
                 classDays: this.classDaysString,
             }
         },
@@ -603,7 +603,6 @@ Vue.component('editclass',{
             if (!newVal){
                 this.periods = [];
                 this.classData.teacherIndex = undefined;
-                console.log('cambio de lea')
                 this.teachers = [];
             }
             this.classData.periodId = ""

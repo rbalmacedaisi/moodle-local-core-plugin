@@ -1,4 +1,11 @@
-Vue.component('createclass',{
+const templateData = window.templatedata;
+const wsurl = window.location.origin + '/webservice/rest/server.php';
+const wstoken = window.userToken;
+const wsDefaultParams = {
+    wstoken,
+    moodlewsrestformat:'json'
+}
+window.Vue.component('createclass',{
     template: `
     <div class="container-fluid">   
         <div class="row">
@@ -10,45 +17,47 @@ Vue.component('createclass',{
                                 <h6>{{lang.class_general_data}}</h6>
                             </div>
                             <div id="classname-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="classname">{{lang.class_name}}</label>
-                                <input type="text" class="form-control" id="classname" required :placeholder="lang.class_name_placeholder">
+                                <label class="w-100" for="className">{{lang.class_name}}</label>
+                                <input v-model="classData.name" ref="className" type="text" class="form-control" id="className" required :placeholder="lang.class_name_placeholder">
                             </div>
                             
                             <div id="classtype-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="classtype">{{lang.class_type}}</label>
-                                <select name="classtype" id="classtype" class="form-control" required>
-                                    <option value=''>{{lang.class_type_placeholder}}</option>
-                                    <option v-for="(item, index) in classTypes" :value="item.value">{{item.label}}</option>
+                                <label class="w-100" for="classType">{{lang.class_type}}</label>
+                                <select v-model="classData.type" ref="classType" id="classType" class="form-control" required>
+                                    <option :value="undefined">{{lang.class_type_placeholder}}</option>
+                                    <option v-for="classType in templateData.classTypes" :value="classType.value">{{classType.label}}</option>
                                 </select>
                             </div>
                             
-                            <div id="classroom-fieldset" class="col-sm-12 col-md-6 py-2 d-none">
-                                <label class="w-100" for="classroom">{{lang.class_room}}</label>
-                                <select name="classroom" id="classroom" class="form-control" required>
-                                    <option value=''>{{lang.class_room_placeholder}}</option>
-                                    <option v-for="(item, index) in classrooms" :value="item.value">{{item.label}}</option>
+                            <div id="classroom-fieldset" class="col-sm-12 col-md-6 py-2" v-show="showClassRoomSelector">
+                                <label class="w-100" for="classRoom">{{lang.class_room}}</label>
+                                <select  v-model="classData.classRoomIndex" ref="classRoom" id="classRoom" class="form-control" :required="showClassRoomSelector">
+                                    <option :value="undefined">{{lang.class_room_placeholder}}</option>
+                                    <option v-for="(classRoom,index) in templateData.classRooms" :value="index">{{classRoom.label}}</option>
                                 </select>
                             </div>
                             
                             <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="career">{{lang.class_learning_plan}}</label>
-                                <select name="career" id="career" class="form-control" required @change="getTeachers">
-                                    <option value=''>{{lang.class_learningplan_placeholder}}</option>
-                                    <option v-for="(item, index) in availableCareers" :value="item.value">{{item.label}}</option>
+                                <label class="w-100" for="classLearningPlan">{{lang.class_learning_plan}}</label>
+                                <select v-model="classData.learningPlanId" ref="classLearningPlan" id="classLearningPlan" class="form-control" @change="handleLearningPlanChange" required>
+                                    <option :value="undefined">{{lang.class_learningplan_placeholder}}</option>
+                                    <option v-for="learningPlan in templateData.learningPlans" :value="learningPlan.value">{{learningPlan.label}}</option>
                                 </select>
                             </div>
                            
                             <div id="period-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="period">{{lang.class_period}}</label>
-                                <select name="period" id="period" class="form-control" required>
-                                   <option value=''>{{lang.class_period_placeholder}}</option>
+                                <label class="w-100" for="classPeriod">{{lang.class_period}}</label>
+                                <select v-model="classData.periodId" ref="classPeriod" id="classPeriod" class="form-control" required @change="handleLearningPlanPeriodChange">
+                                   <option :value="undefined">{{lang.class_period_placeholder}}</option>
+                                   <option v-for="period in periods" :value="period.value">{{period.label}}</option>
                                 </select>
                             </div>
                             
                             <div id="courses-fieldset" class="col-sm-12 col-md-6 py-2">
-                                <label class="w-100" for="courses">{{lang.class_course}}</label>
-                                <select name="courses" id="courses" class="form-control" required @change="getTeachers">
-                                   <option value=''>{{lang.class_course_placeholder}}</option>
+                                <label class="w-100" for="classCourse">{{lang.class_course}}</label>
+                                <select v-model="classData.courseId" ref="classCourse" name="courses" id="classCourse" class="form-control" required @change="getPotentialTeachers">
+                                    <option :value="undefined">{{lang.class_course_placeholder}}</option>
+                                    <option v-for="course in courses" :value="course.value">{{course.label}}</option>
                                 </select>
                             </div>
                             
@@ -58,13 +67,13 @@ Vue.component('createclass',{
                             </div>
                             
                             <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                                <label class="w-100" for="starttime">{{lang.class_start_time}}</label>
-                                <input type="time" class="form-control" id="starttime" required @change="getTeachers">
+                                <label class="w-100" for="classInitTime">{{lang.class_start_time}}</label>
+                                <input v-model="classData.initTime" ref="classInitTime" type="time" class="form-control" id="classInitTime" required @change="getPotentialTeachers">
                             </div>
                             
                             <div id="endtime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
-                                <label class="w-100" for="endtime">{{lang.class_end_time}}</label>
-                                <input type="time" class="form-control" id="endtime" required @change="getTeachers">
+                                <label class="w-100" for="classEndTime">{{lang.class_end_time}}</label>
+                                <input v-model="classData.endTime" ref="classEndTime" type="time" class="form-control" id="classEndTime" required @change="getPotentialTeachers">
                             </div>
                           
                             <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
@@ -73,32 +82,32 @@ Vue.component('createclass',{
                                 </div>
                             
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchMonday" v-model="mondayChecked">
+                                    <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
                                     <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
                                 </div>
                                 
                                 <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchTuesday" v-model="tuesdayChecked">
+                                    <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
                                     <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
                                 </div>
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchWednesday" v-model="wednesdayChecked">
+                                    <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
                                     <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
                                 </div>
                                 <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchThursday" v-model="thursdayChecked">
+                                    <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
                                     <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
                                 </div>
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchFriday" v-model="fridayChecked">
+                                    <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
                                     <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
                                 </div>
                                 <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchSaturday" v-model="saturdayChecked">
+                                    <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
                                     <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
                                 </div>
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input type="checkbox" class="custom-control-input" id="customSwitchSunday" v-model="sundayChecked">
+                                    <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
                                     <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
                                 </div>
                             </div>
@@ -120,25 +129,24 @@ Vue.component('createclass',{
                               {{lang.see_availability}}
                             </v-btn>
                         </div>
-                        
+                        <input  ref="hiddenTeacherInput" style="visibility:hidden;">
                         <v-list dense two-line>
-                            <v-list-item-group v-model="settings">
-                                <template v-for="(item, index) in instructors">
+                            <v-list-item-group v-model="classData.teacherIndex">
+                                <template v-for="teacher in teachers">
                                     <v-list-item color="success">
                                         <template v-slot:default="{ active }">
                                             <v-list-item-icon>
                                                 <v-icon>mdi-school</v-icon>
                                             </v-list-item-icon>
                                             <v-list-item-content>
-                                                <v-list-item-title>{{ item.fullname }}</v-list-item-title>
-                                                <v-list-item-subtitle class="text-caption" v-text="item.email"></v-list-item-subtitle>
+                                                <v-list-item-title>{{ teacher.fullname }}</v-list-item-title>
+                                                <v-list-item-subtitle class="text-caption" v-text="teacher.email"></v-list-item-subtitle>
                                             </v-list-item-content>
                                     
                                             <v-list-item-action>
                                                 <v-checkbox
                                                   :input-value="active"
                                                   color="success"
-                                                  @change="selectedCheck(item)"
                                                 ></v-checkbox>
                                             </v-list-item-action>
                                         </template>
@@ -146,144 +154,244 @@ Vue.component('createclass',{
                                 </template>
                             </v-list-item-group>
                         </v-list>
-                        <input type="hidden" id="instructorId">
                     </form>
                         
                     <div class="d-flex card-footer bg-transparent mt-3 px-0">
                         <div class="spacer"></div>
-                        <v-btn @click="cancelUrl" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
-                        <v-btn id="saveClassButton" class="ma-2" small color="primary">{{lang.save}}</v-btn>
+                        <v-btn @click="cancelCreation" class="ma-2" small color="secondary">{{lang.cancel}}</v-btn>
+                        <v-btn id="saveClassButton" :loading="savingClass" class="ma-2" small color="primary" @click="saveClass">{{lang.save}}</v-btn>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="errorModalLabel">Error</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div id="error-modal-content" class="modal-body"></div>
-                    <div class="modal-footer">
-                        <v-btn small color="secondary" data-dismiss="modal">{{lang.close}}</v-btn>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <errormodal :show="showErrorDialog" :message="errorMessage" @close="closeErrorDialog"/>
     </div>
     `,
+    name:'create-class',
     data(){
         return{
-            settings: "",
-            dialog: false,
-            instructors: [],
-            paramsInstructors: {
-                lpId: '',
-                courseId: '',
-                initTime: null,
-                endTime: null,
+            classData:{
+                name: undefined,
+                type: undefined,
+                classRoomIndex:undefined,
+                learningPlanId:undefined,
+                periodId:undefined, 
+                courseId:undefined, 
+                teacherIndex:undefined,
+                initTime:undefined,
+                endTime:undefined, 
+                classDays:{
+                    monday:false,
+                    tuesday:false,
+                    wednesday:false,
+                    thursday:false,
+                    friday:false,
+                    saturday:false,
+                    sunday:false
+                }
             },
-            mondayChecked: false,
-            tuesdayChecked: false,
-            wednesdayChecked: false,
-            thursdayChecked: false,
-            fridayChecked: false,
-            saturdayChecked: false,
-            sundayChecked: false,
+            periods:[],
+            courses:[],
+            teachers:[],
+            savingClass:false,
+            showErrorDialog:false,
+            errorMessage:undefined,
+            templateData
         }
     },
     methods:{
+        async handleLearningPlanChange(){
+            const learningPlanId = this.classData.learningPlanId
+            if (!learningPlanId) {
+                return;
+            }
+            try{
+                
+                let {data} =await window.axios.get(wsurl, { params:this.getLearningPlanPeriodsParameters })
+                let {periods} = data
+                periods = JSON.parse(periods)
+                this.periods=periods.map(period=>({label:period.name,value:period.id}))
+                if (!learningPlanId){
+                    this.periods = [];
+                    this.classData.teacherIndex = undefined;
+                    this.teachers = [];
+                }
+                this.classData.periodId = undefined
+                this.classData.courseId = undefined
+                this.courses = [];
+                this.getPotentialTeachers()
+            }
+            catch(error){
+                console.error(error)
+            }
+        },
+        async handleLearningPlanPeriodChange(){
+            if (!this.classData.periodId) {
+                this.getPotentialTeachers()
+                return;
+            }
+            try{
+                let {data} =await window.axios.get(wsurl, { params:this.getLearningPlanPeriodCoursesParameters })
+                let {courses} = data
+                courses = JSON.parse(courses)
+                this.classData.courseId = undefined
+                this.courses=courses.map(course=>({label:course.name,value:course.id}))
+            }
+            catch(error){
+                console.error(error)
+            }
+        },
+        // Fetches a list of teachers based on specified parameters.
+        async getPotentialTeachers(){
+            if(!this.classData.learningPlanId){
+                return;
+            }
+            const selectedTeacherId = this.selectedClassTeacher?.id
+            try{
+                let {data} =await window.axios.get(wsurl, { params:this.getPotentialTeachersParameters })
+                let {teachers} = data;
+                teachers = JSON.parse(teachers)
+                this.teachers = teachers.map(teacher=>({email:teacher.email,fullname:teacher.fullname,id:teacher.id}))
+                this.classData.teacherIndex = selectedTeacherId? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
+            }
+            catch(error){
+                console.error(error)
+            }
+        },
+        async saveClass(){
+            
+            if(!this.validateClassInputs()){
+                return;
+            }
+            this.savingClass = true;
+            
+            try{
+                let {data} =await window.axios.get(wsurl, { params:this.saveClassParameters });
+                let {status, message,exception} = data;
+                if(status === -1){
+                    throw new Error(JSON.parse(message).join('\n'));
+                }
+                else if(exception){
+                    throw new Error(message);
+                }
+                this.savingClass = false
+                // this.returnToLastPage()
+            }
+            catch(error){
+                console.error(error)
+                this.errorMessage = error.message;
+                this.showErrorDialog = true;
+                this.savingClass = false;
+            }
+        },
+        validateClassInputs(){
+            this.$refs.classEndTime.setCustomValidity('');
+            const valid = this.classInputs.every(input => {
+                return input.reportValidity();
+            });
+            if(!valid){
+                return false
+            }
+            if(!this.validTimeRange){
+                this.$refs.classEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
+                this.$refs.classEndTime.reportValidity();
+                return false
+            }
+            if(this.classDaysString === '0/0/0/0/0/0/0'){
+                this.$refs.switchMonday.setCustomValidity('Se debe seleccionar al menos un día de clase.')
+                this.$refs.switchMonday.reportValidity();
+                return false
+            }
+            if(!this.selectedClassTeacher){
+                this.$refs.hiddenTeacherInput.setCustomValidity('Se debe seleccionar un instructor.')
+                this.$refs.hiddenTeacherInput.reportValidity();
+                return false
+            }
+            return true
+        },
+        closeErrorDialog(){
+            this.errorMessage = undefined;
+            this.showErrorDialog=false;
+        },
         /**
          * Redirect to the specified URL when cancel action is triggered.
          */
-        cancelUrl(){
+        cancelCreation(){
             // Redirect the user to the '/local/grupomakro_core/pages/classmanagement.php' URL
             window.location = '/local/grupomakro_core/pages/classmanagement.php'
         },
-        /**
-         * Toggle the selection of an item and update an input field.
-         *
-         * @param {Object} item - The item to select or deselect.
-         */
-        selectedCheck(item){
-            // Toggle the selected state of the item
-            item.selected = !item.selected;
-            
-            // Get the DOM element with the ID 'instructorId'
-            const instructorId = document.getElementById('instructorId')
-            
-            // Check if the item is selected
-            if(item.selected){
-                // If selected, set the item's ID value to 'instructorId'.
-                instructorId.value = item.id
-            }else{
-                // If not selected, clear the value of 'instructorId'.
-                instructorId.value = ''
-            }
-            console.log(instructorId.value)
-        },
-        // Fetches a list of teachers based on specified parameters.
-        getTeachers(){
-            // Get the base URL for the API request.
-            const url = this.siteUrl;
-            
-            // Get references to various form elements.
-            const careerSelector = document.getElementById("career")
-            const courseId = document.getElementById("courses")
-            const timeInput = document.getElementById("starttime");
-            const endTime = document.getElementById("endtime");
-            
-            // Update parameters with values from form elements.
-            this.paramsInstructors.lpId = careerSelector.value
-            this.paramsInstructors.courseId = courses.value
-            this.paramsInstructors.initTime = timeInput.value
-            this.paramsInstructors.endTime = endTime.value
-            
-            // Create an object to hold the API request parameters.
-            const params = {
-                learningPlanId: this.paramsInstructors.lpId,
-            }
-           
-           // Check if additional parameters should be added.
-            if(this.paramsInstructors.courseId){
-                params.courseId = this.paramsInstructors.courseId
-            }
-            if(this.paramsInstructors.initTime){
-                params.initTime = this.paramsInstructors.initTime
-            }
-            if(this.paramsInstructors.endTime){
-                params.endTime = this.paramsInstructors.endTime
-            }
-            if (this.dayString) {
-                params.classDays = this.dayString;
-            }
-            
-            // Set required parameters for the API call
-            params.wstoken = this.token
-            params.moodlewsrestformat = 'json'
-            params.wsfunction = 'local_grupomakro_get_potential_class_teachers'
-            
-            // Perform a GET request to the specified URL, passing the parameters as query options.
-            window.axios.get(url, { params })
-                .then(response => {
-                    // Parse the data returned from the API from JSON string format to object format.
-                    const data = JSON.parse(response.data.teachers)
-                    
-                    // Update the 'instructors' data property with the fetched data.
-                    this.instructors = data
-                    console.log(this.instructors)
-                })
-                // If the request fails, log an error to the console.
-                .catch(error => {
-                    console.error(error);
-            }); 
-        }
     },
     computed:{
+        classInputs(){
+            return [
+                this.$refs.className,
+                this.$refs.classType,
+                this.$refs.classRoom,
+                this.$refs.classLearningPlan,
+                this.$refs.classPeriod,
+                this.$refs.classCourse,
+                this.$refs.classInitTime,
+                this.$refs.classEndTime
+            ]  
+        },
+        getLearningPlanPeriodsParameters(){
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_sc_learningplans_get_learning_plan_periods',
+                learningPlanId: this.classData.learningPlanId
+            }
+        },
+        getLearningPlanPeriodCoursesParameters(){
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_sc_learningplans_get_learning_plan_courses',
+                learningPlanId: this.classData.learningPlanId,
+                periodId:this.classData.periodId
+            }
+        },
+        getPotentialTeachersParameters(){
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_grupomakro_get_potential_class_teachers',
+                courseId:this.classData.courseId,
+                initTime:this.classData.initTime,
+                endTime:this.classData.endTime,
+                classDays:this.classDaysString,
+                learningPlanId:this.classData.learningPlanId,
+                classId:this.classData.id,
+            }
+        },
+        selectedClassTeacher(){
+          return this.teachers[this.classData.teacherIndex]  
+        },
+        showClassRoomSelector(){
+            return this.classData.type === 0;
+        },
+        saveClassParameters(){
+            const {name,type,learningPlanId,periodId,courseId,initTime,endTime}=this.classData
+            return {
+                ...wsDefaultParams,
+                wsfunction:'local_grupomakro_create_class',
+                name,
+                type,
+                learningPlanId,
+                periodId,
+                courseId,
+                instructorId: this.selectedClassTeacher?.id,
+                initTime,
+                endTime,
+                classDays: this.classDaysString,
+                classroomId:this.selectedClassRoom?.value,
+                classroomCapacity:this.selectedClassRoom?.capacity
+            }
+        },
+        validTimeRange(){
+            return this.classData.initTime < this.classData.endTime
+        },
+        selectedClassRoom(){
+            return this.templateData.classRooms[this.classData.classRoomIndex]  
+        },
         /**
          * A computed property that returns language-related data from the 'window.strings' object.
          * It allows access to language strings for localization purposes.
@@ -294,62 +402,23 @@ Vue.component('createclass',{
             return window.strings;
         },
         /**
-         * Computed property that returns the value of the global 'classTypes'.
-         */
-        classTypes(){
-            return window.classTypes
-        },
-        /**
-         * Computed property that returns the value of the global 'classrooms'.
-         */
-        classrooms(){
-            return window.classrooms
-        },
-        /**
-         * Computed property that returns the value of the global 'classrooms'.
-         */
-        availableCareers(){
-            return window.availableCareers
-        },
-        /**
-         * A computed property that returns the site URL for making API requests.
-         * It combines the current origin with the API endpoint path.
-         *
-         * @returns '{string}' - The constructed site URL.
-         */
-        siteUrl(){
-            return window.location.origin + '/webservice/rest/server.php'
-        },
-        /**
-         * A computed property that returns the user token from the 'window.userToken' variable.
-         *
-         * @returns '{string}' - The user token.
-         */
-        token(){
-            return window.userToken;
-        },
-        /**
          * Computed property that generates a string representation of selected days.
          */
-        dayString() {
-            // Create an array of binary values for each day (1 if checked, 0 if not)
+        classDaysString() {
+            const classDays = this.classData.classDays
             const days = [
-                this.mondayChecked ? '1' : '0',
-                this.tuesdayChecked ? '1' : '0',
-                this.wednesdayChecked ? '1' : '0',
-                this.thursdayChecked ? '1' : '0',
-                this.fridayChecked ? '1' : '0',
-                this.saturdayChecked ? '1' : '0',
-                this.sundayChecked ? '1' : '0',
+                classDays.monday ? '1' : '0',
+                classDays.tuesday ? '1' : '0',
+                classDays.wednesday ? '1' : '0',
+                classDays.thursday ? '1' : '0',
+                classDays.friday ? '1' : '0',
+                classDays.saturday ? '1' : '0',
+                classDays.sunday ? '1' : '0',
             ];
-            // Join the binary values with '/' to form a formatted string
             return days.join('/');
         },
     },
     watch: {
-        /**
-         * Watch for changes in the 'dayString' property and call the 'getTeachers' method when it changes.
-         */
-        dayString: 'getTeachers',
+        classDaysString:'getPotentialTeachers',
     },
 })

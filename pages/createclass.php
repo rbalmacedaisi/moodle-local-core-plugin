@@ -55,8 +55,9 @@ $availableCareers =json_decode($activeLearningPlans['availablecareers']);
 foreach($availableCareers as $careerName => $careerInfo){
     array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName]);
 }
+
 // 
-$classrooms = get_classrooms();
+$classRooms = get_classrooms();
 
 $classTypes = [
     ['value'=>1, 'label'=>'Virtual'],
@@ -64,10 +65,7 @@ $classTypes = [
     ['value'=>2, 'label'=>'Mixta'],
     
 ];
-
-$classTypes = json_encode(array_values($classTypes));
-$classrooms = json_encode(array_values($classrooms));
-$formattedAvailableCareers = json_encode(array_values($formattedAvailableCareers));
+// $formattedAvailableCareers = json_encode(array_values($formattedAvailableCareers));
 
 $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
 $token = json_encode(external_generate_token_for_current_user($service)->token);
@@ -102,11 +100,18 @@ $strings->friday = get_string('friday', $plugin_name);
 $strings->saturday = get_string('saturday', $plugin_name);
 $strings->sunday = get_string('sunday', $plugin_name);
 
+$strings->accept = get_string('accept', $plugin_name);
 $strings->cancel = get_string('cancel', $plugin_name);
 $strings->save = get_string('save', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
 
 $strings = json_encode($strings);
+
+$templatedata = json_encode([
+    'learningPlans' => $formattedAvailableCareers,
+    'classTypes'=>$classTypes,
+    'classRooms'=>$classRooms
+    ]);
 
 echo $OUTPUT->header();
 
@@ -132,17 +137,16 @@ echo <<<EOT
    </style>
    
    <script>
-        var strings = $strings;
-        var classTypes = $classTypes
-        var classrooms = $classrooms
-        var availableCareers = $formattedAvailableCareers
+        var strings = $strings || {};
+        var templatedata = $templatedata || {};
         var userToken = $token;
   </script>
   
 EOT;
 
-$PAGE->requires->js_call_amd('local_grupomakro_core/create_class', 'init', ['classrooms'=>$classrooms]);
+// $PAGE->requires->js_call_amd('local_grupomakro_core/create_class', 'init', ['classrooms'=>$classrooms]);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/createclass.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/errormodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 
 echo $OUTPUT->footer();

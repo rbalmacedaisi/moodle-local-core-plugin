@@ -6,7 +6,7 @@ Vue.component('errormodal',{
                 <v-card-subtitle class="pt-1 d-flex justify-center text-center">{{ message }}</v-card-subtitle>
                 <v-card-actions>
                     <v-spacer></v-spacer>
-                    <v-btn color="primary" text @click="$emit('close')">{{ lang.accept }}</v-btn>
+                    <v-btn color="primary" @click="$emit('close')">{{ lang.accept }}</v-btn>
                     <v-spacer></v-spacer>
                 </v-card-actions>
             </v-card>

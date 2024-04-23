@@ -231,9 +231,7 @@ function get_potential_class_teachers($params){
         6 => 'Domingo'
     );
     
-    $params['classDays'] = $params['classDays'] !== '0/0/0/0/0/0/0'?$params['classDays']: null;
-    
-    
+    $params['classDays'] = $params['classDays'] !== '0/0/0/0/0/0/0'?$params['classDays']: null; 
     $params['initTime'] = preg_match($timePattern, $params['initTime'])?$params['initTime']: null;
     $params['endTime'] = preg_match($timePattern, $params['endTime'])?$params['endTime']: null;
     
