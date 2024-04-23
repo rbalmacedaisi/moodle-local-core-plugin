@@ -2887,7 +2887,13 @@ function get_learning_plan_image($learningPlanId){
 function get_logged_user_token(){
     global $DB;
     $service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-    return json_encode(external_generate_token_for_current_user($service)->token);
+    return external_generate_token_for_current_user($service)->token;
+}
+
+function get_theme_token(){
+    global $DB;
+    $themeExternalService = $DB->get_record('external_services', array('shortname' =>'Settings_Theme', 'enabled' => 1));
+    return external_generate_token_for_current_user($themeExternalService)->token;
 }
 
 function containsSubstringIgnoringCaseAndTildes($needle, $haystack) {

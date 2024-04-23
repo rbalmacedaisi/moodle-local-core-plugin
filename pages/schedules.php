@@ -37,6 +37,7 @@ $PAGE->set_heading(get_string('schedules', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 $token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 //Check if the user is an Instructor
 $sql = "SELECT DISTINCT r.shortname
@@ -143,6 +144,7 @@ echo <<<EOT
     var userid = $userid;
     var rescheduleCauses = $rescheduleCauses;
     var token = $token;
+    var themeToken = $themeToken || null;
   </script>
   <style lang="scss">
     .v-current-time {

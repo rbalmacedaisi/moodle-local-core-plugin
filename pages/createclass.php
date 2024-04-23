@@ -65,10 +65,9 @@ $classTypes = [
     ['value'=>2, 'label'=>'Mixta'],
     
 ];
-// $formattedAvailableCareers = json_encode(array_values($formattedAvailableCareers));
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
+$themeToken = get_theme_token();
+$userToken = get_logged_user_token();
 
 $strings = new stdClass();
 $strings->class_general_data = get_string('class_general_data', $plugin_name);
@@ -139,7 +138,8 @@ echo <<<EOT
    <script>
         var strings = $strings || {};
         var templatedata = $templatedata || {};
-        var userToken = $token;
+        var userToken = $userToken || null;
+        var themeToken = $themeToken || null;
   </script>
   
 EOT;

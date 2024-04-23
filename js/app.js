@@ -7,7 +7,7 @@ const url = window.location.origin+'/webservice/rest/server.php';
 
 // Parameters to send with the API request.
 const params = {
-  wstoken: '943a55babc7ac145d983b6e3d7cd29df',
+  wstoken: window.themeToken,
   moodlewsrestformat: 'json',
   wsfunction: 'local_soluttolms_core_get_theme_settings',
   themename: 'soluttolmsadmin'
@@ -18,10 +18,11 @@ let primarycolor;
 let darkPrimarycolor;
 let secondarycolor;
 let secondarycolordark;
+let bgcolordark;
 let darkMode = false;
 
 // Make a GET request to the API using Axios and the specified parameters.
-axios.get(url, { params })
+window.axios.get(url, { params })
   .then(response => {
     // Extract the colors from the JSON response and assign them to the corresponding variables.
     const data = JSON.parse(response.data.themeobject);
@@ -40,9 +41,9 @@ axios.get(url, { params })
     }
     
     // Create a Vue instance for the application.
-    const app = new Vue({
+    const app = new window.Vue({
       el: '#app',
-      vuetify: new Vuetify({
+      vuetify: new window.Vuetify({
         treeShake: true,
         theme: {
           dark: darkMode,
@@ -71,7 +72,7 @@ axios.get(url, { params })
       methods: {},
     });
     // Set up a MutationObserver to detect changes in light/dark mode
-    const observer = new MutationObserver((mutations) => {
+    const observer = new window.MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'data-preset') {
           // Update the Vuetify theme based on the current light/dark mode.

@@ -41,6 +41,7 @@ $PAGE->navbar->add(get_string('academiccalendar:academic_calendar_breadcrumb:aca
 $PAGE->navbar->add(get_string('academiccalendar:academic_calendar_breadcrumb:academic_calendar', $plugin_name), new moodle_url('/local/grupomakro_core/pages/academiccalendar.php'));
 
 $token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 $tableHeaders=[];
 $tableHeaders['periods']=new stdClass();
@@ -220,7 +221,8 @@ echo <<<EOT
    
    <script>
     var strings = $strings;
-    var userToken = $token;
+    var userToken = $token || null;
+    var themeToken = $themeToken || null;
     var tableHeaders = $tableHeaders;
   </script>
   

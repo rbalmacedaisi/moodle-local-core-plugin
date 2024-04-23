@@ -54,8 +54,8 @@ $strings->hours = get_string('hours', $plugin_name);
 
 $strings = json_encode($strings);
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
+$token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 echo $OUTPUT->header();
 
@@ -157,6 +157,7 @@ echo <<<EOT
   <script>
     var strings = $strings;
     var userToken = $token;
+    var themeToken = $themeToken || null;
   </script>
   
 EOT;

@@ -23,6 +23,7 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir . '/externallib.php');
 
 $plugin_name = 'local_grupomakro_core';
@@ -49,8 +50,9 @@ $PAGE->set_heading(get_string('scheduleapproval', $plugin_name));
 $PAGE->set_pagelayout('base');
 $id = required_param('id', PARAM_TEXT);
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
+
+$token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
@@ -136,6 +138,7 @@ echo <<<EOT
     var userToken = $token;
     var courseid = $id;
     var aprovedImg = $aproved_img;
+    var themeToken = $themeToken || null;
   </script>
   
 EOT;

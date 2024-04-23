@@ -65,8 +65,9 @@ $strings->pensum = get_string('pensum', $plugin_name);
 
 $strings = json_encode($strings);
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
+$token = get_logged_user_token();
+$themeToken = get_theme_token();
+
 $default_carrer_img = $CFG->wwwroot.'/local/grupomakro_core/pix/img-default.jpg';
 $default_carrer_img = json_encode($default_carrer_img);
 
@@ -160,6 +161,7 @@ echo <<<EOT
     var strings = $strings;
     var userToken = $token;
     var defaultImage = $default_carrer_img;
+    var themeToken = $themeToken || null;
   </script>
   
 EOT;

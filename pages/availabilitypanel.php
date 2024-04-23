@@ -37,9 +37,9 @@ $PAGE->set_title(get_string('availability_panel', $plugin_name));
 $PAGE->set_heading(get_string('availability_panel', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
 
+$token = get_logged_user_token();
+$themeToken = get_theme_token();
 //Get the list of Instructors
 
 $instructors = grupomakro_core_list_instructors_with_disponibility_flag();
@@ -147,6 +147,7 @@ echo <<<EOT
     var strings = $strings;
     var userToken = $token;
     var teacherSkills = $teacherSkills;
+    var themeToken = $themeToken || null;
   </script>
   
 EOT;

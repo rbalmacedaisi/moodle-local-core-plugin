@@ -37,7 +37,9 @@ $PAGE->set_title(get_string('availability', $plugin_name));
 $PAGE->set_heading(get_string('availability', $plugin_name));
 $PAGE->set_pagelayout('base');
 
+
 $token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 $instructors = grupomakro_core_list_instructors_with_disponibility();
 $instructorItems = [];
@@ -155,6 +157,7 @@ echo <<<EOT
     var instances = $instances;
     var classrooms = $classrooms;
     var token = $token;
+    var themeToken = $themeToken || null;
   </script>
 EOT;
 

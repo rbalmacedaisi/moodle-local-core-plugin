@@ -132,7 +132,8 @@ $classDays = [
     'saturday'=>$classDays[10],
     'sunday'=>$classDays[12]
 ];
-$token = get_logged_user_token();
+$themeToken = get_theme_token();
+$userToken = get_logged_user_token();
 
 $strings = new stdClass();
 $strings->class_name = get_string('class_name', $plugin_name);
@@ -219,7 +220,8 @@ echo <<<EOT
 <script>
     var strings = $strings || {};
     var templatedata = $templatedata || {};
-    var userToken = $token || null;
+    var userToken = $userToken || null;
+    var themeToken = $themeToken || null;
 </script>
 
 <div id="app">

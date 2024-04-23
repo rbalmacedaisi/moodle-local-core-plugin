@@ -48,8 +48,8 @@ $PAGE->set_title(get_string('users', $plugin_name));
 $PAGE->set_heading(get_string('users', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-$service = $DB->get_record('external_services', array('shortname' =>'moodle_mobile_app', 'enabled' => 1));
-$token = json_encode(external_generate_token_for_current_user($service)->token);
+$token = get_logged_user_token();
+$themeToken = get_theme_token();
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
@@ -121,6 +121,7 @@ echo <<<EOT
     var courseid = $id ;
     var periodsid = $periodsid;
     var userToken = $token;
+    var themeToken = $themeToken || null;
   </script>
   
 EOT;
