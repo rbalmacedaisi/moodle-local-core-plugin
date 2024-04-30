@@ -976,6 +976,20 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20240327000, 'local', 'grupomakro_core');
+    }   
+    if ($oldversion < 20240429000) {
+
+        // Define field gradecategoryid to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('gradecategoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'bbbmoduleids');
+
+        // Conditionally launch add field gradecategoryid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240429000, 'local', 'grupomakro_core');
     }
 
 

@@ -24,13 +24,14 @@
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot.'/group/lib.php');
+require_once($CFG->dirroot.'/grade/lib.php');
+require_once($CFG->dirroot.'/user/lib.php');
+require_once($CFG->dirroot.'/calendar/lib.php');
 require_once($CFG->dirroot.'/course/modlib.php');
 require_once($CFG->dirroot.'/mod/attendance/locallib.php');
-require_once($CFG->dirroot.'/calendar/lib.php');
-require_once($CFG->dirroot.'/user/lib.php');
 require_once($CFG->dirroot.'/vendor/autoload.php');
-require_once($CFG->libdir .'/externallib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->libdir.'/externallib.php');
+require_once($CFG->dirroot.'/local/grupomakro_core/classes/local/progress_manager.php');
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -399,7 +400,7 @@ function create_class($classParams){
         create_class_activities($newClass);
 
     }catch (Exception $e){
-        delete_class($newClass);
+        delete_class($newClass->id);
         throw $e;
     }
     
@@ -436,8 +437,15 @@ function create_class_section($class) {
     return $section->id;
 }
 
-function delete_class($class, $reason =  null){
+function delete_class($classId, $reason =  null){
     global $DB,$USER;
+    $class = $DB->get_record('gmk_class',['id'=>$classId]);
+    
+    if ($class->gradecategoryid){
+        $classCourseGradeTree= new grade_tree($class->corecourseid, false, false);
+        $classGradeCategory = $classCourseGradeTree->locate_element('cg'.$class->gradecategoryid)['object'];
+        $classGradeCategory->delete();
+    }
     
     //Delete section if it's already created and all the activities in it.
     if ($class->coursesectionid){
@@ -501,9 +509,24 @@ function create_class_activities($class, $updating=false) {
         $DB->delete_records('gmk_bbb_attendance_relation',['classid'=>$class->id]);
     }else {
         $attendanceActivityInfo = create_attendance_activity($class,$classSectionNumber);
+        
         $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
         $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
         $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+        
+        $class->attendancemoduleid = $attendanceStructure->cmid;
+        $DB->update_record('gmk_class',$class);
+        
+        $class->gradecategoryid = create_class_grade_category($class);
+        $DB->update_record('gmk_class',$class);
+            
+        //Add the attendance item grade to the class grade category    
+        $classCourseGradeTree= new grade_tree($class->corecourseid, false, false);
+        $classGradeCategory = $classCourseGradeTree->locate_element('cg'.$class->gradecategoryid)['object'];
+        
+        $attendanceGradeItemId = $DB->get_field('grade_items','id',['itemmodule'=>'attendance','iteminstance'=>$attendanceCourseModule->instance]);
+        $attendanceGradeItem=  $classCourseGradeTree->locate_element('ig'.$attendanceGradeItemId)['object'];
+        $attendanceGradeItem->set_parent($classGradeCategory->id);
     }
     
     $initDate =  date('Y-m-d');
@@ -568,7 +591,6 @@ function create_class_activities($class, $updating=false) {
             $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
         }
     }
-    $class->attendancemoduleid = $attendanceStructure->cmid;
     $DB->update_record('gmk_class',$class);
     
     return ['status'=>'created'];
@@ -596,6 +618,7 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->recordallfromstart              = 1;
     $bbbActivityDefinition->recordhidebutton                = 1;
     $bbbActivityDefinition->completion                      = 2;
+    $bbbActivityDefinition->availability                      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$bbbActivityDefinition->openingtime.'}],"showc":[true]}';
     
     $bbbActivityDefinition->completionattendanceenabled     = 1;
     $bbbActivityDefinition->completionattendance            = 1;
@@ -646,6 +669,24 @@ function create_attendance_session_object($class,$initDateTS,$classDurationInSec
 
     return $attendanceSessionDefinition;
 }
+
+function create_class_grade_category($class){
+    
+    global $DB;
+    $classCategoryData= [
+        'fullname'=>$class->name.'-'.$class->id.' grade category',
+        'options'=>[
+            'aggregation'=>10,
+            'aggregateonlygraded'=>false,
+            'itemname'=>'Total '.$class->name.'-'.$class->id.' grade',
+            'grademax'=>100,
+            'grademin'=>0,
+            'gradepass'=>70,
+            ]
+    ];
+    $createClassCategoryResult = core_grades\external\create_gradecategories::execute($class->corecourseid,[$classCategoryData]);
+    return $createClassCategoryResult['categoryids'][0];
+} 
 
 function replace_attendance_session($moduleId,$sessionIdToBeRemoved,$sessionDate,$classDurationInSeconds,$class){
     

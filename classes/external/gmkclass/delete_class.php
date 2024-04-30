@@ -75,10 +75,8 @@ class delete_class extends external_api {
         global $DB;
         
         try{
-            
-            $class = $DB->get_record('gmk_class', ['id'=>$id]);
         
-            delete_class($class,'Class deleted from class management');
+            delete_class($params['id'],'Class deleted from class management');
             
             // Return the result.
             return ['status' => $id];

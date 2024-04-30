@@ -24,6 +24,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/externallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $plugin_name = 'local_grupomakro_core';
 
