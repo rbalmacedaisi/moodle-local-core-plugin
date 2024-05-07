@@ -132,10 +132,10 @@ Vue.component('scheduletable',{
                 moodlewsrestformat: 'json',
                 wsfunction: 'local_grupomakro_get_course_class_schedules_overview',
             };
-            
             // Perform a GET request to the specified URL, passing the parameters as query options.
             window.axios.get(url, { params })
                 .then(response => {
+                    
                     // Parse the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.schedulesOverview)
                     

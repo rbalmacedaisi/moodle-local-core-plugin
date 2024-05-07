@@ -1,0 +1,23 @@
+{
+    "eventname": "\\core\\event\\course_module_created",
+    "component": "core",
+    "action": "created",
+    "target": "course_module",
+    "objecttable": "course_modules",
+    "objectid": 4037,
+    "crud": "c",
+    "edulevel": 1,
+    "contextid": 4460,
+    "contextlevel": 70,
+    "contextinstanceid": "4037",
+    "userid": "3",
+    "courseid": "92",
+    "relateduserid": null,
+    "anonymous": 0,
+    "other": {
+        "modulename": "assign",
+        "instanceid": 10,
+        "name": "Tares test 1"
+    },
+    "timecreated": 1714628288
+}

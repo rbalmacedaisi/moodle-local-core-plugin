@@ -32,6 +32,7 @@ require_once($CFG->dirroot.'/mod/attendance/locallib.php');
 require_once($CFG->dirroot.'/vendor/autoload.php');
 require_once($CFG->libdir.'/externallib.php');
 require_once($CFG->dirroot.'/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/user/profile/lib.php');
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -74,7 +75,7 @@ function get_teachers_disponibility($params) {
         }
     }
     
-    global $DB;
+    global $DB,$PAGE;
     $teacherSkills = $DB->get_records('gmk_teacher_skill');
     $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility', $params['instructorId']? ['userid'=>$params['instructorId']]:[]);
     $weekdays = array(
@@ -94,7 +95,10 @@ function get_teachers_disponibility($params) {
         
         $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
         $teachersDisponibility[$teacherId]->instructorName = $teacherInfo->firstname.' '.$teacherInfo->lastname;
-        $teachersDisponibility[$teacherId]->instructorPicture =get_user_picture_url($teacherId);
+        //$teachersDisponibility[$teacherId]->instructorPicture =get_user_picture_url($teacherId);
+        $userpicture = new user_picture(core_user::get_user($teacherId));
+        $userpicture->size = 1; // Size f1.
+        $teachersDisponibility[$teacherId]->instructorPicture = $userpicture->get_url($PAGE)->out(false);
         
         
         $teacherSkillsRelations = $DB->get_records('gmk_teacher_skill_relation',['userid'=>$teacherId]);
@@ -604,8 +608,8 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
-    $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
-    $bbbActivityDefinition->closingtime                     = $endDateTS;
+    // $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
+    // $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->cmidnumber                      = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->groupmode                       = '0';
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
@@ -618,14 +622,9 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->recordallfromstart              = 1;
     $bbbActivityDefinition->recordhidebutton                = 1;
     $bbbActivityDefinition->completion                      = 2;
-    $bbbActivityDefinition->availability                      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$bbbActivityDefinition->openingtime.'}],"showc":[true]}';
-    
+    // $bbbActivityDefinition->availability                      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$bbbActivityDefinition->openingtime.'}],"showc":[true]}';
     $bbbActivityDefinition->completionattendanceenabled     = 1;
     $bbbActivityDefinition->completionattendance            = 1;
-    // $bbbActivityDefinition->completionview = 1;
-    // $bbbActivityDefinition->completionexpected =0;
-    
-    // $bbbActivityDefinition->completionunlocked              = 1;
     
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
     return $bbbActivityInfo->coursemodule;
@@ -644,6 +643,11 @@ function create_attendance_activity($class,$classSectionNumber){
     $attendanceActivityDefinition->subnet                     = '';
     $attendanceActivityDefinition->groupmode                  = 1;
     $attendanceActivityDefinition->visible                    = 1;
+    $attendanceActivityDefinition->grade                      = 100;
+    $attendanceActivityDefinition->gradepass                  = 74;
+    $attendanceActivityDefinition->completion                 = 2;
+    $attendanceActivityDefinition->completionusegrade         = 1;
+    $attendanceActivityDefinition->completionpassgrade        = 1;
     
     $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
     return $attendanceActivityInfo;
@@ -709,7 +713,7 @@ function replace_attendance_session($moduleId,$sessionIdToBeRemoved,$sessionDate
 }
 
 function list_classes($filters) {
-    global $DB;
+    global $DB,$PAGE;
     
     $fetchedLearningPlans = [];
     $fetchedLearningPlanPeriods = [];
@@ -737,6 +741,30 @@ function list_classes($filters) {
         $class->selectedDaysES = $selectedDaysES;
         $class->selectedDaysEN = $selectedDaysEN;
         $class->classDaysString = implode(' - ',$class->selectedDaysES);
+        $class->daysFilters = [];
+        // Define time constants for readability
+        $DAY_START_TS = 21600;  // 6:00 AM in seconds
+        $DAY_END_TS = 64800;    // 6:00 PM in seconds
+        
+        // Check for Diurna (Daytime)
+        if (($class->inittimets >= $DAY_START_TS && $class->inittimets < $DAY_END_TS) || 
+            ($class->endtimets >= $DAY_START_TS && $class->endtimets < $DAY_END_TS)) {
+            $class->daysFilters[] = 'Diurna';
+        }
+        
+        // Check for Nocturna (Nighttime)
+        if (($class->inittimets < $DAY_START_TS || $class->inittimets >= $DAY_END_TS) || 
+            ($class->endtimets < $DAY_START_TS || $class->endtimets >= $DAY_END_TS)) {
+            $class->daysFilters[] = 'Nocturna';
+        }
+        
+        if(in_array('Saturday',$class->selectedDaysEN)){
+            $class->daysFilters[]='Sabatina';
+        }
+        if(in_array('Sunday',$class->selectedDaysEN)){
+            $class->daysFilters[]='Dominical';
+        }
+        //set the 
         
         //set the hour range string
         $class->hourRangeString = $class->inithourformatted.' - '.$class->endhourformatted;
@@ -748,6 +776,7 @@ function list_classes($filters) {
         }else{
             $classInstructor = $fetchedInstructors[$class->instructorid];
         }
+        
         $class->instructorName = $classInstructor->firstname.' '. $classInstructor->lastname;
         
         //Set Learning plan Info
@@ -757,9 +786,10 @@ function list_classes($filters) {
         }else{
             $classLearningPlan = $fetchedLearningPlans[$class->learningplanid];
         }
-          
         $class->learningPlanName = $classLearningPlan->name;
         $class->learningPlanShortname = $classLearningPlan->shortname;
+        // print_object($class);
+        // print_object($classLearningPlan);
         
         //Set period Info
         if(!array_key_exists($class->periodid,$fetchedLearningPlanPeriods)){
@@ -793,12 +823,15 @@ function list_classes($filters) {
         $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
         
         //Instructor profile image
-        $class->instructorProfileImage = get_user_picture_url($class->instructorid);
+        $userpicture = new user_picture(core_user::get_user($class->instructorid));
+        $userpicture->size = 1; // Size f1.
+        $class->instructorProfileImage = $userpicture->get_url($PAGE)->out(false);
         
         //Setting other variables
         $class->startDate =  date('Y-m-d');
         $class->available = !$class->approved;
     }
+    // die;
     return $classes;
 }
 
@@ -912,6 +945,10 @@ function check_course_alternative_schedules($selectedClass, $userId){
 
 function add_user_to_class_queue($userId,$class){
     global $DB,$USER;
+    
+    if($DB->record_exists('gmk_class_queue',['classid'=>$class->id, 'userid'=>$userId])){
+        return true;
+    }
 
     $classQueueRecord = new stdClass();
     $classQueueRecord->timecreated = time();
@@ -926,6 +963,10 @@ function add_user_to_class_queue($userId,$class){
 
 function add_user_to_class_pre_registry($userId,$class){
     global $DB,$USER;
+
+    if($DB->record_exists('gmk_class_pre_registration',['classid'=>$class->id, 'userid'=>$userId])){
+        return true;
+    }
 
     $classPreRegistryRecord = new stdClass();
     $classPreRegistryRecord->timecreated = time();
@@ -943,6 +984,7 @@ function get_class_schedules_overview($params){
     
     $learningPlansCoursesSchedules=get_learning_plan_course_schedules($params);
     
+    
     $learningPlansCoursesSchedules = array_map(function($course){
         $course->numberOfClasses = count($course->schedules);
         $course->totalParticipants = 0;
@@ -958,6 +1000,7 @@ function get_class_schedules_overview($params){
         $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : ($course->capacityPercent < 0.20? '#FF5252' : null);
         return $course;
     },$learningPlansCoursesSchedules);
+
     return $learningPlansCoursesSchedules;
 }
 
@@ -966,11 +1009,12 @@ function get_learning_plan_course_schedules($params){
 
     //Set the filters if provided
     $filters = construct_course_schedules_filter($params);
+    
     $openClasses = [];
     foreach($filters as $filter){
         $openClasses = array_merge($openClasses,list_classes($filter));
     }
-
+    
     $classesByCoursePeriodAndLearningPlan = [];
     
     foreach($openClasses as $class){
@@ -2715,10 +2759,20 @@ function get_classrooms(){
 
 function student_get_active_classes($userId,$courseId = null){
     global $DB;
-    $courseCustomFieldhandler = core_course\customfield\course_handler::create();
+    $courseCustomFieldHandler = core_course\customfield\course_handler::create();
+    $user = $DB->get_record('user', array('id' => $userId), '*', MUST_EXIST);
+    profile_load_data($user);
+    $userDayFilter = $user->profile_field_gmkjourney;
     
     $userLearningPlans = $DB->get_records('local_learning_users', array('userid'=>$userId));
     $activeClasses = array();
+    $activeClasses['userDayFilter'] = $userDayFilter;
+    
+    // TODO: Retrieve the final enrolment day from the academic calendar
+    $finalEnrolmentDate = new DateTime();
+    $finalEnrolmentDate = $finalEnrolmentDate->add(new DateInterval('P7D'));
+    $finalEnrolmentDate = $finalEnrolmentDate->format('Y-m-d H:i:s');
+    $activeClasses['finalEnrolmentDate'] =$finalEnrolmentDate;
     
     foreach($userLearningPlans as $userLearningPlan){
         $courseFilter = ['learningplanid'=>$userLearningPlan->learningplanid];
@@ -2749,7 +2803,7 @@ function student_get_active_classes($userId,$courseId = null){
         foreach($neededCourses as $neededCourse){
             $classFilter = ['corecourseid'=>$neededCourse->courseid, 'approved'=>'0', 'closed'=>'0'];
             
-            $courseCustomFields = $courseCustomFieldhandler->get_instance_data($neededCourse->courseid);
+            $courseCustomFields = $courseCustomFieldHandler->get_instance_data($neededCourse->courseid);
             $tc='0';
             foreach($courseCustomFields as $customField){
                 if($customField->get_field()->get('shortname')==='tc'){
@@ -2760,20 +2814,23 @@ function student_get_active_classes($userId,$courseId = null){
             $courseActiveClasses = list_classes($classFilter);
             
             foreach($courseActiveClasses as $courseActiveClass){
-                
                 $activeSchedule = construct_active_schedule_object($courseActiveClass,$userId);
-                if(!array_key_exists($neededCourse->courseid,$activeClasses)){
-                    $activeClasses[$neededCourse->courseid]["id"] = $neededCourse->courseid;
-                    $activeClasses[$neededCourse->courseid]["name"] = $courseActiveClass->course->fullname;
-                    $activeClasses[$neededCourse->courseid]["schedules"] = [$activeSchedule->classId =>$activeSchedule ];
-                    $activeClasses[$neededCourse->courseid]["selected"]?  null :$activeClasses[$neededCourse->courseid]["selected"]=$activeSchedule->selected;
+                // print_object($activeSchedule);
+                // die;
+                if(!array_key_exists($neededCourse->courseid,$activeClasses['classes'])){
+                    $activeClasses['classes'][$neededCourse->courseid]["id"] = $neededCourse->courseid;
+                    $activeClasses['classes'][$neededCourse->courseid]["name"] = $courseActiveClass->course->fullname;
+                    $activeClasses['classes'][$neededCourse->courseid]["schedules"] = [$activeSchedule->classId =>$activeSchedule ];
+                    $activeClasses['classes'][$neededCourse->courseid]["selected"]?  null :$activeClasses['classes'][$neededCourse->courseid]["selected"]=$activeSchedule->selected;
                     continue;
                 }
-                $activeClasses[$neededCourse->courseid]["schedules"][$activeSchedule->classId]= $activeSchedule;
-                $activeClasses[$neededCourse->courseid]["selected"]?  null :$activeClasses[$neededCourse->courseid]["selected"]=$activeSchedule->selected;
+                $activeClasses['classes'][$neededCourse->courseid]["schedules"][$activeSchedule->classId]= $activeSchedule;
+                $activeClasses['classes'][$neededCourse->courseid]["selected"]?  null :$activeClasses['classes'][$neededCourse->courseid]["selected"]=$activeSchedule->selected;
             }
         }
-    }
+    };
+    // print_object($activeClasses);
+    // die;
     return $activeClasses;
 }
 
@@ -2829,10 +2886,12 @@ function construct_active_schedule_object($class,$userId){
     $learningPlanActiveSchedule->groupId = $class->groupid;
     $learningPlanActiveSchedule->classId = $class->id;
     $learningPlanActiveSchedule->selected = !!$DB->get_record('gmk_class_pre_registration', ['classid'=>$class->id, 'userid'=>$userId]);;
+    $learningPlanActiveSchedule->inQueue = !!$DB->get_record('gmk_class_queue', ['classid'=>$class->id, 'userid'=>$userId]);;
     $learningPlanActiveSchedule->available = $class->available;
     $learningPlanActiveSchedule->preRegisteredStudents = $class->preRegisteredStudents;
     $learningPlanActiveSchedule->queuedStudents = $class->queuedStudents;
     $learningPlanActiveSchedule->classFull = $class->classFull;
+    $learningPlanActiveSchedule->daysFilters = $class->daysFilters;
     return $learningPlanActiveSchedule;
 }
 

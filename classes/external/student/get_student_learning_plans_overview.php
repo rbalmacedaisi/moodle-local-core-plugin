@@ -80,6 +80,7 @@ class get_student_learning_plans_overview extends external_api {
         try{
             global $DB;
             $studentRoleId = $DB->get_record('role',['shortname'=>'student'])->id;
+
             
             $learningPlansOverview = $DB->get_records_sql(
                 'SELECT lp.id, lp.name, lp.coursecount, lp.periodcount
@@ -91,11 +92,11 @@ class get_student_learning_plans_overview extends external_api {
                     'studentroleid'=>$studentRoleId
                 ]
             );
+            
             foreach($learningPlansOverview as $learningPlan){
                 $learningPlan->progress = self::get_learning_plan_progress($params['userId'],$learningPlan->id);
                 $learningPlan->imageUrl = get_learning_plan_image($learningPlan->id);
             }
-            
             return ['overview'=>json_encode($learningPlansOverview)];
         }catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -111,7 +112,7 @@ class get_student_learning_plans_overview extends external_api {
             $totalWeightedCompletion += ($userLearningPlanProgressRecord->progress / 100) * $userLearningPlanProgressRecord->credits;
             $totalCredits += $userLearningPlanProgressRecord->credits;
         }
-        return round(($totalWeightedCompletion / $totalCredits) * 100);
+        return $totalCredits>0? round(($totalWeightedCompletion / $totalCredits) * 100):0;
         
     }
 

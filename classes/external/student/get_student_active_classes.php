@@ -77,17 +77,15 @@ class get_student_active_classes extends external_api {
         
         try{
             $activeClasses = student_get_active_classes($params['id']);
-            $activeClasses = array_map(function ($course){
+            $activeClasses['classes'] = array_values(array_map(function ($course){
                 $course['schedules'] = array_values($course['schedules']);
                 return $course;
-            },$activeClasses);
-            return ['status'=>'1','classes'=>json_encode(array_values($activeClasses)),'message'=>'ok'];
+            },$activeClasses['classes']));
+            return ['userAvailableCourseClasses'=>json_encode($activeClasses)];
         }catch (Exception $e) {
-            return ['status' => '-1','classes'=>'', 'message' => $e->getMessage()];
+            return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
-
-
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
@@ -96,9 +94,9 @@ class get_student_active_classes extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, '1 for success, -1 for failure'),
-                'classes' => new external_value(PARAM_TEXT, 'json encode object with the active classes array'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.'),
+                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
+                'userAvailableCourseClasses' => new external_value(PARAM_RAW, 'json encode object with the active classes array and the preferred class schedule',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

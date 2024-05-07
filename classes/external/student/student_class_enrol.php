@@ -109,9 +109,9 @@ class student_class_enrol extends external_api {
                     },$courseAlternativeClasses);    
                 }
             }
-            return ['status'=>'1','enrolResult'=>$enrolResult,'addedToQueue'=>$addedToQueue,'classAlternatives'=>json_encode($courseAlternativeClasses),'message'=>'ok'];
+            return ['enrolResult'=>$enrolResult,'addedToQueue'=>$addedToQueue,'classAlternatives'=>json_encode($courseAlternativeClasses)];
         }catch (Exception $e) {
-            return ['status' => '-1','enrolResult'=>false,'addedToQueue'=>false,'classAlternatives'=>false, 'message' => $e->getMessage()];
+            return ['status' => -1,'message' => $e->getMessage()];
         }
     }
 
@@ -124,11 +124,11 @@ class student_class_enrol extends external_api {
     public static function execute_returns(): external_description {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_TEXT, '1 for success, -1 for failure'),
-                'enrolResult' => new external_value(PARAM_BOOL, 'True if the enrolment was successful, false otherwise'),
-                'addedToQueue'=> new external_value(PARAM_BOOL, 'True if the user was added to the class queue, false otherwise'),
-                'classAlternatives'=> new external_value(PARAM_RAW, 'Json encode class alternatives'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.'),
+                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
+                'enrolResult' => new external_value(PARAM_BOOL, 'True if the enrolment was successful, false otherwise',VALUE_DEFAULT,false),
+                'addedToQueue'=> new external_value(PARAM_BOOL, 'True if the user was added to the class queue, false otherwise',VALUE_DEFAULT,false),
+                'classAlternatives'=> new external_value(PARAM_RAW, 'Json encode class alternatives',VALUE_DEFAULT,null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
             )
         );
     }

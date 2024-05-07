@@ -61,5 +61,9 @@ $observers = array(
     array(
         'eventname' => 'mod_attendance\event\attendance_taken',
         'callback' => 'local_grupomakro_core_observer::attendance_taken',
+    ),
+    array(
+        'eventname' => 'core\event\course_module_created',
+        'callback' => 'local_grupomakro_core_observer::course_module_created',
     )
 );

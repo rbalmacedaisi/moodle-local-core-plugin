@@ -6,8 +6,13 @@ Vue.component('availableschedulesdialog',{
               max-width="600"
             >
                 <v-card>
-                    <v-card-title>
-                        {{ lang.move_to }} "{{moveTitle}}"
+                   <v-card-title>
+                      {{ lang.move_to }}:
+                      <template v-for="(title, index) in moveTitle">
+                        <span :key="index">{{ title }}</span>
+                        <!-- Añade una coma y un espacio si no es el último elemento -->
+                        <span v-if="index < moveTitle.length - 1">, </span>
+                      </template>
                     </v-card-title>
                     
                     <v-card-subtitle class="d-flex align-center mt-1">
@@ -153,7 +158,7 @@ Vue.component('availableschedulesdialog',{
         }
     },
     props:{
-        moveTitle: String,
+        moveTitle: Array,
         schedules: Array,
         schelduletitle: String
     },

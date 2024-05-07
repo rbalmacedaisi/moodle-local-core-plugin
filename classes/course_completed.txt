@@ -1,0 +1,21 @@
+{
+    "eventname": "\\core\\event\\course_completed",
+    "component": "core",
+    "action": "completed",
+    "target": "course",
+    "objecttable": "course_completions",
+    "objectid": "374",
+    "crud": "u",
+    "edulevel": 2,
+    "contextid": 4463,
+    "contextlevel": 50,
+    "contextinstanceid": "94",
+    "userid": "2",
+    "courseid": "94",
+    "relateduserid": "573",
+    "anonymous": 0,
+    "other": {
+        "relateduserid": "573"
+    },
+    "timecreated": 1714682596
+}

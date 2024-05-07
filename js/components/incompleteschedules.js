@@ -81,32 +81,33 @@ Vue.component('incompleteschedules',{
                     </v-card-title>
     
                     <v-card-text>
-                        <v-row>
-                            <v-col cols="12">
-                                <v-list
-                                   flat
-                                   three-line
-                                >
-                                    <v-list-item-group
-                                       v-model="settings"
-                                       active-class=""
-                                    >
-                                        <v-list-item v-for="item in schedules" :key="item.id" >
-                                            <template v-slot:default="{ active}" >
-                                                <v-list-item-action>
-                                                    <v-checkbox :input-value="active" @change="handleCheckboxChange(item)"></v-checkbox>
-                                                </v-list-item-action>
-                                                <v-list-item-content>
-                                                    <v-list-item-title>{{item.name}}</v-list-item-title>
-                                                    <v-list-item-subtitle>{{item.days}}</v-list-item-subtitle>
-                                                    <v-list-item-subtitle>{{item.start + ' - ' + item.end}}</v-list-item-subtitle>
-                                                </v-list-item-content>
-                                            </template>
-                                        </v-list-item>
-                                    </v-list-item-group>
-                                </v-list>
-                            </v-col>
-                        </v-row>
+                        <template v-if="dataSchedule">
+                             <span>Actualmente no hay clases disponibles. Por favor, cree una nueva clase para asignar a los usuarios que no tienen horarios.</span>
+                        </template>
+                        
+                        <!-- Mostrar la lista de horarios si hay datos -->
+                        <template v-else>
+                            <v-row>
+                                <v-col cols="12">
+                                    <v-list flat three-line>
+                                        <v-list-item-group v-model="settings" active-class="">
+                                            <v-list-item v-for="item in schedules" :key="item.id">
+                                                <template v-slot:default="{ active}">
+                                                    <v-list-item-action>
+                                                        <v-checkbox :input-value="active" @change="handleCheckboxChange(item)"></v-checkbox>
+                                                    </v-list-item-action>
+                                                    <v-list-item-content>
+                                                        <v-list-item-title>{{item.name}}</v-list-item-title>
+                                                        <v-list-item-subtitle>{{item.days}}</v-list-item-subtitle>
+                                                        <v-list-item-subtitle>{{item.start + ' - ' + item.end}}</v-list-item-subtitle>
+                                                    </v-list-item-content>
+                                                </template>
+                                            </v-list-item>
+                                        </v-list-item-group>
+                                    </v-list>
+                                </v-col>
+                            </v-row>
+                        </template>
                     </v-card-text>
                     
                     <v-divider class="my-0"></v-divider>
@@ -153,6 +154,7 @@ Vue.component('incompleteschedules',{
             items: [],
             dataCourse: {},
             selectedItems: [],
+            dataSchedule : false,
         }
     },
     props:{},
@@ -242,6 +244,9 @@ Vue.component('incompleteschedules',{
                 .then(response => {
                     // Convert the API response data from JSON string format to an object.
                     const data = JSON.parse(response.data.courseSchedules)
+                    if(data.length == 0){
+                        this.dataSchedule = true
+                    }
                     
                     // Convert the data object to an array.
                     const arrayEntries = Object.entries(data);

@@ -89,6 +89,10 @@ class local_grupomakro_progress_manager {
                     
                     $learningPlanCourse->timecreated = time();
                     $learningPlanCourse->timemodified = time();
+                    $course_proge = $DB->get_record('gmk_course_progre', array('userid' => $learningPlanUserId, 'periodid' => $learningPlanCourse->periodid, 'courseid' => $learningPlanCourse->courseid, 'learningplanid' => $learningPlanCourse->learningplanid));
+                    if($course_proge){
+                        continue;
+                    }
                     $DB->insert_record('gmk_course_progre',$learningPlanCourse);
                 }catch (Exception $e){
                     continue;
@@ -114,7 +118,6 @@ class local_grupomakro_progress_manager {
     public static function mark_bigbluebutton_related_attendance_session($userId,$coursemod,$course,$attendanceModuleRecord, $bbbModuleInstance,$classAttendanceBBBRelatedSessionid){
         global $DB,$CFG;
         require_once($CFG->dirroot . '/mod/attendance/classes/attendance_webservices_handler.php');
-        // use mod_bigbluebuttonbn\instance;
 
         $attendanceInstance = $attendanceModuleRecord->instance;
         $attendanceDBRecord = $DB->get_record('attendance',['id'=>$attendanceInstance]);
@@ -129,10 +132,11 @@ class local_grupomakro_progress_manager {
     }
     
     public static function calculate_learning_plan_user_course_progress($courseId,$userId,$moduleId,$completionState=0){
-        global $DB,$CFG;
+        global $DB,$CFG,$PAGE;
         
         $coursemod = get_fast_modinfo($courseId,$userId);
         $moduleUpdated = $coursemod->get_cm($moduleId);
+        // print_object($coursemod);
 
         if($groupClass = $DB->get_record('gmk_class',['coursesectionid'=>$moduleUpdated->section],'id,attendancemoduleid,coursesectionid')){
             
@@ -146,7 +150,6 @@ class local_grupomakro_progress_manager {
             $attendanceModuleRecord = $attendanceModule->get_course_module_record(false);
             
             if($moduleComponent==='bigbluebuttonbn' && $completionState){
-                
                 $classAttendanceBBBRelatedSessionid = $DB->get_field('gmk_bbb_attendance_relation','attendancesessionid',['classid'=>$groupClass->id,'bbbmoduleid'=>$moduleId]);
                 
                 if($classAttendanceBBBRelatedSessionid){
@@ -155,48 +158,30 @@ class local_grupomakro_progress_manager {
 
             }
             $attendanceInstance = $attendanceModuleRecord->instance;
-            
             $attendance = new mod_attendance_summary($attendanceInstance, [$userId]);
             $attendancePercentage =(float)rtrim($attendance->get_all_sessions_summary_for($userId)->allsessionspercentage, '%');
+            // print_object($attendance->get_all_sessions_summary_for($userId));
+            // die;
             
-            //Calculate the obtained grade based on the gradable activities
-            $gradableActivities = grade_get_gradable_activities($courseId);
-            $classSectionNumber = $coursemod->get_section_info_by_id($groupClass->coursesectionid)->__get('section');
-            $totalWeightedSum = 0;
-            $numActivities=0;
-            
-            foreach($coursemod->get_sections()[$classSectionNumber] as $sectionModule){
-                $module = $coursemod->get_cm($sectionModule);
-                $moduleRecord= $module->get_course_module_record(true);
-                $moduleType= $moduleRecord->modname;
-                if($moduleType === 'bigbluebuttonbn'){
-                    continue;
-                }
-                if(!array_key_exists($moduleRecord->id,$gradableActivities)){
-                    continue;
-                }
-                $numActivities +=1;
-                
-                $moduleGrade = grade_get_grades($courseId,'mod',$moduleType,$moduleRecord->instance,$userId)->items[0];
+            $sectionModuleCount = 0;
+            $completedModules = 0;
+            foreach($coursemod->get_cms() as $courseModule){
+                $courseModuleRecord = $courseModule->get_course_module_record();
+                if($courseModuleRecord->section == $moduleUpdated->section && !!$completion->is_enabled($courseModule)){
+                    $sectionModuleCount+=1;
 
-                $moduleMaxGrade = $moduleGrade->grademax;
-                $moduleUserGrade = $moduleGrade->grades[$userId]->grade;
-                
-                $normalizedGrade = min(1.0, max(0.0, $moduleUserGrade / $moduleMaxGrade));
-                $totalWeightedSum += $normalizedGrade;
-
+                    $exporter = new \core_completion\external\completion_info_exporter($course, $courseModule, $userId);
+                    $renderer = $PAGE->get_renderer('core');
+                    $moduleCompletionData = (array)$exporter->export($renderer);
+                    $completedModules += $moduleCompletionData['state']>0?1:0;
+                //     $module['completiondata'] = $modulecompletiondata;
+                }
             }
-            if ($numActivities == 0) {
-                $finalGrade = 0;
-            } else {
-                $finalGrade = min(100, max(0, $totalWeightedSum / $numActivities * 100));
-            }
-            
             //Save the updated progress;
             
             $userCourseProgress = $DB->get_record('gmk_course_progre',['userid'=>$userId, 'courseid'=>$courseId]);
-            $userCourseProgress->progress = $attendancePercentage;
-            $userCourseProgress->grade = $finalGrade;
+            $userCourseProgress->progress = ($completedModules/$sectionModuleCount)*100;
+            $userCourseProgress->grade = grade_get_course_grades($courseId,$userId)->grades[$userId]->grade;
             if($attendancePercentage == 100){
                 $userCourseProgress->status = COURSE_COMPLETED;
             }
@@ -286,6 +271,8 @@ class local_grupomakro_progress_manager {
         $courseProgress = $DB->get_record('gmk_course_progre',['userid'=>$userId, 'courseid'=>$class->corecourseid]);
         $courseProgress->classid = $class->id;
         $courseProgress->groupid = $class->groupid;
+        $courseProgress->progress = 0;
+        $courseProgress->grade = 0;
         $courseProgress->status =COURSE_IN_PROGRESS;
         
         return $DB->update_record('gmk_course_progre',$courseProgress);;

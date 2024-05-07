@@ -437,3 +437,4 @@ $string['next'] = 'Siguiente';
 $string['save'] = 'Guardar';
 $string['back'] = 'Atrás';
 $string['close'] = 'Cerrar';
+$string['not_add_schedules'] = 'Actualmente no hay clases disponibles. Por favor, cree una nueva clase para asignar a los usuarios que no tienen horarios.';

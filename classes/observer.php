@@ -33,6 +33,7 @@ defined('MOODLE_INTERNAL') || die();
 // require_once($CFG->dirroot.'/group/lib.php');
 
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 define('COURSE_PRACTICAL_HOURS_SHORTNAME','p');
@@ -65,30 +66,45 @@ class local_grupomakro_core_observer {
             // echo "Failed to open the file for writing.";
         }
     }
-    public static function course_updated(\core\event\course_updated $event){}
     
+    public static function course_updated(\core\event\course_updated $event){}
     
     public static function group_member_added(\core\event\group_member_added  $event) {
         $eventdata = $event->get_data();
         return;
     }
+    
     public static function course_created(\core\event\course_created $event){
     
         $eventdata = $event->get_data();
-        $newClassGroup = new stdClass();
-        $newClassGroup->idnumber ='rev-'.$eventdata['other']['shortname'];
-        $newClassGroup->name = 'Revalida';
-        $newClassGroup->courseid = $eventdata['objectid'];
-        $newClassGroup->description = 'Group for revalidating '.$eventdata['other']['fullname'].' course';
-        $newClassGroup->descriptionformat = 1;
-        $newClassGroup->id =groups_create_group($newClassGroup);
+        $courseRevalidGroup = new stdClass();
+        $courseRevalidGroup->idnumber ='rev-'.$eventdata['other']['shortname'];
+        $courseRevalidGroup->name = 'Revalida';
+        $courseRevalidGroup->courseid = $eventdata['objectid'];
+        $courseRevalidGroup->description = 'Group for revalidating '.$eventdata['other']['fullname'].' course';
+        $courseRevalidGroup->descriptionformat = 1;
+        $courseRevalidGroup->id =groups_create_group($courseRevalidGroup);
         
         $section = course_create_section($eventdata['objectid']);
         course_update_section($eventdata['objectid'],$section,[
             'name'=>'Reválida',
-            'availability'=> '{"op":"&","c":[{"type":"group","id":'.$newClassGroup->id.'}],"showc":[true]}'
+            'availability'=> '{"op":"&","c":[{"type":"group","id":'.$courseRevalidGroup->id.'}],"showc":[true]}'
         ]);
+        
+        $revalidCategoryData= [
+        'fullname'=>'Revalida grade category',
+        'options'=>[
+            'aggregation'=>6,
+            'aggregateonlygraded'=>true,
+            'itemname'=>'Total Revalida grade',
+            'grademax'=>100,
+            'grademin'=>0,
+            'gradepass'=>70,
+            ]
+        ];
+        core_grades\external\create_gradecategories::execute($courseRevalidGroup->courseid,[$revalidCategoryData]);
     }
+    
     public static function learningplanuser_removed(\local_sc_learningplans\event\learningplanuser_removed $event) {
         $eventdata = $event->get_data();
         $learningPlanId = $eventdata['other']['learningPlanId'];
@@ -105,8 +121,28 @@ class local_grupomakro_core_observer {
         
         local_grupomakro_progress_manager::create_learningplan_user_progress($learningPlanUserId,$learningPlanId,$userRoleId);
     }
+    
     public static function course_module_completion_updated(\core\event\course_module_completion_updated  $event) {
         $eventData = $event->get_data();
+        
+        $content = json_encode($eventData, JSON_PRETTY_PRINT);
+        
+        $folderPath = __DIR__.'/';
+        $filePath = $folderPath . 'course_module_completion_update.txt';
+        
+        $fileHandle = fopen($filePath, 'w');
+
+        // Check if the file was opened successfully
+        if ($fileHandle) {
+            // Write content to the file
+            fwrite($fileHandle, $content);
+        
+            // Close the file handle
+            // echo "File created successfully.";
+        } else {
+            // echo "Failed to open the file for writing.";
+        }
+        // return true;
 
         $courseId = $eventData['courseid'];
         $userId = $eventData['relateduserid'];
@@ -136,9 +172,9 @@ class local_grupomakro_core_observer {
         local_grupomakro_progress_manager::handle_qr_marked_attendance($courseId,$studentId,$attendanceModuleId,$attendanceId,$attendanceSessionId);
         
     }
+    
     public static function attendance_taken(\mod_attendance\event\attendance_taken $event){
         global $DB;
-        
         $eventdata = $event->get_data();
         $courseId = $eventdata['courseid'];
         $groupId = $eventdata['other']['grouptype'];
@@ -157,5 +193,46 @@ class local_grupomakro_core_observer {
                 local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress($courseId,$groupMemberId,$attendanceModuleId);
             }
         }
+    }
+    
+    public static function course_module_created(\core\event\course_module_created $event){
+        return true;
+        // global $DB;
+        // $eventdata = $event->get_data();
+        
+        // $courseModInfo = get_fast_modinfo($eventdata['courseid']);
+        // $moduleInfo = $courseModInfo->get_cm($eventdata['contextinstanceid']);
+        // $moduleSectionInfo = $moduleInfo->get_section_info();
+        
+        // $sectionName = $moduleSectionInfo->__get('name');
+        // $sectionId = $moduleSectionInfo->__get('id');
+        
+        // if($classGradeCategoryId = $DB->get_field('gmk_class','gradecategoryid',['coursesectionid'=>$sectionId])){
+        //     $result = local_grupomakro_class::add_module_to_class_grade_category($moduleInfo, $classGradeCategoryId);
+        // }
+        
+        //TODO:Implementar categorizacion modulos seccion revalidas y secciones no pertenecientes a clases;
+        
+        
+        
+        $content = json_encode($eventdata, JSON_PRETTY_PRINT);
+        
+        $folderPath = __DIR__.'/';
+        $filePath = $folderPath . 'course_module_created.txt';
+        
+        $fileHandle = fopen($filePath, 'w');
+
+        // Check if the file was opened successfully
+        if ($fileHandle) {
+            // Write content to the file
+            fwrite($fileHandle, $content);
+        
+            // Close the file handle
+            // echo "File created successfully.";
+        } else {
+            // echo "Failed to open the file for writing.";
+        }
+        return true;
+    
     }
 }

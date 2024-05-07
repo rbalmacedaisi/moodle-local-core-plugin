@@ -227,8 +227,8 @@ Vue.component('scheduleapproval',{
                                 <div class="d-flex">
                                     <h6>{{tabletitle}}</h6>
                                     <v-spacer></v-spacer>
-                                    <div v-if="selectedStudents.length > 0"  class="px-3 mb-0 d-flex">
-                                        <!--<v-tooltip bottom>
+                                    <div v-if="selectedStudents.length > 1"  class="d-flex" style="padding-right: 25px;">
+                                        <v-tooltip bottom>
                                             <template v-slot:activator="{ on, attrs }">
                                                 <v-btn
                                                   :color="!$vuetify.theme.isDark ? 'secondary' : 'primary'"
@@ -236,6 +236,8 @@ Vue.component('scheduleapproval',{
                                                   v-bind="attrs"
                                                   v-on="on"
                                                   small
+                                                  class="mr-2"
+                                                  @click="moveUsersOtherSchedule(selectedStudents)"
                                                 >
                                                     <v-icon
                                                       v-bind="attrs"
@@ -247,7 +249,7 @@ Vue.component('scheduleapproval',{
                                                 </v-btn>
                                             </template>
                                             <span>{{lang.move_to}}</span>
-                                        </v-tooltip> -->
+                                        </v-tooltip>
                                         
                                 
                                         <v-tooltip bottom>
@@ -297,6 +299,7 @@ Vue.component('scheduleapproval',{
                                            v-bind="attrs"
                                            v-on="on"
                                            @click="moveItem(item)"
+                                           :disabled="!selectedStudents.includes(item)"
                                         >
                                             mdi-folder-move-outline
                                         </v-icon>
@@ -310,7 +313,8 @@ Vue.component('scheduleapproval',{
                                            @click="openDeleteUserFromCourseClassScheduleDialog(item)" 
                                            v-bind="attrs"
                                            v-on="on"
-                                           :disabled="selectedStudents.length > 0"
+                                           :disabled="!selectedStudents.includes(item)"
+                                           
                                         >
                                             mdi-delete
                                         </v-icon>
@@ -343,7 +347,7 @@ Vue.component('scheduleapproval',{
             
             <availableschedulesdialog 
               v-if="availableschedulesdialog" 
-              :moveTitle="moveTitle" 
+              :moveTitle="moveTitles" 
               :schedules="folders"
               :schelduletitle="scheldule.title"
               @close-move-dialog="closemovedialog"
@@ -413,7 +417,8 @@ Vue.component('scheduleapproval',{
             availableschedulesdialog: false,
             selectedStudents: [],
             selectedStudent:undefined,
-            showDeleteUserConfirmationDialog:false
+            showDeleteUserConfirmationDialog:false,
+            selectedUser: null 
         }
     },
     props:{},
@@ -648,7 +653,7 @@ Vue.component('scheduleapproval',{
          * @param '{Object} item' - The student item to be moved.
          */
         moveItem(item){
-            console.log(item)
+            this.moveTitles = [];
             // Initialize the 'folders' array to store available class schedules for moving.
             this.folders = []
             // Check if the student item is already selected for moving.
@@ -661,17 +666,17 @@ Vue.component('scheduleapproval',{
             
             // Get the ID of the current class schedule.
             const id = item.classid
-            
+            console.log(id)
             // Populate the 'folders' array with class schedules that can be moved to.
             this.items.forEach((element) => {
+                console.log(element.id)
                 // Ensure the class schedule is not the current one and has not been approved.
                 if(element.id != id && element.isApprove  == 0){
                     this.folders.push(element)
                 }
             })
-            
             // Set the title for the 'movedialog' to indicate the student being moved.
-            this.moveTitle = item.student
+            this.moveTitles.push(item.student);
             
             // Open the 'availableschedulesdialog' to facilitate the move operation.
             this.availableschedulesdialog = true
@@ -908,6 +913,7 @@ Vue.component('scheduleapproval',{
             this.availableschedulesdialog = false
             // Create an object to store dynamic parameters.
             const params = {};
+            console.log(this.selectedStudents)
             // Loop through the selected array and generate the parameters for moving students.
             for (let i = 0; i < this.selectedStudents.length; i++) {
               const student = this.selectedStudents[i];
@@ -985,7 +991,7 @@ Vue.component('scheduleapproval',{
             // Create an object to store dynamic parameters.
             const params = {};
             const studentToBeEliminated = this.selectedStudent? [this.selectedStudent] : this.selectedStudents;
-
+            console.log( this.selectedStudent)
             // Loop through the 'selected' array and generate the parameters.
             for (let i = 0; i < studentToBeEliminated.length; i++) {
               const student = studentToBeEliminated[i];
@@ -1053,7 +1059,44 @@ Vue.component('scheduleapproval',{
         closeShowDialog(){
             // Hide the 'showDialog' component.
             this.showDialog = false
-        }
+        },
+         /**
+         * Method move to users masive to new Schedule
+         */
+        moveUsersOtherSchedule(userItems){
+            // Inicializa el arreglo 'folders' para almacenar los horarios de clases disponibles para mover.
+            this.folders = [];
+            this.moveTitles = [];
+            
+            userItems.forEach(item => {
+                console.log(item.student)
+                // Check if element exits to move
+                const index = this.selectedStudents.findIndex(selectedItem => selectedItem.student === item.student);
+                              
+                // If element not exists add into List 'selectedStudents'.
+                if (index === -1) {
+                    this.selectedStudents.push(item);
+                }
+                  
+                // Add students Name to Titles
+                this.moveTitles.push(item.student);
+            });
+            
+            // Get the Id of class Actually
+            const idClass = userItems[0].classid;
+
+            // Populate the 'folders' array with class schedules that can be moved to.
+            this.items.forEach((element) => {
+                console.log(element.id)
+                // Ensure the class schedule is not the current one and has not been approved.
+                if(element.id != idClass && element.isApprove  == 0){
+                    this.folders.push(element)
+                }
+            })
+            
+            // Open the dialog
+            this.availableschedulesdialog = true;
+        },
     },
     computed: {
         /**
