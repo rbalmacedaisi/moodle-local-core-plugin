@@ -865,7 +865,7 @@ function update_class($classParams){
     
     $classUpdated = $DB->update_record('gmk_class', $class);
     
-    if($class->instructorid !== $oldInstructorId){
+    if($class->instructorid !== $classOldInstructorId){
         update_class_group($class, $classOldInstructorId);
     }
     
@@ -1047,10 +1047,10 @@ function get_learning_plan_course_schedules($params){
     }
     
     $classesByCoursePeriodAndLearningPlan = array_map(function ($course){
-        $course->learningPlanNames = implode($course->learningPlanNames,',');
-        $course->periodIds = implode($course->periodIds,',');
-        $course->periodNames = implode($course->periodNames,',');
-        $course->learningPlanIds = implode($course->learningPlanIds,',');
+        $course->learningPlanNames = implode(',',$course->learningPlanNames);
+        $course->periodIds = implode(',',$course->periodIds);
+        $course->periodNames = implode(',',$course->periodNames);
+        $course->learningPlanIds = implode(',',$course->learningPlanIds);
         return $course;
     },$classesByCoursePeriodAndLearningPlan);
     
@@ -2653,7 +2653,7 @@ function get_institution_contract_panel_info($institutionId, $institutionContrac
 
 function check_enrol_link_validity($token){
     global $DB;
-    
+    $plugin_name = 'local_grupomakro_core';
     $enrolLinkRecord = $DB->get_record('gmk_contract_enrol_link',['token'=>$token]);
     if(!$enrolLinkRecord){
         throw new Exception(get_string('invalidtoken', $plugin_name));
