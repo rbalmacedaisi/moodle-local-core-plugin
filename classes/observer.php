@@ -212,27 +212,22 @@ class local_grupomakro_core_observer {
         // }
         
         //TODO:Implementar categorizacion modulos seccion revalidas y secciones no pertenecientes a clases;
-        
-        
-        
-        $content = json_encode($eventdata, JSON_PRETTY_PRINT);
-        
-        $folderPath = __DIR__.'/';
-        $filePath = $folderPath . 'course_module_created.txt';
-        
-        $fileHandle = fopen($filePath, 'w');
-
-        // Check if the file was opened successfully
-        if ($fileHandle) {
-            // Write content to the file
-            fwrite($fileHandle, $content);
-        
-            // Close the file handle
-            // echo "File created successfully.";
-        } else {
-            // echo "Failed to open the file for writing.";
+    }
+    public static function learningplancourse_added(\local_sc_learningplans\event\learningplancourse_added $event){
+        global $DB;
+        try{
+            $eventData = $event->get_data();
+            $learningPlanId = $eventData['other']['learningPlanId'];
+            $learningPlanUsers = $DB->get_records("local_learning_users",['learningplanid'=>$learningPlanId]);
+            foreach($learningPlanUsers as $learningPlanUser){
+                local_grupomakro_progress_manager::create_learningplan_user_progress($learningPlanUser->userid,$learningPlanId,$learningPlanUser->userroleid);
+            }
+            // print_object($eventData);
+            return true;
+        }catch(Exception $e){
+            print_object($e->getMessage());
+            return false;
         }
-        return true;
-    
+        
     }
 }

@@ -43,6 +43,10 @@ $observers = array(
         'callback' => 'local_grupomakro_core_observer::learningplanuser_removed',
     ),
     array(
+        'eventname' => 'local_sc_learningplans\event\learningplancourse_added',
+        'callback' => 'local_grupomakro_core_observer::learningplancourse_added',
+    ),
+    array(
         'eventname' => 'core\event\course_module_completion_updated',
         'callback' => 'local_grupomakro_core_observer::course_module_completion_updated',
     ),

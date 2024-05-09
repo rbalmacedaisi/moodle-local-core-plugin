@@ -33,7 +33,6 @@ class local_grupomakro_progress_manager {
     
     public static function create_learningplan_user_progress($learningPlanUserId, $learningPlanId, $userRoleId){
         global $DB;
-        
         try{
             
             $studentRoleId = $DB->get_record('role',['shortname'=>'student'])->id;
@@ -55,6 +54,11 @@ class local_grupomakro_progress_manager {
             
             foreach($learningPlanCourses as $learningPlanCourse){
                 try{
+                    $courseProgressRecord = $DB->record_exists('gmk_course_progre', array('userid' => $learningPlanUserId, 'periodid' => $learningPlanCourse->periodid, 'courseid' => $learningPlanCourse->courseid, 'learningplanid' => $learningPlanCourse->learningplanid));
+                    if($courseProgressRecord){
+                        continue;
+                    }
+                    
                     $learningPlanCourse->userid = $learningPlanUserId;
                     $learningPlanCourse->status = $firstLearningPlanPeriodId == $learningPlanCourse->periodid? COURSE_AVAILABLE:COURSE_NO_AVAILABLE;
                     
@@ -89,10 +93,7 @@ class local_grupomakro_progress_manager {
                     
                     $learningPlanCourse->timecreated = time();
                     $learningPlanCourse->timemodified = time();
-                    $course_proge = $DB->get_record('gmk_course_progre', array('userid' => $learningPlanUserId, 'periodid' => $learningPlanCourse->periodid, 'courseid' => $learningPlanCourse->courseid, 'learningplanid' => $learningPlanCourse->learningplanid));
-                    if($course_proge){
-                        continue;
-                    }
+                    
                     $DB->insert_record('gmk_course_progre',$learningPlanCourse);
                 }catch (Exception $e){
                     continue;
