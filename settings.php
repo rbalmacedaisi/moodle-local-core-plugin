@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
-    $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('plugin', 'local_grupomakro_core')));
+    $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('admin_category_label', 'local_grupomakro_core')));
     $classManagementPage =new admin_externalpage(
         'grupomakro_core_class_management',
         get_string('class_management', 'local_grupomakro_core'),

@@ -25,6 +25,7 @@
 // Admin Menú Strings
 $string['pluginname'] = 'Grupo Makro Core';
 $string['plugin'] = 'Grupo Makro';
+$string['admin_category_label'] = 'Academic Management';
 $string['emailtemplates_settingspage'] = 'Email templates';
 $string['class_management'] = 'Class Management';
 $string['class_schedules'] = 'Class Schedules';

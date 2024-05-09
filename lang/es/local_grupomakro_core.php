@@ -24,6 +24,7 @@
 
 $string['pluginname'] = 'Grupo Makro Core';
 $string['plugin'] = 'Grupo Makro';
+$string['admin_category_label'] = 'Gestión Academica';
 $string['emailtemplates_settingspage'] = 'Plantillas de correo electrónico';
 $string['class_management'] = 'Administrar clases';
 $string['class_schedules'] = 'Horarios de clases';
