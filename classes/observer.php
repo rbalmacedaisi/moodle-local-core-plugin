@@ -34,6 +34,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 define('COURSE_PRACTICAL_HOURS_SHORTNAME','p');
@@ -222,7 +223,8 @@ class local_grupomakro_core_observer {
             foreach($learningPlanUsers as $learningPlanUser){
                 local_grupomakro_progress_manager::create_learningplan_user_progress($learningPlanUser->userid,$learningPlanId,$learningPlanUser->userroleid);
             }
-            // print_object($eventData);
+            
+            relate_course_with_current_period_courses($eventData['other']['learningCourseId']);
             return true;
         }catch(Exception $e){
             print_object($e->getMessage());

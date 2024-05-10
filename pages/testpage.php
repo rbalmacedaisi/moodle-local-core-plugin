@@ -14,6 +14,7 @@ require_once($CFG->dirroot . '/grade/lib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
 
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 // require_once($CFG->dirroot . '/grade/classes/external/create_gradecategories.php');
 
 // use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -22,13 +23,15 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_mana
 // global $DB;
 
 try{
+    
+    relate_course_with_current_period_courses(376);
     // $courseModInfo = get_fast_modinfo(94);
     // $completion = new completion_info($courseModInfo->get_course());
     // $moduleInfo = $courseModInfo->get_cm(4078);
     // // $moduleInfo = $courseModInfo->get_cm(4078);
     // print_object($moduleInfo->get_course_module_record());
     // die;
-    local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress(94,573,4097,0);
+    // local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress(94,573,4097,0);
     // local_grupomakro_class::add_module_to_class_grade_category($moduleInfo, 146);
     
     // print_object($moduleinfo->get_section_info()->__get('name'));
