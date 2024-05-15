@@ -549,10 +549,9 @@ function create_class_activities($class, $updating=false) {
 
     //Define some needed constants
     $currentDateTS = $startDateTS;
-    $dayInSeconds = 86400;
     
-    $BBBmoduleId = $DB->get_field('modules','id',['name'=>'bigbluebuttonbn']);
-    $BBBModuleIds = [];
+    $BBBModuleId = $DB->get_field('modules','id',['name'=>'bigbluebuttonbn']);
+    $BBBCourseModulesInfo = [];
     
     // Start looping from the startDate to the endDate
     while ($currentDateTS < $endDateTS) {
@@ -560,40 +559,39 @@ function create_class_activities($class, $updating=false) {
         
         if($day === '1'){
             
-            $BBBModuleId = null;
+            $BBBCourseModuleInfo = null;
             
             if($class->type !== 0){
                 // Create Big Blue Button activity
                 $activityEndTS = $currentDateTS + (int)$class->classduration;
-                $BBBModuleId = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBmoduleId,$classSectionNumber);
-                $BBBModuleIds[]= $BBBModuleId;
+                $BBBCourseModuleInfo = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS,$BBBModuleId,$classSectionNumber);
+                $BBBCourseModulesInfo[]= $BBBCourseModuleInfo;
             }
             // Create attendance session
-            $attendanceSession = create_attendance_session_object($class,$currentDateTS,(int)$class->classduration,$BBBModuleId);
+            $attendanceSession = create_attendance_session_object($class,$currentDateTS,(int)$class->classduration,$BBBCourseModuleInfo);
             $attendanceSessions[] = $attendanceSession;
         }
         $dateTime = new DateTime('@' . $currentDateTS);
         $dateTime->modify('+1 day');
         $currentDateTS = $dateTime->getTimestamp();
-        
-        $currentDateTS += $dayInSeconds;
     }
     
-    $class->bbbmoduleids =count($BBBModuleIds)>0? implode(",",$BBBModuleIds): null;
+    $class->bbbmoduleids =count($BBBCourseModulesInfo)>0? implode(",",array_map(function($BBBCourseModuleInfo){
+        return $BBBCourseModuleInfo->coursemodule;
+    },$BBBCourseModulesInfo)): null;
     
     foreach($attendanceSessions as $session){
         $attendanceSessionId = $attendanceStructure->add_session($session);
         
-        if($class->type !=0){
-            $classAttendanceBBBRelation = new stdClass();
-            $classAttendanceBBBRelation->attendancesessionid=$attendanceSessionId;
-            $classAttendanceBBBRelation->bbbmoduleid=$session->bbbModuleId;
-            $classAttendanceBBBRelation->classid=$class->id;
-            $classAttendanceBBBRelation->attendancemoduleid=$attendanceStructure->cmid;
-            $classAttendanceBBBRelation->attendanceid=$attendanceStructure->id;
-            $classAttendanceBBBRelation->sectionid=$class->coursesectionid;
-            $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
-        }
+        $classAttendanceBBBRelation = new stdClass();
+        $classAttendanceBBBRelation->attendancesessionid=$attendanceSessionId;
+        $classAttendanceBBBRelation->bbbmoduleid=$class->type !=0 ? $session->bbbCourseModuleInfo->coursemodule:null;
+        $classAttendanceBBBRelation->bbbid=$class->type !=0? $session->bbbCourseModuleInfo->instance:null;
+        $classAttendanceBBBRelation->classid=$class->id;
+        $classAttendanceBBBRelation->attendancemoduleid=$attendanceStructure->cmid;
+        $classAttendanceBBBRelation->attendanceid=$attendanceStructure->id;
+        $classAttendanceBBBRelation->sectionid=$class->coursesectionid;
+        $DB->insert_record('gmk_bbb_attendance_relation',$classAttendanceBBBRelation);
     }
     $DB->update_record('gmk_class',$class);
     
@@ -608,8 +606,8 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->name                            = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->welcome                         = "Le damos la bienvenida a la sala de clases online de la clase ".$class->name ;
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":'.$class->instructorid.',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
-    // $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
-    // $bbbActivityDefinition->closingtime                     = $endDateTS;
+    $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
+    $bbbActivityDefinition->closingtime                     = $endDateTS;
     $bbbActivityDefinition->cmidnumber                      = $class->name.'-'.$class->id.'-'.$initDateTS;
     $bbbActivityDefinition->groupmode                       = '0';
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
@@ -622,12 +620,17 @@ function create_big_blue_button_activity($class,$initDateTS,$endDateTS,$BBBmodul
     $bbbActivityDefinition->recordallfromstart              = 1;
     $bbbActivityDefinition->recordhidebutton                = 1;
     $bbbActivityDefinition->completion                      = 2;
-    // $bbbActivityDefinition->availability                      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$bbbActivityDefinition->openingtime.'}],"showc":[true]}';
+    $bbbActivityDefinition->availability                      = '{"op":"&","c":[{"type":"date","d":">=","t":'.$bbbActivityDefinition->openingtime.'}],"showc":[true]}';
     $bbbActivityDefinition->completionattendanceenabled     = 1;
     $bbbActivityDefinition->completionattendance            = 1;
     
     $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
-    return $bbbActivityInfo->coursemodule;
+    
+    $bbbInstanceInfo = new stdClass();
+    $bbbInstanceInfo->coursemodule = $bbbActivityInfo->coursemodule;
+    $bbbInstanceInfo->instance = $bbbActivityInfo->instance;
+    
+    return $bbbInstanceInfo;
 }
 
 function create_attendance_activity($class,$classSectionNumber){
@@ -654,7 +657,7 @@ function create_attendance_activity($class,$classSectionNumber){
         
 }
 
-function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds,$BBBModuleId=null){
+function create_attendance_session_object($class,$initDateTS,$classDurationInSeconds,$BBBCourseModuleInfo=null){
     
     $attendanceSessionDefinition = new stdClass();
     $attendanceSessionDefinition->sessdate        = $initDateTS;
@@ -669,7 +672,7 @@ function create_attendance_session_object($class,$initDateTS,$classDurationInSec
     $attendanceSessionDefinition->autoassignstatus = 1;
     $attendanceSessionDefinition->automark  = 2;
     $attendanceSessionDefinition->studentsearlyopentime = 120;
-    $attendanceSessionDefinition->bbbModuleId= $BBBModuleId;
+    $attendanceSessionDefinition->bbbCourseModuleInfo= $BBBCourseModuleInfo;
 
     return $attendanceSessionDefinition;
 }
@@ -2012,110 +2015,63 @@ function reschedule_class_activity($params){
 
 //Por revisar
 
-function get_class_events($userId) {
+function get_class_events($userId,$initDate=null,$endDate = null,$classSessionsEventsOnly = true) {
     global $DB;
-    $initDate = '2022-01-01';
-    $endDate = '2024-12-30';
-    $moduleIds = ["bigbluebuttonbn"=>$DB->get_field('modules','id',['name'=>'bigbluebuttonbn']),"attendance"=>$DB->get_field('modules','id',['name'=>'attendance'])];
+    
+    //Set the date range to look for the events (should be required always from arguments)
+    $initDate = $initDate? $initDate : '2023-01-01';
+    $endDate = $endDate? $endDate : '2024-12-30';
+    
+    //First, we get the groups and the courses of the user
+    $userGroups = $DB->get_records_sql('SELECT gm.groupid, g.courseid
+                                        FROM {groups_members} gm
+                                        JOIN {groups} g ON (gm.groupid = g.id)
+                                        WHERE gm.userid = :userid',['userid'=>$userId]);
+    
+    // Get the user group ids and course ids arrays of the user.
+    $userGroupIds = array_unique(array_map(function($group){
+        return $group->groupid;
+    },$userGroups));
+    $userCourseIds = array_unique(array_map(function($group){
+        return $group->courseid;
+    },$userGroups));
+
+    //Get the events filtered by date range, groups and courses.
+    $events = calendar_get_events(strtotime($initDate),strtotime($endDate),false,$userGroupIds,$userCourseIds,true);
     
     $fetchedClasses=[];
-    $fetchedCourses = [];
-    $eventDaysFiltered = [];
-    
-    $events = calendar_get_events(strtotime($initDate),strtotime($endDate),$userId,true,true,false,false,false);
-    $eventsWithoutUnsetedEvents = $events;
+    $eventsFiltered = [];
     
     foreach($events as $eventKey => $event){
-        if(!array_key_exists($eventKey,$eventsWithoutUnsetedEvents)){
+        if($event->modulename !== 'attendance'){
+            //In this case, we should handle the events of activities outside the normal class activities (ej. quiz, others...)
             continue;
         }
-        unset($eventsWithoutUnsetedEvents[$eventKey]);
-        
-        if(!array_key_exists($event->modulename, $moduleIds) || !$event->instance){
+        $eventComplete = complete_class_event_information($event,$fetchedClasses);
+        if(!$eventComplete){
             continue;
         }
+        // var_dump($eventComplete);
+        $courseContext = context_course::instance($eventComplete->courseid);
+        $userRolesInCourse = array_values(array_map(function ($role){
+            return $role->shortname;
+        },get_user_roles($courseContext, $userId, false)));
         
-        list($event,$fetchedClasses,$fetchedCourses) = complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds);
-        
-        if(!$event){
-            continue;
+        if(in_array('student',$userRolesInCourse)){
+            $eventComplete->role = 'student';
+            unset($eventComplete->attendanceActivityUrl);
+            unset($eventComplete->sessionId);
         }
-
-        if($event->classType !== '0'){
-            foreach ($eventsWithoutUnsetedEvents as $pairEventKey => $pairEvent) {
-
-                list($pairEvent,$fetchedClasses,$fetchedCourses) = complete_class_event_information($pairEvent,$fetchedClasses,$fetchedCourses,$moduleIds);
-                
-                if ($pairEvent->classId === $event->classId && $pairEvent->timestart === $event->timestart) {
-                    if($event->modulename ==='bigbluebuttonbn'){
-                        $event->attendanceActivityUrl = $pairEvent->attendanceActivityUrl;
-                        $event->sessionId = $pairEvent->sessionId;
-                    }else if($event->modulename ==='attendance'){
-                        $event->bigBlueButtonActivityUrl = $pairEvent->bigBlueButtonActivityUrl;
-                    } 
-                    unset($eventsWithoutUnsetedEvents[$pairEventKey]);
-                    break;
-                }
-            }
+        else if(in_array('teacher',$userRolesInCourse)||in_array('editingteacher',$userRolesInCourse)){
+            $eventComplete->role = 'teacher';
         }
-        $eventDaysFiltered[]=$event;
+        $eventsFiltered[]=$eventComplete;
     }
     
-    if($userId){
-        $learningPlanUserRoles = $DB->get_records('local_learning_users', ['userid'=>$userId],'','id,userroleid,learningplanid');
-        
-        if (!$learningPlanUserRoles){
-            throw new Exception('The user has no learning plans.');
-        }
-        
-        $eventsFiltered = [];
-        
-        foreach($learningPlanUserRoles as $learningPlanUserRole){
-            
-            $userLearningPlanRole = $learningPlanUserRole->userroleid;
-            $learningPlanUserId = $learningPlanUserRole->id;
-            
-            if ($userLearningPlanRole === '4'){
-
-                $eventsFilteredByTeacher=[];
-                foreach($eventDaysFiltered as $event){
-                    if($event->instructorlpid ===$learningPlanUserId){
-                        $event->role = 'teacher';
-                        $eventsFilteredByTeacher[]=$event;
-                    }
-                }
-                $eventsFiltered = array_merge($eventsFiltered, $eventsFilteredByTeacher);
-            }
-            else if($userLearningPlanRole === '5'){
-                $asignedGroups = $DB->get_records('groups_members', ["userid"=>$userId],'','groupid');
-            
-                $asignedClasses = [];
-                
-                foreach($asignedGroups as $asignedGroup){
-                    
-                    $groupClassId = $DB->get_field('gmk_class','id', ["groupid"=>$asignedGroup->groupid]);
-                    // $groupClassId = $DB->get_field('gmk_class','id', ["groupid"=>$asignedGroup->groupid , "learningplanid"=>$learningPlanUserRole->learningplanid]);
-                    $groupClassId? $asignedClasses[]=$groupClassId :null;
-                }
-                $eventsFilteredByClass=array();
-                foreach($eventDaysFiltered as $event){
-                    if(in_array($event->classId,$asignedClasses)){
-                        $event->role = 'student';
-                        unset($event->attendanceActivityUrl);
-                        $eventsFilteredByClass[]=$event;
-                    }
-                }
-                $eventsFiltered = array_merge($eventsFiltered, $eventsFilteredByClass);
-            }
-            
-        }
-
-        $eventDaysFiltered =$eventsFiltered;
-    }
-    return $eventDaysFiltered;
+    return $eventsFiltered;
 }
 
-function complete_class_event_information($event,$fetchedClasses,$fetchedCourses,$moduleIds){
+function complete_class_event_information($event,&$fetchedClasses){
     global $DB,$CFG;
     
     define('PRESENCIAL_CLASS_TYPE_INDEX','0');
@@ -2124,29 +2080,35 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     define('PRESENCIAL_CLASS_COLOR','#00bcd4');
     define('VIRTUAL_CLASS_COLOR','#2196f3');
     define('MIXTA_CLASS_COLOR','#673ab7');
-    
+
     $eventColors = [
         PRESENCIAL_CLASS_TYPE_INDEX=>PRESENCIAL_CLASS_COLOR,
         VIRTUAL_CLASS_TYPE_INDEX=>VIRTUAL_CLASS_COLOR,
-        MIXTA_CLASS_TYPE_INDEX=>MIXTA_CLASS_COLOR];
-
-    $moduleInfo = $DB->get_record('course_modules', ['instance'=>$event->instance, 'module'=>$moduleIds[$event->modulename]],'id,section');
-    $moduleSectionId = $moduleInfo->section;
+        MIXTA_CLASS_TYPE_INDEX=>MIXTA_CLASS_COLOR
+    ];
+        
+    $attendanceSessionId = $DB->get_field('attendance_sessions','id',['attendanceid'=>$event->instance, 'caleventid'=>$event->id]);
+    $eventModuleClassRelation = $DB->get_record('gmk_bbb_attendance_relation',['attendanceid'=>$event->instance,'attendancesessionid'=>$attendanceSessionId],'classid,bbbmoduleid,attendancemoduleid,attendancesessionid');
     
+    $gmkClass = null;
     //Save the fetched classes to minimize db queries
-    if(array_key_exists($moduleSectionId,$fetchedClasses)){
-        $gmkClass = $fetchedClasses[$moduleSectionId];
-    }else {
-        
-        if(!$classId = $DB->get_field('gmk_class', 'id',['coursesectionid'=>$moduleSectionId])){
-            return [false,$fetchedClasses,$fetchedCourses];
-        }
-        
-        $gmkClass =list_classes(["id"=>$classId])[$classId];
-        $fetchedClasses[$moduleSectionId] = $gmkClass;
+    if(!$eventModuleClassRelation){
+        return false;
     }
+    
+    $eventClassId = $eventModuleClassRelation->classid;
+    $eventAttendanceModuleId = $eventModuleClassRelation->attendancemoduleid;
+    $eventBBBModuleId = $eventModuleClassRelation->bbbmoduleid;
+    
+    if($eventModuleClassRelation && array_key_exists($eventClassId,$fetchedClasses)){
+        $gmkClass = $fetchedClasses[$eventClassId];
+    }
+    else if($eventModuleClassRelation && !array_key_exists($eventClassId,$fetchedClasses)){
+        $gmkClass =list_classes(["id"=>$eventClassId])[$eventClassId];
+        $fetchedClasses[$eventClassId] = $gmkClass;
+    }
+    
     //Set the class information for the event
-    $event->moduleId = $moduleInfo->id;
     $event->instructorName = $gmkClass->instructorName;
     $event->timeRange = $gmkClass->inithourformatted.' - '. $gmkClass->endhourformatted;
     $event->classDaysES = $gmkClass->selectedDaysES;
@@ -2156,32 +2118,25 @@ function complete_class_event_information($event,$fetchedClasses,$fetchedCourses
     $event->className = $gmkClass->name;
     $event->classId = $gmkClass->id;
     $event->instructorlpid = $gmkClass->instructorlpid;
+    $event->instructorid = $gmkClass->instructorid;
     $event->groupid = $gmkClass->groupid;
+    $event->coursename = $gmkClass->course->fullname;
     $event->timeduration = $gmkClass->classduration;
-    $event->color = $eventColors[ $gmkClass->type];
+    $event->color = $eventColors[ $event->classType];
     
-    //Set the module url
-
-    if($event->modulename === 'bigbluebuttonbn'){
-        $event->bigBlueButtonActivityUrl = $CFG->wwwroot.'/mod/bigbluebuttonbn/view.php?id='.$moduleInfo->id;
-    }else if ($event->modulename === 'attendance'){
-        $event->attendanceActivityUrl = $CFG->wwwroot.'/mod/attendance/view.php?id='.$moduleInfo->id;
-        $event->sessionId = $DB->get_field('attendance_sessions','id',['attendanceid'=>$event->instance, 'caleventid'=>$event->id]);
-    }
+    //Add the attendance module info to the event.
+    $event->moduleId = $eventAttendanceModuleId;
+    $event->attendanceActivityUrl = $CFG->wwwroot.'/mod/attendance/view.php?id='.$eventAttendanceModuleId;
+    $event->sessionId = $attendanceSessionId;
+    
+    //If the class is virtual or mixed, set the BBB activity url
+    $event->bigBlueButtonActivityUrl = $event->classType !== '0' ? $CFG->wwwroot.'/mod/bigbluebuttonbn/view.php?id='.$eventModuleClassRelation->bbbmoduleid:null;
     
     //Set the initial date and the end date of the event
     $event->start = date('Y-m-d H:i:s',$event->timestart);
     $event->end = date('Y-m-d H:i:s',$event->timestart + $event->timeduration);
     
-    //Get the coursename, save the fetched coursenames for minimize db queries
-    if(array_key_exists($event->courseid,$fetchedCourses)){
-        $event->coursename = $fetchedCourses[$event->courseid];
-    }else {
-        $event->coursename = $DB->get_field('course','fullname', ['id'=>$event->courseid])->fullname;
-        $fetchedCourses[$event->courseid] = $event->coursename;
-    }
-    
-    return [$event,$fetchedClasses,$fetchedCourses];
+    return $event;
 }
 
 function createClassroomReservations ($classInfo){
@@ -2269,156 +2224,150 @@ function createClassroomReservations ($classInfo){
     
 }
 
-function get_teacher_disponibility_calendar($instructorId){
-    
+function get_teacher_disponibility_calendar($instructorId,$initDate=null,$endDate=null){
     global $DB;
     
-    $initDate = '2023-06-01';
-    $endDate = '2023-12-31';
-    
-    $filters = array();
-    if($instructorId){
-        $filters['userid']=$instructorId;
-    }
-    $disponibilityRecords = $DB->get_records('gmk_teacher_disponibility',$filters);
-    
-    $weekdays = array(
-        'disp_monday',
-        'disp_tuesday',
-        'disp_wednesday',
-        'disp_thursday',
-        'disp_friday',
-        'disp_saturday',
-        'disp_sunday'
+    $gmkTeacherDisponibilityTableDayHeaders = array(
+        'disp_monday'=>'monday',
+        'disp_tuesday'=>'tuesday',
+        'disp_wednesday'=>'wednesday',
+        'disp_thursday'=>'thursday',
+        'disp_friday'=>'friday',
+        'disp_saturday'=>'saturday',
+        'disp_sunday'=>'sunday'
     );
     
-    $teachersDisponibility = array();
+    $initDate = $initDate? $initDate:  date('Y-m-d', strtotime('-1 months'));
+    $endDate =$endDate?$endDate: date('Y-m-d', strtotime('+1 months'));
     
-    foreach($disponibilityRecords as $disponibilityRecord){
-        $teacherId = $disponibilityRecord->userid;
-        $teachersDisponibility[$teacherId]= new stdClass();
-        $teacherInfo = $DB->get_record('user',['id'=>$teacherId]);
-        $teachersDisponibility[$teacherId]->name = $teacherInfo->firstname.' '.$teacherInfo->lastname;
-        $teachersDisponibility[$teacherId]->id = $teacherId;
-        $teachersDisponibility[$teacherId]->events = get_class_events($teacherId);
-        $eventsTimesToSubstract = array();
+    //Get the teacher disponibility record
+    $teacherDisponibilityRecord = $DB->get_record('gmk_teacher_disponibility',['userid'=>$instructorId],'*',MUST_EXIST);
+    
+    //Initialize the disponibility calendar object and fill some basic information about the teacher.
+    $teacherDisponibilityCalendar = new stdClass();
+    $teacherInfo = core_user::get_user($instructorId,'firstname,lastname',MUST_EXIST);
+    $teacherDisponibilityCalendar->id = $instructorId;
+    $teacherDisponibilityCalendar->name = $teacherInfo->firstname.' '.$teacherInfo->lastname;
+    
+    //Lets get the events created for the teacher.
+    $teacherDisponibilityCalendar->events = get_class_events($instructorId,$initDate,$endDate);
+    $eventsTimesToSubstractFromDisponibility = array();
+
+    foreach($teacherDisponibilityCalendar->events as $event){
+        // print_object($event);
+        $eventInitDateAndTime = explode(' ',$event->start);
+        $eventEndDateAndTime = explode(' ',$event->end);
         
-        foreach($teachersDisponibility[$teacherId]->events as $event){
-            $eventInitDateAndTime = explode(' ',$event->start);
-            $eventDate = $eventInitDateAndTime[0];
-            $eventInitTime = substr($eventInitDateAndTime[1],0,5);
-            $eventEndTime = substr($event->end,11,5);
-            
-            $eventInitTime = strtotime($eventInitTime) - strtotime('today');
-            $eventEndTime = strtotime($eventEndTime) - strtotime('today');
-            
-            $newRange1 = new stdClass();
-            $newRange1->st = $eventInitTime;
-            $newRange1->et = $eventEndTime;
-            
-            if(array_key_exists($eventInitDateAndTime[0], $eventsTimesToSubstract)){
-                $eventsTimesToSubstract[$eventInitDateAndTime[0]][]=$newRange1;
-                continue;
-            }
-            $eventsTimesToSubstract[$eventInitDateAndTime[0]]=array($newRange1);
-            
-        }
+        $eventDate = $eventInitDateAndTime[0];
+        $eventInitTime = substr($eventInitDateAndTime[1],0,5);
+        $eventEndTime = substr($eventEndDateAndTime[1],0,5);
+
+        $eventInitTimeTS = strtotime($eventInitTime) - strtotime('today');
+        $eventEndTimeTS = strtotime($eventEndTime) - strtotime('today');
         
-        $dayDisponibility = array();
-
-        foreach($weekdays as $day){
-            $dayAvailabilities = json_decode($disponibilityRecord->{$day});
-            $dayLabel = substr($day, 5);
-            $dayDisponibilityHours =$dayAvailabilities; 
-            if(empty($dayDisponibilityHours)){
-                continue;
-            };
-            $dayDisponibility[$dayLabel] = $dayDisponibilityHours;
+        $eventTimeRange = new stdClass();
+        $eventTimeRange->st = $eventInitTimeTS;
+        $eventTimeRange->et = $eventEndTimeTS;
+        
+        if(array_key_exists($eventInitDateAndTime[0], $eventsTimesToSubstractFromDisponibility)){
+            $eventsTimesToSubstractFromDisponibility[$eventInitDateAndTime[0]][]=$eventTimeRange;
+            continue;
         }
-
-        $date = new DateTime($initDate);
-        $lastDate = new DateTime($endDate);
-        $result = array();
-        while ($date <= $lastDate) {
-            $day = $date->format('Y-m-d');
-            $date->modify('+1 day');
-            $dayLabel = strtolower(date('l', strtotime($day)));
-            if(!array_key_exists($dayLabel, $dayDisponibility)){
-                continue;
-            }
-            $result[$day] = $dayDisponibility[$dayLabel];
-            
-            if(array_key_exists($day,$eventsTimesToSubstract)){
-                foreach($eventsTimesToSubstract[$day] as $event){
-                    $result[$day] = substract_timerange_from_teacher_disponibility($result[$day], $event);
-                }
-
-            }
-            if(empty($result[$day])){
-                unset($result[$day]);
-                continue;
-            }
-
-            $rangeHolder = array();
-            foreach($result[$day] as $dayRange){
-                $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->st / 3600), floor(($dayRange->st % 3600) / 60));
-                $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->et / 3600), floor(($dayRange->et % 3600) / 60));
-            }
-            $result[$day] = $rangeHolder;
-        }
-    $teachersDisponibility[$teacherId]->daysFree = $result;
+        $eventsTimesToSubstractFromDisponibility[$eventInitDateAndTime[0]]=[$eventTimeRange];
     }
+    
+    $dayDisponibility = [];
+    
+    foreach($gmkTeacherDisponibilityTableDayHeaders as $dayHeader => $day){
+        $dayAvailabilities = json_decode($teacherDisponibilityRecord->{$dayHeader});
+        $dayDisponibilityHours =$dayAvailabilities; 
+        if(empty($dayDisponibilityHours)){
+            continue;
+        };
+        $dayDisponibility[$day] = $dayDisponibilityHours;
+    }
+    
+    $currentDate = new DateTime($initDate);
+    $lastDate = new DateTime($endDate);
+    $teacherDayFreeRanges = [];
+    
+    while ($currentDate <= $lastDate) {
+        $currentDateDay = $currentDate->format('Y-m-d');
+        $currentDate->modify('+1 day');
+        $currentDateDayLabel = strtolower(date('l', strtotime($currentDateDay)));
+        if(!array_key_exists($currentDateDayLabel, $dayDisponibility)){
+            continue;
+        }
+        $teacherDayFreeRanges[$currentDateDay] = $dayDisponibility[$currentDateDayLabel];
 
-    return $teachersDisponibility;
+        if(array_key_exists($currentDateDay,$eventsTimesToSubstractFromDisponibility)){
+            foreach($eventsTimesToSubstractFromDisponibility[$currentDateDay] as $currentDayEvent){
+                $teacherDayFreeRanges[$currentDateDay] = substract_timerange_from_teacher_disponibility($teacherDayFreeRanges[$currentDateDay], $currentDayEvent);
+            }
+
+        }
+        if(empty($teacherDayFreeRanges[$currentDateDay])){
+            unset($teacherDayFreeRanges[$currentDateDay]);
+            continue;
+        }
+
+        $rangeHolder = [];
+        foreach($teacherDayFreeRanges[$currentDateDay] as $dayRange){
+            $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->st / 3600), floor(($dayRange->st % 3600) / 60));
+            $rangeHolder[]= sprintf('%02d:%02d', floor($dayRange->et / 3600), floor(($dayRange->et % 3600) / 60));
+        }
+        $teacherDayFreeRanges[$currentDateDay] = $rangeHolder;
+    }
+    
+    $teacherDisponibilityCalendar->daysFree = $teacherDayFreeRanges;
+    return $teacherDisponibilityCalendar;
 }
 
 function list_instructors() {
     
     global $DB;
-    $editingTeacherRoleId = $DB->get_record('role',["shortname"=>'editingteacher'])->id;
-    $teacherRoleId = $DB->get_record('role',["shortname"=>'teacher'])->id;
-    $scTeacherRoleId = $DB->get_record('role',["shortname"=>'scteachrole'])->id;
-    $editingTeacherUsers = $DB->get_records('role_assignments',["roleid"=>$editingTeacherRoleId]);
-    $teacherUsers = $DB->get_records('role_assignments',["roleid"=>$teacherRoleId]);
-    $scTeacherUsers = $DB->get_records('role_assignments',["roleid"=>$scTeacherRoleId]);
-    $instructors = array_merge($editingTeacherUsers,$teacherUsers);
-    $instructors = array_merge($instructors,$scTeacherUsers);
-    $uniqueInstructors= array();
-    foreach($instructors as $instructor){
-         if(!array_key_exists($instructor->userid, $uniqueInstructors)){
-            $userInfo =$DB->get_record('user',['id'=> $instructor->userid]);
-            $instructor->fullname = $userInfo->firstname.' '.$userInfo->lastname;
-            $instructor->userid = $userInfo->id;
-            $uniqueInstructors[$instructor->userid] = $instructor;
-         }
+    //Get the role ids related to teaching.
+    $editingTeacherRoleId = $DB->get_field('role','id',["shortname"=>'editingteacher']);
+    $teacherRoleId = $DB->get_field('role','id',["shortname"=>'teacher']);
+    $scTeacherRoleId = $DB->get_field('role','id',["shortname"=>'scteachrole']);
+    
+    //Get the ids of the users who have the roles.
+    $editingTeacherUsers = $DB->get_fieldset_select('role_assignments','userid','roleid = :roleid',['roleid'=>$editingTeacherRoleId]);
+    $teacherUsers = $DB->get_fieldset_select('role_assignments','userid','roleid = :roleid',['roleid'=>$teacherRoleId]);
+    $scTeacherUsers = $DB->get_fieldset_select('role_assignments','userid','roleid = :roleid',['roleid'=>$scTeacherRoleId]);
+    
+    //If the usertype user customfield is defined in the platform, obtain the ids of the users who have 'Instructor' value in.
+    $customFieldDefinedTeachers = [];
+    if($userTypeCustomFieldId = $DB->get_field('user_info_field','id',['shortname'=>'usertype'])){
+        $userTypeTeacherValue = 'Instructor';
+        $customFieldDefinedTeachers = $DB->get_fieldset_select('user_info_data','userid','fieldid = :fieldid AND data = :usertypeteachervalue',
+            ['fieldid'=>$userTypeCustomFieldId,'usertypeteachervalue'=>$userTypeTeacherValue]
+        );
     }
+    
+    //Merge all the arrays and get the unique values.
+    $instructorIds = array_unique(array_merge($editingTeacherUsers,$teacherUsers,$scTeacherUsers,$customFieldDefinedTeachers));
+    
+    //Filter the suspended and unexisting users, and return an array with the necessary information.
+    $instructors = array_filter(array_map(function ($instructorId){
+        $userInfo = core_user::get_user($instructorId,'id,suspended,firstname,lastname');
+        if(!$userInfo || $userInfo->suspended === '1'){
+            return null;
+        }
+        $userInfo->fullname = $userInfo->firstname.' '.$userInfo->lastname;
+        return $userInfo;
+    },$instructorIds));
 
-    return $uniqueInstructors;
+    return $instructors;
 }
 
 function grupomakro_core_list_instructors_with_disponibility_flag(){
     global $DB;
     $instructors = list_instructors();
     foreach($instructors as $instructor){
-        if (!$existing_record = $DB->get_record('gmk_teacher_disponibility', array("userid"=>$instructor->userid))) {
-            $instructor->hasDisponibility = 0;
-            continue;
-        }
-        $instructor->hasDisponibility = 1;
+        $instructor->hasDisponibility = $DB->record_exists('gmk_teacher_disponibility', ["userid"=>$instructor->id]);
     }
     return $instructors;
-}
-
-function grupomakro_core_list_instructors_with_disponibility(){
-    global $DB;
-    $filteredInstructors = array();
-    $instructors = list_instructors();
-    foreach($instructors as $instructor){
-        if ($existing_record = $DB->get_record('gmk_teacher_disponibility', array("userid"=>$instructor->userid))) {
-            $filteredInstructors[]=$instructor;
-        }
-    }
-    return $filteredInstructors;
 }
 
 function calculate_disponibility_range($timeRanges){
@@ -2829,8 +2778,6 @@ function student_get_active_classes($userId,$courseId = null){
             }
         }
     };
-    // print_object($activeClasses);
-    // die;
     return $activeClasses;
 }
 
@@ -3065,12 +3012,12 @@ function check_if_time_range_is_contained($rangeArray,$inputRange){
 }
 
 function substract_timerange_from_teacher_disponibility($rangeArray, $inputRange) {
-    foreach ($rangeArray as $key => $range) {
+    foreach ($rangeArray as $rangeIndex => $range) {
         if ($range->st <= $inputRange->st && $inputRange->et <= $range->et) {
             // input range is fully contained within the current range
             if ($range->st == $inputRange->st && $range->et == $inputRange->et) {
                 // input range is identical to current range, so remove it completely
-                unset($rangeArray[$key]);
+                unset($rangeArray[$rangeIndex]);
             } else {
                 // input range is within current range, so split it
                 $newRange1 = new stdClass();
@@ -3082,7 +3029,7 @@ function substract_timerange_from_teacher_disponibility($rangeArray, $inputRange
                 $newRange2->et = $range->et;
 
                 // remove the current range from the range array and add the two new ranges
-                unset($rangeArray[$key]);
+                unset($rangeArray[$rangeIndex]);
 
                 // if the input range is not completely contained in the beginning of the current range
                 if ($newRange1->et > $newRange1->st) {

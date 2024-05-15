@@ -1,10 +1,23 @@
 <?php
 
+namespace local_grupomakro_core\local;
+
 defined('MOODLE_INTERNAL') || die();
+
+define('PLUGIN_NAME','local_grupomakro_core');
 
 require_once($CFG->dirroot.'/grade/lib.php');
 
-class local_grupomakro_class {
+class gmk_class {
+    
+    public static function get_class_type_values(){
+        return [
+          ['value'=>0, 'label'=>get_string('classType_0',PLUGIN_NAME)],
+          ['value'=>1, 'label'=>get_string('classType_1',PLUGIN_NAME)],
+          ['value'=>2, 'label'=>get_string('classType_2',PLUGIN_NAME)],
+        ];
+    }
+    // public const CLASS_TYPES_VALUES = 
     
     public static function add_module_to_class_grade_category( $moduleInfo, $classGradeCategoryId){
         global $DB;

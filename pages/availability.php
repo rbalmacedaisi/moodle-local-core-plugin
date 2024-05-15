@@ -23,78 +23,54 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-require_once($CFG->libdir . '/externallib.php');
-$plugin_name = 'local_grupomakro_core';
 require_login();
 
-$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/availability.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->libdir . '/externallib.php');
+
+$plugin_name = 'local_grupomakro_core';
 
 $context = context_system::instance();
+
+$PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/availability.php');
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('availability', $plugin_name));
-$PAGE->set_heading(get_string('availability', $plugin_name));
+$PAGE->set_title(get_string('availability_calendar', $plugin_name));
+$PAGE->set_heading(get_string('availability_calendar', $plugin_name));
 $PAGE->set_pagelayout('base');
 
-
+//Get tokens
 $token = get_logged_user_token();
 $themeToken = get_theme_token();
 
-$instructors = grupomakro_core_list_instructors_with_disponibility();
-$instructorItems = [];
-foreach($instructors as $instructor){
+//Get the instructors who have an availability created
+$instructors = array_values(array_filter(array_map(function ($instructor){
+  if(!$instructor->hasDisponibility){
+    return null;
+  }
   $instructorItem = new stdClass();
-  $instructorItem->id = $instructor->userid;
+  $instructorItem->id = $instructor->id;
   $instructorItem->text = $instructor->fullname;
   $instructorItem->value = $instructor->fullname;
-  array_push($instructorItems,$instructorItem);
-}
-$instructorItems = json_encode($instructorItems);
+  return $instructorItem;
+},grupomakro_core_list_instructors_with_disponibility_flag())));
 
+//get the class types for class type select
+$classTypes = \local_grupomakro_core\local\gmk_class::get_class_type_values();
+
+//Get lang strings
+$requiredStringsKeys = ['today','add','availability','day','week','month','instructors','scheduledclasses','close','edit','remove','reschedule','cancel',
+                        'accept','available_hours','available','name','class_type','class_learningplan_placeholder','class_period_placeholder',
+                        'class_course_placeholder','class_days','create','class_room'];
 $strings = new stdClass();
-$strings->today = get_string('today',$plugin_name);
-$strings->add = get_string('add',$plugin_name);
-$strings->availability = get_string('availability',$plugin_name);
-$strings->day = get_string('day',$plugin_name);
-$strings->week = get_string('week',$plugin_name);
-$strings->month = get_string('month',$plugin_name);
-$strings->instructors = get_string('instructors',$plugin_name);
-$strings->scheduledclasses = get_string('scheduledclasses',$plugin_name);
-$strings->close = get_string('close',$plugin_name);
-$strings->edit = get_string('edit',$plugin_name);
-$strings->remove = get_string('remove',$plugin_name);
-$strings->reschedule = get_string('reschedule',$plugin_name);
-$strings->cancel = get_string('cancel',$plugin_name);
-$strings->accept = get_string('accept',$plugin_name);
-$strings->available_hours = get_string('available_hours',$plugin_name);
-$strings->available = get_string('available',$plugin_name);
-$strings->name = get_string('name',$plugin_name);
-$strings->select_instance = get_string('select_instance',$plugin_name);
-$strings->class_type = get_string('class_type',$plugin_name);
-$strings->select_careers = get_string('select_careers',$plugin_name);
-$strings->select_period = get_string('select_period',$plugin_name);
-$strings->select_courses = get_string('select_courses',$plugin_name);
-$strings->classdays = get_string('classdays',$plugin_name);
-$strings->create = get_string('create',$plugin_name);
-$strings->classrooms = get_string('classroom',$plugin_name);
-$strings = json_encode($strings);
-
-$classTypes = [
-  ['value'=>1, 'label'=>'Virtual'],
-  ['value'=>0, 'label'=>'Presencial'],
-  ['value'=>2, 'label'=>'Mixta'],
-];
-
-$instances = [
-  ['value'=>0, 'label'=>'Isi Panamá'],
-  ['value'=>1, 'label'=>'Grupo Makro Colombia'],
-  ['value'=>2, 'label'=>'Grupo Makro México']
-];
-
-$instances = json_encode($instances);
+foreach($requiredStringsKeys as $stringKey){
+  $strings->{$stringKey} = get_string($stringKey,$plugin_name);    
+}
+//Encode data for Vue
+$instructors = json_encode($instructors);
 $classTypes = json_encode($classTypes);
 $classrooms = json_encode(get_classrooms());
+$strings = json_encode($strings);
 
 echo $OUTPUT->header();
 
@@ -106,16 +82,24 @@ echo <<<EOT
     <v-app>
       <v-main>
         <v-container fluid>
-        <availabilitycalendar></availabilitycalendar>
+        <AvailabilityCalendar/>
         </v-container>
       </v-main>
     </v-app>
   </div>
-
+  
   <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
- 
+  <script>
+    var instructors = $instructors;
+    var classTypes = $classTypes;
+    var classrooms = $classrooms;
+    var strings = $strings;
+    var token = $token;
+    var themeToken = $themeToken || null;
+  </script>
+  
   <style lang="scss">
     .v-current-time {
       height: 2px;
@@ -150,19 +134,10 @@ echo <<<EOT
       background: transparent !important;
     }
   </style>
-  <script>
-    var instructorItems = $instructorItems;
-    var strings = $strings;
-    var classTypes = $classTypes;
-    var instances = $instances;
-    var classrooms = $classrooms;
-    var token = $token;
-    var themeToken = $themeToken || null;
-  </script>
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitycomponent.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitymodal.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AvailabilityCalendar.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreationClassModal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 echo $OUTPUT->footer();

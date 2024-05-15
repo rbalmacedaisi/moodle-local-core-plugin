@@ -53,7 +53,9 @@ class get_teachers_disponibility_calendar extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_DEFAULT,null)
+                'instructorId' => new external_value(PARAM_TEXT, 'ID of the teacher.', VALUE_REQUIRED),
+                'initDate' => new external_value(PARAM_TEXT, 'The start date to get the events.', VALUE_DEFAULT,null),
+                'endDate' => new external_value(PARAM_TEXT, 'The end date to get the events.', VALUE_DEFAULT,null)
             ]
         );
     }
@@ -68,19 +70,22 @@ class get_teachers_disponibility_calendar extends external_api {
      * @external
      */
     public static function execute(
-            $instructorId = null
+            $instructorId,
+            $initDate = null,
+            $endDate = null
         ) {
         
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'instructorId' => $instructorId,
+            'initDate' => $initDate,
+            'endDate' => $endDate,
         ]);
         
         try{
             
-            $teachersDisponibility = get_teacher_disponibility_calendar($params['instructorId']);
-
-            return ['disponibility' => json_encode(array_values($teachersDisponibility)), 'message' => 'ok'];
+            $teacherDisponibility = get_teacher_disponibility_calendar($params['instructorId'],$params['initDate'],$params['endDate']);
+            return ['disponibility' => json_encode($teacherDisponibility), 'message' => 'ok'];
         }catch (Exception $e){
             return ['status' => -1, 'message' => $e->getMessage()];
         }

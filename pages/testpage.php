@@ -21,10 +21,12 @@ require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 // use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 // global $DB;
-
+global $DB;
 try{
     
-    relate_course_with_current_period_courses(376);
+    $themeToken = get_theme_token();
+    print_object($themeToken);
+    
     // $courseModInfo = get_fast_modinfo(94);
     // $completion = new completion_info($courseModInfo->get_course());
     // $moduleInfo = $courseModInfo->get_cm(4078);
@@ -69,7 +71,6 @@ try{
     // print_object($gradeTree->get_items());
 }catch(Exception $e){
     print_object($e);
-    die;
 }
 
 

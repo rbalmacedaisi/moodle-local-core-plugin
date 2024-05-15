@@ -1,0 +1,23 @@
+{
+    "eventname": "\\core\\event\\course_module_completion_updated",
+    "component": "core",
+    "action": "updated",
+    "target": "course_module_completion",
+    "objecttable": "course_modules_completion",
+    "objectid": 179,
+    "crud": "u",
+    "edulevel": 2,
+    "contextid": 4621,
+    "contextlevel": 70,
+    "contextinstanceid": "4102",
+    "userid": "2",
+    "courseid": "54",
+    "relateduserid": 580,
+    "anonymous": 0,
+    "other": {
+        "relateduserid": 580,
+        "overrideby": "2",
+        "completionstate": 1
+    },
+    "timecreated": 1715626656
+}

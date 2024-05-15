@@ -33,7 +33,7 @@ defined('MOODLE_INTERNAL') || die();
 // require_once($CFG->dirroot.'/group/lib.php');
 
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
+// require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 

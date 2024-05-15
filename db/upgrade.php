@@ -991,6 +991,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20240429000, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20240512000) {
+
+        // Define field bbbid to be added to gmk_bbb_attendance_relation.
+        $table = new xmldb_table('gmk_bbb_attendance_relation');
+        $field = new xmldb_field('bbbid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'sectionid');
+
+        // Conditionally launch add field bbbid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240512000, 'local', 'grupomakro_core');
+    }
+
 
 
     return true;

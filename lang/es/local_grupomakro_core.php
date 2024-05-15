@@ -275,6 +275,11 @@ $string['activity_start_time'] = 'Hora de inicio';
 $string['activity_end_time'] = 'Hora de finalización';
 $string['reschedule'] = 'Reprogramar';
 
+//Class types labels
+$string['classType_0'] = 'Presencial';
+$string['classType_1'] = 'Virtual';
+$string['classType_2'] = 'Mixta';
+
 //------------------------------------------------------------------------------
 
 // Pagina de Horarios.

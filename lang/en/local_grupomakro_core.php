@@ -276,6 +276,12 @@ $string['activity_start_time'] = 'Start Time';
 $string['activity_end_time'] = 'End Time';
 $string['reschedule'] = 'Reschedule';
 
+//Class types labels
+$string['classType_0'] = 'In site';
+$string['classType_1'] = 'Virtual';
+$string['classType_2'] = 'Mixed';
+
+
 //------------------------------------------------------------------------------
 
 // Schedules page.

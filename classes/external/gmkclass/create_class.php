@@ -34,8 +34,6 @@ use stdClass;
 use DateTime;
 use Exception;
 
-
-
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
@@ -58,15 +56,15 @@ class create_class extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'name' => new external_value(PARAM_TEXT, 'Name of the class.'),
-                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).'),
-                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.'),
-                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and '),
-                'courseId' => new external_value(PARAM_INT, 'Course id for the class'),
-                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor'),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class'),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class'),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
+                'name' => new external_value(PARAM_TEXT, 'Name of the class.',VALUE_REQUIRED),
+                'type' => new external_value(PARAM_INT, 'Type of the class (virtual(1) or inplace(0)).',VALUE_REQUIRED),
+                'learningPlanId' => new external_value(PARAM_INT, 'Id of the learning plan attached.',VALUE_REQUIRED),
+                'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_REQUIRED),
+                'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_REQUIRED),
+                'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_REQUIRED),
+                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class',VALUE_REQUIRED),
+                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class',VALUE_REQUIRED),
+                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
                 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
             ]
@@ -108,17 +106,12 @@ class create_class extends external_api {
             'classroomCapacity'=>$classroomCapacity
         ]);
         
-        // Global variables.
-        global $DB, $USER;
-        
-        
-        try{
+        try{;
             check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId']);
-            
             $classId = create_class($params);
 
             // Return the result.
-            return ['status' => $classId, 'message' => 'ok'];
+            return ['status' => $classId];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
@@ -136,7 +129,7 @@ class create_class extends external_api {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEAFULT, 'ok'),
             )
         );
     }
