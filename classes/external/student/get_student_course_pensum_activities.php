@@ -44,18 +44,20 @@ require_once($CFG->dirroot . '/grade/querylib.php');
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_student_course_pensum_activities extends external_api {
+class get_student_course_pensum_activities extends external_api
+{
 
     /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
      */
-    public static function execute_parameters(): external_function_parameters {
+    public static function execute_parameters(): external_function_parameters
+    {
         return new external_function_parameters(
             [
-                'userId' => new external_value(PARAM_TEXT, 'ID of the student.',VALUE_REQUIRED),
-                'courseId'=> new external_value(PARAM_TEXT, 'ID of the course.',VALUE_REQUIRED)
+                'userId' => new external_value(PARAM_TEXT, 'ID of the student.', VALUE_REQUIRED),
+                'courseId' => new external_value(PARAM_TEXT, 'ID of the course.', VALUE_REQUIRED)
             ]
         );
     }
@@ -69,17 +71,17 @@ class get_student_course_pensum_activities extends external_api {
     public static function execute(
         $userId,
         $courseId
-        ) {
-        
+    ) {
+
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'userId' => $userId,
-            'courseId'=> $courseId
+            'courseId' => $courseId
         ]);
-        
-        try{
+
+        try {
             global $DB;
-            $coursemod = get_fast_modinfo($params['courseId'],$params['userId']);
+            $coursemod = get_fast_modinfo($params['courseId'], $params['userId']);
 
             $userGroups = $coursemod->get_groups();
 
@@ -87,39 +89,40 @@ class get_student_course_pensum_activities extends external_api {
             $gradableActivities = grade_get_gradable_activities($params['courseId']);
 
             $activities = [];
-            
-            foreach($userGroups as $userGroup){
-                
-                $groupClassSection = $DB->get_field('gmk_class','coursesectionid',['groupid'=>$userGroup]);
-                
-                if(!$groupClassSection){
+
+            foreach ($userGroups as $userGroup) {
+
+                $groupClassSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
+
+                if (!$groupClassSection) {
                     continue;
                 }
                 $classSectionNumber = $coursemod->get_section_info_by_id($groupClassSection)->__get('section');
 
-                foreach($coursemod->get_sections()[$classSectionNumber] as $sectionModule){
+                foreach ($coursemod->get_sections()[$classSectionNumber] as $sectionModule) {
                     $module = $coursemod->get_cm($sectionModule);
-                    $moduleRecord= $module->get_course_module_record(true);
-                    $moduleType= $moduleRecord->modname;
-                    if($moduleType === 'attendance' || $moduleType === 'bigbluebuttonbn' || !array_key_exists($moduleRecord->id,$gradableActivities)){
+                    $moduleRecord = $module->get_course_module_record(true);
+                    $moduleType = $moduleRecord->modname;
+                    if ($moduleType === 'bigbluebuttonbn' || !array_key_exists($moduleRecord->id, $gradableActivities)) {
                         continue;
                     }
                     $activityInfo = new \stdClass();
-                    $activityInfo->name =$moduleRecord->name;
-                    $activityInfo->completed =$completion->get_grade_completion($module, $userId);
-                    $activityGrade = grade_get_grades($courseId,'mod',$moduleType,$moduleRecord->instance,$userId)->items[0]->grades[$userId]->str_grade;
-                    $activityInfo->grade = $activityGrade=== '-'? 'Sin calificar': $activityGrade;
-                    $activities[]=$activityInfo;
+                    $activityInfo->name = $moduleRecord->name;
+                    $activityInfo->completed = $completion->get_grade_completion($module, $userId);
+                    $activityGrade = grade_get_grades($courseId, 'mod', $moduleType, $moduleRecord->instance, $userId)->items[0]->grades[$userId]->str_grade;
+                    $activityInfo->grade = $activityGrade === '-' ? 'Sin calificar' : $activityGrade;
+                    $activities[] = $activityInfo;
                 }
             }
-            
-            return ['activities'=>json_encode($activities)];
-        }catch (Exception $e) {
+
+            return ['activities' => json_encode($activities)];
+        } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
 
-    public function convert_name_timestamp($activityName){
+    public function convert_name_timestamp($activityName)
+    {
         // Extract timestamp from the string
         $timestamp = end(explode("-", $activityName));
         // Convert timestamp to datetime
@@ -134,12 +137,13 @@ class get_student_course_pensum_activities extends external_api {
      *
      * @return external_description
      */
-    public static function execute_returns(): external_description {
+    public static function execute_returns(): external_description
+    {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
-                'activities' => new external_value(PARAM_RAW, 'json encode object with the learning plans overview',VALUE_DEFAULT, null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure', VALUE_DEFAULT, 1),
+                'activities' => new external_value(PARAM_RAW, 'json encode object with the learning plans overview', VALUE_DEFAULT, null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or ok.', VALUE_DEFAULT, 'ok'),
             )
         );
     }

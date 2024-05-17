@@ -35,6 +35,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/grade/querylib.php');
 
 /**
  * External function 'local_grupomakro_get_student_learning_plan_pensum' implementation.
@@ -44,40 +45,42 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
  * @copyright   2022 Solutto Consulting <devs@soluttoconsulting.com>
  * @license     https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_student_learning_plan_pensum extends external_api {
-    
+class get_student_learning_plan_pensum extends external_api
+{
+
     const STATUS_LABEL = [
-        0=>'No disponible', 
-        1=>'Disponible',
-        2=>'Cursando',
-        3=>'Aprobada',
-        4=>'Aprobada',
-        5=>'Reprobada',
-        6=>'Revalida',
-        7=>'Reprobado',
+        0 => 'No disponible',
+        1 => 'Disponible',
+        2 => 'Cursando',
+        3 => 'Aprobada',
+        4 => 'Aprobada',
+        5 => 'Reprobada',
+        6 => 'Revalida',
+        7 => 'Reprobado',
     ];
-    
+
     const STATUS_COLOR = [
-        0=>'#5e35b1', 
-        1=>'#1e88e5',
-        2=>'#11d1bf',
-        3=>'#0cce7b',
-        4=>'#0cce7b',
-        5=>'#ec407a',
-        6=>'#ec407a',
-        7=>'#ec407a',
+        0 => '#5e35b1',
+        1 => '#1e88e5',
+        2 => '#11d1bf',
+        3 => '#0cce7b',
+        4 => '#0cce7b',
+        5 => '#ec407a',
+        6 => '#ec407a',
+        7 => '#ec407a',
     ];
-    
+
     /**
      * Describes parameters of the {@see self::execute()} method.
      *
      * @return external_function_parameters
      */
-    public static function execute_parameters(): external_function_parameters {
+    public static function execute_parameters(): external_function_parameters
+    {
         return new external_function_parameters(
             [
-                'userId' => new external_value(PARAM_TEXT, 'ID of the student.',VALUE_REQUIRED),
-                'learningPlanId' => new external_value(PARAM_TEXT, 'ID of the learningPlan.',VALUE_REQUIRED)
+                'userId' => new external_value(PARAM_TEXT, 'ID of the student.', VALUE_REQUIRED),
+                'learningPlanId' => new external_value(PARAM_TEXT, 'ID of the learningPlan.', VALUE_REQUIRED)
             ]
         );
     }
@@ -91,56 +94,51 @@ class get_student_learning_plan_pensum extends external_api {
     public static function execute(
         $userId,
         $learningPlanId
-        ) {
-        
+    ) {
+
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'userId' => $userId,
-            'learningPlanId'=>$learningPlanId
+            'learningPlanId' => $learningPlanId
         ]);
-        
+
         global $DB;
-        try{
-            $userPensumCourses = $userPensumCourses = $DB->get_records_sql("
-                SELECT gc.*, lpc.position
-                FROM {gmk_course_progre} gc
-                JOIN {local_learning_courses} lpc ON lpc.courseid =  gc.courseid 
-                WHERE gc.userid = :userid AND gc.learningplanid = :learningplanid 
+        try {
+            $userPensumCourses = $userPensumCourses = $DB->get_records_sql(
+                "
+                SELECT gcp.*, lpc.position
+                FROM {gmk_course_progre} gcp
+                JOIN {local_learning_courses} lpc ON lpc.courseid =  gcp.courseid 
+                WHERE gcp.userid = :userid AND gcp.learningplanid = :learningplanid 
                 AND lpc.learningplanid = :lpid
-                ORDER BY lpc.position ASC", 
-                ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]);
+                ORDER BY lpc.position ASC",
+                ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]
+            );
 
             $groupedUserPensumCourses = [];
-            foreach($userPensumCourses as $userPensumCourse){
-                $periodName = $DB->get_record('local_learning_periods',['id' => $userPensumCourse->periodid]);
-                
+            foreach ($userPensumCourses as $userPensumCourse) {
+                $periodName = $DB->get_record('local_learning_periods', ['id' => $userPensumCourse->periodid]);
+
                 $course = get_course($userPensumCourse->courseid);
                 $userPensumCourse->coursename = $course->fullname;
                 $userPensumCourse->periodname = $periodName->name;
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status];
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status];
                 $userPensumCourse->prerequisites = json_decode($userPensumCourse->prerequisites);
-                foreach($userPensumCourse->prerequisites as $prerequisite){
+                $userPensumCourse->grade = grade_get_course_grade($params['userId'], $userPensumCourse->courseid)->str_grade;
+                foreach ($userPensumCourse->prerequisites as $prerequisite) {
                     $completion = new \completion_info(get_course($prerequisite->id));
                     $prerequisite->completed = $completion->is_course_complete($params['userId']);
                 }
-                if(!array_key_exists($userPensumCourse->periodid,$groupedUserPensumCourses)){
-                    $groupedUserPensumCourses[$userPensumCourse->periodid]['id']=$userPensumCourse->periodid;
-                    $groupedUserPensumCourses[$userPensumCourse->periodid]['periodName']=$userPensumCourse->periodname;
+                if (!array_key_exists($userPensumCourse->periodid, $groupedUserPensumCourses)) {
+                    $groupedUserPensumCourses[$userPensumCourse->periodid]['id'] = $userPensumCourse->periodid;
+                    $groupedUserPensumCourses[$userPensumCourse->periodid]['periodName'] = $userPensumCourse->periodname;
                 }
-                if($userPensumCourse->tc ==='1'){
-                    $commonTrunkCourseRecords = $DB->get_records('gmk_course_progre',['userid'=>$params['userId'],'courseid'=>$userPensumCourse->courseid]);
-                    foreach($commonTrunkCourseRecords as $commonTrunkCourseRecord){
-                        $userPensumCourse->grade = $userPensumCourse->grade < $commonTrunkCourseRecord->grade?$commonTrunkCourseRecord->grade:$userPensumCourse->grade;
-                    }
-                }
-                $groupedUserPensumCourses[$userPensumCourse->periodid]['courses'][]=$userPensumCourse;
+                $groupedUserPensumCourses[$userPensumCourse->periodid]['courses'][] = $userPensumCourse;
             }
-            //print_object($groupedUserPensumCourses);
-            //die;
-            return ['pensum'=>json_encode($groupedUserPensumCourses)];
-        }catch (Exception $e) {
-            return ['status' => -1,'message' => $e->getMessage()];
+            return ['pensum' => json_encode($groupedUserPensumCourses)];
+        } catch (Exception $e) {
+            return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
     /**
@@ -148,14 +146,14 @@ class get_student_learning_plan_pensum extends external_api {
      *
      * @return external_description
      */
-    public static function execute_returns(): external_description {
+    public static function execute_returns(): external_description
+    {
         return new external_single_structure(
             array(
-                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure',VALUE_DEFAULT,1),
-                'pensum' => new external_value(PARAM_RAW, 'json encode object with the pensum info',VALUE_DEFAULT,null),
-                'message' => new external_value(PARAM_TEXT, 'The error message or ok.',VALUE_DEFAULT,'ok'),
+                'status' => new external_value(PARAM_INT, '1 for success, -1 for failure', VALUE_DEFAULT, 1),
+                'pensum' => new external_value(PARAM_RAW, 'json encode object with the pensum info', VALUE_DEFAULT, null),
+                'message' => new external_value(PARAM_TEXT, 'The error message or ok.', VALUE_DEFAULT, 'ok'),
             )
         );
     }
-
 }

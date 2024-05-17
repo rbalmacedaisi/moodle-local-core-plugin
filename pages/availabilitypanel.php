@@ -44,33 +44,33 @@ $themeToken = get_theme_token();
 
 $instructors = grupomakro_core_list_instructors_with_disponibility_flag();
 $instructorItems = [];
-foreach($instructors as $instructor){
+
+foreach ($instructors as $instructor) {
   $instructorItem = new stdClass();
-  $instructorItem->id = $instructor->userid;
+  $instructorItem->id = $instructor->id;
   $instructorItem->text = $instructor->fullname;
   $instructorItem->value = $instructor->fullname;
   $instructorItem->hasDisponibility = $instructor->hasDisponibility;
-  
-  $instructorItems[$instructor->userid] = $instructorItem;
+
+  $instructorItems[$instructor->id] = $instructorItem;
 }
 $instructorItems = json_encode(array_values($instructorItems));
 
 $teacherSkills = json_encode(array_values($DB->get_records('gmk_teacher_skill')));
 
-
 $strings = new stdClass();
-$strings->delete_available = get_string('delete_available',$plugin_name);
-$strings->add = get_string('add',$plugin_name);
-$strings->availability = get_string('availability',$plugin_name);
-$strings->instructors = get_string('instructors',$plugin_name);
-$strings->scheduledclasses = get_string('scheduledclasses',$plugin_name);
-$strings->close = get_string('close',$plugin_name);
-$strings->edit = get_string('edit',$plugin_name);
-$strings->remove = get_string('remove',$plugin_name);
-$strings->cancel = get_string('cancel',$plugin_name);
-$strings->accept = get_string('accept',$plugin_name);
-$strings->available_hours = get_string('available_hours',$plugin_name);
-$strings->available = get_string('available',$plugin_name);
+$strings->delete_available = get_string('delete_available', $plugin_name);
+$strings->add = get_string('add', $plugin_name);
+$strings->availability = get_string('availability', $plugin_name);
+$strings->instructors = get_string('instructors', $plugin_name);
+$strings->scheduledclasses = get_string('scheduledclasses', $plugin_name);
+$strings->close = get_string('close', $plugin_name);
+$strings->edit = get_string('edit', $plugin_name);
+$strings->remove = get_string('remove', $plugin_name);
+$strings->cancel = get_string('cancel', $plugin_name);
+$strings->accept = get_string('accept', $plugin_name);
+$strings->available_hours = get_string('available_hours', $plugin_name);
+$strings->available = get_string('available', $plugin_name);
 $strings->add_availability = get_string('add_availability', $plugin_name);
 $strings->days = get_string('days', $plugin_name);
 $strings->field_required = get_string('field_required', $plugin_name);
@@ -96,7 +96,7 @@ echo <<<EOT
     <v-app class="transparent">
       <v-main>
         <div>
-            <availabilitytable></availabilitytable>
+            <availabilitytable/>
         </div>
       </v-main>
     </v-app>

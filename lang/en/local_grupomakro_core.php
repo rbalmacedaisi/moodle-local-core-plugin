@@ -246,23 +246,23 @@ $string['allclasses'] = 'All the classes';
 $string['class_management'] = 'Class Management';
 $string['create_class'] = 'Create Class';
 $string['edit_class'] = 'Edit Class';
-$string['class_general_data'] ='General data';
+$string['class_general_data'] = 'General data';
 $string['class_name'] = 'Class Name';
 $string['class_type'] = 'Class Type';
 $string['class_room'] = 'Classroom';
 $string['class_learning_plan'] = 'Learning Plan';
 $string['class_period'] = 'Period';
 $string['class_course'] = 'Course';
-$string['class_date_time'] ='Class schedule and days';
+$string['class_date_time'] = 'Class schedule and days';
 $string['class_start_time'] = 'Start Time';
 $string['class_end_time'] = 'End Time';
 $string['class_days'] = 'Class days';
-$string['class_available_instructors'] ='Class available instructors';
+$string['class_available_instructors'] = 'Class available instructors';
 $string['see_availability'] = 'See availability';
 
 //Class creation and edition input placeholders
 
-$string['class_name_placeholder'] ='Enter a name';
+$string['class_name_placeholder'] = 'Enter a name';
 $string['class_type_placeholder'] = 'Select Type';
 $string['class_room_placeholder'] = 'Select Class Room';
 $string['class_learningplan_placeholder'] = 'Select Learning Plan';
@@ -370,19 +370,19 @@ $string['msg:send_reschedule_message:body'] = '
 </ul>
 <p>To reschedule the session click <a href="{a->rescheduleUrl}">here.</a></p>';
 
-$string['msg:send_reschedule_message:subject'] ='New reschedule request';
-$string['msg:send_reschedule_message:contexturlname'] ='Reschedule session';
+$string['msg:send_reschedule_message:subject'] = 'New reschedule request';
+$string['msg:send_reschedule_message:contexturlname'] = 'Reschedule session';
 
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '
 <h2>The course<strong>{$a->courseName}</strong> can be revalidated.</h2>
 <p>Click <a href={$a->payRevalidUrl}>here</a> to pay the revalid.</p>';
-$string['msg:send_revalidation_message:subject'] ='New pending revalid';
-$string['msg:send_revalidation_message:contexturlname'] ='Pay revalid';
-$string['enter_name'] ='Enter a name';
+$string['msg:send_revalidation_message:subject'] = 'New pending revalid';
+$string['msg:send_revalidation_message:contexturlname'] = 'Pay revalid';
+$string['enter_name'] = 'Enter a name';
 
 // Availability Panel Page.
-$string['availability_bulk_load'] ='Availability Bulk Load';
+$string['availability_bulk_load'] = 'Availability Bulk Load';
 $string['start_time'] = 'Start time';
 $string['end_time'] = 'End time';
 
@@ -427,6 +427,9 @@ $string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'From {$a-
 $string['academiccalendar:academic_calendar_table:registration_cell'] = 'From {$a->registrationFrom} To {$a->registrationUntil}';
 
 //Utils
+
+////Error
+$string['nopermissiontoseeschedules'] = "The user don't have the required role to see the schedules.";
 
 ////Days
 $string['monday'] = 'Monday';

@@ -1,9 +1,5 @@
-const siteUrl = window.location.origin + '/webservice/rest/server.php';
-const wsStaticParams = {
-    wstoken: window.token,
-    moodlewsrestformat: 'json',
-}
-
+/* global wsUrl */
+/* global wsStaticParams */
 window.Vue.component('availabilitycalendar', {
     template: `
     <v-row class="fill-height">
@@ -19,6 +15,17 @@ window.Vue.component('availabilitycalendar', {
                       @click="dateFocused = ''"
                     >
                         {{strings.today}}
+                    </v-btn>
+                    <v-btn
+                        outlined
+                        class="mr-4"
+                        color="grey darken-2"
+                        :disabled="!teacherAvailabilityCalendarData"
+                        @click="getInstructorAvailability"
+                    >
+                        <v-icon small>
+                            mdi-reload
+                        </v-icon>
                     </v-btn>
                     <v-btn
                       fab
@@ -134,7 +141,7 @@ window.Vue.component('availabilitycalendar', {
             try {
                 this.teacherAvailabilityCalendarData = undefined
                 this.fetchingAvailability = true
-                const { data } = await window.axios.get(siteUrl, { params: this.getTeachersDisponibilityCalendarParams })
+                const { data } = await window.axios.get(wsUrl, { params: this.getTeachersDisponibilityCalendarParams })
                 if (data.status === -1) throw data.message;
                 this.teacherAvailabilityCalendarData = JSON.parse(data.disponibility)
             } catch (error) {

@@ -1,4 +1,4 @@
-/* global siteUrl */
+/* global wsUrl */
 /* global wsStaticParams */
 window.Vue.component('CreationClassModal', {
     template: `
@@ -275,7 +275,8 @@ window.Vue.component('CreationClassModal', {
             formRules: {
                 requiredValue: v => !!v || 'Este campo es requerido.',
                 requiredClassDays: v => v.length !== 0 || 'Debes escoger al menos un día.'
-            }
+            },
+            classRooms: window.classrooms
         }
     },
     created() {
@@ -291,7 +292,7 @@ window.Vue.component('CreationClassModal', {
     methods: {
         async getLearningPlans() {
             try {
-                const { data } = await window.axios.get(siteUrl, { params: this.getActiveLearningPlansParameters })
+                const { data } = await window.axios.get(wsUrl, { params: this.getActiveLearningPlansParameters })
                 if (data.status === -1) throw data.message
                 this.instructorCareers = JSON.parse(data.availablecareers)
             } catch (error) {
@@ -306,7 +307,7 @@ window.Vue.component('CreationClassModal', {
 
             try {
                 this.periods = []
-                const { data } = await window.axios.get(siteUrl, { params: this.getLearningPlanPeriodsParameters })
+                const { data } = await window.axios.get(wsUrl, { params: this.getLearningPlanPeriodsParameters })
                 if (data.status === -1) throw data.message
                 this.periods = JSON.parse(data.periods)
             } catch (error) {
@@ -321,7 +322,7 @@ window.Vue.component('CreationClassModal', {
             if (!this.newClass.periodId) return;
 
             try {
-                const { data } = await window.axios.get(siteUrl, { params: this.getTeacherAvailableCoursesParameters })
+                const { data } = await window.axios.get(wsUrl, { params: this.getTeacherAvailableCoursesParameters })
                 if (data.status === -1) throw data.message
                 this.courses = JSON.parse(data.courses)
             } catch (error) {
@@ -331,7 +332,7 @@ window.Vue.component('CreationClassModal', {
         },
         async getSelectedTimeRangeAvailableDays() {
             try {
-                const { data } = await window.axios.get(siteUrl, { params: this.getTeacherAvailableDaysParameters })
+                const { data } = await window.axios.get(wsUrl, { params: this.getTeacherAvailableDaysParameters })
                 if (data.status === -1) throw data.message
                 const availableDays = JSON.parse(data.days)
                 this.daysOfWeek.forEach(day => {
@@ -347,7 +348,7 @@ window.Vue.component('CreationClassModal', {
 
             try {
                 this.creatingClass = true
-                const { data } = await window.axios.get(siteUrl, { params: this.createClassParameters });
+                const { data } = await window.axios.get(wsUrl, { params: this.createClassParameters });
                 if (data.status === -1) throw data.message
                 this.$emit('class-created');
                 this.closeMenu()
@@ -367,25 +368,6 @@ window.Vue.component('CreationClassModal', {
             } finally {
                 this.creatingClass = false
             }
-            // 
-            // 
-            // if(createClassResponse.data.status === -1 ){
-            //     // this.createClassError = createClassResponse.data.message
-            //     // Add the error message to the modal content.
-            //     try{
-            //         const errorMessages = JSON.parse(createClassResponse.data.message);
-            //         let errorString = '';
-            //         errorMessages.forEach(message=>{
-            //             errorString += `${message} \n`
-            //         })
-            //         this.createClassError = errorString
-            //     }catch (error){
-            //         this.createClassError = createClassResponse.data.message
-            //     } finally{
-            //         this.creatingClass = false
-            //     }
-            // } 
-            // window.location.reload()
         },
 
         showEvent({ nativeEvent }) {
@@ -701,11 +683,8 @@ window.Vue.component('CreationClassModal', {
                 classroomId: this.newClass.classroomId ? this.newClass.classroomId : ''
             }
         },
-        classRooms() {
-            return window.classrooms;
-        },
         showClassroomSelector() {
-            return this.newClass.type === 0 || this.newClass.type === 2 ? true : false
+            return this.newClass.type === 0 || this.newClass.type === 2
         },
     },
     watch: {

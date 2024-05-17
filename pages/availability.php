@@ -44,8 +44,8 @@ $token = get_logged_user_token();
 $themeToken = get_theme_token();
 
 //Get the instructors who have an availability created
-$instructors = array_values(array_filter(array_map(function ($instructor){
-  if(!$instructor->hasDisponibility){
+$instructors = array_values(array_filter(array_map(function ($instructor) {
+  if (!$instructor->hasDisponibility) {
     return null;
   }
   $instructorItem = new stdClass();
@@ -53,18 +53,20 @@ $instructors = array_values(array_filter(array_map(function ($instructor){
   $instructorItem->text = $instructor->fullname;
   $instructorItem->value = $instructor->fullname;
   return $instructorItem;
-},grupomakro_core_list_instructors_with_disponibility_flag())));
+}, grupomakro_core_list_instructors_with_disponibility_flag())));
 
 //get the class types for class type select
 $classTypes = \local_grupomakro_core\local\gmk_class::get_class_type_values();
 
 //Get lang strings
-$requiredStringsKeys = ['today','add','availability','day','week','month','instructors','scheduledclasses','close','edit','remove','reschedule','cancel',
-                        'accept','available_hours','available','name','class_type','class_learningplan_placeholder','class_period_placeholder',
-                        'class_course_placeholder','class_days','create','class_room'];
+$requiredStringsKeys = [
+  'today', 'add', 'availability', 'day', 'week', 'month', 'instructors', 'scheduledclasses', 'close', 'edit', 'remove', 'reschedule', 'cancel',
+  'accept', 'available_hours', 'available', 'name', 'class_type', 'class_learningplan_placeholder', 'class_period_placeholder',
+  'class_course_placeholder', 'class_days', 'create', 'class_room'
+];
 $strings = new stdClass();
-foreach($requiredStringsKeys as $stringKey){
-  $strings->{$stringKey} = get_string($stringKey,$plugin_name);    
+foreach ($requiredStringsKeys as $stringKey) {
+  $strings->{$stringKey} = get_string($stringKey, $plugin_name);
 }
 //Encode data for Vue
 $instructors = json_encode($instructors);
@@ -136,8 +138,8 @@ echo <<<EOT
   </style>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AvailabilityCalendar.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/CreationClassModal.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
 echo $OUTPUT->footer();

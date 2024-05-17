@@ -3,10 +3,14 @@
 // with a script in the HTML.
 
 // URL of the API to query.
-const url = window.location.origin+'/webservice/rest/server.php';
+const wsUrl = window.location.origin + '/webservice/rest/server.php';
 
+const wsStaticParams = {
+  wstoken: window.token,
+  moodlewsrestformat: 'json',
+}
 // Parameters to send with the API request.
-const params = {
+const getThemeSettingsParams = {
   wstoken: window.themeToken,
   moodlewsrestformat: 'json',
   wsfunction: 'local_soluttolms_core_get_theme_settings',
@@ -22,7 +26,7 @@ let bgcolordark;
 let darkMode = false;
 
 // Make a GET request to the API using Axios and the specified parameters.
-window.axios.get(url, { params })
+window.axios.get(wsUrl, { params: getThemeSettingsParams })
   .then(response => {
     // Extract the colors from the JSON response and assign them to the corresponding variables.
     const data = JSON.parse(response.data.themeobject);
@@ -31,7 +35,7 @@ window.axios.get(url, { params })
     secondarycolor = data.secondarycolor;
     secondarycolordark = data.secondarycolordark;
     bgcolordark = data.bgcolordark
-    
+
     // Get the value of the 'data-preset' attribute from the root element of the document.
     const preset = document.documentElement.getAttribute('data-preset');
     // If the 'data-preset' attribute value is 'dark', set the 'darkMode' variable to true.
@@ -39,7 +43,7 @@ window.axios.get(url, { params })
     if (preset === 'dark') {
       darkMode = true;
     }
-    
+
     // Create a Vue instance for the application.
     const app = new window.Vue({
       el: '#app',
@@ -67,8 +71,8 @@ window.axios.get(url, { params })
       }),
       data: {
       },
-      mounted() {},
-      created() {},
+      mounted() { },
+      created() { },
       methods: {},
     });
     // Set up a MutationObserver to detect changes in light/dark mode

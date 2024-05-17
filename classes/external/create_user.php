@@ -97,6 +97,7 @@ class create_user extends external_api {
             'documenttype' => $documenttype,
             'documentnumber' => $documentnumber,
         ]);
+        
 
         // Let's validate the following rules:
         // 1. There is a role called "caregiver"
@@ -116,6 +117,7 @@ class create_user extends external_api {
             return $userprofilefield->shortname;
         }, $userprofilefields);
 
+       
         if (!in_array('usertype', $userprofilefields)) {
             return ['status' => -1, 'message' => 'The user profile field "usertype" does not exist.'];
         }
@@ -129,10 +131,6 @@ class create_user extends external_api {
         }
 
         if (!in_array('documentnumber', $userprofilefields)) {
-            return ['status' => -1, 'message' => 'The user profile field "documentnumber" does not exist.'];
-        }
-
-        if (!in_array('needfirsttuition', $userprofilefields)) {
             return ['status' => -1, 'message' => 'The user profile field "documentnumber" does not exist.'];
         }
 
@@ -164,9 +162,6 @@ class create_user extends external_api {
         // Let's update the user's profile fields.
         profile_save_custom_fields($user->id, [
             'usertype' => 
-            
-            
-            
             ['usertype'],
             'accountmanager' => $params['accountmanager'],
             'documenttype' => $params['documenttype'],

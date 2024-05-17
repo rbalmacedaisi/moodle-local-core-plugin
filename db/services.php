@@ -104,7 +104,7 @@ $functions = array(
         'methodname' => 'execute',
         'description' => 'Get calendar events',
         'type' => 'read',
-        'capabilities' => 'moodle/course:ignoreavailabilityrestrictions, moodle/calendar:manageentries, moodle/calendar:manageownentries, moodle/calendar:managegroupentries',
+        'capabilities' => '',
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
@@ -360,7 +360,7 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
-    
+
     'local_grupomakro_approve_course_class_schedules' => array(
         'classname' => 'local_grupomakro_core\external\schedule\approve_course_class_schedules',
         'methodname' => 'execute',
@@ -478,7 +478,7 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
-       'local_grupomakro_get_student_info' => array(
+    'local_grupomakro_get_student_info' => array(
         'classname' => 'local_grupomakro_core\external\student\get_student_info',
         'methodname' => 'execute',
         'description' => 'Get information about all students',
@@ -487,7 +487,7 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
-   'local_grupomakro_student_class_revalid_enrol' => array(
+    'local_grupomakro_student_class_revalid_enrol' => array(
         'classname' => 'local_grupomakro_core\external\student\student_class_revalid_enrol',
         'methodname' => 'execute',
         'description' => 'Enrol a student in the corresponding revalid group',
@@ -496,7 +496,7 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
-   'local_grupomakro_student_get_revalids' => array(
+    'local_grupomakro_student_get_revalids' => array(
         'classname' => 'local_grupomakro_core\external\student\student_get_revalids',
         'methodname' => 'execute',
         'description' => 'Get the active revalids activities for an user',
@@ -545,6 +545,42 @@ $functions = array(
         'classname' => 'local_grupomakro_core\external\themeSettings\get_logo_theme',
         'methodname' => 'execute',
         'description' => 'Get the theme settings and logo',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_get_learning_plans_data' => array(
+        'classname' => 'local_grupomakro_core\external\learningPlan\get_learning_plans_data',
+        'methodname' => 'execute',
+        'description' => 'Get learning plans data with changes required by ISI',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_get_user_courses' => array(
+        'classname' => 'local_grupomakro_core\external\student\get_user_courses',
+        'methodname' => 'execute',
+        'description' => 'Get user courses with changes required by ISI',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_get_user_courses_by_category' => array(
+        'classname' => 'local_grupomakro_core\external\student\get_user_courses_by_category',
+        'methodname' => 'execute',
+        'description' => 'Get user courses by category with changes required by ISI',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_get_data_by_courses' => array(
+        'classname' => 'local_grupomakro_core\external\student\get_data_by_courses',
+        'methodname' => 'execute',
+        'description' => 'Get data of courses with changes required by ISI',
         'type' => 'read',
         'capabilities' => '',
         'ajax'          => true,

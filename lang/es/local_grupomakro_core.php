@@ -245,23 +245,23 @@ $string['allclasses'] = 'Todas las Clases';
 $string['class_management'] = 'Gestión de clases';
 $string['create_class'] = 'Crear Clase';
 $string['edit_class'] = 'Editar Clase';
-$string['class_general_data'] ='Datos Generales';
+$string['class_general_data'] = 'Datos Generales';
 $string['class_name'] = 'Nombre de clase';
 $string['class_type'] = 'Tipo de clase';
 $string['class_room'] = 'Aula de clase';
 $string['class_learning_plan'] = 'Plan de aprendizaje';
 $string['class_period'] = 'Período';
 $string['class_course'] = 'Curso';
-$string['class_date_time'] ='Horario y días de clase';
+$string['class_date_time'] = 'Horario y días de clase';
 $string['class_start_time'] = 'Hora de inicio';
 $string['class_end_time'] = 'Hora de finalización';
 $string['class_days'] = 'Días de clase';
-$string['class_available_instructors'] ='Lista de Instructores Disponibles';
+$string['class_available_instructors'] = 'Lista de Instructores Disponibles';
 $string['see_availability'] = 'Ver disponibilidad';
 
 //Class creation and edition input placeholders
 
-$string['class_name_placeholder'] ='Ingrese un nombre';
+$string['class_name_placeholder'] = 'Ingrese un nombre';
 $string['class_type_placeholder'] = 'Seleccionar Tipo de clase';
 $string['class_room_placeholder'] = 'Seleccionar Aula de clase';
 $string['class_learningplan_placeholder'] = 'Seleccionar Plan de aprendizaje';
@@ -369,18 +369,18 @@ $string['msg:send_reschedule_message:body'] = '
     <li><strong>Hora: </strong>{$a->proposedHour}</li>
 </ul>
 <p>Para reprogramar la sesión haz click <a href="{$a->rescheduleUrl}">aquí.</a></p>';
-$string['msg:send_reschedule_message:subject'] ='Solicitud de reprogramación nueva';
-$string['msg:send_reschedule_message:contexturlname'] ='Reprogramar sesión';
+$string['msg:send_reschedule_message:subject'] = 'Solicitud de reprogramación nueva';
+$string['msg:send_reschedule_message:contexturlname'] = 'Reprogramar sesión';
 
 //Revalidation Message Body.
 $string['msg:send_revalidation_message:body'] = '
 <h2>El curso <strong>{$a->courseName}</strong> puede ser revalidado.</h2>
 <p>Haz click <a href="{$a->payRevalidUrl}">aquí</a> para pagar la revalida.</p>';
-$string['msg:send_revalidation_message:subject'] ='Nueva revalida pendiente';
-$string['msg:send_revalidation_message:contexturlname'] ='Pagar revalida.';
+$string['msg:send_revalidation_message:subject'] = 'Nueva revalida pendiente';
+$string['msg:send_revalidation_message:contexturlname'] = 'Pagar revalida.';
 
 // Pagina Panel de Disponivilidad.
-$string['availability_bulk_load'] ='Carga masiva de disponibilidad';
+$string['availability_bulk_load'] = 'Carga masiva de disponibilidad';
 $string['start_time'] = 'Hora de inicio';
 $string['end_time'] = 'Hora de finalización';
 
@@ -425,6 +425,9 @@ $string['academiccalendar:academic_calendar_table:final_exam_cell'] = 'Del {$a->
 $string['academiccalendar:academic_calendar_table:registration_cell'] = 'Del {$a->registrationFrom} Al {$a->registrationUntil}';
 
 //Utils
+
+////Error
+$string['nopermissiontoseeschedules'] = "El usuario no tiene el rol requerido para ver los horarios.";
 
 ////Days
 $string['monday'] = 'Lunes';

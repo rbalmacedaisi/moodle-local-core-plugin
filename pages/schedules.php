@@ -23,10 +23,11 @@
  */
 
 require_once(__DIR__ . '/../../../config.php');
+require_login();
+
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 $plugin_name = 'local_grupomakro_core';
-require_login();
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/schedules.php');
 
@@ -36,84 +37,74 @@ $PAGE->set_title(get_string('schedules', $plugin_name));
 $PAGE->set_heading(get_string('schedules', $plugin_name));
 $PAGE->set_pagelayout('base');
 
+//Get tokens
 $token = get_logged_user_token();
 $themeToken = get_theme_token();
 
-//Check if the user is an Instructor
-$sql = "SELECT DISTINCT r.shortname
-              FROM {role_assignments} ra, {role} r
-             WHERE ra.userid = ? AND ra.roleid = r.id
-                    AND r.shortname IN ('teacher')";
+$userRole = is_siteadmin() ? 'admin' : false;
 
-$teacherRoles = $DB->get_records_sql($sql , array($USER->id));
+if (!$userRole) {
+  //Check if the user is an Instructor
+  $teacherRolesSQL = "SELECT DISTINCT r.shortname
+    FROM {role_assignments} ra, {role} r
+    WHERE ra.userid = ? AND ra.roleid = r.id
+    AND r.shortname LIKE '%teacher%'";
+  $userTeacherRoles = $DB->get_records_sql($teacherRolesSQL, array($USER->id));
+  $userRole = !empty($userTeacherRoles) ? 'teacher' : false;
+}
 
-//Check if the user is roled as a teacher
-$rolInstructor = !empty($teacherRoles);
-
-//override the teacher role if the user is an administrator
-$rolInstructor = $DB->get_record('role_assignments', array('roleid'=>1,'userid'=>$USER->id))?0:1;
-
+if (!$userRole) {
+  throw new moodle_exception('nopermissiontoseeschedules', $plugin_name);
+}
 //Build a instructor filter if the user is an instructor
-$classInstructorFilter = $rolInstructor ===1?['instructorid'=>$USER->id]:[];
+$classInstructorFilter = $userRole === 'teacher' ? ['instructorid' => $USER->id] : [];
 
-// Get the list of created classes
-$classes = list_classes($classInstructorFilter);
-$classItems = [];
-foreach($classes as $class){
-  $classItem = new stdClass();
-  $classItem->id = $class->corecourseid;
-  $classItem->text = $class->coreCourseName;
-  $classItem->value = $class->corecourseid;
-  array_push($classItems,$classItem);
-}
-$classItemsUnique = [];
-foreach($classItems as $item){
-  if(!array_key_exists($item->id,$classItemsUnique)){
-    $classItemsUnique[$item->id]=$item;
+$coursesWithCreatedClasses = [];
+foreach (list_classes($classInstructorFilter) as $class) {
+  if (array_key_exists($class->corecourseid, $coursesWithCreatedClasses)) {
+    continue;
   }
+  $course = new stdClass();
+  $course->id = $class->corecourseid;
+  $course->text = $class->coreCourseName;
+  $course->value = $class->corecourseid;
+  $coursesWithCreatedClasses[$course->id] = $course;
 }
-$classItemsUnique = json_encode(array_values($classItemsUnique));
 
-//Get the list of Instructors
-$instructors = list_instructors();
-$instructorItems = [];
-foreach($instructors as $instructor){
-  $instructorItem = new stdClass();
-  $instructorItem->id = $instructor->id;
-  $instructorItem->text = $instructor->fullname;
-  $instructorItem->value = $instructor->fullname;
-  array_push($instructorItems,$instructorItem);
+//Get the list of Instructors if the user is an admin
+$instructors = null;
+if (is_siteadmin()) {
+  //Get the instructors who have an availability created
+  $instructors = array_values(array_filter(array_map(function ($instructor) {
+    if (!$instructor->hasDisponibility) {
+      return null;
+    }
+    $instructorItem = new stdClass();
+    $instructorItem->id = $instructor->id;
+    $instructorItem->text = $instructor->fullname;
+    $instructorItem->value = $instructor->fullname;
+    return $instructorItem;
+  }, grupomakro_core_list_instructors_with_disponibility_flag())));
 }
-$instructorItems = json_encode($instructorItems);
 
 //Get the reschedule causes
 $rescheduleCauses = $DB->get_records('gmk_reschedule_causes');
-$rescheduleCauses=json_encode(array_values($rescheduleCauses));
+// $userid = $USER->id;
 
-$userid = $USER->id;
-$url = new moodle_url('/local/grupomakro_core/pages/classmanagement.php');
+$requiredStringsKeys = [
+  'today', 'add', 'availability', 'day', 'week', 'month', 'instructors', 'scheduledclasses',
+  'close', 'edit', 'remove', 'reschedule', 'cancel', 'accept', 'desc_rescheduling', 'competences', 'field_required',
+  'causes_rescheduling', 'select_possible_date', 'new_class_time', 'activity'
+];
 $strings = new stdClass();
-$strings->today = get_string('today',$plugin_name);
-$strings->add = get_string('add',$plugin_name);
-$strings->availability = get_string('availability',$plugin_name);
-$strings->day = get_string('day',$plugin_name);
-$strings->week = get_string('week',$plugin_name);
-$strings->month = get_string('month',$plugin_name);
-$strings->instructors = get_string('instructors',$plugin_name);
-$strings->scheduledclasses = get_string('scheduledclasses',$plugin_name);
-$strings->close = get_string('close',$plugin_name);
-$strings->edit = get_string('edit',$plugin_name);
-$strings->remove = get_string('remove',$plugin_name);
-$strings->reschedule = get_string('reschedule',$plugin_name);
-$strings->cancel = get_string('cancel',$plugin_name);
-$strings->accept = get_string('accept',$plugin_name);
-$strings->desc_rescheduling = get_string('desc_rescheduling',$plugin_name);
-$strings->competences = get_string('competences', $plugin_name);
-$strings->field_required = get_string('field_required', $plugin_name);
-$strings->causes_rescheduling = get_string('causes_rescheduling', $plugin_name);
-$strings->select_possible_date = get_string('select_possible_date', $plugin_name);
-$strings->new_class_time = get_string('new_class_time', $plugin_name);
-$strings->activity = get_string('activity', $plugin_name);
+foreach ($requiredStringsKeys as $stringKey) {
+  $strings->{$stringKey} = get_string($stringKey, $plugin_name);
+}
+
+$userRole = json_encode($userRole);
+$coursesWithCreatedClasses = json_encode(array_values($coursesWithCreatedClasses));
+$instructors = json_encode($instructors);
+$rescheduleCauses = json_encode(array_values($rescheduleCauses));
 $strings = json_encode($strings);
 
 echo $OUTPUT->header();
@@ -126,7 +117,7 @@ echo <<<EOT
     <v-app class="transparent">
       <v-main>
         <v-container>
-          <classschedule></classschedule>
+          <ClassSchedule/>
         </v-container>
       </v-main>
     </v-app>
@@ -137,12 +128,12 @@ echo <<<EOT
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   
   <script>
-    var rolInstructor = $rolInstructor;
-    var classItems = $classItemsUnique;
-    var instructorItems = $instructorItems;
-    var strings = $strings;
-    var userid = $userid;
+    var userRole = $userRole;
+    var coursesWithCreatedClasses = $coursesWithCreatedClasses;
+    var instructors = $instructors;
     var rescheduleCauses = $rescheduleCauses;
+    var userId = $USER->id;
+    var strings = $strings;
     var token = $token;
     var themeToken = $themeToken || null;
   </script>
@@ -188,8 +179,7 @@ echo <<<EOT
   </style>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/classschedule.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/availabilitycomponent.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js'));
 echo $OUTPUT->footer();

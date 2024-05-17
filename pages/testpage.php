@@ -22,20 +22,31 @@ require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 
 // global $DB;
 global $DB;
-try{
-    
-    $themeToken = get_theme_token();
-    print_object($themeToken);
-    
-    // $courseModInfo = get_fast_modinfo(94);
+try {
+    // local_grupomakro_progress_manager::update_course_progress(94, 3);
+    $courseUserProgreRecords = $DB->get_records('gmk_course_progre', null, '', 'id,userid,groupid,courseid');
+    foreach ($courseUserProgreRecords as $progreRecord) {
+        if (!$progreRecord->groupid) {
+            continue;
+        }
+        local_grupomakro_progress_manager::update_course_progress($progreRecord->courseid, $progreRecord->userid);
+    }
+    die;
+    // local_grupomakro_progress_manager::handle_module_completion(94, 3, 4217, 1);
+    // die;
+    // $themeToken = get_theme_token();
+    // print_object($themeToken);
+
+    $courseModInfo = get_fast_modinfo(94);
     // $completion = new completion_info($courseModInfo->get_course());
-    // $moduleInfo = $courseModInfo->get_cm(4078);
+    $moduleInfo = $courseModInfo->get_cm(4214);
+    print_object($moduleInfo);
     // // $moduleInfo = $courseModInfo->get_cm(4078);
     // print_object($moduleInfo->get_course_module_record());
     // die;
     // local_grupomakro_progress_manager::calculate_learning_plan_user_course_progress(94,573,4097,0);
     // local_grupomakro_class::add_module_to_class_grade_category($moduleInfo, 146);
-    
+
     // print_object($moduleinfo->get_section_info()->__get('name'));
     // // print_object($moduleinfo);
     // print_object($moduleinfo->get_section_info()->__get('id'));
@@ -63,15 +74,12 @@ try{
     // $gradeMoved= $gradeItem->set_parent($gradeCategory->id);
     // print_object(grade_get_course_grades(92,3)); 
     // print_object(grade_get_course_grade(3,92)); 
-    
+
     // $cinfo = new completion_info(get_course(92));
     // print_object($cinfo->is_course_complete(3));
     // print_object(core_completion\progress::get_course_progress_percentage(get_course(92),3));
-    
+
     // print_object($gradeTree->get_items());
-}catch(Exception $e){
+} catch (Exception $e) {
     print_object($e);
 }
-
-
-

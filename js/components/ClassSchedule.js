@@ -1,4 +1,11 @@
-Vue.component('classschedule',{
+/* global wsUrl */
+/* global wsStaticParams */
+const eventsDaysOffset = {
+    month: 7,
+    week: 2,
+    day: 2
+}
+window.Vue.component('classschedule', {
     template: `
         <div>
             <v-sheet :dark="dark">
@@ -6,23 +13,33 @@ Vue.component('classschedule',{
                     flat
                     id="first"
                 >
-                    <v-btn v-if="!rolInstructor" color="primary" dark class="mr-4" :href="urlClass" >
-                        {{lang.add}}
+                    <v-btn v-if="isAdmin" color="primary" dark class="mr-4" @click="openLink('classmanagement')">
+                        {{strings.add}}
                     </v-btn>
                     <v-btn
                       outlined
                       class="mr-4"
                       color="grey darken-2"
-                      @click="setToday"
+                      @click="focus = today"
                     >
-                      {{lang.today}}
+                      {{strings.today}}
+                    </v-btn>
+                    <v-btn
+                        outlined
+                        class="mr-4"
+                        color="grey darken-2"
+                        @click="getEvents"
+                    >
+                        <v-icon small>
+                            mdi-reload
+                        </v-icon>
                     </v-btn>
                     <v-btn
                       fab
                       text
                       small
                       color="grey darken-2"
-                      @click="prev"
+                      @click="$refs.calendar.prev()"
                     >
                       <v-icon small>
                         mdi-chevron-left
@@ -33,28 +50,27 @@ Vue.component('classschedule',{
                       text
                       small
                       color="grey darken-2"
-                      @click="next"
+                      @click="$refs.calendar.next()"
                     >
                       <v-icon small>
                         mdi-chevron-right
                       </v-icon>
                     </v-btn>
+                    
                     <v-toolbar-title v-if="$refs.calendar">
                       {{ $refs.calendar.title }}
                     </v-toolbar-title>
                     <v-spacer></v-spacer>
                     <v-btn
-                      v-if="!rolInstructor"
+                      v-if="isAdmin"
                       color="primary"
-                      :href="urlAvailability"
+                      @click="openLink('availability')"
                     >
-                      {{lang.availability}}
+                      {{strings.availability}}
                     </v-btn>
                 </v-toolbar>
             </v-sheet>
-            
             <v-row class="mb-1 mx-0 align-center" :class="$vuetify.theme.isDark ? 'mt-1': ''">
-                
                 <v-menu
                   bottom
                   right
@@ -66,7 +82,7 @@ Vue.component('classschedule',{
                           v-bind="attrs"
                           v-on="on"
                         >
-                            <span>{{ typeToLabel[type] }}</span>
+                            <span>{{ typeToLabel[calendarType] }}</span>
                             <v-icon right>
                                 mdi-menu-down
                             </v-icon>
@@ -74,23 +90,23 @@ Vue.component('classschedule',{
                     </template>
                     
                     <v-list>
-                        <v-list-item @click="type = 'day'">
-                            <v-list-item-title>{{lang.day}}</v-list-item-title>
+                        <v-list-item @click="calendarType = 'day'">
+                            <v-list-item-title>{{strings.day}}</v-list-item-title>
                         </v-list-item>
-                        <v-list-item @click="type = 'week'">
-                            <v-list-item-title>{{lang.week}}</v-list-item-title>
+                        <v-list-item @click="calendarType = 'week'">
+                            <v-list-item-title>{{strings.week}}</v-list-item-title>
                         </v-list-item>
-                        <v-list-item @click="type = 'month'">
-                            <v-list-item-title>{{lang.month}}</v-list-item-title>
+                        <v-list-item @click="calendarType = 'month'">
+                            <v-list-item-title>{{strings.month}}</v-list-item-title>
                         </v-list-item>
                     </v-list>
                 </v-menu>
                 <v-spacer></v-spacer>
-                <v-col v-if="!rolInstructor" cols="12" sm="3" md="3" lg="2" class="px-1">
+                <v-col v-if="isAdmin" cols="12" sm="3" md="3" lg="2" class="px-1">
                     <v-combobox
                       v-model="selectedInstructors"
                       :items="instructors"
-                      :label="lang.instructors"
+                      :label="strings.instructors"
                       outlined
                       dense
                       hide-details
@@ -98,63 +114,64 @@ Vue.component('classschedule',{
                       multiple
                     ></v-combobox>
                 </v-col>
-                <v-col cols="12" sm="3" md="3" :lg="rolInstructor ? '3' : '2'" class="px-1">
+                <v-col cols="12" sm="3" md="3" :lg="!isAdmin ? '3' : '2'" class="px-1">
                     <v-combobox
-                      v-model="selectclass"
-                      :items="classitems"
-                      :label="lang.scheduledclasses"
+                      v-model="selectedCourses"
+                      :items="coursesWithCreatedClasses"
+                      :label="strings.scheduledclasses"
                       multiple
                       outlined
                       dense
                       hide-details
                       small-chips
                       clearable
-                      @input="handleInput"
                     ></v-combobox>
                 </v-col>
             </v-row>
             
             <v-sheet height="800">
                 <v-calendar
-                    ref="calendar"
                     v-model="focus"
+                    ref="calendar"
                     color="primary"
+                    locale="es-ES"
+                    :short-weekdays="false"
+                    :events="filteredEvents"
+                    :type="calendarType"
+                    first-time="06:00"
+                    interval-count="18"
+                    interval-minutes="60"
+                    :weekdays="weekdays"
                     @click:event="showEvent"
                     @click:more="viewDay"
                     @click:date="viewDay"
-                    locale="en-US"
-                    :short-weekdays="false"
-                    :events="filteredEvents"
-                    :type="type"
-                    first-time="7"
-                    interval-count="14"
-                    :weekdays="weekdays"
+                    @change="getEvents"
                 >
                     <template v-slot:event="{ event }">
                         <div class="v-event-draggable">
-                            <strong>{{ event.name }}</strong><br />
+                            <strong>{{ event.name }}</strong><v-spacer/>
                             {{ formatEventTime(event.start) }} -
                             {{ formatEventTime(event.end) }}
                         </div>
                     </template>
                     <template v-slot:day-body="{ date, week }">
-                    <div
-                      class="v-current-time"
-                      :class="{ first: date === week[0].date }"
-                      :style="{ top: nowY }"
-                    ></div>
+                        <div
+                        class="v-current-time"
+                        :class="{ first: date === week[0].date }"
+                        :style="{ top: nowY }"
+                        ></div>
                   </template>
                 </v-calendar>
                 <v-menu
-                    v-model="selectedOpen"
+                    v-model="showSelectedEvent"
                     :close-on-content-click="false"
                     :activator="selectedElement"
-                    :max-width="type == 'day' ? '300px' : '100%'"
+                    :max-width="calendarType === 'day' ? '300px' : '100%'"
                 >
                     <v-card
                       min-width="300px"
                       flat
-                      :max-width="type == 'day' ? '300px' : '100%'"
+                      :max-width="calendarType === 'day' ? '300px' : '100%'"
                       
                     >
                         <v-toolbar
@@ -164,7 +181,7 @@ Vue.component('classschedule',{
                             <v-toolbar-title class="pl-2" v-html="selectedEvent.name"></v-toolbar-title>
                             <v-spacer></v-spacer>
                             <v-menu
-                              v-if="!rolInstructor"
+                              v-if="isAdmin"
                               content-class="menuitems"
                               bottom
                               min-width="180"
@@ -186,12 +203,12 @@ Vue.component('classschedule',{
                                 <v-card width="180">
                                     <v-list dense>
                                       <v-list-item-group v-model="listItem">
-                                        <v-list-item @click="editEvent(selectedEvent)">
+                                        <v-list-item @click="editEvent(selectedEvent)" >
                                           <v-list-item-icon class="mr-2">
                                             <v-icon >mdi-calendar-edit</v-icon>
                                           </v-list-item-icon>
                                           <v-list-item-content>
-                                            <v-list-item-title>{{lang.edit}}</v-list-item-title>
+                                            <v-list-item-title>{{strings.edit}}</v-list-item-title>
                                           </v-list-item-content>
                                         </v-list-item>
                                       </v-list-item-group>
@@ -205,13 +222,13 @@ Vue.component('classschedule',{
                             >
                                 <template v-slot:activator="{ on, attrs }">
                                     <v-btn
-                                      v-if="rolInstructor"
+                                      v-if="!isAdmin"
                                       color="error"
                                       x-small
                                       v-bind="attrs"
                                       v-on="on"
                                     >
-                                      {{lang.reschedule}}
+                                      {{strings.reschedule}}
                                     </v-btn>
                                 </template>
                         
@@ -228,14 +245,14 @@ Vue.component('classschedule',{
                                                       v-model="causes"
                                                       :items="rescheduleCauses"
                                                       small-chips
-                                                      :label="lang.causes_rescheduling"
+                                                      :label="strings.causes_rescheduling"
                                                       multiple
                                                       :menu-props="{ bottom: true, offsetY: true }"
                                                       dense
                                                       :color="selectedEvent.color"
                                                       outlined
                                                       required
-                                                      :rules="[v => !!v && v.length > 0 || lang.field_required]"
+                                                      :rules="[v => !!v && v.length > 0 || strings.field_required]"
                                                     ></v-select>
                                                 </v-col>
                                                 <v-col cols="12" class="py-0">
@@ -251,7 +268,7 @@ Vue.component('classschedule',{
                                                         <template v-slot:activator="{ on, attrs }">
                                                             <v-text-field
                                                               v-model="date"
-                                                              :label="lang.select_possible_date"
+                                                              :label="strings.select_possible_date"
                                                               append-icon="mdi-calendar"
                                                               readonly
                                                               v-bind="attrs"
@@ -260,7 +277,7 @@ Vue.component('classschedule',{
                                                               outlined
                                                               dense
                                                               required
-                                                              :rules="[v => !!v || lang.field_required]"
+                                                              :rules="[v => !!v || strings.field_required]"
                                                           ></v-text-field>
                                                         </template>
                                                         <v-date-picker
@@ -274,7 +291,7 @@ Vue.component('classschedule',{
                                                               :color="selectedEvent.color"
                                                               @click="menu = false"
                                                             >
-                                                                {{lang.cancel}}
+                                                                {{strings.cancel}}
                                                             </v-btn>
                                                             <v-btn
                                                               text
@@ -301,7 +318,7 @@ Vue.component('classschedule',{
                                                         <template v-slot:activator="{ on, attrs }">
                                                             <v-text-field
                                                               v-model="time"
-                                                              :label="lang.new_class_time"
+                                                              :label="strings.new_class_time"
                                                               append-icon="mdi-clock-time-four-outline"
                                                               readonly
                                                               v-bind="attrs"
@@ -310,7 +327,7 @@ Vue.component('classschedule',{
                                                               outlined
                                                               dense
                                                               required
-                                                              :rules="[v => !!v || lang.field_required]"
+                                                              :rules="[v => !!v || strings.field_required]"
                                                             ></v-text-field>
                                                         </template>
                                                         <v-time-picker
@@ -345,7 +362,7 @@ Vue.component('classschedule',{
                                             text
                                             color="secondary"
                                         >
-                                            {{lang.cancel}}
+                                            {{strings.cancel}}
                                         </v-btn>
                                       
                                         <v-btn
@@ -355,7 +372,7 @@ Vue.component('classschedule',{
                                           text
                                           color="secondary"
                                         >
-                                            {{lang.accept}}
+                                            {{strings.accept}}
                                         </v-btn>
                                     </v-card-actions>
                                 </v-card>
@@ -401,7 +418,7 @@ Vue.component('classschedule',{
                                 </v-avatar>
                                 <span v-html="selectedEvent.days"></span>
                             </div>
-                            <div v-if="rolInstructor">
+                            <div v-if="!isAdmin">
                                 <div v-if="selectedEvent.details == 'Virtual' || selectedEvent.details == 'Mixta'" class="d-flex align-center">
                                     <v-avatar
                                      size="36px"
@@ -434,7 +451,7 @@ Vue.component('classschedule',{
                                        :href="selectedEvent.attendanceActivityUrl"
                                         class="text-capitalize"
                                     >
-                                      {{lang.activity}}
+                                      {{strings.activity}}
                                     </v-btn>
                                 </div>
                             </div>
@@ -444,49 +461,44 @@ Vue.component('classschedule',{
                             <v-btn
                               text
                               color="secondary"
-                              @click="selectedOpen = false"
+                              @click="showSelectedEvent = false"
                             >
-                              {{lang.close}}
+                              {{strings.close}}
                             </v-btn>
                         </v-card-actions>
                     </v-card>
                 </v-menu>
+                <v-overlay :value="fetchingEvents">
+                    <v-progress-circular
+                        color="primary"
+                        indeterminate
+                        size="64"
+                    ></v-progress-circular>
+                </v-overlay>
             </v-sheet>
             <eventdialog v-if="dialogconfirm" @hiden-dialog="hidenDialog"></eventdialog>
         </div>
     `,
-    data(){
-        return{
-            today: new Date().toISOString().substr(0,10),
-            focus: new Date().toISOString().substr(0,10),
-            type: 'week',
-            typeToLabel: {
-                month: window.strings.month,
-                week: window.strings.week,
-                day: window.strings.day,
-            },
+    data() {
+        return {
+            today: new Date().toISOString().substr(0, 10),
+            focus: new Date().toISOString().substr(0, 10),
             start: null,
             end: null,
-            selectedEvent: {},
-            selectedElement: null,
-            selectedOpen: false,
-            events: [],
             mode: 'column',
             dialog: false,
             selectedInstructors: [],
-            selectclass:[],
+            selectedCourses: [],
             dark: false,
             listItem: '',
             dialogconfirm: false,
             reschedulemodal: false,
-            urlClass: 'classmanagement.php',
-            urlAvailability: 'availability.php',
-            URLdomain: window.location.origin,
-            siteUrl: window.location.origin + '/webservice/rest/server.php',
-            weekdays: [1, 2, 3, 4, 5, 6, 0],
             ready: false,
-            lang: window.strings,
-            userId: window.userid,
+
+            selectedEvent: {},
+            selectedElement: null,
+            showSelectedEvent: false,
+            strings: window.strings,
             value: '',
             causes: [],
             date: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10),
@@ -497,282 +509,263 @@ Vue.component('classschedule',{
             selectedcompetences: [],
             competences: [],
             valid: false,
-            rescheduleError:undefined
+            rescheduleError: undefined,
+
+            weekdays: [1, 2, 3, 4, 5, 6, 0],
+            events: [],
+            instructors: window.instructors,
+            coursesWithCreatedClasses: window.coursesWithCreatedClasses,
+            isAdmin: window.userRole === 'admin',
+            userId: window.userId,
+            fetchingEvents: false,
+            typeToLabel: {
+                month: window.strings.month,
+                week: window.strings.week,
+                day: window.strings.day,
+            },
+            calendarType: 'week',
+            rescheduleCauses: window.rescheduleCauses.map(cause => ({ text: cause.causename, id: cause.id, value: cause.id }))
         }
     },
-    props:{
-        
-    },
-    watch:{
-        rescheduleError:function handler(newVal, oldVal){
-            if(newVal){
-                setTimeout(()=>this.rescheduleError = undefined, 6000)
+    props: {},
+    watch: {
+        rescheduleError: function handler(newVal, oldVal) {
+            if (newVal) {
+                setTimeout(() => this.rescheduleError = undefined, 6000)
             }
         }
     },
-    created(){
-        this.getEvents();
+    created() {
     },
-    mounted(){
+    mounted() {
         this.$refs.calendar.checkChange();
         this.ready = true
+        this.getEvents();
         this.scrollToTime()
         this.updateTime()
-    },  
-    methods:{
+    },
+    methods: {
         // This method makes an HTTP GET request to retrieve calendar events from the Moodle server. 
         // The received data is processed and relevant information is extracted from each event, which is added to the events array. 
         // This method also handles errors if the request fails.
-        getEvents(){
+        async getEvents() {
             // Initialize the events property to an empty array.
             this.events = []
-            
-            // Get the Moodle site URL from the siteUrl property.
-            const url = this.siteUrl;
-            let params = {
-                wstoken: this.token,
-                moodlewsrestformat: 'json',
-                wsfunction: 'local_grupomakro_calendar_get_calendar_events',
-            }
-            if(this.rolInstructor)params.userId=this.userId
-            
-            // Make an HTTP GET request with Axios.
-            window.axios.get(url, { params })
-                // If the request is successful, process the received data
-                .then(response => {
-                    // Convert the JSON response to an objec.
-                    console.log(response)
-                    const data = JSON.parse(response.data.events)
-                    // Iterate over each element in the received data.
-                    data.forEach((element) => {
-                        // Extract the relevant information from each event and add it to the events array.
-                        this.events.push({
-                            name: element.coursename,
-                            instructor: element.instructorName,
-                            details: element.typelabel,
-                            color: element.color,
-                            start: element.start,
-                            end: element.end,
-                            days: element.classDaysES.join(" - "),
-                            hour: element.timeRange,
-                            timed: true,
-                            modulename: element.modulename,
-                            moduleId: element.moduleId,
-                            bigBlueButtonActivityUrl: element.bigBlueButtonActivityUrl ? element.bigBlueButtonActivityUrl : null,
-                            attendanceActivityUrl: element.attendanceActivityUrl ? element.attendanceActivityUrl : null,
-                            classId: element.classId,
-                            className: element.className,
-                            sessionId: element.sessionId ? element.sessionId : null,
-                            instructorId: element.userid,
-                            visible: element.visible
-                        })
-                    })
-                })
-                // If the request fails, display the error on the console.
-                .catch(error => {
+            try {
+                this.fetchingEvents = true;
+                const { data } = await window.axios.get(wsUrl, { params: this.getEventsParameters })
+                if (data.status === -1) throw data.message;
+                this.events = JSON.parse(data.events)
+            } catch (error) {
+                this.events = []
                 console.error(error);
-            });
+            } finally {
+                this.fetchingEvents = false;
+            }
+            return;
         },
         // This method updates the calendar view to display a specific day.
-        viewDay ({ date }) {
+        viewDay({ date }) {
             this.focus = date
-            this.type = 'day'
+            this.calendarType = 'day'
         },
         // This method sets the calendar view to the current day.
-        setToday () {
+        setToday() {
             this.focus = this.today
         },
-        // This method navigates to the previous calendar view.
-        prev () {
-            this.$refs.calendar.prev()
-        },
-        // This method navigates to the next calendar view.
-        next () {
-            this.$refs.calendar.next()
-        },
         // This method returns the color of a given event.
-        getEventColor (event) {
+        getEventColor(event) {
             return event.color
         },
         // This method displays information about a specific event when it is clicked by the user.
-        showEvent ({ nativeEvent, event }) {
+        showEvent({ nativeEvent, event }) {
             const open = () => {
                 this.selectedEvent = event
                 this.selectedElement = nativeEvent.target
-                setTimeout(() => this.selectedOpen = true, 10)
+                setTimeout(() => this.showSelectedEvent = true, 10)
             }
 
-            if (this.selectedOpen) {
-              this.selectedOpen = false
-              setTimeout(open, 10)
+            if (this.showSelectedEvent) {
+                this.showSelectedEvent = false
+                setTimeout(open, 10)
             } else {
-              open()
+                open()
             }
 
             nativeEvent.stopPropagation()
         },
         // This method updates the start and end dates of the calendar range.
-        updateRange ({ start, end }) {
+        updateRange({ start, end }) {
             this.start = start
             this.end = end
         },
         // This method hides the current dialog box and displays the confirmation dialog box.
-        async sendSolit(event){
+        async sendSolit(event) {
             this.$refs.reschedulingform.validate()
             console.log(event)
-            const url = this.siteUrl;
             // Create a params object with the parameters needed to make an API call.
-            if(this.valid){
+            if (this.valid) {
                 const config = {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 }
                 const params = new FormData()
-                params.append('wstoken',this.token)
-                params.append('wsfunction',  'local_grupomakro_check_reschedule_conflicts')
+                params.append('wstoken', this.token)
+                params.append('wsfunction', 'local_grupomakro_check_reschedule_conflicts')
                 params.append('moodlewsrestformat', 'json')
-                params.append('classId',event.classId)
+                params.append('classId', event.classId)
                 params.append('moduleId', event.moduleId)
-                params.append('date',this.date)
+                params.append('date', this.date)
                 params.append('initTime', this.time)
                 params.append('endTime', null)
-                params.append('sessionId',event.sessionId)
+                params.append('sessionId', event.sessionId)
 
                 try {
-                    const checkResponse= await window.axios.post(url, params,config)
+                    const checkResponse = await window.axios.post(wsUrl, params, config)
                     console.log(checkResponse)
-                    if(!checkResponse.data.status || checkResponse.data.status === -1) throw Error(checkResponse.data.message);
+                    if (!checkResponse.data.status || checkResponse.data.status === -1) throw Error(checkResponse.data.message);
                     const sendRescheduleMessageParams = {
                         wstoken: this.token,
                         moodlewsrestformat: 'json',
                         wsfunction: 'local_grupomakro_send_reschedule_message',
                         instructorId: event.instructorId,
                         classId: event.classId,
-                        causes:this.causes.join(','),
+                        causes: this.causes.join(','),
                         moduleId: event.moduleId,
-                        originalDate:event.start.split(" ")[0],
-                        originalHour:event.hour,
+                        originalDate: event.start.split(" ")[0],
+                        originalHour: event.hour,
                         sessionId: event.sessionId,
-                        proposedDate:this.date,
-                        proposedHour:this.time,
+                        proposedDate: this.date,
+                        proposedHour: this.time,
                     };
-                    const messageResponse= await window.axios.get(url, { params:sendRescheduleMessageParams })
-                    if (messageResponse.data.status===-1) throw Error(messageResponse.data.message)
+                    const messageResponse = await window.axios.get(url, { params: sendRescheduleMessageParams })
+                    if (messageResponse.data.status === -1) throw Error(messageResponse.data.message)
                     this.dialog = false;
                     this.dialogconfirm = true;
                 }
-                catch (error){
+                catch (error) {
                     this.rescheduleError = error.message
                 }
             }
         },
         // This method hides the current dialog box and reschedule modal.
-        hidenDialog(){
+        hidenDialog() {
             this.dialogconfirm = false;
             this.reschedulemodal = false
         },
         // This method formats a given date object to display only the time in hours and minutes.
         formatEventTime(date) {
-          return new Date(date).toLocaleTimeString("es-CO", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
+            return new Date(date).toLocaleTimeString("es-CO", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            });
         },
         // This method returns the current time in minutes, based on the current time on the calendar.
-        getCurrentTime () {
+        getCurrentTime() {
             return this.cal ? this.cal.times.now.hour * 60 + this.cal.times.now.minute : 0
         },
         // This method scrolls the calendar to the current time.
-        scrollToTime () {
+        scrollToTime() {
             const time = this.getCurrentTime()
             const first = Math.max(0, time - (time % 30) - 30)
-    
+
             this.cal.scrollToTime(first)
         },
         // This method updates the time displayed on the calendar every minute.
-        updateTime () {
+        updateTime() {
             setInterval(() => this.cal.updateTimes(), 60 * 1000)
         },
-        // This method retrieves events from the server based on the selected classes and instructors, 
-        // and filters the events that match the selected classes.
-        handleInput(e){
-            this.getEvents()
-            let data = []
-            if(e.length > 0){
-                this.events.forEach((element) => {
-                    e.forEach((item) =>{
-                        if(element.name == item.value ){
-                            data.push(element)
-                        }
-                    })
-                })
-            }
-        },
-        editEvent(event){
+        editEvent(event) {
             console.log(event)
-            window.location = this.URLdomain + '/local/grupomakro_core/pages/editclass.php?class_id=' 
-            + event.classId + '&moduleId=' + event.moduleId + '&sessionId=' + event.sessionId
-        }
+            window.location = window.location.origin + '/local/grupomakro_core/pages/editclass.php?class_id='
+                + event.classId + '&moduleId=' + event.moduleId + '&sessionId=' + event.sessionId
+        },
+        formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is zero-based
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        },
+        openLink(link) {
+            window.open(`${window.location.origin}/local/grupomakro_core/pages/${link}.php`)
+        },
     },
     computed: {
+        getEventsParameters() {
+
+            let initDate = new Date(this.$refs.calendar.lastStart.date)
+            let endDate = new Date(this.$refs.calendar.lastEnd.date)
+            const daysOffSet = eventsDaysOffset[this.calendarType]
+
+            initDate.setDate(initDate.getDate() - daysOffSet);
+            endDate.setDate(endDate.getDate() + daysOffSet);
+
+            initDate = this.formatDate(initDate);
+            endDate = this.formatDate(endDate);
+
+            return {
+                ...wsStaticParams,
+                wsfunction: 'local_grupomakro_calendar_get_calendar_events',
+                userId: !this.isAdmin ? this.userId : null,
+                initDate,
+                endDate
+            }
+        },
+        formattedEvents() {
+            return this.events?.map(({ coursename, instructorName, typelabel, color, start, end, classDaysES, timeRange, modulename, moduleId, bigBlueButtonActivityUrl, attendanceActivityUrl, classId, className, sessionId, instructorid, visible, courseid }) => ({
+                name: coursename,
+                instructorId: instructorid,
+                instructor: instructorName,
+                details: typelabel,
+                days: classDaysES.join(" - "),
+                hour: timeRange,
+                timed: true,
+                color,
+                start,
+                end,
+                modulename,
+                moduleId,
+                bigBlueButtonActivityUrl,
+                attendanceActivityUrl,
+                classId,
+                className,
+                sessionId,
+                visible,
+                courseid,
+            }))
+        },
         // This method returns an array of events filtered based on the selections made by the user. 
         // If any instructor has been selected, it returns the events related to that instructor. 
         // If any class type has been selected, it returns the events related to that class type. 
         // If no selection has been made, returns all events. 
         filteredEvents() {
-            let select = []
-            
-            if(this.selectedInstructors.length > 0){
-                this.selectedInstructors.forEach((element) =>{
-                    select.push(element.text)
-                })
-                return this.events.filter((event) =>
-                    select.includes(event.instructor)
-                );
+            const selectedInstructorsIds = this.selectedInstructors.map(instructor => instructor.id)
+            const selectedCoursesIds = this.selectedCourses.map(course => course.id)
+            let filteredEvents = this.formattedEvents
+            if (!selectedInstructorsIds.length && !selectedCoursesIds.length) {
+                return filteredEvents;
             }
-            
-            if(this.selectclass.length > 0){
-                this.selectclass.forEach((element) =>{
-                    select.push(element.text)
-                })
-                return this.events.filter((event) =>
-                    select.includes(event.name)
-                );
+            if (selectedInstructorsIds.length) {
+                filteredEvents = filteredEvents.filter(event => selectedInstructorsIds.includes(event.instructorId))
             }
-            
-            if (this.selectedInstructors.length === 0 && this.selectclass.length === 0) {
-              return this.events;
+            if (selectedCoursesIds.length) {
+                filteredEvents = filteredEvents.filter(event => selectedCoursesIds.includes(event.courseid))
             }
+            return filteredEvents;
         },
         // This method returns the calendar instance if it is ready to use, otherwise it returns null.
-        cal () {
+        cal() {
             return this.ready ? this.$refs.calendar : null
         },
         // This method Returns the current vertical position of the current time indicator on the calendar.
-        nowY () {
+        nowY() {
             return this.cal ? this.cal.timeToY(this.cal.times.now) + 'px' : '-10px'
         },
         // This method returns a validation rule function for use with vee-validate library.
         // The function takes a value as input and returns a boolean indicating whether the value is non-empty or not.
         requiredRule() {
-          return (value) => !!value || 'Este campo es requerido';
+            return (value) => !!value || 'Este campo es requerido';
         },
-        
-        rescheduleCauses(){
-            return window.rescheduleCauses.map(cause => ({text:cause.causename,id:cause.id,value:cause.id}));
-        },
-        classitems(){
-            return window.classItems;
-        },
-        instructors(){
-            return window.instructorItems;
-        },
-        rolInstructor(){
-            return window.rolInstructor===1;
-        },
-        token(){
-            return window.token;
-        }
     },
-    
+
 })
