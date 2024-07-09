@@ -32,7 +32,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
-require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_learning_plans.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/learning/get_learning_plan.php');
 
 /**
  * External function 'local_grupomakro_get_learning_plans_data' implementation.

@@ -129,7 +129,7 @@ class create_class extends external_api {
         return new external_single_structure(
             array(
                 'status' => new external_value(PARAM_INT, 'The ID of the new class or -1 if there was an error.'),
-                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEAFULT, 'ok'),
+                'message' => new external_value(PARAM_TEXT, 'The error message or Ok.',VALUE_DEFAULT, 'ok'),
             )
         );
     }
