@@ -10,6 +10,28 @@ $PAGE->set_url('/local/grupomakro_core/pages/import_grades.php');
 $PAGE->set_title('Importar Notas Históricas');
 $PAGE->set_heading('Migración de Notas (Q10 -> Moodle)');
 
+$action = optional_param('action', '', PARAM_TEXT);
+
+if ($action === 'download_template') {
+    $filename = 'plantilla_notas_q10.csv';
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    
+    $fp = fopen('php://output', 'w');
+    fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
+    
+    // Headers
+    $headers = ['Username', 'LearningPlanName', 'CourseShortname', 'Grade', 'Feedback'];
+    fputcsv($fp, $headers);
+    
+    // Example
+    $example = ['juan.perez', 'Soldadura Basica', 'SOLD-101', '85', 'Migrado 2023'];
+    fputcsv($fp, $example);
+    
+    fclose($fp);
+    die;
+}
+
 echo $OUTPUT->header();
 
 $mform = new \local_grupomakro_core\form\import_file_form(null, ['filetypes' => ['.xlsx', '.xls']]);
@@ -117,6 +139,7 @@ if ($mform->is_cancelled()) {
     echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_grades.php'));
 
 } else {
+    echo '<div class="mb-3"><a href="?action=download_template" class="btn btn-outline-secondary"><i class="fa fa-download"></i> Descargar Plantilla CSV de Ejemplo</a></div>';
     $mform->display();
     echo "<hr><h3>Formato Requerido (Excel sin encabezados o salta fila 1)</h3>";
     echo "<p>Col 1: Usuario | Col 2: Nombre Plan | Col 3: Shortname Curso | Col 4: Nota | Col 5: Feedback</p>";
