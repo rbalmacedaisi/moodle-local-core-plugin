@@ -10,7 +10,7 @@ $PAGE->set_url('/local/grupomakro_core/pages/import_users.php');
 $PAGE->set_title('Importar Usuarios Masivamente');
 $PAGE->set_heading('Importar Usuarios desde Excel');
 
-$action = optional_param('action', '', PARAM_ALPHA);
+$action = optional_param('action', '', PARAM_TEXT);
 
 if ($action === 'download_template') {
     $filename = 'plantilla_usuarios_grupomakro.csv';
