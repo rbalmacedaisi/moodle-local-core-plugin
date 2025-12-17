@@ -60,34 +60,47 @@ $sql_cols = "c.id, c.fullname, c.shortname, c.idnumber, c.category, c.visible, c
              WHERE ctx.instanceid = c.id AND ctx.contextlevel = 50 AND ra.roleid = 5) as student_count"; 
              // Assuming roleid 5 is student. Adjust if distinct logic needed.
 
-// EXPORT TO CSV
+// EXPORT TO XLSX
 if ($action === 'export') {
-    $filename = 'reporte_cursos_' . date('Ymd_His') . '.csv';
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    $filename = 'reporte_cursos_' . date('Ymd_His') . '.xlsx';
     
-    $fp = fopen('php://output', 'w');
-    fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
+    // Create Spreadsheet
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Cursos');
     
     // Headers
-    fputcsv($fp, ['ID', 'Shortname', 'Fullname', 'Category ID', 'Schedules', 'Students', 'Visible', 'Start Date']);
+    $headers = ['ID', 'Shortname', 'Fullname', 'Category ID', 'Schedules', 'Students', 'Visible', 'Start Date'];
+    $sheet->fromArray($headers, NULL, 'A1');
     
-    // Fetch ALL records for export
+    // Fetch ALL records
     $export_courses = $DB->get_records_sql("SELECT $sql_cols FROM {course} c WHERE $whereSQL ORDER BY c.fullname ASC", $params);
     
+    $row = 2;
     foreach ($export_courses as $c) {
-        fputcsv($fp, [
-            $c->id, 
-            $c->shortname, 
-            $c->fullname, 
-            $c->category, 
-            $c->schedules_count, 
-            $c->student_count, 
-            $c->visible ? 'Yes' : 'No', 
-            userdate($c->startdate, '%Y-%m-%d')
-        ]);
+        $sheet->setCellValue('A' . $row, $c->id);
+        $sheet->setCellValue('B' . $row, $c->shortname);
+        $sheet->setCellValue('C' . $row, $c->fullname);
+        $sheet->setCellValue('D' . $row, $c->category);
+        $sheet->setCellValue('E' . $row, $c->schedules_count);
+        $sheet->setCellValue('F' . $row, $c->student_count);
+        $sheet->setCellValue('G' . $row, $c->visible ? 'Yes' : 'No');
+        $sheet->setCellValue('H' . $row, userdate($c->startdate, '%Y-%m-%d'));
+        $row++;
     }
-    fclose($fp);
+    
+    // Auto-size columns
+    foreach(range('A','H') as $col) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    // Output headers for download
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="' . $filename . '"');
+    header('Cache-Control: max-age=0');
+    
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save('php://output');
     die;
 }
 
@@ -187,7 +200,7 @@ echo '   </select>';
 echo ' </div>';
 echo ' <div class="col-md-3 mb-2 d-flex justify-content-end">';
 echo '   <button type="submit" class="btn btn-secondary mr-2">Filtrar</button>';
-echo '   <button type="submit" name="action" value="export" class="btn btn-success"><i class="mdi mdi-file-excel"></i> CSV</button>';
+echo '   <button type="submit" name="action" value="export" class="btn btn-success"><i class="mdi mdi-file-excel"></i> Excel</button>';
 echo ' </div>';
 echo '</form>';
 

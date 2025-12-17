@@ -80,7 +80,7 @@ if ($hassiteconfig) {
     );
     $manageCoursesPage = new admin_externalpage(
         'grupomakro_core_manage_courses',
-        'Gestor de Cursos (Moderno)',
+        'Gestor de Cursos',
         new moodle_url('/local/grupomakro_core/pages/manage_courses.php')
     );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
