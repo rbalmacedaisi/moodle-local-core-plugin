@@ -20,7 +20,7 @@ $filter_username = optional_param('filter_username', '', PARAM_TEXT);
 $page = optional_param('page', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 $confirm = optional_param('confirm', 0, PARAM_INT);
-
+ 
 // Header
 echo $OUTPUT->header();
 
