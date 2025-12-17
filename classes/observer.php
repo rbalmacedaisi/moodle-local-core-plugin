@@ -24,16 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-// require_once($CFG->libdir.'/completionlib.php');
-// require_once($CFG->libdir.'/modinfolib.php');
-// require_once($CFG->dirroot.'/course/lib.php');
-// require_once($CFG->dirroot.'/mod/resource/lib.php');
-// require_once($CFG->dirroot.'/course/modlib.php');
-// require_once($CFG->dirroot.'/mod/attendance/locallib.php');
-// require_once($CFG->dirroot.'/group/lib.php');
-
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-// require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/gmk_class.php');
 require_once($CFG->dirroot . '/local/sc_learningplans/libs/courselib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
@@ -72,6 +63,23 @@ class local_grupomakro_core_observer
 
     public static function course_updated(\core\event\course_updated $event)
     {
+        $eventdata = $event->get_data();
+        $courseShortname =$eventdata['other']['shortname'];
+        $courseFullname =$eventdata['other']['fullname'];
+        $courseId = $eventdata['objectid'];
+        try {
+            \local_grupomakro_core\local\gmk_teacher_skill::update_course_teacher_skill(
+                [
+                    'shortname'=>$courseShortname,
+                    'fullname'=>$courseFullname,
+                    'courseid'=>$courseId
+                ]
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+        
     }
 
     public static function group_member_added(\core\event\group_member_added  $event)
@@ -84,18 +92,31 @@ class local_grupomakro_core_observer
     {
 
         $eventdata = $event->get_data();
+        $courseShortname =$eventdata['other']['shortname'];
+        $courseFullname =$eventdata['other']['fullname'];
+        $courseId = $eventdata['objectid'];
+
         $courseRevalidGroup = new stdClass();
-        $courseRevalidGroup->idnumber = 'rev-' . $eventdata['other']['shortname'];
+        $courseRevalidGroup->idnumber = 'rev-' .$courseShortname ;
         $courseRevalidGroup->name = 'Revalida';
-        $courseRevalidGroup->courseid = $eventdata['objectid'];
-        $courseRevalidGroup->description = 'Group for revalidating ' . $eventdata['other']['fullname'] . ' course';
+        $courseRevalidGroup->courseid = $courseId;
+        $courseRevalidGroup->description = 'Group for revalidating ' .$courseFullname. ' course';
         $courseRevalidGroup->descriptionformat = 1;
 
         try {
+
+            \local_grupomakro_core\local\gmk_teacher_skill::add_course_teacher_skill(
+                [
+                    'shortname'=>$courseShortname,
+                    'fullname'=>$courseFullname,
+                    'courseid'=>$courseId
+                ]
+            );
+
             $courseRevalidGroup->id = groups_create_group($courseRevalidGroup);
 
-            $section = course_create_section($eventdata['objectid']);
-            course_update_section($eventdata['objectid'], $section, [
+            $section = course_create_section($courseId);
+            course_update_section($courseId, $section, [
                 'name' => 'Reválida',
                 'availability' => '{"op":"&","c":[{"type":"group","id":' . $courseRevalidGroup->id . '}],"showc":[true]}'
             ]);
@@ -111,11 +132,24 @@ class local_grupomakro_core_observer
                     'gradepass' => 70,
                 ]
             ];
-            core_grades\external\create_gradecategories::execute($courseRevalidGroup->courseid, [$revalidCategoryData]);
+            core_grades\external\create_gradecategories::execute($courseId, [$revalidCategoryData]);
             return true;
         } catch (Exception $e) {
             print_object($e);
-            throw $e;
+            return false;
+        }
+    }
+
+    public static function course_deleted(\core\event\course_deleted $event)
+    {
+        // global $DB;
+        $eventdata = $event->get_data();
+        $courseId =$eventdata['objectid'];
+        try {
+            \local_grupomakro_core\local\gmk_teacher_skill::delete_course_teacher_skill($courseId);
+            return true;
+        } catch (Exception $e) {
+            return false;
         }
     }
 
@@ -212,7 +246,7 @@ class local_grupomakro_core_observer
             return true;
         } catch (Exception $e) {
             print_object($e);
-            throw $e;
+            return false;
         }
     }
     public static function course_module_deleted(\core\event\course_module_deleted $event)
@@ -230,7 +264,7 @@ class local_grupomakro_core_observer
             return true;
         } catch (Exception $e) {
             print_object($e);
-            throw $e;
+            return false;
         }
     }
     public static function learningplancourse_added(\local_sc_learningplans\event\learningplancourse_added $event)

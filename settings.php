@@ -56,13 +56,18 @@ if ($hassiteconfig) {
         get_string('institution_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php')
     );
+    $academicDirectorPanelPage = new admin_externalpage(
+        'grupomakro_core_academic_director_panel',
+        get_string('academic_director_panel', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityCalendarPage);
     $ADMIN->add('grupomakrocore_plugin', $schedulesPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $institutionManagementPage);
-    
+    $ADMIN->add('grupomakrocore_plugin', $academicDirectorPanelPage);
     
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********

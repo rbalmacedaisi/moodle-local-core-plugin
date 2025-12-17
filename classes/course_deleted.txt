@@ -1,0 +1,23 @@
+{
+    "eventname": "\\core\\event\\course_deleted",
+    "component": "core",
+    "action": "deleted",
+    "target": "course",
+    "objecttable": "course",
+    "objectid": "191",
+    "crud": "d",
+    "edulevel": 1,
+    "contextid": 2126,
+    "contextlevel": 50,
+    "contextinstanceid": "191",
+    "userid": "2",
+    "courseid": "191",
+    "relateduserid": null,
+    "anonymous": 0,
+    "other": {
+        "shortname": "test4h",
+        "fullname": "test4",
+        "idnumber": ""
+    },
+    "timecreated": 1720576187
+}

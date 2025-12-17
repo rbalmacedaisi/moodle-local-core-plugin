@@ -1,0 +1,2315 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Nombre corto curso": "CLT",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 2,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 3,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 4,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 5,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 6,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DCA",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 7,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 8,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 9,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TOPI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 10,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TOPII",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 11,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACAI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 12,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 13,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 14,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 15,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SIG",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 16,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TCA",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 17,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ECOG",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 18,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GFI",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 19,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 20,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PEMP",
+            "Codigo Carrera": 8,
+            "Tabla": "Curso-carrera",
+            "Fila": 21,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 22,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FPS",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 23,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 24,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IDL",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 25,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 26,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 27,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SIS",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 28,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 29,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 30,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 31,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 32,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 33,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OEI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 34,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SMC",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 35,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 36,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 37,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEIII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 38,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OEII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 39,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PFI",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 40,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SMCII",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 41,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ELM",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 42,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 43,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MM",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 44,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PEMP",
+            "Codigo Carrera": 5,
+            "Tabla": "Curso-carrera",
+            "Fila": 45,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CL",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 46,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 47,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FPC",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 48,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 49,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ICD",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 50,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LE",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 51,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 52,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 53,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 54,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 55,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SA",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 56,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TL",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 57,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 58,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CI",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 59,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 60,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 61,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IE",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 62,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 63,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AC",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 64,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 65,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 66,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LC",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 67,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "NIC",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 68,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 3,
+            "Tabla": "Curso-carrera",
+            "Fila": 69,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 70,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ETA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 71,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 72,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 73,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "RHI",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 74,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CH",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 75,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 76,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 77,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 78,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 79,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 80,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CC",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 81,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DS",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 82,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 83,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 84,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LA",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 85,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 86,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ED",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 87,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ECOS",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 88,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 89,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 11,
+            "Tabla": "Curso-carrera",
+            "Fila": 90,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EPA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 91,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 92,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 93,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 94,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LAE",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 95,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 96,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OTC",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 97,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TAE",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 98,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 99,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 100,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GRE",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 101,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 102,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 103,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MBA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 104,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SPA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 105,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGAA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 106,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DPE",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 107,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 108,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 109,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 110,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "RIT",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 111,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "NAT",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 112,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SUP",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 113,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SBO",
+            "Codigo Carrera": 1,
+            "Tabla": "Curso-carrera",
+            "Fila": 114,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DAP",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 115,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ELE",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 116,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 117,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 118,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TAC",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 119,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 120,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 121,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 122,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MAC",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 123,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 124,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MED",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 125,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 126,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 127,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 128,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 129,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PAD",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 130,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PEM",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 131,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CHI",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 132,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 133,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 134,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 135,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TEL",
+            "Codigo Carrera": 10,
+            "Tabla": "Curso-carrera",
+            "Fila": 136,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "COI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 137,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 138,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GDE",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 139,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 140,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 141,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 142,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 143,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CDI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 144,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "COII",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 145,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DAP",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 146,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DTC",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 147,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EAR",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 148,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PUR",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 149,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SVB",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 150,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACAI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 151,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "COIII",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 152,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DAI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 153,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IEC",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 154,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IGE",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 155,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 156,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACO",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 157,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACAII",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 158,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DAII",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 159,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IPL",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 160,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PEM",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 161,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 162,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TOPI",
+            "Codigo Carrera": 7,
+            "Tabla": "Curso-carrera",
+            "Fila": 163,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 164,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 165,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 166,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 167,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EFP",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 168,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 169,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MTI",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 170,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TII",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 171,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ESP",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 172,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FARM",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 173,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MOEI",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 174,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEFC",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 175,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OPC",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 176,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ORT",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 177,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PAT",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 178,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 179,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "POI",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 180,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "COPE",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 181,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MICS",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 182,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PTD",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 183,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "POII",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 184,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GDPO",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 185,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MGB",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 186,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OES",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 187,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OPE",
+            "Codigo Carrera": 9,
+            "Tabla": "Curso-carrera",
+            "Fila": 188,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACAI",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 189,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 190,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 191,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OCP",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 192,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SIS",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 193,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CERE",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 194,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CVA",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 195,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 196,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 197,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 198,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 199,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CMC",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 200,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CPU",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 201,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 202,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 203,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 204,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 205,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "COA",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 206,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 207,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "NBS",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 208,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 209,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "POB",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 210,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TOPI",
+            "Codigo Carrera": 4,
+            "Tabla": "Curso-carrera",
+            "Fila": 211,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CBA",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 212,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DAP",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 213,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ECO",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 214,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 215,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 216,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SOCS",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 217,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CARC",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 218,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CEU",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 219,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 220,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 221,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 222,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 223,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CER",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 224,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 225,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 226,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 227,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SCO",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 228,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SSU",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 229,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ESS",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 230,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 231,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 232,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PPR",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 233,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SHI",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 234,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SHS",
+            "Codigo Carrera": 2,
+            "Tabla": "Curso-carrera",
+            "Fila": 235,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MMA",
+            "Codigo Carrera": 14,
+            "Tabla": "Curso-carrera",
+            "Fila": 236,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OPA",
+            "Codigo Carrera": 14,
+            "Tabla": "Curso-carrera",
+            "Fila": 237,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SGA",
+            "Codigo Carrera": 14,
+            "Tabla": "Curso-carrera",
+            "Fila": 238,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 239,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FPS",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 240,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 241,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "IDL",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 242,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 243,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 244,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SIS",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 245,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 246,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 247,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 248,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 249,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 250,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OEI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 251,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SMC",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 252,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 253,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 254,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MEIII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 255,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "OEII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 256,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PFI",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 257,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SMCII",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 258,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ELM",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 259,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GEM",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 260,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MM",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 261,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PEMP",
+            "Codigo Carrera": 6,
+            "Tabla": "Curso-carrera",
+            "Fila": 262,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AFP",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 263,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AFAB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 264,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "DLPRI",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 265,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FNA",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 266,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GNEC",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 267,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MUB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 268,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MC",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 269,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PAMB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 270,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PFAF",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 271,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SIPA",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 272,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SAC",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 273,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AFS",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 274,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "AF",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 275,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "APNMA",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 276,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FNEL",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 277,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ISDLR",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 278,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "RNOB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 279,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TDD",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 280,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "BCG",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 281,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "CHEO",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 282,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ELAPB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 283,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EDSS",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 284,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TCAP",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 285,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PO",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 286,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PAB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 287,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PTBL",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 288,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TFLB",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 289,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "APOA",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 290,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EESM",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 291,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HSSAG",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 292,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ICSS",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 293,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PACH",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 294,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOI",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 295,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGI",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 296,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ACU",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 297,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "SISPA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 298,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TIPCA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 299,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "EOII",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 300,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATI",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 301,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INFOA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 302,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GPA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 303,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "BA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 304,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "GAM",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 305,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "RHI",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 306,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "MATII",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 307,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "HPA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 308,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "INGII",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 309,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TAA",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 310,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "LEGE",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 311,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PM",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 312,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "NS",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 313,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "ECOS",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 314,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "FEP",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 315,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "PP",
+            "Codigo Carrera": 12,
+            "Tabla": "Curso-carrera",
+            "Fila": 316,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "A1-1A",
+            "Codigo Carrera": 15,
+            "Tabla": "Curso-carrera",
+            "Fila": 317,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "A1-1B",
+            "Codigo Carrera": 16,
+            "Tabla": "Curso-carrera",
+            "Fila": 318,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "A2-2A",
+            "Codigo Carrera": 15,
+            "Tabla": "Curso-carrera",
+            "Fila": 319,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "A2-2B",
+            "Codigo Carrera": 16,
+            "Tabla": "Curso-carrera",
+            "Fila": 320,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "B1-3A",
+            "Codigo Carrera": 19,
+            "Tabla": "Curso-carrera",
+            "Fila": 321,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "B1-3B",
+            "Codigo Carrera": 20,
+            "Tabla": "Curso-carrera",
+            "Fila": 322,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "B2-4A",
+            "Codigo Carrera": 21,
+            "Tabla": "Curso-carrera",
+            "Fila": 323,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "B2-4B",
+            "Codigo Carrera": 22,
+            "Tabla": "Curso-carrera",
+            "Fila": 324,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 325,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 326,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 327,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 328,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 329,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": null,
+            "Codigo Carrera": null,
+            "Tabla": "Curso-carrera",
+            "Fila": 330,
+            "Error": "Creacion de cursos LP deshabilitada."
+        },
+        {
+            "Nombre corto curso": "TSEBL",
+            "Codigo Carrera": 13,
+            "Tabla": "Curso-carrera",
+            "Fila": 331,
+            "Error": "Creacion de cursos LP deshabilitada."
+        }
+    ]
+}

@@ -1006,7 +1006,44 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20240512000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20240709000) {
 
+        // Changing precision of field name on table gmk_teacher_skill to (128).
+        $table = new xmldb_table('gmk_teacher_skill');
+        $field = new xmldb_field('name', XMLDB_TYPE_CHAR, '128', null, null, null, null, 'id');
 
+        // Launch change of precision for field name.
+        $dbman->change_field_precision($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240709000, 'local', 'grupomakro_core');
+    }
+
+    if ($oldversion < 20240709003) {
+
+        // Define field courseid to be added to gmk_teacher_skill.
+        $table = new xmldb_table('gmk_teacher_skill');
+        $field = new xmldb_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+
+        // Conditionally launch add field courseid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240709003, 'local', 'grupomakro_core');
+    }
+    if ($oldversion < 20240709004) {
+
+        // Changing the default of field groupid on table gmk_class to 0.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('groupid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'timemodified');
+
+        // Launch change of default for field groupid.
+        $dbman->change_field_default($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240709004, 'local', 'grupomakro_core');
+    }
     return true;
 }

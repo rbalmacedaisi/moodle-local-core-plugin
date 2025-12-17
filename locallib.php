@@ -618,6 +618,7 @@ function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmo
     $bbbActivityDefinition->groupmode                       = '0';
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
     $bbbActivityDefinition->intro                           = "Sala de clases online de la clase " . $class->name;
+    $bbbActivityDefinition->introformat                     = "1";
     $bbbActivityDefinition->section                         = $classSectionId;
     $bbbActivityDefinition->module                          = $BBBmoduleId;
     $bbbActivityDefinition->record                          = 1;
@@ -648,6 +649,7 @@ function create_attendance_activity($class, $classSectionNumber)
     $attendanceActivityDefinition                             = new stdClass();
     $attendanceActivityDefinition->modulename                 = 'attendance';
     $attendanceActivityDefinition->name                       = 'Asistencia ' . $class->name . '-' . $class->id;
+    $attendanceActivityDefinition->cmidnumber                 = '';
     $attendanceActivityDefinition->intro                      = "Registro de asistencia para la clase " . $class->name;
     $attendanceActivityDefinition->section                    = $classSectionNumber;
     $attendanceActivityDefinition->module                     = $DB->get_record('modules', ['name' => $attendanceActivityDefinition->modulename])->id;
@@ -680,6 +682,11 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
     $attendanceSessionDefinition->autoassignstatus = 1;
     $attendanceSessionDefinition->automark  = 2;
     $attendanceSessionDefinition->studentsearlyopentime = 120;
+    $attendanceSessionDefinition->descriptionitemid = 0;
+    $attendanceSessionDefinition->descriptionformat = "1";
+    $attendanceSessionDefinition->absenteereport = 1;
+    $attendanceSessionDefinition->statusset = 0;
+    $attendanceSessionDefinition->rotateqrcodesecret = null;
     $attendanceSessionDefinition->bbbCourseModuleInfo = $BBBCourseModuleInfo;
 
     return $attendanceSessionDefinition;

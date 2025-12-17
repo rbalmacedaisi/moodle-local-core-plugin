@@ -1,0 +1,25 @@
+{
+    "eventname": "\\core\\event\\course_updated",
+    "component": "core",
+    "action": "updated",
+    "target": "course",
+    "objecttable": "course",
+    "objectid": "193",
+    "crud": "u",
+    "edulevel": 1,
+    "contextid": 2130,
+    "contextlevel": 50,
+    "contextinstanceid": "193",
+    "userid": "2",
+    "courseid": "193",
+    "relateduserid": null,
+    "anonymous": 0,
+    "other": {
+        "shortname": "test1p",
+        "fullname": "test1",
+        "updatedfields": {
+            "shortname": "test1p"
+        }
+    },
+    "timecreated": 1720577377
+}

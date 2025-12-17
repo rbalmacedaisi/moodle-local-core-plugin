@@ -91,10 +91,13 @@ Vue.component('incompleteschedules',{
                                 <v-col cols="12">
                                     <v-list flat three-line>
                                         <v-list-item-group v-model="settings" active-class="">
-                                            <v-list-item v-for="item in schedules" :key="item.id">
-                                                <template v-slot:default="{ active}">
+                                            <v-list-item v-for="item in schedules" :key="item.id" @click="handleCheckboxChange(item)">
+                                                <template v-slot:default="{ active }" @click="handleCheckboxChange(item)">
                                                     <v-list-item-action>
-                                                        <v-checkbox :input-value="active" @change="handleCheckboxChange(item)"></v-checkbox>
+                                                        <v-checkbox 
+                                                            :input-value="active" 
+                                                            @click.stop="handleCheckboxChange(item)"
+                                                        ></v-checkbox>
                                                     </v-list-item-action>
                                                     <v-list-item-content>
                                                         <v-list-item-title>{{item.name}}</v-list-item-title>
@@ -348,10 +351,15 @@ Vue.component('incompleteschedules',{
             // If the item is selected and not already in 'selectedItems', add it.
             if (index === -1 && item.selected) {
                 this.selectedItems.push(item);
+                console.log('Item seleccionado:', item);
             } else if (index !== -1 && !item.selected) {
                 // If the item is deselected and exists in 'selectedItems', remove it.
                 this.selectedItems.splice(index, 1);
+                console.log('Item deseleccionado:', item);
             }
+            
+            // Imprimir el array completo de items seleccionados
+            console.log('Items seleccionados actualmente:', this.selectedItems);
         },
     },
     computed: {

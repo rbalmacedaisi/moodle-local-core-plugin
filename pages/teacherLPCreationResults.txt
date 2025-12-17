@@ -1,0 +1,1139 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 2,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 3,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 4,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 5,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 6,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 7,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 8,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 9,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 10,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 11,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 12,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 13,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1126243414,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 14,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 15,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 16,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 17,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 18,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 19,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 20,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 21,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 22,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 23,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 24,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 25,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 9809098,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 26,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 27,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 28,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 29,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 30,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 31,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 32,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 33,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 34,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 35,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 36,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 37,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-917-2",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 38,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 39,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 40,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 41,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 42,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 43,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 44,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 45,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 46,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 47,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 48,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 49,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 50,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-511-916",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 51,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 52,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 53,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 54,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 55,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 56,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 57,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 58,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 59,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 60,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 61,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 62,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "6-82-598",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 63,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 64,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 65,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 66,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 67,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 68,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 69,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 70,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 71,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 72,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 73,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 74,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 1017245233,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 75,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 76,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 77,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 78,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 79,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 80,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 81,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 82,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 83,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 84,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 85,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-251-594",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 86,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 87,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 88,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 89,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 90,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 91,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 92,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 93,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 94,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 95,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 96,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 148015076,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 97,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 98,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 99,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 100,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 101,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 102,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 103,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 104,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 105,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 106,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 107,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 108,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 120276473,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 109,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 110,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 111,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 112,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 113,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 114,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 115,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 116,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 117,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 118,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-341-991",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 119,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 120,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 121,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 122,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 123,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 124,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 125,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 126,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": 655584,
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 127,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 128,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 129,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 130,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 131,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 132,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AY253434",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 133,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 134,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 11,
+            "Tabla": "Docente-carrera",
+            "Fila": 135,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 136,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 137,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 2,
+            "Tabla": "Docente-carrera",
+            "Fila": 138,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 12,
+            "Tabla": "Docente-carrera",
+            "Fila": 139,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-139686",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 140,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-172178",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 141,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-172178",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 142,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-172178",
+            "Codigo Carrera": 6,
+            "Tabla": "Docente-carrera",
+            "Fila": 143,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-172178",
+            "Codigo Carrera": 5,
+            "Tabla": "Docente-carrera",
+            "Fila": 144,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "3-725-1574",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 145,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "3-725-1574",
+            "Codigo Carrera": 7,
+            "Tabla": "Docente-carrera",
+            "Fila": 146,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "3-725-1574",
+            "Codigo Carrera": 4,
+            "Tabla": "Docente-carrera",
+            "Fila": 147,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "3-725-1574",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 148,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-106318",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 149,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-106318",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 150,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-181167",
+            "Codigo Carrera": 10,
+            "Tabla": "Docente-carrera",
+            "Fila": 151,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-186093",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 152,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "AW172857",
+            "Codigo Carrera": 9,
+            "Tabla": "Docente-carrera",
+            "Fila": 153,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-142547",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 154,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "E-8-142547",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 155,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-446-515",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 156,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-446-515",
+            "Codigo Carrera": 3,
+            "Tabla": "Docente-carrera",
+            "Fila": 157,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-731-1771",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 158,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-731-1771",
+            "Codigo Carrera": 8,
+            "Tabla": "Docente-carrera",
+            "Fila": 159,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-739-1345",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 160,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "8-739-1345",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 161,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "N-21-1269",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 162,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        },
+        {
+            "Nombre de usuario": "N-21-1269",
+            "Codigo Carrera": 1,
+            "Tabla": "Docente-carrera",
+            "Fila": 163,
+            "Error": "Creacion de estudiantes LP deshabilitada."
+        }
+    ]
+}

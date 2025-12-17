@@ -59,6 +59,10 @@ $observers = array(
         'callback' => 'local_grupomakro_core_observer::course_updated',
     ),
     array(
+        'eventname' => 'core\event\course_deleted',
+        'callback' => 'local_grupomakro_core_observer::course_deleted',
+    ),
+    array(
         'eventname' => 'mod_attendance\event\attendance_taken_by_student',
         'callback' => 'local_grupomakro_core_observer::attendance_taken_by_student',
     ),

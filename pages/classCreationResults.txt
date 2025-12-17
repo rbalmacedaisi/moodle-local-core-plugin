@@ -1,0 +1,677 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Nombre de clase": "2024-III( D) SERVICIO A BORDO (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 2,
+            "Error": "[\"La clase 2024-III( D) SERVICIO A BORDO (PR-1): Mi\\u00e9rcoles (06:00 PM - 07:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) SERVICIO A BORDO (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 3,
+            "Error": "[\"La clase 2024-III (N) SERVICIO A BORDO (PR-1): Martes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) SEMINARIO T\u00c9CNICAS AEROPORTUARIAS (1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 4,
+            "Error": "[\"La clase 2024-III (N) SEMINARIO T\\u00c9CNICAS AEROPORTUARIAS (1): Jueves (08:00 AM - 03:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) SEMINARIO DE IMAGEN Y COMPORTAMIENTO (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 5,
+            "Error": "El curso del LP no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) REDACCI\u00d3N DE INFORMES T\u00c9CNICOS (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 6,
+            "Error": "[\"La clase 2024-III (N) REDACCI\\u00d3N DE INFORMES T\\u00c9CNICOS (PR-1): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) ORIENTACI\u00d3N TUR\u00cdSTICA Y COMERCIAL (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 7,
+            "Error": "[\"La clase 2024-III (N) ORIENTACI\\u00d3N TUR\\u00cdSTICA Y COMERCIAL (PNI-1): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) MATEM\u00c1TICA II (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 8,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S II (VR-2)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 9,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S II (VR-2): Viernes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S I (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 10,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S I (PNI-1): Jueves (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INFORM\u00c1TICA APLICADA (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 11,
+            "Error": "[\"La clase 2024-III (N) INFORM\\u00c1TICA APLICADA (VR-1): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) HISTORIA DE PANAM\u00c1 (O-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 12,
+            "Error": "[\"La clase 2024-III (N) HISTORIA DE PANAM\\u00c1 (O-1): Martes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) GESTI\u00d3N DE RECURSOS (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 13,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) GEOGRAF\u00cdA DE PANAM\u00c1 (O-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 14,
+            "Error": "[\"La clase 2024-III (N) GEOGRAF\\u00cdA DE PANAM\\u00c1 (O-1): Martes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA II (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 15,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA II (VR-1): Martes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA I (O-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 16,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA I (O-1): Mi\\u00e9rcoles (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) \u00c9TICA PARA LA AVIACI\u00d3N (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 17,
+            "Error": "[\"La clase 2024-III (N) \\u00c9TICA PARA LA AVIACI\\u00d3N (PR-1): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) \u00c9TICA PARA LA AVIACI\u00d3N (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 18,
+            "Error": "[\"La clase 2024-III( D) SERVICIO A BORDO (PR-1): Mi\\u00e9rcoles (06:00 PM - 07:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) DESARROLLO DE LA PERSONALIDAD (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 19,
+            "Error": "[\"La clase 2024-III (N) DESARROLLO DE LA PERSONALIDAD (PR-1): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) SEMINARIO T\u00c9CNICAS AEROPORTUARIAS (1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 20,
+            "Error": "[\"La clase 2024-III (N) SEMINARIO T\\u00c9CNICAS AEROPORTUARIAS (1): Jueves (08:00 AM - 03:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) SEMINARIO DE IMAGEN Y COMPORTAMIENTO (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 21,
+            "Error": "El curso del LP no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (D) SEGURIDAD Y PRIMEROS AUXILIOS (PM-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 22,
+            "Error": "[\"La clase 2024-III (D) SEGURIDAD Y PRIMEROS AUXILIOS (PM-1): Mi\\u00e9rcoles (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) REDACCI\u00d3N DE INFORMES T\u00c9CNICOS (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 23,
+            "Error": "[\"La clase 2024-III (D) REDACCI\\u00d3N DE INFORMES T\\u00c9CNICOS (PR-1): Lunes (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) ORIENTACI\u00d3N TUR\u00cdSTICA Y COMERCIAL (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 24,
+            "Error": "[\"La clase 2024-III (D) ORIENTACI\\u00d3N TUR\\u00cdSTICA Y COMERCIAL (PNI-1): Lunes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) METEOROLOG\u00cdA B\u00c1SICA (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 25,
+            "Error": "[\"La clase 2024-III (D) METEOROLOG\\u00cdA B\\u00c1SICA (PR-1): Lunes (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INGL\u00c9S II (VR-2)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 26,
+            "Error": "[\"La clase 2024-III (D) INGL\\u00c9S II (VR-2): Viernes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INGL\u00c9S II (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 27,
+            "Error": "[\"La clase 2024-III (D) INGL\\u00c9S II (VR-1): Mi\\u00e9rcoles (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INGL\u00c9S I (VNI-2)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 28,
+            "Error": "[\"La clase 2024-III (D) INGL\\u00c9S I (VNI-2): Jueves (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INFORM\u00c1TICA APLICADA (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 29,
+            "Error": "[\"La clase 2024-III (D) INFORM\\u00c1TICA APLICADA (VR-1): Martes (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) HISTORIA DE PANAM\u00c1 (O-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 30,
+            "Error": "[\"La clase 2024-III (D) HISTORIA DE PANAM\\u00c1 (O-1): Martes (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) GESTI\u00d3N DE RECURSOS (VR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 31,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (D) EXPRESI\u00d3N ORAL Y ESCRITA I (ONI-I)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 32,
+            "Error": "[\"La clase 2024-III (D) EXPRESI\\u00d3N ORAL Y ESCRITA I (ONI-I): Martes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) EXPRESI\u00d3N ORAL Y ESCRITA I (O-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 33,
+            "Error": "[\"La clase 2024-III (D) EXPRESI\\u00d3N ORAL Y ESCRITA I (O-1): Mi\\u00e9rcoles (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) \u00c9TICA PARA LA AVIACI\u00d3N (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 34,
+            "Error": "[\"La clase 2024-III (D) \\u00c9TICA PARA LA AVIACI\\u00d3N (PR-1): Lunes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) \u00c9TICA PARA LA AVIACI\u00d3N (PNI-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 35,
+            "Error": "[\"La clase 2024-III (D) \\u00c9TICA PARA LA AVIACI\\u00d3N (PNI-1): Lunes (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) DESARROLLO DE LA PERSONALIDAD (PR-1)",
+            "Codigo Carrera": 1,
+            "Tabla": "Clase",
+            "Fila": 36,
+            "Error": "[\"La clase 2024-III (D) DESARROLLO DE LA PERSONALIDAD (PR-1): Lunes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) MATEM\u00c1TICA II (VR-1)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 37,
+            "Error": "[\"La clase 2024-III (N) MATEM\\u00c1TICA II (VR-1): Viernes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S II (VR-1)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 38,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S II (VR-1): Lunes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S I (VNI-1)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 39,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S I (VNI-1): Jueves (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA II (VR-2)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 40,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA II (VR-2): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) MATEM\u00c1TICA I (O-1)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 41,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INGL\u00c9S II (VR-3)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 42,
+            "Error": "[\"La clase 2024-III (D) INGL\\u00c9S II (VR-3): Jueves (08:00 AM - 09:00 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (D) INGL\u00c9S I (VNI-1)",
+            "Codigo Carrera": 2,
+            "Tabla": "Clase",
+            "Fila": 43,
+            "Error": "[\"La clase 2024-III (D) INGL\\u00c9S I (VNI-1): Lunes (10:00 AM - 11:55 AM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) NORMATIVA INTERNACIONAL DE COMERCIO (VR-1) (P1)",
+            "Codigo Carrera": 3,
+            "Tabla": "Clase",
+            "Fila": 44,
+            "Error": "[\"La clase 2024-III (N) NORMATIVA INTERNACIONAL DE COMERCIO (VR-1) (P1): Jueves (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) LIBRE COMERCIO (VR-1)",
+            "Codigo Carrera": 3,
+            "Tabla": "Clase",
+            "Fila": 45,
+            "Error": "[\"La clase 2024-III (N) LIBRE COMERCIO (VR-1): Martes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) FASES DEL PROCESO DE COMPRA (VNI\/R-1)",
+            "Codigo Carrera": 3,
+            "Tabla": "Clase",
+            "Fila": 46,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) COSTES DE LOG\u00cdSTICA (VNI\/R-1)",
+            "Codigo Carrera": 3,
+            "Tabla": "Clase",
+            "Fila": 47,
+            "Error": "[\"La clase 2024-III (N) COSTES DE LOG\\u00cdSTICA (VNI\\\/R-1): Mi\\u00e9rcoles (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) ACUERDOS COMERCIALES (VR-1)",
+            "Codigo Carrera": 3,
+            "Tabla": "Clase",
+            "Fila": 48,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) MEC\u00c1NICA DE EQUIPO PESADO I (MNI\/R-1)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 49,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) MATEM\u00c1TICA I (O-1)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 50,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) HISTORIA DE PANAM\u00c1 (O-2)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 51,
+            "Error": "[\"La clase 2024-III (N) HISTORIA DE PANAM\\u00c1 (O-2): Lunes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) GESTI\u00d3N EMPRESARIAL (VR-1)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 52,
+            "Error": "[\"La clase 2024-III (N) GESTI\\u00d3N EMPRESARIAL (VR-1): Martes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) FUNDAMENTOS DE PROCESOS DE SEGURIDAD, MANT Y OPE (MNI\/R-1)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 53,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA I (O-3)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 54,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA I (O-3): Viernes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) ELECTROMEC\u00c1NICA (MR-1)",
+            "Codigo Carrera": 5,
+            "Tabla": "Clase",
+            "Fila": 55,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) TOPOGRAF\u00cdA II (VR-1)",
+            "Codigo Carrera": 8,
+            "Tabla": "Clase",
+            "Fila": 56,
+            "Error": "[\"La clase 2024-III (N) TOPOGRAF\\u00cdA II (VR-1): Mi\\u00e9rcoles (02:00 PM - 04:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) TOPOGRAF\u00cdA I (VNI\/R-1)",
+            "Codigo Carrera": 8,
+            "Tabla": "Clase",
+            "Fila": 57,
+            "Error": "[\"La clase 2024-III (N) TOPOGRAF\\u00cdA I (VNI\\\/R-1): Lunes (08:00 PM - 10:00 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INFORM\u00c1TICA APLICADA A LA TOPOGRAF\u00cdA (VNI\/R-1)",
+            "Codigo Carrera": 8,
+            "Tabla": "Clase",
+            "Fila": 58,
+            "Error": "[\"La clase 2024-III (N) INFORM\\u00c1TICA APLICADA A LA TOPOGRAF\\u00cdA (VNI\\\/R-1): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) ECOSISTEMAS GEOGR\u00c1FICOS (VR-1)",
+            "Codigo Carrera": 8,
+            "Tabla": "Clase",
+            "Fila": 59,
+            "Error": "[\"La clase 2024-III (N) ECOSISTEMAS GEOGR\\u00c1FICOS (VR-1): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) AUTOCAD I (VR-1)",
+            "Codigo Carrera": 8,
+            "Tabla": "Clase",
+            "Fila": 60,
+            "Error": "[\"La clase 2024-III (N) AUTOCAD I (VR-1): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) METODOLOG\u00cdA DE INVESTIGACI\u00d3N EN CIENCIAS DE SALUD (VR-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 61,
+            "Error": "[\"La clase 2024-III (N) METODOLOG\\u00cdA DE INVESTIGACI\\u00d3N EN CIENCIAS DE SALUD (VR-1): Mi\\u00e9rcoles (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S I (VNI-2)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 62,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S I (VNI-2): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INFORMATICA APLICADA (VR-2)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 63,
+            "Error": "[\"La clase 2024-III (N) INFORMATICA APLICADA (VR-2): Mi\\u00e9rcoles (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INFORM\u00c1TICA APLICADA (VNI\/R-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 64,
+            "Error": "[\"La clase 2024-III (N) INFORM\\u00c1TICA APLICADA (VNI\\\/R-1): Lunes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) HISTORIA DE PANAM\u00c1 (O-3)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 65,
+            "Error": "[\"La clase 2024-III (N) HISTORIA DE PANAM\\u00c1 (O-3): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) FARMACOLOG\u00cdA (VR-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 66,
+            "Error": "[\"La clase 2024-III (N) FARMACOLOG\\u00cdA (VR-1): Mi\\u00e9rcoles (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA I (O-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 67,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA I (O-1): Viernes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) CL\u00cdNICA ODONTOL\u00d3GICA DE PACIENTES ESPECIALES (VR-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 68,
+            "Error": "[\"La clase 2024-III (N) CL\\u00cdNICA ODONTOL\\u00d3GICA DE PACIENTES ESPECIALES (VR-1): Lunes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) \tMORFOLOG\u00cdA, ESTRUCTURA Y FUNCI\u00d3N DEL CUERPO HUMANO (VR-1)",
+            "Codigo Carrera": 9,
+            "Tabla": "Clase",
+            "Fila": 69,
+            "Error": "[\"La clase 2024-III (N) \\tMORFOLOG\\u00cdA, ESTRUCTURA Y FUNCI\\u00d3N DEL CUERPO HUMANO (VR-1): Lunes (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) TEOR\u00cdA Y AN\u00c1LISIS DE CIRCUITOS (VR-1)",
+            "Codigo Carrera": 10,
+            "Tabla": "Clase",
+            "Fila": 70,
+            "Error": "[\"La clase 2024-III (N) TEOR\\u00cdA Y AN\\u00c1LISIS DE CIRCUITOS (VR-1): Lunes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) INGL\u00c9S II (VR-3)",
+            "Codigo Carrera": 10,
+            "Tabla": "Clase",
+            "Fila": 71,
+            "Error": "[\"La clase 2024-III (N) INGL\\u00c9S II (VR-3): Viernes (07:30 PM - 09:30 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) EXPRESI\u00d3N ORAL Y ESCRITA I (O-2)",
+            "Codigo Carrera": 10,
+            "Tabla": "Clase",
+            "Fila": 72,
+            "Error": "[\"La clase 2024-III (N) EXPRESI\\u00d3N ORAL Y ESCRITA I (O-2): Jueves (05:30 PM - 07:25 PM) se cruza con el horario escogido\"]"
+        },
+        {
+            "Nombre de clase": "2024-III (N) DIBUJO APLICADO (VNI\/R-1)",
+            "Codigo Carrera": 10,
+            "Tabla": "Clase",
+            "Fila": 73,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Principios de la F\u00edsica en el Buceo (PNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 74,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Planificaci\u00f3n de Operaciones (VR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 75,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Introducci\u00f3n a la Soldadura en Cubierta (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 76,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Funci\u00f3n y Nomenclatura de Equipos de Buceo Liviano (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 77,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Dibujo, Lectura de Planos y Redacci\u00f3n de Informes (VNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 78,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Buceo con Mezcla de Gases (VR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 79,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Aplicaci\u00f3n Practica del m\u00e9todo Corte Con Oxigeno Acetileno (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 80,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Aplicaci\u00f3n pr\u00e1ctica de N\u00e1utica y Manejo de Aparejo (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 81,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Aplicaci\u00f3n de F\u00f3rmulas (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 82,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Acondicionamiento F\u00edsico Scuba (PR-2)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 83,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (N) Acondicionamiento F\u00edsico en Piscina (PNI-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 84,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Seguridad Industrial y Offshore (VNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 85,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Principios de la F\u00edsica en el Buceo (PNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 86,
+            "Error": "El docente no existe"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Introducci\u00f3n al Corte y Soldadura Submarina (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 87,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Gases Nocivos en Espacios Cerrados (VNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 88,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Funci\u00f3n y Nomenclatura de Equipos de Buceo Liviano (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 89,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Dibujo, Lectura de Planos y Redacci\u00f3n de Informes (VNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 90,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Aplicaci\u00f3n Practica del m\u00e9todo Corte Con Oxigeno Acetileno (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 91,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Acondicionamiento F\u00edsico Scuba (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 92,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III (D) Acondicionamiento F\u00edsico en Piscina (PNI-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 93,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2024-III ( N) Seguridad Industrial y Offshore (VNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 94,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2023-III (N) Motores y Compresores Marinos (PNI\/R-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 95,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "2023-III (N) Fundamentos de N\u00e1utica y Aparejos (PR-1)",
+            "Codigo Carrera": 13,
+            "Tabla": "Clase",
+            "Fila": 96,
+            "Error": "Error adding teacher to class group"
+        },
+        {
+            "Nombre de clase": "No se agrego ningun docente a la clase",
+            "Codigo Carrera": null,
+            "Tabla": "Clase",
+            "Fila": 97,
+            "Error": "El plan de aprendizaje no ha sido creado."
+        }
+    ]
+}

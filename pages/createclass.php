@@ -51,7 +51,7 @@ $PAGE->navbar->add(
 // Get the active learning plans with careers and format the object passed to the mustache
 $activeLearningPlans = get_active_learning_plans_external::get_active_learning_plans();
 $formattedAvailableCareers = [];
-$availableCareers =json_decode($activeLearningPlans['availablecareers']); 
+$availableCareers =json_decode($activeLearningPlans['availablecareers']);
 foreach($availableCareers as $careerName => $careerInfo){
     array_push($formattedAvailableCareers, ['value'=>$careerInfo->lpid, 'label'=>$careerName]);
 }

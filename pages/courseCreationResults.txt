@@ -1,0 +1,1091 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Curso": "ACUERDOS COMERCIALES",
+            "Tabla": "Curso-basico",
+            "Fila": 2,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "AUTOCAD I",
+            "Tabla": "Curso-basico",
+            "Fila": 3,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "AUTOCAD II",
+            "Tabla": "Curso-basico",
+            "Fila": 4,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ADMINISTRACI\u00d3N DE CONSTRUCCIONES",
+            "Tabla": "Curso-basico",
+            "Fila": 5,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ACUICULTURA",
+            "Tabla": "Curso-basico",
+            "Fila": 6,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "APLICACI\u00d3N DE F\u00d3RMULAS",
+            "Tabla": "Curso-basico",
+            "Fila": 7,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ANATOM\u00cdA Y FISIOLOG\u00cdA APLICADA AL BUCEO",
+            "Tabla": "Curso-basico",
+            "Fila": 8,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ACONDICIONAMIENTO F\u00cdSICO EN PISCINA",
+            "Tabla": "Curso-basico",
+            "Fila": 9,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ACONDICIONAMIENTO F\u00cdSICO SCUBA",
+            "Tabla": "Curso-basico",
+            "Fila": 10,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ASISTENCIA INTERNACIONAL",
+            "Tabla": "Curso-basico",
+            "Fila": 11,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "APLICACI\u00d3N PR\u00c1CTICA DE N\u00c1UTICA Y MANEJO DE APAREJO",
+            "Tabla": "Curso-basico",
+            "Fila": 12,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "APLICACI\u00d3N PRACTICA DEL M\u00c9TODO CORTE CON OXIGENO ACETILENO",
+            "Tabla": "Curso-basico",
+            "Fila": 13,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "BIOLOG\u00cdA INTEGRADA",
+            "Tabla": "Curso-basico",
+            "Fila": 14,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "BUCEO CON MEZCLA DE GASES",
+            "Tabla": "Curso-basico",
+            "Fila": 15,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CORTE ARC WATER",
+            "Tabla": "Curso-basico",
+            "Fila": 16,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CORTE BAJO EL AGUA",
+            "Tabla": "Curso-basico",
+            "Fila": 17,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CAMBIO CLIM\u00c1TICO",
+            "Tabla": "Curso-basico",
+            "Fila": 18,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "C\u00c1LCULO DIFERENCIAL",
+            "Tabla": "Curso-basico",
+            "Fila": 19,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CORTE POR ELECTRODOS REVESTIDOS",
+            "Tabla": "Curso-basico",
+            "Fila": 20,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N DE ESTRUCTURAS PARA REDES EL\u00c9CTRICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 21,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CORTE POR ELECTRODOS ULTRA T\u00c9RMICOS",
+            "Tabla": "Curso-basico",
+            "Fila": 22,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CUENCAS HIDROGR\u00c1FICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 23,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "C\u00c1MARA HIPERB\u00c1RICA Y EQUIPOS ASOCIADOS",
+            "Tabla": "Curso-basico",
+            "Fila": 24,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CENTRALES HIDROEL\u00c9CTRICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 25,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "COMERCIO INTERNACIONAL",
+            "Tabla": "Curso-basico",
+            "Fila": 26,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "COSTES DE LOG\u00cdSTICA",
+            "Tabla": "Curso-basico",
+            "Fila": 27,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CATASTRO, LEGISLACI\u00d3N Y TERRITORIO",
+            "Tabla": "Curso-basico",
+            "Fila": 28,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N DE MUROS DE CONTENCI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 29,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N DE OBRAS DE ARTE COMPLEMENTARIAS",
+            "Tabla": "Curso-basico",
+            "Fila": 30,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N I",
+            "Tabla": "Curso-basico",
+            "Fila": 31,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N II",
+            "Tabla": "Curso-basico",
+            "Fila": 32,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N III",
+            "Tabla": "Curso-basico",
+            "Fila": 33,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CL\u00cdNICA ODONTOL\u00d3GICA DE PACIENTES ESPECIALES",
+            "Tabla": "Curso-basico",
+            "Fila": 34,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N DE PUENTES",
+            "Tabla": "Curso-basico",
+            "Fila": 35,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "CONSTRUCCI\u00d3N DE V\u00cdAS Y ANDENES",
+            "Tabla": "Curso-basico",
+            "Fila": 36,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DISE\u00d1O ARQUITECT\u00d3NICO I",
+            "Tabla": "Curso-basico",
+            "Fila": 37,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DISE\u00d1O ARQUITECT\u00d3NICO II",
+            "Tabla": "Curso-basico",
+            "Fila": 38,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DIBUJO APLICADO",
+            "Tabla": "Curso-basico",
+            "Fila": 39,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DISE\u00d1O CARTOGR\u00c1FICO",
+            "Tabla": "Curso-basico",
+            "Fila": 40,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DIBUJO, LECTURA DE PLANOS Y REDACCI\u00d3N DE INFORMES",
+            "Tabla": "Curso-basico",
+            "Fila": 41,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DESARROLLO DE LA PERSONALIDAD",
+            "Tabla": "Curso-basico",
+            "Fila": 42,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DESARROLLO SOSTENIBLE",
+            "Tabla": "Curso-basico",
+            "Fila": 43,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "DIBUJO T\u00c9CNICO",
+            "Tabla": "Curso-basico",
+            "Fila": 44,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EDUCACI\u00d3N AMBIENTAL",
+            "Tabla": "Curso-basico",
+            "Fila": 45,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ELEMENTOS DE ARQUITECTURA",
+            "Tabla": "Curso-basico",
+            "Fila": 46,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EQUIPOS Y CONEXIONES",
+            "Tabla": "Curso-basico",
+            "Fila": 47,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ECOSISTEMAS GEOGR\u00c1FICOS",
+            "Tabla": "Curso-basico",
+            "Fila": 48,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ECOSISTEMAS",
+            "Tabla": "Curso-basico",
+            "Fila": 49,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ECOLOG\u00cdA DEMOGR\u00c1FICA",
+            "Tabla": "Curso-basico",
+            "Fila": 50,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EQUIPOS DE SOLDADURA EN SUPERFICIE",
+            "Tabla": "Curso-basico",
+            "Fila": 51,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ENTRENAMIENTO EQUIPO SCUBA EN EL MAR",
+            "Tabla": "Curso-basico",
+            "Fila": 52,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ESTRATEGIA PARA EL ESTUDIO Y FORMACI\u00d3N PROF.",
+            "Tabla": "Curso-basico",
+            "Fila": 53,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ENFERMEDADES, LESIONES Y ASPECTOS PSICOL\u00d3GICOS DEL BUCEO",
+            "Tabla": "Curso-basico",
+            "Fila": 54,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ELECTRICIDAD",
+            "Tabla": "Curso-basico",
+            "Fila": 55,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ELECTROMEC\u00c1NICA",
+            "Tabla": "Curso-basico",
+            "Fila": 56,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EXPRESI\u00d3N ORAL Y ESCRITA I",
+            "Tabla": "Curso-basico",
+            "Fila": 57,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EXPRESI\u00d3N ORAL Y ESCRITA II",
+            "Tabla": "Curso-basico",
+            "Fila": 58,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "\u00c9TICA PARA LA AVIACI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 59,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "EPIDEMIOLOG\u00cdA Y SALUD P\u00daBLICA",
+            "Tabla": "Curso-basico",
+            "Fila": 60,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ESPECIFICACIONES PARA SOLDADURA SUBACU\u00c1TICA",
+            "Tabla": "Curso-basico",
+            "Fila": 61,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "\u00c9TICA AMBIENTAL",
+            "Tabla": "Curso-basico",
+            "Fila": 62,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FARMACOLOG\u00cdA",
+            "Tabla": "Curso-basico",
+            "Fila": 63,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FORMULACI\u00d3N Y EVALUACI\u00d3N DE PROYECTO",
+            "Tabla": "Curso-basico",
+            "Fila": 64,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FORMULACI\u00d3N Y EVALUACI\u00d3N DE PROYECTOS ACUICOLAS",
+            "Tabla": "Curso-basico",
+            "Fila": 65,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FUNDAMENTOS DE N\u00c1UTICA Y APAREJOS",
+            "Tabla": "Curso-basico",
+            "Fila": 66,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FUNCI\u00d3N Y NOMENCLATURA DE EQUIPOS DE BUCEO LIVIANO",
+            "Tabla": "Curso-basico",
+            "Fila": 67,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FASES DEL PROCESO DE COMPRA",
+            "Tabla": "Curso-basico",
+            "Fila": 68,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "FUNDAMENTOS DE PROCESOS DE SEGURIDAD, MANT Y OPE",
+            "Tabla": "Curso-basico",
+            "Fila": 69,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GESTI\u00d3N AMBIENTAL",
+            "Tabla": "Curso-basico",
+            "Fila": 70,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GEOMETR\u00cdA DESCRIPTIVA",
+            "Tabla": "Curso-basico",
+            "Fila": 71,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GESTI\u00d3N Y DESARROLLO DE LA PR\u00c1CTICA ODONTOL\u00d3GICA",
+            "Tabla": "Curso-basico",
+            "Fila": 72,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GESTI\u00d3N EMPRESARIAL",
+            "Tabla": "Curso-basico",
+            "Fila": 73,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GEOF\u00cdSICA",
+            "Tabla": "Curso-basico",
+            "Fila": 74,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GASES NOCIVOS EN ESPACIOS CERRADOS",
+            "Tabla": "Curso-basico",
+            "Fila": 75,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GEOGRAF\u00cdA DE PANAM\u00c1",
+            "Tabla": "Curso-basico",
+            "Fila": 76,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "GESTI\u00d3N DE RECURSOS",
+            "Tabla": "Curso-basico",
+            "Fila": 77,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "HISTORIA DE PANAM\u00c1",
+            "Tabla": "Curso-basico",
+            "Fila": 78,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "HERRAMIENTAS SUBMARINAS",
+            "Tabla": "Curso-basico",
+            "Fila": 79,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTERRELACIONES CON OTROS DEPARTAMENTOS",
+            "Tabla": "Curso-basico",
+            "Fila": 80,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTRODUCCI\u00d3N AL CORTE Y SOLDADURA SUBMARINA",
+            "Tabla": "Curso-basico",
+            "Fila": 81,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTRODUCCI\u00d3N AL DERECHO LABORAL",
+            "Tabla": "Curso-basico",
+            "Fila": 82,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INVERSI\u00d3N EXTRANJERA",
+            "Tabla": "Curso-basico",
+            "Fila": 83,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INGENIER\u00cdA ECON\u00d3MICA",
+            "Tabla": "Curso-basico",
+            "Fila": 84,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INGENIER\u00cdA GEOT\u00c9CNICA",
+            "Tabla": "Curso-basico",
+            "Fila": 85,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INFORM\u00c1TICA APLICADA",
+            "Tabla": "Curso-basico",
+            "Fila": 86,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEMINARIO INGL\u00c9S APLICADO A LA AERON\u00c1UTICA",
+            "Tabla": "Curso-basico",
+            "Fila": 87,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INGL\u00c9S I",
+            "Tabla": "Curso-basico",
+            "Fila": 88,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INGL\u00c9S II",
+            "Tabla": "Curso-basico",
+            "Fila": 89,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTERPRETACI\u00d3N DE PLANOS",
+            "Tabla": "Curso-basico",
+            "Fila": 90,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTRODUCCI\u00d3N A LA SOLDADURA EN CUBIERTA",
+            "Tabla": "Curso-basico",
+            "Fila": 91,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LEGISLACI\u00d3N AMBIENTAL",
+            "Tabla": "Curso-basico",
+            "Fila": 92,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LEGISLACI\u00d3N AERON\u00c1UTICA",
+            "Tabla": "Curso-basico",
+            "Fila": 93,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LIBRE COMERCIO",
+            "Tabla": "Curso-basico",
+            "Fila": 94,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LOG\u00cdSTICA EMPRESARIAL",
+            "Tabla": "Curso-basico",
+            "Fila": 95,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LEGISLACI\u00d3N ECOLOGICA",
+            "Tabla": "Curso-basico",
+            "Fila": 96,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "LOG\u00cdSTICA INVERSA",
+            "Tabla": "Curso-basico",
+            "Fila": 97,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MAQUINAS EL\u00c9CTRICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 98,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MATEM\u00c1TICA I",
+            "Tabla": "Curso-basico",
+            "Fila": 99,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MATEM\u00c1TICA II",
+            "Tabla": "Curso-basico",
+            "Fila": 100,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "METEOROLOG\u00cdA B\u00c1SICA",
+            "Tabla": "Curso-basico",
+            "Fila": 101,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MOTORES Y COMPRESORES MARINOS",
+            "Tabla": "Curso-basico",
+            "Fila": 102,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MEDICIONES EL\u00c9CTRICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 103,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MORFOLOG\u00cdA, ESTRUCTURA Y FUNCI\u00d3N DEL CUERPO HUMANO",
+            "Tabla": "Curso-basico",
+            "Fila": 104,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MEC\u00c1NICA DE EQUIPO PESADO I",
+            "Tabla": "Curso-basico",
+            "Fila": 105,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MEC\u00c1NICA DE EQUIPO PESADO II",
+            "Tabla": "Curso-basico",
+            "Fila": 106,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MEC\u00c1NICA DE EQUIPO PESADO III",
+            "Tabla": "Curso-basico",
+            "Fila": 107,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MICROBIOLOG\u00cdA GENERAL Y BUCAL",
+            "Tabla": "Curso-basico",
+            "Fila": 108,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "METODOLOG\u00cdA DE INVESTIGACI\u00d3N EN CIENCIAS DE SALUD",
+            "Tabla": "Curso-basico",
+            "Fila": 109,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MANTENIMIENTO MEC\u00c1NICO.",
+            "Tabla": "Curso-basico",
+            "Fila": 110,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MANTENIMIENTO EN MAQUINARIA AMARILLA",
+            "Tabla": "Curso-basico",
+            "Fila": 111,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MATERIALES ODONTOL\u00d3GICOS, EQUIPAMIENTO E INSTRUM.",
+            "Tabla": "Curso-basico",
+            "Fila": 112,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "METODOLOG\u00cdA Y T\u00c9CNICAS DE INVESTIGACI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 113,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "MANTENIMIENTO DEL UMBILICAL DEL BUZO",
+            "Tabla": "Curso-basico",
+            "Fila": 114,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEMINARIO DE NATACI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 115,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "NORMAS B\u00c1SICAS DE SISMO Y RESISTENCIA",
+            "Tabla": "Curso-basico",
+            "Fila": 116,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "NORMATIVA INTERNACIONAL DE COMERCIO",
+            "Tabla": "Curso-basico",
+            "Fila": 117,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "NUTRICI\u00d3N Y SANIDAD",
+            "Tabla": "Curso-basico",
+            "Fila": 118,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "OBRAS CIVILES PRELIMINARES",
+            "Tabla": "Curso-basico",
+            "Fila": 119,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "OPERACIONES DE EQUIPO PESADO I",
+            "Tabla": "Curso-basico",
+            "Fila": 120,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "OPERACIONES DE EQUIPO PESADO II",
+            "Tabla": "Curso-basico",
+            "Fila": 121,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ODONTOLOG\u00cdA EST\u00c9TICA",
+            "Tabla": "Curso-basico",
+            "Fila": 122,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "OPERACION EN MAQUINARIA AMARILLA",
+            "Tabla": "Curso-basico",
+            "Fila": 123,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ODONTOLOG\u00cdA PREVENTIVA Y COMUNITARIA",
+            "Tabla": "Curso-basico",
+            "Fila": 124,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ODONTOPEDIATR\u00cdA",
+            "Tabla": "Curso-basico",
+            "Fila": 125,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ORTODONCIA",
+            "Tabla": "Curso-basico",
+            "Fila": 126,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "ORIENTACI\u00d3N TUR\u00cdSTICA Y COMERCIAL",
+            "Tabla": "Curso-basico",
+            "Fila": 127,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRIMEROS AUXILIOS PARA BUZOS Y RPC",
+            "Tabla": "Curso-basico",
+            "Fila": 128,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PARTICIPACI\u00d3N DEL APREND\u00cdZ EN OPERACIONES DE C\u00c1MARA HIPERB\u00c1RICA",
+            "Tabla": "Curso-basico",
+            "Fila": 129,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRESUPUESTO Y ADMINISTRACI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 130,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PELIGROS AMBIENTALES DEL BUCEO",
+            "Tabla": "Curso-basico",
+            "Fila": 131,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PATOLOG\u00cdA Y TERAP\u00c9UTICA DENTAL I",
+            "Tabla": "Curso-basico",
+            "Fila": 132,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PROYECTO EMPRESARIAL",
+            "Tabla": "Curso-basico",
+            "Fila": 133,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PR\u00c1CTICA EMPRESARIAL (PROFESIONAL)",
+            "Tabla": "Curso-basico",
+            "Fila": 134,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRINCIPIOS DE LA F\u00cdSICA EN EL BUCEO",
+            "Tabla": "Curso-basico",
+            "Fila": 135,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRINCIPIOS DE F\u00cdSICA",
+            "Tabla": "Curso-basico",
+            "Fila": 136,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRODUCCI\u00d3N Y MERCADO",
+            "Tabla": "Curso-basico",
+            "Fila": 137,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PLANIFICACI\u00d3N DE OPERACIONES",
+            "Tabla": "Curso-basico",
+            "Fila": 138,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PRESUPUESTO DE OBRAS",
+            "Tabla": "Curso-basico",
+            "Fila": 139,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PR\u00d3TESIS Y OCLUSI\u00d3N I",
+            "Tabla": "Curso-basico",
+            "Fila": 140,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PR\u00d3TESIS Y OCLUSI\u00d3N II",
+            "Tabla": "Curso-basico",
+            "Fila": 141,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PR\u00c1CTICA PROFESIONAL",
+            "Tabla": "Curso-basico",
+            "Fila": 142,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PR\u00c1CTICA PROFESIONAL (PROYECTO DE GRADO)",
+            "Tabla": "Curso-basico",
+            "Fila": 143,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PROCEDIMIENTO Y T\u00c9CNICAS PARA EL BUCEO LIVIANO",
+            "Tabla": "Curso-basico",
+            "Fila": 144,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PATOLOG\u00cdA Y TERAP\u00c9UTICA DENTAL II",
+            "Tabla": "Curso-basico",
+            "Fila": 145,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "PLANEAMIENTO URBANO",
+            "Tabla": "Curso-basico",
+            "Fila": 146,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "RECURSOS H\u00cdDRICOS",
+            "Tabla": "Curso-basico",
+            "Fila": 147,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "REDACCI\u00d3N DE INFORMES T\u00c9CNICOS",
+            "Tabla": "Curso-basico",
+            "Fila": 148,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "REGISTRO DE BUCEO Y NORMAS PARA OPERACIONES DE BUCEO",
+            "Tabla": "Curso-basico",
+            "Fila": 149,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMAS DE ALMACENAMIENTO",
+            "Tabla": "Curso-basico",
+            "Fila": 150,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMA DE AGUAS CALIENTES",
+            "Tabla": "Curso-basico",
+            "Fila": 151,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SERVICIO A BORDO",
+            "Tabla": "Curso-basico",
+            "Fila": 152,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMA DE CORTE OXIFUNDENTE O LANZA BERFIX",
+            "Tabla": "Curso-basico",
+            "Fila": 153,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEMINARIO DE IMAGEN Y COMPORTAMIENTO",
+            "Tabla": "Curso-basico",
+            "Fila": 154,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEGURIDAD EN MAQUINARIA AMARILLA",
+            "Tabla": "Curso-basico",
+            "Fila": 155,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SOLDADURA HIPERB\u00c1RICA",
+            "Tabla": "Curso-basico",
+            "Fila": 156,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SOLDADURA H\u00daMEDA SUBACU\u00c1TICA",
+            "Tabla": "Curso-basico",
+            "Fila": 157,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMA DE INFORMACI\u00d3N GEOGR\u00c1FICA",
+            "Tabla": "Curso-basico",
+            "Fila": 158,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEGURIDAD INDUSTRIAL Y OFFSHORE",
+            "Tabla": "Curso-basico",
+            "Fila": 159,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEGURIDAD INDUSTRIAL Y SALUD OCUPACIONAL",
+            "Tabla": "Curso-basico",
+            "Fila": 160,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMAS DE PRODUCCI\u00d3N ACUICOLA",
+            "Tabla": "Curso-basico",
+            "Fila": 161,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMAS DE MANDOS Y CONTROLES I",
+            "Tabla": "Curso-basico",
+            "Fila": 162,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMAS DE MANDOS Y CONTROLES II",
+            "Tabla": "Curso-basico",
+            "Fila": 163,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEGURIDAD EN OPERACIONES DE CORTE Y SOLDADURA",
+            "Tabla": "Curso-basico",
+            "Fila": 164,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEGURIDAD Y PRIMEROS AUXILIOS",
+            "Tabla": "Curso-basico",
+            "Fila": 165,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SOLDADURA SUBACU\u00c1TICA",
+            "Tabla": "Curso-basico",
+            "Fila": 166,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEMINARIO SUPERVIVENCIA Y CONTRAINCENDIOS",
+            "Tabla": "Curso-basico",
+            "Fila": 167,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SISTEMA VISUAL B\u00c1SICO",
+            "Tabla": "Curso-basico",
+            "Fila": 168,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "T\u00c9CNICAS AUXILIARES DE ACUICULTURA",
+            "Tabla": "Curso-basico",
+            "Fila": 169,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TEOR\u00cdA Y AN\u00c1LISIS DE CIRCUITOS",
+            "Tabla": "Curso-basico",
+            "Fila": 170,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "SEMINARIO T\u00c9CNICAS AEROPORTUARIAS",
+            "Tabla": "Curso-basico",
+            "Fila": 171,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "T\u00c9CNICAS CARTOGR\u00c1FICAS",
+            "Tabla": "Curso-basico",
+            "Fila": 172,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "INTRODUCCI\u00d3N AL CORTE CON OXIGENO-ACETILENO",
+            "Tabla": "Curso-basico",
+            "Fila": 173,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TABLAS DE DESCOMPRESI\u00d3N DE AIRE Y PROCEDIMIENTOS DE DESCOMPRESI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 174,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TALLER DE ELECTRICIDAD",
+            "Tabla": "Curso-basico",
+            "Fila": 175,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TRATAMIENTO DE ENFERMEDADES Y LESIONES DEL BUZO",
+            "Tabla": "Curso-basico",
+            "Fila": 176,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "T\u00c9CNICAS E INSTRUMENTOS DE INVESTIGACI\u00d3N",
+            "Tabla": "Curso-basico",
+            "Fila": 177,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TIPOS DE CULTIVO ACUICOLA",
+            "Tabla": "Curso-basico",
+            "Fila": 178,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TRANSPORTE Y LOG\u00cdSTICA",
+            "Tabla": "Curso-basico",
+            "Fila": 179,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TOPOGRAF\u00cdA I",
+            "Tabla": "Curso-basico",
+            "Fila": 180,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TOPOGRAF\u00cdA II",
+            "Tabla": "Curso-basico",
+            "Fila": 181,
+            "Error": "Creacion de cursos deshabilitada."
+        },
+        {
+            "Curso": "TRABAJO SUBMARINO UTILIZANDO EQUIPO DE BUCEO LIVIANO",
+            "Tabla": "Curso-basico",
+            "Fila": 182,
+            "Error": "Creacion de cursos deshabilitada."
+        }
+    ]
+}

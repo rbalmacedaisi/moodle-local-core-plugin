@@ -34,6 +34,7 @@ $string['academic_calendar'] = 'Academic calendar';
 $string['availability_calendar'] = 'Availability Calendar';
 $string['schedules_panel'] = 'Schedules Panel';
 $string['institution_management'] = 'Institution Management';
+$string['academic_director_panel'] = 'Academic Panel';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'See all orders';

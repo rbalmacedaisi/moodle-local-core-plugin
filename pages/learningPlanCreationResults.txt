@@ -1,0 +1,166 @@
+{
+    "success": [],
+    "error": {
+        "1": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN AZAFATA PROFESIONAL DE VUELO COMERCIAL",
+            "Nombre corto": "TSEAPDVC",
+            "Tabla": "Carrera-basico",
+            "Fila": 2,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "2": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN SOLDADURA SUBACU\u00c1TICA Y ESTRUCTURAS ESPECIALES",
+            "Nombre corto": "TSESSEE",
+            "Tabla": "Carrera-basico",
+            "Fila": 3,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "3": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN LOG\u00cdSTICA INTEGRAL Y COMERCIO INTERNACIONAL",
+            "Nombre corto": "TSELICI",
+            "Tabla": "Carrera-basico",
+            "Fila": 4,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "4": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN ASISTENTE DE INGENIER\u00cdA CIVIL",
+            "Nombre corto": "TSEADIC",
+            "Tabla": "Carrera-basico",
+            "Fila": 5,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "5": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN MEC\u00c1NICA DE EQUIPO PESADO",
+            "Nombre corto": "TSEMDEP",
+            "Tabla": "Carrera-basico",
+            "Fila": 6,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "6": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN SEGURIDAD, MANTENIMIENTO Y OPERACI\u00d3N DE EQUIPO PESADO",
+            "Nombre corto": "TSESMODEP",
+            "Tabla": "Carrera-basico",
+            "Fila": 7,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "7": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN DISE\u00d1O Y OBRAS CIVILES",
+            "Nombre corto": "TSEDOC",
+            "Tabla": "Carrera-basico",
+            "Fila": 8,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "8": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN TOPOGRAF\u00cdA",
+            "Nombre corto": "TSET",
+            "Tabla": "Carrera-basico",
+            "Fila": 9,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "9": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN ASISTENTE DE ODONTOLOG\u00cdA",
+            "Nombre corto": "TSEADO",
+            "Tabla": "Carrera-basico",
+            "Fila": 10,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "10": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN ELECTRICIDAD CON \u00c9NFASIS EN CENTRALES HIDROEL\u00c9CTRICAS",
+            "Nombre corto": "TSEECEECH",
+            "Tabla": "Carrera-basico",
+            "Fila": 11,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "11": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN MEDIO AMBIENTE Y MANEJO INTEGRADO DE CUENCAS HIDROGR\u00c1FICAS",
+            "Nombre corto": "TSEMAMIDCH",
+            "Tabla": "Carrera-basico",
+            "Fila": 12,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "12": {
+            "Carrera": "T\u00c9CNICO SUPERIOR EN ACUICULTURA",
+            "Nombre corto": "TSEA",
+            "Tabla": "Carrera-basico",
+            "Fila": 13,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "13": {
+            "Carrera": "CURSO DE BUCEO COMERCIAL",
+            "Nombre corto": "CDBC",
+            "Tabla": "Carrera-basico",
+            "Fila": 14,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "14": {
+            "Carrera": "GRUPO MAKRO SEGURIDAD, MANTENIMIENTO Y OPERACI\u00d3N EN EXCAVADORA HIDR\u00c1ULICA.",
+            "Nombre corto": "GMSMOEEH",
+            "Tabla": "Carrera-basico",
+            "Fila": 15,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "15": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY A2-2A",
+            "Nombre corto": "CIBA1-1A",
+            "Tabla": "Carrera-basico",
+            "Fila": 16,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "16": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY A2-2B",
+            "Nombre corto": "CIBA1-1B",
+            "Tabla": "Carrera-basico",
+            "Fila": 17,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "17": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY A2-2A",
+            "Nombre corto": "CIBA2-2A",
+            "Tabla": "Carrera-basico",
+            "Fila": 18,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "18": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY A2-2B",
+            "Nombre corto": "CIBA2-2B",
+            "Tabla": "Carrera-basico",
+            "Fila": 19,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "19": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY B1-3A",
+            "Nombre corto": "CIBB1-3A",
+            "Tabla": "Carrera-basico",
+            "Fila": 20,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "20": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY B1-3B",
+            "Nombre corto": "CIBB1-3B",
+            "Tabla": "Carrera-basico",
+            "Fila": 21,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "21": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY B2-4A",
+            "Nombre corto": "CIBB2-4A",
+            "Tabla": "Carrera-basico",
+            "Fila": 22,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "22": {
+            "Carrera": "CURSO DE INGL\u00c9S BERCKLEY B2-4B",
+            "Nombre corto": "CIBB2-4B",
+            "Tabla": "Carrera-basico",
+            "Fila": 23,
+            "Error": "Creacion de LP deshabilitada."
+        },
+        "": {
+            "Carrera": null,
+            "Nombre corto": null,
+            "Tabla": "Carrera-basico",
+            "Fila": 979,
+            "Error": "Creacion de LP deshabilitada."
+        }
+    }
+}

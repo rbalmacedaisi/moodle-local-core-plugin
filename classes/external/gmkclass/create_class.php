@@ -88,7 +88,7 @@ class create_class extends external_api {
         string $endTime,
         string $classDays,
         string $classroomId=null,
-        int $classroomCapacity
+        int $classroomCapacity=40
         ) {
 
         // Validate the parameters passed to the function.

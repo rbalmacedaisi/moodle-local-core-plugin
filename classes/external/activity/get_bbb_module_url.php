@@ -94,7 +94,7 @@ class get_bbb_module_url extends external_api {
             $meetingInfo->running = $BBBMeetingInfo['statusrunning'];
             $meetingInfo->message = $BBBMeetingInfo['statusmessage'];
             $meetingInfo->joinUrl = $BBBMeetingInfo['canjoin']? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url']:null;
-            $meetingInfo->recordingUrl = $recordingId?  "https://bbb-test.soluttolabs.com/playback/presentation/2.3/".$recordingId:null;
+            $meetingInfo->recordingUrl = $recordingId?  "https://bbb.isi.edu.pa/playback/presentation/2.3/".$recordingId:null;
             return ['BBBInfo'=>json_encode($meetingInfo)];
             
         }

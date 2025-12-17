@@ -1,0 +1,3551 @@
+{
+    "success": [],
+    "error": [
+        {
+            "Usuario": "8-933-1419",
+            "Tabla": "Estudiante-basico",
+            "Fila": 2,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-954-2312",
+            "Tabla": "Estudiante-basico",
+            "Fila": 3,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-796-239",
+            "Tabla": "Estudiante-basico",
+            "Fila": 4,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-912",
+            "Tabla": "Estudiante-basico",
+            "Fila": 5,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-749-248",
+            "Tabla": "Estudiante-basico",
+            "Fila": 6,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-447",
+            "Tabla": "Estudiante-basico",
+            "Fila": 7,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-992-1671",
+            "Tabla": "Estudiante-basico",
+            "Fila": 8,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-895-894",
+            "Tabla": "Estudiante-basico",
+            "Fila": 9,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-762-2423",
+            "Tabla": "Estudiante-basico",
+            "Fila": 10,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-971-814",
+            "Tabla": "Estudiante-basico",
+            "Fila": 11,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-18",
+            "Tabla": "Estudiante-basico",
+            "Fila": 12,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-967-550",
+            "Tabla": "Estudiante-basico",
+            "Fila": 13,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-975-367",
+            "Tabla": "Estudiante-basico",
+            "Fila": 14,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-726-51",
+            "Tabla": "Estudiante-basico",
+            "Fila": 15,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-920-1231",
+            "Tabla": "Estudiante-basico",
+            "Fila": 16,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-2017",
+            "Tabla": "Estudiante-basico",
+            "Fila": 17,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-1816",
+            "Tabla": "Estudiante-basico",
+            "Fila": 18,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-981-1262",
+            "Tabla": "Estudiante-basico",
+            "Fila": 19,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-744-1749",
+            "Tabla": "Estudiante-basico",
+            "Fila": 20,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-711-302",
+            "Tabla": "Estudiante-basico",
+            "Fila": 21,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-816-1938",
+            "Tabla": "Estudiante-basico",
+            "Fila": 22,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-885-1965",
+            "Tabla": "Estudiante-basico",
+            "Fila": 23,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-825-1602",
+            "Tabla": "Estudiante-basico",
+            "Fila": 24,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-940-847",
+            "Tabla": "Estudiante-basico",
+            "Fila": 25,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-743-1114",
+            "Tabla": "Estudiante-basico",
+            "Fila": 26,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-150",
+            "Tabla": "Estudiante-basico",
+            "Fila": 27,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-751-1225",
+            "Tabla": "Estudiante-basico",
+            "Fila": 28,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1017-277",
+            "Tabla": "Estudiante-basico",
+            "Fila": 29,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-286",
+            "Tabla": "Estudiante-basico",
+            "Fila": 30,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-972-260",
+            "Tabla": "Estudiante-basico",
+            "Fila": 31,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-997-1333",
+            "Tabla": "Estudiante-basico",
+            "Fila": 32,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1021-1820",
+            "Tabla": "Estudiante-basico",
+            "Fila": 33,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1034-1820",
+            "Tabla": "Estudiante-basico",
+            "Fila": 34,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-945-1819",
+            "Tabla": "Estudiante-basico",
+            "Fila": 35,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-961-1553",
+            "Tabla": "Estudiante-basico",
+            "Fila": 36,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-917-1684",
+            "Tabla": "Estudiante-basico",
+            "Fila": 37,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-982-2019",
+            "Tabla": "Estudiante-basico",
+            "Fila": 38,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-753-1157",
+            "Tabla": "Estudiante-basico",
+            "Fila": 39,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-717-1762",
+            "Tabla": "Estudiante-basico",
+            "Fila": 40,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-898-2156",
+            "Tabla": "Estudiante-basico",
+            "Fila": 41,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-742-857",
+            "Tabla": "Estudiante-basico",
+            "Fila": 42,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-736-950",
+            "Tabla": "Estudiante-basico",
+            "Fila": 43,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c02750599",
+            "Tabla": "Estudiante-basico",
+            "Fila": 44,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-761-179",
+            "Tabla": "Estudiante-basico",
+            "Fila": 45,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-994-1177",
+            "Tabla": "Estudiante-basico",
+            "Fila": 46,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1020-1688",
+            "Tabla": "Estudiante-basico",
+            "Fila": 47,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-720-2241",
+            "Tabla": "Estudiante-basico",
+            "Fila": 48,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-977-1622",
+            "Tabla": "Estudiante-basico",
+            "Fila": 49,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-749-1493",
+            "Tabla": "Estudiante-basico",
+            "Fila": 50,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-95-681",
+            "Tabla": "Estudiante-basico",
+            "Fila": 51,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-976-1314",
+            "Tabla": "Estudiante-basico",
+            "Fila": 52,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "pn0112828",
+            "Tabla": "Estudiante-basico",
+            "Fila": 53,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-929-2032",
+            "Tabla": "Estudiante-basico",
+            "Fila": 54,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-898-934",
+            "Tabla": "Estudiante-basico",
+            "Fila": 55,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-709-459",
+            "Tabla": "Estudiante-basico",
+            "Fila": 56,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-958-1305",
+            "Tabla": "Estudiante-basico",
+            "Fila": 57,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-737-1552",
+            "Tabla": "Estudiante-basico",
+            "Fila": 58,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-985-2180",
+            "Tabla": "Estudiante-basico",
+            "Fila": 59,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "134644655",
+            "Tabla": "Estudiante-basico",
+            "Fila": 60,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1003-968",
+            "Tabla": "Estudiante-basico",
+            "Fila": 61,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-964-1316",
+            "Tabla": "Estudiante-basico",
+            "Fila": 62,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-748-322",
+            "Tabla": "Estudiante-basico",
+            "Fila": 63,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1012-1903",
+            "Tabla": "Estudiante-basico",
+            "Fila": 64,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-790-22",
+            "Tabla": "Estudiante-basico",
+            "Fila": 65,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-781-639",
+            "Tabla": "Estudiante-basico",
+            "Fila": 66,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-961-367",
+            "Tabla": "Estudiante-basico",
+            "Fila": 67,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-712-2404",
+            "Tabla": "Estudiante-basico",
+            "Fila": 68,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-821-2481",
+            "Tabla": "Estudiante-basico",
+            "Fila": 69,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-971-2426",
+            "Tabla": "Estudiante-basico",
+            "Fila": 70,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "103655594",
+            "Tabla": "Estudiante-basico",
+            "Fila": 71,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c02519882",
+            "Tabla": "Estudiante-basico",
+            "Fila": 72,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-952-1422",
+            "Tabla": "Estudiante-basico",
+            "Fila": 73,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-991-1139",
+            "Tabla": "Estudiante-basico",
+            "Fila": 74,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-714-1652",
+            "Tabla": "Estudiante-basico",
+            "Fila": 75,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-993-2496",
+            "Tabla": "Estudiante-basico",
+            "Fila": 76,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1018-2396",
+            "Tabla": "Estudiante-basico",
+            "Fila": 77,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-1966",
+            "Tabla": "Estudiante-basico",
+            "Fila": 78,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-734-451",
+            "Tabla": "Estudiante-basico",
+            "Fila": 79,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aw518411",
+            "Tabla": "Estudiante-basico",
+            "Fila": 80,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-828-863",
+            "Tabla": "Estudiante-basico",
+            "Fila": 81,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-864-981",
+            "Tabla": "Estudiante-basico",
+            "Fila": 82,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1021-472",
+            "Tabla": "Estudiante-basico",
+            "Fila": 83,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-827-1286",
+            "Tabla": "Estudiante-basico",
+            "Fila": 84,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1000-1052",
+            "Tabla": "Estudiante-basico",
+            "Fila": 85,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-734-1103",
+            "Tabla": "Estudiante-basico",
+            "Fila": 86,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "163373278",
+            "Tabla": "Estudiante-basico",
+            "Fila": 87,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-203",
+            "Tabla": "Estudiante-basico",
+            "Fila": 88,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1010-307",
+            "Tabla": "Estudiante-basico",
+            "Fila": 89,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1033-550",
+            "Tabla": "Estudiante-basico",
+            "Fila": 90,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-717-1712",
+            "Tabla": "Estudiante-basico",
+            "Fila": 91,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1015-212",
+            "Tabla": "Estudiante-basico",
+            "Fila": 92,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-814-742",
+            "Tabla": "Estudiante-basico",
+            "Fila": 93,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-790-304",
+            "Tabla": "Estudiante-basico",
+            "Fila": 94,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-809-979",
+            "Tabla": "Estudiante-basico",
+            "Fila": 95,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "163512626",
+            "Tabla": "Estudiante-basico",
+            "Fila": 96,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-862-1367",
+            "Tabla": "Estudiante-basico",
+            "Fila": 97,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-725-1963",
+            "Tabla": "Estudiante-basico",
+            "Fila": 98,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-875-572",
+            "Tabla": "Estudiante-basico",
+            "Fila": 99,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-843-1484",
+            "Tabla": "Estudiante-basico",
+            "Fila": 100,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-871-2413",
+            "Tabla": "Estudiante-basico",
+            "Fila": 101,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1023-385",
+            "Tabla": "Estudiante-basico",
+            "Fila": 102,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-715-552",
+            "Tabla": "Estudiante-basico",
+            "Fila": 103,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-828-2003",
+            "Tabla": "Estudiante-basico",
+            "Fila": 104,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-928-961",
+            "Tabla": "Estudiante-basico",
+            "Fila": 105,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-757-1702",
+            "Tabla": "Estudiante-basico",
+            "Fila": 106,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-903-1709",
+            "Tabla": "Estudiante-basico",
+            "Fila": 107,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-794-137",
+            "Tabla": "Estudiante-basico",
+            "Fila": 108,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-756-1955",
+            "Tabla": "Estudiante-basico",
+            "Fila": 109,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-977-373",
+            "Tabla": "Estudiante-basico",
+            "Fila": 110,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1005-1686",
+            "Tabla": "Estudiante-basico",
+            "Fila": 111,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-973-1842",
+            "Tabla": "Estudiante-basico",
+            "Fila": 112,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1002-2378",
+            "Tabla": "Estudiante-basico",
+            "Fila": 113,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c01961591",
+            "Tabla": "Estudiante-basico",
+            "Fila": 114,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-707-1508",
+            "Tabla": "Estudiante-basico",
+            "Fila": 115,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1136-1582",
+            "Tabla": "Estudiante-basico",
+            "Fila": 116,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-802-2254",
+            "Tabla": "Estudiante-basico",
+            "Fila": 117,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-996-2294",
+            "Tabla": "Estudiante-basico",
+            "Fila": 118,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "12-714-1172",
+            "Tabla": "Estudiante-basico",
+            "Fila": 119,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-891-736",
+            "Tabla": "Estudiante-basico",
+            "Fila": 120,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-954-2261",
+            "Tabla": "Estudiante-basico",
+            "Fila": 121,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-751-1206",
+            "Tabla": "Estudiante-basico",
+            "Fila": 122,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-2354",
+            "Tabla": "Estudiante-basico",
+            "Fila": 123,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-799-909",
+            "Tabla": "Estudiante-basico",
+            "Fila": 124,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-776-1484",
+            "Tabla": "Estudiante-basico",
+            "Fila": 125,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1012-2061",
+            "Tabla": "Estudiante-basico",
+            "Fila": 126,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-752-1607",
+            "Tabla": "Estudiante-basico",
+            "Fila": 127,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-824-1754",
+            "Tabla": "Estudiante-basico",
+            "Fila": 128,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-898-350",
+            "Tabla": "Estudiante-basico",
+            "Fila": 129,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1015-2014",
+            "Tabla": "Estudiante-basico",
+            "Fila": 130,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1016-1007",
+            "Tabla": "Estudiante-basico",
+            "Fila": 131,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1021-2392",
+            "Tabla": "Estudiante-basico",
+            "Fila": 132,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-717-2057",
+            "Tabla": "Estudiante-basico",
+            "Fila": 133,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "157803419",
+            "Tabla": "Estudiante-basico",
+            "Fila": 134,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-754-771",
+            "Tabla": "Estudiante-basico",
+            "Fila": 135,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "10-714-1293",
+            "Tabla": "Estudiante-basico",
+            "Fila": 136,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1014-509",
+            "Tabla": "Estudiante-basico",
+            "Fila": 137,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-947-588",
+            "Tabla": "Estudiante-basico",
+            "Fila": 138,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "174623469",
+            "Tabla": "Estudiante-basico",
+            "Fila": 139,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1022-2168",
+            "Tabla": "Estudiante-basico",
+            "Fila": 140,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "119350414",
+            "Tabla": "Estudiante-basico",
+            "Fila": 141,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1015-1924",
+            "Tabla": "Estudiante-basico",
+            "Fila": 142,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "10-713-1547",
+            "Tabla": "Estudiante-basico",
+            "Fila": 143,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aw957813",
+            "Tabla": "Estudiante-basico",
+            "Fila": 144,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-753-1229",
+            "Tabla": "Estudiante-basico",
+            "Fila": 145,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-916",
+            "Tabla": "Estudiante-basico",
+            "Fila": 146,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-982-1011",
+            "Tabla": "Estudiante-basico",
+            "Fila": 147,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-717-1731",
+            "Tabla": "Estudiante-basico",
+            "Fila": 148,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-753-1305",
+            "Tabla": "Estudiante-basico",
+            "Fila": 149,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "av138116",
+            "Tabla": "Estudiante-basico",
+            "Fila": 150,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1018-1602",
+            "Tabla": "Estudiante-basico",
+            "Fila": 151,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ar955548",
+            "Tabla": "Estudiante-basico",
+            "Fila": 152,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "b00544676",
+            "Tabla": "Estudiante-basico",
+            "Fila": 153,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "f44314465",
+            "Tabla": "Estudiante-basico",
+            "Fila": 154,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1031-1932",
+            "Tabla": "Estudiante-basico",
+            "Fila": 155,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-946-1708",
+            "Tabla": "Estudiante-basico",
+            "Fila": 156,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-818-1091",
+            "Tabla": "Estudiante-basico",
+            "Fila": 157,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-911-2461",
+            "Tabla": "Estudiante-basico",
+            "Fila": 158,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-749-1165",
+            "Tabla": "Estudiante-basico",
+            "Fila": 159,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "fb644571",
+            "Tabla": "Estudiante-basico",
+            "Fila": 160,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-973-1373",
+            "Tabla": "Estudiante-basico",
+            "Fila": 161,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-871-1531",
+            "Tabla": "Estudiante-basico",
+            "Fila": 162,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-858-663",
+            "Tabla": "Estudiante-basico",
+            "Fila": 163,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aw951182",
+            "Tabla": "Estudiante-basico",
+            "Fila": 164,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-725-863",
+            "Tabla": "Estudiante-basico",
+            "Fila": 165,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-719-1231",
+            "Tabla": "Estudiante-basico",
+            "Fila": 166,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-119-860",
+            "Tabla": "Estudiante-basico",
+            "Fila": 167,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-717-1207",
+            "Tabla": "Estudiante-basico",
+            "Fila": 168,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1005-862",
+            "Tabla": "Estudiante-basico",
+            "Fila": 169,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-815-1974",
+            "Tabla": "Estudiante-basico",
+            "Fila": 170,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-762-2478",
+            "Tabla": "Estudiante-basico",
+            "Fila": 171,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1016-1420",
+            "Tabla": "Estudiante-basico",
+            "Fila": 172,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-714-169",
+            "Tabla": "Estudiante-basico",
+            "Fila": 173,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-995-916",
+            "Tabla": "Estudiante-basico",
+            "Fila": 174,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-975-2274",
+            "Tabla": "Estudiante-basico",
+            "Fila": 175,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1020-723",
+            "Tabla": "Estudiante-basico",
+            "Fila": 176,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-747-1204",
+            "Tabla": "Estudiante-basico",
+            "Fila": 177,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-949-1698",
+            "Tabla": "Estudiante-basico",
+            "Fila": 178,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ba149933",
+            "Tabla": "Estudiante-basico",
+            "Fila": 179,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-893-2022",
+            "Tabla": "Estudiante-basico",
+            "Fila": 180,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-991-667",
+            "Tabla": "Estudiante-basico",
+            "Fila": 181,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-787-729",
+            "Tabla": "Estudiante-basico",
+            "Fila": 182,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1011-1219",
+            "Tabla": "Estudiante-basico",
+            "Fila": 183,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-857-1144",
+            "Tabla": "Estudiante-basico",
+            "Fila": 184,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-791-478",
+            "Tabla": "Estudiante-basico",
+            "Fila": 185,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-985-1088",
+            "Tabla": "Estudiante-basico",
+            "Fila": 186,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "f47711256",
+            "Tabla": "Estudiante-basico",
+            "Fila": 187,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "69155800",
+            "Tabla": "Estudiante-basico",
+            "Fila": 188,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-744-2102",
+            "Tabla": "Estudiante-basico",
+            "Fila": 189,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1005-197",
+            "Tabla": "Estudiante-basico",
+            "Fila": 190,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1017-874",
+            "Tabla": "Estudiante-basico",
+            "Fila": 191,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-726-1173",
+            "Tabla": "Estudiante-basico",
+            "Fila": 192,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1013-1443",
+            "Tabla": "Estudiante-basico",
+            "Fila": 193,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-733-698",
+            "Tabla": "Estudiante-basico",
+            "Fila": 194,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-808-382",
+            "Tabla": "Estudiante-basico",
+            "Fila": 195,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-779-2018",
+            "Tabla": "Estudiante-basico",
+            "Fila": 196,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-709-118",
+            "Tabla": "Estudiante-basico",
+            "Fila": 197,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "176264259",
+            "Tabla": "Estudiante-basico",
+            "Fila": 198,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-712-994",
+            "Tabla": "Estudiante-basico",
+            "Fila": 199,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-747-1017",
+            "Tabla": "Estudiante-basico",
+            "Fila": 200,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-931-1181",
+            "Tabla": "Estudiante-basico",
+            "Fila": 201,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-1850",
+            "Tabla": "Estudiante-basico",
+            "Fila": 202,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1043-1546",
+            "Tabla": "Estudiante-basico",
+            "Fila": 203,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c02681335",
+            "Tabla": "Estudiante-basico",
+            "Fila": 204,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-808-935",
+            "Tabla": "Estudiante-basico",
+            "Fila": 205,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-714-724",
+            "Tabla": "Estudiante-basico",
+            "Fila": 206,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-762-2127",
+            "Tabla": "Estudiante-basico",
+            "Fila": 207,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-756-2439",
+            "Tabla": "Estudiante-basico",
+            "Fila": 208,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-735-647",
+            "Tabla": "Estudiante-basico",
+            "Fila": 209,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-759-1812",
+            "Tabla": "Estudiante-basico",
+            "Fila": 210,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "176375454",
+            "Tabla": "Estudiante-basico",
+            "Fila": 211,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ba155068",
+            "Tabla": "Estudiante-basico",
+            "Fila": 212,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-978-505",
+            "Tabla": "Estudiante-basico",
+            "Fila": 213,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-225-2560",
+            "Tabla": "Estudiante-basico",
+            "Fila": 214,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-131-502",
+            "Tabla": "Estudiante-basico",
+            "Fila": 215,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-853-627",
+            "Tabla": "Estudiante-basico",
+            "Fila": 216,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1017-2246",
+            "Tabla": "Estudiante-basico",
+            "Fila": 217,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1023-1298",
+            "Tabla": "Estudiante-basico",
+            "Fila": 218,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-1632",
+            "Tabla": "Estudiante-basico",
+            "Fila": 219,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1010-2114",
+            "Tabla": "Estudiante-basico",
+            "Fila": 220,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-753-1539",
+            "Tabla": "Estudiante-basico",
+            "Fila": 221,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "165893585",
+            "Tabla": "Estudiante-basico",
+            "Fila": 222,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-752-1394",
+            "Tabla": "Estudiante-basico",
+            "Fila": 223,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1024-304",
+            "Tabla": "Estudiante-basico",
+            "Fila": 224,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1016-813",
+            "Tabla": "Estudiante-basico",
+            "Fila": 225,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "162009129",
+            "Tabla": "Estudiante-basico",
+            "Fila": 226,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-996-2464",
+            "Tabla": "Estudiante-basico",
+            "Fila": 227,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1003-1982",
+            "Tabla": "Estudiante-basico",
+            "Fila": 228,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-938-371",
+            "Tabla": "Estudiante-basico",
+            "Fila": 229,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "171197217",
+            "Tabla": "Estudiante-basico",
+            "Fila": 230,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1002-1965",
+            "Tabla": "Estudiante-basico",
+            "Fila": 231,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-750-763",
+            "Tabla": "Estudiante-basico",
+            "Fila": 232,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "166771442",
+            "Tabla": "Estudiante-basico",
+            "Fila": 233,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-752-1477",
+            "Tabla": "Estudiante-basico",
+            "Fila": 234,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "fb531784",
+            "Tabla": "Estudiante-basico",
+            "Fila": 235,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1014-549",
+            "Tabla": "Estudiante-basico",
+            "Fila": 236,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-825-1355",
+            "Tabla": "Estudiante-basico",
+            "Fila": 237,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-992-2393",
+            "Tabla": "Estudiante-basico",
+            "Fila": 238,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-753-484",
+            "Tabla": "Estudiante-basico",
+            "Fila": 239,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-755-162",
+            "Tabla": "Estudiante-basico",
+            "Fila": 240,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-861-40",
+            "Tabla": "Estudiante-basico",
+            "Fila": 241,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "e-8-200154",
+            "Tabla": "Estudiante-basico",
+            "Fila": 242,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1014-1084",
+            "Tabla": "Estudiante-basico",
+            "Fila": 243,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-842-1266",
+            "Tabla": "Estudiante-basico",
+            "Fila": 244,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-754-206",
+            "Tabla": "Estudiante-basico",
+            "Fila": 245,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "1-744-2442",
+            "Tabla": "Estudiante-basico",
+            "Fila": 246,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "179446058",
+            "Tabla": "Estudiante-basico",
+            "Fila": 247,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "183100632",
+            "Tabla": "Estudiante-basico",
+            "Fila": 248,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-735-2483",
+            "Tabla": "Estudiante-basico",
+            "Fila": 249,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-741-1750",
+            "Tabla": "Estudiante-basico",
+            "Fila": 250,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-745-1214",
+            "Tabla": "Estudiante-basico",
+            "Fila": 251,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-753-1212",
+            "Tabla": "Estudiante-basico",
+            "Fila": 252,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-755-2443",
+            "Tabla": "Estudiante-basico",
+            "Fila": 253,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-747-2209",
+            "Tabla": "Estudiante-basico",
+            "Fila": 254,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-754-672",
+            "Tabla": "Estudiante-basico",
+            "Fila": 255,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-2069",
+            "Tabla": "Estudiante-basico",
+            "Fila": 256,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-468",
+            "Tabla": "Estudiante-basico",
+            "Fila": 257,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-756-1298",
+            "Tabla": "Estudiante-basico",
+            "Fila": 258,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-757-787",
+            "Tabla": "Estudiante-basico",
+            "Fila": 259,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-758-1646",
+            "Tabla": "Estudiante-basico",
+            "Fila": 260,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-759-1943",
+            "Tabla": "Estudiante-basico",
+            "Fila": 261,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-96-566",
+            "Tabla": "Estudiante-basico",
+            "Fila": 262,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-753-1565",
+            "Tabla": "Estudiante-basico",
+            "Fila": 263,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-815-785",
+            "Tabla": "Estudiante-basico",
+            "Fila": 264,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-823-363",
+            "Tabla": "Estudiante-basico",
+            "Fila": 265,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-824-919",
+            "Tabla": "Estudiante-basico",
+            "Fila": 266,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-829-1711",
+            "Tabla": "Estudiante-basico",
+            "Fila": 267,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-831-343",
+            "Tabla": "Estudiante-basico",
+            "Fila": 268,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-831-651",
+            "Tabla": "Estudiante-basico",
+            "Fila": 269,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-832-2108",
+            "Tabla": "Estudiante-basico",
+            "Fila": 270,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-833-253",
+            "Tabla": "Estudiante-basico",
+            "Fila": 271,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-716-637",
+            "Tabla": "Estudiante-basico",
+            "Fila": 272,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-718-1262",
+            "Tabla": "Estudiante-basico",
+            "Fila": 273,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-715-483",
+            "Tabla": "Estudiante-basico",
+            "Fila": 274,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-715-49",
+            "Tabla": "Estudiante-basico",
+            "Fila": 275,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-715-530",
+            "Tabla": "Estudiante-basico",
+            "Fila": 276,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1003-1086",
+            "Tabla": "Estudiante-basico",
+            "Fila": 277,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1009-546",
+            "Tabla": "Estudiante-basico",
+            "Fila": 278,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1010-1162",
+            "Tabla": "Estudiante-basico",
+            "Fila": 279,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1014-2355",
+            "Tabla": "Estudiante-basico",
+            "Fila": 280,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1021-1985",
+            "Tabla": "Estudiante-basico",
+            "Fila": 281,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1021-612",
+            "Tabla": "Estudiante-basico",
+            "Fila": 282,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1023-659",
+            "Tabla": "Estudiante-basico",
+            "Fila": 283,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1026-1257",
+            "Tabla": "Estudiante-basico",
+            "Fila": 284,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1026-1465",
+            "Tabla": "Estudiante-basico",
+            "Fila": 285,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-1587",
+            "Tabla": "Estudiante-basico",
+            "Fila": 286,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-751",
+            "Tabla": "Estudiante-basico",
+            "Fila": 287,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1029-1386",
+            "Tabla": "Estudiante-basico",
+            "Fila": 288,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1030-1241",
+            "Tabla": "Estudiante-basico",
+            "Fila": 289,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1032-1220",
+            "Tabla": "Estudiante-basico",
+            "Fila": 290,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1033-1793",
+            "Tabla": "Estudiante-basico",
+            "Fila": 291,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1037-873",
+            "Tabla": "Estudiante-basico",
+            "Fila": 292,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1038-1349",
+            "Tabla": "Estudiante-basico",
+            "Fila": 293,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1043-1199",
+            "Tabla": "Estudiante-basico",
+            "Fila": 294,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1046-974",
+            "Tabla": "Estudiante-basico",
+            "Fila": 295,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1059-1653",
+            "Tabla": "Estudiante-basico",
+            "Fila": 296,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1085-84",
+            "Tabla": "Estudiante-basico",
+            "Fila": 297,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1094-1261",
+            "Tabla": "Estudiante-basico",
+            "Fila": 298,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-753-2108",
+            "Tabla": "Estudiante-basico",
+            "Fila": 299,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-773-2468",
+            "Tabla": "Estudiante-basico",
+            "Fila": 300,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-825-2432",
+            "Tabla": "Estudiante-basico",
+            "Fila": 301,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-891-1504",
+            "Tabla": "Estudiante-basico",
+            "Fila": 302,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-902-957",
+            "Tabla": "Estudiante-basico",
+            "Fila": 303,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-934-490",
+            "Tabla": "Estudiante-basico",
+            "Fila": 304,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-943-609",
+            "Tabla": "Estudiante-basico",
+            "Fila": 305,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-943-888",
+            "Tabla": "Estudiante-basico",
+            "Fila": 306,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-946-707",
+            "Tabla": "Estudiante-basico",
+            "Fila": 307,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-949-1066",
+            "Tabla": "Estudiante-basico",
+            "Fila": 308,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-955-780",
+            "Tabla": "Estudiante-basico",
+            "Fila": 309,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-963-1580",
+            "Tabla": "Estudiante-basico",
+            "Fila": 310,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-980-41",
+            "Tabla": "Estudiante-basico",
+            "Fila": 311,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-992-161",
+            "Tabla": "Estudiante-basico",
+            "Fila": 312,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-998-1808",
+            "Tabla": "Estudiante-basico",
+            "Fila": 313,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-998-856",
+            "Tabla": "Estudiante-basico",
+            "Fila": 314,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-755-375",
+            "Tabla": "Estudiante-basico",
+            "Fila": 315,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-760-843",
+            "Tabla": "Estudiante-basico",
+            "Fila": 316,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-764-2135",
+            "Tabla": "Estudiante-basico",
+            "Fila": 317,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-765-899",
+            "Tabla": "Estudiante-basico",
+            "Fila": 318,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-768-961",
+            "Tabla": "Estudiante-basico",
+            "Fila": 319,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "at875878",
+            "Tabla": "Estudiante-basico",
+            "Fila": 320,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ax403812",
+            "Tabla": "Estudiante-basico",
+            "Fila": 321,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ax688209",
+            "Tabla": "Estudiante-basico",
+            "Fila": 322,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "b05886625",
+            "Tabla": "Estudiante-basico",
+            "Fila": 323,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ba384700",
+            "Tabla": "Estudiante-basico",
+            "Fila": 324,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c02865882",
+            "Tabla": "Estudiante-basico",
+            "Fila": 325,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c03363736",
+            "Tabla": "Estudiante-basico",
+            "Fila": 326,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "12-704-1891",
+            "Tabla": "Estudiante-basico",
+            "Fila": 327,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "163382571",
+            "Tabla": "Estudiante-basico",
+            "Fila": 328,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "1-757-301",
+            "Tabla": "Estudiante-basico",
+            "Fila": 329,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "178889995",
+            "Tabla": "Estudiante-basico",
+            "Fila": 330,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "179058589",
+            "Tabla": "Estudiante-basico",
+            "Fila": 331,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "179314694",
+            "Tabla": "Estudiante-basico",
+            "Fila": 332,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "179528543",
+            "Tabla": "Estudiante-basico",
+            "Fila": 333,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-721-1659",
+            "Tabla": "Estudiante-basico",
+            "Fila": 334,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-728-2197",
+            "Tabla": "Estudiante-basico",
+            "Fila": 335,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-730-657",
+            "Tabla": "Estudiante-basico",
+            "Fila": 336,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-742-1145",
+            "Tabla": "Estudiante-basico",
+            "Fila": 337,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-749-1553",
+            "Tabla": "Estudiante-basico",
+            "Fila": 338,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-755-607",
+            "Tabla": "Estudiante-basico",
+            "Fila": 339,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-755-956",
+            "Tabla": "Estudiante-basico",
+            "Fila": 340,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-701-1922",
+            "Tabla": "Estudiante-basico",
+            "Fila": 341,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-732-2113",
+            "Tabla": "Estudiante-basico",
+            "Fila": 342,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-733-2034",
+            "Tabla": "Estudiante-basico",
+            "Fila": 343,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-739-1500",
+            "Tabla": "Estudiante-basico",
+            "Fila": 344,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-749-407",
+            "Tabla": "Estudiante-basico",
+            "Fila": 345,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-750-2372",
+            "Tabla": "Estudiante-basico",
+            "Fila": 346,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-752-1008",
+            "Tabla": "Estudiante-basico",
+            "Fila": 347,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-755-1287",
+            "Tabla": "Estudiante-basico",
+            "Fila": 348,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-756-1650",
+            "Tabla": "Estudiante-basico",
+            "Fila": 349,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-756-575",
+            "Tabla": "Estudiante-basico",
+            "Fila": 350,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-758-69",
+            "Tabla": "Estudiante-basico",
+            "Fila": 351,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-760-1588",
+            "Tabla": "Estudiante-basico",
+            "Fila": 352,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-762-2270",
+            "Tabla": "Estudiante-basico",
+            "Fila": 353,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-712-1457",
+            "Tabla": "Estudiante-basico",
+            "Fila": 354,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-731-387",
+            "Tabla": "Estudiante-basico",
+            "Fila": 355,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-754-1431",
+            "Tabla": "Estudiante-basico",
+            "Fila": 356,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-819-1513",
+            "Tabla": "Estudiante-basico",
+            "Fila": 357,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-832-2087",
+            "Tabla": "Estudiante-basico",
+            "Fila": 358,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-832-271",
+            "Tabla": "Estudiante-basico",
+            "Fila": 359,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-709-2498",
+            "Tabla": "Estudiante-basico",
+            "Fila": 360,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "5-716-502",
+            "Tabla": "Estudiante-basico",
+            "Fila": 361,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-720-2042",
+            "Tabla": "Estudiante-basico",
+            "Fila": 362,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "6-727-2068",
+            "Tabla": "Estudiante-basico",
+            "Fila": 363,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "7-715-1064",
+            "Tabla": "Estudiante-basico",
+            "Fila": 364,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1000-271",
+            "Tabla": "Estudiante-basico",
+            "Fila": 365,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1002-731",
+            "Tabla": "Estudiante-basico",
+            "Fila": 366,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1002-855",
+            "Tabla": "Estudiante-basico",
+            "Fila": 367,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1003-778",
+            "Tabla": "Estudiante-basico",
+            "Fila": 368,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1003-868",
+            "Tabla": "Estudiante-basico",
+            "Fila": 369,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-1015",
+            "Tabla": "Estudiante-basico",
+            "Fila": 370,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-1449",
+            "Tabla": "Estudiante-basico",
+            "Fila": 371,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1004-903",
+            "Tabla": "Estudiante-basico",
+            "Fila": 372,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1005-591",
+            "Tabla": "Estudiante-basico",
+            "Fila": 373,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1008-1335",
+            "Tabla": "Estudiante-basico",
+            "Fila": 374,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1008-2262",
+            "Tabla": "Estudiante-basico",
+            "Fila": 375,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1008-65",
+            "Tabla": "Estudiante-basico",
+            "Fila": 376,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1011-260",
+            "Tabla": "Estudiante-basico",
+            "Fila": 377,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1012-55",
+            "Tabla": "Estudiante-basico",
+            "Fila": 378,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1012-972",
+            "Tabla": "Estudiante-basico",
+            "Fila": 379,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1019-1683",
+            "Tabla": "Estudiante-basico",
+            "Fila": 380,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1019-2408",
+            "Tabla": "Estudiante-basico",
+            "Fila": 381,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1019-360",
+            "Tabla": "Estudiante-basico",
+            "Fila": 382,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1024-1720",
+            "Tabla": "Estudiante-basico",
+            "Fila": 383,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1024-2323",
+            "Tabla": "Estudiante-basico",
+            "Fila": 384,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1024-1547",
+            "Tabla": "Estudiante-basico",
+            "Fila": 385,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1025-1814",
+            "Tabla": "Estudiante-basico",
+            "Fila": 386,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1027-1465",
+            "Tabla": "Estudiante-basico",
+            "Fila": 387,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1027-639",
+            "Tabla": "Estudiante-basico",
+            "Fila": 388,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-1019",
+            "Tabla": "Estudiante-basico",
+            "Fila": 389,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-1880",
+            "Tabla": "Estudiante-basico",
+            "Fila": 390,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-2010",
+            "Tabla": "Estudiante-basico",
+            "Fila": 391,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1028-882",
+            "Tabla": "Estudiante-basico",
+            "Fila": 392,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1029-130",
+            "Tabla": "Estudiante-basico",
+            "Fila": 393,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1030-88",
+            "Tabla": "Estudiante-basico",
+            "Fila": 394,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1030-944",
+            "Tabla": "Estudiante-basico",
+            "Fila": 395,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1032-1948",
+            "Tabla": "Estudiante-basico",
+            "Fila": 396,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1032-2201",
+            "Tabla": "Estudiante-basico",
+            "Fila": 397,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1033-2276",
+            "Tabla": "Estudiante-basico",
+            "Fila": 398,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1034-669",
+            "Tabla": "Estudiante-basico",
+            "Fila": 399,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1035-182",
+            "Tabla": "Estudiante-basico",
+            "Fila": 400,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1035-401",
+            "Tabla": "Estudiante-basico",
+            "Fila": 401,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1036-1274",
+            "Tabla": "Estudiante-basico",
+            "Fila": 402,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1036-294",
+            "Tabla": "Estudiante-basico",
+            "Fila": 403,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1038-2486",
+            "Tabla": "Estudiante-basico",
+            "Fila": 404,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1039-1102",
+            "Tabla": "Estudiante-basico",
+            "Fila": 405,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-816-248",
+            "Tabla": "Estudiante-basico",
+            "Fila": 406,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-823-1364",
+            "Tabla": "Estudiante-basico",
+            "Fila": 407,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-828-2145",
+            "Tabla": "Estudiante-basico",
+            "Fila": 408,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-842-1872",
+            "Tabla": "Estudiante-basico",
+            "Fila": 409,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-845-1601",
+            "Tabla": "Estudiante-basico",
+            "Fila": 410,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-860-1900",
+            "Tabla": "Estudiante-basico",
+            "Fila": 411,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-865-58",
+            "Tabla": "Estudiante-basico",
+            "Fila": 412,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-866-1843",
+            "Tabla": "Estudiante-basico",
+            "Fila": 413,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-867-2100",
+            "Tabla": "Estudiante-basico",
+            "Fila": 414,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-889-1070",
+            "Tabla": "Estudiante-basico",
+            "Fila": 415,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-903-2206",
+            "Tabla": "Estudiante-basico",
+            "Fila": 416,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-904-929",
+            "Tabla": "Estudiante-basico",
+            "Fila": 417,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-911-1149",
+            "Tabla": "Estudiante-basico",
+            "Fila": 418,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-918-1056",
+            "Tabla": "Estudiante-basico",
+            "Fila": 419,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-922-1374",
+            "Tabla": "Estudiante-basico",
+            "Fila": 420,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-934-2181",
+            "Tabla": "Estudiante-basico",
+            "Fila": 421,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-937-2165",
+            "Tabla": "Estudiante-basico",
+            "Fila": 422,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-944-889",
+            "Tabla": "Estudiante-basico",
+            "Fila": 423,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-945-137",
+            "Tabla": "Estudiante-basico",
+            "Fila": 424,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-954-1579",
+            "Tabla": "Estudiante-basico",
+            "Fila": 425,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-954-2113",
+            "Tabla": "Estudiante-basico",
+            "Fila": 426,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-954-550",
+            "Tabla": "Estudiante-basico",
+            "Fila": 427,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-955-433",
+            "Tabla": "Estudiante-basico",
+            "Fila": 428,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-961-825",
+            "Tabla": "Estudiante-basico",
+            "Fila": 429,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-966-445",
+            "Tabla": "Estudiante-basico",
+            "Fila": 430,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-969-687",
+            "Tabla": "Estudiante-basico",
+            "Fila": 431,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-972-550",
+            "Tabla": "Estudiante-basico",
+            "Fila": 432,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-972-640",
+            "Tabla": "Estudiante-basico",
+            "Fila": 433,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-973-2420",
+            "Tabla": "Estudiante-basico",
+            "Fila": 434,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-990-2284",
+            "Tabla": "Estudiante-basico",
+            "Fila": 435,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-995-1822",
+            "Tabla": "Estudiante-basico",
+            "Fila": 436,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-997-1669",
+            "Tabla": "Estudiante-basico",
+            "Fila": 437,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-765-1790",
+            "Tabla": "Estudiante-basico",
+            "Fila": 438,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-767-1339",
+            "Tabla": "Estudiante-basico",
+            "Fila": 439,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-767-2053",
+            "Tabla": "Estudiante-basico",
+            "Fila": 440,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "9-768-722",
+            "Tabla": "Estudiante-basico",
+            "Fila": 441,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "a4689224",
+            "Tabla": "Estudiante-basico",
+            "Fila": 442,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aae777163",
+            "Tabla": "Estudiante-basico",
+            "Fila": 443,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ap295410",
+            "Tabla": "Estudiante-basico",
+            "Fila": 444,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ar780056",
+            "Tabla": "Estudiante-basico",
+            "Fila": 445,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "au351316",
+            "Tabla": "Estudiante-basico",
+            "Fila": 446,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "au890403",
+            "Tabla": "Estudiante-basico",
+            "Fila": 447,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "av381983",
+            "Tabla": "Estudiante-basico",
+            "Fila": 448,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aw966940",
+            "Tabla": "Estudiante-basico",
+            "Fila": 449,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ay491206",
+            "Tabla": "Estudiante-basico",
+            "Fila": 450,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ba783774",
+            "Tabla": "Estudiante-basico",
+            "Fila": 451,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "bc378631",
+            "Tabla": "Estudiante-basico",
+            "Fila": 452,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c02166222",
+            "Tabla": "Estudiante-basico",
+            "Fila": 453,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "e-8-173316",
+            "Tabla": "Estudiante-basico",
+            "Fila": 454,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "e-8-180604",
+            "Tabla": "Estudiante-basico",
+            "Fila": 455,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "ap740563",
+            "Tabla": "Estudiante-basico",
+            "Fila": 456,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "yb8585789",
+            "Tabla": "Estudiante-basico",
+            "Fila": 457,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "bd420811",
+            "Tabla": "Estudiante-basico",
+            "Fila": 458,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "aw718680",
+            "Tabla": "Estudiante-basico",
+            "Fila": 459,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-749-185",
+            "Tabla": "Estudiante-basico",
+            "Fila": 460,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-751-283",
+            "Tabla": "Estudiante-basico",
+            "Fila": 461,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-864-1081",
+            "Tabla": "Estudiante-basico",
+            "Fila": 462,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-439-398",
+            "Tabla": "Estudiante-basico",
+            "Fila": 463,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-912-2186",
+            "Tabla": "Estudiante-basico",
+            "Fila": 464,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-749-1711",
+            "Tabla": "Estudiante-basico",
+            "Fila": 465,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-792-938",
+            "Tabla": "Estudiante-basico",
+            "Fila": 466,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1018-1759",
+            "Tabla": "Estudiante-basico",
+            "Fila": 467,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "3-754-2390",
+            "Tabla": "Estudiante-basico",
+            "Fila": 468,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1031-1731",
+            "Tabla": "Estudiante-basico",
+            "Fila": 469,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-988-2408",
+            "Tabla": "Estudiante-basico",
+            "Fila": 470,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "c03352717",
+            "Tabla": "Estudiante-basico",
+            "Fila": 471,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-941-1876",
+            "Tabla": "Estudiante-basico",
+            "Fila": 472,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-993-525",
+            "Tabla": "Estudiante-basico",
+            "Fila": 473,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1029-2407",
+            "Tabla": "Estudiante-basico",
+            "Fila": 474,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "2-732-1000",
+            "Tabla": "Estudiante-basico",
+            "Fila": 475,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "10-706-2439",
+            "Tabla": "Estudiante-basico",
+            "Fila": 476,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "1-736-1335",
+            "Tabla": "Estudiante-basico",
+            "Fila": 477,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "4-807-1410",
+            "Tabla": "Estudiante-basico",
+            "Fila": 478,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "8-1043-460",
+            "Tabla": "Estudiante-basico",
+            "Fila": 479,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 480,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 481,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 482,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 483,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 484,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 485,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 486,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 487,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 488,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 489,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 490,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 491,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 492,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 493,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 494,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 495,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 496,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 497,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 498,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 499,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 500,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 501,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 502,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 503,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 504,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 505,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 506,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 507,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 508,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 509,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 510,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 511,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 512,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 513,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 514,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 515,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 516,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 517,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 518,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 519,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 520,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 521,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 522,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 523,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 524,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 525,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 526,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 527,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 528,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 529,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 530,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 531,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 532,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 533,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 534,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 535,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 536,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 537,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 538,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 539,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 540,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 541,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 542,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 543,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 544,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 545,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 546,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 547,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 548,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 549,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 550,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 551,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 552,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 553,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 554,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 555,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 556,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 557,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 558,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 559,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 560,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 561,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 562,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 563,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 564,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 565,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 566,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 567,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 568,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 569,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 570,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 571,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 572,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 573,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 574,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 575,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 576,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 577,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 578,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 579,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 580,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 581,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 582,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 583,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 584,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 585,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 586,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 587,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 588,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 589,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 590,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 591,
+            "Error": "Creacion de estudiantes deshabilitada."
+        },
+        {
+            "Usuario": "",
+            "Tabla": "Estudiante-basico",
+            "Fila": 592,
+            "Error": "Creacion de estudiantes deshabilitada."
+        }
+    ]
+}
