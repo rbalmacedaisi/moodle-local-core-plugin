@@ -73,6 +73,11 @@ if ($hassiteconfig) {
         'Importar Notas (Q10)',
         new moodle_url('/local/grupomakro_core/pages/import_grades.php')
     );
+    $bulkDeletePage = new admin_externalpage(
+        'grupomakro_core_bulk_delete_users',
+        'Eliminación Masiva',
+        new moodle_url('/local/grupomakro_core/pages/bulk_delete_users.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -82,6 +87,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $academicDirectorPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $importUsersPage);
     $ADMIN->add('grupomakrocore_plugin', $importGradesPage);
+    $ADMIN->add('grupomakrocore_plugin', $bulkDeletePage);
     
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
