@@ -2,6 +2,7 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/course/lib.php');
+require_once($CFG->dirroot . '/vendor/autoload.php');
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_manage_courses');
