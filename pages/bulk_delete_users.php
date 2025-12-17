@@ -8,6 +8,9 @@ define('GMK_BULK_DELETE_PER_PAGE', 20);
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_bulk_delete_users');
+if (!is_siteadmin()) {
+    print_error('onlyadmins', 'error');
+}
 
 $PAGE->set_url('/local/grupomakro_core/pages/bulk_delete_users.php');
 $PAGE->set_title('Eliminación Masiva de Usuarios');

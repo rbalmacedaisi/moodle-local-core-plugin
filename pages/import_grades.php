@@ -5,6 +5,9 @@ require_once($CFG->libdir . '/gradelib.php');
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_import_grades');
+if (!is_siteadmin()) {
+    print_error('onlyadmins', 'error');
+}
 
 $PAGE->set_url('/local/grupomakro_core/pages/import_grades.php');
 $PAGE->set_title('Importar Notas Históricas');
