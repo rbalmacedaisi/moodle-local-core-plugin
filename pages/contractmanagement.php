@@ -37,6 +37,7 @@ $PAGE->set_heading(get_string('contract_management', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 echo $OUTPUT->header();
+echo $OUTPUT->notification('ESTA FUNCIONALIDAD ESTÁ DEPRECADA. LA GESTIÓN DE CONTRATOS AHORA SE REALIZA DESDE ODOO.', 'warning');
 
 // Contract data.
 $contract_data = array();

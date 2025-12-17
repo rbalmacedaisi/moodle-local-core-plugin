@@ -586,4 +586,29 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    // Odoo Integration Services
+    'local_grupomakro_odoo_enroll_student' => array(
+        'classname'   => 'local_grupomakro_core\external\odoo\enroll_student',
+        'methodname'  => 'execute',
+        'description' => 'Enroll a student into a learning plan based on Odoo Product Name',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_odoo_unenroll_student' => array(
+        'classname'   => 'local_grupomakro_core\external\odoo\unenroll_student',
+        'methodname'  => 'execute',
+        'description' => 'Unenroll a student from a learning plan based on Odoo Product Name',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_odoo_update_status' => array(
+        'classname'   => 'local_grupomakro_core\external\odoo\update_status',
+        'methodname'  => 'execute',
+        'description' => 'Update student status (active/suspended) from Odoo',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );

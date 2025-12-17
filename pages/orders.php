@@ -41,6 +41,7 @@ $PAGE->set_heading(get_string('orders', $plugin_name));
 $PAGE->set_pagelayout('base');
 
 echo $OUTPUT->header();
+echo $OUTPUT->notification('ESTA FUNCIONALIDAD ESTÁ DEPRECADA. LOS PEDIDOS AHORA SE GESTIONAN DESDE ODOO.', 'warning');
 
 // Generate a table with the the records from the gm_orders table.
 $table = new html_table();

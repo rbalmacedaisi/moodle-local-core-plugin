@@ -43,6 +43,7 @@ $PAGE->set_pagelayout('base');
 $PAGE->add_body_class('limitedwidth');
 
 echo $OUTPUT->header();
+echo $OUTPUT->notification('ESTA FUNCIONALIDAD ESTÁ DEPRECADA. LA GESTIÓN DE CONTRATOS AHORA SE REALIZA DESDE ODOO.', 'warning');
 $formimagepicker = new createcontract_form();
 $maintemplatedata = [
     'formimagpicker' => $formimagepicker->render(),
