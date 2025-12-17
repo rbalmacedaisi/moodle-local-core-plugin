@@ -117,7 +117,8 @@ echo '</form>';
 echo '</div>';
 
 // Build Query
-$sql = "SELECT id, firstname, lastname, email, username, lastaccess, suspended, picture, imagealt FROM {user} WHERE deleted = 0 AND id <> :guestid AND id <> :myid";
+$userfields = \core_user\fields::for_userpic()->get_sql('', false, '', '', false)->selects;
+$sql = "SELECT id, username, lastaccess, suspended, email, $userfields FROM {user} WHERE deleted = 0 AND id <> :guestid AND id <> :myid";
 $params = ['guestid' => $CFG->siteguest, 'myid' => $USER->id];
 
 if ($filter_name) {
