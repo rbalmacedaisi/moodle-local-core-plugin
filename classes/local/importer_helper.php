@@ -4,6 +4,7 @@ namespace local_grupomakro_core\local;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot . '/vendor/autoload.php');
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
