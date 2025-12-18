@@ -15,18 +15,16 @@ $PAGE->set_heading('Importar Usuarios desde Excel');
 
 $action = optional_param('action', '', PARAM_TEXT);
 
+// Template Download
 if ($action === 'download_template') {
     $filename = 'plantilla_usuarios_grupomakro.csv';
     header('Content-Type: text/csv');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     
     $fp = fopen('php://output', 'w');
-    // Bom for Excel
     fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF));
     
-    // Headers based on importer helper mapping
-    // [1]: DocType, [2]: DocNum/Username, [3]: IDNumber, [4]: Name, [5]: Lastname, [6]: Email
-    // [7]: Phone2, [8]: Phone1, [9]: Birthdate, [10]: Country, [11]: Address, [12]: Genre, [13]: Status, [14]: Journey
+    // Headers
     $headers = [
         'TipoDocumento', 
         'Documento_Usuario', 
@@ -63,9 +61,22 @@ if ($action === 'download_template') {
         'Matutina'
     ];
     fputcsv($fp, $example);
-    
     fclose($fp);
     die;
+}
+
+// Log Export Handler
+if ($action === 'download_log') {
+    $logid = optional_param('logid', '', PARAM_ALPHANUM);
+    $tempdir = make_temp_directory('grupomakro_import_logs');
+    $file = $tempdir . '/' . $logid . '.csv';
+
+    if (file_exists($file)) {
+        send_file($file, 'resultados_importacion_' . date('Ymd_His') . '.csv');
+        die;
+    } else {
+        print_error('filenotfound', 'error');
+    }
 }
 
 echo $OUTPUT->header();
@@ -84,83 +95,92 @@ if ($mform->is_cancelled()) {
     echo $OUTPUT->heading("Procesando archivo: " . $filename);
 
     $results = ['success' => [], 'error' => []];
+    $logData = [['Fila', 'Usuario', 'Estado', 'Detalle']]; // RAM Log
 
     try {
         $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
-        $sheet = $spreadsheet->getSheet(0); // Assume first sheet
+        $sheet = $spreadsheet->getSheet(0); 
         $highestRow = $sheet->getHighestDataRow();
         $highestColumn = $sheet->getHighestDataColumn();
         $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
-        echo "<p>Total filas detectadas: $highestRow</p>";
+        echo "<p>Total filas detectadas: $highestRow (ignorando encabezado)</p>";
 
         $table = new html_table();
         $table->head = ['Fila', 'Usuario', 'Estado', 'Detalle'];
         $table->data = [];
 
-        for ($row = 2; $row <= $highestRow; $row++) { // Skip header
+        for ($row = 2; $row <= $highestRow; $row++) { 
             $rowData = [];
-            
-            // Helper expects index 1-based, let's map manual array
-            // migrate.php accessed data by column index 1-based.
-            // Row data in migrate.php was array $rowData[$col] = value
             for ($col = 1; $col <= $highestColumnIndex; $col++) {
                 $cell = $sheet->getCellByColumnAndRow($col, $row);
                 $val = $cell->getValue();
-                // Date check logic from migrate.php could be here if using getCell...
-                // But helper handles parsing if we pass raw value or handle mapping
                 $rowData[$col] = $val;
             }
             
-            // Required Check
-            if (empty($rowData[2])) continue; // Username empty
+            if (empty($rowData[2])) continue; 
+
+            $verifyUsername = strtolower(trim($rowData[2]));
+            $status = '';
+            $msg = '';
+            $class = '';
 
             try {
-                // Construct Entity
-                $verifyUsername = strtolower(trim($rowData[2]));
                 $exists = $DB->get_record('user', ['username' => $verifyUsername, 'deleted' => 0]);
-                
                 $studentData = \local_grupomakro_core\local\importer_helper::construct_student_entity($rowData);
 
                 if ($exists) {
-                     // Update Logic
                      $studentData['id'] = $exists->id;
-                     // Only update fields provided? core_user_external::update_users
-                     // For now, let's assume we skip or update. 
-                     // Let's UPDATE suspended status based on Col 13 if provided
                      if (!empty($rowData[13]) && $rowData[13] === 'inactivo') {
                          $studentData['suspended'] = 1;
                      }
                      core_user_external::update_users([$studentData]);
                      $status = 'Actualizado';
-                     $msg = 'Usuario ya existía. Datos actualizados.';
+                     $msg = 'Usuario actualizado.';
                      $class = 'text-info';
-
                 } else {
-                     // Create Logic
                      if (!empty($rowData[13]) && $rowData[13] === 'inactivo') {
                          $studentData['suspended'] = 1;
                      }
                      core_user_external::create_users([$studentData]);
                      $status = 'Creado';
-                     $msg = 'Usuario creado exitosamente.';
+                     $msg = 'Usuario creado.';
                      $class = 'text-success';
                 }
-
-                $table->data[] = [$row, $verifyUsername, new html_table_cell($status), $msg];
-                $table->data[count($table->data)-1]->cells[2]->attributes = ['class' => $class];
-
             } catch (Exception $e) {
-                $errorMsg = property_exists($e, 'debuginfo') ? $e->debuginfo : $e->getMessage();
-                $table->data[] = [$row, $rowData[2] ?? '?', new html_table_cell('Error'), $errorMsg];
-                 $table->data[count($table->data)-1]->cells[2]->attributes = ['class' => 'text-danger'];
+                $status = 'Error';
+                $msg = property_exists($e, 'debuginfo') ? $e->debuginfo : $e->getMessage();
+                $class = 'text-danger';
             }
+
+            // Add to Log Array
+            $logData[] = [$row, $verifyUsername, $status, strip_tags($msg)];
+
+            // Create cell objects properly
+            $statusCell = new html_table_cell($status);
+            $statusCell->attributes = ['class' => $class];
+            
+            $table->data[] = new html_table_row([$row, $verifyUsername, $statusCell, $msg]);
         }
 
         echo html_writer::table($table);
 
+        // SAVE LOG TO TEMP AND SHOW BUTTON
+        $logId = uniqid();
+        $tempdir = make_temp_directory('grupomakro_import_logs');
+        $csvFile = fopen($tempdir . '/' . $logId . '.csv', 'w');
+        fprintf($csvFile, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
+        foreach ($logData as $fields) {
+            fputcsv($csvFile, $fields);
+        }
+        fclose($csvFile);
+
+        echo '<div class="mt-3 text-center">';
+        echo '  <a href="?action=download_log&logid='.$logId.'" class="btn btn-warning btn-lg"><i class="fa fa-download"></i> Descargar Log de Resultados (CSV)</a>';
+        echo '</div>';
+
     } catch (Exception $e) {
-        echo $OUTPUT->notification('Error crítico al leer archivo: ' . $e->getMessage(), 'error');
+        echo $OUTPUT->notification('Error crítico: ' . $e->getMessage(), 'error');
     }
 
     echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_users.php'));
