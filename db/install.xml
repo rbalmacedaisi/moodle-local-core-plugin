@@ -68,6 +68,8 @@
         <FIELD NAME="instructorid" TYPE="int" LENGTH="4" NOTNULL="true" SEQUENCE="false" COMMENT="Id of the instructor"/>
         <FIELD NAME="inittime" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Init time of the class"/>
         <FIELD NAME="endtime" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="End time of the class"/>
+        <FIELD NAME="initdate" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Start date of the class period"/>
+        <FIELD NAME="enddate" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="End date of the class period"/>
         <FIELD NAME="classdays" TYPE="char" LENGTH="13" NOTNULL="true" SEQUENCE="false" COMMENT="Days when the class is dictated, the format is L/M/M/J/V/S/D, and the values that take each day is between 0 and 1, 0 for no dictated, 1 for dictated"/>
         <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
