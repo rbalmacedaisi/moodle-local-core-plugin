@@ -335,13 +335,19 @@ window.Vue.component('createclass', {
             const selectedTeacherId = this.selectedClassTeacher?.id
             try {
                 let { data } = await window.axios.get(wsurl, { params: this.getPotentialTeachersParameters })
-                let { teachers } = data;
-                teachers = JSON.parse(teachers)
-                this.teachers = teachers.map(teacher => ({ email: teacher.email, fullname: teacher.fullname, id: teacher.id }))
-                this.classData.teacherIndex = selectedTeacherId ? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
+                console.log('getPotentialTeachers response:', data);
+                if (data && data.teachers) {
+                    let { teachers } = data;
+                    teachers = typeof teachers === 'string' ? JSON.parse(teachers) : teachers;
+                    this.teachers = teachers.map(teacher => ({ email: teacher.email, fullname: teacher.fullname, id: teacher.id }))
+                    this.classData.teacherIndex = selectedTeacherId ? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
+                } else {
+                    console.warn('Response does not contain teachers property', data);
+                    this.teachers = [];
+                }
             }
             catch (error) {
-                console.error(error)
+                console.error('Error fetching teachers:', error)
             }
         },
         async saveClass() {
