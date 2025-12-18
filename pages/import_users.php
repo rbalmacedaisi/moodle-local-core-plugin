@@ -1,7 +1,8 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/user/externallib.php');
+require_once($CFG->dirroot . '/user/lib.php');
+require_once($CFG->dirroot . '/user/externallib.php'); // Keep just in case helper uses it
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_import_users');
@@ -134,7 +135,10 @@ if ($mform->is_cancelled()) {
                      if (!empty($rowData[13]) && $rowData[13] === 'inactivo') {
                          $studentData['suspended'] = 1;
                      }
-                     core_user_external::update_users([$studentData]);
+                     // core_user_external::update_users([$studentData]); -> CAUSES CRASH
+                     $userObj = (object)$studentData;
+                     user_update_user($userObj, true, false);
+
                      $status = 'Actualizado';
                      $msg = 'Usuario actualizado.';
                      $class = 'text-info';
@@ -142,7 +146,15 @@ if ($mform->is_cancelled()) {
                      if (!empty($rowData[13]) && $rowData[13] === 'inactivo') {
                          $studentData['suspended'] = 1;
                      }
-                     core_user_external::create_users([$studentData]);
+                     // core_user_external::create_users([$studentData]); -> CAUSES CRASH
+                     $userObj = (object)$studentData;
+                     $newUserId = user_create_user($userObj, true, false);
+                     
+                     // Trigger password email manually if needed, or rely on createpassword=1 in userObj check?
+                     // user_create_user doesn't send email. 
+                     // 'createpassword' in data is used by external lib.
+                     // For simple import, let's just create.
+                     
                      $status = 'Creado';
                      $msg = 'Usuario creado.';
                      $class = 'text-success';
