@@ -59,7 +59,7 @@ class importer_helper {
             'firstname'      => $data[4],
             'lastname'       => $data[5],
             'email'          => $data[6],
-            'idnumber'       => $username, // User request: Doc ID as idnumber
+            'idnumber'       => !empty($data[3]) ? $data[3] : '', // Column 3: Numero_ID
             'auth'           => 'manual',
         ];
 
