@@ -53,12 +53,13 @@ class importer_helper {
         $username = strtolower(trim($data[2]));
 
         $studentEntity = [
-            'createpassword' => 1,
+            // 'createpassword' => 1, // Removed to use manual password
+            'password'       => $username, // User request: Doc ID as password
             'username'       => $username,
             'firstname'      => $data[4],
             'lastname'       => $data[5],
             'email'          => $data[6],
-            'idnumber'       => isset($data[3]) ? $data[3] : '',
+            'idnumber'       => $username, // User request: Doc ID as idnumber
             'auth'           => 'manual',
         ];
 
@@ -70,8 +71,22 @@ class importer_helper {
         if (!empty($data[11])) $studentEntity['address'] = $data[11];
 
         // Custom Fields
+        // Map Usertype from Column 15. Default 'Estudiante'.
+        $userType = !empty($data[15]) ? $data[15] : 'Estudiante';
+
+        // Flattened fields for internal API (profile_save_data)
+        $studentEntity['profile_field_usertype'] = $userType;
+        $studentEntity['profile_field_documenttype'] = $data[1];
+        $studentEntity['profile_field_documentnumber'] = $data[2];
+        $studentEntity['profile_field_birthdate'] = self::excel_date_to_timestamp($data[9]);
+        $studentEntity['profile_field_studentstatus'] = $data[13];
+        $studentEntity['profile_field_personalemail'] = $data[6];
+        $studentEntity['profile_field_gmkgenre'] = $data[12];
+        $studentEntity['profile_field_gmkjourney'] = $data[14];
+
+        // Keep legacy format just in case, though likely unused now
         $customFields = [
-            ['type' => 'usertype', 'value' => 'Estudiante'],
+            ['type' => 'usertype', 'value' => $userType],
             ['type' => 'documenttype', 'value' => $data[1]],
             ['type' => 'documentnumber', 'value' => $data[2]],
             // Start migrate.php used excelDateToUnixTimestamp($data[9])

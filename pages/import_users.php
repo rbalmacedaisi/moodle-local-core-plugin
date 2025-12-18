@@ -40,7 +40,8 @@ if ($action === 'download_template') {
         'Direccion', 
         'Genero', 
         'Estado (activo/inactivo)', 
-        'Jornada'
+        'Jornada',
+        'TipoUsuario (Estudiante/Docente/etc)'
     ];
     fputcsv($fp, $headers);
     
@@ -59,7 +60,8 @@ if ($action === 'download_template') {
         'Ciudad de Panama', 
         'Masculino', 
         'activo', 
-        'Matutina'
+        'Matutina',
+        'Estudiante'
     ];
     fputcsv($fp, $example);
     fclose($fp);
@@ -139,6 +141,11 @@ if ($mform->is_cancelled()) {
                      $userObj = (object)$studentData;
                      user_update_user($userObj, true, false);
 
+                     // SAVE CUSTOM FIELDS (profile_field_*)
+                     // user_update_user DOES NOT save custom profile fields automatically from the object
+                     // We must use profile_save_data.
+                     profile_save_data($userObj);
+
                      $status = 'Actualizado';
                      $msg = 'Usuario actualizado.';
                      $class = 'text-info';
@@ -150,11 +157,10 @@ if ($mform->is_cancelled()) {
                      $userObj = (object)$studentData;
                      $newUserId = user_create_user($userObj, true, false);
                      
-                     // Trigger password email manually if needed, or rely on createpassword=1 in userObj check?
-                     // user_create_user doesn't send email. 
-                     // 'createpassword' in data is used by external lib.
-                     // For simple import, let's just create.
-                     
+                     // SAVE CUSTOM FIELDS
+                     $userObj->id = $newUserId; // Important: ID needed for profile_save_data
+                     profile_save_data($userObj);
+
                      $status = 'Creado';
                      $msg = 'Usuario creado.';
                      $class = 'text-success';
