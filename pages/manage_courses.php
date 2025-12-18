@@ -132,12 +132,14 @@ if ($action === 'export') {
 
 echo $OUTPUT->header();
 
-// Styles & Assets (Material Design lookalike)
+// Styles & Assets (Material Design lookalike + Custom Modal Styles mimickng Academic Panel)
 echo '
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
 <style>
     body { font-family: "Roboto", sans-serif; }
+    
+    /* Material Cards */
     .card-material {
         background: #fff;
         border-radius: 8px;
@@ -155,6 +157,8 @@ echo '
         color: #333;
         font-size: 1.1rem;
     }
+    
+    /* Buttons */
     .btn-material {
         border-radius: 20px;
         text-transform: uppercase;
@@ -167,16 +171,96 @@ echo '
     }
     .btn-material-primary { background: #1976D2; color: #fff; }
     .btn-material-primary:hover { background: #1565C0; color: #fff; text-decoration: none;}
+    
+    /* Stats */
     .stats-card { text-align: center; padding: 20px; }
     .stats-number { font-size: 2rem; font-weight: 700; color: #1976D2; }
     .stats-label { color: #666; font-size: 0.9rem; text-transform: uppercase; }
+    
+    /* Table */
     .table-material th { border-top: none; color: #666; font-weight: 500; }
+    
+    /* Badges & Icons */
     .badge-material { padding: 5px 10px; border-radius: 4px; font-weight: 500; font-size: 0.8rem; }
     .badge-visible { background: #E8F5E9; color: #2E7D32; }
     .badge-hidden { background: #FFEBEE; color: #C62828; }
     .action-icon { font-size: 1.2rem; color: #555; margin: 0 5px; transition: color 0.2s; }
     .action-icon:hover { color: #1976D2; text-decoration: none; }
     .action-icon.delete:hover { color: #C62828; }
+
+    /* --- Custom Modal Styling (Mimicking academicpanel.php / grademodal.js) --- */
+    ul.modules-item-list {
+        display: grid;
+        grid-template-columns: repeat(1,1fr);
+        padding: 0 1rem;
+        list-style-type: none;
+        margin-bottom: 0;
+    }
+    ul.modules-item-list li.item-list {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin: 0 0 10px 0;
+        padding: 10px;
+        border-radius: 0.75rem;
+        transition: all .3s ease-in-out;
+        gap: 1rem;
+        background-color: #f5f5f5; /* Light grey bg like cards */
+        border: 1px solid #e0e0e0;
+    }
+    ul.modules-item-list li.item-list:hover {
+        background-color: #eeeeee;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .custom-avatar {
+        height: 35px;
+        width: 35px;
+        min-width: 35px;
+        border-radius: 50%;
+        background-color: #e0e0e0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .custom-avatar i {
+        font-size: 20px !important;
+        color: #4CAF50; /* Success green like grademodal */
+    }
+    /* Blue avatar for schedules/active to distinguish */
+    .custom-avatar.blue-avatar i { color: #1976D2; }
+
+    .list-item-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        justify-content: space-between;
+        flex-grow: 1;
+    }
+    .list-item-info-text p {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #333;
+    }
+    .list-item-subtext {
+        font-size: 0.8rem;
+        color: #666;
+    }
+    .modlist-header {
+        font-weight: bold;
+        color: #757575; /* text--secondary */
+        font-size: 0.875rem; /* text-subtitle-2 */
+        padding-left: 1rem;
+        margin-bottom: 10px;
+        display: block;
+    }
+    .modal-mimic-title {
+        font-size: 1.1rem;
+        font-weight: bold;
+        padding: 0 1rem 1rem 1rem;
+        border-bottom: 1px solid #eff0f1;
+        margin-bottom: 1rem;
+    }
 </style>
 ';
 
@@ -377,15 +461,22 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
                 title: "Planes de Aprendizaje",
                 body: "Cargando...",
             }).then(function(modal) {
-                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + courseName + "</h6><div class=\'list-group\'>";
+                var bodyHtml = "<div class=\'modal-mimic-title\'>" + courseName + "</div>";
+                bodyHtml += "<div class=\'modlist\'><span class=\'modlist-header\'>Planes Asociados</span><ul class=\'modules-item-list\'>";
+                
                 if (plans && plans.length > 0) {
                     $.each(plans, function(i, plan) {
-                        bodyHtml += "<div class=\'list-group-item\'><i class=\'mdi mdi-notebook-outline mr-2\'></i>" + plan.name + "</div>";
+                        bodyHtml += "<li class=\'item-list\'>" +
+                                       "<div class=\'custom-avatar\'><i class=\'mdi mdi-notebook-multiple\'></i></div>" +
+                                       "<div class=\'list-item-info\'>" +
+                                            "<div class=\'list-item-info-text\'><p>" + plan.name + "</p></div>" +
+                                       "</div>" +
+                                    "</li>";
                     });
                 } else {
-                    bodyHtml += "<div class=\'alert alert-info\'>No hay planes asociados.</div>";
+                    bodyHtml += "<li class=\'item-list\'><i class=\'mdi mdi-alert-circle-outline mr-2\'></i> Ningún plan asociado</li>";
                 }
-                bodyHtml += "</div>";
+                bodyHtml += "</ul></div>";
                 
                 modal.setBody(bodyHtml);
                 modal.show();
@@ -413,20 +504,25 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
                 title: "Horarios Activos",
                 body: "Cargando...",
             }).then(function(modal) {
-                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + courseName + "</h6><div class=\'list-group\'>";
+                var bodyHtml = "<div class=\'modal-mimic-title\'>" + courseName + "</div>";
+                bodyHtml += "<div class=\'modlist\'><span class=\'modlist-header\'>Grupos Activos</span><ul class=\'modules-item-list\'>";
+
                 if (schedules && schedules.length > 0) {
                     $.each(schedules, function(i, sch) {
-                         bodyHtml += "<div class=\'list-group-item list-group-item-action flex-column align-items-start\'>" +
-                                    "<div class=\'d-flex w-100 justify-content-between\'>" +
-                                    "<h6 class=\'mb-1\'>" + sch.name + "</h6>" +
-                                    "</div>" +
-                                    "<p class=\'mb-1\'>Incio: " + sch.inithourformatted + " - Fin: " + sch.endhourformatted + "</p>" +
-                                    "</div>";
+                         bodyHtml += "<li class=\'item-list\'>" +
+                                        "<div class=\'custom-avatar blue-avatar\'><i class=\'mdi mdi-calendar-clock\'></i></div>" +
+                                        "<div class=\'list-item-info\'>" +
+                                            "<div class=\'list-item-info-text\'>" +
+                                                "<p>" + sch.name + "</p>" +
+                                                "<span class=\'list-item-subtext\'>Inicio: " + sch.inithourformatted + " - Fin: " + sch.endhourformatted + "</span>" +
+                                            "</div>" +
+                                        "</div>" +
+                                     "</li>";
                     });
                 } else {
-                     bodyHtml += "<div class=\'alert alert-warning\'>No hay horarios activos.</div>";
+                     bodyHtml += "<li class=\'item-list\'><i class=\'mdi mdi-alert-circle-outline mr-2\'></i> No hay horarios activos</li>";
                 }
-                bodyHtml += "</div>";
+                bodyHtml += "</ul></div>";
                 
                 modal.setBody(bodyHtml);
                 modal.show();
