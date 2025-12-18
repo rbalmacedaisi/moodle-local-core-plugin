@@ -44,6 +44,7 @@ class importer_helper {
      * Logic adapted from migrate.php construct_student_entity
      */
     public static function construct_student_entity($data) {
+        global $CFG;
         // Data index mapping based on 'Estudiante-basico' sheet in migrate.php
         // [1]: DocType, [2]: DocNum/Username, [3]: ?, [4]: Name, [5]: Lastname, [6]: Email
         // [7]: Phone2, [8]: Phone1, [9]: Birthdate, [10]: Country, [11]: Address, [12]: Genre, [13]: Status, [14]: Journey
