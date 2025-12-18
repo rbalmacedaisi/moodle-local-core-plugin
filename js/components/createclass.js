@@ -192,7 +192,7 @@ window.Vue.component('createclass', {
                                     </div>
                                 </div>
                             </div>
-
+                        </div>
                         
                         <v-divider></v-divider>
                         
@@ -262,21 +262,18 @@ window.Vue.component('createclass', {
                 periodId: undefined,
                 courseId: undefined,
                 teacherIndex: undefined,
-                teacherIndex: undefined,
                 initTime: undefined,
                 endTime: undefined,
                 initDate: new Date().toISOString().substr(0, 10), // Default to today
                 endDate: new Date(new Date().setMonth(new Date().getMonth() + 2)).toISOString().substr(0, 10), // Default +2 months
                 classDays: {
-                    classDays: {
-                        monday: false,
-                        tuesday: false,
-                        wednesday: false,
-                        thursday: false,
-                        friday: false,
-                        saturday: false,
-                        sunday: false
-                    }
+                    monday: false,
+                    tuesday: false,
+                    wednesday: false,
+                    thursday: false,
+                    friday: false,
+                    saturday: false,
+                    sunday: false
                 }
             },
             periods: [],
