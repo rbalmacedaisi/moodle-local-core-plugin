@@ -77,7 +77,7 @@ if ($action === 'delete' && $confirm && confirm_sesskey()) {
         $count = 0;
         foreach ($ids as $userid) {
             // Safety checks
-            if ($userid == $USER->id || is_siteadmin($userid) || is_guest($userid)) {
+            if ($userid == $USER->id || is_siteadmin($userid) || $userid == $CFG->siteguest) {
                 continue; // Skip self, admin, guest
             }
             $u = $DB->get_record('user', ['id' => $userid]);
