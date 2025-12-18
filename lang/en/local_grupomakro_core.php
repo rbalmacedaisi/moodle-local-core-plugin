@@ -260,6 +260,8 @@ $string['class_date_time'] = 'Class schedule and days';
 $string['class_start_time'] = 'Start Time';
 $string['class_end_time'] = 'End Time';
 $string['class_days'] = 'Class days';
+$string['init_date'] = 'Start Date';
+$string['end_date'] = 'End Date';
 $string['class_available_instructors'] = 'Class available instructors';
 $string['see_availability'] = 'See availability';
 

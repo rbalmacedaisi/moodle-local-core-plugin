@@ -259,7 +259,9 @@ $string['class_date_time'] = 'Horario y días de clase';
 $string['class_start_time'] = 'Hora de inicio';
 $string['class_end_time'] = 'Hora de finalización';
 $string['class_days'] = 'Días de clase';
-$string['class_available_instructors'] = 'Lista de Instructores Disponibles';
+$string['init_date'] = 'Fecha de Inicio';
+$string['end_date'] = 'Fecha de Finalización';
+$string['class_available_instructors'] = 'Instructores disponibles para la clase';
 $string['see_availability'] = 'Ver disponibilidad';
 
 //Class creation and edition input placeholders
