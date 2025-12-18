@@ -252,7 +252,10 @@ echo '</form>';
 $total_matching = $DB->count_records_sql("SELECT COUNT(*) FROM {course} c WHERE $whereSQL", $params);
 $courses = $DB->get_records_sql("SELECT $sql_cols FROM {course} c WHERE $whereSQL ORDER BY c.fullname ASC", $params, $page * $perpage, $perpage);
 
-// Fetch Extra Data for specific visible courses
+// Data for JS
+$jsCourseData = [];
+
+// Fetch Extra Data
 if ($courses) {
     foreach ($courses as $c) {
         // Fetch Plans
@@ -267,6 +270,12 @@ if ($courses) {
             SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays
             FROM {gmk_class} gc
             WHERE gc.courseid = ? AND gc.closed = 0", [$c->id]);
+            
+        // Add to JS Data
+        $jsCourseData[$c->id] = [
+            'plans' => array_values($c->plans),
+            'schedules' => array_values($c->active_schedules)
+        ];
     }
 }
 
@@ -296,18 +305,15 @@ if ($total_matching > 0) {
         
         // Plans Data
         $plansCount = count($c->plans);
-        // Ensure strictly valid JSON compatible with HTML attribute
-        $plansAttr = htmlspecialchars(json_encode(array_values($c->plans), JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
         $plansBtnClass = $plansCount > 0 ? 'btn-info' : 'btn-light disabled';
-        $plansBtn = '<button type="button" class="btn btn-sm '.$plansBtnClass.' view-plans-btn" data-plans="'.$plansAttr.'" data-course="'.s($c->fullname).'">
+        $plansBtn = '<button type="button" class="btn btn-sm '.$plansBtnClass.' view-plans-btn" data-courseid="'.$c->id.'" data-coursename="'.s($c->fullname).'">
                         <i class="mdi mdi-book-open-variant"></i> '.$plansCount.'
                      </button>';
 
         // Schedules Data
         $schedulesCount = count($c->active_schedules);
-        $schedulesAttr = htmlspecialchars(json_encode(array_values($c->active_schedules), JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
         $schedulesBtnClass = $schedulesCount > 0 ? 'btn-success' : 'btn-light disabled';
-        $schedulesBtn = '<button type="button" class="btn btn-sm '.$schedulesBtnClass.' view-schedules-btn" data-schedules="'.$schedulesAttr.'" data-course="'.s($c->fullname).'">
+        $schedulesBtn = '<button type="button" class="btn btn-sm '.$schedulesBtnClass.' view-schedules-btn" data-courseid="'.$c->id.'" data-coursename="'.s($c->fullname).'">
                             <i class="mdi mdi-calendar-clock"></i> '.$schedulesCount.'
                          </button>';
 
@@ -339,7 +345,8 @@ if ($total_matching > 0) {
 echo '</div>'; // card-body
 echo '</div>'; // card-material
 
-// No raw HTML modals needed. We use AMD.
+// Inject JS Data
+echo '<script>window.gmkCourseData = ' . json_encode($jsCourseData) . ';</script>';
 
 // Javascript for Moodle Modals
 echo '
@@ -351,15 +358,19 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
         $(document).on("click", ".view-plans-btn", function(e) {
             e.preventDefault();
             var btn = $(this);
-            var plans = btn.data("plans");
-            var course = btn.data("course");
+            var courseId = btn.data("courseid");
+            var courseName = btn.data("coursename");
             
+            // Fetch data from global object
+            var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
+            var plans = data ? data.plans : [];
+
             ModalFactory.create({
                 type: ModalFactory.types.DEFAULT,
                 title: "Planes de Aprendizaje",
                 body: "Cargando...",
             }).then(function(modal) {
-                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + course + "</h6><div class=\'list-group\'>";
+                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + courseName + "</h6><div class=\'list-group\'>";
                 if (plans && plans.length > 0) {
                     $.each(plans, function(i, plan) {
                         bodyHtml += "<div class=\'list-group-item\'><i class=\'mdi mdi-notebook-outline mr-2\'></i>" + plan.name + "</div>";
@@ -378,15 +389,19 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
         $(document).on("click", ".view-schedules-btn", function(e) {
             e.preventDefault();
             var btn = $(this);
-            var schedules = btn.data("schedules");
-            var course = btn.data("course");
+            var courseId = btn.data("courseid");
+            var courseName = btn.data("coursename");
+
+            // Fetch data from global object
+            var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
+            var schedules = data ? data.schedules : [];
             
              ModalFactory.create({
                 type: ModalFactory.types.DEFAULT,
                 title: "Horarios Activos",
                 body: "Cargando...",
             }).then(function(modal) {
-                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + course + "</h6><div class=\'list-group\'>";
+                var bodyHtml = "<h6 class=\'text-muted mb-3\'>Curso: " + courseName + "</h6><div class=\'list-group\'>";
                 if (schedules && schedules.length > 0) {
                     $.each(schedules, function(i, sch) {
                          bodyHtml += "<div class=\'list-group-item list-group-item-action flex-column align-items-start\'>" +
@@ -410,7 +425,5 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
 });
 </script>
 ';
-
-
 
 echo $OUTPUT->footer();
