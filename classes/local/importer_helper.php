@@ -61,6 +61,8 @@ class importer_helper {
             'email'          => $data[6],
             'idnumber'       => !empty($data[3]) ? $data[3] : '', // Column 3: Numero_ID
             'auth'           => 'manual',
+            'confirmed'      => 1,
+            'mnethostid'     => $CFG->mnet_localhost_id,
         ];
 
         if (!empty($data[10]) && isset($countryCodes[$data[10]])) {
