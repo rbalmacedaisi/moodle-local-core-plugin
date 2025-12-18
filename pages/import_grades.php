@@ -2,6 +2,7 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->libdir . '/gradelib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_import_grades');

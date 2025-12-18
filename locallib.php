@@ -923,8 +923,8 @@ function update_class($classParams)
     $class->instructorid   = $classParams["instructorId"];
     $class->inittime       = $classParams["initTime"];
     $class->endtime        = $classParams["endTime"];
-    $class->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
-    $class->enddate        = isset($classParams["endDate"]) ? strtotime($classParams["endDate"]) : 0;
+    // $class->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
+    // $class->enddate        = isset($classParams["endDate"]) ? strtotime($classParams["endDate"]) : 0;
     $class->classdays      = $classParams["classDays"];
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
