@@ -156,8 +156,10 @@ if ($mform->is_cancelled()) {
             // Add to Log Array
             $logData[] = [$row, $verifyUsername, $status, strip_tags($msg)];
 
-            // Use Array syntax for maximum compatibility
-            $statusCell = ['data' => $status, 'class' => $class];
+            // Use Object syntax for cells with attributes (Correct Moodle Way)
+            $statusCell = new html_table_cell($status);
+            $statusCell->attributes = ['class' => $class];
+            
             $table->data[] = [$row, $verifyUsername, $statusCell, $msg];
         }
 
