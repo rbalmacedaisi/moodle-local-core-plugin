@@ -1,5 +1,5 @@
 <?php
-die('GMK DEBUG: ALIVE AT TOP'); // DEBUG LINE
+
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -678,20 +678,20 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
         $(document).on("click", "#user_search_btn", function(e) {
             e.preventDefault();
             var btn = $(this);
-            var query = $('#user_search_input').val();
-            var resultsDiv = $('#user_search_results');
-            var classId = btn.data('classid');
+            var query = $(\'#user_search_input\').val();
+            var resultsDiv = $(\'#user_search_results\');
+            var classId = btn.data(\'classid\');
 
             if(query.length < 3) {
                 alert("Ingrese al menos 3 caracteres.");
                 return;
             }
 
-            resultsDiv.html('<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Buscando...</div>');
+            resultsDiv.html(\'<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Buscando...</div>\');
 
-            require(['core/ajax'], function(ajax) {
+            require([\'core/ajax\'], function(ajax) {
                  var promises = ajax.call([{
-                     methodname: 'local_grupomakro_search_users',
+                     methodname: \'local_grupomakro_search_users\',
                      args: { query: query }
                  }]);
                  
@@ -710,7 +710,7 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
                      html += "</ul>";
                      resultsDiv.html(html);
                  }).fail(function(ex) {
-                     resultsDiv.html('<span class="text-danger">Error: ' + ex.message + '</span>');
+                     resultsDiv.html(\'<span class="text-danger">Error: \' + ex.message + \'</span>\');
                  });
             });
         });
@@ -719,27 +719,27 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
         $(document).on("click", ".perform-enroll-btn", function(e) {
             e.preventDefault();
             var btn = $(this);
-            var userId = btn.data('userid');
-            var classId = btn.data('classid'); // Passed from search button
+            var userId = btn.data(\'userid\');
+            var classId = btn.data(\'classid\'); // Passed from search button
 
-            btn.prop('disabled', true).text('Inscribiendo...');
+            btn.prop(\'disabled\', true).text(\'Inscribiendo...\');
 
-            require(['core/ajax'], function(ajax) {
+            require([\'core/ajax\'], function(ajax) {
                  var promises = ajax.call([{
-                     methodname: 'local_grupomakro_manual_enroll',
+                     methodname: \'local_grupomakro_manual_enroll\',
                      args: { classId: classId, userId: userId }
                  }]);
                  
                  promises[0].done(function(response) {
-                     if (response.status === 'ok') {
-                         btn.removeClass('btn-success').addClass('btn-secondary').text('Inscrito');
+                     if (response.status === \'ok\') {
+                         btn.removeClass(\'btn-success\').addClass(\'btn-secondary\').text(\'Inscrito\');
                          alert("Usuario inscrito correctamente.");
                      } else {
-                         btn.prop('disabled', false).text('Inscribir'); // Reset
+                         btn.prop(\'disabled\', false).text(\'Inscribir\'); // Reset
                          alert("Error: " + response.message);
                      }
                  }).fail(function(ex) {
-                     btn.prop('disabled', false).text('Inscribir');
+                     btn.prop(\'disabled\', false).text(\'Inscribir\');
                      alert("Error de sistema: " + ex.message);
                  });
             });
