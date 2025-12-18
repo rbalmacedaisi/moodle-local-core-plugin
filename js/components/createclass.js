@@ -143,38 +143,56 @@ window.Vue.component('createclass', {
                                     <label>{{lang.class_days}}</label>
                                 </div>
                             
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
-                                    <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
+                                        <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
+                                    </div>
                                 </div>
                                 
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
-                                    <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
+                                        <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
+                                    </div>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
-                                    <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
+
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
+                                        <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
+                                    </div>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
-                                    <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
+
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
+                                        <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
+                                    </div>
                                 </div>
                                 
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
-                                    <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
+                                        <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
+                                    </div>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
-                                    <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
+
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
+                                        <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
+                                    </div>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-md-3">
-                                    <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
-                                    <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
+
+                                <div class="col-6 col-md-3 mb-2">
+                                    <div class="custom-control custom-switch">
+                                        <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
+                                        <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+
                         
                         <v-divider></v-divider>
                         
