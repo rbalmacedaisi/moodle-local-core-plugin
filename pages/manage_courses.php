@@ -12,6 +12,7 @@ if (file_exists($CFG->dirroot . '/vendor/autoload.php')) {
 
 // Permissions
 admin_externalpage_setup('grupomakro_core_manage_courses');
+die('GMK DEBUG: ALIVE after setup'); // DEBUG LINE
 if (!is_siteadmin()) {
     print_error('onlyadmins', 'error');
 }
