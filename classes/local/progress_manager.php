@@ -53,7 +53,12 @@ class local_grupomakro_progress_manager
                     'learningplanid' => $learningPlanId
                 ]
             );
-            $firstLearningPlanPeriodId = $DB->get_field('local_learning_periods', 'id', ['learningplanid' => $learningPlanId]);
+            // Fix: get_field fails if multiple periods exist. Use get_records with limit.
+            $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $learningPlanId], 'id ASC', 'id', 0, 1);
+            if (!$periods) {
+                 return; // No periods found
+            }
+            $firstLearningPlanPeriodId = reset($periods)->id;
             $courseCustomFieldhandler = \core_course\customfield\course_handler::create();
 
             foreach ($learningPlanCourses as $learningPlanCourse) {
@@ -158,6 +163,12 @@ class local_grupomakro_progress_manager
         $renderer = $PAGE->get_renderer('core');
         try {
             $userGroup = $DB->get_field('gmk_course_progre', 'groupid', ['userid' => $userId, 'courseid' => $courseId], MUST_EXIST);
+            
+            if (!$userGroup) {
+                // User is not assigned to a group/class yet. Cannot determine section modules.
+                return false;
+            }
+
             $groupSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup], MUST_EXIST);
             $coursemod = get_fast_modinfo($courseId, $userId);
             $course = $coursemod->get_course();

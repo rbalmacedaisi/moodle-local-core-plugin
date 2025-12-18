@@ -131,7 +131,8 @@ if ($mform->is_cancelled()) {
              }
 
              $table->data[] = [$row, $username, $courseShort, $logEnroll, $logGrade, new html_table_cell($status)];
-             $table->data[count($table->data)-1]->cells[5]->attributes = ['class' => $rowClass];
+             // Correctly access the last row (which is an array) and then the 6th element (index 5) which is the object
+             $table->data[count($table->data)-1][5]->attributes = ['class' => $rowClass];
         }
 
         echo html_writer::table($table);

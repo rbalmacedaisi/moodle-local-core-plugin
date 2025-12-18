@@ -113,7 +113,7 @@ class create_class extends external_api {
         ]);
         
         try{;
-            check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId']);
+            check_class_schedule_availability($params['instructorId'],$params['classDays'], $params['initTime'] ,$params['endTime'],$params['classroomId'], null, $params['initDate'], $params['endDate']);
             $classId = create_class($params);
 
             // Return the result.

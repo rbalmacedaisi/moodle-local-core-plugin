@@ -133,7 +133,7 @@ function get_teachers_disponibility($params)
     return $teachersDisponibility;
 }
 
-function check_class_schedule_availability($instructorId, $classDays, $initTime, $endTime, $classroomId = '', $classId = null)
+function check_class_schedule_availability($instructorId, $classDays, $initTime, $endTime, $classroomId = '', $classId = null, $initDate = null, $endDate = null)
 {
     //Check the instructor availability
     global $DB;
@@ -150,6 +150,10 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
 
     $incomingClassSchedule = explode('/', $classDays);
     $incomingTimestampRange = convert_time_range_to_timestamp_range([$initTime, $endTime]);
+
+    // Parse incoming dates to timestamps
+    $incomingInitDateTS = $initDate ? strtotime($initDate) : 0;
+    $incomingEndDateTS = $endDate ? strtotime($endDate) : 0;
 
     $availabilityRecords = get_teachers_disponibility(['instructorId' => $instructorId])[$instructorId]->disponibilityRecords;
 
@@ -180,6 +184,24 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     }
 
     foreach ($alreadyAsignedClasses as $alreadyAsignedClass) {
+        
+        // Date Range Check: Skip if ranges do not overlap
+        // Only check if both incoming and existing have valid dates. If any are missing, assume checking is required (or maybe assume overlap).
+        // Let's assume strict checking: if dates are provided, we check.
+        $existingInitDateTS = $alreadyAsignedClass->initdate;
+        $existingEndDateTS = $alreadyAsignedClass->enddate;
+
+        // Overlap Condition: (StartA <= EndB) and (EndA >= StartB)
+        // If dates are 0 or null, we treat them as 'always active' or maybe we should default to skipping?
+        // Let's assume if dates are set ( > 0 ), we check for non-overlap.
+        
+        if ($incomingInitDateTS > 0 && $incomingEndDateTS > 0 && $existingInitDateTS > 0 && $existingEndDateTS > 0) {
+            // Check if they DO NOT overlap
+            if ($incomingInitDateTS > $existingEndDateTS || $incomingEndDateTS < $existingInitDateTS) {
+                continue; // No date overlap, so no time conflict is possible.
+            }
+        }
+
         $alreadyAsignedClassSchedule = explode('/', $alreadyAsignedClass->classdays);
         $classInitTime = $alreadyAsignedClass->inittimets;
         $classEndTime = $alreadyAsignedClass->endtimets;
@@ -901,6 +923,8 @@ function update_class($classParams)
     $class->instructorid   = $classParams["instructorId"];
     $class->inittime       = $classParams["initTime"];
     $class->endtime        = $classParams["endTime"];
+    $class->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
+    $class->enddate        = isset($classParams["endDate"]) ? strtotime($classParams["endDate"]) : 0;
     $class->classdays      = $classParams["classDays"];
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
