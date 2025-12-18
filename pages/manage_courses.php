@@ -14,8 +14,6 @@ $PAGE->set_url('/local/grupomakro_core/pages/manage_courses.php');
 $PAGE->set_title('Gestión de Cursos Moderna');
 $PAGE->set_heading('Gestor Avanzado de Cursos');
 $PAGE->requires->jquery();
-$PAGE->requires->js_call_amd('core/modal_factory', 'create');
-$PAGE->requires->js_call_amd('core/modal_events', 'types');
 
 // Params
 $filter_search = optional_param('search', '', PARAM_TEXT);
@@ -345,18 +343,26 @@ if ($total_matching > 0) {
 echo '</div>'; // card-body
 echo '</div>'; // card-material
 
-// Inject JS Data
-echo '<script>window.gmkCourseData = ' . json_encode($jsCourseData) . ';</script>';
+// Inject JS Data safely
+echo '<script>
+window.gmkCourseData = ' . json_encode($jsCourseData) . ';
+console.log("GMK: Course Data Loaded", window.gmkCourseData);
+</script>';
 
-// Javascript for Moodle Modals
-echo '
-<script>
+// Javascript for Moodle Modals via proper Moodle API
+// We use js_amd_inline to ensure it runs AFTER require.js is loaded by the theme
+$js_modal_code = '
 require(["jquery", "core/modal_factory", "core/modal_events"], function($, ModalFactory, ModalEvents) {
+    console.log("GMK: AMD Modules Loaded");
+    
     $(document).ready(function() {
+        console.log("GMK: Document Ready");
         
         // Plans Modal
         $(document).on("click", ".view-plans-btn", function(e) {
             e.preventDefault();
+            console.log("GMK: Plans Clicked");
+            
             var btn = $(this);
             var courseId = btn.data("courseid");
             var courseName = btn.data("coursename");
@@ -364,6 +370,7 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
             // Fetch data from global object
             var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
             var plans = data ? data.plans : [];
+            console.log("GMK: Plans Data", plans);
 
             ModalFactory.create({
                 type: ModalFactory.types.DEFAULT,
@@ -382,12 +389,16 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
                 
                 modal.setBody(bodyHtml);
                 modal.show();
+            }).fail(function(ex) {
+                console.error("GMK: Modal Create Failed", ex);
             });
         });
 
         // Schedules Modal
         $(document).on("click", ".view-schedules-btn", function(e) {
             e.preventDefault();
+            console.log("GMK: Schedules Clicked");
+            
             var btn = $(this);
             var courseId = btn.data("courseid");
             var courseName = btn.data("coursename");
@@ -395,6 +406,7 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
             // Fetch data from global object
             var data = (window.gmkCourseData && window.gmkCourseData[courseId]) ? window.gmkCourseData[courseId] : null;
             var schedules = data ? data.schedules : [];
+            console.log("GMK: Schedules Data", schedules);
             
              ModalFactory.create({
                 type: ModalFactory.types.DEFAULT,
@@ -418,12 +430,14 @@ require(["jquery", "core/modal_factory", "core/modal_events"], function($, Modal
                 
                 modal.setBody(bodyHtml);
                 modal.show();
+            }).fail(function(ex) {
+                console.error("GMK: Modal Create Failed", ex);
             });
         });
 
     });
-});
-</script>
-';
+});';
+
+$PAGE->requires->js_amd_inline($js_modal_code);
 
 echo $OUTPUT->footer();
