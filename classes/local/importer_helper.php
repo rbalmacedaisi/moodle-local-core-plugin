@@ -56,6 +56,7 @@ class importer_helper {
             'firstname'      => $data[4],
             'lastname'       => $data[5],
             'email'          => $data[6],
+            'idnumber'       => isset($data[3]) ? $data[3] : '',
             'auth'           => 'manual',
         ];
 

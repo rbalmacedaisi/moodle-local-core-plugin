@@ -25,12 +25,12 @@ if ($action === 'download_template') {
     fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF));
     
     // Headers based on importer helper mapping
-    // [1]: DocType, [2]: DocNum/Username, [3]: ?, [4]: Name, [5]: Lastname, [6]: Email
+    // [1]: DocType, [2]: DocNum/Username, [3]: IDNumber, [4]: Name, [5]: Lastname, [6]: Email
     // [7]: Phone2, [8]: Phone1, [9]: Birthdate, [10]: Country, [11]: Address, [12]: Genre, [13]: Status, [14]: Journey
     $headers = [
         'TipoDocumento', 
         'Documento_Usuario', 
-        'Column_3_Unused', 
+        'Numero_ID', 
         'Nombres', 
         'Apellidos', 
         'Email', 
@@ -49,7 +49,7 @@ if ($action === 'download_template') {
     $example = [
         'CEDULA', 
         '8-123-456', 
-        '', 
+        '8-123-456', 
         'Juan', 
         'Perez', 
         'juan.perez@example.com', 
