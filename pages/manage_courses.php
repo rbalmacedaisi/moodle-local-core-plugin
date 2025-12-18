@@ -71,9 +71,9 @@ if ($filter_plan > 0) {
 // Filter by Schedule Status
 if ($filter_schedule_status !== -1) {
     if ($filter_schedule_status == 1) {
-        $where[] = "EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0)";
+        $where[] = "EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.corecourseid = c.id AND gc.closed = 0)";
     } else {
-        $where[] = "NOT EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0)";
+        $where[] = "NOT EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.corecourseid = c.id AND gc.closed = 0)";
     }
     $pagingurl->param('schedulestatus', $filter_schedule_status);
 }
@@ -85,8 +85,8 @@ $whereSQL = implode(" AND ", $where);
 
 // Columns for SQL
 $sql_cols = "c.id, c.fullname, c.shortname, c.idnumber, c.category, c.visible, c.startdate, c.enddate, 
-            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.courseid = c.id) as total_schedules_count,
-            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0) as active_schedules_count,
+            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.corecourseid = c.id) as total_schedules_count,
+            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.corecourseid = c.id AND gc.closed = 0) as active_schedules_count,
             (SELECT COUNT(DISTINCT ra.userid) FROM {role_assignments} ra 
              JOIN {context} ctx ON ctx.id = ra.contextid 
              WHERE ctx.instanceid = c.id AND ctx.contextlevel = 50 AND ra.roleid = 5) as student_count"; 
@@ -359,7 +359,7 @@ if ($courses) {
             $c->active_schedules = $DB->get_records_sql("
                 SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays, gc.closed, gc.initdate, gc.enddate, gc.approved
                 FROM {gmk_class} gc
-                WHERE gc.courseid = ?
+                WHERE gc.corecourseid = ?
                 ORDER BY gc.closed ASC, gc.id DESC", [$c->id]);
         } catch (\Exception $e) {
             error_log("GMK_DEBUG: Error fetching schedules for course " . $c->id . ". Likely missing columns. Error: " . $e->getMessage());
@@ -367,7 +367,7 @@ if ($courses) {
             $c->active_schedules = $DB->get_records_sql("
                 SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays, gc.closed, gc.approved
                 FROM {gmk_class} gc
-                WHERE gc.courseid = ?
+                WHERE gc.corecourseid = ?
                 ORDER BY gc.closed ASC, gc.id DESC", [$c->id]);
         }
             
