@@ -256,14 +256,14 @@ window.Vue.component('createclass', {
                         saturday: false,
                         sunday: false
                     }
-                },
-                periods: [],
-                courses: [],
-                teachers: [],
-                savingClass: false,
-                showErrorDialog: false,
-                errorMessage: undefined
+                }
             },
+            periods: [],
+            courses: [],
+            teachers: [],
+            savingClass: false,
+            showErrorDialog: false,
+            errorMessage: undefined,
             templateData
         }
     },
