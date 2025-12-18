@@ -348,11 +348,22 @@ if ($courses) {
             WHERE llc.courseid = ?", [$c->id]);
         
         // Fetch All Schedules (closed included)
-        $c->active_schedules = $DB->get_records_sql("
-            SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays, gc.closed, gc.initdate, gc.enddate, gc.approved
-            FROM {gmk_class} gc
-            WHERE gc.courseid = ?
-            ORDER BY gc.closed ASC, gc.id DESC", [$c->id]);
+        // Added Try-Catch for Robustness against DB Schema Mismatch
+        try {
+            $c->active_schedules = $DB->get_records_sql("
+                SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays, gc.closed, gc.initdate, gc.enddate, gc.approved
+                FROM {gmk_class} gc
+                WHERE gc.courseid = ?
+                ORDER BY gc.closed ASC, gc.id DESC", [$c->id]);
+        } catch (\Exception $e) {
+            error_log("GMK_DEBUG: Error fetching schedules for course " . $c->id . ". Likely missing columns. Error: " . $e->getMessage());
+            // Fallback Query without dates
+            $c->active_schedules = $DB->get_records_sql("
+                SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays, gc.closed, gc.approved
+                FROM {gmk_class} gc
+                WHERE gc.courseid = ?
+                ORDER BY gc.closed ASC, gc.id DESC", [$c->id]);
+        }
             
         // Add to JS Data
         $jsCourseData[$c->id] = [

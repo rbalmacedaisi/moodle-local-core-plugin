@@ -162,7 +162,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
         if ($incomingClassSchedule[$i] === "1" && !array_key_exists($weekdays[$i], $availabilityRecords)) {
             $errorString = "El instructor no esta disponible el día " . $weekdays[$i];
             $errors[] = $errorString;
-        } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {;
+        } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {
             $foundedAvailableRange = false;
             foreach ($availabilityRecords[$weekdays[$i]] as $timeRange) {
                 $availabilityTimestampRange = convert_time_range_to_timestamp_range(explode(', ', $timeRange));
