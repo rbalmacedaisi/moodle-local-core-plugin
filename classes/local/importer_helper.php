@@ -27,11 +27,14 @@ class importer_helper {
      * Converts an Excel date value to Unix timestamp
      */
     public static function excel_date_to_timestamp($excelDate) {
-        if (Date::isDateTime($excelDate)) {
-             return Date::excelToTimestamp($excelDate) + (24 * 3600); // Adjustment from migrate.php
-        }
-        // Fallback or simple check if it's already a timestamp or numeric
+        // If it's a numeric Excel serial date
         if (is_numeric($excelDate)) {
+             return Date::excelToTimestamp($excelDate);
+        }
+        // If it's a string date (YYYY-MM-DD or similar)
+        if (!empty($excelDate) && ($ts = strtotime($excelDate))) {
+            return $ts;
+        }
              return Date::excelToTimestamp($excelDate);
         }
         return time(); // Default or error? migrate.php used a specific logic
