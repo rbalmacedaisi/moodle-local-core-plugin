@@ -88,7 +88,6 @@ window.Vue.component('editclass', {
                         </div>
 
                          <!-- Dates Row -->
-                        <div class="row align-center px-2">
                              <div class="col-12 col-md-6 px-3">
                                  <v-menu
                                      v-model="menuInitDate"
@@ -146,7 +145,6 @@ window.Vue.component('editclass', {
                                      ></v-date-picker>
                                  </v-menu>
                              </div>
-                         </div>
                             
                         <div id="starttime-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="classInitTime">{{ lang.class_start_time }}</label>
