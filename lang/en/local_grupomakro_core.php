@@ -151,6 +151,8 @@ $string['inactiveafter_x_hours_desc'] = '
 
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Delete inactive users';
+$string['taskcloseexpiredschedules'] = 'Close expired schedules';
+$string['error_class_closed_modification'] = 'This class is closed and cannot be modified.';
 
 // Edit contract page.
 $string['editcontract'] = 'Edit Contract';

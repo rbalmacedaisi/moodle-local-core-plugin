@@ -62,9 +62,11 @@ class create_class extends external_api {
                 'periodId' => new external_value(PARAM_INT, 'Id of the period when the class is going to be dictated defined in the leaerning pland and ',VALUE_REQUIRED),
                 'courseId' => new external_value(PARAM_INT, 'Course id for the class',VALUE_REQUIRED),
                 'instructorId' => new external_value(PARAM_INT, 'Id of the class instructor',VALUE_REQUIRED),
-                'initTime' => new external_value(PARAM_TEXT, 'Init hour for the class',VALUE_REQUIRED),
-                'endTime' => new external_value(PARAM_TEXT, 'End hour of the class',VALUE_REQUIRED),
-                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
+                'initTime' => new external_value(PARAM_TEXT, 'The init time of the class'),
+                'endTime' => new external_value(PARAM_TEXT, 'The end time of the class'),
+                'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
+                'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
+                'classDays' => new external_single_structure(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
                 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
             ]
@@ -101,6 +103,8 @@ class create_class extends external_api {
             'instructorId' =>$instructorId,
             'initTime'=>$initTime,
             'endTime'=>$endTime,
+            'initDate'=>$initDate,
+            'endDate'=>$endDate,
             'classDays'=>$classDays,
             'classroomId'=>$classroomId,
             'classroomCapacity'=>$classroomCapacity

@@ -3,9 +3,9 @@ const wsurl = window.location.origin + '/webservice/rest/server.php';
 const wstoken = window.userToken;
 const wsDefaultParams = {
     wstoken,
-    moodlewsrestformat:'json'
+    moodlewsrestformat: 'json'
 }
-window.Vue.component('createclass',{
+window.Vue.component('createclass', {
     template: `
     <div class="container-fluid">   
         <div class="row">
@@ -98,6 +98,66 @@ window.Vue.component('createclass',{
                                     <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
                                     <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
                                 </div>
+                                <div class="col-12 col-md-6 px-0 pl-md-3">
+                                    <v-menu
+                                        v-model="menuEndDate"
+                                        :close-on-content-click="false"
+                                        :nudge-right="40"
+                                        transition="scale-transition"
+                                        offset-y
+                                        min-width="auto"
+                                    >
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-text-field
+                                                v-model="classData.endDate"
+                                                :label="lang.end_date"
+                                                prepend-icon="mdi-calendar"
+                                                readonly
+                                                v-bind="attrs"
+                                                v-on="on"
+                                                dense
+                                                outlined
+                                            ></v-text-field>
+                                        </template>
+                                        <v-date-picker
+                                            v-model="classData.endDate"
+                                            @input="menuEndDate = false"
+                                            locale="es-ES"
+                                        ></v-date-picker>
+                                    </v-menu>
+                                </div>
+                            </div>
+
+                            <div class="row align-center">
+                                <div class="col-12 col-md-6 px-0 pr-md-3">
+                                      <v-menu
+                                        v-model="menuInitDate"
+                                        :close-on-content-click="false"
+                                        :nudge-right="40"
+                                        transition="scale-transition"
+                                        offset-y
+                                        min-width="auto"
+                                    >
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-text-field
+                                                v-model="classData.initDate"
+                                                :label="lang.init_date"
+                                                prepend-icon="mdi-calendar"
+                                                readonly
+                                                v-bind="attrs"
+                                                v-on="on"
+                                                dense
+                                                outlined
+                                            ></v-text-field>
+                                        </template>
+                                        <v-date-picker
+                                            v-model="classData.initDate"
+                                            @input="menuInitDate = false"
+                                            locale="es-ES"
+                                        ></v-date-picker>
+                                    </v-menu>
+                                </div>
+
                                 <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
                                     <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
                                     <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
@@ -168,257 +228,263 @@ window.Vue.component('createclass',{
         <errormodal :show="showErrorDialog" :message="errorMessage" @close="closeErrorDialog"/>
     </div>
     `,
-    name:'create-class',
-    data(){
-        return{
-            classData:{
+    name: 'create-class',
+    data() {
+        return {
+            menuInitDate: false,
+            menuEndDate: false,
+            classData: {
                 name: undefined,
                 type: undefined,
-                classRoomIndex:undefined,
-                learningPlanId:undefined,
-                periodId:undefined, 
-                courseId:undefined, 
-                teacherIndex:undefined,
-                initTime:undefined,
-                endTime:undefined, 
-                classDays:{
-                    monday:false,
-                    tuesday:false,
-                    wednesday:false,
-                    thursday:false,
-                    friday:false,
-                    saturday:false,
-                    sunday:false
+                classRoomIndex: undefined,
+                learningPlanId: undefined,
+                periodId: undefined,
+                courseId: undefined,
+                teacherIndex: undefined,
+                teacherIndex: undefined,
+                initTime: undefined,
+                endTime: undefined,
+                initDate: new Date().toISOString().substr(0, 10), // Default to today
+                endDate: new Date(new Date().setMonth(new Date().getMonth() + 2)).toISOString().substr(0, 10), // Default +2 months
+                classDays: {
+                    classDays: {
+                        monday: false,
+                        tuesday: false,
+                        wednesday: false,
+                        thursday: false,
+                        friday: false,
+                        saturday: false,
+                        sunday: false
+                    }
+                },
+                periods: [],
+                courses: [],
+                teachers: [],
+                savingClass: false,
+                showErrorDialog: false,
+                errorMessage: undefined,
+                templateData
+            }
+        },
+            methods: {
+        async handleLearningPlanChange(){
+                const learningPlanId = this.classData.learningPlanId
+                if (!learningPlanId) {
+                    return;
+                }
+                try {
+
+                    let { data } = await window.axios.get(wsurl, { params: this.getLearningPlanPeriodsParameters })
+                    let { periods } = data
+                    periods = JSON.parse(periods)
+                    this.periods = periods.map(period => ({ label: period.name, value: period.id }))
+                    if (!learningPlanId) {
+                        this.periods = [];
+                        this.classData.teacherIndex = undefined;
+                        this.teachers = [];
+                    }
+                    this.classData.periodId = undefined
+                    this.classData.courseId = undefined
+                    this.courses = [];
+                    this.getPotentialTeachers()
+                }
+                catch (error) {
+                    console.error(error)
                 }
             },
-            periods:[],
-            courses:[],
-            teachers:[],
-            savingClass:false,
-            showErrorDialog:false,
-            errorMessage:undefined,
-            templateData
-        }
-    },
-    methods:{
-        async handleLearningPlanChange(){
-            const learningPlanId = this.classData.learningPlanId
-            if (!learningPlanId) {
-                return;
-            }
-            try{
-                
-                let {data} =await window.axios.get(wsurl, { params:this.getLearningPlanPeriodsParameters })
-                let {periods} = data
-                periods = JSON.parse(periods)
-                this.periods=periods.map(period=>({label:period.name,value:period.id}))
-                if (!learningPlanId){
-                    this.periods = [];
-                    this.classData.teacherIndex = undefined;
-                    this.teachers = [];
-                }
-                this.classData.periodId = undefined
-                this.classData.courseId = undefined
-                this.courses = [];
-                this.getPotentialTeachers()
-            }
-            catch(error){
-                console.error(error)
-            }
-        },
         async handleLearningPlanPeriodChange(){
-            if (!this.classData.periodId) {
-                this.getPotentialTeachers()
-                return;
-            }
-            try{
-                let {data} =await window.axios.get(wsurl, { params:this.getLearningPlanPeriodCoursesParameters })
-                let {courses} = data
-                courses = JSON.parse(courses)
-                this.classData.courseId = undefined
-                this.courses=courses.map(course=>({label:course.name,value:course.id}))
-            }
-            catch(error){
-                console.error(error)
-            }
-        },
+                if (!this.classData.periodId) {
+                    this.getPotentialTeachers()
+                    return;
+                }
+                try {
+                    let { data } = await window.axios.get(wsurl, { params: this.getLearningPlanPeriodCoursesParameters })
+                    let { courses } = data
+                    courses = JSON.parse(courses)
+                    this.classData.courseId = undefined
+                    this.courses = courses.map(course => ({ label: course.name, value: course.id }))
+                }
+                catch (error) {
+                    console.error(error)
+                }
+            },
         // Fetches a list of teachers based on specified parameters.
         async getPotentialTeachers(){
-            if(!this.classData.learningPlanId){
-                return;
-            }
-            const selectedTeacherId = this.selectedClassTeacher?.id
-            try{
-                let {data} =await window.axios.get(wsurl, { params:this.getPotentialTeachersParameters })
-                let {teachers} = data;
-                teachers = JSON.parse(teachers)
-                this.teachers = teachers.map(teacher=>({email:teacher.email,fullname:teacher.fullname,id:teacher.id}))
-                this.classData.teacherIndex = selectedTeacherId? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
-            }
-            catch(error){
-                console.error(error)
-            }
-        },
+                if (!this.classData.learningPlanId) {
+                    return;
+                }
+                const selectedTeacherId = this.selectedClassTeacher?.id
+                try {
+                    let { data } = await window.axios.get(wsurl, { params: this.getPotentialTeachersParameters })
+                    let { teachers } = data;
+                    teachers = JSON.parse(teachers)
+                    this.teachers = teachers.map(teacher => ({ email: teacher.email, fullname: teacher.fullname, id: teacher.id }))
+                    this.classData.teacherIndex = selectedTeacherId ? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
+                }
+                catch (error) {
+                    console.error(error)
+                }
+            },
         async saveClass(){
-            
-            if(!this.validateClassInputs()){
-                return;
-            }
-            this.savingClass = true;
-            
-            try{
-                let {data} =await window.axios.get(wsurl, { params:this.saveClassParameters });
-                let {status, message,exception} = data;
-                if(status === -1){
-                    throw new Error(JSON.parse(message).join('\n'));
+
+                if (!this.validateClassInputs()) {
+                    return;
                 }
-                else if(exception){
-                    throw new Error(message);
+                this.savingClass = true;
+
+                try {
+                    let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
+                    let { status, message, exception } = data;
+                    if (status === -1) {
+                        throw new Error(JSON.parse(message).join('\n'));
+                    }
+                    else if (exception) {
+                        throw new Error(message);
+                    }
+                    this.savingClass = false
+                    this.returnToClassManagement()
                 }
-                this.savingClass = false
-                this.returnToClassManagement()
-            }
-            catch(error){
-                console.error(error)
-                this.errorMessage = error.message;
-                this.showErrorDialog = true;
-                this.savingClass = false;
-            }
+                catch (error) {
+                    console.error(error)
+                    this.errorMessage = error.message;
+                    this.showErrorDialog = true;
+                    this.savingClass = false;
+                }
+            },
+            validateClassInputs(){
+                this.$refs.classEndTime.setCustomValidity('');
+                const valid = this.classInputs.every(input => {
+                    return input.reportValidity();
+                });
+                if (!valid) {
+                    return false
+                }
+                if (!this.validTimeRange) {
+                    this.$refs.classEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
+                    this.$refs.classEndTime.reportValidity();
+                    return false
+                }
+                if (this.classDaysString === '0/0/0/0/0/0/0') {
+                    this.$refs.switchMonday.setCustomValidity('Se debe seleccionar al menos un día de clase.')
+                    this.$refs.switchMonday.reportValidity();
+                    return false
+                }
+                if (!this.selectedClassTeacher) {
+                    this.$refs.hiddenTeacherInput.setCustomValidity('Se debe seleccionar un instructor.')
+                    this.$refs.hiddenTeacherInput.reportValidity();
+                    return false
+                }
+                return true
+            },
+            closeErrorDialog(){
+                this.errorMessage = undefined;
+                this.showErrorDialog = false;
+            },
+            /**
+             * Redirect to the specified URL when cancel action is triggered.
+             */
+            returnToClassManagement(){
+                // Redirect the user to the '/local/grupomakro_core/pages/classmanagement.php' URL
+                window.location = '/local/grupomakro_core/pages/classmanagement.php'
+            },
         },
-        validateClassInputs(){
-            this.$refs.classEndTime.setCustomValidity('');
-            const valid = this.classInputs.every(input => {
-                return input.reportValidity();
-            });
-            if(!valid){
-                return false
-            }
-            if(!this.validTimeRange){
-                this.$refs.classEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
-                this.$refs.classEndTime.reportValidity();
-                return false
-            }
-            if(this.classDaysString === '0/0/0/0/0/0/0'){
-                this.$refs.switchMonday.setCustomValidity('Se debe seleccionar al menos un día de clase.')
-                this.$refs.switchMonday.reportValidity();
-                return false
-            }
-            if(!this.selectedClassTeacher){
-                this.$refs.hiddenTeacherInput.setCustomValidity('Se debe seleccionar un instructor.')
-                this.$refs.hiddenTeacherInput.reportValidity();
-                return false
-            }
-            return true
+        computed: {
+            classInputs(){
+                return [
+                    this.$refs.className,
+                    this.$refs.classType,
+                    this.$refs.classRoom,
+                    this.$refs.classLearningPlan,
+                    this.$refs.classPeriod,
+                    this.$refs.classCourse,
+                    this.$refs.classInitTime,
+                    this.$refs.classEndTime
+                ]
+            },
+            getLearningPlanPeriodsParameters(){
+                return {
+                    ...wsDefaultParams,
+                    wsfunction: 'local_sc_learningplans_get_learning_plan_periods',
+                    learningPlanId: this.classData.learningPlanId
+                }
+            },
+            getLearningPlanPeriodCoursesParameters(){
+                return {
+                    ...wsDefaultParams,
+                    wsfunction: 'local_sc_learningplans_get_learning_plan_courses',
+                    learningPlanId: this.classData.learningPlanId,
+                    periodId: this.classData.periodId
+                }
+            },
+            getPotentialTeachersParameters(){
+                return {
+                    ...wsDefaultParams,
+                    wsfunction: 'local_grupomakro_get_potential_class_teachers',
+                    courseId: this.classData.courseId,
+                    initTime: this.classData.initTime,
+                    endTime: this.classData.endTime,
+                    classDays: this.classDaysString,
+                    learningPlanId: this.classData.learningPlanId,
+                    classId: this.classData.id,
+                }
+            },
+            selectedClassTeacher(){
+                return this.teachers[this.classData.teacherIndex]
+            },
+            showClassRoomSelector(){
+                return this.classData.type === 0;
+            },
+            saveClassParameters(){
+                const { name, type, learningPlanId, periodId, courseId, initTime, endTime } = this.classData
+                return {
+                    ...wsDefaultParams,
+                    wsfunction: 'local_grupomakro_create_class',
+                    name,
+                    type,
+                    learningPlanId,
+                    periodId,
+                    courseId,
+                    instructorId: this.selectedClassTeacher?.id,
+                    initTime,
+                    endTime,
+                    classDays: this.classDaysString,
+                    classroomId: this.selectedClassRoom?.value,
+                    classroomCapacity: this.selectedClassRoom?.capacity
+                }
+            },
+            validTimeRange(){
+                return this.classData.initTime < this.classData.endTime
+            },
+            selectedClassRoom(){
+                return this.templateData.classRooms[this.classData.classRoomIndex]
+            },
+            /**
+             * A computed property that returns language-related data from the 'window.strings' object.
+             * It allows access to language strings for localization purposes.
+             *
+             * @returns '{object}' - Language-related data.
+             */
+            lang(){
+                return window.strings;
+            },
+            /**
+             * Computed property that generates a string representation of selected days.
+             */
+            classDaysString() {
+                const classDays = this.classData.classDays
+                const days = [
+                    classDays.monday ? '1' : '0',
+                    classDays.tuesday ? '1' : '0',
+                    classDays.wednesday ? '1' : '0',
+                    classDays.thursday ? '1' : '0',
+                    classDays.friday ? '1' : '0',
+                    classDays.saturday ? '1' : '0',
+                    classDays.sunday ? '1' : '0',
+                ];
+                return days.join('/');
+            },
         },
-        closeErrorDialog(){
-            this.errorMessage = undefined;
-            this.showErrorDialog=false;
-        },
-        /**
-         * Redirect to the specified URL when cancel action is triggered.
-         */
-        returnToClassManagement(){
-            // Redirect the user to the '/local/grupomakro_core/pages/classmanagement.php' URL
-            window.location = '/local/grupomakro_core/pages/classmanagement.php'
-        },
+        watch: {
+            classDaysString: 'getPotentialTeachers',
     },
-    computed:{
-        classInputs(){
-            return [
-                this.$refs.className,
-                this.$refs.classType,
-                this.$refs.classRoom,
-                this.$refs.classLearningPlan,
-                this.$refs.classPeriod,
-                this.$refs.classCourse,
-                this.$refs.classInitTime,
-                this.$refs.classEndTime
-            ]  
-        },
-        getLearningPlanPeriodsParameters(){
-            return {
-                ...wsDefaultParams,
-                wsfunction:'local_sc_learningplans_get_learning_plan_periods',
-                learningPlanId: this.classData.learningPlanId
-            }
-        },
-        getLearningPlanPeriodCoursesParameters(){
-            return {
-                ...wsDefaultParams,
-                wsfunction:'local_sc_learningplans_get_learning_plan_courses',
-                learningPlanId: this.classData.learningPlanId,
-                periodId:this.classData.periodId
-            }
-        },
-        getPotentialTeachersParameters(){
-            return {
-                ...wsDefaultParams,
-                wsfunction:'local_grupomakro_get_potential_class_teachers',
-                courseId:this.classData.courseId,
-                initTime:this.classData.initTime,
-                endTime:this.classData.endTime,
-                classDays:this.classDaysString,
-                learningPlanId:this.classData.learningPlanId,
-                classId:this.classData.id,
-            }
-        },
-        selectedClassTeacher(){
-          return this.teachers[this.classData.teacherIndex]  
-        },
-        showClassRoomSelector(){
-            return this.classData.type === 0;
-        },
-        saveClassParameters(){
-            const {name,type,learningPlanId,periodId,courseId,initTime,endTime}=this.classData
-            return {
-                ...wsDefaultParams,
-                wsfunction:'local_grupomakro_create_class',
-                name,
-                type,
-                learningPlanId,
-                periodId,
-                courseId,
-                instructorId: this.selectedClassTeacher?.id,
-                initTime,
-                endTime,
-                classDays: this.classDaysString,
-                classroomId:this.selectedClassRoom?.value,
-                classroomCapacity:this.selectedClassRoom?.capacity
-            }
-        },
-        validTimeRange(){
-            return this.classData.initTime < this.classData.endTime
-        },
-        selectedClassRoom(){
-            return this.templateData.classRooms[this.classData.classRoomIndex]  
-        },
-        /**
-         * A computed property that returns language-related data from the 'window.strings' object.
-         * It allows access to language strings for localization purposes.
-         *
-         * @returns '{object}' - Language-related data.
-         */
-        lang(){
-            return window.strings;
-        },
-        /**
-         * Computed property that generates a string representation of selected days.
-         */
-        classDaysString() {
-            const classDays = this.classData.classDays
-            const days = [
-                classDays.monday ? '1' : '0',
-                classDays.tuesday ? '1' : '0',
-                classDays.wednesday ? '1' : '0',
-                classDays.thursday ? '1' : '0',
-                classDays.friday ? '1' : '0',
-                classDays.saturday ? '1' : '0',
-                classDays.sunday ? '1' : '0',
-            ];
-            return days.join('/');
-        },
-    },
-    watch: {
-        classDaysString:'getPotentialTeachers',
-    },
-})
+    })

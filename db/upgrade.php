@@ -805,6 +805,31 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20240102001, 'local', 'grupomakro_core');
     }
     
+    if ($oldversion < 20240709005) {
+
+        // Define table gmk_class to be updated.
+        $table = new xmldb_table('gmk_class');
+
+        // Define field initdate to be added to gmk_class.
+        $field = new xmldb_field('initdate', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'closed');
+
+        // Conditionally launch add field initdate.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Define field enddate to be added to gmk_class.
+        $field = new xmldb_field('enddate', XMLDB_TYPE_INTEGER, '10', null, null, null, '0', 'initdate');
+        
+        // Conditionally launch add field enddate.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20240709005, 'local', 'grupomakro_core');
+    }
+    
     if ($oldversion < 20240116000) {
 
         // Define field usermodified to be added to gmk_academic_calendar.

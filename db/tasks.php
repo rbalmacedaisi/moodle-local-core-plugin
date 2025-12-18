@@ -32,4 +32,13 @@ $tasks = [
         'month' => '*',
         'dayofweek' => '*',
     ],
+    [
+        'classname' => 'local_grupomakro_core\task\close_expired_schedules',
+        'blocking' => 0,
+        'minute' => '0',
+        'hour' => '1',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
 ];

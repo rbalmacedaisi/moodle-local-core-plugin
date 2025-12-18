@@ -380,6 +380,8 @@ function create_class($classParams)
         $newClass->instructorid   = $classParams["instructorId"];
         $newClass->inittime       = $classParams["initTime"];
         $newClass->endtime        = $classParams["endTime"];
+        $newClass->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
+        $newClass->enddate        = isset($classParams["endDate"]) ? strtotime($classParams["endDate"]) : 0;
         $newClass->classdays      = $classParams["classDays"];
         $newClass->classroomid    = $classParams["classroomId"];
         $newClass->classroomcapacity = $classParams["classroomCapacity"];
@@ -447,6 +449,12 @@ function create_class_section($class)
 function delete_class($classId, $reason =  null)
 {
     global $DB, $USER;
+
+    // Check if class is closed
+    if (is_class_closed($classId)) {
+        throw new \moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
+    }
+
     $class = $DB->get_record('gmk_class', ['id' => $classId]);
 
     if ($class->gradecategoryid) {
@@ -716,6 +724,11 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
 
     global $DB;
 
+    // Check if class is closed
+    if (is_class_closed($class->id)) {
+        throw new \moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
+    }
+
     $attendanceCourseModule = get_coursemodule_from_id('attendance', $moduleId, 0, false, MUST_EXIST);
     $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
     $context = \context_module::instance($attendanceCourseModule->id);
@@ -871,6 +884,12 @@ function get_class_course_info($coreCourseId)
 function update_class($classParams)
 {
     global $DB, $USER;
+    
+    // Check if class is closed
+    if (is_class_closed($classParams['classId'])) {
+        throw new \moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
+    }
+    
     $class = $DB->get_record('gmk_class', ['id' => $classParams['classId']]);
     $classOldInstructorId = $class->instructorid;
 
@@ -3151,4 +3170,38 @@ function get_manual_enroll($courseid)
         }
     }
     return false;
+}
+
+/**
+ * Check if a class is closed.
+ *
+ * @param int $classId The class ID.
+ * @return bool True if closed, false otherwise.
+ */
+function is_class_closed($classId) {
+    global $DB;
+    return (bool) $DB->get_field('gmk_class', 'closed', ['id' => $classId]);
+}
+
+/**
+ * Toggle the lock status of the grade category associated with a class.
+ *
+ * @param int $classId The class ID.
+ * @param bool $locked True to lock, false to unlock.
+ * @return void
+ */
+function toggle_class_grade_lock($classId, $locked) {
+    global $DB;
+    
+    $class = $DB->get_record('gmk_class', ['id' => $classId]);
+    if (!$class || empty($class->gradecategoryid)) {
+        return;
+    }
+
+    require_once($GLOBALS['CFG']->libdir . '/gradelib.php');
+    
+    $grade_category = \grade_category::fetch(['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid]);
+    if ($grade_category) {
+        $grade_category->set_locked($locked);
+    }
 }

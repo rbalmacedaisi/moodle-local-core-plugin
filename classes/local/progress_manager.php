@@ -277,6 +277,22 @@ class local_grupomakro_progress_manager
         return $DB->update_record('gmk_course_progre', $courseProgress);;
     }
 
+    public static function unassign_class_from_course_progress($userId, $class)
+    {
+        global $DB;
+        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid]);
+        if ($courseProgress) {
+            $courseProgress->classid = 0; // Or null if allowed, but assign uses integer
+            $courseProgress->groupid = 0;
+            $courseProgress->progress = 0;
+            $courseProgress->grade = 0;
+            $courseProgress->status = COURSE_AVAILABLE; 
+
+            return $DB->update_record('gmk_course_progre', $courseProgress);
+        }
+        return false;
+    }
+
     public static function get_revalids_for_user($userId)
     {
         global $DB;
