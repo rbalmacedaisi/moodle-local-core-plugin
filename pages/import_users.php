@@ -156,11 +156,9 @@ if ($mform->is_cancelled()) {
             // Add to Log Array
             $logData[] = [$row, $verifyUsername, $status, strip_tags($msg)];
 
-            // Create cell objects properly
-            $statusCell = new html_table_cell($status);
-            $statusCell->attributes = ['class' => $class];
-            
-            $table->data[] = new html_table_row([$row, $verifyUsername, $statusCell, $msg]);
+            // Use Array syntax for maximum compatibility
+            $statusCell = ['data' => $status, 'class' => $class];
+            $table->data[] = [$row, $verifyUsername, $statusCell, $msg];
         }
 
         echo html_writer::table($table);
