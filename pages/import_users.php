@@ -149,12 +149,13 @@ if ($mform->is_cancelled()) {
                 }
             } catch (Exception $e) {
                 $status = 'Error';
-                $msg = property_exists($e, 'debuginfo') ? $e->debuginfo : $e->getMessage();
+                $debugInfo = property_exists($e, 'debuginfo') ? $e->debuginfo : '';
+                $msg = get_class($e) . ': ' . $e->getMessage() . ' ' . $debugInfo;
                 $class = 'text-danger';
             }
 
             // Add to Log Array
-            $logData[] = [$row, $verifyUsername, $status, strip_tags($msg)];
+            $logData[] = [$row, $verifyUsername, $status, $msg];
 
             // Use Object syntax for cells with attributes (Correct Moodle Way)
             $statusCell = new html_table_cell($status);
@@ -175,15 +176,18 @@ if ($mform->is_cancelled()) {
         }
         fclose($csvFile);
 
+        $reloadUrl = new moodle_url('/local/grupomakro_core/pages/import_users.php');
         echo '<div class="mt-3 text-center">';
         echo '  <a href="?action=download_log&logid='.$logId.'" class="btn btn-warning btn-lg"><i class="fa fa-download"></i> Descargar Log de Resultados (CSV)</a>';
+        echo '  <br><br>';
+        echo '  <a href="'.$reloadUrl.'" class="btn btn-primary">Continuar / Subir otro archivo</a>';
         echo '</div>';
-
+    
     } catch (Exception $e) {
         echo $OUTPUT->notification('Error crítico: ' . $e->getMessage(), 'error');
     }
 
-    echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_users.php'));
+    // echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_users.php'));
 
 } else {
     echo '<div class="mb-3"><a href="?action=download_template" class="btn btn-outline-secondary"><i class="fa fa-download"></i> Descargar Plantilla CSV de Ejemplo</a></div>';
