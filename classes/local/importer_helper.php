@@ -35,8 +35,7 @@ class importer_helper {
         if (!empty($excelDate) && ($ts = strtotime($excelDate))) {
             return $ts;
         }
-             return Date::excelToTimestamp($excelDate);
-        }
+
         return time(); // Default or error? migrate.php used a specific logic
     }
 
