@@ -27,6 +27,13 @@ $action = optional_param('action', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = 20;
 
+// Set Params to URL for Persistence in Pagination
+if ($filter_search !== '') $PAGE->url->param('search', $filter_search);
+if ($filter_category > 0) $PAGE->url->param('category', $filter_category);
+if ($filter_visible !== -1) $PAGE->url->param('visible', $filter_visible);
+if ($filter_plan > 0) $PAGE->url->param('plan', $filter_plan);
+if ($filter_schedule_status !== -1) $PAGE->url->param('schedulestatus', $filter_schedule_status);
+
 // Context for SQL
 $context = context_system::instance();
 
@@ -314,17 +321,18 @@ if ($total_matching > 0) {
         
         // Plans Data
         $plansCount = count($c->plans);
-        $plansAttr = htmlspecialchars(json_encode(array_values($c->plans)), ENT_QUOTES, 'UTF-8');
+        // Ensure strictly valid JSON compatible with HTML attribute
+        $plansAttr = htmlspecialchars(json_encode(array_values($c->plans), JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
         $plansBtnClass = $plansCount > 0 ? 'btn-info' : 'btn-light disabled';
-        $plansBtn = '<button class="btn btn-sm '.$plansBtnClass.' view-plans-btn" data-plans="'.$plansAttr.'" data-course="'.s($c->fullname).'">
+        $plansBtn = '<button type="button" class="btn btn-sm '.$plansBtnClass.' view-plans-btn" data-plans="'.$plansAttr.'" data-course="'.s($c->fullname).'">
                         <i class="mdi mdi-book-open-variant"></i> '.$plansCount.'
                      </button>';
 
         // Schedules Data
         $schedulesCount = count($c->active_schedules);
-        $schedulesAttr = htmlspecialchars(json_encode(array_values($c->active_schedules)), ENT_QUOTES, 'UTF-8');
+        $schedulesAttr = htmlspecialchars(json_encode(array_values($c->active_schedules), JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8');
         $schedulesBtnClass = $schedulesCount > 0 ? 'btn-success' : 'btn-light disabled';
-        $schedulesBtn = '<button class="btn btn-sm '.$schedulesBtnClass.' view-schedules-btn" data-schedules="'.$schedulesAttr.'" data-course="'.s($c->fullname).'">
+        $schedulesBtn = '<button type="button" class="btn btn-sm '.$schedulesBtnClass.' view-schedules-btn" data-schedules="'.$schedulesAttr.'" data-course="'.s($c->fullname).'">
                             <i class="mdi mdi-calendar-clock"></i> '.$schedulesCount.'
                          </button>';
 
@@ -409,10 +417,12 @@ echo '
 <script>
 require(["jquery"], function($) {
     $(document).ready(function() {
-        // View Plans Click
-        $(".view-plans-btn").on("click", function() {
-            var plans = $(this).data("plans");
-            var course = $(this).data("course");
+        // Use event delegation for reliability since buttons might be dynamically managed or just for best practice
+        $(document).on("click", ".view-plans-btn", function(e) {
+            e.preventDefault(); // Prevent default link behavior if any form submission implied
+            var btn = $(this);
+            var plans = btn.data("plans");
+            var course = btn.data("course");
             
             $("#plansModalCourseName").text("Curso: " + course);
             var list = $("#plansList");
@@ -429,10 +439,11 @@ require(["jquery"], function($) {
             $("#plansModal").modal("show");
         });
 
-        // View Schedules Click
-        $(".view-schedules-btn").on("click", function() {
-            var schedules = $(this).data("schedules");
-            var course = $(this).data("course");
+        $(document).on("click", ".view-schedules-btn", function(e) {
+            e.preventDefault();
+            var btn = $(this);
+            var schedules = btn.data("schedules");
+            var course = btn.data("course");
             
             $("#schedulesModalCourseName").text("Curso: " + course);
             var list = $("#schedulesList");
@@ -440,8 +451,6 @@ require(["jquery"], function($) {
             
             if (schedules && schedules.length > 0) {
                 $.each(schedules, function(i, sch) {
-                    // Assuming classdays format "1/0/1/..." mapping to Mon/Tue...
-                    // Simple output for now
                     list.append("<div class=\'list-group-item list-group-item-action flex-column align-items-start\'>" +
                                 "<div class=\'d-flex w-100 justify-content-between\'>" +
                                 "<h6 class=\'mb-1\'>" + sch.name + "</h6>" +
@@ -459,5 +468,6 @@ require(["jquery"], function($) {
 });
 </script>
 ';
+
 
 echo $OUTPUT->footer();
