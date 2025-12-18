@@ -163,6 +163,8 @@ $strings->thursday = get_string('thursday', $plugin_name);
 $strings->friday = get_string('friday', $plugin_name);
 $strings->saturday = get_string('saturday', $plugin_name);
 $strings->sunday = get_string('sunday', $plugin_name);
+$strings->init_date = get_string('init_date', $plugin_name);
+$strings->end_date = get_string('end_date', $plugin_name);
 
 
 $strings->cancel = get_string('cancel', $plugin_name);
