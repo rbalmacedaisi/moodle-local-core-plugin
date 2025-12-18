@@ -66,7 +66,7 @@ class create_class extends external_api {
                 'endTime' => new external_value(PARAM_TEXT, 'The end time of the class'),
                 'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
-                'classDays' => new external_single_structure(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
+                'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
                 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
             ]
@@ -88,6 +88,8 @@ class create_class extends external_api {
         int $instructorId,
         string $initTime,
         string $endTime,
+        string $initDate = '',
+        string $endDate = '',
         string $classDays,
         string $classroomId=null,
         int $classroomCapacity=40
