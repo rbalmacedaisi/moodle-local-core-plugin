@@ -76,29 +76,38 @@ window.Vue.component('createclass', {
                                 <input v-model="classData.endTime" ref="classEndTime" type="time" class="form-control" id="classEndTime" required @change="getPotentialTeachers">
                             </div>
                           
-                            <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
-                                <div class="col-12 pb-0">
-                                    <label>{{lang.class_days}}</label>
+                            <!-- Dates Row -->
+                            <div class="row align-center px-2">
+                                <div class="col-12 col-md-6 px-3">
+                                    <v-menu
+                                        v-model="menuInitDate"
+                                        :close-on-content-click="false"
+                                        :nudge-right="40"
+                                        transition="scale-transition"
+                                        offset-y
+                                        min-width="auto"
+                                    >
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-text-field
+                                                v-model="classData.initDate"
+                                                :label="lang.init_date"
+                                                prepend-icon="mdi-calendar"
+                                                readonly
+                                                v-bind="attrs"
+                                                v-on="on"
+                                                dense
+                                                outlined
+                                            ></v-text-field>
+                                        </template>
+                                        <v-date-picker
+                                            v-model="classData.initDate"
+                                            @input="menuInitDate = false"
+                                            locale="es-ES"
+                                        ></v-date-picker>
+                                    </v-menu>
                                 </div>
-                            
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
-                                    <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
-                                </div>
-                                
-                                <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
-                                    <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                    <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
-                                    <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
-                                </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4">
-                                    <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
-                                    <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
-                                </div>
-                                <div class="col-12 col-md-6 px-0 pl-md-3">
+
+                                <div class="col-12 col-md-6 px-3">
                                     <v-menu
                                         v-model="menuEndDate"
                                         :close-on-content-click="false"
@@ -128,45 +137,39 @@ window.Vue.component('createclass', {
                                 </div>
                             </div>
 
-                            <div class="row align-center">
-                                <div class="col-12 col-md-6 px-0 pr-md-3">
-                                      <v-menu
-                                        v-model="menuInitDate"
-                                        :close-on-content-click="false"
-                                        :nudge-right="40"
-                                        transition="scale-transition"
-                                        offset-y
-                                        min-width="auto"
-                                    >
-                                        <template v-slot:activator="{ on, attrs }">
-                                            <v-text-field
-                                                v-model="classData.initDate"
-                                                :label="lang.init_date"
-                                                prepend-icon="mdi-calendar"
-                                                readonly
-                                                v-bind="attrs"
-                                                v-on="on"
-                                                dense
-                                                outlined
-                                            ></v-text-field>
-                                        </template>
-                                        <v-date-picker
-                                            v-model="classData.initDate"
-                                            @input="menuInitDate = false"
-                                            locale="es-ES"
-                                        ></v-date-picker>
-                                    </v-menu>
+                            <!-- Days Row -->
+                            <div id="days-fieldset" class="row form-group py-2 mx-0 px-2">
+                                <div class="col-12 pb-2">
+                                    <label>{{lang.class_days}}</label>
                                 </div>
-
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
+                            
+                                <div class="custom-control custom-switch col-6 col-md-3">
+                                    <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
+                                    <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
+                                </div>
+                                
+                                <div class="custom-control custom-switch col-6 col-md-3">
+                                    <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
+                                    <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
+                                </div>
+                                <div class="custom-control custom-switch col-6 col-md-3">
+                                    <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
+                                    <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
+                                </div>
+                                <div class="custom-control custom-switch col-6 col-md-3">
+                                    <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
+                                    <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
+                                </div>
+                                
+                                <div class="custom-control custom-switch col-6 col-md-3">
                                     <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
                                     <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4">
+                                <div class="custom-control custom-switch col-6 col-md-3">
                                     <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
                                     <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
                                 </div>
-                                <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
+                                <div class="custom-control custom-switch col-6 col-md-3">
                                     <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
                                     <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
                                 </div>
