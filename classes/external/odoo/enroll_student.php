@@ -4,7 +4,7 @@ namespace local_grupomakro_core\external\odoo;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/local/sc_learningplans/classes/external/user/add_learning_user.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/user/add_learning_user.php');
 
 use external_api;
 use external_function_parameters;

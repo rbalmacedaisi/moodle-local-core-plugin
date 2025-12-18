@@ -5,7 +5,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir . '/externallib.php');
 // Assuming delete_learning_user.php exists based on file listing
-require_once($CFG->dirroot . '/local/sc_learningplans/classes/external/user/delete_learning_user.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/external/user/delete_learning_user.php');
 
 use external_api;
 use external_function_parameters;
