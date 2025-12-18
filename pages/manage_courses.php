@@ -13,11 +13,16 @@ if (!is_siteadmin()) {
 $PAGE->set_url('/local/grupomakro_core/pages/manage_courses.php');
 $PAGE->set_title('Gestión de Cursos Moderna');
 $PAGE->set_heading('Gestor Avanzado de Cursos');
+$PAGE->requires->jquery();
+$PAGE->requires->js_call_amd('core/modal_factory', 'create');
+$PAGE->requires->js_call_amd('core/modal_events', 'types');
 
 // Params
 $filter_search = optional_param('search', '', PARAM_TEXT);
 $filter_category = optional_param('category', 0, PARAM_INT);
 $filter_visible = optional_param('visible', -1, PARAM_INT); // -1 all, 1 yes, 0 no
+$filter_plan = optional_param('plan', 0, PARAM_INT);
+$filter_schedule_status = optional_param('schedulestatus', -1, PARAM_INT); // -1 All, 1 Active, 0 Inactive
 $action = optional_param('action', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = 20;
@@ -46,20 +51,44 @@ if ($filter_visible !== -1) {
     $params['vis'] = $filter_visible;
 }
 
+// Filter by Learning Plan
+if ($filter_plan > 0) {
+    // We need to join local_learning_courses
+    // Since we are building the main query later, we can check existence here
+    // or add a subquery condition.
+    $where[] = "EXISTS (SELECT 1 FROM {local_learning_courses} llc WHERE llc.courseid = c.id AND llc.learningplanid = :planid)";
+    $params['planid'] = $filter_plan;
+}
+
+// Filter by Schedule Status
+if ($filter_schedule_status !== -1) {
+    if ($filter_schedule_status == 1) {
+        // Has active schedules (closed = 0)
+        $where[] = "EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0)";
+    } else {
+        // No active schedules
+        $where[] = "NOT EXISTS (SELECT 1 FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0)";
+    }
+}
+
 $whereSQL = implode(" AND ", $where);
 
 // Columns for SQL
-// Subquery for Student Count (Role = 5 usually, but checking all roles or context users is safer fallback, let's use enrolments count if possible or RA)
-// Using role_assignments on course context (50) for 'student' role logic is complex identifying which id is student.
-// Let's use a generic count of role assignments for now or specific if specific role known.
-// Creating a subquery for gmk_class count and role_assignments count.
-// Optimization: Moodle 'course' table doesn't have student count.
+// 1. Schedules Count
+// 2. Students Count
+// 3. Learning Plans (Concatenated names) - Using specific SQL for compatibility or just fetching later to avoid complex group_concat limitations across DBs
+// 4. Active Schedules names - Similar approach.
+
+// Let's stick to basic counts in the main query and maybe fetching details for the viewed page only to keep it clean, 
+// OR use subqueries for the list names if supported. Moodle $DB abstracting makes GROUP_CONCAT tricky sometimes.
+// Strategy: Fetch the Page courses first, then fetch their specific metadata in a separate targeted query or loop (loop is fine for 20 items).
+
 $sql_cols = "c.id, c.fullname, c.shortname, c.idnumber, c.category, c.visible, c.startdate, c.enddate, 
-            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.courseid = c.id) as schedules_count,
+            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.courseid = c.id) as total_schedules_count,
+            (SELECT COUNT(gc.id) FROM {gmk_class} gc WHERE gc.courseid = c.id AND gc.closed = 0) as active_schedules_count,
             (SELECT COUNT(DISTINCT ra.userid) FROM {role_assignments} ra 
              JOIN {context} ctx ON ctx.id = ra.contextid 
              WHERE ctx.instanceid = c.id AND ctx.contextlevel = 50 AND ra.roleid = 5) as student_count"; 
-             // Assuming roleid 5 is student. Adjust if distinct logic needed.
 
 // EXPORT TO XLSX
 if ($action === 'export') {
@@ -71,7 +100,7 @@ if ($action === 'export') {
     $sheet->setTitle('Cursos');
     
     // Headers
-    $headers = ['ID', 'Shortname', 'Fullname', 'Category ID', 'Schedules', 'Students', 'Visible', 'Start Date'];
+    $headers = ['ID', 'Shortname', 'Fullname', 'Category ID', 'Total Schedules', 'Active Schedules', 'Students', 'Visible', 'Start Date'];
     $sheet->fromArray($headers, NULL, 'A1');
     
     // Fetch ALL records
@@ -83,15 +112,16 @@ if ($action === 'export') {
         $sheet->setCellValue('B' . $row, $c->shortname);
         $sheet->setCellValue('C' . $row, $c->fullname);
         $sheet->setCellValue('D' . $row, $c->category);
-        $sheet->setCellValue('E' . $row, $c->schedules_count);
-        $sheet->setCellValue('F' . $row, $c->student_count);
-        $sheet->setCellValue('G' . $row, $c->visible ? 'Yes' : 'No');
-        $sheet->setCellValue('H' . $row, userdate($c->startdate, '%Y-%m-%d'));
+        $sheet->setCellValue('E' . $row, $c->total_schedules_count);
+        $sheet->setCellValue('F' . $row, $c->active_schedules_count);
+        $sheet->setCellValue('G' . $row, $c->student_count);
+        $sheet->setCellValue('H' . $row, $c->visible ? 'Yes' : 'No');
+        $sheet->setCellValue('I' . $row, userdate($c->startdate, '%Y-%m-%d'));
         $row++;
     }
     
     // Auto-size columns
-    foreach(range('A','H') as $col) {
+    foreach(range('A','I') as $col) {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
 
@@ -111,6 +141,7 @@ echo $OUTPUT->header();
 echo '
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+<!-- Bootstrap Modals CSS (if not fully loaded by theme) -->
 <style>
     body { font-family: "Roboto", sans-serif; }
     .card-material {
@@ -152,6 +183,9 @@ echo '
     .action-icon { font-size: 1.2rem; color: #555; margin: 0 5px; transition: color 0.2s; }
     .action-icon:hover { color: #1976D2; text-decoration: none; }
     .action-icon.delete:hover { color: #C62828; }
+    /* Modal Styles override */
+    .modal-header { background: #f5f5f5; border-bottom: 1px solid #ddd; }
+    .modal-title { font-weight: 500; }
 </style>
 ';
 
@@ -177,14 +211,16 @@ echo '<div class="card-body">';
 
 // Filters
 echo '<form method="get" class="row mb-4 bg-light p-3 rounded mx-1">';
-echo ' <div class="col-md-4 mb-2">';
+echo ' <div class="col-md-3 mb-2">';
 echo '   <div class="input-group">';
 echo '     <div class="input-group-prepend"><span class="input-group-text border-0 bg-white"><i class="mdi mdi-magnify"></i></span></div>';
-echo '     <input type="text" name="search" class="form-control border-0" placeholder="Buscar por Nombre, Shortname o ID..." value="'.s($filter_search).'">';
+echo '     <input type="text" name="search" class="form-control border-0" placeholder="Buscar..." value="'.s($filter_search).'">';
 echo '   </div>';
 echo ' </div>';
-echo ' <div class="col-md-3 mb-2">';
-echo '   <select name="category" class="form-control border-0"><option value="0">-- Todas las Categorías --</option>';
+
+// Category Filter
+echo ' <div class="col-md-2 mb-2">';
+echo '   <select name="category" class="form-control border-0"><option value="0">-- Categorías --</option>';
 $cats = \core_course_category::make_categories_list();
 foreach($cats as $id => $name){ 
     $sel = ($filter_category == $id) ? 'selected' : '';
@@ -192,13 +228,37 @@ foreach($cats as $id => $name){
 }
 echo '   </select>';
 echo ' </div>';
+
+// Learning Plan Filter
 echo ' <div class="col-md-2 mb-2">';
-echo '   <select name="visible" class="form-control border-0">';
-echo '     <option value="-1" '.($filter_visible==-1?'selected':'').'>Todos Estados</option>';
-echo '     <option value="1" '.($filter_visible==1?'selected':'').'>Visibles</option>';
-echo '     <option value="0" '.($filter_visible==0?'selected':'').'>Ocultos</option>';
+echo '   <select name="plan" class="form-control border-0"><option value="0">-- Plan Aprendizaje --</option>';
+$plans = $DB->get_records_menu('local_learning_plans', null, 'name ASC', 'id, name');
+foreach($plans as $id => $name) {
+    $sel = ($filter_plan == $id) ? 'selected' : '';
+    echo "<option value='$id' $sel>$name</option>"; 
+}
 echo '   </select>';
 echo ' </div>';
+
+// Schedule Status Filter
+echo ' <div class="col-md-2 mb-2">';
+echo '   <select name="schedulestatus" class="form-control border-0">';
+echo '     <option value="-1" '.($filter_schedule_status==-1?'selected':'').'>-- Estado Horarios --</option>';
+echo '     <option value="1" '.($filter_schedule_status==1?'selected':'').'>Con Horarios Activos</option>';
+echo '     <option value="0" '.($filter_schedule_status==0?'selected':'').'>Sin Horarios Activos</option>';
+echo '   </select>';
+echo ' </div>';
+
+
+// Visible Filter
+// echo ' <div class="col-md-2 mb-2">';
+// echo '   <select name="visible" class="form-control border-0">';
+// echo '     <option value="-1" '.($filter_visible==-1?'selected':'').'>Todos Estados</option>';
+// echo '     <option value="1" '.($filter_visible==1?'selected':'').'>Visibles</option>';
+// echo '     <option value="0" '.($filter_visible==0?'selected':'').'>Ocultos</option>';
+// echo '   </select>';
+// echo ' </div>';
+
 echo ' <div class="col-md-3 mb-2 d-flex justify-content-end">';
 echo '   <button type="submit" class="btn btn-secondary mr-2">Filtrar</button>';
 echo '   <button type="submit" name="action" value="export" class="btn btn-success"><i class="mdi mdi-file-excel"></i> Excel</button>';
@@ -209,6 +269,26 @@ echo '</form>';
 $total_matching = $DB->count_records_sql("SELECT COUNT(*) FROM {course} c WHERE $whereSQL", $params);
 $courses = $DB->get_records_sql("SELECT $sql_cols FROM {course} c WHERE $whereSQL ORDER BY c.fullname ASC", $params, $page * $perpage, $perpage);
 
+// Fetch Extra Data for specific visible courses
+if ($courses) {
+    $courseContexts = [];
+    foreach ($courses as $c) {
+        // Fetch Plans
+        $c->plans = $DB->get_records_sql("
+            SELECT lp.id, lp.name 
+            FROM {local_learning_plans} lp
+            JOIN {local_learning_courses} llc ON llc.learningplanid = lp.id
+            WHERE llc.courseid = ?", [$c->id]);
+        
+        // Fetch Active Schedules (closed=0)
+        $c->active_schedules = $DB->get_records_sql("
+            SELECT gc.id, gc.name, gc.inithourformatted, gc.endhourformatted, gc.classdays
+            FROM {gmk_class} gc
+            WHERE gc.courseid = ? AND gc.closed = 0", [$c->id]);
+    }
+}
+
+
 if ($total_matching > 0) {
     echo '<div class="table-responsive">';
     echo '<table class="table table-hover table-material">';
@@ -216,9 +296,9 @@ if ($total_matching > 0) {
             <th>ID</th>
             <th>Shortname</th>
             <th>Nombre Completo</th>
-            <th>Categoría</th>
-            <th class="text-center">Horarios</th>
-            <th class="text-center">Estudiantes</th>
+            <th>Planes</th>
+            <th>Horarios Activos</th>
+            <th>Estudiantes</th>
             <th>Estado</th>
             <th class="text-right">Acciones</th>
           </tr></thead>';
@@ -232,12 +312,28 @@ if ($total_matching > 0) {
         $viewUrl = new moodle_url('/course/view.php', ['id' => $c->id]);
         $deleteUrl = new moodle_url('/course/delete.php', ['id' => $c->id]);
         
+        // Plans Data
+        $plansCount = count($c->plans);
+        $plansAttr = htmlspecialchars(json_encode(array_values($c->plans)), ENT_QUOTES, 'UTF-8');
+        $plansBtnClass = $plansCount > 0 ? 'btn-info' : 'btn-light disabled';
+        $plansBtn = '<button class="btn btn-sm '.$plansBtnClass.' view-plans-btn" data-plans="'.$plansAttr.'" data-course="'.s($c->fullname).'">
+                        <i class="mdi mdi-book-open-variant"></i> '.$plansCount.'
+                     </button>';
+
+        // Schedules Data
+        $schedulesCount = count($c->active_schedules);
+        $schedulesAttr = htmlspecialchars(json_encode(array_values($c->active_schedules)), ENT_QUOTES, 'UTF-8');
+        $schedulesBtnClass = $schedulesCount > 0 ? 'btn-success' : 'btn-light disabled';
+        $schedulesBtn = '<button class="btn btn-sm '.$schedulesBtnClass.' view-schedules-btn" data-schedules="'.$schedulesAttr.'" data-course="'.s($c->fullname).'">
+                            <i class="mdi mdi-calendar-clock"></i> '.$schedulesCount.'
+                         </button>';
+
         echo '<tr>';
         echo '<td>'.$c->id.'</td>';
         echo '<td><strong>'.s($c->shortname).'</strong></td>';
-        echo '<td><a href="'.$viewUrl.'" class="text-dark">'.s($c->fullname).'</a></td>';
-        echo '<td><small class="text-muted">'.$catName.'</small></td>';
-        echo '<td class="text-center"><span class="badge badge-light border">'.$c->schedules_count.'</span></td>';
+        echo '<td><a href="'.$viewUrl.'" class="text-dark">'.s($c->fullname).'</a><br><small class="text-muted">'.$catName.'</small></td>';
+        echo '<td class="text-center">'.$plansBtn.'</td>';
+        echo '<td class="text-center">'.$schedulesBtn.'</td>';
         echo '<td class="text-center"><span class="badge badge-light border">'.$c->student_count.'</span></td>';
         echo '<td>'.$statusBadge.'</td>';
         echo '<td class="text-right">';
@@ -258,5 +354,110 @@ if ($total_matching > 0) {
 
 echo '</div>'; // card-body
 echo '</div>'; // card-material
+
+// MODALS HTML
+echo '
+<!-- Plans Modal -->
+<div class="modal fade" id="plansModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Planes de Aprendizaje</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <h6 id="plansModalCourseName" class="text-muted mb-3"></h6>
+        <ul id="plansList" class="list-group">
+           <!-- Dynamic content -->
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedules Modal -->
+<div class="modal fade" id="schedulesModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Horarios Activos</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <h6 id="schedulesModalCourseName" class="text-muted mb-3"></h6>
+        <div id="schedulesList" class="list-group">
+           <!-- Dynamic content -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+';
+
+// Javascript for Modals
+echo '
+<script>
+require(["jquery"], function($) {
+    $(document).ready(function() {
+        // View Plans Click
+        $(".view-plans-btn").on("click", function() {
+            var plans = $(this).data("plans");
+            var course = $(this).data("course");
+            
+            $("#plansModalCourseName").text("Curso: " + course);
+            var list = $("#plansList");
+            list.empty();
+            
+            if (plans && plans.length > 0) {
+                $.each(plans, function(i, plan) {
+                    list.append("<li class=\'list-group-item\'><i class=\'mdi mdi-notebook-outline mr-2\'></i>" + plan.name + "</li>");
+                });
+            } else {
+                list.append("<li class=\'list-group-item text-muted\'>No hay planes asociados.</li>");
+            }
+            
+            $("#plansModal").modal("show");
+        });
+
+        // View Schedules Click
+        $(".view-schedules-btn").on("click", function() {
+            var schedules = $(this).data("schedules");
+            var course = $(this).data("course");
+            
+            $("#schedulesModalCourseName").text("Curso: " + course);
+            var list = $("#schedulesList");
+            list.empty();
+            
+            if (schedules && schedules.length > 0) {
+                $.each(schedules, function(i, sch) {
+                    // Assuming classdays format "1/0/1/..." mapping to Mon/Tue...
+                    // Simple output for now
+                    list.append("<div class=\'list-group-item list-group-item-action flex-column align-items-start\'>" +
+                                "<div class=\'d-flex w-100 justify-content-between\'>" +
+                                "<h6 class=\'mb-1\'>" + sch.name + "</h6>" +
+                                "</div>" +
+                                "<p class=\'mb-1\'>Incio: " + sch.inithourformatted + " - Fin: " + sch.endhourformatted + "</p>" +
+                                "</div>");
+                });
+            } else {
+                list.append("<div class=\'alert alert-warning\'>No hay horarios activos.</div>");
+            }
+            
+            $("#schedulesModal").modal("show");
+        });
+    });
+});
+</script>
+';
 
 echo $OUTPUT->footer();
