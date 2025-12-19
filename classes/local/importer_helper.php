@@ -36,7 +36,7 @@ class importer_helper {
             return $ts;
         }
 
-        return time(); // Default or error? migrate.php used a specific logic
+        return 0; // Return 0 for empty or invalid dates
     }
 
     /**
@@ -79,12 +79,29 @@ class importer_helper {
 
         // Flattened fields for internal API (profile_save_data)
         $studentEntity['profile_field_usertype'] = $userType;
-        $studentEntity['profile_field_documenttype'] = $data[1];
+        $studentEntity['profile_field_personalemail'] = $data[6];
+        
+        // Gender Mapping
+        $rawGender = trim($data[12]);
+        $mappedGender = $rawGender;
+        if (stripos($rawGender, 'Hombre') !== false) {
+             $mappedGender = 'Masculino';
+        } elseif (stripos($rawGender, 'Mujer') !== false) {
+             $mappedGender = 'Femenino';
+        }
+        $studentEntity['profile_field_gmkgenre'] = $mappedGender;
+        
+        // Document Type Mapping
+        $rawDocType = trim($data[1]);
+        $mappedDocType = $rawDocType;
+        // Check for prefixes like "CC - ", "PP - ", "CE - "
+        if (preg_match('/^(CC|PP|CE)\s*-\s*(.+)/i', $rawDocType, $matches)) {
+            $mappedDocType = trim($matches[2]);
+        }
+        $studentEntity['profile_field_documenttype'] = $mappedDocType;
         $studentEntity['profile_field_documentnumber'] = $data[2];
         $studentEntity['profile_field_birthdate'] = self::excel_date_to_timestamp($data[9]);
         $studentEntity['profile_field_studentstatus'] = $data[13];
-        $studentEntity['profile_field_personalemail'] = $data[6];
-        $studentEntity['profile_field_gmkgenre'] = $data[12];
         $studentEntity['profile_field_gmkjourney'] = $data[14];
 
         // Keep legacy format just in case, though likely unused now
