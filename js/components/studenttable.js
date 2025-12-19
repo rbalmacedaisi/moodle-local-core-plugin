@@ -344,6 +344,13 @@ Vue.component('studenttable', {
         exportStudents() {
             // Redirect to the export script
             window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
+        },
+        getColor(status) {
+            status = status ? status.toLowerCase() : '';
+            if (status === 'activo') return 'success';
+            if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
+            if (status === 'graduado' || status === 'egresado') return 'primary';
+            return 'grey';
         }
     },
     computed: {
