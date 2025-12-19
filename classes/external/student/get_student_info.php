@@ -203,22 +203,24 @@ class get_student_info extends external_api {
                     'career' => $user->career,
                     'periods' => $periodname,
                 ];
-                $userData[$user->userid]['period'] = $periodname . $subperiodname;
-                $userData[$user->userid]['subperiods'] = $subperiodname; // Keep for explicit column
+                
+                // RESTORED: Periods as array for frontend v-for
+                $userData[$user->userid]['periods'][] = $periodname; 
+                
+                $userData[$user->userid]['subperiods'] = $subperiodname; 
                 $userData[$user->userid]['status'] = $customfield_value;
-                $userData[$user->userid]['documentnumber'] = $user->documentnumber;
-                $userData[$user->userid]['idnumber'] = $user->idnumber; // Standard ID
-                // Force check:
-                if ($user->email == 'adrianarguelles913@gmail.com') {
-                     $userData[$user->userid]['documentnumber'] = "DBG: Doc[" . $user->documentnumber . "] ID[" . $user->idnumber . "]";
-                }
+                
+                // Logic: Prefer Document Number (Custom), fallback to ID Number (Standard)
+                $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
+                $userData[$user->userid]['documentnumber'] = $finalID;
+                
                 $userData[$user->userid]['revalidate'] = $revalidate;
                 $userData[$user->userid]['revalidateSubjects'] = $revalidateSubjects;
                 $userData[$user->userid]['userid'] = $user->userid;
                 $userData[$user->userid]['email'] = $user->email;
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;
                 $userData[$user->userid]['profileimage'] = $profileimage;
-                $userData[$user->userid]['status'] = $customfield_value;
+                // $userData[$user->userid]['status'] = $customfield_value; // Duplicate removed
             }
             // Convert the associative array into indexed array
             $dataUsers = array_values($userData);
