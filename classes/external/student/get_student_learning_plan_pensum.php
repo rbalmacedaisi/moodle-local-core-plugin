@@ -104,32 +104,46 @@ class get_student_learning_plan_pensum extends external_api
 
         global $DB;
         try {
-            $userPensumCourses = $userPensumCourses = $DB->get_records_sql(
+            $userPensumCourses = $DB->get_records_sql(
                 "
-                SELECT gcp.*, lpc.position
-                FROM {gmk_course_progre} gcp
-                JOIN {local_learning_courses} lpc ON lpc.courseid =  gcp.courseid 
-                WHERE gcp.userid = :userid AND gcp.learningplanid = :learningplanid 
-                AND lpc.learningplanid = :lpid
+                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.prerequisites, gcp.id as progressid
+                FROM {local_learning_courses} lpc
+                LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
+                WHERE lpc.learningplanid = :lpid
                 ORDER BY lpc.position ASC",
                 ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]
             );
 
             $groupedUserPensumCourses = [];
             foreach ($userPensumCourses as $userPensumCourse) {
+                // If status is null (no progress record), default to 0 (No disponible) or suitable default
+                if (is_null($userPensumCourse->status)) {
+                    $userPensumCourse->status = 0; 
+                }
+
                 $periodName = $DB->get_record('local_learning_periods', ['id' => $userPensumCourse->periodid]);
 
                 $course = get_course($userPensumCourse->courseid);
                 $userPensumCourse->coursename = $course->fullname;
                 $userPensumCourse->periodname = $periodName->name;
-                $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status];
-                $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status];
-                $userPensumCourse->prerequisites = json_decode($userPensumCourse->prerequisites);
-                $userPensumCourse->grade = grade_get_course_grade($params['userId'], $userPensumCourse->courseid)->str_grade;
+                $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
+                $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
+                
+                // Handle prerequisites safely
+                $userPensumCourse->prerequisites = !empty($userPensumCourse->prerequisites) ? json_decode($userPensumCourse->prerequisites) : [];
+                
+                $userPensumCourse->grade = '-';
+                // Only try to get grade if context implies it exists, or just always try safely
+                $gradeObj = grade_get_course_grade($params['userId'], $userPensumCourse->courseid);
+                if ($gradeObj && isset($gradeObj->str_grade)) {
+                    $userPensumCourse->grade = $gradeObj->str_grade;
+                }
+
                 foreach ($userPensumCourse->prerequisites as $prerequisite) {
                     $completion = new \completion_info(get_course($prerequisite->id));
                     $prerequisite->completed = $completion->is_course_complete($params['userId']);
                 }
+                
                 if (!array_key_exists($userPensumCourse->periodid, $groupedUserPensumCourses)) {
                     $groupedUserPensumCourses[$userPensumCourse->periodid]['id'] = $userPensumCourse->periodid;
                     $groupedUserPensumCourses[$userPensumCourse->periodid]['periodName'] = $userPensumCourse->periodname;
