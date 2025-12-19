@@ -49,6 +49,10 @@ if ($mform->is_cancelled()) {
 
     echo $OUTPUT->heading("Procesando Notas: " . $filename);
 
+    \core\session\manager::write_close();
+    set_time_limit(0);
+    ini_set('memory_limit', '2048M');
+
     try {
         $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
         $sheet = $spreadsheet->getSheet(0);
