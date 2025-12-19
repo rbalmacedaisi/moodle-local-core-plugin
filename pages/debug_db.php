@@ -1,68 +1,89 @@
 <?php
-require_once(__DIR__ . '/../../../config.php');
+require_once(__DIR__ . '/../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-// Set up the page
+require_login();
+$context = context_system::instance();
+$PAGE->set_context($context);
 $PAGE->set_url('/local/grupomakro_core/pages/debug_db.php');
-$PAGE->set_context(context_system::instance());
-$PAGE->set_title('Debug Database Schema');
-$PAGE->set_heading('Database Diagnosis');
+$PAGE->set_pagelayout('base');
 
 echo $OUTPUT->header();
 
-echo "<h2>Checking table: local_learning_users</h2>";
+// 1. Find a valid student and plan to test
+$student = $DB->get_record_sql("
+    SELECT lpu.userid, lpu.learningplanid 
+    FROM {local_learning_users} lpu 
+    JOIN {user} u ON u.id = lpu.userid 
+    WHERE lpu.userrolename = 'student' AND u.deleted = 0 
+    LIMIT 1
+");
 
-$table = 'local_learning_users';
-$exists = $DB->get_manager()->table_exists($table);
+if (!$student) {
+    echo "No student found to test.";
+    echo $OUTPUT->footer();
+    die();
+}
 
-if (!$exists) {
-    echo $OUTPUT->notification("Table $table DOES NOT EXIST.", 'error');
-} else {
-    echo $OUTPUT->notification("Table $table exists.", 'success');
-    
-    echo "<h3>Columns:</h3>";
-    $columns = $DB->get_columns($table);
-    echo "<ul>";
-    $foundSubperiod = false;
-    foreach ($columns as $col) {
-        $style = ($col->name === 'currentsubperiodid') ? 'color:green; font-weight:bold;' : '';
-        echo "<li style='$style'>" . $col->name . " (Type: " . $col->type . ")</li>";
-        if ($col->name === 'currentsubperiodid') {
-            $foundSubperiod = true;
-        }
+$userid = $student->userid;
+$lpid = $student->learningplanid;
+
+echo "<h2>Debugging Pensum for User $userid (Plan $lpid)</h2>";
+
+// 2. Run the Query
+$sql = "
+    SELECT lpc.id, lpc.courseid, lpc.periodid, lpc.position
+    FROM {local_learning_courses} lpc
+    WHERE lpc.learningplanid = :lpid
+    ORDER BY lpc.position ASC
+";
+
+echo "<h3>Query 1: Validating Master Plan Courses (local_learning_courses)</h3>";
+echo "<pre>$sql</pre>";
+
+$courses = $DB->get_records_sql($sql, ['lpid' => $lpid]);
+echo "<p>Found " . count($courses) . " courses in the plan definition.</p>";
+
+if (count($courses) > 0) {
+    echo "<table class='table table-bordered'>";
+    echo "<thead><tr><th>ID</th><th>Course ID</th><th>Period ID</th><th>Position</th></tr></thead>";
+    foreach ($courses as $c) {
+        echo "<tr>";
+        echo "<td>{$c->id}</td>";
+        echo "<td>{$c->courseid}</td>";
+        echo "<td>{$c->periodid}</td>";
+        echo "<td>{$c->position}</td>";
+        echo "</tr>";
     }
-    echo "</ul>";
+    echo "</table>";
+}
 
-    if ($foundSubperiod) {
-        echo $OUTPUT->notification("Column 'currentsubperiodid' FOUND.", 'success');
-    } else {
-        echo $OUTPUT->notification("Column 'currentsubperiodid' NOT FOUND. The SQL query in get_student_info.php will fail.", 'error');
-    }
+// 3. Run the Full Query with Left Join
+echo "<h3>Query 2: Full Query (Left Join with Progress)</h3>";
+$sql2 = "
+    SELECT lpc.id, lpc.courseid, gcp.status, gcp.id as progressid
+    FROM {local_learning_courses} lpc
+    LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
+    WHERE lpc.learningplanid = :lpid
+    ORDER BY lpc.position ASC
+";
 
-    echo "<h3>First 5 Records:</h3>";
-    try {
-        $records = $DB->get_records($table, null, '', '*', 0, 5);
-        if (empty($records)) {
-            echo "<p>No records found.</p>";
-        } else {
-            echo "<table class='table table-bordered'>";
-            echo "<thead><tr>";
-            foreach (reset($records) as $key => $val) {
-                echo "<th>$key</th>";
-            }
-            echo "</tr></thead><tbody>";
-            foreach ($records as $rec) {
-                echo "<tr>";
-                foreach ($rec as $val) {
-                    echo "<td>" . s($val) . "</td>";
-                }
-                echo "</tr>";
-            }
-            echo "</tbody></table>";
-        }
-    } catch (Exception $e) {
-        echo $OUTPUT->notification("Error fetching records: " . $e->getMessage(), 'error');
+echo "<pre>$sql2</pre>";
+$results = $DB->get_records_sql($sql2, ['userid' => $userid, 'learningplanid' => $lpid, 'lpid' => $lpid]);
+echo "<p>Found " . count($results) . " rows.</p>";
+
+if (count($results) > 0) {
+    echo "<table class='table table-bordered'>";
+    echo "<thead><tr><th>LPC ID</th><th>Course ID</th><th>Status (Progress)</th><th>Progress ID</th></tr></thead>";
+    foreach ($results as $r) {
+        echo "<tr>";
+        echo "<td>{$r->id}</td>";
+        echo "<td>{$r->courseid}</td>";
+        echo "<td>" . ($r->status ?? 'NULL') . "</td>";
+        echo "<td>" . ($r->progressid ?? 'NULL') . "</td>";
+        echo "</tr>";
     }
+    echo "</table>";
 }
 
 echo $OUTPUT->footer();
