@@ -78,13 +78,7 @@ Vue.component('studenttable', {
                     </template>
 
                     <template v-slot:item.subperiods="{ item }">
-                        <v-list dense class="transparent">
-                            <v-list-item v-for="(subperiod, index) in item.subperiods" :key="index" class="px-0">
-                                <v-list-item-content class="py-0">
-                                    <v-list-item-subtitle>{{subperiod}}</v-list-item-subtitle>
-                                </v-list-item-content>
-                            </v-list-item>
-                        </v-list>
+                        <div class="text-no-wrap font-weight-regular text-body-2">{{ item.subperiods }}</div>
                     </template>
                     
                     <template v-slot:item.revalidate="{ item }">

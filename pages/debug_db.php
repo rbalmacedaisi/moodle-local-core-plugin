@@ -10,80 +10,44 @@ $PAGE->set_pagelayout('base');
 
 echo $OUTPUT->header();
 
-// 1. Find a valid student and plan to test
-$student = $DB->get_record_sql("
-    SELECT lpu.userid, lpu.learningplanid 
-    FROM {local_learning_users} lpu 
-    JOIN {user} u ON u.id = lpu.userid 
-    WHERE lpu.userrolename = 'student' AND u.deleted = 0 
-    LIMIT 1
-");
-
-if (!$student) {
-    echo "No student found to test.";
-    echo $OUTPUT->footer();
-    die();
+echo "<h2>Custom Fields Configuration</h2>";
+$fields = $DB->get_records('user_info_field');
+echo "<table class='table table-bordered'>";
+echo "<thead><tr><th>ID</th><th>Shortname</th><th>Name</th><th>Datatype</th></tr></thead>";
+foreach ($fields as $f) {
+    echo "<tr><td>{$f->id}</td><td>{$f->shortname}</td><td>{$f->name}</td><td>{$f->datatype}</td></tr>";
 }
+echo "</table>";
 
-$userid = $student->userid;
-$lpid = $student->learningplanid;
+$testEmail = 'adrianarguelles913@gmail.com'; // From user screenshot
+echo "<h2>Debugging User: $testEmail</h2>";
 
-echo "<h2>Debugging Pensum for User $userid (Plan $lpid)</h2>";
+$user = $DB->get_record('user', ['email' => $testEmail, 'deleted' => 0]);
 
-// 2. Run the Query
-$sql = "
-    SELECT lpc.id, lpc.courseid, lpc.periodid, lpc.position
-    FROM {local_learning_courses} lpc
-    WHERE lpc.learningplanid = :lpid
-    ORDER BY lpc.position ASC
-";
+if (!$user) {
+    echo "<p class='alert alert-danger'>User not found!</p>";
+} else {
+    echo "<p>User ID: {$user->id}</p>";
+    echo "<p>Standard ID Number (idnumber): <strong>" . ($user->idnumber ? $user->idnumber : 'EMPTY') . "</strong></p>";
+    
+    echo "<h3>Custom Field Data</h3>";
+    $data = $DB->get_records_sql("
+        SELECT d.id, d.fieldid, f.shortname, d.data
+        FROM {user_info_data} d
+        JOIN {user_info_field} f ON f.id = d.fieldid
+        WHERE d.userid = ?
+    ", [$user->id]);
 
-echo "<h3>Query 1: Validating Master Plan Courses (local_learning_courses)</h3>";
-echo "<pre>$sql</pre>";
-
-$courses = $DB->get_records_sql($sql, ['lpid' => $lpid]);
-echo "<p>Found " . count($courses) . " courses in the plan definition.</p>";
-
-if (count($courses) > 0) {
-    echo "<table class='table table-bordered'>";
-    echo "<thead><tr><th>ID</th><th>Course ID</th><th>Period ID</th><th>Position</th></tr></thead>";
-    foreach ($courses as $c) {
-        echo "<tr>";
-        echo "<td>{$c->id}</td>";
-        echo "<td>{$c->courseid}</td>";
-        echo "<td>{$c->periodid}</td>";
-        echo "<td>{$c->position}</td>";
-        echo "</tr>";
+    if ($data) {
+        echo "<table class='table table-bordered'>";
+        echo "<thead><tr><th>Field ID</th><th>Shortname</th><th>Value</th></tr></thead>";
+        foreach ($data as $d) {
+            echo "<tr><td>{$d->fieldid}</td><td>{$d->shortname}</td><td>{$d->data}</td></tr>";
+        }
+        echo "</table>";
+    } else {
+        echo "<p>No custom field data found for this user.</p>";
     }
-    echo "</table>";
-}
-
-// 3. Run the Full Query with Left Join
-echo "<h3>Query 2: Full Query (Left Join with Progress)</h3>";
-$sql2 = "
-    SELECT lpc.id, lpc.courseid, gcp.status, gcp.id as progressid
-    FROM {local_learning_courses} lpc
-    LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
-    WHERE lpc.learningplanid = :lpid
-    ORDER BY lpc.position ASC
-";
-
-echo "<pre>$sql2</pre>";
-$results = $DB->get_records_sql($sql2, ['userid' => $userid, 'learningplanid' => $lpid, 'lpid' => $lpid]);
-echo "<p>Found " . count($results) . " rows.</p>";
-
-if (count($results) > 0) {
-    echo "<table class='table table-bordered'>";
-    echo "<thead><tr><th>LPC ID</th><th>Course ID</th><th>Status (Progress)</th><th>Progress ID</th></tr></thead>";
-    foreach ($results as $r) {
-        echo "<tr>";
-        echo "<td>{$r->id}</td>";
-        echo "<td>{$r->courseid}</td>";
-        echo "<td>" . ($r->status ?? 'NULL') . "</td>";
-        echo "<td>" . ($r->progressid ?? 'NULL') . "</td>";
-        echo "</tr>";
-    }
-    echo "</table>";
 }
 
 echo $OUTPUT->footer();
