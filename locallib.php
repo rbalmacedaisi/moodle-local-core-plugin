@@ -920,6 +920,7 @@ function update_class($classParams)
     }
     
     $class = $DB->get_record('gmk_class', ['id' => $classParams['classId']]);
+    $oldClass = clone $class; // Save copy for diff comparison
     $classOldInstructorId = $class->instructorid;
 
     $class->name           = $classParams["name"];
@@ -943,8 +944,24 @@ function update_class($classParams)
     if ($class->instructorid !== $classOldInstructorId) {
         update_class_group($class, $classOldInstructorId);
     }
+    
+    // Performance Optimization: Only recreate activities if schedule parameters changed
+    // Activities creation involves nuking old modules and creating new ones (very slow).
+    $scheduleChanged = (
+        $class->type != $oldClass->type ||
+        $class->instructorid != $oldClass->instructorid ||
+        $class->inittime != $oldClass->inittime ||
+        $class->endtime != $oldClass->endtime ||
+        $class->initdate != $oldClass->initdate ||
+        $class->enddate != $oldClass->enddate ||
+        $class->classdays != $oldClass->classdays
+    );
 
-    create_class_activities($class, true);
+    // Always create if it's a new class (not covered here) or if critical params changed.
+    // If only name changed, we SKIP the heavy activity rebuild.
+    if ($scheduleChanged) {
+        create_class_activities($class, true);
+    }
 }
 
 function update_class_group($class, $oldInstructorId)
