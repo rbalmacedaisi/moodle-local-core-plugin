@@ -93,14 +93,12 @@ Vue.component('studenttable', {
                     
                     <!-- NEW: Custom slot for Email + ID -->
                     <template v-slot:item.email="{ item }">
-                        <div>{{ item.email }}</div>
-                        <div class="caption text--secondary font-weight-medium" v-if="item.documentnumber || item.idnumber">
-                            <v-icon small left class="mr-1">mdi-card-account-details</v-icon>
-                            {{ item.documentnumber ? item.documentnumber : item.idnumber }}
-                        </div>
-                        <div class="caption text--disabled font-italic" v-else>
-                            <v-icon small left class="mr-1">mdi-alert-circle-outline</v-icon>
-                           (Sin ID)
+                        <div class="d-flex flex-column py-1">
+                            <span class="text-body-2 font-weight-bold">{{ item.email }}</span>
+                            <div v-if="item.documentnumber" class="caption grey--text text--darken-2 mt-1">
+                                <v-icon x-small left class="mr-1">mdi-card-account-details</v-icon>
+                                {{ item.documentnumber }}
+                            </div>
                         </div>
                     </template>
 
@@ -209,11 +207,7 @@ Vue.component('studenttable', {
 
                 // Parse the JSON data returned from the API.
                 const data = JSON.parse(response.data.dataUsers);
-                console.log('API Response DataUsers:', data);
-                if (data.length > 0) {
-                    console.log('First User Data Sample:', data[0]);
-                    console.log('DocumentNumber Value:', data[0].documentnumber);
-                }
+
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];

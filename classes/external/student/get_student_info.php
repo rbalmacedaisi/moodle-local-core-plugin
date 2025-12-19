@@ -211,18 +211,10 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['status'] = $customfield_value;
                 
                 // Logic: Prefer Document Number (Custom), fallback to ID Number (Standard)
-                // DEBUG: Tracing why variables are empty
-                $debugID = "IDNUM=" . ($user->idnumber ?? 'NULL') . " DOC=" . ($docNumber ?? 'NULL');
                 $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
-                
-                // If empty, pass the debug string so we see IT IS empty
-                if (empty($finalID)) {
-                    $finalID = "EMPTY! " . $debugID;
-                }
                 
                 $userData[$user->userid]['documentnumber'] = $finalID;
                 
-                // $userData[$user->userid]['idnumber'] = $user->idnumber; // Standard ID - Already in finalID
                 $userData[$user->userid]['revalidate'] = $revalidate;
                 $userData[$user->userid]['revalidateSubjects'] = $revalidateSubjects;
                 $userData[$user->userid]['userid'] = $user->userid;
