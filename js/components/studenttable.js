@@ -334,6 +334,10 @@ Vue.component('studenttable', {
             // Reset the selected student or course information.
             this.studentGradeSelected = {}
         }
+        exportStudents() {
+            // Redirect to the export script
+            window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
+        }
     },
     computed: {
         /**

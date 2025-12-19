@@ -158,7 +158,9 @@ Vue.component('grademodal', {
 
                 // Parse the curriculum data from the response.
                 const data = JSON.parse(response.data.pensum);
+                console.log('Raw Pensum Data:', data);
                 const dataArray = Object.values(data);
+                console.log('Pensum Data Array:', dataArray);
 
 
                 // Filter the courses based on whether periodName matches periods
