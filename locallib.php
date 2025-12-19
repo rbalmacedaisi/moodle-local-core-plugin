@@ -960,7 +960,9 @@ function update_class($classParams)
     // Always create if it's a new class (not covered here) or if critical params changed.
     // If only name changed, we SKIP the heavy activity rebuild.
     if ($scheduleChanged) {
-        create_class_activities($class, true);
+        $task = new \local_grupomakro_core\task\update_class_activities();
+        $task->set_custom_data(['classId' => $class->id, 'updating' => true]);
+        \core\task\manager::queue_adhoc_task($task);
     }
 }
 
