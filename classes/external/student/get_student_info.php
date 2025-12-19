@@ -87,8 +87,6 @@ class get_student_info extends external_api {
             JOIN {user} u ON (u.id = lpu.userid)
             WHERE lpu.userrolename = :userrolename
             ORDER BY u.firstname';
-            
-            ORDER BY u.firstname';
 
             try {
                 $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
@@ -174,6 +172,7 @@ class get_student_info extends external_api {
                 
 
                 // Create or update user entry in $userData array
+                $userData[$user->userid]['careers'][] = [
                     'planid' => $user->planid,
                     'career' => $user->career,
                     'periods' => $periodname,
