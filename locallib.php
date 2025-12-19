@@ -532,7 +532,15 @@ function create_class_activities($class, $updating = false)
     if ($updating) {
         //Delete Big Blue Button Sessions
         foreach (explode(",", $class->bbbmoduleids) as $BBBModuleId) {
-            course_delete_module($BBBModuleId);
+            if (empty($BBBModuleId)) {
+                continue;
+            }
+            try {
+                course_delete_module($BBBModuleId);
+            } catch (Exception $e) {
+                // Ignore errors if module cannot be deleted (already gone, etc)
+                // We just want to ensure cleanup proceeds.
+            }
         }
 
         //Delete attendance sessions
@@ -568,15 +576,14 @@ function create_class_activities($class, $updating = false)
         $attendanceGradeItem->set_parent($classGradeCategory->id);
     }
 
-    $initDate =  date('Y-m-d');
-    $endDate = date('Y-m-d', strtotime('+2 months'));
+    $initDate = $class->initdate ? date('Y-m-d', $class->initdate) : date('Y-m-d');
+    $endDate = $class->enddate ? date('Y-m-d', $class->enddate) : date('Y-m-d', strtotime('+2 months'));
+    
     //Get the period start date in seconds and the day name
-    $startDate = DateTime::createFromFormat('Y-m-d H:i:s', $initDate . ' ' . $class->inittime . ':00');
-    $startDateTS = strtotime($startDate->format('Y-m-d H:i:s'));
+    $startDateTS = strtotime($initDate . ' ' . $class->inittime . ':00');
 
     //Get the period end date timestamp(seconds)
-    $endDate = DateTime::createFromFormat('Y-m-d H:i:s', $endDate . ' ' . $class->endtime . ':00');
-    $endDateTS = strtotime($endDate->format('Y-m-d H:i:s'));
+    $endDateTS = strtotime($endDate . ' ' . $class->endtime . ':00');
 
     //Format the class days
     $classDaysNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

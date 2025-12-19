@@ -250,7 +250,7 @@ echo <<<EOT
 EOT;
 
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/editclass.js?v=' . (time() + 1)));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/editclass.js?v=' . (time() + 2)));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/errormodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/classForm/reschedulemodal.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
