@@ -86,22 +86,6 @@ foreach ($infoUsers as $user) {
     $data[] = $row;
 }
 
-// Download as XLSX
-\core\dataformat::download_data(
-    'estudiantes_grupomakro_' . date('Y-m-d'),
-    'excel', // Dataformat: 'excel' = .xlsx (usually), 'excel2007' might be explicit
-    $columns,
-    $data,
-    function($item) use ($headers, $columns) {
-        // Map object to array based on columns, though download_data handles objects usually
-        // But headers mapping is different. 
-        // Actually, download_data takes $columns as keys? 
-        // Checking signature: public static function download_data($filename, $dataformat, $columns, $iterator, $callback = null)
-        // $columns is [key => label] usually.
-        return $item;
-    }
-);
-
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]
 $columnsWithHeaders = array_combine($columns, $headers);
