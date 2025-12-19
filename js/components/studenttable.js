@@ -91,14 +91,15 @@ Vue.component('studenttable', {
                         </v-chip>
                     </template>
                     
-                    <!-- NEW: Custom slot for Email + ID -->
-                    <template v-slot:item.email="{ item }">
-                        <div class="d-flex flex-column py-1">
-                            <span class="text-body-2 font-weight-bold">{{ item.email }}</span>
-                            <div v-if="item.documentnumber" class="caption grey--text text--darken-2 mt-1">
-                                <v-icon x-small left class="mr-1">mdi-card-account-details</v-icon>
-                                {{ item.documentnumber }}
-                            </div>
+                    <!-- NEW: Custom slot for ID Only -->
+                    <template v-slot:item.documentnumber="{ item }">
+                        <div v-if="item.documentnumber" class="text-body-2 font-weight-medium">
+                            <v-icon small left class="mr-1">mdi-card-account-details</v-icon>
+                            {{ item.documentnumber }}
+                        </div>
+                        <div class="caption text--disabled font-italic" v-else>
+                            <v-icon small left class="mr-1">mdi-alert-circle-outline</v-icon>
+                           (Sin ID)
                         </div>
                     </template>
 
@@ -128,10 +129,10 @@ Vue.component('studenttable', {
                     width: '250px' // Ensure name has space
                 },
                 {
-                    text: 'Email/ID',
-                    value: 'email',
+                    text: 'Identificación',
+                    value: 'documentnumber',
                     sortable: false,
-                    width: '250px'
+                    width: '150px'
                 },
                 {
                     text: window.strings.careers,
