@@ -19,7 +19,7 @@ Vue.component('studenttable', {
                             <v-toolbar-title>{{ lang.students_list }}</v-toolbar-title>
                         </v-toolbar>
                         
-                        <v-row justify="start" class="ma-0 mr-3 mb-2">
+                        <v-row justify="space-between" class="ma-0 mr-3 mb-2 align-center">
                             <v-col cols="4">
                                 <v-text-field
                                    v-model="options.search"
@@ -29,6 +29,12 @@ Vue.component('studenttable', {
                                    outlined
                                    dense
                                 ></v-text-field>
+                            </v-col>
+                            <v-col cols="auto">
+                                <v-btn color="primary" @click="exportStudents">
+                                    <v-icon left>mdi-file-export</v-icon>
+                                    Exportar
+                                </v-btn>
                             </v-col>
                         </v-row>
                     </template>
