@@ -205,6 +205,12 @@ $templatedata = json_encode([
     'availabilityPanelUrl' => $CFG->wwwroot.'/local/grupomakro_core/pages/availabilitypanel.php',
 ]);
 
+// GMK DEBUG START
+echo "<pre>";
+print_r($class);
+echo "</pre>";
+// GMK DEBUG END
+
 echo $OUTPUT->header();
 
 echo <<<EOT
