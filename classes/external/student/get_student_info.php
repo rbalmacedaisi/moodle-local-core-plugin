@@ -88,7 +88,23 @@ class get_student_info extends external_api {
             WHERE lpu.userrolename = :userrolename
             ORDER BY u.firstname';
             
-            $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
+            ORDER BY u.firstname';
+
+            try {
+                $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
+            } catch (Exception $e) {
+                // Fallback query if 'currentsubperiodid' column does not exist
+                $query = 
+                'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
+                lp.name as career, u.id as userid, u.email as email,
+                u.firstname as firstname, u.lastname as lastname
+                FROM {local_learning_plans} lp
+                JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
+                JOIN {user} u ON (u.id = lpu.userid)
+                WHERE lpu.userrolename = :userrolename
+                ORDER BY u.firstname';
+                $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
+            }
             $resultsOnPage = [];
             $userData      = [];
             $filteredUsers = [];
