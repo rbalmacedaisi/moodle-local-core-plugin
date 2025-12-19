@@ -212,12 +212,7 @@ Vue.component('studenttable', {
                 console.log('API Response DataUsers:', data);
                 if (data.length > 0) {
                     console.log('First User Data Sample:', data[0]);
-                    console.log('Check keys:', Object.keys(data[0]));
-                    if ('subperiods' in data[0]) {
-                        console.log('Subperiods found:', data[0].subperiods);
-                    } else {
-                        console.error('Subperiods KEY MISSING in response!');
-                    }
+                    console.log('DocumentNumber Value:', data[0].documentnumber);
                 }
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
