@@ -130,8 +130,8 @@ Vue.component('grademodal', {
                 // Call the getcarrers method to fetch curriculum data for each career.
                 const data = await this.getcarrers(element.planid);
 
-                // Update the 'courses' property for each career with the fetched data.
-                element.courses = data;
+                // Update the 'courses' property for each career with the fetched data using $set for reactivity
+                this.$set(element, 'courses', data);
             }
 
             // Set the 'dialog' property to true to display the curriculum dialog.
