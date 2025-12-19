@@ -1,6 +1,16 @@
 Vue.component('studenttable', {
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
+            <v-col cols="12" class="mb-4">
+                 <v-card class="pa-4 d-flex align-center" outlined style="border-left: 5px solid #4CAF50;">
+                    <div>
+                        <div class="text-overline mb-0">Estudiantes Activos</div>
+                        <div class="text-h4 font-weight-bold success--text">{{ activeUsers }}</div>
+                    </div>
+                    <v-spacer></v-spacer>
+                    <v-icon size="48" color="success" class=" opacity-50">mdi-account-check</v-icon>
+                 </v-card>
+            </v-col>
             <v-col cols="12" class="py-0 px-0">
                 <v-data-table
                     :headers="headers"
