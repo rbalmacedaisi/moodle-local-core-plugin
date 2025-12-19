@@ -138,8 +138,7 @@ class get_student_info extends external_api {
                      $doc_data = $DB->get_record_sql("
                         SELECT d.data
                         FROM {user_info_data} d
-                        JOIN {user} u ON u.id = d.userid
-                        WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
+                        WHERE d.fieldid = ? AND d.userid = ?
                     ", array($fieldDoc->id, $user->userid));
                     if ($doc_data && !empty($doc_data->data)) {
                         $docNumber = $doc_data->data;
@@ -147,7 +146,15 @@ class get_student_info extends external_api {
                 }
                 
                 // Add to user object so it's sent to frontend
-                $user->documentnumber = $docNumber;
+                // DEBUG: Force visible output to verify data flow
+                // $user->documentnumber = $docNumber;
+                $user->documentnumber = $docNumber; // Keep clean for now, rely on idnumber check below
+                
+                // Debugging ID fail:
+                if (empty($docNumber) && empty($user->idnumber)) {
+                     // If both are empty, check why?
+                     // $user->documentnumber = "MISSING Doc=$fieldDoc->id User=$user->userid";
+                }
                 $customfield_value = $status; // Restore variable name used downstream if necessary, or refactor
                 
                 /*if($customfield_value == 'Inactivo' || $customfield_value == 'Suspendido' || $customfield_value == 'Expulsado'){
@@ -201,6 +208,10 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['status'] = $customfield_value;
                 $userData[$user->userid]['documentnumber'] = $user->documentnumber;
                 $userData[$user->userid]['idnumber'] = $user->idnumber; // Standard ID
+                // Force check:
+                if ($user->email == 'adrianarguelles913@gmail.com') {
+                     $userData[$user->userid]['documentnumber'] = "DBG: Doc[" . $user->documentnumber . "] ID[" . $user->idnumber . "]";
+                }
                 $userData[$user->userid]['revalidate'] = $revalidate;
                 $userData[$user->userid]['revalidateSubjects'] = $revalidateSubjects;
                 $userData[$user->userid]['userid'] = $user->userid;
