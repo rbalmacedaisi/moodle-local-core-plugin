@@ -218,8 +218,7 @@ Vue.component('studenttable', {
                         name: element.nameuser,
                         email: element.email,
                         id: element.userid,
-                        carrers: element.careers,
-                        id: element.userid,
+                        documentnumber: element.documentnumber, // Mapped!
                         carrers: element.careers,
                         periods: element.periods,
                         subperiods: element.subperiods,
