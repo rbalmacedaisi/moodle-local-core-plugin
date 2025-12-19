@@ -94,7 +94,7 @@ class get_student_info extends external_api {
                 // Fallback query if 'currentsubperiodid' column does not exist
                 $query = 
                 'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
-                lp.name as career, u.id as userid, u.email as email,
+                lp.name as career, u.id as userid, u.email as email, u.idnumber,
                 u.firstname as firstname, u.lastname as lastname
                 FROM {local_learning_plans} lp
                 JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)

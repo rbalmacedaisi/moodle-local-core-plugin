@@ -146,8 +146,8 @@ Vue.component('studenttable', {
                     sortable: false,
                     value: 'carrers',
                 },
-                { text: window.strings.quarters, value: 'periods', sortable: false, width: '150px' },
-                { text: 'Bloque', value: 'subperiods', sortable: false, width: '150px' }, // Added width to prevent vertical stacking
+                { text: window.strings.quarters, value: 'periods', sortable: false, width: '200px' },
+                { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' }, // Increased width
                 { text: window.strings.revalidation, value: 'revalidate', sortable: false, align: 'center', },
                 { text: window.strings.state, value: 'status', sortable: false, },
                 { text: 'Calificaciones', value: 'grade', sortable: false, },
