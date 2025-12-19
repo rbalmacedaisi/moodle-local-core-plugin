@@ -14,7 +14,11 @@ Vue.component('grademodal', {
                     
                     <div class="modlist">
                         <ul v-for="(career, careerIndex) in carresData.carrers" :key="careerIndex" class="modules-item-list">
-                            <span class="font-weight-bold text--secondary text-subtitle-2">{{ career.career }}</span>
+                            <span class="font-weight-bold text--secondary text-subtitle-2">
+                                {{ career.career }} 
+                                <span v-if="career.courses">({{ career.courses.length }} cursos)</span>
+                                <span v-else>(Cargando...)</span>
+                            </span>
                             
                             <li v-for="(course, courseIndex) in career.courses" :key="courseIndex" class="item-list" @click="gradebook(course)">
                                 <v-avatar size="35">
