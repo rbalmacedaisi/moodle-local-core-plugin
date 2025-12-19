@@ -110,6 +110,7 @@ class get_student_info extends external_api {
             $totalUsers    = 0;
             $offset        = 0;
             $totalPages    = 0;
+            $activeUsersCount = 0;
             
             //Get field id profile student status
             $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
@@ -222,6 +223,9 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;
                 $userData[$user->userid]['profileimage'] = $profileimage;
                 // $userData[$user->userid]['status'] = $customfield_value; // Duplicate removed
+                if (stripos($customfield_value, 'activo') !== false) {
+                    $activeUsersCount++;
+                }
             }
             // Convert the associative array into indexed array
             $dataUsers = array_values($userData);
@@ -279,7 +283,8 @@ class get_student_info extends external_api {
 
             return ['dataUsers'    => json_encode($resultsOnPage),
                    'totalResults'  => $totalUsers,
-                   'totalPages'    => $totalPages
+                   'totalPages'    => $totalPages,
+                   'activeUsers'   => $activeUsersCount
                   ];
  
     }
@@ -296,6 +301,7 @@ class get_student_info extends external_api {
                 'dataUsers'      => new external_value(PARAM_RAW, 'Data user return.', VALUE_DEFAULT,''),
                 'totalResults'   => new external_value(PARAM_INT, 'Total Data return users.', VALUE_DEFAULT,''),
                 'totalPages'     => new external_value(PARAM_INT, 'Total number pages.', VALUE_DEFAULT,''),
+                'activeUsers'    => new external_value(PARAM_INT, 'Total active users.', VALUE_DEFAULT, 0),
             )
         );
     }

@@ -146,6 +146,7 @@ Vue.component('studenttable', {
                 { text: 'Calificaciones', value: 'grade', sortable: false, },
             ],
             totalDesserts: 0,
+            activeUsers: 0,
             loading: true,
             options: {
                 page: 1,
@@ -211,6 +212,7 @@ Vue.component('studenttable', {
 
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
+                this.activeUsers = response.data.activeUsers || 0;
                 this.students = [];
 
                 // Iterate through the retrieved data and populate the students array.
