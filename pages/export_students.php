@@ -13,7 +13,7 @@ global $DB;
 // Query
 $query = 
     'SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
-    lp.name as career, u.id as userid, u.email as email,
+    lp.name as career, u.id as userid, u.email as email, u.idnumber,
     u.firstname as firstname, u.lastname as lastname
     FROM {local_learning_plans} lp
     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
@@ -27,7 +27,7 @@ try {
     // Fallback
     $query = 
     'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
-    lp.name as career, u.id as userid, u.email as email,
+    lp.name as career, u.id as userid, u.email as email, u.idnumber,
     u.firstname as firstname, u.lastname as lastname
     FROM {local_learning_plans} lp
     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
@@ -38,10 +38,11 @@ try {
 }
 
 $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
+$fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
 
 // Columns
-$columns = ['id', 'fullname', 'email', 'career', 'period', 'block', 'status'];
-$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado'];
+$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status'];
+$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado'];
 
 // Prepare Iterator
 $data = [];
@@ -50,6 +51,22 @@ foreach ($infoUsers as $user) {
     $row->id = $user->userid;
     $row->fullname = $user->firstname . ' ' . $user->lastname;
     $row->email = $user->email;
+    
+    // Identification Logic
+    $docNumber = '';
+    if ($fieldDoc) {
+          $doc_data = $DB->get_record_sql("
+             SELECT d.data
+             FROM {user_info_data} d
+             WHERE d.fieldid = ? AND d.userid = ?
+         ", array($fieldDoc->id, $user->userid));
+         if ($doc_data && !empty($doc_data->data)) {
+             $docNumber = $doc_data->data;
+         }
+    }
+    $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
+    $row->identification = $finalID;
+    
     $row->career = $user->career;
 
     // Period
@@ -85,7 +102,7 @@ foreach ($infoUsers as $user) {
     
     $data[] = $row;
 }
-
+    
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]
 $columnsWithHeaders = array_combine($columns, $headers);
