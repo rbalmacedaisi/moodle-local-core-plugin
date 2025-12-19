@@ -445,8 +445,7 @@ window.Vue.component('editclass', {
 
             try {
                 let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
-                // DEBUG: Alert response
-                alert("SERVER SAYS: " + JSON.stringify(data));
+
 
                 let { status, message, exception } = data;
                 if (status === -1) {
