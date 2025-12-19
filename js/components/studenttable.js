@@ -100,9 +100,13 @@ Vue.component('studenttable', {
                     <!-- NEW: Custom slot for Email + ID -->
                     <template v-slot:item.email="{ item }">
                         <div>{{ item.email }}</div>
-                        <div class="caption text--secondary font-weight-medium" v-if="item.documentnumber">
+                        <div class="caption text--secondary font-weight-medium" v-if="item.documentnumber || item.idnumber">
                             <v-icon small left class="mr-1">mdi-card-account-details</v-icon>
-                            {{ item.documentnumber }}
+                            {{ item.documentnumber ? item.documentnumber : item.idnumber }}
+                        </div>
+                        <div class="caption text--disabled font-italic" v-else>
+                            <v-icon small left class="mr-1">mdi-alert-circle-outline</v-icon>
+                           (Sin ID)
                         </div>
                     </template>
 

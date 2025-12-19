@@ -80,7 +80,7 @@ class get_student_info extends external_api {
         
         $query = 
             'SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
-            lp.name as career, u.id as userid, u.email as email,
+            lp.name as career, u.id as userid, u.email as email, u.idnumber,
             u.firstname as firstname, u.lastname as lastname
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
@@ -200,6 +200,7 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['subperiods'] = $subperiodname; // Keep for explicit column
                 $userData[$user->userid]['status'] = $customfield_value;
                 $userData[$user->userid]['documentnumber'] = $user->documentnumber;
+                $userData[$user->userid]['idnumber'] = $user->idnumber; // Standard ID
                 $userData[$user->userid]['revalidate'] = $revalidate;
                 $userData[$user->userid]['revalidateSubjects'] = $revalidateSubjects;
                 $userData[$user->userid]['userid'] = $user->userid;
@@ -233,6 +234,8 @@ class get_student_info extends external_api {
                         stripos($userfilter['nameuser'], $search) !== false ||
                         stripos($userfilter['email'], $search) !== false ||
                         stripos($userfilter['status'], $search) !== false ||
+                        stripos($userfilter['documentnumber'], $search) !== false || // Search by Doc Number
+                        stripos($userfilter['idnumber'], $search) !== false || // Search by ID Number
                         // Check in the array 'careers' str search and 'periods'
                         array_reduce($userfilter['careers'], function ($carry, $item) use ($search) {
                             $careerFilter = stripos($item['career'], $search) !== false;
