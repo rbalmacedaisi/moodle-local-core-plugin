@@ -961,7 +961,7 @@ function update_class($classParams)
     // If only name changed, we SKIP the heavy activity rebuild.
     if ($scheduleChanged) {
         $task = new \local_grupomakro_core\task\update_class_activities();
-        $task->set_custom_data(['classId' => $class->id, 'updating' => true]);
+        $task->set_custom_data(['classId' => $class->id, 'updating' => true, 'userId' => $USER->id]);
         \core\task\manager::queue_adhoc_task($task);
     }
 }

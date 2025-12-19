@@ -19,5 +19,25 @@ class update_class_activities extends \core\task\adhoc_task {
         if ($class) {
              create_class_activities($class, $updating);
         }
+
+        // Notify user if userId is provided
+        if (!empty($data->userId)) {
+            $user = \core_user::get_user($data->userId);
+            if ($user) {
+                $message = new \core\message\message();
+                $message->component = 'local_grupomakro_core';
+                $message->name = 'classupdated'; // Define this in db/messages.php if stricter validation is needed, or use generic
+                $message->userfrom = \core_user::get_noreply_user();
+                $message->userto = $user;
+                $message->subject = "Actualización de clase completada: " . $class->name;
+                $message->fullmessage = "El proceso de actualización de horarios y actividades para la clase '{$class->name}' ha finalizado exitosamente.";
+                $message->fullmessageformat = FORMAT_MARKDOWN;
+                $message->fullmessagehtml = "<p>El proceso de actualización de horarios y actividades para la clase <strong>{$class->name}</strong> ha finalizado exitosamente.</p>";
+                $message->smallmessage = "Clase '{$class->name}' actualizada.";
+                $message->notification = 1;
+
+                message_send($message);
+            }
+        }
     }
 }
