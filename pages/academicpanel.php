@@ -166,11 +166,11 @@ echo <<<EOT
   
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js?v=' . time()));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . time()));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . time()));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . time()));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . time()));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . time()));
 echo $OUTPUT->footer();
