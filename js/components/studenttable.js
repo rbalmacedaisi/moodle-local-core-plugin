@@ -1,4 +1,4 @@
-Vue.component('studenttable',{
+Vue.component('studenttable', {
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="py-0 px-0">
@@ -99,8 +99,8 @@ Vue.component('studenttable',{
             
         </v-row>
     `,
-    data(){
-        return{
+    data() {
+        return {
             headers: [
                 {
                     text: window.strings.name,
@@ -113,16 +113,17 @@ Vue.component('studenttable',{
                     sortable: false,
                     value: 'carrers',
                 },
-                { text: window.strings.quarters, value: 'periods',sortable: false },
-                { text: window.strings.revalidation, value: 'revalidate',sortable: false, align: 'center',},
-                { text: window.strings.state, value: 'status',sortable: false, },
-                { text: 'Calificaciones', value: 'grade',sortable: false, },
+                { text: window.strings.quarters, value: 'periods', sortable: false },
+                { text: 'Bloque', value: 'subperiods', sortable: false },
+                { text: window.strings.revalidation, value: 'revalidate', sortable: false, align: 'center', },
+                { text: window.strings.state, value: 'status', sortable: false, },
+                { text: 'Calificaciones', value: 'grade', sortable: false, },
             ],
             totalDesserts: 0,
             loading: true,
             options: {
-                page: 1, 
-                itemsPerPage: 15, 
+                page: 1,
+                itemsPerPage: 15,
                 search: '',
             },
             students: [],
@@ -130,16 +131,16 @@ Vue.component('studenttable',{
             studentGradeSelected: {},
         }
     },
-    created(){},
+    created() { },
     watch: {
-      options: {
-        handler () {
-          this.getDataFromApi()
+        options: {
+            handler() {
+                this.getDataFromApi()
+            },
+            deep: true,
         },
-        deep: true,
-      },
     },
-    methods:{
+    methods: {
         /**
          * Fetches student information from the Moodle API and updates the component's state.
          *
@@ -156,13 +157,13 @@ Vue.component('studenttable',{
          * // Call the getDataFromApi method to fetch student information from the API.
          * getDataFromApi();
          */
-        async getDataFromApi () {
+        async getDataFromApi() {
             // Set loading to true to indicate that data is being fetched.
             this.loading = true;
             try {
                 // Define the API request URL.
                 const url = this.siteUrl;
-                
+
                 // Create an object with the parameters required for the API call.
                 const params = {
                     wstoken: this.token,
@@ -172,16 +173,16 @@ Vue.component('studenttable',{
                     resultsperpage: this.options.itemsPerPage,
                     search: this.options.search,
                 };
-                
+
                 // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
                 const response = await window.axios.get(url, { params });
-                
+
                 // Parse the JSON data returned from the API.
                 const data = JSON.parse(response.data.dataUsers);
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];
-                
+
                 // Iterate through the retrieved data and populate the students array.
                 data.forEach((element) => {
                     this.students.push({
@@ -189,7 +190,10 @@ Vue.component('studenttable',{
                         email: element.email,
                         id: element.userid,
                         carrers: element.careers,
+                        id: element.userid,
+                        carrers: element.careers,
                         periods: element.periods,
+                        subperiods: element.subperiods,
                         revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
                         status: element.status,
                         img: element.profileimage
@@ -217,7 +221,7 @@ Vue.component('studenttable',{
          * const chipStyle = getChipStyle({ status: "Activo" });
          * // Example result: { background: "#b5e8b8", color: "#143f34" }
          */
-        getChipStyle(item){
+        getChipStyle(item) {
             // Determine the current theme (light or dark) using Vuetify's theme.
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
 
@@ -234,7 +238,7 @@ Vue.component('studenttable',{
                 BgChip5: "#B9C5D5",
                 TextChip5: "#2F445E",
             };
-            
+
             // Determine the chip style based on the item's status.
             if (item.status === "Activo") {
                 return {
@@ -276,10 +280,10 @@ Vue.component('studenttable',{
          * // Call this method when you want to display grades for a specific student or course.
          * gradeDialog(item);
          */
-        gradeDialog(item){
+        gradeDialog(item) {
             // Set the studentsGrades property to true to open the dialog or section.
             this.studentsGrades = true
-            
+
             // Store the selected item for further processing or display.
             this.studentGradeSelected = item
         },
@@ -294,10 +298,10 @@ Vue.component('studenttable',{
          * // Call this method when you want to close the dialog or section displaying student grades.
          * closeDialog();
          */
-        closeDialog(){
+        closeDialog() {
             // Set the studentsGrades property to false to close the dialog or section.
             this.studentsGrades = false
-            
+
             // Reset the selected student or course information.
             this.studentGradeSelected = {}
         }
@@ -309,7 +313,7 @@ Vue.component('studenttable',{
          *
          * @returns '{string}' - The constructed site URL.
          */
-        siteUrl(){
+        siteUrl() {
             return window.location.origin + '/webservice/rest/server.php'
         },
         /**
@@ -318,7 +322,7 @@ Vue.component('studenttable',{
          *
          * @returns '{object}' - Language-related data.
          */
-        lang(){
+        lang() {
             return window.strings
         },
         /**
@@ -326,7 +330,7 @@ Vue.component('studenttable',{
          *
          * @returns '{string}' - The user token.
          */
-        token(){
+        token() {
             return window.userToken;
         },
     },

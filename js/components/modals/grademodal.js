@@ -1,4 +1,4 @@
-Vue.component('grademodal',{
+Vue.component('grademodal', {
     template: `
         <div>
             
@@ -54,20 +54,20 @@ Vue.component('grademodal',{
             </v-dialog>
         </div>
     `,
-    data(){
-        return{
+    data() {
+        return {
             dialog: false,
-            carreData:{}
+            carreData: {}
         };
     },
-    props:{
+    props: {
         dataStudent: Object
     },
-    created(){
+    created() {
         this.getpensum()
     },
-    mounted(){},  
-    methods:{
+    mounted() { },
+    methods: {
         /**
          * The gradebook method redirects the user to the gradebook page for a specific course.
          *
@@ -84,10 +84,10 @@ Vue.component('grademodal',{
          * };
          * gradebook(courseInfo);
          */
-        gradebook(item){
+        gradebook(item) {
             // Construct the URL for the gradebook page using the course ID.
             const gradebookUrl = `/grade/report/grader/index.php?id=${item.courseid}`;
-            
+
             // Redirect the user to the gradebook page.
             window.location = gradebookUrl;
         },
@@ -102,10 +102,10 @@ Vue.component('grademodal',{
          * // This method is typically called when the user wants to close the dialog.
          * close();
          */
-        close(){
+        close() {
             // Close the dialog.
             this.dialog = false
-            
+
             // Emit an event to notify the parent component about the dialog closure.
             this.$emit('close-dialog')
         },
@@ -120,16 +120,16 @@ Vue.component('grademodal',{
         async getpensum() {
             // Create an empty array to store courses for each career.
             const coursestc = []
-            
+
             // Iterate over each career in the student's data.
             for (const element of this.dataStudent.carrers) {
                 // Call the getcarrers method to fetch curriculum data for each career.
                 const data = await this.getcarrers(element.planid);
-                
+
                 // Update the 'courses' property for each career with the fetched data.
                 element.courses = data;
             }
-            
+
             // Set the 'dialog' property to true to display the curriculum dialog.
             this.dialog = true
         },
@@ -155,18 +155,19 @@ Vue.component('grademodal',{
 
                 // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
                 const response = await window.axios.get(this.siteUrl, { params });
-        
+
                 // Parse the curriculum data from the response.
                 const data = JSON.parse(response.data.pensum);
                 const dataArray = Object.values(data);
-                
-                
+
+
                 // Filter the courses based on whether periodName matches periods
-                const filteredDataArray = dataArray.filter(course => course.periodName === this.dataStudent.carrers.find(career => career.planid === id).periods);
-        
+                // Filter removed to show all courses history
+                const filteredDataArray = dataArray;
+
                 // Extract only the 'courses' property from each object and flatten it.
                 const coursesArray = filteredDataArray.map(course => course.courses).flat();
-        
+
                 // Return the array of courses directly
                 return coursesArray;
             } catch (error) {
@@ -181,7 +182,7 @@ Vue.component('grademodal',{
          *
          * @returns '{object}' - Language-related data.
          */
-        lang(){
+        lang() {
             return window.strings
         },
         /**
@@ -189,7 +190,7 @@ Vue.component('grademodal',{
          *
          * @returns '{string}' - The user token.
          */
-        token(){
+        token() {
             return window.userToken;
         },
         /**
@@ -198,10 +199,10 @@ Vue.component('grademodal',{
          *
          * @returns '{string}' - The constructed site URL.
          */
-        siteUrl(){
+        siteUrl() {
             return window.location.origin + '/webservice/rest/server.php'
         },
-        carresData(){
+        carresData() {
             this.carreData = this.dataStudent
             return this.dataStudent
         }

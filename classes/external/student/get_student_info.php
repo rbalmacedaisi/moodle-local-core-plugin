@@ -79,7 +79,7 @@ class get_student_info extends external_api {
         ]);
         
         $query = 
-            'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
+            'SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
             lp.name as career, u.id as userid, u.email as email,
             u.firstname as firstname, u.lastname as lastname
             FROM {local_learning_plans} lp
@@ -128,6 +128,16 @@ class get_student_info extends external_api {
                 
                 //Get periods by user
                 $period = $DB->get_record('local_learning_periods', array('id' => $user->periodid));
+                $periodname = $period->name;
+                
+                $subperiodname = '';
+                // Get subperiod if exists
+                if (!empty($user->subperiodid)) {
+                    $subperiod = $DB->get_record('local_learning_subperiods', array('id' => $user->subperiodid));
+                    if ($subperiod) {
+                        $subperiodname = $subperiod->name;
+                    }
+                }
                 
                 //Get users in revalidate groups in learning plan courses
                 $userIntorev =  $DB->get_records_sql('SELECT g.id, gm.userid as userid, c.fullname as coursename, c.id as courseid
@@ -148,14 +158,12 @@ class get_student_info extends external_api {
                 
 
                 // Create or update user entry in $userData array
-                $userData[$user->userid]['periods'][] = $period->name;
-                //$userData[$user->userid]['careers'][] = $user->career;
-                //$userData[$user->userid]['careers'][] = ['planid' => $user->planid, 'career' => $user->career];
-                $userData[$user->userid]['careers'][] = [
                     'planid' => $user->planid,
                     'career' => $user->career,
-                    'periods' => $period->name,
+                    'periods' => $periodname,
                 ];
+                $userData[$user->userid]['periods'][] = $periodname;
+                $userData[$user->userid]['subperiods'][] = $subperiodname;
                 $userData[$user->userid]['userid'] = $user->userid;
                 $userData[$user->userid]['email'] = $user->email;
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;
