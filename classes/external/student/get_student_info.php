@@ -113,26 +113,45 @@ class get_student_info extends external_api {
             
             //Get field id profile student status
             $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
+            $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
 
             foreach ($infoUsers as $user) {
                 
-                //Get user info data Custom Fields
-                $user_info_data = $DB->get_records_sql("
-                    SELECT d.*
-                    FROM {user_info_data} d
-                    JOIN {user} u ON u.id = d.userid
-                    WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
-                ", array($field->id, $user->userid));
-                
-                $user_info = reset($user_info_data); // Get First element to array
-                $customfield_value = $user_info->data;
-                
-                if(empty($customfield_value)){
-                    $customfield_value = 'Activo';
+                //Get user info data Custom Fields - Status
+                $status = 'Activo';
+                if ($field) {
+                    $user_info_data = $DB->get_record_sql("
+                        SELECT d.data
+                        FROM {user_info_data} d
+                        JOIN {user} u ON u.id = d.userid
+                        WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
+                    ", array($field->id, $user->userid));
+                    
+                    if ($user_info_data && !empty($user_info_data->data)) {
+                        $status = $user_info_data->data;
+                    }
+                }
+
+                // Get Document Number
+                $docNumber = '';
+                if ($fieldDoc) {
+                     $doc_data = $DB->get_record_sql("
+                        SELECT d.data
+                        FROM {user_info_data} d
+                        JOIN {user} u ON u.id = d.userid
+                        WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
+                    ", array($fieldDoc->id, $user->userid));
+                    if ($doc_data && !empty($doc_data->data)) {
+                        $docNumber = $doc_data->data;
+                    }
                 }
                 
+                // Add to user object so it's sent to frontend
+                $user->documentnumber = $docNumber;
+                $customfield_value = $status; // Restore variable name used downstream if necessary, or refactor
+                
                 /*if($customfield_value == 'Inactivo' || $customfield_value == 'Suspendido' || $customfield_value == 'Expulsado'){
-                    $userobj = $DB->get_record('user', array('id' => $user_info->userid));
+                    $userobj = $DB->get_record('user', array('id' => $user->userid));
                     $userobj->suspended = 1;
                     $result = $DB->update_record('user', $userobj);
                 }*/
@@ -177,8 +196,12 @@ class get_student_info extends external_api {
                     'career' => $user->career,
                     'periods' => $periodname,
                 ];
-                $userData[$user->userid]['periods'][] = $periodname;
-                $userData[$user->userid]['subperiods'][] = $subperiodname;
+                $userData[$user->userid]['period'] = $periodname . $subperiodname;
+                $userData[$user->userid]['subperiods'] = $subperiodname; // Keep for explicit column
+                $userData[$user->userid]['status'] = $customfield_value;
+                $userData[$user->userid]['documentnumber'] = $user->documentnumber;
+                $userData[$user->userid]['revalidate'] = $revalidate;
+                $userData[$user->userid]['revalidateSubjects'] = $revalidateSubjects;
                 $userData[$user->userid]['userid'] = $user->userid;
                 $userData[$user->userid]['email'] = $user->email;
                 $userData[$user->userid]['nameuser'] = $user->firstname . " " . $user->lastname;

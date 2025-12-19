@@ -92,18 +92,24 @@ Vue.component('studenttable', {
                     </template>
                     
                     <template v-slot:item.status="{ item }">
-                        <v-chip
-                          class="rounded-xl py-2 justify-center"
-                          :style="getChipStyle(item)"
-                          style="width: 95px; !important"
-                          small
-                        >
-                          {{item.status}}
+                        <v-chip :color="getColor(item.status)" dark small label class="text-uppercase text-caption font-weight-bold" style="letter-spacing: 0.05em !important;">
+                             {{ item.status }}
                         </v-chip>
                     </template>
                     
+                    <!-- NEW: Custom slot for Email + ID -->
+                    <template v-slot:item.email="{ item }">
+                        <div>{{ item.email }}</div>
+                        <div class="caption text--secondary font-weight-medium" v-if="item.documentnumber">
+                            <v-icon small left class="mr-1">mdi-card-account-details</v-icon>
+                            {{ item.documentnumber }}
+                        </div>
+                    </template>
+
                     <template v-slot:item.grade="{ item }">
-                        <v-btn  class="rounded" color="info" width="60" x-small @click="gradeDialog(item)">Notas</v-btn>
+                        <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
+                             notas
+                        </v-btn>
                     </template>
                 
                     <template v-slot:no-data>
@@ -124,6 +130,7 @@ Vue.component('studenttable', {
                     sortable: false,
                     value: 'name',
                 },
+                { text: 'Email/ID', value: 'email', sortable: false },
                 {
                     text: window.strings.careers,
                     sortable: false,
