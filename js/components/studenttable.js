@@ -141,7 +141,10 @@ Vue.component('studenttable', {
             studentGradeSelected: {},
         }
     },
-    created() { },
+    created() {
+        console.log('StudentTable Component Created');
+        console.log('Current Headers:', this.headers);
+    },
     watch: {
         options: {
             handler() {
@@ -189,6 +192,16 @@ Vue.component('studenttable', {
 
                 // Parse the JSON data returned from the API.
                 const data = JSON.parse(response.data.dataUsers);
+                console.log('API Response DataUsers:', data);
+                if (data.length > 0) {
+                    console.log('First User Data Sample:', data[0]);
+                    console.log('Check keys:', Object.keys(data[0]));
+                    if ('subperiods' in data[0]) {
+                        console.log('Subperiods found:', data[0].subperiods);
+                    } else {
+                        console.error('Subperiods KEY MISSING in response!');
+                    }
+                }
                 // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.students = [];

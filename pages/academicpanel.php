@@ -167,7 +167,7 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=' . time()));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js'));
