@@ -129,15 +129,21 @@ Vue.component('studenttable', {
                     align: 'start',
                     sortable: false,
                     value: 'name',
+                    width: '250px' // Ensure name has space
                 },
-                { text: 'Email/ID', value: 'email', sortable: false },
+                {
+                    text: 'Email/ID',
+                    value: 'email',
+                    sortable: false,
+                    width: '250px'
+                },
                 {
                     text: window.strings.careers,
                     sortable: false,
                     value: 'carrers',
                 },
-                { text: window.strings.quarters, value: 'periods', sortable: false },
-                { text: 'Bloque', value: 'subperiods', sortable: false },
+                { text: window.strings.quarters, value: 'periods', sortable: false, width: '150px' },
+                { text: 'Bloque', value: 'subperiods', sortable: false, width: '150px' }, // Added width to prevent vertical stacking
                 { text: window.strings.revalidation, value: 'revalidate', sortable: false, align: 'center', },
                 { text: window.strings.state, value: 'status', sortable: false, },
                 { text: 'Calificaciones', value: 'grade', sortable: false, },
