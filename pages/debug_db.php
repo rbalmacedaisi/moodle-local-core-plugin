@@ -2,45 +2,67 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-// Disable output buffering
-if (ob_get_level()) ob_end_clean();
+// Set up the page
+$PAGE->set_url('/local/grupomakro_core/pages/debug_db.php');
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Debug Database Schema');
+$PAGE->set_heading('Database Diagnosis');
 
-echo "<h1>Grupomakro Debug Tool</h1>";
+echo $OUTPUT->header();
 
-global $DB;
-$dbman = $DB->get_manager();
-$table = new xmldb_table('gmk_class');
+echo "<h2>Checking table: local_learning_users</h2>";
 
-// Check initdate
-$initdate_exists = $dbman->field_exists($table, new xmldb_field('initdate'));
-echo "<p>Column <b>initdate</b>: " . ($initdate_exists ? "<span style='color:green'>EXISTS</span>" : "<span style='color:red'>MISSING</span>") . "</p>";
+$table = 'local_learning_users';
+$exists = $DB->get_manager()->table_exists($table);
 
-// Check enddate
-$enddate_exists = $dbman->field_exists($table, new xmldb_field('enddate'));
-echo "<p>Column <b>enddate</b>: " . ($enddate_exists ? "<span style='color:green'>EXISTS</span>" : "<span style='color:red'>MISSING</span>") . "</p>";
-
-// Check Version
-$plugin = new stdClass();
-require($CFG->dirroot . '/local/grupomakro_core/version.php');
-echo "<p>Plugin Version in File: <b>" . $plugin->version . "</b></p>";
-$installed_version = get_config('local_grupomakro_core', 'version');
-echo "<p>Plugin Version in DB: <b>" . $installed_version . "</b></p>";
-
-if ($plugin->version > $installed_version) {
-    echo "<h2 style='color:red'>WARNING: Plugin code is newer (" . $plugin->version . ") than Database (" . $installed_version . "). <br>YOU MUST RUN MOODLE UPGRADE.</h2>";
-    echo "<p><a href='" . $CFG->wwwroot . "/admin/index.php' target='_blank' style='font-size:20px; font-weight:bold'>CLICK HERE TO UPGRADE DATABASE</a></p>";
+if (!$exists) {
+    echo $OUTPUT->notification("Table $table DOES NOT EXIST.", 'error');
 } else {
-    echo "<h2 style='color:green'>Version matches.</h2>";
+    echo $OUTPUT->notification("Table $table exists.", 'success');
+    
+    echo "<h3>Columns:</h3>";
+    $columns = $DB->get_columns($table);
+    echo "<ul>";
+    $foundSubperiod = false;
+    foreach ($columns as $col) {
+        $style = ($col->name === 'currentsubperiodid') ? 'color:green; font-weight:bold;' : '';
+        echo "<li style='$style'>" . $col->name . " (Type: " . $col->type . ")</li>";
+        if ($col->name === 'currentsubperiodid') {
+            $foundSubperiod = true;
+        }
+    }
+    echo "</ul>";
+
+    if ($foundSubperiod) {
+        echo $OUTPUT->notification("Column 'currentsubperiodid' FOUND.", 'success');
+    } else {
+        echo $OUTPUT->notification("Column 'currentsubperiodid' NOT FOUND. The SQL query in get_student_info.php will fail.", 'error');
+    }
+
+    echo "<h3>First 5 Records:</h3>";
+    try {
+        $records = $DB->get_records($table, null, '', '*', 0, 5);
+        if (empty($records)) {
+            echo "<p>No records found.</p>";
+        } else {
+            echo "<table class='table table-bordered'>";
+            echo "<thead><tr>";
+            foreach (reset($records) as $key => $val) {
+                echo "<th>$key</th>";
+            }
+            echo "</tr></thead><tbody>";
+            foreach ($records as $rec) {
+                echo "<tr>";
+                foreach ($rec as $val) {
+                    echo "<td>" . s($val) . "</td>";
+                }
+                echo "</tr>";
+            }
+            echo "</tbody></table>";
+        }
+    } catch (Exception $e) {
+        echo $OUTPUT->notification("Error fetching records: " . $e->getMessage(), 'error');
+    }
 }
 
-// Attempt Query
-try {
-    echo "<hr><h3>Test Query on gmk_class</h3>";
-    $records = $DB->get_records('gmk_class', null, '', 'id, name, inittime, endtime' . ($initdate_exists ? ', initdate' : ''), 0, 1);
-    echo "<pre>";
-    print_r($records);
-    echo "</pre>";
-    echo "<p style='color:green'>Query Executed Successfully.</p>";
-} catch (Exception $e) {
-    echo "<p style='color:red'>Query Failed: " . $e->getMessage() . "</p>";
-}
+echo $OUTPUT->footer();
