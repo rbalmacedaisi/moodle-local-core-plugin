@@ -121,7 +121,7 @@ class update_class extends external_api {
             update_class($params);
             
             // Return the result.
-            return [];
+            return ['status' => 1, 'message' => 'ok'];
         }
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
