@@ -283,5 +283,13 @@ class local_grupomakro_core_observer
             print_object($e->getMessage());
             return false;
         }
+    public static function user_graded(\core\event\user_graded $event)
+    {
+        $eventData = $event->get_data();
+        $courseId = $eventData['courseid'];
+        $userId = $eventData['relateduserid'];
+
+        local_grupomakro_progress_manager::update_course_progress($courseId, $userId);
     }
 }
+

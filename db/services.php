@@ -643,4 +643,13 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_sync_progress' => array(
+        'classname'   => 'local_grupomakro_core\external\student\sync_progress',
+        'methodname'  => 'execute',
+        'description' => 'Synchronize progress for all students',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
+

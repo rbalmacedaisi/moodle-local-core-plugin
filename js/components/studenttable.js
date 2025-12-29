@@ -40,7 +40,11 @@ Vue.component('studenttable', {
                                    dense
                                 ></v-text-field>
                             </v-col>
-                            <v-col cols="auto">
+                            <v-col cols="auto" class="d-flex" style="gap: 8px;">
+                                <v-btn color="secondary" @click="syncProgress" :loading="syncing" :disabled="syncing">
+                                    <v-icon left>mdi-sync</v-icon>
+                                    Sincronizar Progreso
+                                </v-btn>
                                 <v-btn color="primary" @click="exportStudents">
                                     <v-icon left>mdi-file-export</v-icon>
                                     Exportar
@@ -157,6 +161,7 @@ Vue.component('studenttable', {
             ],
             totalDesserts: 0,
             activeUsers: 0,
+            syncing: false,
             loading: true,
             options: {
                 page: 1,
@@ -356,7 +361,22 @@ Vue.component('studenttable', {
             if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
             if (status === 'graduado' || status === 'egresado') return 'primary';
             return 'grey';
-        }
+        },
+        async syncProgress() {
+            this.syncing = true;
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
+                if (response.data.status === 'success') {
+                    M.util.js_pending('local_grupomakro_sync_progress');
+                    await this.getDataFromApi();
+                    M.util.js_complete('local_grupomakro_sync_progress');
+                }
+            } catch (error) {
+                console.error(error);
+            } finally {
+                this.syncing = false;
+            }
+        },
     },
     computed: {
         /**

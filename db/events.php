@@ -77,5 +77,10 @@ $observers = array(
     array(
         'eventname' => 'core\event\course_module_deleted',
         'callback' => 'local_grupomakro_core_observer::course_module_deleted',
+    ),
+    array(
+        'eventname' => 'core\event\user_graded',
+        'callback' => 'local_grupomakro_core_observer::user_graded',
     )
 );
+
