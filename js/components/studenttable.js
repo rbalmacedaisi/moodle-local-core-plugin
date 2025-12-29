@@ -41,7 +41,7 @@ Vue.component('studenttable', {
                                 ></v-text-field>
                             </v-col>
                             <v-col cols="auto" class="d-flex" style="gap: 8px;">
-                                <v-btn color="secondary" @click="syncProgress" :loading="syncing" :disabled="syncing">
+                                <v-btn v-if="isAdmin" color="secondary" @click="syncProgress" :loading="syncing" :disabled="syncing">
                                     <v-icon left>mdi-sync</v-icon>
                                     Sincronizar Progreso
                                 </v-btn>
@@ -404,6 +404,9 @@ Vue.component('studenttable', {
          */
         token() {
             return window.userToken;
+        },
+        isAdmin() {
+            return window.isAdmin || false;
         },
     },
 })
