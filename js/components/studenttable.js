@@ -51,6 +51,13 @@ Vue.component('studenttable', {
                                 </v-btn>
                             </v-col>
                         </v-row>
+                        <v-row v-if="syncing || syncLog" class="ma-0 px-3 pb-2">
+                             <v-col cols="12">
+                                <v-alert dense outlined type="info" class="text-caption mb-0" style="white-space: pre-wrap; font-family: monospace; max-height: 150px; overflow-y: auto;">
+                                    {{ syncLog }}
+                                </v-alert>
+                             </v-col>
+                        </v-row>
                     </template>
                     
                     <template v-slot:item.name="{ item }">
@@ -162,6 +169,7 @@ Vue.component('studenttable', {
             totalDesserts: 0,
             activeUsers: 0,
             syncing: false,
+            syncLog: '',
             loading: true,
             options: {
                 page: 1,
@@ -364,17 +372,37 @@ Vue.component('studenttable', {
         },
         async syncProgress() {
             this.syncing = true;
+            this.syncLog = 'Iniciando...';
+
+            // Start polling the log
+            const logInterval = setInterval(async () => {
+                try {
+                    const logRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
+                    if (logRes.data.status === 'success') {
+                        this.syncLog = logRes.data.log;
+                    }
+                } catch (e) {
+                    console.error('Error polling log:', e);
+                }
+            }, 3000);
+
             try {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
                 if (response.data.status === 'success') {
                     M.util.js_pending('local_grupomakro_sync_progress');
                     await this.getDataFromApi();
                     M.util.js_complete('local_grupomakro_sync_progress');
+                    alert('Sincronización completada con éxito. Registros procesados: ' + response.data.count);
                 }
             } catch (error) {
                 console.error(error);
+                alert('Error durante la sincronización. Revisa la consola o el log.');
             } finally {
+                clearInterval(logInterval);
                 this.syncing = false;
+                // Final log update
+                const finalLog = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
+                this.syncLog = finalLog.data.log;
             }
         },
     },

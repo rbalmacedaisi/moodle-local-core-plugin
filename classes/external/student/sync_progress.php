@@ -42,26 +42,38 @@ class sync_progress extends external_api {
             'count' => 0
         ];
 
+        $logFile = make_tempdir('grupomakro') . '/sync_progress.log';
+        $logHandle = fopen($logFile, 'w');
+        fwrite($logHandle, "Iniciando sincronización: " . date('Y-m-d H:i:s') . "\n");
+
         try {
             // Get all students enrolled in learning plans.
-            $sql = "SELECT lpu.userid, lpu.learningplanid, lpc.courseid
+            $sql = "SELECT DISTINCT lpu.userid, lpu.learningplanid, lpc.courseid
                     FROM {local_learning_users} lpu
                     JOIN {local_learning_courses} lpc ON lpc.learningplanid = lpu.learningplanid
                     JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.courseid = lpc.courseid)
                     WHERE lpu.userrolename = :rolename";
             
             $records = $DB->get_records_sql($sql, ['rolename' => 'student']);
+            $total = count($records);
+            fwrite($logHandle, "Total de registros encontrados: $total\n");
 
-            foreach ($records as $record) {
+            foreach ($records as $index => $record) {
                 try {
+                    $current = $index + 1;
                     // Force progress and grade update.
                     local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid);
                     $result['count']++;
+                    if ($current % 10 == 0 || $current == $total) {
+                        fwrite($logHandle, "Progreso: $current/$total (" . round(($current / $total) * 100) . "%)\n");
+                    }
                 } catch (Exception $e) {
-                    // Log or handle individual record errors if needed.
+                    fwrite($logHandle, "Error en registro (User: $record->userid, Course: $record->courseid): " . $e->getMessage() . "\n");
                     continue;
                 }
             }
+            fwrite($logHandle, "Sincronización finalizada: " . date('Y-m-d H:i:s') . "\n");
+            fclose($logHandle);
 
         } catch (Exception $e) {
             $result['status'] = 'error';
