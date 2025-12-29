@@ -388,21 +388,29 @@ Vue.component('studenttable', {
 
             try {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
+                console.log('Sync response:', response.data);
+
                 if (response.data.status === 'success') {
                     M.util.js_pending('local_grupomakro_sync_progress');
                     await this.getDataFromApi();
                     M.util.js_complete('local_grupomakro_sync_progress');
                     alert('Sincronización completada con éxito. Registros procesados: ' + response.data.count);
+                } else {
+                    alert('Error del servidor: ' + (response.data.message || 'Error desconocido'));
                 }
             } catch (error) {
-                console.error(error);
-                alert('Error durante la sincronización. Revisa la consola o el log.');
+                console.error('Error in syncProgress:', error);
+                alert('Error de red o ejecución. Revisa la consola o el log.');
             } finally {
                 clearInterval(logInterval);
                 this.syncing = false;
                 // Final log update
-                const finalLog = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
-                this.syncLog = finalLog.data.log;
+                try {
+                    const finalLog = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
+                    this.syncLog = finalLog.data.log;
+                } catch (e) {
+                    console.error('Error getting final log:', e);
+                }
             }
         },
     },

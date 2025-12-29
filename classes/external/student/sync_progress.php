@@ -43,23 +43,28 @@ class sync_progress extends external_api {
         ];
 
         $logFile = make_tempdir('grupomakro') . '/sync_progress.log';
-        $logHandle = fopen($logFile, 'w');
-        fwrite($logHandle, "Iniciando sincronización: " . date('Y-m-d H:i:s') . "\n");
+        file_put_contents($logFile, "Iniciando sincronización: " . date('Y-m-d H:i:s') . "\n");
 
         $studentRoleId = $DB->get_field('role', 'id', ['shortname' => 'student']);
+        file_put_contents($logFile, "Student Role ID: $studentRoleId\n", FILE_APPEND);
 
         try {
             // Get all students enrolled in learning plans.
-            $sql = "SELECT DISTINCT lpu.userid, lpu.learningplanid, lpc.courseid
+            // Simplified query to ensure we get something first
+            $sql = "SELECT DISTINCT lpu.userid, lpu.learningplanid, gcp.courseid
                     FROM {local_learning_users} lpu
-                    JOIN {local_learning_courses} lpc ON lpc.learningplanid = lpu.learningplanid
-                    JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.courseid = lpc.courseid)
+                    JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.learningplanid = lpu.learningplanid)
                     WHERE lpu.userroleid = :studentroleid";
             
             $records = $DB->get_records_sql($sql, ['studentroleid' => $studentRoleId]);
             $total = count($records);
-            fwrite($logHandle, "Total de registros encontrados: $total\n");
+            file_put_contents($logFile, "Total de registros encontrados: $total\n", FILE_APPEND);
             
+            if ($total === 0) {
+                 file_put_contents($logFile, "AVISO: No se encontraron registros de progreso para estudiantes.\n", FILE_APPEND);
+                 return $result;
+            }
+
             // Release session lock so the poller can read the log file.
             \core\session\manager::write_close();
 
