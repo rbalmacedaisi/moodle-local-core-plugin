@@ -8,6 +8,7 @@ $context = context_system::instance();
 require_capability('moodle/site:config', $context); // Only for super admins
 
 $userid = optional_param('userid', 0, PARAM_INT);
+$docnumber = optional_param('docnumber', '', PARAM_RAW);
 $planid = optional_param('planid', 0, PARAM_INT);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_progress.php'));
@@ -19,10 +20,31 @@ echo $OUTPUT->header();
 
 echo "<h2>Herramienta de Diagnóstico</h2>";
 echo "<form method='get'>
-        User ID: <input type='text' name='userid' value='$userid'>
+        Número de Documento: <input type='text' name='docnumber' value='$docnumber'>
+        o User ID: <input type='text' name='userid' value='$userid'>
         Plan ID (opcional): <input type='text' name='planid' value='$planid'>
         <input type='submit' value='Analizar'>
       </form><hr>";
+
+if (!empty($docnumber) && $userid == 0) {
+    global $DB;
+    $field = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
+    if ($field) {
+        $data = $DB->get_record('user_info_data', array('fieldid' => $field->id, 'data' => $docnumber));
+        if ($data) {
+            $userid = $data->userid;
+        } else {
+            // Try idnumber as fallback
+            $user = $DB->get_record('user', array('idnumber' => $docnumber));
+            if ($user) {
+                $userid = $user->id;
+            }
+        }
+    }
+    if ($userid == 0) {
+        echo "<div style='color:red'>No se encontró ningún usuario con el documento: $docnumber</div>";
+    }
+}
 
 if ($userid > 0) {
     global $DB;
