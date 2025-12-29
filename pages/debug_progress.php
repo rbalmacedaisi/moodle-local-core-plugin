@@ -30,7 +30,8 @@ if (!empty($docnumber) && $userid == 0) {
     global $DB;
     $field = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
     if ($field) {
-        $data = $DB->get_record('user_info_data', array('fieldid' => $field->id, 'data' => $docnumber));
+        $sql = "SELECT userid FROM {user_info_data} WHERE fieldid = :fieldid AND " . $DB->sql_compare_text('data') . " = :docnumber";
+        $data = $DB->get_record_sql($sql, array('fieldid' => $field->id, 'docnumber' => (string)$docnumber));
         if ($data) {
             $userid = $data->userid;
         } else {
