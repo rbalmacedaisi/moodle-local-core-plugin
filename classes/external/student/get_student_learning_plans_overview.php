@@ -107,8 +107,26 @@ class get_student_learning_plans_overview extends external_api
         $totalWeightedCompletion = 0;
         $totalCredits = 0;
         foreach ($userLearningPlanProgressRecords as $userLearningPlanProgressRecord) {
-            $courseCompletionInfo = new \completion_info(get_course($userLearningPlanProgressRecord->courseid));
-            $totalWeightedCompletion += ($courseCompletionInfo->is_course_complete($userId) ? 1 : 0) * $userLearningPlanProgressRecord->credits;
+            $course = get_course($userLearningPlanProgressRecord->courseid);
+            $courseCompletionInfo = new \completion_info($course);
+            
+            // Criteria 1: Native Moodle Completion
+            $isComplete = $courseCompletionInfo->is_course_complete($userId);
+            
+            // Criteria 2: Approved Status in GMK (Local)
+            if (!$isComplete && in_array($userLearningPlanProgressRecord->status, [COURSE_COMPLETED, COURSE_APPROVED])) {
+                $isComplete = true;
+            }
+            
+            // Criteria 3: Approved Grade (Local)
+            if (!$isComplete) {
+                $gradeObj = grade_get_course_grade($userId, $userLearningPlanProgressRecord->courseid);
+                if ($gradeObj && $gradeObj->grade >= 70) {
+                    $isComplete = true;
+                }
+            }
+
+            $totalWeightedCompletion += ($isComplete ? 1 : 0) * $userLearningPlanProgressRecord->credits;
             $totalCredits += $userLearningPlanProgressRecord->credits;
         }
         return $totalCredits > 0 ? round(($totalWeightedCompletion / $totalCredits) * 100) : 0;

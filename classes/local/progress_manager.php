@@ -189,8 +189,15 @@ class local_grupomakro_progress_manager
             $userCourseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $courseId], '*', MUST_EXIST);
             if ($userCourseProgress) {
                 $userCourseProgress->progress = ($completedModules / $sectionModuleCount) * 100;
-                $userCourseProgress->grade = grade_get_course_grades($courseId, $userId)->grades[$userId]->grade;
-                if ($userCourseProgress->progress == 100) {
+                $userGrade = grade_get_course_grades($courseId, $userId)->grades[$userId]->grade;
+                $userCourseProgress->grade = $userGrade;
+
+                // [FIX] If the student has an approved grade (>= 70), force progress to 100% and status to COMPLETED.
+                // This covers bulk grade uploads that don't trigger native Moodle completions.
+                if ($userGrade >= 70) {
+                     $userCourseProgress->progress = 100;
+                     $userCourseProgress->status = COURSE_COMPLETED;
+                } else if ($userCourseProgress->progress == 100) {
                     $userCourseProgress->status = COURSE_COMPLETED;
                 }
                 $DB->update_record('gmk_course_progre', $userCourseProgress);

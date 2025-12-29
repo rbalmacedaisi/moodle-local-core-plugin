@@ -81,6 +81,9 @@ class get_learning_plans_data extends external_api
                         if ($courseProgre) {
                             $course['realprogress'] = $courseProgre->progress;
                             $course['showprogress'] = $courseProgre->progress;
+                        } else {
+                            $course['realprogress'] = 0;
+                            $course['showprogress'] = 0;
                         }
                     }
                 }
