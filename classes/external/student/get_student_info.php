@@ -243,9 +243,7 @@ class get_student_info extends external_api {
             'activeUsers'   => $activeUsersCount
         ];
     }
- 
-    }
-    
+
     /**
      * Describes the return value of the {@see self::execute()} method.
      *
