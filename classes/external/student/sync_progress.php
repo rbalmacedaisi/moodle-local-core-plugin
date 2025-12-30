@@ -50,7 +50,7 @@ class sync_progress extends external_api {
 
         try {
             // 1. Get ALL students enrolled in learning plans, regardless of whether they have progress records yet.
-            $sql = "SELECT lpu.userid, lpu.learningplanid, lpu.userroleid
+            $sql = "SELECT lpu.id, lpu.userid, lpu.learningplanid, lpu.userroleid
                     FROM {local_learning_users} lpu
                     WHERE lpu.userroleid = :studentroleid";
             

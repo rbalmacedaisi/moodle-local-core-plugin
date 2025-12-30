@@ -20,7 +20,7 @@ class enroll_student extends external_api {
         return new external_function_parameters(
             array(
                 'product_name' => new external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
-                'username'     => new external_value(PARAM_USERNAME, 'The username of the student', VALUE_REQUIRED),
+                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
                 'role_id'      => new external_value(PARAM_INT, 'The Role ID (default to student)', VALUE_DEFAULT, 5),
             )
         );
