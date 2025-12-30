@@ -42,7 +42,19 @@ Vue.component('import-progress', {
             this.results = [];
             this.logs = [];
             this.finished = false;
+            this.error = null;
 
+            await this.processNextChunk();
+        },
+        async resumeImport() {
+            this.isProcessing = true;
+            this.stopRequested = false;
+            this.error = null;
+            this.logs.unshift({
+                time: new Date().toLocaleTimeString(),
+                msg: "Reanudando proceso...",
+                type: 'info'
+            });
             await this.processNextChunk();
         },
         stopImport() {
@@ -197,12 +209,14 @@ Vue.component('import-progress', {
 
             <v-alert v-if="error" type="error" border="left" class="mt-4">
                 {{ error }}
-                <v-btn small text @click="startImport" class="ml-4">Reintentar</v-btn>
+                <v-btn small text @click="resumeImport" class="ml-4">Reintentar</v-btn>
+                <v-btn small text @click="startImport" class="ml-4" color="grey">Empezar de cero</v-btn>
             </v-alert>
 
             <v-alert v-if="stopRequested && !isProcessing" type="warning" border="left" class="mt-4">
-                El proceso fue detenido por el usuario. Puedes reanudarlo re-cargando la página o reiniciando.
-                <v-btn small text @click="startImport" class="ml-4">Reiniciar</v-btn>
+                El proceso fue detenido por el usuario.
+                <v-btn small text @click="resumeImport" class="ml-4">Continuar</v-btn>
+                <v-btn small text @click="startImport" class="ml-4" color="grey">Empezar de cero</v-btn>
             </v-alert>
 
 
