@@ -18,8 +18,8 @@ require_capability('moodle/site:config', $context); // Only admins for now, or a
 
 global $DB;
 
-$planid   = optional_param('planid', 0, PARAM_INT);
-$periodid = optional_param('periodid', 0, PARAM_INT);
+$planid   = optional_param('planid', '', PARAM_RAW);
+$periodid = optional_param('periodid', '', PARAM_RAW);
 $status   = optional_param('status', '', PARAM_TEXT); // Student Status filter
 
 // Course Status Mapping (from progress_manager)
@@ -37,13 +37,21 @@ $statusLabels = [
 $sqlConditions = ["u.deleted = 0"];
 $sqlParams = [];
 
-if ($planid) {
-    $sqlConditions[] = "cp.learningplanid = :planid";
-    $sqlParams['planid'] = $planid;
+if (!empty($planid)) {
+    $planids = array_filter(explode(',', $planid), 'is_numeric');
+    if (!empty($planids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
+        $sqlConditions[] = "cp.learningplanid $insql";
+        $sqlParams = array_merge($sqlParams, $inparams);
+    }
 }
-if ($periodid) {
-    $sqlConditions[] = "cp.periodid = :periodid";
-    $sqlParams['periodid'] = $periodid;
+if (!empty($periodid)) {
+    $periodids = array_filter(explode(',', $periodid), 'is_numeric');
+    if (!empty($periodids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
+        $sqlConditions[] = "cp.periodid $insql";
+        $sqlParams = array_merge($sqlParams, $inparams);
+    }
 }
 
 $whereClause = "WHERE " . implode(' AND ', $sqlConditions);

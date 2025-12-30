@@ -59,8 +59,8 @@ class get_student_info extends external_api {
                 'page'           => new external_value(PARAM_INT, 'Page of the list.', VALUE_DEFAULT, 0),
                 'resultsperpage' => new external_value(PARAM_INT, 'Results to show by page.', VALUE_DEFAULT, 15),
                 'search'         => new external_value(PARAM_RAW, 'Filters by search data users.', VALUE_DEFAULT, ''),
-                'planid'         => new external_value(PARAM_INT, 'Filter by Learning Plan ID.', VALUE_DEFAULT, 0),
-                'periodid'       => new external_value(PARAM_INT, 'Filter by Period ID.', VALUE_DEFAULT, 0),
+                'planid'         => new external_value(PARAM_RAW, 'Filter by Learning Plan IDs (comma separated).', VALUE_DEFAULT, ''),
+                'periodid'       => new external_value(PARAM_RAW, 'Filter by Period IDs (comma separated).', VALUE_DEFAULT, ''),
                 'status'         => new external_value(PARAM_TEXT, 'Filter by Student Status.', VALUE_DEFAULT, ''),
             ]);
     }
@@ -68,10 +68,12 @@ class get_student_info extends external_api {
     /**
      * TODO describe what the function actually does.
      *
-     * @param int $userid
+     * @param string $planid
+     * @param string $periodid
+     * @param string $status
      * @return mixed TODO document
      */
-    public static function execute($page, $resultsperpage, $search, $planid = 0, $periodid = 0, $status = '') {
+    public static function execute($page, $resultsperpage, $search, $planid = '', $periodid = '', $status = '') {
         global $DB;
         
         // Validate the parameters passed to the function.
@@ -87,13 +89,21 @@ class get_student_info extends external_api {
         $sqlConditions = ["lpu.userrolename = :userrolename"];
         $sqlParams = ['userrolename' => 'student'];
 
-        if ($params['planid']) {
-            $sqlConditions[] = "lp.id = :planid";
-            $sqlParams['planid'] = $params['planid'];
+        if (!empty($params['planid'])) {
+            $planids = array_filter(explode(',', $params['planid']), 'is_numeric');
+            if (!empty($planids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
+                $sqlConditions[] = "lp.id $insql";
+                $sqlParams = array_merge($sqlParams, $inparams);
+            }
         }
-        if ($params['periodid']) {
-            $sqlConditions[] = "lpu.currentperiodid = :periodid";
-            $sqlParams['periodid'] = $params['periodid'];
+        if (!empty($params['periodid'])) {
+            $periodids = array_filter(explode(',', $params['periodid']), 'is_numeric');
+            if (!empty($periodids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
+                $sqlConditions[] = "lpu.currentperiodid $insql";
+                $sqlParams = array_merge($sqlParams, $inparams);
+            }
         }
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
