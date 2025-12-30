@@ -2,7 +2,13 @@
 
 define('AJAX_SCRIPT', true);
 
-require_once(__DIR__ . '/../../config.php');
+// Try multiple levels up to find config.php
+$config_path = __DIR__ . '/../../config.php';
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../../../config.php';
+}
+
+require_once($config_path);
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
@@ -15,10 +21,12 @@ $response = [
     'message' => 'Invalid action.'
 ];
 
+// Ensure we don't have any output before header
+ob_start();
+
 try {
     switch ($action) {
         case 'local_grupomakro_sync_progress':
-            // Call the external function logic directly or through external_api
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/sync_progress.php');
             $response = \local_grupomakro_core\external\student\sync_progress::execute();
             break;
@@ -38,37 +46,56 @@ try {
 
         case 'local_grupomakro_sync_migrated_periods':
             raise_memory_limit(MEMORY_HUGE);
-            core_php_time_limit::raise(600); // 10 minutes
+            core_php_time_limit::raise(300); // 5 minutes per batch
 
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
             $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';
-            file_put_contents($logFile, "--- Inicio Sincronización Periodos (Migrados) " . date('Y-m-d H:i:s') . " ---\n", FILE_APPEND);
+            
+            $offset = optional_param('offset', 0, PARAM_INT);
+            $limit = 100; // Batch size
+            
+            if ($offset == 0) {
+                file_put_contents($logFile, "--- Inicio Sincronización Periodos (Migrados) " . date('Y-m-d H:i:s') . " ---\n", FILE_APPEND);
+            }
 
-            // Get student role ID (usually 5, but let's be sure or allow it)
             $studentRoleId = 5; 
-
-            // Get all students in learning plans
-            $students = $DB->get_records('local_learning_users', ['userroleid' => $studentRoleId], '', 'userid, learningplanid');
-            $count = 0;
-            $total = count($students);
-            $processed = 0;
+            // Count total first
+            $totalCount = $DB->count_records('local_learning_users', ['userroleid' => $studentRoleId]);
+            
+            // Get batch
+            $students = $DB->get_records('local_learning_users', ['userroleid' => $studentRoleId], 'id ASC', 'userid, learningplanid', $offset, $limit);
+            
+            $countUpdated = 0;
+            $processedInBatch = 0;
 
             foreach ($students as $s) {
                 try {
-                    $processed++;
-                    if ($processed % 50 == 0) {
-                        file_put_contents($logFile, "[PROGRESO] Procesados $processed de $total...\n", FILE_APPEND);
-                    }
-                    
+                    $processedInBatch++;
                     if (\local_grupomakro_progress_manager::sync_student_period_by_count($s->userid, $s->learningplanid, $logFile)) {
-                        $count++;
+                        $countUpdated++;
                     }
                 } catch (Exception $e) {
                     file_put_contents($logFile, "[FATAL] Error con usuario $s->userid: " . $e->getMessage() . "\n", FILE_APPEND);
                 }
             }
-            file_put_contents($logFile, "--- Fin Sincronización Periodos. $count de $total actualizados ---\n", FILE_APPEND);
-            $response = ['status' => 'success', 'message' => "Sincronización terminada. $count registros actualizados.", 'processed' => $processed];
+
+            $newOffset = $offset + count($students);
+            $finished = ($newOffset >= $totalCount || empty($students));
+
+            if ($finished) {
+                file_put_contents($logFile, "--- Fin Sincronización Periodos. ---\n", FILE_APPEND);
+            } else {
+                file_put_contents($logFile, "[BATCH] Procesado bloque hasta índice $newOffset de $totalCount...\n", FILE_APPEND);
+            }
+
+            $response = [
+                'status' => 'success', 
+                'message' => $finished ? "Sincronización finalizada." : "Procesando bloque...",
+                'offset' => $newOffset,
+                'total' => $totalCount,
+                'finished' => $finished,
+                'countUpdated' => $countUpdated
+            ];
             break;
 
         case 'local_grupomakro_get_periods':
@@ -97,6 +124,10 @@ try {
     $response['status'] = 'error';
     $response['message'] = $e->getMessage();
 }
+
+$output = ob_get_clean();
+// If there was some unexpected output, we might want to log it or ignore it.
+// For now, prioritize returning clean JSON.
 
 header('Content-Type: application/json');
 echo json_encode($response);
