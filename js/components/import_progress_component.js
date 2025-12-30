@@ -17,7 +17,8 @@ Vue.component('import-progress', {
             results: [],
             error: null,
             finished: false,
-            logs: []
+            logs: [],
+            stopRequested: false
         };
     },
     computed: {
@@ -35,6 +36,7 @@ Vue.component('import-progress', {
     methods: {
         async startImport() {
             this.isProcessing = true;
+            this.stopRequested = false;
             this.offset = 0;
             this.processedCount = 0;
             this.results = [];
@@ -43,8 +45,26 @@ Vue.component('import-progress', {
 
             await this.processNextChunk();
         },
+        stopImport() {
+            this.stopRequested = true;
+            this.logs.unshift({
+                time: new Date().toLocaleTimeString(),
+                msg: "Detención solicitada por el usuario...",
+                type: 'warning'
+            });
+        },
         async processNextChunk() {
-            if (!this.isProcessing) return;
+            if (!this.isProcessing || this.stopRequested) {
+                this.isProcessing = false;
+                if (this.stopRequested) {
+                    this.logs.unshift({
+                        time: new Date().toLocaleTimeString(),
+                        msg: "Proceso detenido.",
+                        type: 'error'
+                    });
+                }
+                return;
+            }
 
             try {
                 const response = await axios.post('../ajax.php', new URLSearchParams({
@@ -99,6 +119,30 @@ Vue.component('import-progress', {
             } catch (e) {
                 console.error("No se pudo limpiar el archivo temporal", e);
             }
+        },
+        exportResults() {
+            const headers = ['Fila', 'Usuario', 'Curso', 'Estado', 'Error'];
+            const rows = this.results.map(r => [
+                r.row,
+                r.username,
+                r.course,
+                r.status,
+                r.error ? r.error.replace(/,/g, ';') : ''
+            ]);
+
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM
+            csvContent += headers.join(",") + "\n";
+            rows.forEach(row => {
+                csvContent += row.join(",") + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `log_importacion_${new Date().getTime()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     },
     mounted() {
@@ -106,9 +150,21 @@ Vue.component('import-progress', {
     },
     template: `
     <v-card class="pa-4 mt-4" elevation="2">
-        <v-card-title class="headline">
-            <v-icon left color="primary">mdi-file-import</v-icon>
-            Procesando {{ totalRows }} registros
+        <v-card-title class="headline d-flex justify-space-between">
+            <div>
+                <v-icon left color="primary">mdi-file-import</v-icon>
+                Procesando {{ totalRows }} registros
+            </div>
+            <div>
+                <v-btn v-if="isProcessing" color="error" @click="stopImport" small dark>
+                    <v-icon left>mdi-stop</v-icon>
+                    Detener
+                </v-btn>
+                <v-btn v-if="results.length > 0" color="secondary" @click="exportResults" small class="ml-2">
+                    <v-icon left>mdi-download</v-icon>
+                    Exportar Resultados (CSV)
+                </v-btn>
+            </div>
         </v-card-title>
         
         <v-card-text>
@@ -127,9 +183,9 @@ Vue.component('import-progress', {
                 </v-progress-linear>
             </div>
 
-            <v-row v-if="finished || isProcessing">
+            <v-row v-if="results.length > 0">
                 <v-col cols="4">
-                    <v-alert dense outlined type="info">Total: {{ totalRows }}</v-alert>
+                    <v-alert dense outlined type="info">Procesados: {{ processedCount }} / {{ totalRows }}</v-alert>
                 </v-col>
                 <v-col cols="4">
                     <v-alert dense outlined type="success">Éxitos: {{ successCount }}</v-alert>
@@ -141,8 +197,14 @@ Vue.component('import-progress', {
 
             <v-alert v-if="error" type="error" border="left" class="mt-4">
                 {{ error }}
-                <v-btn small text @click="startImport" class="ml-4">Reintentar desde el fallo</v-btn>
+                <v-btn small text @click="startImport" class="ml-4">Reintentar</v-btn>
             </v-alert>
+
+            <v-alert v-if="stopRequested && !isProcessing" type="warning" border="left" class="mt-4">
+                El proceso fue detenido por el usuario. Puedes reanudarlo re-cargando la página o reiniciando.
+                <v-btn small text @click="startImport" class="ml-4">Reiniciar</v-btn>
+            </v-alert>
+
 
             <v-expand-transition>
                 <div v-if="finished" class="text-center mt-6">
