@@ -72,9 +72,27 @@ class get_data_by_courses extends external_api
         global $DB;
         try {
             $courseData = \local_soluttolms_core\external\get_data_by_courses::execute($params['courseid'], $params['userid']);
-            if ($gmkCourseProgress = $DB->get_field('gmk_course_progre', 'progress', $params)) {
+            $courseProgre = $DB->get_record('gmk_course_progre', ['courseid' => $params['courseid'], 'userid' => $params['userid']], 'progress,credits');
+            if ($courseProgre) {
                 $courseData = json_decode($courseData['coursedata']);
-                $courseData->progress = $gmkCourseProgress;
+                $progress = $courseProgre->progress;
+
+                // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                if ($progress < 100) {
+                    $gradeObj = grade_get_course_grade($params['userid'], $params['courseid']);
+                    if ($gradeObj && $gradeObj->grade >= 70) {
+                        $progress = 100;
+                    }
+                }
+
+                $courseData->progress = (float)$progress;
+                $courseData->credits = (int)$courseProgre->credits;
+                $courseData = ['coursedata' => json_encode($courseData)];
+            } else {
+                // Fallback attempt for credits if no progress record exists yet.
+                $courseData = json_decode($courseData['coursedata']);
+                $courseData->progress = 0;
+                $courseData->credits = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $params['courseid']], IGNORE_MULTIPLE);
                 $courseData = ['coursedata' => json_encode($courseData)];
             }
             return $courseData;

@@ -75,9 +75,28 @@ class get_user_courses_by_category extends external_api
 
             foreach ($courseCategories as &$courseCategory) {
                 foreach ($courseCategory->courses as &$course) {
-                    $courseProgre = $userGmkCourseProgress[$course->id];
-                    if ($courseProgre) {
-                        $course->progress = $courseProgre->progress;
+                    $courseProgre = isset($userGmkCourseProgress[$course->id]) ? $userGmkCourseProgress[$course->id] : null;
+                    $progress = $courseProgre ? $courseProgre->progress : 0;
+                    
+                    // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                    if ($progress < 100) {
+                        $gradeObj = grade_get_course_grade($params['userid'], $course->id);
+                        if ($gradeObj && $gradeObj->grade >= 70) {
+                            $progress = 100;
+                        }
+                    }
+
+                    $course->progress = (float)$progress;
+                    
+                    // [FIX] Populate credits from progress record or fallback.
+                    if ($courseProgre && !empty($courseProgre->credits)) {
+                        $course->credits = (int)$courseProgre->credits;
+                    } else {
+                         // We don't have learningplanid easily here, but we can try to find the first match.
+                         $course->credits = (int)$DB->get_field('gmk_course_progre', 'credits', ['courseid' => $course->id, 'userid' => $params['userid']], IGNORE_MULTIPLE);
+                         if (empty($course->credits)) {
+                             $course->credits = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $course->id], IGNORE_MULTIPLE);
+                         }
                     }
                 }
             }

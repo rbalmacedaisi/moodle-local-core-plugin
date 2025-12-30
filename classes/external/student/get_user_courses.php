@@ -71,11 +71,26 @@ class get_user_courses extends external_api
         global $DB;
         try {
             $userCourses = \core_enrol_external::get_users_courses($params['userid'], false);
-            $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,progress');
+            $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,progress,credits');
             foreach ($userCourses as &$course) {
-                $courseProgre = $userGmkCourseProgress[$course['id']];
-                if ($courseProgre) {
-                    $course['progress'] = $courseProgre->progress;
+                $courseProgre = isset($userGmkCourseProgress[$course['id']]) ? $userGmkCourseProgress[$course['id']] : null;
+                $progress = $courseProgre ? $courseProgre->progress : 0;
+
+                // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                if ($progress < 100) {
+                    $gradeObj = grade_get_course_grade($params['userid'], $course['id']);
+                    if ($gradeObj && $gradeObj->grade >= 70) {
+                        $progress = 100;
+                    }
+                }
+
+                $course['progress'] = (float)$progress;
+                
+                // [FIX] Populate credits from progress record or fallback.
+                if ($courseProgre && !empty($courseProgre->credits)) {
+                    $course['credits'] = (int)$courseProgre->credits;
+                } else {
+                     $course['credits'] = (int)$DB->get_field('local_learning_courses', 'credits', ['courseid' => $course['id']], IGNORE_MULTIPLE);
                 }
             }
             return $userCourses;

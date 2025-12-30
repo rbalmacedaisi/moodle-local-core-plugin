@@ -106,7 +106,7 @@ class get_student_learning_plan_pensum extends external_api
         try {
             $userPensumCourses = $DB->get_records_sql(
                 "
-                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.prerequisites, gcp.id as progressid
+                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
                 WHERE lpc.learningplanid = :lpid
@@ -121,6 +121,10 @@ class get_student_learning_plan_pensum extends external_api
                     $userPensumCourse->status = 0; 
                 }
 
+                // Ensure progress and credits are present for the frontend (Nuxt app).
+                $userPensumCourse->progress = !is_null($userPensumCourse->progress) ? (float)$userPensumCourse->progress : 0;
+                $userPensumCourse->credits = !is_null($userPensumCourse->credits) ? (int)$userPensumCourse->credits : 0;
+
                 $periodName = $DB->get_record('local_learning_periods', ['id' => $userPensumCourse->periodid]);
 
                 $course = get_course($userPensumCourse->courseid);
@@ -134,6 +138,7 @@ class get_student_learning_plan_pensum extends external_api
                     // [VIRTUAL FALLBACK] If grade is approved but status is not, update it virtually.
                     if ($gradeObj->grade >= 70 && !in_array($userPensumCourse->status, [3, 4])) {
                          $userPensumCourse->status = 3; // COURSE_COMPLETED
+                         $userPensumCourse->progress = 100.00;
                     }
                 }
 

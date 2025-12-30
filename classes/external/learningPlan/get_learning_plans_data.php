@@ -74,22 +74,38 @@ class get_learning_plans_data extends external_api
             $learningPlansData = \get_learning_plans_external::get_learning_plans($params['page'], $params['resultsperpage']);
 
             foreach ($learningPlansData['learningplans'] as &$learningPlan) {
-                $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $USER->id, 'learningplanid' => $learningPlan['learningplanid']], '', 'courseid,progress');
+                $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $USER->id, 'learningplanid' => $learningPlan['learningplanid']], '', 'courseid,progress,credits');
                 foreach ($learningPlan['periodsdata'] as &$period) {
-                    foreach ($period['requiredcourses'] as &$course) {
-                        $courseProgre = $userGmkCourseProgress[$course['id']];
-                        $progress = $courseProgre ? $courseProgre->progress : 0;
-                        
-                        // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
-                        if ($progress < 100) {
-                            $gradeObj = grade_get_course_grade($USER->id, $course['id']);
-                            if ($gradeObj && $gradeObj->grade >= 70) {
-                                $progress = 100;
+                    $courseTypes = ['requiredcourses', 'optionalcourses'];
+                    foreach ($courseTypes as $type) {
+                        if (!isset($period[$type])) {
+                            continue;
+                        }
+                        foreach ($period[$type] as &$course) {
+                            $courseProgre = isset($userGmkCourseProgress[$course['id']]) ? $userGmkCourseProgress[$course['id']] : null;
+                            $progress = $courseProgre ? $courseProgre->progress : 0;
+                            
+                            // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                            if ($progress < 100) {
+                                $gradeObj = grade_get_course_grade($USER->id, $course['id']);
+                                if ($gradeObj && $gradeObj->grade >= 70) {
+                                    $progress = 100;
+                                }
+                            }
+
+                            $course['realprogress'] = $progress;
+                            $course['showprogress'] = $progress;
+                            $course['progress'] = (float)$progress; // [FIX] Exact key 'progress'
+                            
+                            // [FIX] Populate credits from progress record or fallback to local_learning_courses.
+                            if ($courseProgre && !empty($courseProgre->credits)) {
+                                $course['credits'] = (int)$courseProgre->credits;
+                            } else {
+                                 // Fallback to the credits defined in the learning plan course.
+                                 $lpCourse = $DB->get_record('local_learning_courses', ['courseid' => $course['id'], 'learningplanid' => $learningPlan['learningplanid']], 'credits');
+                                 $course['credits'] = $lpCourse ? (int)$lpCourse->credits : 0;
                             }
                         }
-
-                        $course['realprogress'] = $progress;
-                        $course['showprogress'] = $progress;
                     }
                 }
             }

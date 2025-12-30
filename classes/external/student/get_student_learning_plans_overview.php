@@ -91,16 +91,18 @@ class get_student_learning_plans_overview extends external_api
             );
 
             foreach ($learningPlansOverview as $learningPlan) {
-                $learningPlan->progress = self::get_learning_plan_progress($params['userId'], $learningPlan->id);
+                // Ensure the progress is calculated using our robust logic.
+                $calculatedProgress = self::get_learning_plan_progress($params['userId'], $learningPlan->id);
+                $learningPlan->progress = (float)$calculatedProgress;
                 $learningPlan->imageUrl = get_learning_plan_image($learningPlan->id);
             }
-            return ['overview' => json_encode($learningPlansOverview)];
+            return ['overview' => json_encode(array_values($learningPlansOverview))];
         } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
 
-    public function get_learning_plan_progress($userId, $learningPlanId)
+    public static function get_learning_plan_progress($userId, $learningPlanId)
     {
         global $DB;
         $userLearningPlanProgressRecords = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'learningplanid' => $learningPlanId], '', 'courseid,credits');
