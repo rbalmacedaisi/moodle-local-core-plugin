@@ -136,7 +136,7 @@ if ($withgrades) {
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
     $query = "
-        SELECT u.id as userid, u.email, u.idnumber, u.firstname, u.lastname,
+        SELECT lpu.id, u.id as userid, u.email, u.idnumber, u.firstname, u.lastname,
                lp.name as career, per.name as periodname, sub.name as subperiodname,
                lpu.learningplanid as planid, lpu.currentperiodid as periodid
         FROM {user} u
@@ -193,6 +193,11 @@ if ($withgrades) {
 }
 
 $columnsWithHeaders = array_combine($columns, $headers);
+
+// Clear any accidental output (like warnings or notices) that might have been buffered.
+if (ob_get_length()) {
+    ob_clean();
+}
 
 \core\dataformat::download_data(
     'listado_estudiantes_' . date('Y-m-d'),
