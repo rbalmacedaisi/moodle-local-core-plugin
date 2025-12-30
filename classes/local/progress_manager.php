@@ -161,85 +161,91 @@ class local_grupomakro_progress_manager
     {
         global $DB, $PAGE;
         
-        $userCourseProgress = null;
         try {
             $conditions = ['userid' => $userId, 'courseid' => $courseId];
             if ($learningPlanId) {
                 $conditions['learningplanid'] = $learningPlanId;
             }
             
-            $userCourseProgress = $DB->get_record('gmk_course_progre', $conditions);
-            if (!$userCourseProgress) {
-                if ($logFile) file_put_contents($logFile, "[AVISO] No se encontró registro en gmk_course_progre para User: $userId, Course: $courseId, Plan: " . ($learningPlanId ?? 'N/A') . "\n", FILE_APPEND);
+            $progressRecords = $DB->get_records('gmk_course_progre', $conditions);
+            if (!$progressRecords) {
+                if ($logFile) file_put_contents($logFile, "[AVISO] No se encontraron registros en gmk_course_progre para User: $userId, Course: $courseId, Plan: " . ($learningPlanId ?? 'ALL') . "\n", FILE_APPEND);
                 return false;
             }
 
-            // 1. Update Grade first.
+            // 1. Get Grade once for all records.
             $gradeObj = grade_get_course_grade($userId, $courseId);
             $userGrade = ($gradeObj && isset($gradeObj->grade)) ? round((float)$gradeObj->grade, 2) : 0.0;
-            $userCourseProgress->grade = $userGrade;
             
-            if ($logFile && $userGrade == 0 && $gradeObj) {
-                // Debug if grade is 0 but object exists.
-                // file_put_contents($logFile, "[DEBUG] GradeObj para $userId/$courseId: " . json_encode($gradeObj) . "\n", FILE_APPEND);
-            }
+            // Reusable components for progress calculation.
+            $coursemod = get_fast_modinfo($courseId, $userId);
+            $course = $coursemod->get_course();
+            $completion = new completion_info($course);
+            $renderer = $PAGE->get_renderer('core');
 
-            // 2. Calculate module-based progress (in a separate try-catch to avoid crashing the whole update).
-            $completedModules = 0;
-            $sectionModuleCount = 0;
-            $userGroup = $userCourseProgress->groupid;
+            $allSuccess = true;
+            $anyCompleted = false;
 
-            if ($userGroup) {
-                try {
-                    $groupSection = $DB->get_field_sql("SELECT coursesectionid FROM {gmk_class} WHERE groupid = ? LIMIT 1", [$userGroup]);
-                    if ($groupSection !== false) {
-                        $coursemod = get_fast_modinfo($courseId, $userId);
-                        $course = $coursemod->get_course();
-                        $completion = new completion_info($course);
-                        $renderer = $PAGE->get_renderer('core');
+            foreach ($progressRecords as $userCourseProgress) {
+                $userCourseProgress->grade = $userGrade;
+                
+                // 2. Calculate module-based progress.
+                $completedModules = 0;
+                $sectionModuleCount = 0;
+                $userGroup = $userCourseProgress->groupid;
 
-                        foreach ($coursemod->get_cms() as $courseModule) {
-                            $courseModuleRecord = $courseModule->get_course_module_record();
-                            if ($courseModuleRecord->section == $groupSection && !!$completion->is_enabled($courseModule)) {
-                                $sectionModuleCount += 1;
-                                $exporter = new \core_completion\external\completion_info_exporter($course, $courseModule, $userId);
-                                $moduleCompletionData = (array)$exporter->export($renderer);
-                                $completedModules += $moduleCompletionData['state'] > 0 ? 1 : 0;
+                if ($userGroup) {
+                    try {
+                        $groupSection = $DB->get_field_sql("SELECT coursesectionid FROM {gmk_class} WHERE groupid = ? LIMIT 1", [$userGroup]);
+                        if ($groupSection !== false) {
+                            foreach ($coursemod->get_cms() as $courseModule) {
+                                $courseModuleRecord = $courseModule->get_course_module_record();
+                                if ($courseModuleRecord->section == $groupSection && !!$completion->is_enabled($courseModule)) {
+                                    $sectionModuleCount += 1;
+                                    $exporter = new \core_completion\external\completion_info_exporter($course, $courseModule, $userId);
+                                    $moduleCompletionData = (array)$exporter->export($renderer);
+                                    $completedModules += $moduleCompletionData['state'] > 0 ? 1 : 0;
+                                }
                             }
                         }
+                        if ($sectionModuleCount > 0) {
+                            $userCourseProgress->progress = round(($completedModules / $sectionModuleCount) * 100, 2);
+                        }
+                    } catch (Exception $le) {
+                        if ($logFile) file_put_contents($logFile, "[AVISO] Error calculando módulos para curso $courseId, usuario $userId, plan {$userCourseProgress->learningplanid}: " . $le->getMessage() . "\n", FILE_APPEND);
                     }
-                    if ($sectionModuleCount > 0) {
-                        $userCourseProgress->progress = round(($completedModules / $sectionModuleCount) * 100, 2);
-                    }
-                } catch (Exception $le) {
-                    if ($logFile) file_put_contents($logFile, "[AVISO] Error calculando módulos para curso $courseId, usuario $userId: " . $le->getMessage() . ". Continuando con override de notas.\n", FILE_APPEND);
+                }
+
+                // 3. Apply Robust Overrides.
+                $oldStatus = $userCourseProgress->status;
+                $oldProgress = $userCourseProgress->progress;
+
+                if ($userGrade >= 70) {
+                    $userCourseProgress->progress = 100;
+                    $userCourseProgress->status = COURSE_COMPLETED;
+                } else if ($userCourseProgress->progress >= 100) {
+                    $userCourseProgress->status = COURSE_COMPLETED;
+                }
+
+                if ($userCourseProgress->status == COURSE_COMPLETED) {
+                    $anyCompleted = true;
+                }
+
+                if ($logFile) {
+                    file_put_contents($logFile, "[INFO] Procesado User $userId, Plan {$userCourseProgress->learningplanid}, Curso $courseId: Nota=$userGrade, Progreso=$oldProgress -> {$userCourseProgress->progress}, Status=$oldStatus -> {$userCourseProgress->status}\n", FILE_APPEND);
+                }
+
+                if (!$DB->update_record('gmk_course_progre', $userCourseProgress)) {
+                    $allSuccess = false;
                 }
             }
-
-            // 3. Apply Robust Overrides (Academic Performance).
-            $oldStatus = $userCourseProgress->status;
-            $oldProgress = $userCourseProgress->progress;
-
-            if ($userGrade >= 70) {
-                $userCourseProgress->progress = 100;
-                $userCourseProgress->status = COURSE_COMPLETED;
-            } else if ($userCourseProgress->progress >= 100) {
-                $userCourseProgress->status = COURSE_COMPLETED;
-            }
-
-            if ($logFile) {
-                file_put_contents($logFile, "[INFO] Procesado Curso $courseId: Nota=$userGrade, Progreso=$oldProgress -> {$userCourseProgress->progress}, Status=$oldStatus -> {$userCourseProgress->status}\n", FILE_APPEND);
-            }
-
-            $success = $DB->update_record('gmk_course_progre', $userCourseProgress);
             
-            // Always try to force Moodle completion if the status is COURSE_COMPLETED,
-            // even if our internal record update didn't change anything.
-            if ($userCourseProgress->status == COURSE_COMPLETED) {
+            // 4. Force Moodle completion if any of the plan-course statuses is COMPLETED.
+            if ($anyCompleted) {
                 self::force_moodle_course_completion($courseId, $userId, $logFile);
             }
 
-            return $success;
+            return $allSuccess;
             
         } catch (Exception $e) {
             if ($logFile) file_put_contents($logFile, "[ERROR] Exception crítica en update_course_progress ($courseId, $userId): " . $e->getMessage() . "\n", FILE_APPEND);
