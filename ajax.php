@@ -197,8 +197,9 @@ try {
                          $grade_item->insert('manual');
                     }
 
-                    $user = $DB->get_record('user', ['username' => $username, 'deleted' => 0], 'id');
-                    if (!$user) throw new Exception("Usuario '$username' no encontrado");
+                    $lookupUsername = \core_text::strtolower($username);
+                    $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0], 'id');
+                    if (!$user) throw new Exception("Usuario '$username' (mapeado a $lookupUsername) no encontrado");
                     
                     $grade_item->update_final_grade($user->id, $gradeVal, 'import', $feedback, FORMAT_HTML);
                     

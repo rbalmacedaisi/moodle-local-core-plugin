@@ -49,22 +49,36 @@ class sync_progress extends external_api {
         file_put_contents($logFile, "Student Role ID: $studentRoleId\n", FILE_APPEND);
 
         try {
-            // Get all students enrolled in learning plans.
-            // Simplified query to ensure we get something first
-            $sql = "SELECT gcp.id, lpu.userid, lpu.learningplanid, gcp.courseid
+            // 1. Get ALL students enrolled in learning plans, regardless of whether they have progress records yet.
+            $sql = "SELECT lpu.userid, lpu.learningplanid, lpu.userroleid
                     FROM {local_learning_users} lpu
-                    JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.learningplanid = lpu.learningplanid)
                     WHERE lpu.userroleid = :studentroleid";
             
-            $records = $DB->get_records_sql($sql, ['studentroleid' => $studentRoleId]);
-            $total = count($records);
-            file_put_contents($logFile, "Total de registros encontrados: $total\n", FILE_APPEND);
+            $enrolledStudents = $DB->get_records_sql($sql, ['studentroleid' => $studentRoleId]);
+            $totalEnrolled = count($enrolledStudents);
+            file_put_contents($logFile, "Total de estudiantes inscritos encontrados: $totalEnrolled\n", FILE_APPEND);
             
-            if ($total === 0) {
-                 file_put_contents($logFile, "AVISO: No se encontraron registros de progreso para estudiantes.\n", FILE_APPEND);
+            if ($totalEnrolled === 0) {
+                 file_put_contents($logFile, "AVISO: No se encontraron estudiantes inscritos.\n", FILE_APPEND);
                  return $result;
             }
-            file_put_contents($logFile, "Iniciando procesamiento de $total registros en el bucle...\n", FILE_APPEND);
+
+            // 2. Ensure all enrolled students have their progress records initialized.
+            file_put_contents($logFile, "Paso 1: Verificando/Inicializando registros faltantes...\n", FILE_APPEND);
+            foreach ($enrolledStudents as $s) {
+                // This method internally checks if records exist and creates them if not.
+                local_grupomakro_progress_manager::create_learningplan_user_progress($s->userid, $s->learningplanid, $s->userroleid);
+            }
+
+            // 3. Now get all records from gmk_course_progre (which should now be complete).
+            $sql = "SELECT gcp.id, gcp.userid, gcp.learningplanid, gcp.courseid
+                    FROM {gmk_course_progre} gcp
+                    JOIN {local_learning_users} lpu ON (lpu.userid = gcp.userid AND lpu.learningplanid = gcp.learningplanid)
+                    WHERE lpu.userroleid = :studentroleid";
+                    
+            $records = $DB->get_records_sql($sql, ['studentroleid' => $studentRoleId]);
+            $total = count($records);
+            file_put_contents($logFile, "Paso 2: Iniciando procesamiento de $total registros de materia...\n", FILE_APPEND);
 
             // Release session lock so the poller can read the log file.
             \core\session\manager::write_close();

@@ -36,10 +36,11 @@ class enroll_student extends external_api {
             'role_id'      => $role_id
         ));
 
-        // 1. Resolve User
-        $user = $DB->get_record('user', ['username' => $params['username'], 'deleted' => 0, 'suspended' => 0]);
+        // 1. Resolve User (Moodle usernames are always lowercase)
+        $lookupUsername = \core_text::strtolower($params['username']);
+        $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0, 'suspended' => 0]);
         if (!$user) {
-            throw new moodle_exception('invaliduser', 'error', '', $params['username']);
+            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         // 2. Resolve Learning Plan

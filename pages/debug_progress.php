@@ -24,9 +24,26 @@ echo "<form method='get'>
         o User ID: <input type='text' name='userid' value='$userid'>
         Plan ID (opcional): <input type='text' name='planid' value='$planid'>
         <input type='submit' value='Analizar'>
+      </form>
+      <hr>
+      <form method='post' action='debug_progress.php?userid=$userid&docnumber=$docnumber'>
+        <input type='hidden' name='action' value='initialize'>
+        <input type='submit' value='Inicializar/Actualizar Registros (Resync)' style='background:#4CAF50; color:white; padding:10px;'>
       </form><hr>";
 
-if (!empty($docnumber) && $userid == 0) {
+if (isset($_POST['action']) && $_POST['action'] == 'initialize' && $userid > 0) {
+    $enrollments = $DB->get_records('local_learning_users', array('userid' => $userid));
+    if ($enrollments) {
+        foreach ($enrollments as $enrol) {
+            local_grupomakro_progress_manager::create_learningplan_user_progress($userid, $enrol->learningplanid, $enrol->userroleid);
+            // Also sync period
+            local_grupomakro_progress_manager::sync_student_period($userid, $enrol->learningplanid);
+        }
+        echo "<div style='color:green; font-weight:bold'>Registros inicializados/actualizados para el usuario.</div><br>";
+    }
+}
+
+    $docnumber = trim($docnumber);
     global $DB;
     $field = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
     if ($field) {
@@ -36,7 +53,7 @@ if (!empty($docnumber) && $userid == 0) {
             $userid = $data->userid;
         } else {
             // Try idnumber as fallback
-            $user = $DB->get_record('user', array('idnumber' => $docnumber));
+            $user = $DB->get_record_sql("SELECT id FROM {user} WHERE " . $DB->sql_compare_text('idnumber') . " = :docnumber", array('docnumber' => (string)$docnumber));
             if ($user) {
                 $userid = $user->id;
             }
