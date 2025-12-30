@@ -45,7 +45,7 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-sync</v-icon>
                                     Sincronizar Progreso
                                 </v-btn>
-                                <v-btn v-if="isAdmin" color="warning" @click="syncMigratedPeriods" :loading="syncing" :disabled="syncing">
+                                <v-btn v-if="isSuperAdmin" color="warning" @click="syncMigratedPeriods" :loading="syncing" :disabled="syncing">
                                     <v-icon left>mdi-account-arrow-right</v-icon>
                                     Asignar Periodos (Migrados)
                                 </v-btn>
@@ -395,5 +395,6 @@ Vue.component('studenttable', {
         lang() { return window.strings },
         token() { return window.userToken; },
         isAdmin() { return window.isAdmin || false; },
+        isSuperAdmin() { return window.isSuperAdmin || false; },
     },
 })

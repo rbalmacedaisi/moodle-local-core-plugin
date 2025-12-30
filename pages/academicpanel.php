@@ -72,6 +72,7 @@ $default_carrer_img = $CFG->wwwroot.'/local/grupomakro_core/pix/img-default.jpg'
 $default_carrer_img = json_encode($default_carrer_img);
 
 $isAdmin = is_siteadmin() ? 'true' : 'false';
+$isSuperAdmin = is_siteadmin() ? 'true' : 'false'; // For now, super admin is site admin
 
 echo $OUTPUT->header();
 
@@ -164,6 +165,7 @@ echo <<<EOT
     var defaultImage = $default_carrer_img;
     var themeToken = $themeToken || null;
     var isAdmin = $isAdmin;
+    var isSuperAdmin = $isSuperAdmin;
   </script>
 
   
