@@ -188,7 +188,7 @@ class local_grupomakro_progress_manager
                         $courseModuleRecord = $courseModule->get_course_module_record();
                         if ($courseModuleRecord->section == $groupSection && !!$completion->is_enabled($courseModule)) {
                             $sectionModuleCount += 1;
-                            $exporter = new \core_completion\\external\\completion_info_exporter($course, $courseModule, $userId);
+                            $exporter = new \core_completion\external\completion_info_exporter($course, $courseModule, $userId);
                             $moduleCompletionData = (array)$exporter->export($renderer);
                             $completedModules += $moduleCompletionData['state'] > 0 ? 1 : 0;
                         }
