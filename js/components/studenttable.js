@@ -119,7 +119,7 @@ Vue.component('studenttable', {
                     </template>
 
                     <template v-slot:item.subperiods="{ item }">
-                        <div class="text-no-wrap font-weight-regular text-body-2">{{ item.subperiods }}</div>
+                        <div class="text-no-wrap font-weight-regular text-body-2">{{ item.subperiods || '--' }}</div>
                     </template>
                     
                     <template v-slot:item.revalidate="{ item }">
@@ -181,7 +181,7 @@ Vue.component('studenttable', {
                     value: 'carrers',
                 },
                 { text: window.strings.quarters, value: 'periods', sortable: false, width: '200px' },
-                { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' }, // Increased width
+                { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
                 { text: window.strings.revalidation, value: 'revalidate', sortable: false, align: 'center', },
                 { text: window.strings.state, value: 'status', sortable: false, },
                 { text: 'Calificaciones', value: 'grade', sortable: false, },
@@ -237,6 +237,7 @@ Vue.component('studenttable', {
                         id: element.userid,
                         documentnumber: element.documentnumber,
                         carrers: element.careers,
+                        subperiods: element.subperiods, // Mapped Bloque
                         updatingPeriod: null,
                         revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
                         status: element.status,
@@ -316,21 +317,41 @@ Vue.component('studenttable', {
         },
         async syncMigratedPeriods() {
             if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
+
             this.syncing = true;
-            this.syncLog = 'Iniciando sincronización por conteo...';
+            this.syncLog = 'Iniciando sincronización por bloques...';
             const logInterval = setInterval(() => this.pollLog(), 3000);
 
+            let offset = 0;
+            let finished = false;
+
+            const syncBatch = async () => {
+                try {
+                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods&offset=${offset}`);
+                    if (response.data.status === 'success') {
+                        offset = response.data.offset;
+                        finished = response.data.finished;
+                        if (!finished) {
+                            await syncBatch(); // Regresive call for next batch
+                        }
+                    } else {
+                        throw new Error(response.data.message || 'Error en bloque');
+                    }
+                } catch (error) {
+                    console.error('Batch error:', error);
+                    alert('Error en el proceso de sincronización: ' + error.message);
+                    finished = true;
+                }
+            };
+
             try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods`);
-                if (response.data.status === 'success') {
-                    alert(response.data.message);
+                await syncBatch();
+                if (finished) {
+                    alert('Sincronización completada con éxito.');
                     await this.getDataFromApi();
-                } else {
-                    alert('Error: ' + (response.data.message || 'Error desconocido'));
                 }
             } catch (error) {
                 console.error(error);
-                alert('Error al sincronizar. Es posible que el proceso siga en segundo plano, revisa el log.');
             } finally {
                 clearInterval(logInterval);
                 this.syncing = false;

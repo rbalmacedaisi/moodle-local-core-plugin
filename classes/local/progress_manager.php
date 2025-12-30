@@ -672,13 +672,30 @@ class local_grupomakro_progress_manager
             ]);
 
             if ($lpUser) {
+                // Find first sub-period for this period
+                $subperiod = $DB->get_record('local_learning_subperiods', ['periodid' => $targetPeriodId], 'position ASC', 'id', 0, 1);
+                $targetSubperiodId = $subperiod ? $subperiod->id : 0;
+
+                $changed = false;
                 if ($lpUser->currentperiodid != $targetPeriodId) {
                     $oldPeriod = $lpUser->currentperiodid;
                     $lpUser->currentperiodid = $targetPeriodId;
+                    $changed = true;
+                }
+
+                if ($lpUser->currentsubperiodid != $targetSubperiodId) {
+                    $lpUser->currentsubperiodid = $targetSubperiodId;
+                    $changed = true;
+                }
+
+                if ($changed) {
                     $lpUser->timemodified = time();
                     $DB->update_record('local_learning_users', $lpUser);
                     
-                    if ($logFile) file_put_contents($logFile, "[INFO] Periodo Actualizado Manual/Conteo Estudiante $userId: $oldPeriod -> $targetPeriodId (Plan $learningPlanId)\n", FILE_APPEND);
+                    if ($logFile) {
+                        $msg = "[INFO] Periodo Actualizado Estudiante $userId: Periodo=$targetPeriodId, Bloque=$targetSubperiodId (Plan $learningPlanId)\n";
+                        file_put_contents($logFile, $msg, FILE_APPEND);
+                    }
                 }
                 return true;
             }
