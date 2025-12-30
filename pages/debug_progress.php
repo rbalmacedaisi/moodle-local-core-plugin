@@ -43,6 +43,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'initialize' && $userid > 0) 
     }
 }
 
+if (!empty($docnumber) && $userid == 0) {
     $docnumber = trim($docnumber);
     global $DB;
     $field = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
