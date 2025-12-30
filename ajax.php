@@ -206,8 +206,8 @@ try {
 
                  } catch (\Throwable $e) {
                      $res['status'] = 'ERROR';
-                     $res['error'] = $e->getMessage();
-                     file_put_contents($rowLogFile, "[ERROR ROW $rowIndex] " . $e->getMessage() . "\n", FILE_APPEND);
+                     $res['error'] = get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+                     file_put_contents($rowLogFile, "[ERROR ROW $rowIndex] " . $res['error'] . "\n", FILE_APPEND);
                  }
                  $results[] = $res;
             }
