@@ -1093,5 +1093,24 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         // Grupomakro_core savepoint reached.
         upgrade_plugin_savepoint(true, 20251218006, 'local', 'grupomakro_core');
     }
+    if ($oldversion < 20251230001) {
+        $table = new xmldb_table('gmk_course_progre');
+        
+        // Changing precision of field progress on table gmk_course_progre to (5, 2).
+        $fieldProgress = new xmldb_field('progress', XMLDB_TYPE_NUMBER, '5, 2', null, null, null, '0.0', 'coursename');
+        if ($dbman->field_exists($table, $fieldProgress)) {
+            $dbman->change_field_precision($table, $fieldProgress);
+        }
+
+        // Changing precision of field grade on table gmk_course_progre to (5, 2).
+        $fieldGrade = new xmldb_field('grade', XMLDB_TYPE_NUMBER, '5, 2', null, XMLDB_NOTNULL, null, '0.0', 'progress');
+        if ($dbman->field_exists($table, $fieldGrade)) {
+            $dbman->change_field_precision($table, $fieldGrade);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20251230001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

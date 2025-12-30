@@ -176,7 +176,7 @@ class local_grupomakro_progress_manager
 
             // 1. Update Grade first.
             $gradeObj = grade_get_course_grade($userId, $courseId);
-            $userGrade = ($gradeObj && isset($gradeObj->grade)) ? (float)$gradeObj->grade : 0.0;
+            $userGrade = ($gradeObj && isset($gradeObj->grade)) ? round((float)$gradeObj->grade, 2) : 0.0;
             $userCourseProgress->grade = $userGrade;
             
             if ($logFile && $userGrade == 0 && $gradeObj) {
@@ -209,7 +209,7 @@ class local_grupomakro_progress_manager
                         }
                     }
                     if ($sectionModuleCount > 0) {
-                        $userCourseProgress->progress = ($completedModules / $sectionModuleCount) * 100;
+                        $userCourseProgress->progress = round(($completedModules / $sectionModuleCount) * 100, 2);
                     }
                 } catch (Exception $le) {
                     if ($logFile) file_put_contents($logFile, "[AVISO] Error calculando módulos para curso $courseId, usuario $userId: " . $le->getMessage() . ". Continuando con override de notas.\n", FILE_APPEND);
