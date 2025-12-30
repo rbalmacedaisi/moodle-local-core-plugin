@@ -78,6 +78,12 @@ Vue.component('import-progress', {
                 return;
             }
 
+            this.logs.unshift({
+                time: new Date().toLocaleTimeString(),
+                msg: `Iniciando lote: Filas ${this.offset + 1} a ${this.offset + this.chunkSize}...`,
+                type: 'info'
+            });
+
             try {
                 const response = await axios.post('../ajax.php', new URLSearchParams({
                     action: 'local_grupomakro_import_grade_chunk',
@@ -111,7 +117,7 @@ Vue.component('import-progress', {
                         setTimeout(() => this.processNextChunk(), 500);
                     }
                 } else {
-                    throw new Exception(data.message || 'Error desconocido del servidor');
+                    throw new Error(data.message || 'Error desconocido del servidor');
                 }
             } catch (e) {
                 this.error = "Error durante el proceso: " + (e.response?.data?.message || e.message);
