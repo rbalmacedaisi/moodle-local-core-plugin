@@ -42,7 +42,7 @@ class sync_progress extends external_api {
             'count' => 0
         ];
 
-        $logFile = \make_tempdir('grupomakro') . '/sync_progress.log';
+        $logFile = \make_temp_directory('grupomakro') . '/sync_progress.log';
         file_put_contents($logFile, "Iniciando sincronización: " . date('Y-m-d H:i:s') . "\n");
 
         $studentRoleId = $DB->get_field('role', 'id', ['shortname' => 'student']);
