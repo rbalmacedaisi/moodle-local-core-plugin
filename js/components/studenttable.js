@@ -96,7 +96,7 @@ Vue.component('studenttable', {
                         <v-list dense class="transparent">
                             <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
-                                    <v-menu offset-y v-if="isAdmin">
+                                    <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadPeriodsForPlan(item, carrer)">
                                         <template v-slot:activator="{ on, attrs }">
                                             <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === carrer.planid">
                                                 {{ carrer.periodname }}
@@ -104,7 +104,7 @@ Vue.component('studenttable', {
                                             </v-btn>
                                         </template>
                                         <v-list dense max-height="300" class="overflow-y-auto">
-                                            <v-list-item @click="loadPeriodsForPlan(item, carrer)" v-if="!carrer.availablePeriods">
+                                            <v-list-item v-if="!carrer.availablePeriods">
                                                 <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
                                             </v-list-item>
                                             <v-list-item v-for="p in carrer.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, carrer, p)">
@@ -203,7 +203,6 @@ Vue.component('studenttable', {
     },
     created() {
         console.log('StudentTable Component Created');
-        console.log('Current Headers:', this.headers);
     },
     watch: {
         options: {
@@ -214,30 +213,10 @@ Vue.component('studenttable', {
         },
     },
     methods: {
-        /**
-         * Fetches student information from the Moodle API and updates the component's state.
-         *
-         * This method makes an asynchronous GET request to the specified API endpoint,
-         * retrieves student information based on specified options, and updates the
-         * component's state with the fetched data.
-         *
-         * @method getDataFromApi
-         * @async
-         * @throws {Error} Throws an error if the API request fails.
-         * @returns {Promise<void>} A Promise that resolves when the API request is successful.
-         *
-         * @example
-         * // Call the getDataFromApi method to fetch student information from the API.
-         * getDataFromApi();
-         */
         async getDataFromApi() {
-            // Set loading to true to indicate that data is being fetched.
             this.loading = true;
             try {
-                // Define the API request URL.
                 const url = this.siteUrl;
-
-                // Create an object with the parameters required for the API call.
                 const params = {
                     wstoken: this.token,
                     moodlewsrestformat: 'json',
@@ -246,140 +225,54 @@ Vue.component('studenttable', {
                     resultsperpage: this.options.itemsPerPage,
                     search: this.options.search,
                 };
-
-                // Make an asynchronous GET request to the specified URL, passing the parameters as query options.
                 const response = await window.axios.get(url, { params });
-
-                // Parse the JSON data returned from the API.
                 const data = JSON.parse(response.data.dataUsers);
-
-                // Update the component's state with the fetched data.
                 this.totalDesserts = response.data.totalResults
                 this.activeUsers = response.data.activeUsers || 0;
                 this.students = [];
-
-                // Iterate through the retrieved data and populate the students array.
                 data.forEach((element) => {
                     this.students.push({
                         name: element.nameuser,
                         email: element.email,
                         id: element.userid,
-                        documentnumber: element.documentnumber, // Mapped!
+                        documentnumber: element.documentnumber,
                         carrers: element.careers,
-                        updatingPeriod: null, // Track loading per row
+                        updatingPeriod: null,
                         revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
                         status: element.status,
                         img: element.profileimage
                     });
                 });
             } catch (error) {
-                // Log any errors to the console in case of a request failure.
                 console.error("Error fetching student information:", error);
             } finally {
-                // Set loading to false to indicate that data fetching is complete.
                 this.loading = false;
             }
         },
-        /**
-         * Determines the style (background color and text color) for a chip based on the status of an item.
-         *
-         * This method calculates and returns the chip style based on the theme (light or dark) and the status of the item.
-         *
-         * @method getChipStyle
-         * @param {Object} item - The item for which the chip style is determined.
-         * @returns {Object} An object containing the background and text colors for the chip.
-         *
-         * @example
-         * // Call the getChipStyle method to get the chip style for a specific item.
-         * const chipStyle = getChipStyle({ status: "Activo" });
-         * // Example result: { background: "#b5e8b8", color: "#143f34" }
-         */
         getChipStyle(item) {
-            // Determine the current theme (light or dark) using Vuetify's theme.
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
-
-            // Define theme-specific colors for chip styles.
             const themeColors = {
-                BgChip1: "#b5e8b8",
-                TextChip1: "#143f34",
-                BgChip2: "#F8F0E5",
-                TextChip2: "#D1A55A",
-                BgChip3: "#E8EAF6",
-                TextChip3: "#3F51B4",
-                BgChip4: "#F3BFBF",
-                TextChip4: "#8F130A",
-                BgChip5: "#B9C5D5",
-                TextChip5: "#2F445E",
+                BgChip1: "#b5e8b8", TextChip1: "#143f34",
+                BgChip2: "#F8F0E5", TextChip2: "#D1A55A",
+                BgChip3: "#E8EAF6", TextChip3: "#3F51B4",
+                BgChip4: "#F3BFBF", TextChip4: "#8F130A",
+                BgChip5: "#B9C5D5", TextChip5: "#2F445E",
             };
-
-            // Determine the chip style based on the item's status.
-            if (item.status === "Activo") {
-                return {
-                    background: themeColors.BgChip1,
-                    color: themeColors.TextChip1,
-                };
-            } else if (item.status === "Inactivo") {
-                return {
-                    background: themeColors.BgChip2,
-                    color: themeColors.TextChip2,
-                };
-            } else if (item.status === "Reingreso") {
-                return {
-                    background: themeColors.BgChip3,
-                    color: themeColors.TextChip3,
-                };
-            } else if (item.status === "Suspendido") {
-                return {
-                    background: themeColors.BgChip4,
-                    color: themeColors.TextChip4,
-                };
-            }
-            // Default: Apply a generic style for items with other statuses.
-            return {
-                background: themeColors.BgChip5,
-                color: themeColors.TextChip5,
-            };
+            if (item.status === "Activo") return { background: themeColors.BgChip1, color: themeColors.TextChip1 };
+            else if (item.status === "Inactivo") return { background: themeColors.BgChip2, color: themeColors.TextChip2 };
+            else if (item.status === "Reingreso") return { background: themeColors.BgChip3, color: themeColors.TextChip3 };
+            else if (item.status === "Suspendido") return { background: themeColors.BgChip4, color: themeColors.TextChip4 };
+            return { background: themeColors.BgChip5, color: themeColors.TextChip5 };
         },
-        /**
-         * The gradeDialog method opens a dialog or section for displaying student grades based on the provided item.
-         *
-         * @function
-         * @name gradeDialog
-         * @memberof YourComponent
-         *
-         * @param {Object} item - The item representing a student or course for which grades will be displayed.
-         *
-         * @example
-         * // Call this method when you want to display grades for a specific student or course.
-         * gradeDialog(item);
-         */
         gradeDialog(item) {
-            // Set the studentsGrades property to true to open the dialog or section.
-            this.studentsGrades = true
-
-            // Store the selected item for further processing or display.
-            this.studentGradeSelected = item
+            this.studentsGrades = true;
+            this.studentGradeSelected = item;
         },
-        /**
-         * The closeDialog method closes the dialog or section that displays student grades.
-         *
-         * @function
-         * @name closeDialog
-         * @memberof YourComponent
-         *
-         * @example
-         * // Call this method when you want to close the dialog or section displaying student grades.
-         * closeDialog();
-         */
         closeDialog() {
-            // Set the studentsGrades property to false to close the dialog or section.
-            this.studentsGrades = false
-
-            // Reset the selected student or course information.
-            this.studentGradeSelected = {}
+            this.studentsGrades = false;
+            this.studentGradeSelected = {};
         },
         exportStudents() {
-            // Redirect to the export script
             window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
         },
         getColor(status) {
@@ -389,53 +282,44 @@ Vue.component('studenttable', {
             if (status === 'graduado' || status === 'egresado') return 'primary';
             return 'grey';
         },
+        async pollLog(interval = 3000) {
+            try {
+                const logRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
+                if (logRes.data.status === 'success') {
+                    this.syncLog = logRes.data.log;
+                }
+            } catch (e) {
+                console.error('Error polling log:', e);
+            }
+        },
         async syncProgress() {
             this.syncing = true;
             this.syncLog = 'Iniciando...';
-
-            // Start polling the log
-            const logInterval = setInterval(async () => {
-                try {
-                    const logRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
-                    if (logRes.data.status === 'success') {
-                        this.syncLog = logRes.data.log;
-                    }
-                } catch (e) {
-                    console.error('Error polling log:', e);
-                }
-            }, 3000);
+            const logInterval = setInterval(() => this.pollLog(), 3000);
 
             try {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
-                console.log('Sync response:', response.data);
-
                 if (response.data.status === 'success') {
-                    M.util.js_pending('local_grupomakro_sync_progress');
                     await this.getDataFromApi();
-                    M.util.js_complete('local_grupomakro_sync_progress');
-                    alert('Sincronización completada con éxito. Registros procesados: ' + response.data.count);
+                    alert('Sincronización completada. ' + response.data.count + ' registros.');
                 } else {
-                    alert('Error del servidor: ' + (response.data.message || 'Error desconocido'));
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
                 }
             } catch (error) {
-                console.error('Error in syncProgress:', error);
-                alert('Error de red o ejecución. Revisa la consola o el log.');
+                console.error(error);
+                alert('Error de ejecución.');
             } finally {
                 clearInterval(logInterval);
                 this.syncing = false;
-                // Final log update
-                try {
-                    const finalLog = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
-                    this.syncLog = finalLog.data.log;
-                } catch (e) {
-                    console.error('Error getting final log:', e);
-                }
+                await this.pollLog();
             }
         },
         async syncMigratedPeriods() {
             if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
             this.syncing = true;
             this.syncLog = 'Iniciando sincronización por conteo...';
+            const logInterval = setInterval(() => this.pollLog(), 3000);
+
             try {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods`);
                 if (response.data.status === 'success') {
@@ -446,13 +330,15 @@ Vue.component('studenttable', {
                 }
             } catch (error) {
                 console.error(error);
-                alert('Error al sincronizar.');
+                alert('Error al sincronizar. Es posible que el proceso siga en segundo plano, revisa el log.');
             } finally {
+                clearInterval(logInterval);
                 this.syncing = false;
-                this.syncLog = '';
+                await this.pollLog();
             }
         },
         async loadPeriodsForPlan(student, carrer) {
+            if (carrer.availablePeriods) return;
             try {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${carrer.planid}`);
                 if (response.data.status === 'success') {
@@ -484,34 +370,9 @@ Vue.component('studenttable', {
         },
     },
     computed: {
-        /**
-         * A computed property that returns the site URL for making API requests.
-         * It combines the current origin with the API endpoint path.
-         *
-         * @returns '{string}' - The constructed site URL.
-         */
-        siteUrl() {
-            return window.location.origin + '/webservice/rest/server.php'
-        },
-        /**
-         * A computed property that returns language-related data from the 'window.strings' object.
-         * It allows access to language strings for localization purposes.
-         *
-         * @returns '{object}' - Language-related data.
-         */
-        lang() {
-            return window.strings
-        },
-        /**
-         * A computed property that returns the user token from the 'window.userToken' variable.
-         *
-         * @returns '{string}' - The user token.
-         */
-        token() {
-            return window.userToken;
-        },
-        isAdmin() {
-            return window.isAdmin || false;
-        },
+        siteUrl() { return window.location.origin + '/webservice/rest/server.php' },
+        lang() { return window.strings },
+        token() { return window.userToken; },
+        isAdmin() { return window.isAdmin || false; },
     },
 })

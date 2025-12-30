@@ -37,16 +37,35 @@ try {
             break;
 
         case 'local_grupomakro_sync_migrated_periods':
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise(600); // 10 minutes
+
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            $logFile = make_tempdir('grupomakro') . '/sync_progress.log';
+            file_put_contents($logFile, "--- Inicio Sincronización Periodos (Migrados) " . date('Y-m-d H:i:s') . " ---\n", FILE_APPEND);
+
             // Get all students in learning plans
             $students = $DB->get_records('local_learning_users', ['userroleid' => 5], '', 'userid, learningplanid');
             $count = 0;
+            $total = count($students);
+            $processed = 0;
+
             foreach ($students as $s) {
-                if (\local_grupomakro_progress_manager::sync_student_period_by_count($s->userid, $s->learningplanid)) {
-                    $count++;
+                try {
+                    $processed++;
+                    if ($processed % 50 == 0) {
+                        file_put_contents($logFile, "[PROGRESO] Procesados $processed de $total...\n", FILE_APPEND);
+                    }
+                    
+                    if (\local_grupomakro_progress_manager::sync_student_period_by_count($s->userid, $s->learningplanid, $logFile)) {
+                        $count++;
+                    }
+                } catch (Exception $e) {
+                    file_put_contents($logFile, "[FATAL] Error con usuario $s->userid: " . $e->getMessage() . "\n", FILE_APPEND);
                 }
             }
-            $response = ['status' => 'success', 'message' => "Sincronización terminada. $count registros actualizados."];
+            file_put_contents($logFile, "--- Fin Sincronización Periodos. $count de $total actualizados ---\n", FILE_APPEND);
+            $response = ['status' => 'success', 'message' => "Sincronización terminada. $count registros actualizados.", 'processed' => $processed];
             break;
 
         case 'local_grupomakro_get_periods':
