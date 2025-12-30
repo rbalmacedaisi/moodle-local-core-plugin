@@ -104,6 +104,109 @@ try {
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
         
+        case 'local_grupomakro_import_grade_chunk':
+            require_once($CFG->libdir . '/gradelib.php');
+            raise_memory_limit(MEMORY_HUGE);
+            set_time_limit(300);
+
+            $tmpfilename = required_param('filename', PARAM_FILE);
+            $offset = required_param('offset', PARAM_INT);
+            $limit = required_param('limit', PARAM_INT);
+            
+            $filepath = make_temp_directory('grupomakro_imports') . '/' . $tmpfilename;
+            if (!file_exists($filepath)) {
+                throw new Exception("Archivo temporal no encontrado ($tmpfilename).");
+            }
+            
+            $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
+            $sheet = $spreadsheet->getSheet(0);
+            $highestRow = $sheet->getHighestDataRow();
+            
+            $results = [];
+            $toSyncPeriods = [];
+            
+            $startRow = $offset + 2; // Skip header (Row 1)
+            $endRow = min($startRow + $limit - 1, $highestRow);
+            
+            for ($row = $startRow; $row <= $endRow; $row++) {
+                 $username      = trim($sheet->getCellByColumnAndRow(1, $row)->getValue());
+                 $planName      = trim($sheet->getCellByColumnAndRow(2, $row)->getValue());
+                 $courseShort   = trim($sheet->getCellByColumnAndRow(3, $row)->getValue());
+                 $gradeVal      = floatval($sheet->getCellByColumnAndRow(4, $row)->getValue());
+                 $feedback      = trim($sheet->getCellByColumnAndRow(5, $row)->getValue());
+
+                 if (empty($username) || empty($planName)) continue;
+
+                 $res = [
+                     'row' => $row,
+                     'username' => $username,
+                     'course' => $courseShort,
+                     'status' => 'OK',
+                     'error' => ''
+                 ];
+
+                 try {
+                    // 1. Enroll
+                    $enrollResult = \local_grupomakro_core\external\odoo\enroll_student::execute($planName, $username);
+                    
+                    // 2. Resolve Course
+                    $acc_course = $DB->get_record('course', ['shortname' => $courseShort]);
+                    if (!$acc_course) throw new Exception("Curso '$courseShort' no existe");
+
+                    if (empty($feedback)) $feedback = 'Nota migrada de Q10';
+
+                    // 3. Update Grade
+                    $grade_item = \grade_item::fetch(array('courseid' => $acc_course->id, 'itemtype' => 'manual', 'itemname' => 'Nota Final Integrada'));
+                    if (!$grade_item) {
+                         $grade_item = new \grade_item(array('courseid' => $acc_course->id, 'itemtype' => 'manual', 'itemname' => 'Nota Final Integrada', 'grademin'=>0, 'grademax'=>100));
+                         $grade_item->insert('manual');
+                    }
+
+                    $user = $DB->get_record('user', ['username' => $username, 'deleted' => 0], 'id');
+                    if (!$user) throw new Exception("Usuario '$username' no encontrado");
+                    
+                    $grade_item->update_final_grade($user->id, $gradeVal, 'import', $feedback, FORMAT_HTML);
+                    
+                    // 4. Update Progress
+                    \local_grupomakro_progress_manager::update_course_progress($acc_course->id, $user->id);
+
+                    // 5. Track for period sync
+                    $userPlanKey = $user->id . '_' . $enrollResult['plan_id'];
+                    $toSyncPeriods[$userPlanKey] = ['userid' => $user->id, 'planid' => $enrollResult['plan_id']];
+
+                 } catch (Exception $e) {
+                     $res['status'] = 'ERROR';
+                     $res['error'] = $e->getMessage();
+                 }
+                 $results[] = $res;
+            }
+            
+            // Sync periods for this chunk
+            foreach ($toSyncPeriods as $syncData) {
+                \local_grupomakro_progress_manager::sync_student_period($syncData['userid'], $syncData['planid']);
+            }
+            
+            $response = [
+                'status' => 'success',
+                'results' => $results,
+                'progress' => [
+                    'offset' => $offset,
+                    'processed' => count($results),
+                    'total' => $highestRow - 1,
+                    'finished' => ($endRow >= $highestRow)
+                ]
+            ];
+            break;
+
+        case 'local_grupomakro_import_grade_cleanup':
+            $tmpfilename = required_param('filename', PARAM_FILE);
+            $filepath = make_temp_directory('grupomakro_imports') . '/' . $tmpfilename;
+            if (file_exists($filepath)) {
+                @unlink($filepath);
+            }
+            $response = ['status' => 'success'];
+            break;
+
         case 'get_sync_log':
             $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';
             if (file_exists($logFile)) {

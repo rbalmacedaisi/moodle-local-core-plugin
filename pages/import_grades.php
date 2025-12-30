@@ -54,116 +54,52 @@ if ($mform->is_cancelled()) {
 
     echo $OUTPUT->heading("Procesando Notas: " . $filename);
 
-    \core\session\manager::write_close();
-    set_time_limit(0);
-    ini_set('memory_limit', '2048M');
+    $filename = $mform->get_new_filename('importfile');
+    $filepath = $mform->save_temp_file('importfile');
 
-    try {
-        $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
-        $sheet = $spreadsheet->getSheet(0);
-        $highestRow = $sheet->getHighestDataRow();
+    // Stage file for AJAX chunks
+    $tmpdir = make_temp_directory('grupomakro_imports');
+    $tmpfilename = md5(time() . $filename) . '.' . pathinfo($filename, PATHINFO_EXTENSION);
+    $stagedPath = $tmpdir . '/' . $tmpfilename;
+    copy($filepath, $stagedPath);
 
-        $toSyncPeriods = [];
+    // Get row count for progress initialization
+    $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($stagedPath);
+    $highestRow = $spreadsheet->getSheet(0)->getHighestDataRow();
+    unset($spreadsheet); // Free memory
 
-        $table = new html_table();
-        $table->head = ['Fila', 'Usuario', 'Curso', 'Acción Matricula', 'Acción Nota', 'Resultado'];
-        $table->data = [];
+    echo $OUTPUT->heading("Panel de Importación Masiva: " . $filename);
+    
+    // Inject Vue container
+    echo '
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    
+    <div id="import-progress-app">
+        <v-app class="transparent">
+            <v-main>
+                <import-progress 
+                    filename="'.$tmpfilename.'" 
+                    :total-rows="'.($highestRow - 1).'"
+                    :chunk-size="50"
+                ></import-progress>
+            </v-main>
+        </v-app>
+    </div>
 
-        // Columns expected (1-based index)
-        // 1: Username
-        // 2: Product Name (Plan)
-        // 3: Course Shortname
-        // 4: Grade
-        // 5: Feedback (Optional)
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    ';
 
-        for ($row = 2; $row <= $highestRow; $row++) { // Skip header
-             $username      = trim($sheet->getCellByColumnAndRow(1, $row)->getValue());
-             $planName      = trim($sheet->getCellByColumnAndRow(2, $row)->getValue());
-             $courseShort   = trim($sheet->getCellByColumnAndRow(3, $row)->getValue());
-             $gradeVal      = floatval($sheet->getCellByColumnAndRow(4, $row)->getValue());
-             $feedback      = trim($sheet->getCellByColumnAndRow(5, $row)->getValue());
+    $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/import_progress_component.js?v=' . time()));
+    $PAGE->requires->js_init_code("if(typeof initImportProgress === 'function') { initImportProgress(); } else { new Vue({ el: '#import-progress-app', vuetify: new Vuetify() }); }");
 
-             if (empty($username) || empty($planName)) continue;
-
-             $logEnroll = '-';
-             $logGrade = '-';
-             $status = 'OK';
-             $rowClass = '';
-
-             try {
-                // 1. Enroll / Ensure Enrollment
-                // Call external class logic directly
-                // Note: execute returns array ['status' => ..., 'learning_user_id' => ...]
-                try {
-                     $enrollResult = \local_grupomakro_core\external\odoo\enroll_student::execute($planName, $username);
-                     $logEnroll = ($enrollResult['status'] == 'success') ? 'Matriculado' : 'Ya en Plan';
-                } catch (Exception $e) {
-                     throw new Exception('Fallo Matricula: ' . $e->getMessage());
-                }
-
-                // 2. Resolve Course & Gradebook
-                $acc_course = $DB->get_record('course', ['shortname' => $courseShort]);
-                if (!$acc_course) {
-                    throw new Exception("Curso '$courseShort' no existe");
-                }
-
-                if (empty($feedback)) $feedback = 'Nota migrada de Q10';
-
-                // 3. Update Grade
-                // Source: manual, item type: manual
-                // But we want to update the COURSE TOTAL if possible or a MANUAL ITEM?
-                // Requirements said: "dejando alguna nota que vean los usuarios... que indique que es una nota migrada"
-                // Best practice: Create a Manual Grade Item named "Nota Histórica Q10" or update the Course Total override?
-                // Updating Course Total directly can be locked. 
-                // Let's create a specific Manual Item if it doesn't exist, or update it.
-                
-                $grade_item = \grade_item::fetch(array('courseid' => $acc_course->id, 'itemtype' => 'manual', 'itemname' => 'Nota Final Integrada'));
-                if (!$grade_item) {
-                     // Create it
-                     $grade_item = new \grade_item(array('courseid' => $acc_course->id, 'itemtype' => 'manual', 'itemname' => 'Nota Final Integrada', 'grademin'=>0, 'grademax'=>100));
-                     $grade_item->insert('manual');
-                }
-
-                $grade_grade = $grade_item->get_grade($enrollResult['learning_user_id']); // Wait, enroll returns learning_user_id, we need USER ID.
-                // We better get user ID from username
-                $user = $DB->get_record('user', ['username' => $username, 'deleted' =>0]);
-                
-                $grade_item->update_final_grade($user->id, $gradeVal, 'import', $feedback, FORMAT_HTML);
-                
-                // Force triggering progress update in grupomakro_core
-                // based on observer analysis, we might need to manually call it
-                \local_grupomakro_progress_manager::update_course_progress($acc_course->id, $user->id);
-
-                // Track for period sync
-                $userPlanKey = $user->id . '_' . $enrollResult['plan_id']; // We need plan_id from enrollResult or plan object
-                $toSyncPeriods[$userPlanKey] = ['userid' => $user->id, 'planid' => $enrollResult['plan_id']];
-
-                $logGrade = "Nota: $gradeVal";
-                $rowClass = 'text-success';
-
-             } catch (Exception $e) {
-                 $status = $e->getMessage();
-                 $rowClass = 'text-danger';
-             }
-
-             $table->data[] = [$row, $username, $courseShort, $logEnroll, $logGrade, new html_table_cell($status)];
-             // Correctly access the last row (which is an array) and then the 6th element (index 5) which is the object
-             $table->data[count($table->data)-1][5]->attributes = ['class' => $rowClass];
-        }
-
-        // Final Period Sync for processed users
-        if (!empty($toSyncPeriods)) {
-            foreach ($toSyncPeriods as $syncData) {
-                \local_grupomakro_progress_manager::sync_student_period($syncData['userid'], $syncData['planid']);
-            }
-        }
-
-        echo html_writer::table($table);
-
-    } catch (Exception $e) {
-        echo $OUTPUT->notification('Error: ' . $e->getMessage(), 'error');
-    }
-    echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_grades.php'));
+} catch (Exception $e) {
+    echo $OUTPUT->notification('Error: ' . $e->getMessage(), 'error');
+}
+echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_grades.php'));
 
 } else {
     // Buttons already shown at top
