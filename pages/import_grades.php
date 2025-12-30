@@ -49,7 +49,8 @@ if ($mform->is_cancelled()) {
      redirect($CFG->wwwroot);
 } else if ($data = $mform->get_data()) {
 
-    $filename = $mform->get_new_filename('importfile');
+    try {
+        $filename = $mform->get_new_filename('importfile');
     $filepath = $mform->save_temp_file('importfile');
 
     echo $OUTPUT->heading("Procesando Notas: " . $filename);
