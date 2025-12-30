@@ -108,19 +108,28 @@ if ($userid > 0) {
                 
                 $completionEnabled = $cinfo->is_enabled();
                 $isComplete = $cinfo->is_course_complete($userid);
+                $internalComplete = ($rec->status == 3 || $rec->status == 4 || $rec->progress >= 100);
                 
                 $rawRecord = $DB->get_record('course_completions', ['course' => $rec->courseid, 'userid' => $userid]);
-                $rawStatus = $rawRecord ? $rawRecord->status : 'N/A';
-                $rawTime = $rawRecord && $rawRecord->timecompleted ? date('Y-m-d H:i', $rawRecord->timecompleted) : 'N/A';
+                $completionDetail = "No hay registro en course_completions";
+                if ($rawRecord) {
+                    $fields = [];
+                    foreach ($rawRecord as $k => $v) {
+                        if ($k == 'timecompleted' || $k == 'reaggregate' || $k == 'timeenrolled' || $k == 'timestarted') {
+                             $v = $v ? date('Y-m-d H:i', $v) : 0;
+                        }
+                        $fields[] = "<b>$k:</b> $v";
+                    }
+                    $completionDetail = implode(' | ', $fields);
+                }
                 
                 $completionText = $isComplete ? 'COMPLETO' : 'PENDIENTE';
                 if (!$completionEnabled) {
-                    $completionText .= ' (Desabilitada)';
+                    $completionText .= ' (Deshabilitada)';
                     $bgColor = '#eee';
                 } else {
                     $bgColor = $isComplete ? "#d4edda" : "#f8d7da";
                 }
-                $completionDetail = "Status: $rawStatus, Time: $rawTime";
                 
                 echo "<tr>
                         <td>$rec->learningplanid</td>
@@ -134,7 +143,7 @@ if ($userid > 0) {
                       </tr>";
                 
                 $totalCredits += $rec->credits;
-                $totalWeighted += ($isComplete ? 1 : 0) * $rec->credits;
+                $totalWeighted += ($internalComplete ? 1 : 0) * $rec->credits;
             }
             echo "</table>";
 

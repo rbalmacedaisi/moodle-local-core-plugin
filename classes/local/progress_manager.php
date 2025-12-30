@@ -442,7 +442,7 @@ class local_grupomakro_progress_manager
     }
     public static function force_moodle_course_completion($courseId, $userId, $logFile = null)
     {
-        global $DB;
+        global $DB, $CFG;
         if ($logFile) file_put_contents($logFile, "[DEBUG] Entrando a force_moodle_course_completion para User $userId, Curso $courseId\n", FILE_APPEND);
         try {
             $course = get_course($courseId);
@@ -453,32 +453,19 @@ class local_grupomakro_progress_manager
                 return false;
             }
 
-            $ccompletion = $DB->get_record('course_completions', ['course' => $courseId, 'userid' => $userId]);
-            $now = time();
-
-            if ($ccompletion) {
-                if ($logFile) file_put_contents($logFile, "[DEBUG] Record previo: " . json_encode($ccompletion) . "\n", FILE_APPEND);
-                
-                $ccompletion->timecompleted = $now;
-                $ccompletion->reaggregate = 0; // Set to 0 so it doesn't try to reaggregate and overwrite our manual completion
-                $ccompletion->status = 50; // COMPLETION_STATUS_COMPLETE
-                
-                $DB->update_record('course_completions', $ccompletion);
-                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion ACTUALIZADO (Status 50) para User $userId en Curso $courseId.\n", FILE_APPEND);
+            // Using completion_completion class to mark as complete.
+            // This is more robust than manual DB updates.
+            require_once($CFG->libdir . '/completionlib.php');
+            $params = ['userid' => $userId, 'course' => $courseId];
+            $ccompletion = new \completion_completion($params);
+            
+            if (!$ccompletion->is_complete()) {
+                $ccompletion->mark_complete();
+                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion MARCADO como COMPLETO (API) para User $userId en Curso $courseId.\n", FILE_APPEND);
             } else {
-                if ($logFile) file_put_contents($logFile, "[DEBUG] No hay record previo. Creando nuevo.\n", FILE_APPEND);
-                $ccompletion = new \stdClass();
-                $ccompletion->course = $courseId;
-                $ccompletion->userid = $userId;
-                $ccompletion->timeenrolled = $now - 86400;
-                $ccompletion->timestarted = $now - 3600;
-                $ccompletion->timecompleted = $now;
-                $ccompletion->reaggregate = 0;
-                $ccompletion->status = 50;
-                
-                $DB->insert_record('course_completions', $ccompletion);
-                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion INSERTADO (Status 50) para User $userId en Curso $courseId.\n", FILE_APPEND);
+                if ($logFile) file_put_contents($logFile, "[DEBUG] Moodle completion ya estaba marcado como completo para User $userId en Curso $courseId.\n", FILE_APPEND);
             }
+
             return true;
         } catch (\Exception $e) {
             if ($logFile) file_put_contents($logFile, "[ERROR] Falló force_moodle_course_completion ($courseId, $userId): " . $e->getMessage() . "\n", FILE_APPEND);
