@@ -167,14 +167,15 @@ class local_grupomakro_progress_manager
                 $conditions['learningplanid'] = $learningPlanId;
             }
             
+            if ($logFile) file_put_contents($logFile, "[DEBUG] Buscando record para User: $userId, Course: $courseId, Plan: " . ($learningPlanId ?? 'ALL') . "\n", FILE_APPEND);
+
             $userCourseProgress = $DB->get_record('gmk_course_progre', $conditions);
             if (!$userCourseProgress) {
-                if ($logFile) file_put_contents($logFile, "[AVISO] No se encontró registro en gmk_course_progre para User: $userId, Course: $courseId, Plan: $learningPlanId\n", FILE_APPEND);
+                if ($logFile) file_put_contents($logFile, "[AVISO] No se encontró registro en gmk_course_progre para User: $userId, Course: $courseId, Plan: " . ($learningPlanId ?? 'N/A') . "\n", FILE_APPEND);
                 return false;
             }
 
             // 1. Always update the Grade first from the gradebook.
-            // Using grade_get_course_grade (singular) for more reliability.
             $gradeObj = grade_get_course_grade($userId, $courseId);
             $userGrade = ($gradeObj && isset($gradeObj->grade)) ? (float)$gradeObj->grade : 0.0;
             $userCourseProgress->grade = $userGrade;
@@ -208,7 +209,6 @@ class local_grupomakro_progress_manager
             }
 
             // 3. Apply Robust Overrides (Academic Performance).
-            // If the student has an approved grade (>= 70), force 100% and status COMPLETED.
             $oldStatus = $userCourseProgress->status;
             $oldProgress = $userCourseProgress->progress;
 
@@ -219,17 +219,18 @@ class local_grupomakro_progress_manager
                 $userCourseProgress->status = COURSE_COMPLETED;
             }
 
-            if ($logFile && ($oldStatus != $userCourseProgress->status || $oldProgress != $userCourseProgress->progress)) {
-                file_put_contents($logFile, "[INFO] Actualizado: User $userId, Curso $courseId. Nota: $userGrade. Progreso: $oldProgress -> {$userCourseProgress->progress}, Estado: $oldStatus -> {$userCourseProgress->status}\n", FILE_APPEND);
+            if ($logFile) {
+                file_put_contents($logFile, "[INFO] Procesado Curso $courseId: Nota=$userGrade, Progreso=$oldProgress->{$userCourseProgress->progress}, Status=$oldStatus->{$userCourseProgress->status}\n", FILE_APPEND);
             }
 
-            $DB->update_record('gmk_course_progre', $userCourseProgress);
-            return true;
+            $success = $DB->update_record('gmk_course_progre', $userCourseProgress);
+            if ($logFile && !$success) {
+                file_put_contents($logFile, "[ERROR] Falló DB update_record para User: $userId, Course: $courseId\n", FILE_APPEND);
+            }
+            
+            return $success;
         } catch (Exception $e) {
             if ($logFile) file_put_contents($logFile, "[ERROR] Exception en update_course_progress ($courseId, $userId): " . $e->getMessage() . "\n", FILE_APPEND);
-            if (debugging('', DEBUG_DEVELOPER)) {
-                print_object($e->getMessage());
-            }
             return false;
         }
     }

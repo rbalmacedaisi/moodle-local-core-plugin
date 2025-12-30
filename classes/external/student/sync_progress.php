@@ -64,6 +64,7 @@ class sync_progress extends external_api {
                  file_put_contents($logFile, "AVISO: No se encontraron registros de progreso para estudiantes.\n", FILE_APPEND);
                  return $result;
             }
+            file_put_contents($logFile, "Iniciando procesamiento de $total registros en el bucle...\n", FILE_APPEND);
 
             // Release session lock so the poller can read the log file.
             \core\session\manager::write_close();
