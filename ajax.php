@@ -41,11 +41,14 @@ try {
             core_php_time_limit::raise(600); // 10 minutes
 
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
-            $logFile = make_tempdir('grupomakro') . '/sync_progress.log';
+            $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';
             file_put_contents($logFile, "--- Inicio Sincronización Periodos (Migrados) " . date('Y-m-d H:i:s') . " ---\n", FILE_APPEND);
 
+            // Get student role ID (usually 5, but let's be sure or allow it)
+            $studentRoleId = 5; 
+
             // Get all students in learning plans
-            $students = $DB->get_records('local_learning_users', ['userroleid' => 5], '', 'userid, learningplanid');
+            $students = $DB->get_records('local_learning_users', ['userroleid' => $studentRoleId], '', 'userid, learningplanid');
             $count = 0;
             $total = count($students);
             $processed = 0;
@@ -75,7 +78,7 @@ try {
             break;
         
         case 'get_sync_log':
-            $logFile = make_tempdir('grupomakro') . '/sync_progress.log';
+            $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';
             if (file_exists($logFile)) {
                 $response['status'] = 'success';
                 $response['log'] = file_get_contents($logFile);
