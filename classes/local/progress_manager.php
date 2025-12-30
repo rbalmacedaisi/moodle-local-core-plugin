@@ -472,4 +472,99 @@ class local_grupomakro_progress_manager
             return false;
         }
     }
+
+    /**
+     * Synchronize the current period of a student based on their course completion.
+     * Useful for migrations where students are imported with grades but stuck in Period 1.
+     *
+     * @param int $userId Moodle user ID
+     * @param int $learningPlanId Learning Plan ID
+     * @param string|null $logFile Path to log file
+     * @return bool
+     */
+    public static function sync_student_period($userId, $learningPlanId, $logFile = null)
+    {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+
+        try {
+            // 1. Get all required courses for this plan, ordered by period and position
+            $sql = "SELECT lpc.id, lpc.courseid, lpc.periodid, c.fullname
+                    FROM {local_learning_courses} lpc
+                    JOIN {course} c ON (c.id = lpc.courseid)
+                    WHERE lpc.learningplanid = :lpid AND lpc.isrequired = 1
+                    ORDER BY lpc.periodid ASC, lpc.position ASC";
+            
+            $requiredCourses = $DB->get_records_sql($sql, ['lpid' => $learningPlanId]);
+            if (!$requiredCourses) {
+                if ($logFile) file_put_contents($logFile, "[AVISO] Sincronización de Periodo: No se encontraron materias obligatorias para el Plan $learningPlanId.\n", FILE_APPEND);
+                return false;
+            }
+
+            $firstIncompletePeriodId = null;
+            $lastPeriodId = null;
+
+            foreach ($requiredCourses as $lpc) {
+                $lastPeriodId = $lpc->periodid;
+                
+                // Check completion in gmk_course_progre
+                $progre = $DB->get_record('gmk_course_progre', [
+                    'userid' => $userId, 
+                    'courseid' => $lpc->courseid, 
+                    'learningplanid' => $learningPlanId
+                ], 'status');
+
+                $isComplete = false;
+                if ($progre && $progre->status == COURSE_COMPLETED) {
+                    $isComplete = true;
+                } else {
+                    // Fallback to Moodle Gradebook/Completion
+                    $completion = new \completion_info(get_course($lpc->courseid));
+                    if ($completion->is_course_complete($userId)) {
+                        $isComplete = true;
+                    } else {
+                        // Check if grade is >= 70
+                        $gradeObj = grade_get_course_grade($userId, $lpc->courseid);
+                        if ($gradeObj && isset($gradeObj->grade) && (float)$gradeObj->grade >= 70) {
+                            $isComplete = true;
+                        }
+                    }
+                }
+
+                if (!$isComplete) {
+                    $firstIncompletePeriodId = $lpc->periodid;
+                    break;
+                }
+            }
+
+            // Determine target period
+            // If all are complete, target is the last period.
+            // If some are incomplete, target is the first incomplete period.
+            $targetPeriodId = $firstIncompletePeriodId ?? $lastPeriodId;
+
+            if ($targetPeriodId) {
+                $lpUser = $DB->get_record('local_learning_users', [
+                    'userid' => $userId, 
+                    'learningplanid' => $learningPlanId
+                ]);
+
+                if ($lpUser) {
+                    if ($lpUser->currentperiodid != $targetPeriodId) {
+                        $oldPeriod = $lpUser->currentperiodid;
+                        $lpUser->currentperiodid = $targetPeriodId;
+                        $lpUser->timemodified = time();
+                        $DB->update_record('local_learning_users', $lpUser);
+                        
+                        if ($logFile) file_put_contents($logFile, "[INFO] Sincronización de Periodo Estudiante $userId: $oldPeriod -> $targetPeriodId (Plan $learningPlanId)\n", FILE_APPEND);
+                    }
+                    return true;
+                }
+            }
+
+            return false;
+        } catch (Exception $e) {
+            if ($logFile) file_put_contents($logFile, "[ERROR] Falló sync_student_period ($userId, $learningPlanId): " . $e->getMessage() . "\n", FILE_APPEND);
+            return false;
+        }
+    }
 }

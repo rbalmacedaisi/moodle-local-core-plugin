@@ -77,7 +77,8 @@ class enroll_student extends external_api {
             return [
                 'status' => 'success',
                 'message' => 'User enrolled successfully',
-                'learning_user_id' => $result['id']
+                'learning_user_id' => $result['id'],
+                'plan_id' => $plan->id
             ];
 
         } catch (moodle_exception $e) {
@@ -85,7 +86,8 @@ class enroll_student extends external_api {
                 return [
                     'status' => 'warning',
                     'message' => 'User already enrolled in this plan',
-                    'learning_user_id' => 0
+                    'learning_user_id' => 0,
+                    'plan_id' => $plan->id
                 ];
             }
             throw $e;
@@ -97,7 +99,8 @@ class enroll_student extends external_api {
             array(
                 'status' => new external_value(PARAM_TEXT, 'Status of the operation (success, warning, error)'),
                 'message' => new external_value(PARAM_TEXT, 'Result message'),
-                'learning_user_id' => new external_value(PARAM_INT, 'ID of the learning user record created')
+                'learning_user_id' => new external_value(PARAM_INT, 'ID of the learning user record created'),
+                'plan_id' => new external_value(PARAM_INT, 'ID of the learning plan')
             )
         );
     }

@@ -69,6 +69,8 @@ class sync_progress extends external_api {
             // Release session lock so the poller can read the log file.
             \core\session\manager::write_close();
 
+            $syncedUserPlans = []; // Keep track of (user, plan) pairs already synced for period
+
             foreach ($records as $index => $record) {
                 try {
                     $current = $index + 1;
@@ -78,6 +80,13 @@ class sync_progress extends external_api {
                     // Force progress and grade update in our local tables.
                     // This now also handles Moodle native completion.
                     local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid, $record->learningplanid, $logFile);
+
+                    // Sync Period (once per user/plan)
+                    $userPlanKey = $record->userid . '_' . $record->learningplanid;
+                    if (!isset($syncedUserPlans[$userPlanKey])) {
+                        local_grupomakro_progress_manager::sync_student_period($record->userid, $record->learningplanid, $logFile);
+                        $syncedUserPlans[$userPlanKey] = true;
+                    }
 
                     $result['count']++;
                     if ($current % 5 == 0 || $current == $total) {

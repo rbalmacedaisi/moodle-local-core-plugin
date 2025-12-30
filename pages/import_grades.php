@@ -58,6 +58,8 @@ if ($mform->is_cancelled()) {
         $sheet = $spreadsheet->getSheet(0);
         $highestRow = $sheet->getHighestDataRow();
 
+        $toSyncPeriods = [];
+
         $table = new html_table();
         $table->head = ['Fila', 'Usuario', 'Curso', 'Acción Matricula', 'Acción Nota', 'Resultado'];
         $table->data = [];
@@ -127,6 +129,10 @@ if ($mform->is_cancelled()) {
                 // based on observer analysis, we might need to manually call it
                 \local_grupomakro_progress_manager::update_course_progress($acc_course->id, $user->id);
 
+                // Track for period sync
+                $userPlanKey = $user->id . '_' . $enrollResult['plan_id']; // We need plan_id from enrollResult or plan object
+                $toSyncPeriods[$userPlanKey] = ['userid' => $user->id, 'planid' => $enrollResult['plan_id']];
+
                 $logGrade = "Nota: $gradeVal";
                 $rowClass = 'text-success';
 
@@ -138,6 +144,13 @@ if ($mform->is_cancelled()) {
              $table->data[] = [$row, $username, $courseShort, $logEnroll, $logGrade, new html_table_cell($status)];
              // Correctly access the last row (which is an array) and then the 6th element (index 5) which is the object
              $table->data[count($table->data)-1][5]->attributes = ['class' => $rowClass];
+        }
+
+        // Final Period Sync for processed users
+        if (!empty($toSyncPeriods)) {
+            foreach ($toSyncPeriods as $syncData) {
+                \local_grupomakro_progress_manager::sync_student_period($syncData['userid'], $syncData['planid']);
+            }
         }
 
         echo html_writer::table($table);
