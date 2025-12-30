@@ -234,7 +234,7 @@ class local_grupomakro_progress_manager
             $success = $DB->update_record('gmk_course_progre', $userCourseProgress);
             
             if ($success && $userCourseProgress->status == COURSE_COMPLETED) {
-                self::force_moodle_course_completion($courseId, $userId);
+                self::force_moodle_course_completion($courseId, $userId, $logFile);
             }
 
             return $success;
@@ -438,15 +438,15 @@ class local_grupomakro_progress_manager
         attendance_update_users_grade($attendanceStructure);
         return;
     }
-    public static function force_moodle_course_completion($courseId, $userId)
+    public static function force_moodle_course_completion($courseId, $userId, $logFile = null)
     {
         global $DB;
         try {
             $course = get_course($courseId);
             $completion = new \completion_info($course);
             
-            // If completion is not enabled for the course, we can't really "complete" it in Moodle's eyes.
             if (!$completion->is_enabled()) {
+                if ($logFile) file_put_contents($logFile, "[AVISO] Moodle completion NO habilitado para curso $courseId ($course->fullname). Saltando.\n", FILE_APPEND);
                 return false;
             }
 
@@ -457,7 +457,14 @@ class local_grupomakro_progress_manager
                 if (!$ccompletion->timecompleted) {
                     $ccompletion->timecompleted = $now;
                     $ccompletion->reaggregate = $now;
+                    if (property_exists($ccompletion, 'status')) {
+                        $ccompletion->status = 20; // COMPLETION_STATUS_COMPLETE is 20 in some versions, or 10. Let's assume 1.
+                        // Actually let's use the constant if available or just 10 (COMPLETION_STATUS_COMPLETE in modern Moodle)
+                        // In Moodle 3.x+ : 10 = COMPLETE, 20 = REAGGREGATE, 30 = COMPLETION_STATUS_COMPLETE_SELF
+                        $ccompletion->status = 10; 
+                    }
                     $DB->update_record('course_completions', $ccompletion);
+                    if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion ACTUALIZADO para User $userId en Curso $courseId.\n", FILE_APPEND);
                 }
             } else {
                 $ccompletion = new \stdClass();
@@ -467,10 +474,15 @@ class local_grupomakro_progress_manager
                 $ccompletion->timestarted = $now;
                 $ccompletion->timecompleted = $now;
                 $ccompletion->reaggregate = $now;
+                if ($DB->get_manager()->field_exists('course_completions', 'status')) {
+                    $ccompletion->status = 10;
+                }
                 $DB->insert_record('course_completions', $ccompletion);
+                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion INSERTADO para User $userId en Curso $courseId.\n", FILE_APPEND);
             }
             return true;
         } catch (\Exception $e) {
+            if ($logFile) file_put_contents($logFile, "[ERROR] Falló force_moodle_course_completion ($courseId, $userId): " . $e->getMessage() . "\n", FILE_APPEND);
             return false;
         }
     }
