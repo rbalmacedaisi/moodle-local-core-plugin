@@ -107,6 +107,12 @@ if ($userid > 0) {
                 $warning = ($rec->credits <= 0) ? "style='color:red; font-weight:bold'" : "";
                 
                 $completionEnabled = $cinfo->is_enabled();
+                $isComplete = $cinfo->is_course_complete($userid);
+                
+                $rawRecord = $DB->get_record('course_completions', ['course' => $rec->courseid, 'userid' => $userid]);
+                $rawStatus = $rawRecord ? $rawRecord->status : 'N/A';
+                $rawTime = $rawRecord && $rawRecord->timecompleted ? date('Y-m-d H:i', $rawRecord->timecompleted) : 'N/A';
+                
                 $completionText = $isComplete ? 'COMPLETO' : 'PENDIENTE';
                 if (!$completionEnabled) {
                     $completionText .= ' (Desabilitada)';
@@ -114,6 +120,7 @@ if ($userid > 0) {
                 } else {
                     $bgColor = $isComplete ? "#d4edda" : "#f8d7da";
                 }
+                $completionDetail = "Status: $rawStatus, Time: $rawTime";
                 
                 echo "<tr>
                         <td>$rec->learningplanid</td>
@@ -122,7 +129,7 @@ if ($userid > 0) {
                         <td $warning>$rec->credits</td>
                         <td>$rec->progress</td>
                         <td>$rec->status</td>
-                        <td style='background:$bgColor'>$completionText</td>
+                        <td style='background:$bgColor'>$completionText<br><small>$completionDetail</small></td>
                         <td>$strGrade</td>
                       </tr>";
                 
