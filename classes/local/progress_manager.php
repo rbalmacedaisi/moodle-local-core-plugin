@@ -233,7 +233,9 @@ class local_grupomakro_progress_manager
 
             $success = $DB->update_record('gmk_course_progre', $userCourseProgress);
             
-            if ($success && $userCourseProgress->status == COURSE_COMPLETED) {
+            // Always try to force Moodle completion if the status is COURSE_COMPLETED,
+            // even if our internal record update didn't change anything.
+            if ($userCourseProgress->status == COURSE_COMPLETED) {
                 self::force_moodle_course_completion($courseId, $userId, $logFile);
             }
 
@@ -441,6 +443,7 @@ class local_grupomakro_progress_manager
     public static function force_moodle_course_completion($courseId, $userId, $logFile = null)
     {
         global $DB;
+        if ($logFile) file_put_contents($logFile, "[DEBUG] Entrando a force_moodle_course_completion para User $userId, Curso $courseId\n", FILE_APPEND);
         try {
             $course = get_course($courseId);
             $completion = new \completion_info($course);
@@ -454,31 +457,28 @@ class local_grupomakro_progress_manager
             $now = time();
 
             if ($ccompletion) {
-                if (!$ccompletion->timecompleted) {
-                    $ccompletion->timecompleted = $now;
-                    $ccompletion->reaggregate = $now;
-                    if (property_exists($ccompletion, 'status')) {
-                        $ccompletion->status = 20; // COMPLETION_STATUS_COMPLETE is 20 in some versions, or 10. Let's assume 1.
-                        // Actually let's use the constant if available or just 10 (COMPLETION_STATUS_COMPLETE in modern Moodle)
-                        // In Moodle 3.x+ : 10 = COMPLETE, 20 = REAGGREGATE, 30 = COMPLETION_STATUS_COMPLETE_SELF
-                        $ccompletion->status = 10; 
-                    }
-                    $DB->update_record('course_completions', $ccompletion);
-                    if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion ACTUALIZADO para User $userId en Curso $courseId.\n", FILE_APPEND);
-                }
+                if ($logFile) file_put_contents($logFile, "[DEBUG] Record encontrado en course_completions. Status actual: " . ($ccompletion->status ?? 'N/A') . ", TimeCompleted: " . ($ccompletion->timecompleted ?? '0') . "\n", FILE_APPEND);
+                
+                $ccompletion->timecompleted = $now;
+                $ccompletion->reaggregate = $now;
+                // Status 20 = COMPLETION_STATUS_COMPLETE in most recent Moodle versions.
+                $ccompletion->status = 20; 
+                
+                $DB->update_record('course_completions', $ccompletion);
+                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion ACTUALIZADO (Status 20) para User $userId en Curso $courseId.\n", FILE_APPEND);
             } else {
+                if ($logFile) file_put_contents($logFile, "[DEBUG] Record NO encontrado en course_completions. Insertando nuevo.\n", FILE_APPEND);
                 $ccompletion = new \stdClass();
                 $ccompletion->course = $courseId;
                 $ccompletion->userid = $userId;
-                $ccompletion->timeenrolled = $now;
-                $ccompletion->timestarted = $now;
+                $ccompletion->timeenrolled = $now - 86400; // 1 day ago to be safe
+                $ccompletion->timestarted = $now - 3600;   // 1 hour ago
                 $ccompletion->timecompleted = $now;
                 $ccompletion->reaggregate = $now;
-                if ($DB->get_manager()->field_exists('course_completions', 'status')) {
-                    $ccompletion->status = 10;
-                }
+                $ccompletion->status = 20;
+                
                 $DB->insert_record('course_completions', $ccompletion);
-                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion INSERTADO para User $userId en Curso $courseId.\n", FILE_APPEND);
+                if ($logFile) file_put_contents($logFile, "[INFO] Moodle completion INSERTADO (Status 20) para User $userId en Curso $courseId.\n", FILE_APPEND);
             }
             return true;
         } catch (\Exception $e) {
