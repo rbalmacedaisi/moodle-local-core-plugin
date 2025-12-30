@@ -21,6 +21,7 @@ global $DB;
 $planid   = optional_param('planid', '', PARAM_RAW);
 $periodid = optional_param('periodid', '', PARAM_RAW);
 $status   = optional_param('status', '', PARAM_TEXT); // Student Status filter
+$withgrades = optional_param('withgrades', 1, PARAM_INT);
 
 // Course Status Mapping (from progress_manager)
 $statusLabels = [
@@ -74,6 +75,17 @@ $fieldDoc = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']
 // Columns for Excel
 $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'course_status'];
 $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Curso'];
+
+if (!$withgrades) {
+    // Filter out grade column
+    $gradeIndex = array_search('grade', $columns);
+    if ($gradeIndex !== false) {
+        unset($columns[$gradeIndex]);
+        unset($headers[$gradeIndex]);
+        $columns = array_values($columns);
+        $headers = array_values($headers);
+    }
+}
 
 $data = [];
 $studentStatusCache = [];

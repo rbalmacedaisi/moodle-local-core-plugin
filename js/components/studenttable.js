@@ -100,6 +100,13 @@ Vue.component('studenttable', {
                                         dense
                                         clearable
                                     ></v-select>
+                                    <v-switch
+                                        v-model="filters.withGrades"
+                                        label="Incluir Notas en Exportación"
+                                        color="success"
+                                        dense
+                                        hide-details
+                                    ></v-switch>
                                 </v-card-text>
                                 <v-divider></v-divider>
                                 <v-card-actions class="pa-4">
@@ -268,7 +275,8 @@ Vue.component('studenttable', {
             filters: {
                 planid: [],
                 periodid: [],
-                status: null
+                status: null,
+                withGrades: true
             }
         }
     },
@@ -417,6 +425,7 @@ Vue.component('studenttable', {
                 url += `periodid=${this.filters.periodid.join(',')}&`;
             }
             if (this.filters.status) url += `status=${this.filters.status}&`;
+            url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
             window.open(url, '_blank');
         },
         exportStudents() {
