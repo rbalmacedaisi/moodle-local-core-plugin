@@ -51,7 +51,7 @@ class sync_progress extends external_api {
         try {
             // Get all students enrolled in learning plans.
             // Simplified query to ensure we get something first
-            $sql = "SELECT DISTINCT lpu.userid, lpu.learningplanid, gcp.courseid
+            $sql = "SELECT gcp.id, lpu.userid, lpu.learningplanid, gcp.courseid
                     FROM {local_learning_users} lpu
                     JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.learningplanid = lpu.learningplanid)
                     WHERE lpu.userroleid = :studentroleid";
