@@ -231,7 +231,13 @@ class local_grupomakro_progress_manager
                 file_put_contents($logFile, "[INFO] Procesado Curso $courseId: Nota=$userGrade, Progreso=$oldProgress -> {$userCourseProgress->progress}, Status=$oldStatus -> {$userCourseProgress->status}\n", FILE_APPEND);
             }
 
-            return $DB->update_record('gmk_course_progre', $userCourseProgress);
+            $success = $DB->update_record('gmk_course_progre', $userCourseProgress);
+            
+            if ($success && $userCourseProgress->status == COURSE_COMPLETED) {
+                self::force_moodle_course_completion($courseId, $userId);
+            }
+
+            return $success;
             
         } catch (Exception $e) {
             if ($logFile) file_put_contents($logFile, "[ERROR] Exception crítica en update_course_progress ($courseId, $userId): " . $e->getMessage() . "\n", FILE_APPEND);
@@ -431,5 +437,41 @@ class local_grupomakro_progress_manager
         $DB->delete_records('attendance_log', ['sessionid' => $attendanceSessionId, 'studentid' => $studentId]);
         attendance_update_users_grade($attendanceStructure);
         return;
+    }
+    public static function force_moodle_course_completion($courseId, $userId)
+    {
+        global $DB;
+        try {
+            $course = get_course($courseId);
+            $completion = new \completion_info($course);
+            
+            // If completion is not enabled for the course, we can't really "complete" it in Moodle's eyes.
+            if (!$completion->is_enabled()) {
+                return false;
+            }
+
+            $ccompletion = $DB->get_record('course_completions', ['course' => $courseId, 'userid' => $userId]);
+            $now = time();
+
+            if ($ccompletion) {
+                if (!$ccompletion->timecompleted) {
+                    $ccompletion->timecompleted = $now;
+                    $ccompletion->reaggregate = $now;
+                    $DB->update_record('course_completions', $ccompletion);
+                }
+            } else {
+                $ccompletion = new \stdClass();
+                $ccompletion->course = $courseId;
+                $ccompletion->userid = $userId;
+                $ccompletion->timeenrolled = $now;
+                $ccompletion->timestarted = $now;
+                $ccompletion->timecompleted = $now;
+                $ccompletion->reaggregate = $now;
+                $DB->insert_record('course_completions', $ccompletion);
+            }
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 }
