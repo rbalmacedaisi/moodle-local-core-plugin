@@ -162,49 +162,59 @@ class local_grupomakro_progress_manager
         global $DB, $PAGE;
         $renderer = $PAGE->get_renderer('core');
         try {
-            $userGroup = $DB->get_field('gmk_course_progre', 'groupid', ['userid' => $userId, 'courseid' => $courseId], MUST_EXIST);
-            
-            if (!$userGroup) {
-                // User is not assigned to a group/class yet. Cannot determine section modules.
+            $userCourseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $courseId]);
+            if (!$userCourseProgress) {
                 return false;
             }
 
-            $groupSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup], MUST_EXIST);
-            $coursemod = get_fast_modinfo($courseId, $userId);
-            $course = $coursemod->get_course();
-            $completion = new completion_info($course);
+            // 1. Always update the Grade first from the gradebook.
+            $gradeInfo = grade_get_course_grades($courseId, $userId);
+            $userGrade = isset($gradeInfo->grades[$userId]) ? $gradeInfo->grades[$userId]->grade : 0;
+            $userCourseProgress->grade = $userGrade;
 
-            $sectionModuleCount = 0;
+            // 2. Calculate module-based progress IF group and section exist.
             $completedModules = 0;
-            foreach ($coursemod->get_cms() as $courseModule) {
-                $courseModuleRecord = $courseModule->get_course_module_record();
-                if ($courseModuleRecord->section == $groupSection && !!$completion->is_enabled($courseModule)) {
-                    $sectionModuleCount += 1;
-                    $exporter = new \core_completion\external\completion_info_exporter($course, $courseModule, $userId);
-                    $moduleCompletionData = (array)$exporter->export($renderer);
-                    $completedModules += $moduleCompletionData['state'] > 0 ? 1 : 0;
+            $sectionModuleCount = 0;
+            $userGroup = $userCourseProgress->groupid;
+
+            if ($userGroup) {
+                $groupSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
+                if ($groupSection !== false) {
+                    $coursemod = get_fast_modinfo($courseId, $userId);
+                    $course = $coursemod->get_course();
+                    $completion = new completion_info($course);
+
+                    foreach ($coursemod->get_cms() as $courseModule) {
+                        $courseModuleRecord = $courseModule->get_course_module_record();
+                        if ($courseModuleRecord->section == $groupSection && !!$completion->is_enabled($courseModule)) {
+                            $sectionModuleCount += 1;
+                            $exporter = new \core_completion\\external\\completion_info_exporter($course, $courseModule, $userId);
+                            $moduleCompletionData = (array)$exporter->export($renderer);
+                            $completedModules += $moduleCompletionData['state'] > 0 ? 1 : 0;
+                        }
+                    }
                 }
             }
 
-            $userCourseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $courseId], '*', MUST_EXIST);
-            if ($userCourseProgress) {
+            if ($sectionModuleCount > 0) {
                 $userCourseProgress->progress = ($completedModules / $sectionModuleCount) * 100;
-                $userGrade = grade_get_course_grades($courseId, $userId)->grades[$userId]->grade;
-                $userCourseProgress->grade = $userGrade;
-
-                // [FIX] If the student has an approved grade (>= 70), force progress to 100% and status to COMPLETED.
-                // This covers bulk grade uploads that don't trigger native Moodle completions.
-                if ($userGrade >= 70) {
-                     $userCourseProgress->progress = 100;
-                     $userCourseProgress->status = COURSE_COMPLETED;
-                } else if ($userCourseProgress->progress == 100) {
-                    $userCourseProgress->status = COURSE_COMPLETED;
-                }
-                $DB->update_record('gmk_course_progre', $userCourseProgress);
             }
+
+            // 3. Apply Robust Overrides (Academic Performance).
+            // If the student has an approved grade (>= 70), force 100% and status COMPLETED.
+            if ($userGrade >= 70) {
+                $userCourseProgress->progress = 100;
+                $userCourseProgress->status = COURSE_COMPLETED;
+            } else if ($userCourseProgress->progress == 100) {
+                $userCourseProgress->status = COURSE_COMPLETED;
+            }
+
+            $DB->update_record('gmk_course_progre', $userCourseProgress);
             return true;
         } catch (Exception $e) {
-            print_object($e->getMessage());
+            if (debugging('', DEBUG_DEVELOPER)) {
+                print_object($e->getMessage());
+            }
             return false;
         }
     }

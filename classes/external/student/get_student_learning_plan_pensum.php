@@ -126,18 +126,22 @@ class get_student_learning_plan_pensum extends external_api
                 $course = get_course($userPensumCourse->courseid);
                 $userPensumCourse->coursename = $course->fullname;
                 $userPensumCourse->periodname = $periodName->name;
+                $userPensumCourse->grade = '-';
+                $gradeObj = grade_get_course_grade($params['userId'], $userPensumCourse->courseid);
+                if ($gradeObj && isset($gradeObj->str_grade)) {
+                    $userPensumCourse->grade = $gradeObj->str_grade;
+                    
+                    // [VIRTUAL FALLBACK] If grade is approved but status is not, update it virtually.
+                    if ($gradeObj->grade >= 70 && !in_array($userPensumCourse->status, [3, 4])) {
+                         $userPensumCourse->status = 3; // COURSE_COMPLETED
+                    }
+                }
+
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
                 
                 // Handle prerequisites safely
                 $userPensumCourse->prerequisites = !empty($userPensumCourse->prerequisites) ? json_decode($userPensumCourse->prerequisites) : [];
-                
-                $userPensumCourse->grade = '-';
-                // Only try to get grade if context implies it exists, or just always try safely
-                $gradeObj = grade_get_course_grade($params['userId'], $userPensumCourse->courseid);
-                if ($gradeObj && isset($gradeObj->str_grade)) {
-                    $userPensumCourse->grade = $gradeObj->str_grade;
-                }
 
                 foreach ($userPensumCourse->prerequisites as $prerequisite) {
                     $completion = new \completion_info(get_course($prerequisite->id));

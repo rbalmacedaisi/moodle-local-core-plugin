@@ -78,13 +78,18 @@ class get_learning_plans_data extends external_api
                 foreach ($learningPlan['periodsdata'] as &$period) {
                     foreach ($period['requiredcourses'] as &$course) {
                         $courseProgre = $userGmkCourseProgress[$course['id']];
-                        if ($courseProgre) {
-                            $course['realprogress'] = $courseProgre->progress;
-                            $course['showprogress'] = $courseProgre->progress;
-                        } else {
-                            $course['realprogress'] = 0;
-                            $course['showprogress'] = 0;
+                        $progress = $courseProgre ? $courseProgre->progress : 0;
+                        
+                        // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                        if ($progress < 100) {
+                            $gradeObj = grade_get_course_grade($USER->id, $course['id']);
+                            if ($gradeObj && $gradeObj->grade >= 70) {
+                                $progress = 100;
+                            }
                         }
+
+                        $course['realprogress'] = $progress;
+                        $course['showprogress'] = $progress;
                     }
                 }
             }
