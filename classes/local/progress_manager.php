@@ -191,7 +191,7 @@ class local_grupomakro_progress_manager
 
             if ($userGroup) {
                 try {
-                    $groupSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
+                    $groupSection = $DB->get_field_sql("SELECT coursesectionid FROM {gmk_class} WHERE groupid = ? LIMIT 1", [$userGroup]);
                     if ($groupSection !== false) {
                         $coursemod = get_fast_modinfo($courseId, $userId);
                         $course = $coursemod->get_course();
@@ -602,7 +602,7 @@ class local_grupomakro_progress_manager
                     'userid' => $userId, 
                     'courseid' => $lpc->courseid, 
                     'learningplanid' => $learningPlanId
-                ], 'status');
+                ], 'id, status');
 
                 $isComplete = false;
                 if ($progre && $progre->status == COURSE_COMPLETED) {

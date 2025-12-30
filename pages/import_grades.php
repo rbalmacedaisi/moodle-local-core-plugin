@@ -38,6 +38,11 @@ if ($action === 'download_template') {
 
 echo $OUTPUT->header();
 
+echo '<div class="mb-4 d-flex" style="gap: 10px;">';
+echo '<a href="grade_report.php" class="btn btn-info text-white"><i class="fa fa-list"></i> Ver Reporte de Discrepancias</a>';
+echo '<a href="?action=download_template" class="btn btn-outline-secondary"><i class="fa fa-download"></i> Descargar Plantilla CSV de Ejemplo</a>';
+echo '</div>';
+
 $mform = new \local_grupomakro_core\form\import_file_form(null, ['filetypes' => ['.xlsx', '.xls']]);
 
 if ($mform->is_cancelled()) {
@@ -161,7 +166,7 @@ if ($mform->is_cancelled()) {
     echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_grades.php'));
 
 } else {
-    echo '<div class="mb-3"><a href="?action=download_template" class="btn btn-outline-secondary"><i class="fa fa-download"></i> Descargar Plantilla CSV de Ejemplo</a></div>';
+    // Buttons already shown at top
     $mform->display();
     echo "<hr><h3>Formato Requerido (Excel sin encabezados o salta fila 1)</h3>";
     echo "<p>Col 1: Usuario | Col 2: Nombre Plan | Col 3: Shortname Curso | Col 4: Nota | Col 5: Feedback</p>";
