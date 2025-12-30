@@ -155,10 +155,6 @@ class get_student_info extends external_api {
                 continue;
             }
 
-            if (stripos($userStatus, 'activo') !== false) {
-                $activeUsersCount++;
-            }
-
             // If we already have this user (multiple careers), we just add the career info later
             // But we need to check if the user matches the search criteria first
             
@@ -239,6 +235,13 @@ class get_student_info extends external_api {
 
         $allResults = array_values($userData);
         $totalResults = count($allResults);
+        
+        $activeUsersCount = 0;
+        foreach ($allResults as $u) {
+            if (stripos($u['status'], 'activo') !== false) {
+                $activeUsersCount++;
+            }
+        }
         
         // Fix Pagination Logic
         $pageForSlice = max(0, $params['page'] - 1);
