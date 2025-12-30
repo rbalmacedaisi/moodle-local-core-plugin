@@ -45,6 +45,10 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-sync</v-icon>
                                     Sincronizar Progreso
                                 </v-btn>
+                                <v-btn v-if="isAdmin" color="warning" @click="syncMigratedPeriods" :loading="syncing" :disabled="syncing">
+                                    <v-icon left>mdi-account-arrow-right</v-icon>
+                                    Asignar Periodos (Migrados)
+                                </v-btn>
                                 <v-btn color="primary" @click="exportStudents">
                                     <v-icon left>mdi-file-export</v-icon>
                                     Exportar
@@ -90,9 +94,25 @@ Vue.component('studenttable', {
                     
                     <template v-slot:item.periods="{ item }">
                         <v-list dense class="transparent">
-                            <v-list-item v-for="(periods, index) in item.periods" :key="index" class="px-0">
+                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
-                                    <v-list-item-subtitle>{{periods}}</v-list-item-subtitle>
+                                    <v-menu offset-y v-if="isAdmin">
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === carrer.planid">
+                                                {{ carrer.periodname }}
+                                                <v-icon small right>mdi-chevron-down</v-icon>
+                                            </v-btn>
+                                        </template>
+                                        <v-list dense max-height="300" class="overflow-y-auto">
+                                            <v-list-item @click="loadPeriodsForPlan(item, carrer)" v-if="!carrer.availablePeriods">
+                                                <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
+                                            </v-list-item>
+                                            <v-list-item v-for="p in carrer.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, carrer, p)">
+                                                <v-list-item-title :class="{'primary--text font-weight-bold': p.id == carrer.periodid}">{{ p.name }}</v-list-item-title>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-menu>
+                                    <v-list-item-subtitle v-else>{{ carrer.periodname }}</v-list-item-subtitle>
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -246,8 +266,7 @@ Vue.component('studenttable', {
                         id: element.userid,
                         documentnumber: element.documentnumber, // Mapped!
                         carrers: element.careers,
-                        periods: element.periods,
-                        subperiods: element.subperiods,
+                        updatingPeriod: null, // Track loading per row
                         revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
                         status: element.status,
                         img: element.profileimage
@@ -411,6 +430,56 @@ Vue.component('studenttable', {
                 } catch (e) {
                     console.error('Error getting final log:', e);
                 }
+            }
+        },
+        async syncMigratedPeriods() {
+            if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
+            this.syncing = true;
+            this.syncLog = 'Iniciando sincronización por conteo...';
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods`);
+                if (response.data.status === 'success') {
+                    alert(response.data.message);
+                    await this.getDataFromApi();
+                } else {
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error al sincronizar.');
+            } finally {
+                this.syncing = false;
+                this.syncLog = '';
+            }
+        },
+        async loadPeriodsForPlan(student, carrer) {
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${carrer.planid}`);
+                if (response.data.status === 'success') {
+                    this.$set(carrer, 'availablePeriods', response.data.periods);
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        },
+        async updateStudentPeriod(student, carrer, period) {
+            if (carrer.periodid == period.id) return;
+            if (!confirm(`¿Cambiar al estudiante al periodo: ${period.name}?`)) return;
+
+            student.updatingPeriod = carrer.planid;
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_update_period&userid=${student.id}&planid=${carrer.planid}&periodid=${period.id}`);
+                if (response.data.status === 'success') {
+                    carrer.periodid = period.id;
+                    carrer.periodname = period.name;
+                } else {
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('No se pudo actualizar el periodo.');
+            } finally {
+                student.updatingPeriod = null;
             }
         },
     },

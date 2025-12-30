@@ -567,4 +567,125 @@ class local_grupomakro_progress_manager
             return false;
         }
     }
+
+    /**
+     * Synchronize the current period of a student based on the COUNT of completed courses.
+     * Specific logic for migrated students: 
+     * If plan has 7 courses per period and user has 8, move to Period 2.
+     *
+     * @param int $userId Moodle user ID
+     * @param int $learningPlanId Learning Plan ID
+     * @param string|null $logFile Path to log file
+     * @return bool
+     */
+    public static function sync_student_period_by_count($userId, $learningPlanId, $logFile = null)
+    {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+
+        try {
+            // 1. Get ALL required courses for this plan, ordered by period ID ASC
+            $sql = "SELECT lpc.id, lpc.courseid, lpc.periodid
+                    FROM {local_learning_courses} lpc
+                    WHERE lpc.learningplanid = :lpid AND lpc.isrequired = 1
+                    ORDER BY lpc.periodid ASC, lpc.position ASC";
+            
+            $requiredCourses = $DB->get_records_sql($sql, ['lpid' => $learningPlanId]);
+            if (!$requiredCourses) {
+                return false;
+            }
+
+            // 2. Count how many of these are completed by the student
+            $completedCount = 0;
+            foreach ($requiredCourses as $lpc) {
+                $progre = $DB->get_record('gmk_course_progre', [
+                    'userid' => $userId, 
+                    'courseid' => $lpc->courseid, 
+                    'learningplanid' => $learningPlanId
+                ], 'status');
+
+                $isComplete = false;
+                if ($progre && $progre->status == COURSE_COMPLETED) {
+                    $isComplete = true;
+                } else {
+                    $completion = new \completion_info(get_course($lpc->courseid));
+                    if ($completion->is_course_complete($userId)) {
+                        $isComplete = true;
+                    } else {
+                        $gradeObj = grade_get_course_grade($userId, $lpc->courseid);
+                        if ($gradeObj && isset($gradeObj->grade) && (float)$gradeObj->grade >= 70) {
+                            $isComplete = true;
+                        }
+                    }
+                }
+
+                if ($isComplete) {
+                    $completedCount++;
+                }
+            }
+
+            // 3. Map count to periods
+            // We group courses by period to know the capacity of each
+            $periodsCapacity = [];
+            foreach ($requiredCourses as $lpc) {
+                if (!isset($periodsCapacity[$lpc->periodid])) {
+                    $periodsCapacity[$lpc->periodid] = 0;
+                }
+                $periodsCapacity[$lpc->periodid]++;
+            }
+
+            $targetPeriodId = reset($requiredCourses)->periodid; // Default to first
+            $accumulatedCap = 0;
+            foreach ($periodsCapacity as $pid => $cap) {
+                $accumulatedCap += $cap;
+                $targetPeriodId = $pid;
+                if ($completedCount < $accumulatedCap) {
+                    // Stop at the first period that hasn't been "overfilled"
+                    break;
+                }
+            }
+
+            return self::update_student_period($userId, $learningPlanId, $targetPeriodId, $logFile);
+
+        } catch (Exception $e) {
+            if ($logFile) file_put_contents($logFile, "[ERROR] Falló sync_student_period_by_count ($userId, $learningPlanId): " . $e->getMessage() . "\n", FILE_APPEND);
+            return false;
+        }
+    }
+
+    /**
+     * Updates the current period for a user in a learning plan.
+     *
+     * @param int $userId
+     * @param int $learningPlanId
+     * @param int $targetPeriodId
+     * @param string|null $logFile
+     * @return bool
+     */
+    public static function update_student_period($userId, $learningPlanId, $targetPeriodId, $logFile = null)
+    {
+        global $DB;
+        try {
+            $lpUser = $DB->get_record('local_learning_users', [
+                'userid' => $userId, 
+                'learningplanid' => $learningPlanId
+            ]);
+
+            if ($lpUser) {
+                if ($lpUser->currentperiodid != $targetPeriodId) {
+                    $oldPeriod = $lpUser->currentperiodid;
+                    $lpUser->currentperiodid = $targetPeriodId;
+                    $lpUser->timemodified = time();
+                    $DB->update_record('local_learning_users', $lpUser);
+                    
+                    if ($logFile) file_put_contents($logFile, "[INFO] Periodo Actualizado Manual/Conteo Estudiante $userId: $oldPeriod -> $targetPeriodId (Plan $learningPlanId)\n", FILE_APPEND);
+                }
+                return true;
+            }
+            return false;
+        } catch (Exception $e) {
+            if ($logFile) file_put_contents($logFile, "[ERROR] Falló update_student_period ($userId, $learningPlanId): " . $e->getMessage() . "\n", FILE_APPEND);
+            return false;
+        }
+    }
 }

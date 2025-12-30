@@ -202,7 +202,8 @@ class get_student_info extends external_api {
                 $userData[$user->userid]['careers'][] = [
                     'planid' => $user->planid,
                     'career' => $user->career,
-                    'periods' => $periodname,
+                    'periodname' => $periodname,
+                    'periodid' => $user->periodid
                 ];
                 
                 // RESTORED: Periods as array for frontend v-for
