@@ -75,7 +75,7 @@ class sync_progress extends external_api {
                     $userName = $user ? "$user->firstname $user->lastname" : "Desconocido";
 
                     // Force progress and grade update in our local tables.
-                    local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid);
+                    local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid, $record->learningplanid, $logFile);
                     
                     // Trigger Moodle native course completion check (if possible).
                     // We try common methods safely to support different Moodle versions.
