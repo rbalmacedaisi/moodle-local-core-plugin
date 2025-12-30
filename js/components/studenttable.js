@@ -294,6 +294,11 @@ Vue.component('studenttable', {
                     status: this.filters.status || '',
                 };
                 const response = await window.axios.get(url, { params });
+                if (!response.data || !response.data.dataUsers) {
+                    console.error("Invalid response from server:", response.data);
+                    this.students = [];
+                    return;
+                }
                 const data = JSON.parse(response.data.dataUsers);
                 this.totalDesserts = response.data.totalResults
                 this.activeUsers = response.data.activeUsers || 0;

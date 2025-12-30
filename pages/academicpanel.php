@@ -161,9 +161,9 @@ echo <<<EOT
   
   <script>
     var strings = $strings;
-    var userToken = $token;
+    var userToken = '$token';
     var defaultImage = $default_carrer_img;
-    var themeToken = $themeToken || null;
+    var themeToken = '$themeToken' || null;
     var isAdmin = $isAdmin;
     var isSuperAdmin = $isSuperAdmin;
   </script>
