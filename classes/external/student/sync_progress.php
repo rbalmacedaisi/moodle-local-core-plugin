@@ -81,7 +81,7 @@ class sync_progress extends external_api {
                     $course = get_course($record->courseid);
                     $completion = new \completion_info($course);
                     if ($completion->is_enabled()) {
-                        $completion->mark_course_completions_if_satisfied($record->userid);
+                        $completion->aggregate_completions($record->userid);
                     }
 
                     $result['count']++;
