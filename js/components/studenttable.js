@@ -49,12 +49,66 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-account-arrow-right</v-icon>
                                     Asignar Periodos (Migrados)
                                 </v-btn>
-                                <v-btn color="primary" @click="exportStudents">
-                                    <v-icon left>mdi-file-export</v-icon>
-                                    Exportar
+                                <v-btn color="primary" @click="openFilterDialog">
+                                    <v-icon left>mdi-filter-variant</v-icon>
+                                    Filtros y Exportar
                                 </v-btn>
                             </v-col>
                         </v-row>
+                        
+                        <!-- Filter Dialog -->
+                        <v-dialog v-model="filterDialog" max-width="500px">
+                            <v-card>
+                                <v-card-title class="headline grey lighten-2">
+                                    Filtros Avanzados
+                                </v-card-title>
+                                <v-card-text class="pt-4">
+                                    <v-select
+                                        v-model="filters.planid"
+                                        :items="plans"
+                                        item-text="name"
+                                        item-value="id"
+                                        label="Carrera"
+                                        outlined
+                                        dense
+                                        clearable
+                                        @change="onPlanChange"
+                                    ></v-select>
+                                    <v-select
+                                        v-model="filters.periodid"
+                                        :items="availablePeriods"
+                                        item-text="name"
+                                        item-value="id"
+                                        label="Cuatrimestre"
+                                        outlined
+                                        dense
+                                        clearable
+                                        :disabled="!filters.planid"
+                                        :loading="loadingPeriods"
+                                    ></v-select>
+                                    <v-select
+                                        v-model="filters.status"
+                                        :items="['Activo', 'Inactivo', 'Suspendido', 'Graduado', 'Egreso']"
+                                        label="Estado Estudiante"
+                                        outlined
+                                        dense
+                                        clearable
+                                    ></v-select>
+                                </v-card-text>
+                                <v-divider></v-divider>
+                                <v-card-actions class="pa-4">
+                                    <v-btn color="success" block class="mb-2" @click="exportConsolidatedGrades">
+                                        <v-icon left>mdi-file-excel</v-icon>
+                                        Exportar Notas Consolidadas
+                                    </v-btn>
+                                    <v-spacer></v-spacer>
+                                </v-card-actions>
+                                <v-card-actions class="pa-4 pt-0">
+                                    <v-btn color="primary" @click="applyFilters">Aplicar a la Tabla</v-btn>
+                                    <v-btn text @click="filterDialog = false">Cerrar</v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
                         <v-row v-if="syncing || syncLog" class="ma-0 px-3 pb-2">
                              <v-col cols="12">
                                 <v-alert dense outlined type="info" class="text-caption mb-0" style="white-space: pre-wrap; font-family: monospace; max-height: 150px; overflow-y: auto;">
@@ -199,6 +253,17 @@ Vue.component('studenttable', {
             students: [],
             studentsGrades: false,
             studentGradeSelected: {},
+
+            // New Filter properties
+            filterDialog: false,
+            loadingPeriods: false,
+            plans: [],
+            availablePeriods: [],
+            filters: {
+                planid: null,
+                periodid: null,
+                status: null
+            }
         }
     },
     created() {
@@ -224,6 +289,9 @@ Vue.component('studenttable', {
                     page: this.options.page,
                     resultsperpage: this.options.itemsPerPage,
                     search: this.options.search,
+                    planid: this.filters.planid || 0,
+                    periodid: this.filters.periodid || 0,
+                    status: this.filters.status || '',
                 };
                 const response = await window.axios.get(url, { params });
                 const data = JSON.parse(response.data.dataUsers);
@@ -272,6 +340,48 @@ Vue.component('studenttable', {
         closeDialog() {
             this.studentsGrades = false;
             this.studentGradeSelected = {};
+        },
+        async openFilterDialog() {
+            this.filterDialog = true;
+            if (this.plans.length === 0) {
+                try {
+                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_plans`);
+                    if (response.data.status === 'success') {
+                        this.plans = response.data.plans;
+                    }
+                } catch (e) {
+                    console.error("Error loading plans:", e);
+                }
+            }
+        },
+        async onPlanChange() {
+            this.filters.periodid = null;
+            this.availablePeriods = [];
+            if (!this.filters.planid) return;
+
+            this.loadingPeriods = true;
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${this.filters.planid}`);
+                if (response.data.status === 'success') {
+                    this.availablePeriods = response.data.periods;
+                }
+            } catch (e) {
+                console.error("Error loading periods:", e);
+            } finally {
+                this.loadingPeriods = false;
+            }
+        },
+        applyFilters() {
+            this.options.page = 1;
+            this.getDataFromApi();
+            this.filterDialog = false;
+        },
+        exportConsolidatedGrades() {
+            let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
+            if (this.filters.planid) url += `planid=${this.filters.planid}&`;
+            if (this.filters.periodid) url += `periodid=${this.filters.periodid}&`;
+            if (this.filters.status) url += `status=${this.filters.status}&`;
+            window.open(url, '_blank');
         },
         exportStudents() {
             window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');

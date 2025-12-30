@@ -103,6 +103,11 @@ try {
             $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
+
+        case 'local_grupomakro_get_plans':
+            $plans = $DB->get_records('local_learning_plans', [], 'name ASC', 'id, name');
+            $response = ['status' => 'success', 'plans' => array_values($plans)];
+            break;
         
         case 'local_grupomakro_import_grade_chunk':
             require_once($CFG->libdir . '/gradelib.php');
