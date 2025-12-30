@@ -77,11 +77,21 @@ class sync_progress extends external_api {
                     // Force progress and grade update in our local tables.
                     local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid);
                     
-                    // Trigger Moodle native course completion check.
+                    // Trigger Moodle native course completion check (if possible).
+                    // We try common methods safely to support different Moodle versions.
                     $course = get_course($record->courseid);
                     $completion = new \completion_info($course);
                     if ($completion->is_enabled()) {
-                        $completion->aggregate_completions($record->userid);
+                        try {
+                            if (method_exists($completion, 'aggregate_completions')) {
+                                $completion->aggregate_completions($record->userid);
+                            } else if (method_exists($completion, 'mark_course_completions_if_satisfied')) {
+                                $completion->mark_course_completions_if_satisfied($record->userid);
+                            }
+                        } catch (Exception $ce) {
+                            // Ignoramos errores en la finalización nativa para no bloquear el proceso local.
+                            file_put_contents($logFile, "[AVISO] No se pudo actualizar finalización nativa para $userName: " . $ce->getMessage() . "\n", FILE_APPEND);
+                        }
                     }
 
                     $result['count']++;
