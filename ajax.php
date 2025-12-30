@@ -129,7 +129,7 @@ try {
             $endRow = min($startRow + $limit - 1, $highestRow);
             
             for ($row = $startRow; $row <= $endRow; $row++) {
-                 $username      = trim($sheet->getCellByColumnAndRow(1, $row)->getValue());
+                 $username      = strtolower(trim($sheet->getCellByColumnAndRow(1, $row)->getValue()));
                  $planName      = trim($sheet->getCellByColumnAndRow(2, $row)->getValue());
                  $courseShort   = trim($sheet->getCellByColumnAndRow(3, $row)->getValue());
                  $gradeVal      = floatval($sheet->getCellByColumnAndRow(4, $row)->getValue());
