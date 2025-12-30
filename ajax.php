@@ -152,6 +152,9 @@ try {
             $results = [];
             $toSyncPeriods = [];
             
+            $rowLogFile = make_temp_directory('grupomakro_imports') . '/last_import_rows.log';
+            file_put_contents($rowLogFile, "--- Procesando Chunk: Offset $offset, Limit $limit ---\n", FILE_APPEND);
+
             foreach ($chunk as $rowItem) {
                  $username      = $rowItem['username'];
                  $planName      = $rowItem['planName'];
@@ -161,6 +164,8 @@ try {
                  $rowIndex      = $rowItem['row'];
 
                  if (empty($username) || empty($planName)) continue;
+
+                 file_put_contents($rowLogFile, "[ROW $rowIndex] User: $username, Plan: $planName, Course: $courseShort\n", FILE_APPEND);
 
                  $res = [
                      'row' => $rowIndex,
@@ -199,16 +204,21 @@ try {
                     $userPlanKey = $user->id . '_' . $enrollResult['plan_id'];
                     $toSyncPeriods[$userPlanKey] = ['userid' => $user->id, 'planid' => $enrollResult['plan_id']];
 
-                 } catch (Exception $e) {
+                 } catch (\Throwable $e) {
                      $res['status'] = 'ERROR';
                      $res['error'] = $e->getMessage();
+                     file_put_contents($rowLogFile, "[ERROR ROW $rowIndex] " . $e->getMessage() . "\n", FILE_APPEND);
                  }
                  $results[] = $res;
             }
             
             // Sync periods for this chunk
             foreach ($toSyncPeriods as $syncData) {
-                \local_grupomakro_progress_manager::sync_student_period($syncData['userid'], $syncData['planid']);
+                try {
+                    \local_grupomakro_progress_manager::sync_student_period($syncData['userid'], $syncData['planid']);
+                } catch (\Throwable $e) {
+                     file_put_contents($rowLogFile, "[ERROR SYNC User " . $syncData['userid'] . "] " . $e->getMessage() . "\n", FILE_APPEND);
+                }
             }
             
             $response = [
