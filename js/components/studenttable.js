@@ -68,10 +68,13 @@ Vue.component('studenttable', {
                                         :items="plans"
                                         item-text="name"
                                         item-value="id"
-                                        label="Carrera"
+                                        label="Carreras"
                                         outlined
                                         dense
                                         clearable
+                                        multiple
+                                        chips
+                                        deletable-chips
                                         @change="onPlanChange"
                                     ></v-select>
                                     <v-select
@@ -79,11 +82,14 @@ Vue.component('studenttable', {
                                         :items="availablePeriods"
                                         item-text="name"
                                         item-value="id"
-                                        label="Cuatrimestre"
+                                        label="Cuatrimestres"
                                         outlined
                                         dense
                                         clearable
-                                        :disabled="!filters.planid"
+                                        multiple
+                                        chips
+                                        deletable-chips
+                                        :disabled="!filters.planid || filters.planid.length === 0"
                                         :loading="loadingPeriods"
                                     ></v-select>
                                     <v-select
@@ -260,8 +266,8 @@ Vue.component('studenttable', {
             plans: [],
             availablePeriods: [],
             filters: {
-                planid: null,
-                periodid: null,
+                planid: [],
+                periodid: [],
                 status: null
             }
         }
@@ -289,8 +295,8 @@ Vue.component('studenttable', {
                     page: this.options.page,
                     resultsperpage: this.options.itemsPerPage,
                     search: this.options.search,
-                    planid: this.filters.planid || 0,
-                    periodid: this.filters.periodid || 0,
+                    planid: Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '',
+                    periodid: Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '',
                     status: this.filters.status || '',
                 };
                 const response = await window.axios.get(url, { params });
@@ -360,16 +366,37 @@ Vue.component('studenttable', {
             }
         },
         async onPlanChange() {
-            this.filters.periodid = null;
+            // Filter out periods that don't belong to the selected plans anymore
+            if (this.filters.periodid.length > 0) {
+                // This is a bit complex since we don't know which period belongs to which plan easily without re-fetching
+                // or having a mapping. For simplicity, we'll clear it or filter if we have metadata.
+                // For now, let's just clear it to avoid invalid selections.
+                this.filters.periodid = [];
+            }
+
             this.availablePeriods = [];
-            if (!this.filters.planid) return;
+            if (!this.filters.planid || this.filters.planid.length === 0) return;
 
             this.loadingPeriods = true;
             try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${this.filters.planid}`);
-                if (response.data.status === 'success') {
-                    this.availablePeriods = response.data.periods;
-                }
+                // Fetch periods for ALL selected plans
+                const promises = this.filters.planid.map(id =>
+                    axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${id}`)
+                );
+                const results = await Promise.all(promises);
+
+                let allPeriods = [];
+                results.forEach((response, index) => {
+                    if (response.data.status === 'success') {
+                        const planName = this.plans.find(p => p.id == this.filters.planid[index])?.name || '';
+                        const periods = response.data.periods.map(p => ({
+                            ...p,
+                            name: `${p.name} (${planName})`
+                        }));
+                        allPeriods = [...allPeriods, ...periods];
+                    }
+                });
+                this.availablePeriods = allPeriods;
             } catch (e) {
                 console.error("Error loading periods:", e);
             } finally {
@@ -383,8 +410,12 @@ Vue.component('studenttable', {
         },
         exportConsolidatedGrades() {
             let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
-            if (this.filters.planid) url += `planid=${this.filters.planid}&`;
-            if (this.filters.periodid) url += `periodid=${this.filters.periodid}&`;
+            if (this.filters.planid && this.filters.planid.length > 0) {
+                url += `planid=${this.filters.planid.join(',')}&`;
+            }
+            if (this.filters.periodid && this.filters.periodid.length > 0) {
+                url += `periodid=${this.filters.periodid.join(',')}&`;
+            }
             if (this.filters.status) url += `status=${this.filters.status}&`;
             window.open(url, '_blank');
         },
