@@ -118,27 +118,52 @@ try {
                 throw new Exception("Archivo temporal no encontrado ($tmpfilename).");
             }
             
-            $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
-            $sheet = $spreadsheet->getSheet(0);
-            $highestRow = $sheet->getHighestDataRow();
+            $jsonfilepath = $filepath . '.json';
+            $dataRows = [];
+            
+            if (!file_exists($jsonfilepath)) {
+                // First time: Load Excel and cache as JSON for performance
+                $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($filepath);
+                $sheet = $spreadsheet->getSheet(0);
+                $highestRow = $sheet->getHighestDataRow();
+                
+                for ($row = 2; $row <= $highestRow; $row++) {
+                    $rowData = [
+                        'row'      => $row,
+                        'username' => strtolower(trim($sheet->getCellByColumnAndRow(1, $row)->getValue())),
+                        'planName' => trim($sheet->getCellByColumnAndRow(2, $row)->getValue()),
+                        'course'   => trim($sheet->getCellByColumnAndRow(3, $row)->getValue()),
+                        'grade'    => floatval($sheet->getCellByColumnAndRow(4, $row)->getValue()),
+                        'feedback' => trim($sheet->getCellByColumnAndRow(5, $row)->getValue())
+                    ];
+                    if (!empty($rowData['username']) && !empty($rowData['planName'])) {
+                        $dataRows[] = $rowData;
+                    }
+                }
+                file_put_contents($jsonfilepath, json_encode($dataRows));
+            } else {
+                // Subsequent calls: Read from faster JSON cache
+                $dataRows = json_decode(file_get_contents($jsonfilepath), true);
+            }
+
+            $totalCount = count($dataRows);
+            $chunk = array_slice($dataRows, $offset, $limit);
             
             $results = [];
             $toSyncPeriods = [];
             
-            $startRow = $offset + 2; // Skip header (Row 1)
-            $endRow = min($startRow + $limit - 1, $highestRow);
-            
-            for ($row = $startRow; $row <= $endRow; $row++) {
-                 $username      = strtolower(trim($sheet->getCellByColumnAndRow(1, $row)->getValue()));
-                 $planName      = trim($sheet->getCellByColumnAndRow(2, $row)->getValue());
-                 $courseShort   = trim($sheet->getCellByColumnAndRow(3, $row)->getValue());
-                 $gradeVal      = floatval($sheet->getCellByColumnAndRow(4, $row)->getValue());
-                 $feedback      = trim($sheet->getCellByColumnAndRow(5, $row)->getValue());
+            foreach ($chunk as $rowItem) {
+                 $username      = $rowItem['username'];
+                 $planName      = $rowItem['planName'];
+                 $courseShort   = $rowItem['course'];
+                 $gradeVal      = $rowItem['grade'];
+                 $feedback      = $rowItem['feedback'];
+                 $rowIndex      = $rowItem['row'];
 
                  if (empty($username) || empty($planName)) continue;
 
                  $res = [
-                     'row' => $row,
+                     'row' => $rowIndex,
                      'username' => $username,
                      'course' => $courseShort,
                      'status' => 'OK',
@@ -192,8 +217,8 @@ try {
                 'progress' => [
                     'offset' => $offset,
                     'processed' => count($results),
-                    'total' => $highestRow - 1,
-                    'finished' => ($endRow >= $highestRow)
+                    'total' => $totalCount,
+                    'finished' => ($offset + count($results) >= $totalCount)
                 ]
             ];
             break;
@@ -203,6 +228,10 @@ try {
             $filepath = make_temp_directory('grupomakro_imports') . '/' . $tmpfilename;
             if (file_exists($filepath)) {
                 @unlink($filepath);
+            }
+            $jsonfilepath = $filepath . '.json';
+            if (file_exists($jsonfilepath)) {
+                @unlink($jsonfilepath);
             }
             $response = ['status' => 'success'];
             break;

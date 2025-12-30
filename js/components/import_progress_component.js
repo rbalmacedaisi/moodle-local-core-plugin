@@ -120,8 +120,20 @@ Vue.component('import-progress', {
                     throw new Error(data.message || 'Error desconocido del servidor');
                 }
             } catch (e) {
-                this.error = "Error durante el proceso: " + (e.response?.data?.message || e.message);
+                console.error("Import Error:", e);
+                let serverMsg = e.response?.data?.message || e.message;
+                if (e.response?.data && typeof e.response.data === 'string' && e.response.data.includes('<html')) {
+                    serverMsg = "Error fatal del servidor (posiblemente timeout o memoria). Revisa logs de PHP.";
+                    console.warn("Server returned HTML instead of JSON:", e.response.data);
+                }
+                this.error = "Error durante el proceso: " + serverMsg;
                 this.isProcessing = false;
+
+                this.logs.unshift({
+                    time: new Date().toLocaleTimeString(),
+                    msg: "ERROR: " + serverMsg,
+                    type: 'error'
+                });
             }
         },
         async finishImport() {
