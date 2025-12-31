@@ -294,11 +294,11 @@ try {
             $sql = "SELECT asess.id, e.timestart as startdate, rel.bbbactivityid
                     FROM {attendance_sessions} asess
                     JOIN {event} e ON e.id = asess.caleventid
-                    JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
-                    WHERE rel.classid = :classid
+                    LEFT JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
+                    WHERE asess.groupid = :groupid
                     ORDER BY e.timestart ASC";
             
-            $sessions = $DB->get_records_sql($sql, ['classid' => $classid]);
+            $sessions = $DB->get_records_sql($sql, ['groupid' => $class->groupid]);
             $formatted_sessions = [];
             foreach ($sessions as $s) {
                 $session_data = new stdClass();

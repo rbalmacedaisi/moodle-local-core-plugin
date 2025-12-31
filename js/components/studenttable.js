@@ -276,6 +276,15 @@ Vue.component('studenttable', {
                 search: '',
             },
             students: [],
+            plans: [], // Initialized
+            availablePeriods: [],
+            loadingPeriods: false,
+            filters: {
+                planid: [],
+                periodid: [],
+                status: '',
+                withGrades: false
+            },
             careers: [],
             quarters: [],
             statusFilter: '',
@@ -284,14 +293,18 @@ Vue.component('studenttable', {
             filterDialog: false,
             studentsGrades: false,
             studentGradeSelected: {},
-            siteUrl: window.siteUrl,
-            token: window.userToken,
+            // Removed duplicates (siteUrl, token) as they are in computed
         };
     },
     computed: {
         lang() {
             return window.strings || {};
         },
+        lang() {
+            return window.strings || {};
+        },
+        siteUrl() { return window.location.origin + '/webservice/rest/server.php' },
+        token() { return window.userToken; },
         isAdmin() {
             return true; // Simplified for now
         },
