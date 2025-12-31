@@ -354,7 +354,6 @@ try {
                 // Filter by Module
                 // Allow bigbluebuttonbn module (lowercase)
                 if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
-                if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
                    continue; 
                 }
 
