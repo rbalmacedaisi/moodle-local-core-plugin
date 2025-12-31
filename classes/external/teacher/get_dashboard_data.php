@@ -39,6 +39,7 @@ class get_dashboard_data extends external_api {
             $class_data = new stdClass();
             $class_data->id = $class->id;
             $class_data->name = $class->name;
+            $class_data->courseid = $class->courseid;
             $class_data->course_fullname = $course ? $course->fullname : '';
             $class_data->course_shortname = $course ? $course->shortname : '';
             $class_data->type = $class->type; // 0: inplace, 1: virtual
@@ -65,7 +66,7 @@ class get_dashboard_data extends external_api {
         // 3. Pending Tasks (Count submissions to grade)
         $pending_tasks = [];
         foreach ($active_classes as $class) {
-            $assigns = $DB->get_records('assign', ['course' => $class->course_id]);
+            $assigns = $DB->get_records('assign', ['course' => $class->courseid]);
             $count = 0;
             foreach ($assigns as $assign) {
                 $count += $DB->count_records_sql("SELECT COUNT(s.id) FROM {assign_submission} s 

@@ -148,11 +148,35 @@ const ManageClass = {
     },
     methods: {
         async fetchClassDetails() {
-            // Simplified fetch for class metadata
-            // Real implementation will use an API call
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_teacher_dashboard_data',
+                    args: { userid: window.userId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    const cls = response.data.data.active_classes.find(c => c.id === this.classId);
+                    if (cls) this.classDetails = cls;
+                }
+            } catch (error) {
+                console.error('Error fetching class details:', error);
+            }
         },
         async fetchTimeline() {
-            // Fetch sessions for this class
+            try {
+                // For now leveraging the consolidated dashboard data or a specific session API
+                // In a real prod environment, we might have local_grupomakro_get_class_sessions
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_class_details', // Assuming this exists or using dashboard
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.timeline = response.data.data.sessions;
+                }
+            } catch (error) {
+                console.error('Error fetching timeline:', error);
+            }
         },
         getSessionColor(session) {
             const now = new Date();

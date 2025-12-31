@@ -108,17 +108,33 @@ const ActivityCreationWizard = {
         async saveActivity() {
             this.saving = true;
             try {
-                // Mock logic for calling the backend wrapper
-                // Real implementation will call local_grupomakro_create_express_activity
-                console.log('Saving activity:', this.formData, 'Type:', this.activityType);
+                // Call Moodle AJAX service (consolidated method)
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_create_express_activity',
+                    args: {
+                        classid: this.classId,
+                        type: this.activityType,
+                        name: this.formData.name,
+                        intro: this.formData.intro,
+                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                        save_as_template: this.saveAsTemplate
+                    },
+                    ...window.wsStaticParams
+                });
 
-                // Simulate delay
-                await new Promise(r => setTimeout(r, 1000));
-
-                this.$emit('success');
-                this.close();
+                if (response.data.status === 'success') {
+                    if (window.M && window.M.util) {
+                        window.M.util.js_pending('assignment_created');
+                        location.reload(); // Traditional reload to see new module
+                    }
+                    this.$emit('success');
+                    this.close();
+                } else {
+                    alert('Error creating activity: ' + response.data.message);
+                }
             } catch (error) {
                 console.error('Error saving activity:', error);
+                alert('Error de red al crear actividad');
             } finally {
                 this.saving = false;
             }

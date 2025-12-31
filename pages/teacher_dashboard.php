@@ -21,11 +21,16 @@ $PAGE->set_pagelayout('embedded'); // Use embedded to have a cleaner canvas
 // Required CSS for modern look
 $PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css'));
 
-// Required JS
-$PAGE->requires->js_call_amd('local_grupomakro_core/vue_init', 'initTeacherDashboard', [
+// Load components (Standard JS files)
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js'));
+
+// Required JS (AMD Initializer)
+$PAGE->requires->js_call_amd('local_grupomakro_core/teacher_experience', 'init', [
     'wwwroot' => $CFG->wwwroot,
     'userId' => $USER->id,
-    'userToken' => $USER->sesskey // Or proper WS token if needed
+    'userToken' => $USER->sesskey
 ]);
 
 echo $OUTPUT->header();

@@ -3,9 +3,20 @@ define(['jquery', 'core/ajax', 'core/notification'], function ($, Ajax, Notifica
         init: function (config) {
             console.log('Teacher Experience Initialized', config);
 
+            // Register global variables for components
+            window.wsUrl = config.wwwroot + '/local/grupomakro_core/ajax.php';
+            window.wsStaticParams = { sesskey: config.userToken };
+            window.userId = config.userId;
+
+            // Register Vue Components (Loaded via teacher_dashboard.php)
+            if (window.TeacherDashboard) Vue.component('teacher-dashboard', window.TeacherDashboard);
+            if (window.ManageClass) Vue.component('manage-class', window.ManageClass);
+            if (window.ActivityCreationWizard) Vue.component('activity-wizard', window.ActivityCreationWizard);
+
             // Create Vue Application
             const app = new Vue({
                 el: '#teacher-app',
+                vuetify: new Vuetify(),
                 template: `
                     <v-app>
                         <v-main>
