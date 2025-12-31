@@ -60,10 +60,6 @@ window.TeacherExperience = {
                                     </v-btn>
                                 </template>
                                 <v-list dense>
-                                    <v-list-item :href="config.wwwroot + '/user/profile.php'">
-                                        <v-list-item-icon><v-icon small>mdi-account-circle</v-icon></v-list-item-icon>
-                                        <v-list-item-title>Mi Perfil</v-list-item-title>
-                                    </v-list-item>
                                     <v-divider></v-divider>
                                     <v-list-item :href="config.logoutUrl">
                                         <v-list-item-icon><v-icon small color="red">mdi-logout</v-icon></v-list-item-icon>

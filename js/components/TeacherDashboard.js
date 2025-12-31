@@ -41,7 +41,7 @@ const TeacherDashboard = {
                             <v-card class="rounded-xl hover-card overflow-hidden" elevation="2" @click="goToClass(classItem.id)">
                                 <v-img :src="getClassImage(classItem)" height="140" class="align-start">
                                     <v-chip dark small :color="classItem.type === 1 ? 'blue darken-2' : 'green darken-2'" class="ma-3 font-weight-bold">
-                                        {{ classItem.type === 1 ? 'VIRTUAL' : 'PRESENCIAL' }}
+                                        {{ classItem.typelabel }}
                                     </v-chip>
                                 </v-img>
                                 <v-card-text class="pt-4">

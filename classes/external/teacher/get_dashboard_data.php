@@ -32,7 +32,18 @@ class get_dashboard_data extends external_api {
         self::validate_context($context);
 
         // 1. Get Active Classes
-        $classes = $DB->get_records('gmk_class', ['instructorid' => $params['userid'], 'closed' => 0]);
+        $now = time();
+        $sql = "SELECT c.* 
+                FROM {gmk_class} c
+                WHERE c.instructorid = :instructorid 
+                  AND c.closed = 0 
+                  AND c.enddate >= :now
+                  AND EXISTS (
+                      SELECT 1 FROM {gmk_bbb_attendance_relation} r 
+                      WHERE r.classid = c.id
+                  )";
+        $classes = $DB->get_records_sql($sql, ['instructorid' => $params['userid'], 'now' => $now]);
+        
         $active_classes = [];
         foreach ($classes as $class) {
             $course = $DB->get_record('course', ['id' => $class->courseid], 'id,fullname,shortname');
@@ -42,7 +53,11 @@ class get_dashboard_data extends external_api {
             $class_data->courseid = $class->courseid;
             $class_data->course_fullname = $course ? $course->fullname : '';
             $class_data->course_shortname = $course ? $course->shortname : '';
-            $class_data->type = $class->type; // 0: inplace, 1: virtual
+            
+            // Map type: 0 = PRESENCIAL, 1 = VIRTUAL, 2 = MIXTA (based on locallib.php)
+            $class_data->type = (int)$class->type;
+            $class_data->typelabel = !empty($class->typelabel) ? $class->typelabel : ($class->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
+            
             $class_data->next_session = self::get_next_session($class->id);
             
             // New fields for card
@@ -126,10 +141,17 @@ class get_dashboard_data extends external_api {
     private static function get_next_session($classid) {
         global $DB;
         $now = time();
-        $session = $DB->get_record_sql("SELECT * FROM {gmk_class_session} 
-            WHERE classid = :classid AND startdate >= :now ORDER BY startdate ASC", 
-            ['classid' => $classid, 'now' => (int)$now], IGNORE_MULTIPLE);
-        return $session ? (int)$session->startdate : null;
+        
+        // Query next session from Moodle events linked to this class
+        $sql = "SELECT e.timestart 
+                FROM {event} e
+                JOIN {attendance_sessions} asess ON asess.caleventid = e.id
+                JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
+                WHERE rel.classid = :classid AND e.timestart >= :now
+                ORDER BY e.timestart ASC";
+        
+        $session = $DB->get_record_sql($sql, ['classid' => $classid, 'now' => $now], IGNORE_MULTIPLE);
+        return $session ? (int)$session->timestart : null;
     }
 
     public static function execute_returns() {
@@ -143,6 +165,7 @@ class get_dashboard_data extends external_api {
                             'course_fullname' => new external_value(PARAM_TEXT, 'Course Fullname'),
                             'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname'),
                             'type' => new external_value(PARAM_INT, 'Type (0: inplace, 1: virtual)'),
+                            'typelabel' => new external_value(PARAM_TEXT, 'Type Label', VALUE_OPTIONAL),
                             'next_session' => new external_value(PARAM_TEXT, 'Timestamp of next session', VALUE_OPTIONAL),
                             'student_count' => new external_value(PARAM_INT, 'Student count', VALUE_OPTIONAL),
                             'initdate' => new external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
