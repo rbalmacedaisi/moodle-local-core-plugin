@@ -221,6 +221,8 @@ $string['bulkUserIndex'] = 'Indice CSV';
 $string['bulkUserError'] = 'Error';
 $string['apply_filter'] = 'Aplicar filtro';
 $string['remove_filter'] = 'Remover filtro';
+$string['active_users'] = 'Usuarios activos';
+$string['active_students'] = 'Estudiantes activos';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Matriculación contrato';
