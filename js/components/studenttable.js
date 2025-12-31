@@ -134,7 +134,7 @@ Vue.component('studenttable', {
                     <template v-slot:item.name="{ item }">
                         <v-list class="transparent">
                             <v-list-item>
-                                <v-list-item-avatar>
+                                <v-list-item-avatar style="cursor: pointer;" @click="goToProfile(item.id)">
                                     <img
                                       :src="item.img"
                                       alt="picture-profile"
@@ -543,6 +543,9 @@ Vue.component('studenttable', {
             } finally {
                 student.updatingPeriod = null;
             }
+        },
+        goToProfile(id) {
+            window.open(`${M.cfg.wwwroot}/user/view.php?id=${id}`, '_blank');
         },
     },
     computed: {
