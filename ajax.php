@@ -325,10 +325,35 @@ try {
             $tend = strtotime('+6 months');
             
             // calendar_get_events($tstart, $tend, $users, $groups, $courses, $withduration, $ignorehidden)
-            $events = calendar_get_events($tstart, $tend, null, [$class->groupid], [$class->corecourseid]);
+            // Direct SQL to bypass potential API filtering issues
+            // Fetch events for the course AND specific group (or no group)
+            $tstart = strtotime('-1 year');
+            $tend = strtotime('+1 year');
+            
+            $sql = "SELECT e.*
+                    FROM {event} e
+                    WHERE e.courseid = :courseid
+                      AND (e.groupid = :groupid OR e.groupid = 0 OR e.groupid IS NULL)
+                      AND e.timestart >= :tstart AND e.timestart <= :tend
+                      AND e.modulename IN ('attendance', 'bigbluebuttonbn')
+                    ORDER BY e.timestart ASC";
+            
+            $params = [
+                'courseid' => $class->corecourseid,
+                'groupid' => $class->groupid,
+                'tstart' => $tstart,
+                'tend' => $tend
+            ];
+            
+            $events = $DB->get_records_sql($sql, $params);
 
             $formatted_sessions = [];
             foreach ($events as $e) {
+                // Filter by Group: Must be this group or no group (common)
+                if (!empty($e->groupid) && $e->groupid != $class->groupid) {
+                    continue;
+                }
+
                 // We primarily want Attendance events as they represent "Class Sessions"
                 // But we also accept BBB events if they are standalone
                 // Filter: only attendance or bigbluebuttonbn events
