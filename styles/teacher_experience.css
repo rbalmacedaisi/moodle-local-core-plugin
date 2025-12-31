@@ -12,7 +12,7 @@
     --gmk-error: #FF5252;
     --gmk-bg: #F5F7FA;
     --gmk-white: #FFFFFF;
-    --gmk-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    --gmk-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 #teacher-app {
@@ -28,7 +28,7 @@
 
 .hover-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
 }
 
 .sticky-header {
@@ -47,6 +47,36 @@
     width: 14px !important;
     height: 14px !important;
     min-width: 14px !important;
+}
+
+/* Full-frame override to hide Moodle UI but keep JS working */
+body.gmk-full-frame #page-header,
+body.gmk-full-frame #nav-drawer,
+body.gmk-full-frame .navbar,
+body.gmk-full-frame .fixed-top,
+body.gmk-full-frame footer,
+body.gmk-full-frame .activity-navigation,
+body.gmk-full-frame #region-main-settings-menu {
+    display: none !important;
+}
+
+body.gmk-full-frame #page {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+body.gmk-full-frame #page-content {
+    padding: 0 !important;
+}
+
+body.gmk-full-frame #region-main {
+    padding: 0 !important;
+    border: none !important;
+    overflow: visible !important;
+}
+
+body.gmk-full-frame .drawer-toggler {
+    display: none !important;
 }
 
 /* Mobile optimizations */

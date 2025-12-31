@@ -13,6 +13,22 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
+// JSON Request Handling (for Axios)
+if (empty($action)) {
+    $rawInput = file_get_contents('php://input');
+    if (!empty($rawInput)) {
+        $jsonData = json_decode($rawInput, true);
+        if ($jsonData && isset($jsonData['action'])) {
+            $action = clean_param($jsonData['action'], PARAM_ALPHANUMEXT);
+            // Inject JSON data into $_POST/$_REQUEST for compatibility with optional_param
+            foreach ($jsonData as $key => $value) {
+                if (!isset($_POST[$key])) $_POST[$key] = $value;
+                if (!isset($_REQUEST[$key])) $_REQUEST[$key] = $value;
+            }
+        }
+    }
+}
+
 require_login();
 $context = context_system::instance();
 
@@ -250,6 +266,48 @@ try {
                 @unlink($jsonfilepath);
             }
             $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_get_teacher_dashboard_data':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_dashboard_data.php');
+            $userid = optional_param('userid', $USER->id, PARAM_INT);
+            $response = [
+                'status' => 'success',
+                'data' => \local_grupomakro_core\external\teacher\get_dashboard_data::execute($userid)
+            ];
+            break;
+
+        case 'local_grupomakro_get_class_details':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            $sessions = $DB->get_records('gmk_class_session', ['classid' => $classid], 'startdate ASC');
+            foreach ($sessions as $s) {
+                $s->type = ($class->type == 1 ? 'virtual' : 'physical');
+            }
+
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'class' => $class,
+                    'sessions' => array_values($sessions)
+                ]
+            ];
+            break;
+
+        case 'local_grupomakro_create_express_activity':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/create_express_activity.php');
+            $classid = required_param('classid', PARAM_INT);
+            $type = required_param('type', PARAM_ALPHA);
+            $name = required_param('name', PARAM_TEXT);
+            $intro = optional_param('intro', '', PARAM_RAW);
+            $duedate = optional_param('duedate', 0, PARAM_INT);
+            $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
+            
+            $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
+                $classid, $type, $name, $intro, $duedate, $save_as_template
+            );
             break;
 
         case 'get_sync_log':

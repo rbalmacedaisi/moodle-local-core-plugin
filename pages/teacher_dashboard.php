@@ -16,7 +16,8 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.ph
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Dashboard del Docente');
 $PAGE->set_heading('Dashboard del Docente');
-$PAGE->set_pagelayout('embedded'); // Minimal layout for Vue apps
+$PAGE->set_pagelayout('standard');
+$PAGE->add_body_class('gmk-full-frame');
 
 // Required CSS for modern look
 $PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css'));
@@ -32,6 +33,7 @@ $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'),
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js'), true);
