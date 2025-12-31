@@ -59,38 +59,69 @@ $plugins_with_hook = get_plugins_with_function('user_home_redirect');
 $hook_in_registry = isset($plugins_with_hook['local_grupomakro_core']);
 
 echo "<hr><h3>Estado del Registry de Moodle</h3>";
-echo "<p>¿Archivo <b>lib.php</b> cargado en esta sesión?: " . ($hook_exists_php ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
-echo "<p>¿Hook registrado en la caché de Moodle?: " . ($hook_in_registry ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
 
-if ($plugins_with_hook) {
-    echo "<p>Plugins que Moodle SÍ reconoce con este hook:</p><ul>";
-    foreach ($plugins_with_hook as $pname => $path) {
-        echo "<li>$pname (Ruta: $path)</li>";
+// Explicitly try to include lib.php to see if it's reachable
+$lib_path = $CFG->dirroot . '/local/grupomakro_core/lib.php';
+$lib_reachable = file_exists($lib_path);
+echo "<p>¿Archivo <b>lib.php</b> existe en el servidor?: " . ($lib_reachable ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO (Ruta: $lib_path)</span>") . "</p>";
+
+if ($lib_reachable) {
+    require_once($lib_path);
+}
+
+// Check for redirect hook existence in the current PHP session
+$hook_exists_php = function_exists('local_grupomakro_core_user_home_redirect');
+echo "<p>¿Función de redirección cargada en PHP ahora?: " . ($hook_exists_php ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
+
+// Check if Moodle's registry knows about the hook
+if (function_exists('get_plugins_with_function')) {
+    $plugins_with_hook = get_plugins_with_function('user_home_redirect');
+    $hook_in_registry = isset($plugins_with_hook['local_grupomakro_core']);
+    echo "<p>¿Hook registrado en la caché de Moodle?: " . ($hook_in_registry ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
+
+    if ($plugins_with_hook) {
+        echo "<p>Otros plugins con este hook:</p><ul>";
+        foreach ($plugins_with_hook as $pname => $pinfo) {
+            $p_display = is_array($pinfo) ? json_encode($pinfo) : $pinfo;
+            echo "<li>$pname: $p_display</li>";
+        }
+        echo "</ul>";
     }
-    echo "</ul>";
 } else {
-    echo "<p style='color: orange;'>Moodle no encuentra ningún plugin con el hook 'user_home_redirect'.</p>";
+    echo "<p>La función 'get_plugins_with_function' no existe en esta versión de Moodle.</p>";
 }
 
 // Check event observers for user_loggedin
 echo "<h3>Estado del Observador de Login</h3>";
-$observers = \core\event\manager::get_observers_for_event('core\event\user_loggedin');
-$our_observer_found = false;
-foreach ($observers as $observer) {
-    if (strpos($observer->callback, 'local_grupomakro_core_observer') !== false) {
-        $our_observer_found = true;
-        echo "<p style='color: green;'>Observador detectado: <b>{$observer->callback}</b></p>";
+if (class_exists('\\core\\event\\manager')) {
+    try {
+        // Some Moodle versions might require different ways to access observers
+        $observers = [];
+        if (method_exists('\\core\\event\\manager', 'get_observers_for_event')) {
+            $observers = \core\event\manager::get_observers_for_event('core\event\user_loggedin');
+        } else {
+            echo "<p style='color: orange;'>El método 'get_observers_for_event' no existe en esta versión.</p>";
+        }
+
+        $our_observer_found = false;
+        foreach ($observers as $observer) {
+            $callback = is_array($observer->callback) ? implode('::', $observer->callback) : $observer->callback;
+            if (strpos($callback, 'local_grupomakro_core_observer') !== false) {
+                $our_observer_found = true;
+                echo "<p style='color: green;'>Observador detectado: <b>$callback</b></p>";
+            }
+        }
+        if (!$our_observer_found && !empty($observers)) {
+            echo "<p style='color: red;'>Observador NO detectado para 'user_loggedin' en este plugin.</p>";
+        }
+    } catch (Exception $e) {
+        echo "<p style='color: red;'>Error al consultar observadores: " . $e->getMessage() . "</p>";
     }
-}
-if (!$our_observer_found) {
-    echo "<p style='color: red;'>Observador NO detectatedo para 'user_loggedin'.</p>";
-}
-
-if (!$hook_in_registry || !$our_observer_found) {
-    echo "<p style='color: red;'><b>IMPORTANTE:</b> Moodle no tiene registrados los cambios. Intenta entrar a <a href='/admin/index.php'>Administración del Sitio</a> para forzar el upgrade de base de datos.</p>";
+} else {
+    echo "<p>La clase '\\core\\event\\manager' no existe.</p>";
 }
 
-echo "<p><a href='debug_redirection.php?purge=1'>Purgar Caches de Moodle</a></p>";
+echo "<hr><p><a href='debug_redirection.php?purge=1'>Purgar Caches de Moodle</a></p>";
 
 if (optional_param('purge', 0, PARAM_INT)) {
     purge_all_caches();
