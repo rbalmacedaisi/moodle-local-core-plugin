@@ -357,18 +357,25 @@ try {
             file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
 
             $formatted_sessions = [];
+            $logMsg .= "Processing Events Loop:\n";
             foreach ($events as $e) {
-                // Filter by Group: Must be this group or no group (common)
+                // Debug individual events
+                $eGroupId = isset($e->groupid) ? $e->groupid : 'NULL';
+                $cGroupId = $class->groupid;
+                
+                // Filter by Group
                 if (!empty($e->groupid) && $e->groupid != $class->groupid) {
+                    $logMsg .= "  [SKIP] ID {$e->id}: Group mistmatch ($eGroupId != $cGroupId)\n";
                     continue;
                 }
 
-                // We primarily want Attendance events as they represent "Class Sessions"
-                // But we also accept BBB events if they are standalone
-                // Filter: only attendance or bigbluebuttonbn events
+                // Filter by Module
                 if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
-                    continue; 
+                   // $logMsg .= "  [SKIP] ID {$e->id}: Module mistmatch ({$e->modulename})\n";
+                   continue; 
                 }
+
+                $logMsg .= "  [KEEP] ID {$e->id}: Matched ($eGroupId == $cGroupId) Mod: {$e->modulename}\n";
 
                 $session_data = new stdClass();
                 $session_data->id = $e->id; // Calendar event ID
@@ -418,6 +425,8 @@ try {
 
                 $formatted_sessions[] = $session_data;
             }
+            $logMsg .= "Final Formatted Sessions: " . count($formatted_sessions) . "\n";
+            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
             
             // Sort by start date ASC
             usort($formatted_sessions, function($a, $b) {
