@@ -49,7 +49,6 @@ const ManageClass = {
                         <!-- Timeline Tab -->
                         <v-tab-item>
                             <v-card flat class="transparent">
-                            <v-card flat class="transparent">
                                 <v-timeline dense align-top class="mx-4">
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
