@@ -27,3 +27,13 @@ function local_grupomakro_core_user_home_redirect(&$url) {
         $url = new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
     }
 }
+
+/**
+ * Redirect teachers to their dashboard when they access the Moodle Dashboard (Dashboard/My).
+ * 
+ * @param moodle_url $url The default URL Moodle would redirect to.
+ * @return void
+ */
+function local_grupomakro_core_my_home_redirect(&$url) {
+    local_grupomakro_core_user_home_redirect($url);
+}
