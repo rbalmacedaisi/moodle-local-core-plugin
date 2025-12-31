@@ -39,9 +39,17 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/student
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js'), true);
 
 // Initialize the experience
-$logoUrl = null;
-if (method_exists($OUTPUT, 'get_logo_url')) {
-    $logoUrl = $OUTPUT->get_logo_url();
+$logoUrl = $OUTPUT->get_logo_url();
+if (!$logoUrl) {
+    try {
+        $theme = theme_config::load($CFG->theme);
+        if (isset($theme->settings->logo) && !empty($theme->settings->logo)) {
+            $logo = basename($theme->settings->logo);
+            $logoUrl = new moodle_url('/theme/' . $CFG->theme . '/pix/static/' . $logo);
+        }
+    } catch (Exception $e) {
+        // Silently fail and use placeholder
+    }
 }
 $config = [
     'wwwroot' => $CFG->wwwroot,

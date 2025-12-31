@@ -46,43 +46,45 @@ const TeacherDashboard = {
                                 </v-img>
                                 <v-card-text class="pt-4">
                                     <div class="text-overline primary--text font-weight-black mb-1">{{ classItem.course_shortname }}</div>
-                                    <div class="text-h6 font-weight-bold grey--text text--darken-4 mb-2 line-clamp-1">{{ classItem.name }}</div>
+                                    <div class="text-h6 font-weight-bold grey--text text--darken-4 mb-2 line-clamp-2" style="height: 3.2em; line-height: 1.6em;">
+                                        {{ classItem.course_fullname || classItem.name }}
+                                    </div>
                                     
-                                    <v-list-item class="px-0 mb-3" dense>
-                                        <v-list-item-avatar size="36" color="blue lighten-5" class="mr-3">
-                                            <v-icon color="blue" small>mdi-clock-outline</v-icon>
-                                        </v-list-item-avatar>
-                                        <v-list-item-content>
-                                            <v-list-item-subtitle class="text-caption">Siguiente sesión</v-list-item-subtitle>
-                                            <v-list-item-title class="font-weight-medium">
-                                                {{ classItem.next_session ? formatSession(classItem.next_session) : 'Sin sesiones próximas' }}
-                                            </v-list-item-title>
-                                        </v-list-item-content>
-                                    </v-list-item>
-
-                                    <v-divider class="mb-4"></v-divider>
-                                    
-                                    <v-row dense align="center">
+                                    <v-row no-gutters class="mb-4">
                                         <v-col cols="6">
-                                            <div class="text-caption grey--text mb-1">Tareas Entregadas</div>
+                                            <div class="d-flex align-center mb-1">
+                                                <v-icon x-small color="grey lighten-1" class="mr-1">mdi-calendar-range</v-icon>
+                                                <span class="text-caption grey--text">{{ formatDateSimple(classItem.initdate) }} - {{ formatDateSimple(classItem.enddate) }}</span>
+                                            </div>
                                             <div class="d-flex align-center">
-                                                <v-icon size="18" :color="getPendingCount(classItem.id) > 0 ? 'red' : 'green'" class="mr-1">
-                                                    {{ getPendingCount(classItem.id) > 0 ? 'mdi-alert-circle' : 'mdi-check-circle' }}
-                                                </v-icon>
-                                                <span class="font-weight-black" :class="getPendingCount(classItem.id) > 0 ? 'red--text' : 'green--text'">
-                                                    {{ getPendingCount(classItem.id) }}
-                                                </span>
+                                                <v-icon x-small color="grey lighten-1" class="mr-1">mdi-clock-outline</v-icon>
+                                                <span class="text-caption font-weight-bold">{{ classItem.schedule_text }}</span>
                                             </div>
                                         </v-col>
                                         <v-col cols="6" class="text-right">
-                                            <div class="text-caption grey--text mb-1">Estado de Salud</div>
-                                            <v-chip small :color="getHealthColor(classItem.id) + ' lighten-4'" :text-color="getHealthColor(classItem.id) + ' darken-4'" class="font-weight-bold">
-                                                {{ getHealthLabel(classItem.id) }}
-                                            </v-chip>
+                                            <div class="text-caption grey--text mb-1">Estudiantes</div>
+                                            <div class="text-h6 font-weight-black blue--text">
+                                                <v-icon left small color="blue">mdi-account-group</v-icon>
+                                                {{ classItem.student_count || 0 }}
+                                            </div>
                                         </v-col>
                                     </v-row>
+
+                                    <v-divider class="mb-3"></v-divider>
+                                    
+                                    <div class="d-flex align-center">
+                                        <v-icon small :color="classItem.next_session ? 'primary' : 'grey'" class="mr-2">
+                                            {{ classItem.next_session ? 'mdi-clock-alert' : 'mdi-clock-off' }}
+                                        </v-icon>
+                                        <div>
+                                            <div class="text-caption grey--text lh-1">Siguiente Sesión</div>
+                                            <div class="font-weight-medium" :class="classItem.next_session ? 'primary--text' : 'grey--text'">
+                                                {{ classItem.next_session ? formatSession(classItem.next_session) : 'Sin fecha programada' }}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </v-card-text>
-                                <v-btn block color="primary" tile height="48" class="font-weight-bold">
+                                <v-btn block color="primary" tile height="48" class="font-weight-bold mt-2">
                                     Gestionar Clase <v-icon right small>mdi-arrow-right</v-icon>
                                 </v-btn>
                             </v-card>
@@ -92,21 +94,42 @@ const TeacherDashboard = {
             </v-row>
 
             <!-- Calendar Dialog -->
-            <v-dialog v-model="showCalendar" max-width="800px" scrollable transition="dialog-bottom-transition">
+            <v-dialog v-model="showCalendar" max-width="900px" scrollable transition="dialog-bottom-transition">
                 <v-card class="rounded-xl overflow-hidden">
                     <v-toolbar flat color="primary" dark>
-                        <v-icon left>mdi-calendar-month</v-icon>
-                        <v-toolbar-title>Calendario Escolar</v-toolbar-title>
+                        <v-btn icon @click="calendarPrev"><v-icon>mdi-chevron-left</v-icon></v-btn>
+                        <v-btn text @click="calendarToday" class="d-none d-sm-inline-flex">Hoy</v-btn>
+                        <v-btn icon @click="calendarNext"><v-icon>mdi-chevron-right</v-icon></v-btn>
+                        
+                        <v-toolbar-title class="ml-2">{{ calendarTitle }}</v-toolbar-title>
+                        
                         <v-spacer></v-spacer>
+                        
+                        <v-menu offset-y>
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-btn outlined small v-bind="attrs" v-on="on" class="mr-2">
+                                    {{ viewNames[calendarView] }} <v-icon right>mdi-menu-down</v-icon>
+                                </v-btn>
+                            </template>
+                            <v-list dense>
+                                <v-list-item @click="calendarView = 'day'"><v-list-item-title>Día</v-list-item-title></v-list-item>
+                                <v-list-item @click="calendarView = 'week'"><v-list-item-title>Semana</v-list-item-title></v-list-item>
+                                <v-list-item @click="calendarView = 'month'"><v-list-item-title>Mes</v-list-item-title></v-list-item>
+                            </v-list>
+                        </v-menu>
+
                         <v-btn icon @click="showCalendar = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
                     <v-card-text class="pa-4 bg-white">
-                        <v-sheet height="500">
+                        <v-sheet height="600">
                             <v-calendar
                                 ref="calendar"
+                                v-model="calendarValue"
                                 color="primary"
                                 :events="calendarEvents"
-                                type="month"
+                                :type="calendarView"
+                                @change="onCalendarChange"
+                                locale="es"
                             ></v-calendar>
                         </v-sheet>
                     </v-card-text>
@@ -118,6 +141,10 @@ const TeacherDashboard = {
         return {
             loading: true,
             showCalendar: false,
+            calendarValue: '',
+            calendarView: 'month',
+            calendarTitle: '',
+            viewNames: { 'month': 'Mes', 'week': 'Semana', 'day': 'Día' },
             dashboardData: {
                 active_classes: [],
                 calendar_events: [],
@@ -168,8 +195,8 @@ const TeacherDashboard = {
         },
         updateStats() {
             this.overviewStats[0].value = this.dashboardData.active_classes.length;
-            this.overviewStats[1].value = '---';
-            this.overviewStats[2].value = this.dashboardData.pending_tasks.reduce((acc, curr) => acc + curr.count, 0);
+            this.overviewStats[1].value = this.dashboardData.active_classes.reduce((acc, curr) => acc + (curr.student_count || 0), 0);
+            this.overviewStats[2].value = this.dashboardData.pending_tasks.reduce((acc, curr) => acc + (curr.count || 0), 0);
         },
         getPendingCount(classId) {
             const task = this.dashboardData.pending_tasks.find(t => t.classid === classId);
@@ -186,13 +213,23 @@ const TeacherDashboard = {
         formatSession(timestamp) {
             if (!timestamp) return 'No programada';
             const date = new Date(parseInt(timestamp) * 1000);
-            return date.toLocaleDateString(undefined, {
-                weekday: 'short',
+            return date.toLocaleDateString('es-ES', {
                 day: 'numeric',
                 month: 'short',
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        },
+        formatDateSimple(timestamp) {
+            if (!timestamp) return 'S/F';
+            const date = new Date(parseInt(timestamp) * 1000);
+            return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+        },
+        calendarNext() { this.$refs.calendar.next(); },
+        calendarPrev() { this.$refs.calendar.prev(); },
+        calendarToday() { this.calendarValue = ''; },
+        onCalendarChange({ start, end }) {
+            this.calendarTitle = start.month + ' / ' + start.year;
         },
         getClassImage(item) {
             // Placeholder logic for class images

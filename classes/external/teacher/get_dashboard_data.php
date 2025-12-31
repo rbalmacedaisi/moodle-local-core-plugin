@@ -44,6 +44,23 @@ class get_dashboard_data extends external_api {
             $class_data->course_shortname = $course ? $course->shortname : '';
             $class_data->type = $class->type; // 0: inplace, 1: virtual
             $class_data->next_session = self::get_next_session($class->id);
+            
+            // New fields for card
+            $class_data->student_count = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+            $class_data->initdate = $class->initdate;
+            $class_data->enddate = $class->enddate;
+            
+            // Format schedule (L/M/X/J/V/S/D)
+            $day_labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+            $days_raw = explode('/', $class->classdays);
+            $active_days = [];
+            foreach ($days_raw as $index => $active) {
+                if ($active == '1' && isset($day_labels[$index])) {
+                    $active_days[] = $day_labels[$index];
+                }
+            }
+            $class_data->schedule_text = implode('/', $active_days) ?: 'S/D';
+            
             $active_classes[] = $class_data;
         }
 
@@ -126,7 +143,11 @@ class get_dashboard_data extends external_api {
                             'course_fullname' => new external_value(PARAM_TEXT, 'Course Fullname'),
                             'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname'),
                             'type' => new external_value(PARAM_INT, 'Type (0: inplace, 1: virtual)'),
-                            'next_session' => new external_value(PARAM_TEXT, 'Timestamp of next session', VALUE_OPTIONAL)
+                            'next_session' => new external_value(PARAM_TEXT, 'Timestamp of next session', VALUE_OPTIONAL),
+                            'student_count' => new external_value(PARAM_INT, 'Student count', VALUE_OPTIONAL),
+                            'initdate' => new external_value(PARAM_INT, 'Start date', VALUE_OPTIONAL),
+                            'enddate' => new external_value(PARAM_INT, 'End date', VALUE_OPTIONAL),
+                            'schedule_text' => new external_value(PARAM_TEXT, 'Formatted schedule', VALUE_OPTIONAL)
                         )
                     )
                 ),
