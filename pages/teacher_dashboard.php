@@ -74,6 +74,11 @@ $config = [
         'students_per_page' => get_string('students_per_page', 'local_grupomakro_core'),
         'grades' => get_string('grades', 'local_grupomakro_core'),
         'close' => get_string('close', 'local_grupomakro_core'),
+        'active_courses' => get_string('active_courses', 'local_grupomakro_core'),
+        'my_active_classes' => get_string('my_active_classes', 'local_grupomakro_core'),
+        'pending_tasks' => get_string('pending_tasks', 'local_grupomakro_core'),
+        'next_session' => get_string('next_session', 'local_grupomakro_core'),
+        'no_groups' => get_string('no_groups', 'local_grupomakro_core'),
     ]
 ];
 $PAGE->requires->js_init_code("if(window.TeacherExperience) { window.TeacherExperience.init(".json_encode($config)."); }");

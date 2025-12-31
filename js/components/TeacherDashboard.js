@@ -30,7 +30,7 @@ const TeacherDashboard = {
                 <!-- Active Classes (Cards) -->
                 <v-col cols="12" class="mt-4">
                     <div class="d-flex align-center mb-4">
-                        <h2 class="text-h5 font-weight-bold mb-0">Mis Clases Activas</h2>
+                        <h2 class="text-h5 font-weight-bold mb-0">{{ lang.my_active_classes || 'Mis Clases Activas' }}</h2>
                         <v-spacer></v-spacer>
                         <v-btn outlined color="primary" class="rounded-lg shadow-sm" @click="showCalendar = true">
                             <v-icon left>mdi-calendar</v-icon> Ver Calendario Completo
@@ -62,7 +62,7 @@ const TeacherDashboard = {
                                             </div>
                                         </v-col>
                                         <v-col cols="6" class="text-right">
-                                            <div class="text-caption grey--text mb-1">Estudiantes</div>
+                                            <div class="text-caption grey--text mb-1">{{ lang.active_students || lang.active_users || 'Estudiantes' }}</div>
                                             <div class="text-h6 font-weight-black blue--text">
                                                 <v-icon left small color="blue">mdi-account-group</v-icon>
                                                 {{ classItem.student_count || 0 }}
@@ -77,7 +77,7 @@ const TeacherDashboard = {
                                             {{ classItem.next_session ? 'mdi-clock-alert' : 'mdi-clock-off' }}
                                         </v-icon>
                                         <div>
-                                            <div class="text-caption grey--text lh-1">Siguiente Sesión</div>
+                                            <div class="text-caption grey--text lh-1">{{ lang.next_session || 'Siguiente Sesión' }}</div>
                                             <div class="font-weight-medium" :class="classItem.next_session ? 'primary--text' : 'grey--text'">
                                                 {{ classItem.next_session ? formatSession(classItem.next_session) : 'Sin fecha programada' }}
                                             </div>
@@ -159,6 +159,9 @@ const TeacherDashboard = {
         };
     },
     computed: {
+        lang() {
+            return window.strings || {};
+        },
         calendarEvents() {
             return this.dashboardData.calendar_events.map(e => ({
                 name: e.name,
@@ -196,8 +199,13 @@ const TeacherDashboard = {
             }
         },
         updateStats() {
+            this.overviewStats[0].label = this.lang.active_courses || 'Cursos Activos';
             this.overviewStats[0].value = this.dashboardData.active_classes.length;
+
+            this.overviewStats[1].label = this.lang.active_students || 'Estudiantes';
             this.overviewStats[1].value = this.dashboardData.active_classes.reduce((acc, curr) => acc + (curr.student_count || 0), 0);
+
+            this.overviewStats[2].label = this.lang.pending_tasks || 'Tareas Pendientes';
             this.overviewStats[2].value = this.dashboardData.pending_tasks.reduce((acc, curr) => acc + (curr.count || 0), 0);
         },
         getPendingCount(classId) {

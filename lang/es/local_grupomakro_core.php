@@ -223,6 +223,11 @@ $string['apply_filter'] = 'Aplicar filtro';
 $string['remove_filter'] = 'Remover filtro';
 $string['active_users'] = 'Usuarios activos';
 $string['active_students'] = 'Estudiantes activos';
+$string['active_courses'] = 'Cursos activos';
+$string['my_active_classes'] = 'Mis clases activas';
+$string['pending_tasks'] = 'Tareas pendientes';
+$string['next_session'] = 'Siguiente sesión';
+$string['no_groups'] = 'No hay grupos asignados';
 
 // Contract Enrol Page.
 $string['contractenrol'] = 'Matriculación contrato';

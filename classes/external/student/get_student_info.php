@@ -107,8 +107,13 @@ class get_student_info extends external_api {
                 $sqlParams = array_merge($sqlParams, $inparams);
             }
         if (!empty($params['classid'])) {
-            $sqlConditions[] = "EXISTS (SELECT 1 FROM {gmk_course_progre} cp WHERE cp.userid = u.id AND cp.classid = :classid)";
-            $sqlParams['classid'] = $params['classid'];
+            $class = $DB->get_record('gmk_class', ['id' => $params['classid']], 'groupid,instructorid');
+            if ($class) {
+                $sqlConditions[] = "EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.userid = u.id AND gm.groupid = :groupid)";
+                $sqlConditions[] = "u.id <> :instructorid";
+                $sqlParams['groupid'] = $class->groupid;
+                $sqlParams['instructorid'] = $class->instructorid;
+            }
         }
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);

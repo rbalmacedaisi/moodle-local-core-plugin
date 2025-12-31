@@ -46,13 +46,13 @@ class get_dashboard_data extends external_api {
         
         $active_classes = [];
         foreach ($classes as $class) {
-            $course = $DB->get_record('course', ['id' => $class->courseid], 'id,fullname,shortname');
+            $course = $DB->get_record('course', ['id' => $class->courseid], 'id,fullname,shortname,idnumber');
             $class_data = new stdClass();
             $class_data->id = $class->id;
             $class_data->name = $class->name; // Specific class name
             $class_data->courseid = $class->courseid;
             $class_data->course_fullname = $course ? $course->fullname : '';
-            $class_data->course_shortname = $course ? $course->shortname : '';
+            $class_data->course_shortname = $course ? $course->idnumber : '';
             
             // Map type: 0 = PRESENCIAL, 1 = VIRTUAL, 2 = MIXTA (based on locallib.php)
             $class_data->type = (int)$class->type;
@@ -61,8 +61,9 @@ class get_dashboard_data extends external_api {
             $class_data->next_session = self::get_next_session($class->id);
             
             // New fields for card
-            // Count students assigned to this class in gmk_course_progre
-            $class_data->student_count = $DB->count_records('gmk_course_progre', ['classid' => $class->id]);
+            // Count students assigned to this class in groups_members (minus the instructor)
+            $raw_count = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+            $class_data->student_count = max(0, $raw_count - 1);
             $class_data->initdate = $class->initdate;
             $class_data->enddate = $class->enddate;
             
