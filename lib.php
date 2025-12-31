@@ -20,8 +20,11 @@ function local_grupomakro_core_user_home_redirect(&$url) {
     $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
 
     if ($is_teacher) {
-        $target = new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
-        redirect($target);
+        $dashboard_path = '/local/grupomakro_core/pages/teacher_dashboard.php';
+        // Avoid redirect loop by checking if we are already on that script
+        if (strpos($_SERVER['SCRIPT_NAME'], $dashboard_path) === false) {
+            redirect(new moodle_url($dashboard_path));
+        }
     }
 }
 
@@ -50,6 +53,11 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     }
 
     // 2. Redirection logic
+    // Avoid recursion if already on the dashboard
+    if (strpos($_SERVER['SCRIPT_NAME'], '/local/grupomakro_core/pages/teacher_dashboard.php') !== false) {
+        return;
+    }
+
     // Only intercept if we are on the main landing pages
     try {
         $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
