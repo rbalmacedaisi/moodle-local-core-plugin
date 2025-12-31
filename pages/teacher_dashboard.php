@@ -31,8 +31,8 @@ $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'),
 
 // Load components (Standard JS files)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js'), true);

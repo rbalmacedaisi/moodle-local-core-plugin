@@ -3,7 +3,7 @@
  * Created for Redesigning Teacher Experience
  */
 
-Vue.component('activity-creation-wizard', {
+const ActivityCreationWizard = {
     props: {
         classId: { type: Number, required: true },
         activityType: { type: String, required: true } // 'bbb', 'assignment', 'resource'
@@ -178,4 +178,7 @@ Vue.component('activity-creation-wizard', {
             }
         }
     }
-});
+};
+
+Vue.component('activity-creation-wizard', ActivityCreationWizard);
+window.ActivityCreationWizard = ActivityCreationWizard;
