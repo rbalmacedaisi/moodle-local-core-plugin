@@ -3,7 +3,7 @@
  * Created for Redesigning Teacher Experience
  */
 
-const ActivityCreationWizard = {
+Vue.component('activity-creation-wizard', {
     props: {
         classId: { type: Number, required: true },
         activityType: { type: String, required: true } // 'bbb', 'assignment', 'resource'
@@ -178,6 +178,4 @@ const ActivityCreationWizard = {
             }
         }
     }
-};
-
-window.ActivityCreationWizard = ActivityCreationWizard;
+});

@@ -124,15 +124,32 @@ const ManageClass = {
                         <v-icon v-else>mdi-plus</v-icon>
                     </v-btn>
                 </template>
-                <v-btn fab dark small color="indigo" @click="addActivity('bbb')">
-                    <v-icon>mdi-video</v-icon>
-                </v-btn>
-                <v-btn fab dark small color="green" @click="addActivity('assignment')">
-                    <v-icon>mdi-file-document-edit</v-icon>
-                </v-btn>
-                <v-btn fab dark small color="orange" @click="addActivity('resource')">
-                    <v-icon>mdi-file-download</v-icon>
-                </v-btn>
+                <v-tooltip left>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn fab dark small color="indigo" @click="addActivity('bbb')" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-video</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Sesión Virtual (BBB)</span>
+                </v-tooltip>
+
+                <v-tooltip left>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn fab dark small color="green" @click="addActivity('assignment')" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-file-document-edit</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Tarea / Asignación</span>
+                </v-tooltip>
+
+                <v-tooltip left>
+                     <template v-slot:activator="{ on, attrs }">
+                        <v-btn fab dark small color="orange" @click="addActivity('resource')" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-file-download</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Material / Recurso</span>
+                </v-tooltip>
             </v-speed-dial>
             </v-speed-dial>
             
