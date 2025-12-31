@@ -140,6 +140,11 @@ class get_student_info extends external_api {
 
         try {
             $infoUsers = $DB->get_records_sql($query, $sqlParams);
+            
+            $class_learning_plan_id = null;
+            if (!empty($params['classid'])) {
+                $class_learning_plan_id = $DB->get_field('gmk_class', 'learningplanid', ['id' => $params['classid']]);
+            }
         } catch (Exception $e) {
             // Fallback for subperiodid if column missing (structural fix for older schemas)
                 $query = "
@@ -246,12 +251,40 @@ class get_student_info extends external_api {
                 ];
             }
 
-            $userData[$user->userid]['careers'][] = [
-                'planid' => $user->planid,
-                'career' => $user->career,
-                'periodname' => $periodname,
-                'periodid' => $user->periodid
-            ];
+            if ($class_learning_plan_id) {
+                // If the user has the class's learning plan, show ONLY that one.
+                $has_class_plan = false;
+                foreach ($userData[$user->userid]['careers'] as $c) {
+                    if ($c['planid'] == $class_learning_plan_id) {
+                        $userData[$user->userid]['careers'] = [$c];
+                        $has_class_plan = true;
+                        break; 
+                    }
+                }
+                
+                // If the user doesn't have the class's plan (which is odd but possible), 
+                // we just check if we haven't already added this specific row's career to the list (to avoid duplicates from SQL rows)
+                if (!$has_class_plan) {
+                     $userData[$user->userid]['careers'][] = [
+                        'planid' => $user->planid,
+                        'career' => $user->career,
+                        'periodname' => $periodname,
+                        'periodid' => $user->periodid
+                    ];
+                }
+            } else {
+                 // No class context or class has no plan, just append (avoiding full duplicates if any)
+                 $userData[$user->userid]['careers'][] = [
+                    'planid' => $user->planid,
+                    'career' => $user->career,
+                    'periodname' => $periodname,
+                    'periodid' => $user->periodid
+                ];
+            }
+            
+            // Deduplicate careers array just in case (e.g. SQL returned multiple rows for same plan/period)
+            $userData[$user->userid]['careers'] = array_map("unserialize", array_unique(array_map("serialize", $userData[$user->userid]['careers'])));
+
             $userData[$user->userid]['periods'][] = $periodname;
         }
 

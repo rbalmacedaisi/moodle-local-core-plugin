@@ -150,11 +150,11 @@ Vue.component('studenttable', {
                         </v-list>
                     </template>
                     
-                    <template v-slot:item.carrers="{ item }">
+                    <template v-slot:item.careers="{ item }">
                         <v-list dense class="transparent">
-                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
+                            <v-list-item v-for="(career, index) in item.careers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
-                                    <v-list-item-subtitle>{{carrer.career}}</v-list-item-subtitle>
+                                    <v-list-item-subtitle>{{career.career}}</v-list-item-subtitle>
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -162,25 +162,25 @@ Vue.component('studenttable', {
                     
                     <template v-slot:item.periods="{ item }">
                         <v-list dense class="transparent">
-                            <v-list-item v-for="(carrer, index) in item.carrers" :key="index" class="px-0">
+                            <v-list-item v-for="(career, index) in item.careers" :key="index" class="px-0">
                                 <v-list-item-content class="py-0">
-                                    <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadPeriodsForPlan(item, carrer)">
+                                    <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadPeriodsForPlan(item, career)">
                                         <template v-slot:activator="{ on, attrs }">
-                                            <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === carrer.planid">
-                                                {{ carrer.periodname }}
+                                            <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === career.planid">
+                                                {{ career.periodname }}
                                                 <v-icon small right>mdi-chevron-down</v-icon>
                                             </v-btn>
                                         </template>
                                         <v-list dense max-height="300" class="overflow-y-auto">
-                                            <v-list-item v-if="!carrer.availablePeriods">
+                                            <v-list-item v-if="!career.availablePeriods">
                                                 <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
                                             </v-list-item>
-                                            <v-list-item v-for="p in carrer.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, carrer, p)">
-                                                <v-list-item-title :class="{'primary--text font-weight-bold': p.id == carrer.periodid}">{{ p.name }}</v-list-item-title>
+                                            <v-list-item v-for="p in career.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, career, p)">
+                                                <v-list-item-title :class="{'primary--text font-weight-bold': p.id == career.periodid}">{{ p.name }}</v-list-item-title>
                                             </v-list-item>
                                         </v-list>
                                     </v-menu>
-                                    <v-list-item-subtitle v-else>{{ carrer.periodname }}</v-list-item-subtitle>
+                                    <v-list-item-subtitle v-else>{{ career.periodname }}</v-list-item-subtitle>
                                 </v-list-item-content>
                             </v-list-item>
                         </v-list>
@@ -387,7 +387,7 @@ Vue.component('studenttable', {
                                 email: element.email,
                                 id: element.userid,
                                 documentnumber: element.documentnumber,
-                                carrers: element.careers,
+                                careers: element.careers,
                                 subperiods: element.subperiods,
                                 updatingPeriod: null,
                                 revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
