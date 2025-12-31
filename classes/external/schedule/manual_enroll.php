@@ -66,7 +66,7 @@ class manual_enroll extends external_api {
             // If the user hasn't started the course/plan, this record might be missing.
             // Let's check if we need to create it.
             
-            $progress = $DB->get_record('gmk_course_progre', ['userid' => $params['userId'], 'courseid' => $class->corecourseid]);
+            $progress = $DB->get_record('gmk_course_progre', ['userid' => $params['userId'], 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
             if (!$progress) {
                  // Create base progress record if missing?
                  // Usually created when assigned a plan?
@@ -84,6 +84,7 @@ class manual_enroll extends external_api {
                  $newProgress->progress = 0;
                  $newProgress->grade = 0;
                  $newProgress->status = 1; // COURSE_IN_PROGRESS (Assuming 1)
+                 $newProgress->learningplanid = $class->learningplanid;
                  $newProgress->timecreated = time();
                  $newProgress->timemodified = time();
                  $DB->insert_record('gmk_course_progre', $newProgress);

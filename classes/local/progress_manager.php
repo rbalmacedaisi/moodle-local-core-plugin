@@ -329,7 +329,7 @@ class local_grupomakro_progress_manager
     public static function assign_class_to_course_progress($userId, $class)
     {
         global $DB;
-        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid]);
+        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
         $courseProgress->classid = $class->id;
         $courseProgress->groupid = $class->groupid;
         $courseProgress->progress = 0;
@@ -342,7 +342,7 @@ class local_grupomakro_progress_manager
     public static function unassign_class_from_course_progress($userId, $class)
     {
         global $DB;
-        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid]);
+        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
         if ($courseProgress) {
             $courseProgress->classid = 0; // Or null if allowed, but assign uses integer
             $courseProgress->groupid = 0;
