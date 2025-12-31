@@ -57,6 +57,24 @@ $config = [
     'userToken' => $USER->sesskey,
     'logoutUrl' => (new moodle_url('/login/logout.php', ['sesskey' => sesskey()]))->out(false),
     'logoUrl' => ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=200', // Placeholder if no theme logo
+
+    // Localized strings for the JS app
+    'strings' => [
+        'name' => get_string('fullname', 'local_grupomakro_core'),
+        'email' => get_string('email', 'local_grupomakro_core'),
+        'document' => get_string('identification_number', 'local_grupomakro_core'),
+        'career' => get_string('careers', 'local_grupomakro_core'),
+        'period' => get_string('class_period', 'local_grupomakro_core'),
+        'status' => get_string('state', 'local_grupomakro_core'),
+        'options' => get_string('options', 'local_grupomakro_core'),
+        'search' => get_string('search', 'local_grupomakro_core'),
+        'sync' => get_string('generate', 'local_grupomakro_core'), // Using generate for sync
+        'students_list' => get_string('students_list', 'local_grupomakro_core'),
+        'active_users' => get_string('active_users', 'local_grupomakro_core'),
+        'students_per_page' => get_string('students_per_page', 'local_grupomakro_core'),
+        'grades' => get_string('grades', 'local_grupomakro_core'),
+        'close' => get_string('close', 'local_grupomakro_core'),
+    ]
 ];
 $PAGE->requires->js_init_code("if(window.TeacherExperience) { window.TeacherExperience.init(".json_encode($config)."); }");
 

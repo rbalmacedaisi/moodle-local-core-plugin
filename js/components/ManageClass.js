@@ -6,7 +6,7 @@
 const ManageClass = {
     props: {
         classId: {
-            type: Number,
+            type: [Number, String],
             required: true
         }
     },
@@ -98,13 +98,7 @@ const ManageClass = {
 
                         <!-- Grades Tab -->
                         <v-tab-item>
-                            <v-card class="rounded-lg">
-                                <v-card-title class="font-weight-bold">Control de Notas</v-card-title>
-                                <v-card-text>
-                                    <!-- Simplified grades table will go here -->
-                                    <div class="text-center pa-4 grey--text">Módulo de notas simplificado en desarrollo</div>
-                                </v-card-text>
-                            </v-card>
+                            <studenttable :class-id="classId"></studenttable>
                         </v-tab-item>
 
                     </v-tabs-items>

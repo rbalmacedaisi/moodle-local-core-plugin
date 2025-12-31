@@ -113,13 +113,22 @@ class get_student_info extends external_api {
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
 
+        $gradeSelect = "";
+        $gradeJoin = "";
+        if (!empty($params['classid'])) {
+            $gradeSelect = ", cp.grade as currentgrade";
+            $gradeJoin = " LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join) ";
+            $sqlParams['classid_join'] = $params['classid'];
+        }
+
         $query = "
             SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
             lp.name as career, u.id as userid, u.email as email, u.idnumber,
-            u.firstname as firstname, u.lastname as lastname
+            u.firstname as firstname, u.lastname as lastname $gradeSelect
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
             JOIN {user} u ON (u.id = lpu.userid)
+            $gradeJoin
             $whereClause
             ORDER BY u.firstname";
 
@@ -127,16 +136,17 @@ class get_student_info extends external_api {
             $infoUsers = $DB->get_records_sql($query, $sqlParams);
         } catch (Exception $e) {
             // Fallback for subperiodid if column missing (structural fix for older schemas)
-            $query = "
-                SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
-                lp.name as career, u.id as userid, u.email as email, u.idnumber,
-                u.firstname as firstname, u.lastname as lastname
-                FROM {local_learning_plans} lp
-                JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
-                JOIN {user} u ON (u.id = lpu.userid)
-                $whereClause
-                ORDER BY u.firstname";
-            $infoUsers = $DB->get_records_sql($query, $sqlParams);
+                $query = "
+                    SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
+                    lp.name as career, u.id as userid, u.email as email, u.idnumber,
+                    u.firstname as firstname, u.lastname as lastname $gradeSelect
+                    FROM {local_learning_plans} lp
+                    JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
+                    JOIN {user} u ON (u.id = lpu.userid)
+                    $gradeJoin
+                    $whereClause
+                    ORDER BY u.firstname";
+                $infoUsers = $DB->get_records_sql($query, $sqlParams);
         }
 
         $userData = [];
@@ -225,7 +235,8 @@ class get_student_info extends external_api {
                     'careers' => [],
                     'periods' => [],
                     'subperiods' => $subperiodname,
-                    'revalidate' => $revalidate
+                    'revalidate' => $revalidate,
+                    'grade' => isset($user->currentgrade) ? round((float)$user->currentgrade, 2) : '--'
                 ];
             }
 

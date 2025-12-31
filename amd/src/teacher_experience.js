@@ -6,7 +6,11 @@ window.TeacherExperience = {
     init: function (config) {
         console.log('Teacher Experience Initialized', config);
 
-        // Register global variables for components
+        // Globalize basic config for components
+        window.strings = config.strings || {};
+        window.userToken = config.userToken;
+        window.siteUrl = config.wwwroot + '/webservice/rest/server.php';
+        window.wwwroot = config.wwwroot;
         window.wsUrl = config.wwwroot + '/local/grupomakro_core/ajax.php';
         window.wsStaticParams = { sesskey: config.userToken };
         window.userId = config.userId;
@@ -15,6 +19,7 @@ window.TeacherExperience = {
         if (window.TeacherDashboard) Vue.component('teacher-dashboard', window.TeacherDashboard);
         if (window.ManageClass) Vue.component('manage-class', window.ManageClass);
         if (window.ActivityCreationWizard) Vue.component('activity-wizard', window.ActivityCreationWizard);
+        if (window.studenttable) Vue.component('studenttable', window.studenttable);
 
         // Create Vue Application
         const mountPoint = document.getElementById('teacher-app');

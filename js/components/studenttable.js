@@ -228,32 +228,43 @@ Vue.component('studenttable', {
         </v-row>
     `,
     data() {
+        const lang = window.strings || {};
+        const headers = [
+            {
+                text: lang.name || 'Nombre',
+                align: 'start',
+                sortable: false,
+                value: 'name',
+                width: '250px' // Ensure name has space
+            },
+            {
+                text: lang.document || 'Identificación',
+                value: 'documentnumber',
+                sortable: false,
+                width: '150px'
+            },
+            {
+                text: lang.career || 'Carrera',
+                sortable: false,
+                value: 'careers',
+            },
+            { text: lang.period || 'Periodo', value: 'periods', sortable: false, width: '200px' },
+            { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
+            { text: lang.status || 'Estado', value: 'status', sortable: false, },
+        ];
+
+        // Add Grade column if we are in a class context
+        if (this.classId) {
+            headers.push({
+                text: lang.grades || 'Calificación',
+                value: 'grade',
+                sortable: false,
+                align: 'right'
+            });
+        }
+
         return {
-            headers: [
-                {
-                    text: window.strings.name,
-                    align: 'start',
-                    sortable: false,
-                    value: 'name',
-                    width: '250px' // Ensure name has space
-                },
-                {
-                    text: 'Identificación',
-                    value: 'documentnumber',
-                    sortable: false,
-                    width: '150px'
-                },
-                {
-                    text: window.strings.careers,
-                    sortable: false,
-                    value: 'carrers',
-                },
-                { text: window.strings.quarters, value: 'periods', sortable: false, width: '200px' },
-                { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
-                { text: window.strings.revalidation, value: 'revalidate', sortable: false, align: 'center', },
-                { text: window.strings.state, value: 'status', sortable: false, },
-                { text: 'Calificaciones', value: 'grade', sortable: false, },
-            ],
+            headers: headers,
             totalDesserts: 0,
             activeUsers: 0,
             syncing: false,
@@ -265,20 +276,27 @@ Vue.component('studenttable', {
                 search: '',
             },
             students: [],
+            careers: [],
+            quarters: [],
+            statusFilter: '',
+            careerFilter: '',
+            quarterFilter: '',
+            filterDialog: false,
             studentsGrades: false,
             studentGradeSelected: {},
-
-            // New Filter properties
-            filterDialog: false,
-            loadingPeriods: false,
-            plans: [],
-            availablePeriods: [],
-            filters: {
-                planid: [],
-                periodid: [],
-                status: null,
-                withGrades: true
-            }
+            siteUrl: window.siteUrl,
+            token: window.userToken,
+        };
+    },
+    computed: {
+        lang() {
+            return window.strings || {};
+        },
+        isAdmin() {
+            return true; // Simplified for now
+        },
+        isSuperAdmin() {
+            return false; // Simplified for now
         }
     },
     created() {
