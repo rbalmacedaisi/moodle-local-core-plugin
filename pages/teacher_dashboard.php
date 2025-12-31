@@ -71,14 +71,14 @@ $config = [
         'sync' => get_string('generate', 'local_grupomakro_core'), // Using generate for sync
         'students_list' => get_string('students_list', 'local_grupomakro_core'),
         'active_users' => get_string('active_users', 'local_grupomakro_core'),
-        'students_per_page' => get_string('students_per_page', 'local_grupomakro_core'),
-        'grades' => get_string('grades', 'local_grupomakro_core'),
-        'close' => get_string('close', 'local_grupomakro_core'),
-        'active_courses' => get_string('active_courses', 'local_grupomakro_core'),
-        'my_active_classes' => get_string('my_active_classes', 'local_grupomakro_core'),
-        'pending_tasks' => get_string('pending_tasks', 'local_grupomakro_core'),
-        'next_session' => get_string('next_session', 'local_grupomakro_core'),
-        'no_groups' => get_string('no_groups', 'local_grupomakro_core'),
+        // Safer retrieval for potentially cached new strings
+        'active_users' => get_string_manager()->string_exists('active_users', 'local_grupomakro_core') ? get_string('active_users', 'local_grupomakro_core') : 'Usuarios activos',
+        'active_students' => get_string_manager()->string_exists('active_students', 'local_grupomakro_core') ? get_string('active_students', 'local_grupomakro_core') : 'Estudiantes activos',
+        'active_courses' => get_string_manager()->string_exists('active_courses', 'local_grupomakro_core') ? get_string('active_courses', 'local_grupomakro_core') : 'Cursos activos',
+        'my_active_classes' => get_string_manager()->string_exists('my_active_classes', 'local_grupomakro_core') ? get_string('my_active_classes', 'local_grupomakro_core') : 'Mis clases activas',
+        'pending_tasks' => get_string_manager()->string_exists('pending_tasks', 'local_grupomakro_core') ? get_string('pending_tasks', 'local_grupomakro_core') : 'Tareas pendientes',
+        'next_session' => get_string_manager()->string_exists('next_session', 'local_grupomakro_core') ? get_string('next_session', 'local_grupomakro_core') : 'Siguiente sesión',
+        'no_groups' => get_string_manager()->string_exists('no_groups', 'local_grupomakro_core') ? get_string('no_groups', 'local_grupomakro_core') : 'No hay grupos asignados',
     ]
 ];
 $PAGE->requires->js_init_code("if(window.TeacherExperience) { window.TeacherExperience.init(".json_encode($config)."); }");
