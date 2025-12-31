@@ -108,7 +108,9 @@ Vue.component('grades-grid', {
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_class_grades',
-                    classid: this.classId,
+                    args: {
+                        classid: this.classId
+                    },
                     sesskey: window.Y.config.sesskey
                 });
 
