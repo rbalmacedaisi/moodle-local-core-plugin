@@ -651,5 +651,21 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_teacher_dashboard_data' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\get_dashboard_data',
+        'methodname'  => 'execute',
+        'description' => 'Get consolidated data for the teacher dashboard',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_create_express_activity' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\create_express_activity',
+        'methodname'  => 'execute',
+        'description' => 'Create a Moodle activity with pre-calculated parameters',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
 

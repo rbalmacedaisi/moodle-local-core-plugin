@@ -3255,3 +3255,98 @@ function toggle_class_grade_lock($classId, $locked) {
         $grade_category->set_locked($locked);
     }
 }
+/**
+ * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
+ * Part of the innovative Teacher Experience.
+ */
+function local_grupomakro_create_express_activity($classid, $type, $name, $intro, $extra = []) {
+    global $DB, $CFG;
+    require_once($CFG->dirroot . '/course/modlib.php');
+    
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+    $course = get_course($class->corecourseid);
+    $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+    
+    $module = $DB->get_record('modules', ['name' => $type], '*', MUST_EXIST);
+    
+    $moduleinfo = new stdClass();
+    $moduleinfo->modulename = $type;
+    $moduleinfo->module     = $module->id;
+    $moduleinfo->name       = $name;
+    $moduleinfo->intro      = $intro;
+    $moduleinfo->introformat = FORMAT_HTML;
+    $moduleinfo->course     = $course->id;
+    $moduleinfo->section    = $section->section;
+    $moduleinfo->visible    = 1;
+    $moduleinfo->groupmode  = 1; // Separate groups
+    
+    if ($type === 'bigbluebuttonbn') {
+        $moduleinfo->type = 0; // All features
+        $moduleinfo->participants = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
+        $moduleinfo->record = 1;
+    } else if ($type === 'assign') {
+        $moduleinfo->grade = 100;
+        $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
+        $moduleinfo->assignsubmission_file_enabled = 1;
+        $moduleinfo->assignsubmission_onlinetext_enabled = 1;
+    }
+    
+    $result = add_moduleinfo($moduleinfo, $course);
+    
+    // Handle template saving if requested
+    if (!empty($extra['save_as_template'])) {
+        local_grupomakro_save_activity_template($name, $type, $moduleinfo);
+    }
+    
+    return $result;
+}
+
+/**
+ * Saves an activity configuration as a reusable template.
+ */
+function local_grupomakro_save_activity_template($name, $type, $configdata) {
+    global $DB, $USER;
+    $template = new stdClass();
+    $template->name = $name;
+    $template->module = $type;
+    $template->configdata = json_encode($configdata);
+    $template->usermodified = $USER->id;
+    $template->timecreated = time();
+    return $DB->insert_record('gmk_activity_templates', $template);
+}
+
+/**
+ * Sets a break timer for a class, stored in cache for synchronization.
+ * Innovative Feature 6: Break Manager.
+ */
+function local_grupomakro_set_break_timer($classid, $duration_minutes) {
+    $cache = \cache::make('local_grupomakro_core', 'break_timers');
+    $endtime = time() + ($duration_minutes * 60);
+    $cache->set($classid, $endtime);
+    return $endtime;
+}
+
+/**
+ * Gets the current break status for a class.
+ */
+function local_grupomakro_get_break_status($classid) {
+    $cache = \cache::make('local_grupomakro_core', 'break_timers');
+    $endtime = $cache->get($classid);
+    if (!$endtime || $endtime < time()) {
+        return null;
+    }
+    return $endtime;
+}
+
+/**
+ * Saves anonymous student feedback for a session.
+ * Innovative Feature 8: Climate Surveys.
+ */
+function local_grupomakro_save_climate_feedback($sessionid, $rating) {
+    global $DB;
+    $feedback = new stdClass();
+    $feedback->sessionid = $sessionid;
+    $feedback->rating = $rating;
+    $feedback->timecreated = time();
+    return $DB->insert_record('gmk_climate_feedback', $feedback);
+}

@@ -1,0 +1,57 @@
+/**
+ * Teacher Experience - Modern UI Tokens
+ */
+
+:root {
+    --gmk-primary: #1976D2;
+    --gmk-secondary: #424242;
+    --gmk-accent: #82B1FF;
+    --gmk-success: #4CAF50;
+    --gmk-info: #2196F3;
+    --gmk-warning: #FB8C00;
+    --gmk-error: #FF5252;
+    --gmk-bg: #F5F7FA;
+    --gmk-white: #FFFFFF;
+    --gmk-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+#teacher-app {
+    font-family: 'Outfit', 'Inter', sans-serif;
+    background-color: var(--gmk-bg);
+    min-height: 100vh;
+}
+
+.hover-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important;
+}
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: var(--gmk-shadow);
+}
+
+.border-bottom {
+    border-bottom: 1px solid #E0E4E8 !important;
+}
+
+/* Timeline Customizations */
+.v-timeline-item__dot--small {
+    width: 14px !important;
+    height: 14px !important;
+    min-width: 14px !important;
+}
+
+/* Mobile optimizations */
+@media (max-width: 600px) {
+    .v-card__title {
+        font-size: 1rem !important;
+    }
+}

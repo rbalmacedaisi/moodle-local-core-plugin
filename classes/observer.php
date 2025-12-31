@@ -292,5 +292,43 @@ class local_grupomakro_core_observer
 
         local_grupomakro_progress_manager::update_course_progress($courseId, $userId);
     }
+
+    /**
+     * Notify teacher when a student submits an assignment.
+     * Innovative Feature 1: Real-time Notifications.
+     */
+    public static function assign_submission_created(\mod_assign\event\submission_created $event) {
+        global $DB;
+        $eventdata = $event->get_data();
+        $assignment = $DB->get_record('assign', ['id' => $eventdata['objectid']], '*', MUST_EXIST);
+        $course = $DB->get_record('course', ['id' => $eventdata['courseid']], '*', MUST_EXIST);
+        
+        // Find the group/class associated with this submission
+        $cm = get_coursemodule_from_instance('assign', $assignment->id, $course->id, false, MUST_EXIST);
+        $sectionid = $cm->section;
+        
+        $class = $DB->get_record('gmk_class', ['coursesectionid' => $sectionid]);
+        if (!$class) return;
+        
+        $instructor = $DB->get_record('user', ['id' => $class->instructorid], '*', MUST_EXIST);
+        $student = $DB->get_record('user', ['id' => $eventdata['userid']], '*', MUST_EXIST);
+
+        // Send notification via Moodle Messaging API
+        $message = new \core\message\message();
+        $message->component = 'local_grupomakro_core';
+        $message->name = 'assignment_submission';
+        $message->userfrom = $student;
+        $message->userto = $instructor;
+        $message->subject = "Nueva entrega en: " . $class->name;
+        $message->fullmessage = "El estudiante " . fullname($student) . " ha realizado una entrega en la tarea: " . $assignment->name;
+        $message->fullmessageformat = FORMAT_PLAIN;
+        $message->fullmessagehtml = "<p>El estudiante <b>" . fullname($student) . "</b> ha realizado una entrega en la tarea: <b>" . $assignment->name . "</b>.</p>";
+        $message->smallmessage = "Nueva entrega de " . fullname($student);
+        $message->courseid = $course->id;
+        $message->contexturl = (new \moodle_url('/mod/assign/view.php', ['id' => $cm->id]))->out(false);
+        $message->contexturlname = $assignment->name;
+        
+        \core\message\manager::send_message($message);
+    }
 }
 
