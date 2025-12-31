@@ -133,57 +133,49 @@ Vue.component('teacher-student-table', {
                     </template>
                     
                     <template v-slot:item.name="{ item }">
-                        <v-list class="transparent">
-                            <v-list-item>
-                                <v-list-item-avatar style="cursor: pointer;" @click="goToProfile(item.id)">
-                                    <img
-                                      :src="item.img"
-                                      alt="picture-profile"
-                                    >
-                                </v-list-item-avatar>
-    
-                                <v-list-item-content>
-                                    <v-list-item-title>{{item.name}}</v-list-item-title>
-                                    <v-list-item-subtitle>{{item.email}}</v-list-item-subtitle>
-                                </v-list-item-content>
-                            </v-list-item>
-                        </v-list>
+                         <div class="d-flex align-center py-2">
+                             <v-avatar size="40" class="mr-3" style="cursor: pointer;" @click="goToProfile(item.id)">
+                                 <img :src="item.img" alt="profile">
+                             </v-avatar>
+                             <div>
+                                 <div class="font-weight-medium text-body-2">{{ item.name }}</div>
+                                 <div class="caption grey--text">{{ item.email }}</div>
+                             </div>
+                         </div>
                     </template>
                     
                     <template v-slot:item.careers="{ item }">
-                        <v-list dense class="transparent">
-                            <v-list-item v-for="(career, index) in item.careers" :key="index" class="px-0">
-                                <v-list-item-content class="py-0">
-                                    <v-list-item-subtitle>{{career.career}}</v-list-item-subtitle>
-                                </v-list-item-content>
-                            </v-list-item>
-                        </v-list>
+                        <div class="py-1">
+                            <div v-for="(career, index) in item.careers" :key="index" class="mb-1">
+                                <span class="caption font-weight-bold d-block grey--text text--darken-2" style="line-height: 1.2;">
+                                    {{ career.career }}
+                                </span>
+                            </div>
+                        </div>
                     </template>
                     
                     <template v-slot:item.periods="{ item }">
-                        <v-list dense class="transparent">
-                            <v-list-item v-for="(career, index) in item.careers" :key="index" class="px-0">
-                                <v-list-item-content class="py-0">
-                                    <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadPeriodsForPlan(item, career)">
-                                        <template v-slot:activator="{ on, attrs }">
-                                            <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === career.planid">
-                                                {{ career.periodname }}
-                                                <v-icon small right>mdi-chevron-down</v-icon>
-                                            </v-btn>
-                                        </template>
-                                        <v-list dense max-height="300" class="overflow-y-auto">
-                                            <v-list-item v-if="!career.availablePeriods">
-                                                <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
-                                            </v-list-item>
-                                            <v-list-item v-for="p in career.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, career, p)">
-                                                <v-list-item-title :class="{'primary--text font-weight-bold': p.id == career.periodid}">{{ p.name }}</v-list-item-title>
-                                            </v-list-item>
-                                        </v-list>
-                                    </v-menu>
-                                    <v-list-item-subtitle v-else>{{ career.periodname }}</v-list-item-subtitle>
-                                </v-list-item-content>
-                            </v-list-item>
-                        </v-list>
+                        <div class="py-1">
+                             <div v-for="(career, index) in item.careers" :key="index" class="mb-1">
+                                <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadPeriodsForPlan(item, career)">
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingPeriod === career.planid">
+                                            {{ career.periodname }}
+                                            <v-icon small right>mdi-chevron-down</v-icon>
+                                        </v-btn>
+                                    </template>
+                                    <v-list dense max-height="300" class="overflow-y-auto">
+                                        <v-list-item v-if="!career.availablePeriods">
+                                            <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
+                                        </v-list-item>
+                                        <v-list-item v-for="p in career.availablePeriods" :key="p.id" @click="updateStudentPeriod(item, career, p)">
+                                            <v-list-item-title :class="{'primary--text font-weight-bold': p.id == career.periodid}">{{ p.name }}</v-list-item-title>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-menu>
+                                <span v-else class="text-body-2">{{ career.periodname }}</span>
+                             </div>
+                        </div>
                     </template>
 
                     <template v-slot:item.subperiods="{ item }">
