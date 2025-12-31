@@ -27,7 +27,7 @@ Vue.component('grademodal', {
                         </div>
 
                         <div class="grade-content">
-                            <div v-for="(career, careerIndex) in dataStudent.carrers" :key="careerIndex" class="mb-6">
+                            <div v-for="(career, careerIndex) in (dataStudent.carrers || dataStudent.careers)" :key="careerIndex" class="mb-6">
                                 <div class="d-flex align-center mb-2 px-2 py-1 grey lighten-4 rounded">
                                     <v-icon small color="primary" class="mr-2">mdi-school</v-icon>
                                     <span class="font-weight-bold text-subtitle-1 primary--text">
@@ -121,7 +121,8 @@ Vue.component('grademodal', {
             this.$emit('close-dialog')
         },
         async getpensum() {
-            for (const element of this.dataStudent.carrers) {
+            const careersList = this.dataStudent.carrers || this.dataStudent.careers || [];
+            for (const element of careersList) {
                 const data = await this.getcarrers(element.planid);
                 // Data comes back grouped by period id in JSON string from PHP
                 // But getcarrers (below) parses it. Let's make sure it groups by NAME for display.

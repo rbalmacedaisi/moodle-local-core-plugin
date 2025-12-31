@@ -253,15 +253,12 @@ Vue.component('studenttable', {
             { text: lang.status || 'Estado', value: 'status', sortable: false, },
         ];
 
-        // Add Grade column if we are in a class context
-        if (this.classId) {
-            headers.push({
-                text: lang.grades || 'Calificación',
-                value: 'grade',
-                sortable: false,
-                align: 'right'
-            });
-        }
+        headers.push({
+            text: lang.grades || 'Calificación',
+            value: 'grade',
+            sortable: false,
+            align: 'right'
+        });
 
         return {
             headers: headers,
