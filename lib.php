@@ -5,6 +5,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+// DEBUG: Confirm file is being loaded by Moodle
+// die('LIB_LOADED_GMK');
+
 /**
  * Redirect teachers to their dashboard when they access the site home.
  * Improved with forced redirect and logging.
