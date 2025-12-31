@@ -326,26 +326,26 @@ try {
             
             // calendar_get_events($tstart, $tend, $users, $groups, $courses, $withduration, $ignorehidden)
             // Direct SQL to bypass potential API filtering issues
-            // Fetch events for the course AND specific group (or no group)
-            $tstart = strtotime('-1 year');
-            $tend = strtotime('+2 years');
-            
+            // Fetch ALL events for the course and filter in PHP (matching debug script logic)
             $sql = "SELECT e.*
                     FROM {event} e
                     WHERE e.courseid = :courseid
-                      AND (e.groupid = :groupid OR e.groupid = 0 OR e.groupid IS NULL)
-                      AND e.timestart >= :tstart AND e.timestart <= :tend
-                      AND e.modulename IN ('attendance', 'bigbluebuttonbn')
                     ORDER BY e.timestart ASC";
             
             $params = [
-                'courseid' => $class->corecourseid,
-                'groupid' => $class->groupid,
-                'tstart' => $tstart,
-                'tend' => $tend
+                'courseid' => $class->corecourseid
             ];
             
             $events = $DB->get_records_sql($sql, $params);
+            
+            // DEBUG LOGGING
+            $logMsg = "AJAX Timeline Request (All Course Events):\n";
+            $logMsg .= "ClassID: $classid\n";
+            $logMsg .= "CourseID: {$class->corecourseid}\n";
+            $logMsg .= "GroupID: {$class->groupid}\n";
+            $logMsg .= "SQL Params: " . json_encode($params) . "\n";
+            $logMsg .= "Total Course Events Found: " . count($events) . "\n";
+            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
             
             // DEBUG LOGGING
             $logMsg = "AJAX Timeline Request:\n";
