@@ -14,6 +14,12 @@ define(['jquery', 'core/ajax', 'core/notification'], function ($, Ajax, Notifica
             if (window.ActivityCreationWizard) Vue.component('activity-wizard', window.ActivityCreationWizard);
 
             // Create Vue Application
+            const mountPoint = document.getElementById('teacher-app');
+            if (!mountPoint) {
+                console.error('Mount point #teacher-app not found');
+                return;
+            }
+
             const app = new Vue({
                 el: '#teacher-app',
                 vuetify: new Vuetify(),
