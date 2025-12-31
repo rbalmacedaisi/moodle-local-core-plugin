@@ -110,9 +110,9 @@ class get_dashboard_data extends external_api {
         global $DB;
         $now = time();
         $session = $DB->get_record_sql("SELECT * FROM {gmk_class_session} 
-            WHERE classid = :classid AND startdate >= :now ORDER BY startdate ASC LIMIT 1", 
-            ['classid' => $classid, 'now' => (string)$now]);
-        return $session ? $session->startdate : null;
+            WHERE classid = :classid AND startdate >= :now ORDER BY startdate ASC", 
+            ['classid' => $classid, 'now' => (int)$now], IGNORE_MULTIPLE);
+        return $session ? (int)$session->startdate : null;
     }
 
     public static function execute_returns() {

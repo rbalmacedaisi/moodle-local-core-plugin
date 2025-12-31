@@ -79,6 +79,22 @@ body.gmk-full-frame .drawer-toggler {
     display: none !important;
 }
 
+.line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.rounded-xl {
+    border-radius: 20px !important;
+}
+
+.rounded-lg {
+    border-radius: 12px !important;
+}
+
 /* Mobile optimizations */
 @media (max-width: 600px) {
     .v-card__title {

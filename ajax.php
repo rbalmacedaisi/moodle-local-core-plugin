@@ -20,10 +20,19 @@ if (empty($action)) {
         $jsonData = json_decode($rawInput, true);
         if ($jsonData && isset($jsonData['action'])) {
             $action = clean_param($jsonData['action'], PARAM_ALPHANUMEXT);
-            // Inject JSON data into $_POST/$_REQUEST for compatibility with optional_param
-            foreach ($jsonData as $key => $value) {
-                if (!isset($_POST[$key])) $_POST[$key] = $value;
-                if (!isset($_REQUEST[$key])) $_REQUEST[$key] = $value;
+            
+            // Extract core fields
+            foreach (['action', 'sesskey'] as $field) {
+                if (isset($jsonData[$field])) {
+                    $_POST[$field] = $_REQUEST[$field] = $jsonData[$field];
+                }
+            }
+
+            // Flatten 'args' for compatibility with required_param/optional_param
+            if (isset($jsonData['args']) && is_array($jsonData['args'])) {
+                foreach ($jsonData['args'] as $key => $value) {
+                    $_POST[$key] = $_REQUEST[$key] = $value;
+                }
             }
         }
     }

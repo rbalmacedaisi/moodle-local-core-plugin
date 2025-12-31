@@ -49,39 +49,45 @@ const ManageClass = {
                         <!-- Timeline Tab -->
                         <v-tab-item>
                             <v-card flat class="transparent">
-                                <v-timeline dense align-top>
+                                <v-timeline dense align-top class="mx-4">
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
                                         :key="session.id"
-                                        :color="getSessionColor(session)"
+                                        :color="session.type === 'virtual' ? 'blue' : 'green'"
                                         small
                                         fill-dot
                                     >
-                                        <v-card class="rounded-lg shadow-sm">
-                                            <v-card-title class="text-subtitle-1 font-weight-bold">
+                                        <v-card class="rounded-xl shadow-sm elevation-1 mb-2">
+                                            <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
                                                 Sesión {{ index + 1 }}
                                                 <v-spacer></v-spacer>
-                                                <span class="text-caption grey--text">{{ formatDate(session.startdate) }}</span>
+                                                <v-chip x-small outlined :color="session.type === 'virtual' ? 'blue' : 'green'">
+                                                    {{ session.type === 'virtual' ? 'VIRTUAL' : 'PRESENCIAL' }}
+                                                </v-chip>
                                             </v-card-title>
                                             <v-card-text>
-                                                <div class="d-flex align-center mb-2" v-if="session.type === 'virtual'">
-                                                    <v-icon small color="blue" class="mr-2">mdi-video</v-icon>
-                                                    <span class="blue--text">Aula Virtual (BBB)</span>
-                                                </div>
-                                                <div class="d-flex align-center mb-2" v-else>
-                                                    <v-icon small color="green" class="mr-2">mdi-map-marker</v-icon>
-                                                    <span>{{ session.room_name || 'Aula Física' }}</span>
+                                                <div class="d-flex align-center grey--text text--darken-2">
+                                                    <v-icon small class="mr-2">mdi-calendar-clock</v-icon>
+                                                    <span class="font-weight-medium">{{ formatDate(session.startdate) }}</span>
                                                 </div>
                                             </v-card-text>
-                                            <v-card-actions>
-                                                <v-btn small depressed color="primary" @click="enterSession(session)">
-                                                    {{ session.type === 'virtual' ? 'Entrar al Aula' : 'Tomar Asistencia' }}
+                                            <v-divider></v-divider>
+                                            <v-card-actions class="grey lighten-5">
+                                                <v-btn small depressed :color="session.type === 'virtual' ? 'blue' : 'green'" dark class="rounded-lg px-4" @click="enterSession(session)">
+                                                    <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
+                                                    {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
                                                 </v-btn>
-                                                <v-btn small text @click="rescheduleSession(session)">Reprogramar</v-btn>
+                                                <v-spacer></v-spacer>
+                                                <v-btn small text color="grey darken-1" @click="rescheduleSession(session)">
+                                                    <v-icon left x-small>mdi-pencil</v-icon> Editar
+                                                </v-btn>
                                             </v-card-actions>
                                         </v-card>
                                     </v-timeline-item>
                                 </v-timeline>
+                                <v-alert v-if="timeline.length === 0" type="info" text class="ma-4 rounded-xl">
+                                    No hay sesiones programadas para esta clase.
+                                </v-alert>
                             </v-card>
                         </v-tab-item>
 
@@ -190,8 +196,15 @@ const ManageClass = {
             return false;
         },
         formatDate(timestamp) {
+            if (!timestamp) return 'No programada';
             const date = new Date(parseInt(timestamp) * 1000);
-            return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleDateString(undefined, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         },
         enterSession(session) {
             if (session.type === 'virtual') {

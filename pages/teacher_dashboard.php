@@ -39,10 +39,13 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/student
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js'), true);
 
 // Initialize the experience
+$logo = $PAGE->theme->get_logo_url();
 $config = [
     'wwwroot' => $CFG->wwwroot,
     'userId' => $USER->id,
-    'userToken' => $USER->sesskey
+    'userToken' => $USER->sesskey,
+    'logoutUrl' => (new moodle_url('/login/logout.php', ['sesskey' => sesskey()]))->out(false),
+    'logoUrl' => $logo ? $logo->out(false) : 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=200', // Placeholder if no theme logo
 ];
 $PAGE->requires->js_init_code("if(window.TeacherExperience) { window.TeacherExperience.init(".json_encode($config)."); }");
 
