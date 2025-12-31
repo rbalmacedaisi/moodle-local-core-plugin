@@ -104,7 +104,7 @@ const ManageClass = {
 
                         <!-- Roster Tab -->
                         <v-tab-item>
-                            <studenttable :class-id="classId"></studenttable>
+                            <teacher-student-table :class-id="classId"></teacher-student-table>
                         </v-tab-item>
 
                         <!-- Grades Tab -->
