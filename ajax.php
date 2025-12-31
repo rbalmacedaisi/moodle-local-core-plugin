@@ -286,6 +286,32 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_info':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
+            
+            // Map params from request
+            $page = optional_param('page', 0, PARAM_INT);
+            $resultsperpage = optional_param('resultsperpage', 15, PARAM_INT);
+            $search = optional_param('search', '', PARAM_RAW);
+            $planid = optional_param('planid', '', PARAM_RAW);
+            $periodid = optional_param('periodid', '', PARAM_RAW);
+            $status = optional_param('status', '', PARAM_TEXT);
+            $classid = optional_param('classid', 0, PARAM_INT);
+
+            // Execute
+            $result = \local_grupomakro_core\external\student\get_student_info::execute(
+                $page, $resultsperpage, $search, $planid, $periodid, $status, $classid
+            );
+            
+            // Retrieve actual values from external_value structure if needed, or if array is returned directly
+            // Moodle external functions return arrays/stdClasses.
+            
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_get_class_details':
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
@@ -307,7 +333,8 @@ try {
                 $session_data->type = ($class->type == 1 ? 'virtual' : 'physical');
                 
                 // BBB Logic
-                if ($s->bbbactivityid) {
+                $session_data->join_url = '';
+                if ($class->type == 1 && $s->bbbactivityid) {
                     try {
                         $cm = get_coursemodule_from_instance('bigbluebuttonbn', $s->bbbactivityid);
                         if ($cm) {

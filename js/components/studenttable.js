@@ -333,45 +333,77 @@ Vue.component('studenttable', {
         async getDataFromApi() {
             this.loading = true;
             try {
-                const url = this.siteUrl;
-                const params = {
-                    wstoken: this.token,
-                    moodlewsrestformat: 'json',
-                    wsfunction: 'local_grupomakro_get_student_info',
-                    page: this.options.page,
-                    resultsperpage: this.options.itemsPerPage,
-                    search: this.options.search,
-                    planid: Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '',
-                    periodid: Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '',
-                    status: this.filters.status || '',
-                    classid: this.classId || 0,
-                };
-                const response = await window.axios.get(url, { params });
-                if (!response.data || !response.data.dataUsers) {
-                    console.error("Invalid response from server:", response.data);
-                    this.students = [];
-                    return;
-                }
-                const data = JSON.parse(response.data.dataUsers);
-                this.totalDesserts = response.data.totalResults
-                this.activeUsers = response.data.activeUsers || 0;
-                this.students = [];
-                data.forEach((element) => {
-                    this.students.push({
-                        name: element.nameuser,
-                        email: element.email,
-                        id: element.userid,
-                        documentnumber: element.documentnumber,
-                        carrers: element.careers,
-                        subperiods: element.subperiods, // Mapped Bloque
-                        updatingPeriod: null,
-                        revalidate: element.revalidate.length > 0 ? element.revalidate : '--',
-                        status: element.status,
-                        img: element.profileimage
-                    });
+                // Use the WS URL (ajax.php) defined globally or fallback
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_student_info');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('page', this.options.page);
+                params.append('resultsperpage', this.options.itemsPerPage);
+                params.append('search', this.options.search || '');
+
+                const planid = Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '';
+                const periodid = Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '';
+
+                params.append('planid', planid);
+                params.append('periodid', periodid);
+                params.append('status', this.filters.status || '');
+                params.append('classid', this.classId || 0);
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: params
                 });
+
+                const res = await response.json();
+
+                if (res.errorcode) {
+                    throw new Error(res.message);
+                }
+
+                if (res.status === 'success' && res.data) {
+                    let dataUsers = res.data.dataUsers;
+                    if (typeof dataUsers === 'string') {
+                        try {
+                            dataUsers = JSON.parse(dataUsers);
+                        } catch (e) {
+                            console.warn("Failed to parse dataUsers string", e);
+                            dataUsers = [];
+                        }
+                    }
+
+                    this.activeUsers = res.data.activeUsers || 0;
+                    this.totalDesserts = res.data.totalResults;
+
+                    this.students = [];
+                    if (Array.isArray(dataUsers)) {
+                        dataUsers.forEach((element) => {
+                            this.students.push({
+                                name: element.nameuser,
+                                email: element.email,
+                                id: element.userid,
+                                documentnumber: element.documentnumber,
+                                carrers: element.careers,
+                                subperiods: element.subperiods,
+                                updatingPeriod: null,
+                                revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
+                                status: element.status,
+                                img: element.profileimage,
+                                currentgrade: element.currentgrade || '--'
+                            });
+                        });
+                    }
+                } else if (res.message) {
+                    throw new Error(res.message);
+                }
+
             } catch (error) {
-                console.error("Error fetching student information:", error);
+                console.error('Error fetching student information:', error);
+                this.syncLog = 'Error fetching data: ' + error.message;
             } finally {
                 this.loading = false;
             }
