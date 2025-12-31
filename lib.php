@@ -35,16 +35,31 @@ function local_grupomakro_core_my_home_redirect(&$url) {
 /**
  * Catch-all via navigation extension. 
  * This is called on almost every page and ensures we don't miss the target.
+ * Also handles admin menu items (merged from locallib.php).
  */
-function local_grupomakro_core_extend_navigation(global_navigation $nav) {
-    global $PAGE;
+function local_grupomakro_core_extend_navigation(global_navigation $navigation) {
+    global $PAGE, $CFG;
     
+    // 1. Admin menu handling (from original locallib.php)
+    if (is_siteadmin()) {
+        $CFG->custommenuitems = get_string('pluginname', 'local_grupomakro_core');
+        if (has_capability('local/grupomakro_core:seeallorders', $PAGE->context)) {
+            $CFG->custommenuitems .= PHP_EOL . '-' . get_string('orders', 'local_grupomakro_core') .
+                '|/local_grupomakro_core/pages/orders.php';
+        }
+    }
+
+    // 2. Redirection logic
     // Only intercept if we are on the main landing pages
-    $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
-    $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
-    
-    if ($is_home || $is_dashboard) {
-        $dummy = null;
-        local_grupomakro_core_user_home_redirect($dummy);
+    try {
+        $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
+        $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
+        
+        if ($is_home || $is_dashboard) {
+            $dummy = null;
+            local_grupomakro_core_user_home_redirect($dummy);
+        }
+    } catch (Exception $e) {
+        // Avoid crashing the whole site if URL comparison fails in certain contexts
     }
 }

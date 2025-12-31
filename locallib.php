@@ -37,29 +37,6 @@ require_once($CFG->dirroot . '/user/profile/lib.php');
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
-/**
- * This function is the extend_navigation function for the plugin.
- * 
- * We will add a new item to the main navigation menu.
- * 
- * @param global_navigation $navigation
- */
-function local_grupomakro_core_extend_navigation(global_navigation $navigation)
-{
-
-    global $CFG, $PAGE;
-
-    // If the current user is a site admin, we will add a new item to the main navigation menu.
-    if (is_siteadmin()) {
-        $CFG->custommenuitems = get_string('pluginname', 'local_grupomakro_core');
-
-        // If the current user has grupomakro_core:seeallorders capability, we will add a new item to the main navigation menu.
-        if (has_capability('local/grupomakro_core:seeallorders', $PAGE->context)) {
-            $CFG->custommenuitems .= PHP_EOL . '-' . get_string('orders', 'local_grupomakro_core') .
-                '|/local/grupomakro_core/pages/orders.php';
-        }
-    }
-}
 
 function get_teachers_disponibility($params)
 {
