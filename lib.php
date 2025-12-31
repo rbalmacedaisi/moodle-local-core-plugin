@@ -7,10 +7,7 @@ defined('MOODLE_INTERNAL') || die();
 
 /**
  * Redirect teachers to their dashboard when they access the site home.
- * This is more robust than a login observer as it handles existing sessions.
- * 
- * @param moodle_url $url The default URL Moodle would redirect to.
- * @return void
+ * Improved with forced redirect and logging.
  */
 function local_grupomakro_core_user_home_redirect(&$url) {
     global $DB, $USER;
@@ -19,20 +16,29 @@ function local_grupomakro_core_user_home_redirect(&$url) {
         return;
     }
 
-    // Check if user is an instructor in any active class in gmk_class
+    // Skip redirection for admins to allow site management
+    if (is_siteadmin()) {
+        return;
+    }
+
     $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
 
     if ($is_teacher) {
-        // Change the redirection URL to the teacher dashboard
-        $url = new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
+        $target = new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
+        
+        // Log the redirection for verification
+        $log_file = __DIR__ . '/redirection_log.txt';
+        $time = date('Y-m-d H:i:s');
+        $msg = "[$time] Redirecting User ID {$USER->id} to Dashboard\n";
+        @file_put_contents($log_file, $msg, FILE_APPEND);
+
+        // Force redirect immediately
+        redirect($target);
     }
 }
 
 /**
  * Redirect teachers to their dashboard when they access the Moodle Dashboard (Dashboard/My).
- * 
- * @param moodle_url $url The default URL Moodle would redirect to.
- * @return void
  */
 function local_grupomakro_core_my_home_redirect(&$url) {
     local_grupomakro_core_user_home_redirect($url);

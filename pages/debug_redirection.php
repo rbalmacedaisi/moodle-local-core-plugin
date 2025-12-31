@@ -78,6 +78,20 @@ if (file_exists($events_file)) {
 }
 echo "<p>¿Evento 'user_loggedin' definido en db/events.php?: " . ($obs_in_events_file ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
 
+echo "<hr><h3>Logs de Redirección</h3>";
+$log_file = $CFG->dirroot . '/local/grupomakro_core/redirection_log.txt';
+if (file_exists($log_file)) {
+    echo "<pre style='background: #333; color: #eee; padding: 10px; max-height: 200px; overflow-y: scroll;'>" . htmlspecialchars(file_get_contents($log_file)) . "</pre>";
+    echo "<p><a href='debug_redirection.php?clearlogs=1'>Limpiar logs</a></p>";
+} else {
+    echo "<p>No hay logs registrados aún.</p>";
+}
+
+if (optional_param('clearlogs', 0, PARAM_INT)) {
+    @unlink($log_file);
+    redirect(new moodle_url('debug_redirection.php'));
+}
+
 echo "<hr><p><a href='debug_redirection.php?purge=1'>Purgar Caches de Moodle</a></p>";
 
 if (optional_param('purge', 0, PARAM_INT)) {
