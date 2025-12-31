@@ -291,7 +291,7 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
             
-            $sql = "SELECT asess.id, e.timestart as startdate 
+            $sql = "SELECT asess.id, e.timestart as startdate, rel.bbbactivityid
                     FROM {attendance_sessions} asess
                     JOIN {event} e ON e.id = asess.caleventid
                     JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
@@ -305,6 +305,25 @@ try {
                 $session_data->id = $s->id;
                 $session_data->startdate = $s->startdate;
                 $session_data->type = ($class->type == 1 ? 'virtual' : 'physical');
+                
+                // BBB Logic
+                if ($s->bbbactivityid) {
+                    try {
+                        $cm = get_coursemodule_from_instance('bigbluebuttonbn', $s->bbbactivityid);
+                        if ($cm) {
+                            $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
+                            
+                            // Check for recordings
+                            $recordingId = $DB->get_field('bigbluebuttonbn_recordings', 'recordingid', ['bigbluebuttonbnid' => $s->bbbactivityid]);
+                            if ($recordingId) {
+                                $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
+                            }
+                        }
+                    } catch (Exception $e) {
+                         // Ignore BBB errors to not break the whole list
+                    }
+                }
+                
                 $formatted_sessions[] = $session_data;
             }
 

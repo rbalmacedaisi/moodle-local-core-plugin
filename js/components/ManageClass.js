@@ -24,7 +24,7 @@ const ManageClass = {
                     </div>
                     <v-spacer></v-spacer>
                     <v-chip dark :color="classDetails.type === 1 ? 'blue' : 'green'">
-                        {{ classDetails.type === 1 ? 'Virtual' : 'Presencial' }}
+                        {{ classDetails.typelabel || (classDetails.type === 1 ? 'Virtual' : 'Presencial') }}
                     </v-chip>
                 </v-col>
             </v-row>
@@ -123,6 +123,17 @@ const ManageClass = {
                     <v-icon>mdi-file-download</v-icon>
                 </v-btn>
             </v-speed-dial>
+            </v-speed-dial>
+            
+            <!-- Activity Creation Wizard -->
+            <activity-creation-wizard 
+                v-if="showActivityWizard" 
+                :class-id="parseInt(classId)" 
+                :activity-type="newActivityType"
+                @close="showActivityWizard = false"
+                @success="onActivityCreated"
+            ></activity-creation-wizard>
+
         </v-container>
     `,
     data() {
@@ -139,7 +150,14 @@ const ManageClass = {
                 { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
                 { id: 2, name: 'Notas', icon: 'mdi-star' }
             ],
-            timeline: []
+            tabs: [
+                { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
+                { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
+                { id: 2, name: 'Notas', icon: 'mdi-star' }
+            ],
+            timeline: [],
+            showActivityWizard: false,
+            newActivityType: ''
         };
     },
     mounted() {
@@ -202,8 +220,11 @@ const ManageClass = {
         },
         enterSession(session) {
             if (session.type === 'virtual') {
-                // Logic to open BBB activity
-                // window.open(session.bbb_url, '_blank');
+                if (session.join_url) {
+                    window.open(session.join_url, '_blank');
+                } else {
+                    alert('El enlace a la sesión virtual no está disponible.');
+                }
             } else {
                 // Logic to open attendance manager
             }
@@ -212,8 +233,11 @@ const ManageClass = {
             // Open reschedule dialog
         },
         addActivity(type) {
-            // Open activity creation wizard
-            console.log('Adding activity:', type);
+            this.newActivityType = type;
+            this.showActivityWizard = true;
+        },
+        onActivityCreated() {
+            this.fetchTimeline(); // Reload timeline to show new activity if applicable
         }
     }
 };

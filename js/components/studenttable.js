@@ -309,6 +309,12 @@ Vue.component('studenttable', {
             },
             deep: true,
         },
+        classId: {
+            handler() {
+                this.getDataFromApi();
+            },
+            immediate: true
+        }
     },
     methods: {
         async getDataFromApi() {
