@@ -109,76 +109,75 @@ const ActivityCreationWizard = {
                 intro: '',
                 duedate: '',
                 gradecat: null
-            }
-        },
+            },
             gradeCategories: []
-    };
-},
+        };
+    },
     mounted() {
         if (this.activityType === 'assignment') {
             this.fetchGradeCategories();
         }
     },
-        computed: {
-    activityLabel() {
-        const labels = { bbb: 'Sesión Virtual', assignment: 'Tarea', resource: 'Material' };
-        return labels[this.activityType] || 'Actividad';
-    }
-},
-methods: {
-    close() {
-        this.$emit('close');
+    computed: {
+        activityLabel() {
+            const labels = { bbb: 'Sesión Virtual', assignment: 'Tarea', resource: 'Material' };
+            return labels[this.activityType] || 'Actividad';
+        }
     },
+    methods: {
+        close() {
+            this.$emit('close');
+        },
         async saveActivity() {
-        this.saving = true;
-        try {
-            // Call Moodle AJAX service (consolidated method)
-            const response = await axios.post(window.wsUrl, {
-                action: 'local_grupomakro_create_express_activity',
-                args: {
-                    classid: this.classId,
-                    type: this.activityType,
-                    name: this.formData.name,
-                    intro: this.formData.intro,
-                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                    save_as_template: this.saveAsTemplate,
-                    gradecat: this.formData.gradecat
-                },
-                ...window.wsStaticParams
-            });
+            this.saving = true;
+            try {
+                // Call Moodle AJAX service (consolidated method)
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_create_express_activity',
+                    args: {
+                        classid: this.classId,
+                        type: this.activityType,
+                        name: this.formData.name,
+                        intro: this.formData.intro,
+                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                        save_as_template: this.saveAsTemplate,
+                        gradecat: this.formData.gradecat
+                    },
+                    ...window.wsStaticParams
+                });
 
-            if (response.data.status === 'success') {
-                if (window.M && window.M.util) {
-                    window.M.util.js_pending('assignment_created');
-                    location.reload(); // Traditional reload to see new module
+                if (response.data.status === 'success') {
+                    if (window.M && window.M.util) {
+                        window.M.util.js_pending('assignment_created');
+                        location.reload(); // Traditional reload to see new module
+                    }
+                    this.$emit('success');
+                    this.close();
+                } else {
+                    alert('Error creating activity: ' + response.data.message);
                 }
-                this.$emit('success');
-                this.close();
-            } else {
-                alert('Error creating activity: ' + response.data.message);
+            } catch (error) {
+                console.error('Error saving activity:', error);
+                alert('Error de red al crear actividad');
+            } finally {
+                this.saving = false;
             }
-        } catch (error) {
-            console.error('Error saving activity:', error);
-            alert('Error de red al crear actividad');
-        } finally {
-            this.saving = false;
-        }
-    },
+        },
         async fetchGradeCategories() {
-        try {
-            const response = await axios.post(window.wsUrl, {
-                action: 'local_grupomakro_get_course_grade_categories',
-                args: { classid: this.classId },
-                ...window.wsStaticParams
-            });
-            if (response.data.status === 'success') {
-                this.gradeCategories = response.data.categories;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_course_grade_categories',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.gradeCategories = response.data.categories;
+                }
+            } catch (error) {
+                console.error('Error fetching categories:', error);
             }
-        } catch (error) {
-            console.error('Error fetching categories:', error);
         }
     }
-}
 };
 
 window.ActivityCreationWizard = ActivityCreationWizard;
