@@ -16,7 +16,7 @@ class update_status extends external_api {
     public static function execute_parameters() {
         return new external_function_parameters(
             array(
-                'username'     => new external_value(PARAM_USERNAME, 'The username of the student', VALUE_REQUIRED),
+                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
                 'status'       => new external_value(PARAM_TEXT, 'The new status (active, suspended)', VALUE_REQUIRED),
                 'reason'       => new external_value(PARAM_TEXT, 'Reason for update', VALUE_DEFAULT, '')
             )
@@ -34,9 +34,10 @@ class update_status extends external_api {
         ));
 
         // 1. Resolve User
-        $user = $DB->get_record('user', ['username' => $params['username'], 'deleted' => 0]);
+        $lookupUsername = \core_text::strtolower($params['username']);
+        $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0]);
         if (!$user) {
-            throw new moodle_exception('invaliduser', 'error', '', $params['username']);
+            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         $status = strtolower($params['status']);

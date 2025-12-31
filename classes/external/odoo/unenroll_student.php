@@ -19,7 +19,7 @@ class unenroll_student extends external_api {
         return new external_function_parameters(
             array(
                 'product_name' => new external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
-                'username'     => new external_value(PARAM_USERNAME, 'The username of the student', VALUE_REQUIRED)
+                'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED)
             )
         );
     }
@@ -34,9 +34,10 @@ class unenroll_student extends external_api {
         ));
 
         // 1. Resolve User
-        $user = $DB->get_record('user', ['username' => $params['username'], 'deleted' => 0]);
+        $lookupUsername = \core_text::strtolower($params['username']);
+        $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0]);
         if (!$user) {
-            throw new moodle_exception('invaliduser', 'error', '', $params['username']);
+            throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
         // 2. Resolve Learning Plan
