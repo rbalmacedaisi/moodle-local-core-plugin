@@ -49,12 +49,7 @@ const ManageClass = {
                         <!-- Timeline Tab -->
                         <v-tab-item>
                             <v-card flat class="transparent">
-                                <v-alert type="warning" dense outlined class="mb-2">
-                                    <strong>Debug Info:</strong>
-                                    ClassID: {{ classId }} | 
-                                    Records in Timeline: {{ timeline.length }} |
-                                    Last Update: {{ new Date().toLocaleTimeString() }}
-                                </v-alert>
+                            <v-card flat class="transparent">
                                 <v-timeline dense align-top class="mx-4">
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
@@ -76,10 +71,25 @@ const ManageClass = {
                                                     <v-icon small class="mr-2">mdi-calendar-clock</v-icon>
                                                     <span class="font-weight-medium">{{ formatDate(session.startdate) }}</span>
                                                 </div>
+                                                <div v-if="session.type === 'virtual'" class="mt-2 caption blue--text text--darken-1">
+                                                    <v-icon x-small color="blue darken-1" class="mr-1">mdi-information</v-icon>
+                                                    El acceso se habilita a la hora del evento.
+                                                </div>
                                             </v-card-text>
                                             <v-divider></v-divider>
                                             <v-card-actions class="grey lighten-5">
-                                                <v-btn small depressed :color="session.type === 'virtual' ? 'blue' : 'green'" dark class="rounded-lg px-4" @click="enterSession(session)">
+                                                <v-btn 
+                                                    small 
+                                                    depressed 
+                                                    :color="session.type === 'virtual' ? 'blue' : 'green'" 
+                                                    dark 
+                                                    class="rounded-lg px-4" 
+                                                    @click="enterSession(session)"
+                                                    :disabled="session.type === 'virtual' && !isSessionActive(session)"
+                                                >
+                                                    <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
+                                                    {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
+                                                </v-btn>
                                                     <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
                                                     {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
                                                 </v-btn>
@@ -207,6 +217,11 @@ const ManageClass = {
         isNextSession(session) {
             // Simple logic for highlighting the upcoming session
             return false;
+        },
+        isSessionActive(session) {
+            const now = new Date().getTime() / 1000;
+            // Allow entry 15 mins before
+            return now >= (session.startdate - 900);
         },
         formatDate(timestamp) {
             if (!timestamp) return 'No programada';

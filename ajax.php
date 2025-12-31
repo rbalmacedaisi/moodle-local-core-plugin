@@ -338,26 +338,8 @@ try {
             
             $events = $DB->get_records_sql($sql, $params);
             
-            // DEBUG LOGGING
-            $logMsg = "AJAX Timeline Request (All Course Events):\n";
-            $logMsg .= "ClassID: $classid\n";
-            $logMsg .= "CourseID: {$class->corecourseid}\n";
-            $logMsg .= "GroupID: {$class->groupid}\n";
-            $logMsg .= "SQL Params: " . json_encode($params) . "\n";
-            $logMsg .= "Total Course Events Found: " . count($events) . "\n";
-            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
-            
-            // DEBUG LOGGING
-            $logMsg = "AJAX Timeline Request:\n";
-            $logMsg .= "ClassID: $classid\n";
-            $logMsg .= "CourseID: {$class->corecourseid}\n";
-            $logMsg .= "GroupID: {$class->groupid}\n";
-            $logMsg .= "SQL Params: " . json_encode($params) . "\n";
-            $logMsg .= "Raw Events Found: " . count($events) . "\n";
-            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
 
             $formatted_sessions = [];
-            $logMsg .= "Processing Events Loop:\n";
             foreach ($events as $e) {
                 // Debug individual events
                 $eGroupId = isset($e->groupid) ? $e->groupid : 'NULL';
@@ -366,18 +348,15 @@ try {
                 try {
                 // Filter by Group
                 if (!empty($e->groupid) && $e->groupid != $class->groupid) {
-                    $logMsg .= "  [SKIP] ID {$e->id}: Group mistmatch ($eGroupId != $cGroupId)\n";
                     continue;
                 }
 
                 // Filter by Module
                 // Allow bigbluebuttonbn module (lowercase)
                 if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
-                   // $logMsg .= "  [SKIP] ID {$e->id}: Module mistmatch ({$e->modulename})\n";
+                if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
                    continue; 
                 }
-
-                $logMsg .= "  [KEEP] ID {$e->id}: Matched ($eGroupId == $cGroupId) Mod: {$e->modulename}\n";
 
                 $session_data = new stdClass();
                 $session_data->id = $e->id; // Calendar event ID
@@ -429,12 +408,9 @@ try {
                 $formatted_sessions[] = $session_data;
 
                 } catch (\Throwable $t) {
-                    $logMsg .= "  [ERROR] ID {$e->id}: " . $t->getMessage() . "\n";
+                    // Log error if needed, but keeping it silent for production or use standard logging
                 }
             }
-
-            $logMsg .= "Final Formatted Sessions: " . count($formatted_sessions) . "\n";
-            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
             
             // Sort by start date ASC
             usort($formatted_sessions, function($a, $b) {
