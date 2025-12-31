@@ -106,6 +106,7 @@ class get_student_info extends external_api {
                 $sqlConditions[] = "lpu.currentperiodid $insql";
                 $sqlParams = array_merge($sqlParams, $inparams);
             }
+        }
         if (!empty($params['classid'])) {
             $class = $DB->get_record('gmk_class', ['id' => $params['classid']], 'groupid,instructorid');
             if ($class) {
