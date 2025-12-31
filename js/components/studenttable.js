@@ -246,7 +246,7 @@ Vue.component('studenttable', {
             {
                 text: lang.career || 'Carrera',
                 sortable: false,
-                value: 'careers',
+                value: 'carrers',
             },
             { text: lang.period || 'Periodo', value: 'periods', sortable: false, width: '200px' },
             { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
