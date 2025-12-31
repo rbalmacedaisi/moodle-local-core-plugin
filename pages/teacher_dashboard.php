@@ -16,7 +16,7 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.ph
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Dashboard del Docente');
 $PAGE->set_heading('Dashboard del Docente');
-$PAGE->set_pagelayout('standard'); // Use standard for better compatibility with core JS
+$PAGE->set_pagelayout('embedded'); // Minimal layout for Vue apps
 
 // Required CSS for modern look
 $PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css'));
@@ -33,12 +33,16 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/Teacher
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js'), true);
 
-// Required JS (AMD Initializer)
-$PAGE->requires->js_call_amd('local_grupomakro_core/teacher_experience', 'init', [
+// Load main experience module as standard JS (bypassing AMD build issues)
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js'), true);
+
+// Initialize the experience
+$config = [
     'wwwroot' => $CFG->wwwroot,
     'userId' => $USER->id,
     'userToken' => $USER->sesskey
-]);
+];
+$PAGE->requires->js_init_code("if(window.TeacherExperience) { window.TeacherExperience.init(".json_encode($config)."); }");
 
 echo $OUTPUT->header();
 
