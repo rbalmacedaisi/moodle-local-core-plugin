@@ -22,19 +22,21 @@ class create_express_activity extends external_api {
                 'name' => new external_value(PARAM_TEXT, 'The name of the activity', VALUE_REQUIRED),
                 'intro' => new external_value(PARAM_RAW, 'The description of the activity', VALUE_DEFAULT, ''),
                 'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
-                'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false)
+                'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
+                'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0)
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template) {
+    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $gradecat = 0) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
             'name' => $name,
             'intro' => $intro,
             'duedate' => $duedate,
-            'save_as_template' => $save_as_template
+            'save_as_template' => $save_as_template,
+            'gradecat' => $gradecat
         ));
 
         $context = \context_system::instance();
@@ -46,7 +48,8 @@ class create_express_activity extends external_api {
 
         $extra = [
             'duedate' => $params['duedate'],
-            'save_as_template' => $params['save_as_template']
+            'save_as_template' => $params['save_as_template'],
+            'gradecat' => $params['gradecat']
         ];
 
         try {

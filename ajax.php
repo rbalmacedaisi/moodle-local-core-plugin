@@ -317,48 +317,107 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
             
-            $sql = "SELECT asess.id, e.timestart as startdate, rel.bbbactivityid
-                    FROM {attendance_sessions} asess
-                    JOIN {event} e ON e.id = asess.caleventid
-                    LEFT JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
-                    WHERE asess.groupid = :groupid
-                    ORDER BY e.timestart ASC";
+            // Use local library function which wraps calendar_get_events
+            // This ensures we get reschedules, holidays, and all event types correctly
+            $events = get_class_events(null, date('Y-m-d', strtotime('-1 month')), date('Y-m-d', strtotime('+3 months')));
             
-            $sessions = $DB->get_records_sql($sql, ['groupid' => $class->groupid]);
+            // Filter events for this specific class
+            $class_events = array_filter($events, function($e) use ($classid) {
+                return isset($e->classId) && $e->classId == $classid;
+            });
+
             $formatted_sessions = [];
-            foreach ($sessions as $s) {
+            foreach ($class_events as $e) {
                 $session_data = new stdClass();
-                $session_data->id = $s->id;
-                $session_data->startdate = $s->startdate;
-                $session_data->type = ($class->type == 1 ? 'virtual' : 'physical');
+                $session_data->id = $e->id; // Calendar event ID
+                $session_data->startdate = $e->timestart;
+                $session_data->enddate = $e->timestart + $e->timeduration;
+                $session_data->type = $e->classType == '1' ? 'virtual' : ($e->classType == '2' ? 'mixed' : 'physical');
+                $session_data->name = $e->name;
                 
-                // BBB Logic
-                $session_data->join_url = '';
-                if ($class->type == 1 && $s->bbbactivityid) {
-                    try {
-                        $cm = get_coursemodule_from_instance('bigbluebuttonbn', $s->bbbactivityid);
-                        if ($cm) {
-                            $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
-                            
-                            // Check for recordings
-                            $recordingId = $DB->get_field('bigbluebuttonbn_recordings', 'recordingid', ['bigbluebuttonbnid' => $s->bbbactivityid]);
-                            if ($recordingId) {
-                                $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
-                            }
-                        }
-                    } catch (Exception $e) {
-                         // Ignore BBB errors to not break the whole list
-                    }
-                }
+                // BBB Logic (already handled by get_class_events for virtual/mixed)
+                $session_data->join_url = isset($e->bigBlueButtonActivityUrl) ? $e->bigBlueButtonActivityUrl : '';
                 
                 $formatted_sessions[] = $session_data;
             }
+            
+            // Sort by start date
+            usort($formatted_sessions, function($a, $b) {
+                return $a->startdate - $b->startdate;
+            });
 
             $response = [
                 'status' => 'success',
                 'data' => [
                     'class' => $class,
-                    'sessions' => $formatted_sessions
+                    'timeline' => array_values($formatted_sessions) // Send as 'timeline' to match frontend expectation
+                ]
+            ];
+            break;
+
+        case 'local_grupomakro_get_class_grades':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            $courseid = $class->corecourseid;
+            $groupid = $class->groupid;
+
+            // 1. Fetch Students (Rows)
+            $students = $DB->get_records_sql("
+                SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
+                FROM {groups_members} gm
+                JOIN {user} u ON u.id = gm.userid
+                WHERE gm.groupid = :groupid
+                ORDER BY u.lastname, u.firstname
+            ", ['groupid' => $groupid]);
+
+            // 2. Fetch Grade Categories (Columns/Rubrics)
+            // We want the direct children of the course category or manual items
+            require_once($CFG->libdir . '/gradelib.php');
+            
+            $course_category = \grade_category::fetch_course_category($courseid);
+            $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
+            
+            $columns = [];
+            $item_ids = [];
+
+            foreach ($grade_items as $gi) {
+                // Filter out course total or unwanted items if necessary
+                // For now, we show all 'manual' or 'mod' items that are not course total
+                if ($gi->itemtype == 'course') continue; 
+                
+                $columns[] = [
+                    'id' => $gi->id,
+                    'title' => $gi->itemname ?: $gi->itemtype,
+                    'max_grade' => $gi->grademax,
+                    'weight' => $gi->aggregationcoef
+                ];
+                $item_ids[] = $gi->id;
+            }
+
+            // 3. Fetch Grades (Cells)
+            $grades_data = [];
+            foreach ($students as $student) {
+                $student_row = [
+                    'id' => $student->id,
+                    'fullname' => $student->firstname . ' ' . $student->lastname,
+                    'email' => $student->email,
+                    'grades' => []
+                ];
+
+                foreach ($item_ids as $iid) {
+                    $grade = \grade_grade::fetch(['itemid' => $iid, 'userid' => $student->id]);
+                    $student_row['grades'][$iid] = $grade ? $grade->finalgrade : '-';
+                }
+                $grades_data[] = $student_row;
+            }
+
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'columns' => $columns,
+                    'students' => $grades_data
                 ]
             ];
             break;
@@ -387,6 +446,34 @@ try {
                 $response['status'] = 'success';
                 $response['log'] = 'No hay logs disponibles.';
             }
+            break;
+
+        case 'local_grupomakro_get_course_grade_categories':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            require_once($CFG->libdir . '/gradelib.php');
+            $categories = \grade_category::fetch_all(['courseid' => $class->corecourseid]);
+            
+            $formatted_cats = [];
+            foreach ($categories as $cat) {
+                 // Skip course total category itself if desired, or keep all
+                 $formatted_cats[] = [
+                     'id' => $cat->id,
+                     'name' => $cat->get_name(),
+                     'fullname' => $cat->get_formatted_name()
+                 ];
+            }
+            // Sort by name
+            usort($formatted_cats, function($a, $b) {
+                return strcmp($a['fullname'], $b['fullname']);
+            });
+
+            $response = [
+                'status' => 'success',
+                'categories' => $formatted_cats
+            ];
             break;
         
         default:

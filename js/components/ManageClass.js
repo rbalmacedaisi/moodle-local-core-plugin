@@ -98,7 +98,7 @@ const ManageClass = {
 
                         <!-- Grades Tab -->
                         <v-tab-item>
-                            <studenttable :class-id="classId"></studenttable>
+                            <grades-grid :class-id="classId"></grades-grid>
                         </v-tab-item>
 
                     </v-tabs-items>
@@ -145,11 +145,6 @@ const ManageClass = {
                 course_shortname: '',
                 type: 0
             },
-            tabs: [
-                { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
-                { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
-                { id: 2, name: 'Notas', icon: 'mdi-star' }
-            ],
             tabs: [
                 { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
                 { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },

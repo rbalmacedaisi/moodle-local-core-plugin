@@ -34,6 +34,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/Teacher
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js'), true);

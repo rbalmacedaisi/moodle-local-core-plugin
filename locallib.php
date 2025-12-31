@@ -3257,6 +3257,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     $moduleinfo->visible    = 1;
     $moduleinfo->groupmode  = 1; // Separate groups
     
+    if (!empty($extra['gradecat'])) {
+        $moduleinfo->gradecat = $extra['gradecat'];
+    }
+    
     if ($type === 'bigbluebuttonbn') {
         $moduleinfo->type = 0; // All features
         $moduleinfo->participants = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
