@@ -346,6 +346,15 @@ try {
             ];
             
             $events = $DB->get_records_sql($sql, $params);
+            
+            // DEBUG LOGGING
+            $logMsg = "AJAX Timeline Request:\n";
+            $logMsg .= "ClassID: $classid\n";
+            $logMsg .= "CourseID: {$class->corecourseid}\n";
+            $logMsg .= "GroupID: {$class->groupid}\n";
+            $logMsg .= "SQL Params: " . json_encode($params) . "\n";
+            $logMsg .= "Raw Events Found: " . count($events) . "\n";
+            file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
 
             $formatted_sessions = [];
             foreach ($events as $e) {
