@@ -1,64 +1,74 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
-require_once($CFG->dirroot . '/calendar/lib.php');
+require_login();
 
-// Adjust this ID to a known class ID you want to test
+// Param: classid
 $classid = optional_param('classid', 0, PARAM_INT);
 
-echo "<pre>";
+echo "<html><head><title>Timeline Debugger</title><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ccc; padding: 8px; text-align: left; } .match { background-color: #e6fffa; } .partial { background-color: #fff8e1; } .fail { background-color: #ffebee; }</style></head><body>";
+
+echo "<h1>Timeline Debugger</h1>";
 
 if (!$classid) {
-    echo "Please provide a classid parameter (e.g., ?classid=123)\n";
-    echo "Available Classes:\n";
-    $classes = $DB->get_records('gmk_class', null, '', 'id, name, groupid, corecourseid');
-    foreach ($classes as $c) {
-        echo "ID: {$c->id} | Name: {$c->name} | Group: {$c->groupid} | Course: {$c->corecourseid}\n";
+    echo "<p>Please append <code>?classid=YOUR_CLASS_ID</code> to the URL.</p>";
+    // List Classes
+    $classes = $DB->get_records('gmk_class');
+    echo "<h3>Available Classes:</h3><ul>";
+    foreach($classes as $c) {
+        echo "<li><a href='?classid={$c->id}'>ID: {$c->id} - {$c->name} (Group: {$c->groupid})</a></li>";
     }
+    echo "</ul>";
     die();
 }
 
-echo "Debugging Timeline for Class ID: $classid\n";
 $class = $DB->get_record('gmk_class', ['id' => $classid]);
+if (!$class) die("Class ID $classid not found.");
 
-if (!$class) {
-    die("Class not found.");
-}
+echo "<h2>Class Details</h2>";
+echo "<ul>";
+echo "<li><strong>Name:</strong> {$class->name}</li>";
+echo "<li><strong>Class Group ID:</strong> {$class->groupid}</li>";
+echo "<li><strong>Course ID:</strong> {$class->corecourseid}</li>";
+echo "</ul>";
 
-echo "Class Info:\n";
-print_r($class);
+echo "<h2>Events Analysis</h2>";
 
-$tstart = strtotime('-6 month');
-$tend = strtotime('+6 months');
-$groups = [$class->groupid];
-$courses = [$class->corecourseid];
+// 1. Fetch ALL events for this Course
+$sql = "SELECT e.* FROM {event} e WHERE e.courseid = :courseid ORDER BY e.timestart ASC";
+$events = $DB->get_records_sql($sql, ['courseid' => $class->corecourseid]);
 
-echo "\nParameters for calendar_get_events:\n";
-echo "Start: " . date('Y-m-d H:i:s', $tstart) . "\n";
-echo "End: " . date('Y-m-d H:i:s', $tend) . "\n";
-echo "Groups: " . implode(',', $groups) . "\n";
-echo "Courses: " . implode(',', $courses) . "\n";
+echo "<p>Found <strong>" . count($events) . "</strong> total events for Course ID {$class->corecourseid}.</p>";
 
-// Raw Calendar Call
-$events = calendar_get_events($tstart, $tend, null, $groups, $courses);
-
-echo "\nRaw Events Found: " . count($events) . "\n";
+echo "<table>";
+echo "<thead><tr><th>ID</th><th>Name</th><th>Module</th><th>Group ID</th><th>Time</th><th>Match Status</th><th>Reason</th></tr></thead><tbody>";
 
 foreach ($events as $e) {
-    echo "--------------------------------------------------\n";
-    echo "Event ID: {$e->id}\n";
-    echo "Name: {$e->name}\n";
-    echo "Module Name: {$e->modulename}\n";
-    echo "Instance: {$e->instance}\n";
-    echo "Time: " . date('Y-m-d H:i:s', $e->timestart) . "\n";
+    $classAttr = "";
+    $status = "";
+    $reason = "";
     
-    // Check BBB Link Logic
-    if ($e->modulename === 'attendance') {
-        $sql = "SELECT rel.bbbactivityid, sess.id as sessionid
-                FROM {attendance_sessions} sess
-                JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = sess.id
-                WHERE sess.caleventid = :caleventid";
-        $rel = $DB->get_record_sql($sql, ['caleventid' => $e->id]);
-        echo "Linked BBB Relation: " . ($rel ? "YES (BBB ID: {$rel->bbbactivityid})" : "NO") . "\n";
+    $isModuleMatch = in_array($e->modulename, ['attendance', 'bigbluebuttonbn']);
+    $isGroupMatch = ($e->groupid == $class->groupid || empty($e->groupid));
+    
+    if ($isModuleMatch && $isGroupMatch) {
+        $classAttr = "match";
+        $status = "PASS";
+    } else {
+        $classAttr = "fail";
+        $status = "FAIL";
+        if (!$isModuleMatch) $reason .= "Module '$e->modulename' not allowed. ";
+        if (!$isGroupMatch) $reason .= "Group ID '$e->groupid' != '{$class->groupid}'. ";
     }
+    
+    echo "<tr class='$classAttr'>";
+    echo "<td>{$e->id}</td>";
+    echo "<td>{$e->name}</td>";
+    echo "<td>{$e->modulename}</td>";
+    echo "<td>" . ($e->groupid ?: '0/NULL') . "</td>";
+    echo "<td>" . userdate($e->timestart) . "</td>";
+    echo "<td><strong>$status</strong></td>";
+    echo "<td>$reason</td>";
+    echo "</tr>";
 }
-echo "</pre>";
+echo "</tbody></table>";
+echo "</body></html>";
