@@ -328,7 +328,7 @@ try {
             // Direct SQL to bypass potential API filtering issues
             // Fetch events for the course AND specific group (or no group)
             $tstart = strtotime('-1 year');
-            $tend = strtotime('+1 year');
+            $tend = strtotime('+2 years');
             
             $sql = "SELECT e.*
                     FROM {event} e

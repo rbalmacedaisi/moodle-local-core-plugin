@@ -49,6 +49,12 @@ const ManageClass = {
                         <!-- Timeline Tab -->
                         <v-tab-item>
                             <v-card flat class="transparent">
+                                <v-alert type="warning" dense outlined class="mb-2">
+                                    <strong>Debug Info:</strong>
+                                    ClassID: {{ classId }} | 
+                                    Records in Timeline: {{ timeline.length }} |
+                                    Last Update: {{ new Date().toLocaleTimeString() }}
+                                </v-alert>
                                 <v-timeline dense align-top class="mx-4">
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
