@@ -92,10 +92,6 @@ const ManageClass = {
                                                     <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
                                                     {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
                                                 </v-btn>
-                                                <v-spacer></v-spacer>
-                                                <v-btn small text color="grey darken-1" @click="rescheduleSession(session)">
-                                                    <v-icon left x-small>mdi-pencil</v-icon> Editar
-                                                </v-btn>
                                             </v-card-actions>
                                         </v-card>
                                     </v-timeline-item>
@@ -243,9 +239,6 @@ const ManageClass = {
             } else {
                 // Logic to open attendance manager
             }
-        },
-        rescheduleSession(session) {
-            // Open reschedule dialog
         },
         addActivity(type) {
             this.newActivityType = type;
