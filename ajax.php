@@ -363,6 +363,7 @@ try {
                 $eGroupId = isset($e->groupid) ? $e->groupid : 'NULL';
                 $cGroupId = $class->groupid;
                 
+                try {
                 // Filter by Group
                 if (!empty($e->groupid) && $e->groupid != $class->groupid) {
                     $logMsg .= "  [SKIP] ID {$e->id}: Group mistmatch ($eGroupId != $cGroupId)\n";
@@ -370,6 +371,7 @@ try {
                 }
 
                 // Filter by Module
+                // Allow bigbluebuttonbn module (lowercase)
                 if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
                    // $logMsg .= "  [SKIP] ID {$e->id}: Module mistmatch ({$e->modulename})\n";
                    continue; 
@@ -400,6 +402,7 @@ try {
                          try {
                               $cm = get_coursemodule_from_instance('bigbluebuttonbn', $rel->bbbactivityid);
                               if ($cm) {
+                                  // requires mod/bigbluebuttonbn/locallib.php if needed? usually autoloaded
                                   $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
                                   
                                   // Check for recordings
@@ -424,7 +427,12 @@ try {
                 }
 
                 $formatted_sessions[] = $session_data;
+
+                } catch (\Throwable $t) {
+                    $logMsg .= "  [ERROR] ID {$e->id}: " . $t->getMessage() . "\n";
+                }
             }
+
             $logMsg .= "Final Formatted Sessions: " . count($formatted_sessions) . "\n";
             file_put_contents($CFG->dirroot . '/local/grupomakro_core/timeline_ajax_debug.log', $logMsg, FILE_APPEND);
             
