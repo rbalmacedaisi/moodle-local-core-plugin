@@ -1,4 +1,4 @@
-const GradesGrid = {
+Vue.component('grades-grid', {
     template: `
         <v-card flat>
             <v-card-text>
@@ -136,4 +136,5 @@ const GradesGrid = {
             return 'black--text';
         }
     }
-};
+}
+});

@@ -317,31 +317,75 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
             
-            // Use local library function which wraps calendar_get_events
-            // This ensures we get reschedules, holidays, and all event types correctly
-            $events = get_class_events(null, date('Y-m-d', strtotime('-1 month')), date('Y-m-d', strtotime('+3 months')));
+            require_once($CFG->dirroot . '/calendar/lib.php');
             
-            // Filter events for this specific class
-            $class_events = array_filter($events, function($e) use ($classid) {
-                return isset($e->classId) && $e->classId == $classid;
-            });
+            // Fetch events for the class group
+            // We fetch events from -1 month to +6 months to show relevant history and future
+            $tstart = strtotime('-1 month');
+            $tend = strtotime('+6 months');
+            
+            // calendar_get_events($tstart, $tend, $users, $groups, $courses, $withduration, $ignorehidden)
+            $events = calendar_get_events($tstart, $tend, null, [$class->groupid], [$class->corecourseid]);
 
             $formatted_sessions = [];
-            foreach ($class_events as $e) {
+            foreach ($events as $e) {
+                // We primarily want Attendance events as they represent "Class Sessions"
+                // But we also accept BBB events if they are standalone
+                // Filter: only attendance or bigbluebuttonbn events
+                if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
+                    continue; 
+                }
+
                 $session_data = new stdClass();
                 $session_data->id = $e->id; // Calendar event ID
                 $session_data->startdate = $e->timestart;
                 $session_data->enddate = $e->timestart + $e->timeduration;
-                $session_data->type = $e->classType == '1' ? 'virtual' : ($e->classType == '2' ? 'mixed' : 'physical');
-                $session_data->name = $e->name;
-                
-                // BBB Logic (already handled by get_class_events for virtual/mixed)
-                $session_data->join_url = isset($e->bigBlueButtonActivityUrl) ? $e->bigBlueButtonActivityUrl : '';
-                
+                $session_data->name = $e->name; // e.g. "Asistencia..." or "Clase..."
+                $session_data->type = ($class->type == 1 ? 'virtual' : 'physical'); // Default to class type
+                $session_data->join_url = '';
+
+                // Logic to enhance data based on event type
+                if ($e->modulename === 'attendance') {
+                     // Try to find if this attendance session is linked to a BBB activity
+                     // Link: attendance_sessions.caleventid -> gmk_bbb_attendance_relation
+                     $sql = "SELECT rel.bbbactivityid, sess.id as sessionid
+                             FROM {attendance_sessions} sess
+                             JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = sess.id
+                             WHERE sess.caleventid = :caleventid";
+                     $rel = $DB->get_record_sql($sql, ['caleventid' => $e->id]);
+                     
+                     if ($rel && $rel->bbbactivityid) {
+                         $session_data->type = 'virtual';
+                         try {
+                              $cm = get_coursemodule_from_instance('bigbluebuttonbn', $rel->bbbactivityid);
+                              if ($cm) {
+                                  $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
+                                  
+                                  // Check for recordings
+                                  $recordingId = $DB->get_field('bigbluebuttonbn_recordings', 'recordingid', ['bigbluebuttonbnid' => $rel->bbbactivityid]);
+                                  if ($recordingId) {
+                                      $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
+                                  }
+                              }
+                         } catch (Exception $ex) { /* Ignore */ }
+                     }
+                } elseif ($e->modulename === 'bigbluebuttonbn') {
+                    $session_data->type = 'virtual';
+                    // It's a direct BBB event
+                    if ($e->instance) {
+                        try {
+                             $cm = get_coursemodule_from_instance('bigbluebuttonbn', $e->instance);
+                             if ($cm) {
+                                 $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
+                             }
+                        } catch (Exception $ex) { /* Ignore */ }
+                    }
+                }
+
                 $formatted_sessions[] = $session_data;
             }
             
-            // Sort by start date
+            // Sort by start date ASC
             usort($formatted_sessions, function($a, $b) {
                 return $a->startdate - $b->startdate;
             });
@@ -350,7 +394,7 @@ try {
                 'status' => 'success',
                 'data' => [
                     'class' => $class,
-                    'timeline' => array_values($formatted_sessions) // Send as 'timeline' to match frontend expectation
+                    'sessions' => array_values($formatted_sessions) // Send as 'sessions' like ManageClass.js expects
                 ]
             ];
             break;
