@@ -1,4 +1,5 @@
 Vue.component('studenttable', {
+    props: ['classId'],
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="mb-4">
@@ -306,6 +307,7 @@ Vue.component('studenttable', {
                     planid: Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '',
                     periodid: Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '',
                     status: this.filters.status || '',
+                    classid: this.classId || 0,
                 };
                 const response = await window.axios.get(url, { params });
                 if (!response.data || !response.data.dataUsers) {

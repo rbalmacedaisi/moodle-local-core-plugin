@@ -291,16 +291,28 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
             
-            $sessions = $DB->get_records('gmk_class_session', ['classid' => $classid], 'startdate ASC');
+            $sql = "SELECT asess.id, e.timestart as startdate 
+                    FROM {attendance_sessions} asess
+                    JOIN {event} e ON e.id = asess.caleventid
+                    JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = asess.id
+                    WHERE rel.classid = :classid
+                    ORDER BY e.timestart ASC";
+            
+            $sessions = $DB->get_records_sql($sql, ['classid' => $classid]);
+            $formatted_sessions = [];
             foreach ($sessions as $s) {
-                $s->type = ($class->type == 1 ? 'virtual' : 'physical');
+                $session_data = new stdClass();
+                $session_data->id = $s->id;
+                $session_data->startdate = $s->startdate;
+                $session_data->type = ($class->type == 1 ? 'virtual' : 'physical');
+                $formatted_sessions[] = $session_data;
             }
 
             $response = [
                 'status' => 'success',
                 'data' => [
                     'class' => $class,
-                    'sessions' => array_values($sessions)
+                    'sessions' => $formatted_sessions
                 ]
             ];
             break;

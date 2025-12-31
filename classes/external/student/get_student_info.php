@@ -62,6 +62,7 @@ class get_student_info extends external_api {
                 'planid'         => new external_value(PARAM_RAW, 'Filter by Learning Plan IDs (comma separated).', VALUE_DEFAULT, ''),
                 'periodid'       => new external_value(PARAM_RAW, 'Filter by Period IDs (comma separated).', VALUE_DEFAULT, ''),
                 'status'         => new external_value(PARAM_TEXT, 'Filter by Student Status.', VALUE_DEFAULT, ''),
+                'classid'        => new external_value(PARAM_INT, 'Filter by Class ID.', VALUE_DEFAULT, 0),
             ]);
     }
 
@@ -73,7 +74,7 @@ class get_student_info extends external_api {
      * @param string $status
      * @return mixed TODO document
      */
-    public static function execute($page, $resultsperpage, $search, $planid = '', $periodid = '', $status = '') {
+    public static function execute($page, $resultsperpage, $search, $planid = '', $periodid = '', $status = '', $classid = 0) {
         global $DB;
         
         // Validate the parameters passed to the function.
@@ -84,6 +85,7 @@ class get_student_info extends external_api {
             'planid'         => $planid,
             'periodid'       => $periodid,
             'status'         => $status,
+            'classid'        => $classid,
         ]);
         
         $sqlConditions = ["lpu.userrolename = :userrolename"];
@@ -104,6 +106,9 @@ class get_student_info extends external_api {
                 $sqlConditions[] = "lpu.currentperiodid $insql";
                 $sqlParams = array_merge($sqlParams, $inparams);
             }
+        if (!empty($params['classid'])) {
+            $sqlConditions[] = "EXISTS (SELECT 1 FROM {gmk_course_progre} cp WHERE cp.userid = u.id AND cp.classid = :classid)";
+            $sqlParams['classid'] = $params['classid'];
         }
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);

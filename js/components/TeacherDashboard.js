@@ -47,7 +47,7 @@ const TeacherDashboard = {
                                 <v-card-text class="pt-4">
                                     <div class="text-overline primary--text font-weight-black mb-1">{{ classItem.course_shortname }}</div>
                                     <div class="text-h6 font-weight-bold grey--text text--darken-4 mb-2 line-clamp-2" style="height: 3.2em; line-height: 1.6em;">
-                                        {{ classItem.course_fullname || classItem.name }}
+                                        {{ classItem.name || classItem.course_fullname }}
                                     </div>
                                     
                                     <v-row no-gutters class="mb-4">
@@ -163,7 +163,9 @@ const TeacherDashboard = {
             return this.dashboardData.calendar_events.map(e => ({
                 name: e.name,
                 start: new Date(e.timestart * 1000),
-                color: 'blue'
+                end: new Date((e.timestart + (e.timeduration || 3600)) * 1000),
+                color: 'blue',
+                timed: true
             }));
         }
     },

@@ -49,7 +49,7 @@ class get_dashboard_data extends external_api {
             $course = $DB->get_record('course', ['id' => $class->courseid], 'id,fullname,shortname');
             $class_data = new stdClass();
             $class_data->id = $class->id;
-            $class_data->name = $class->name;
+            $class_data->name = $class->name; // Specific class name
             $class_data->courseid = $class->courseid;
             $class_data->course_fullname = $course ? $course->fullname : '';
             $class_data->course_shortname = $course ? $course->shortname : '';
@@ -61,7 +61,8 @@ class get_dashboard_data extends external_api {
             $class_data->next_session = self::get_next_session($class->id);
             
             // New fields for card
-            $class_data->student_count = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+            // Count students assigned to this class in gmk_course_progre
+            $class_data->student_count = $DB->count_records('gmk_course_progre', ['classid' => $class->id]);
             $class_data->initdate = $class->initdate;
             $class_data->enddate = $class->enddate;
             
@@ -79,11 +80,11 @@ class get_dashboard_data extends external_api {
             $active_classes[] = $class_data;
         }
 
-        // 2. Get Calendar Events (next 30 days)
-        $now = time();
-        $end = $now + (30 * 24 * 60 * 60);
-        $events = $DB->get_records_select('event', 'userid = :userid AND timestart >= :start AND timestart <= :end', 
-            ['userid' => $params['userid'], 'start' => $now, 'end' => $end]);
+        // 2. Get Calendar Events (next 30 days) using established logic
+        $init_date_str = date('Y-m-d', $now);
+        $end_date_str = date('Y-m-d', $now + (30 * 24 * 60 * 60));
+        
+        $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
         $calendar_events = [];
         foreach ($events as $event) {
@@ -91,6 +92,7 @@ class get_dashboard_data extends external_api {
             $e->id = $event->id;
             $e->name = $event->name;
             $e->timestart = $event->timestart;
+            $e->timeduration = isset($event->timeduration) ? $event->timeduration : 3600;
             $e->courseid = $event->courseid;
             $calendar_events[] = $e;
         }
