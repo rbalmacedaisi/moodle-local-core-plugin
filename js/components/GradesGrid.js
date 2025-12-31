@@ -77,9 +77,9 @@ Vue.component('grades-grid', {
             // Dynamic headers (Grade items)
             const dynamicHeaders = this.columns.map(col => ({
                 text: `${col.title} (${parseFloat(col.max_grade).toString()})`,
-                value: `grades.${col.id}`, // Accessing nested property for sorting might be tricky, but mostly visual here
+                value: `grades.${col.id}`,
                 align: 'center',
-                sortable: false // Simpler to disable sorting on dynamic columns for now
+                sortable: false
             }));
 
             return [...staticHeaders, ...dynamicHeaders];
@@ -136,5 +136,4 @@ Vue.component('grades-grid', {
             return 'black--text';
         }
     }
-}
 });
