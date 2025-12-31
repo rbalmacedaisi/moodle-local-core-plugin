@@ -51,9 +51,27 @@ if ($classes) {
     }
 }
 
-// Check for redirect hook existence
-$hook_exists = function_exists('local_grupomakro_core_user_home_redirect');
-echo "<hr><p>Función de redirección (hook) detectada en PHP: " . ($hook_exists ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
+// Check for redirect hook existence in the current PHP session
+$hook_exists_php = function_exists('local_grupomakro_core_user_home_redirect');
+
+// Check if Moodle's registry knows about the hook
+$plugins_with_hook = get_plugins_with_function('user_home_redirect');
+$hook_in_registry = isset($plugins_with_hook['local_grupomakro_core']);
+
+echo "<hr><h3>Estado del Registry de Moodle</h3>";
+echo "<p>¿Archivo <b>lib.php</b> cargado en esta sesión?: " . ($hook_exists_php ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
+echo "<p>¿Hook registrado en la caché de Moodle?: " . ($hook_in_registry ? "<span style='color: green;'>SÍ</span>" : "<span style='color: red;'>NO</span>") . "</p>";
+
+if (!$hook_in_registry) {
+    echo "<p style='color: red;'><b>IMPORTANTE:</b> Moodle no ha registrado tu nueva función. Por favor, asegúrate de haber aceptado la actualización de la base de datos (Upgrade) al entrar a la administración del sitio.</p>";
+}
+
+echo "<p><a href='debug_redirection.php?purge=1'>Purgar Caches de Moodle</a></p>";
+
+if (optional_param('purge', 0, PARAM_INT)) {
+    purge_all_caches();
+    redirect(new moodle_url('debug_redirection.php'));
+}
 
 echo "<p><a href='teacher_dashboard.php'>Ir al Dashboard manualmente</a></p>";
 ?>
