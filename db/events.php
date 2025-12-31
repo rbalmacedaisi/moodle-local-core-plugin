@@ -85,6 +85,10 @@ $observers = array(
     array(
         'eventname' => 'mod_assign\event\submission_created',
         'callback' => 'local_grupomakro_core_observer::assign_submission_created',
+    ),
+    array(
+        'eventname' => 'core\event\user_loggedin',
+        'callback' => 'local_grupomakro_core_observer::user_loggedin',
     )
 );
 

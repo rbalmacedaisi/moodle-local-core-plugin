@@ -330,5 +330,24 @@ class local_grupomakro_core_observer
         
         \core\message\manager::send_message($message);
     }
+
+    /**
+     * Redirect teachers to their dashboard upon login.
+     * Innovative Feature: Automatic Redirection.
+     */
+    public static function user_loggedin(\core\event\user_loggedin $event) {
+        global $DB, $PAGE;
+        
+        $userid = $event->userid;
+        
+        // Check if user is an instructor in any active class
+        $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $userid, 'closed' => 0]);
+        
+        if ($is_teacher) {
+            // Redirect to the new teacher dashboard
+            $url = new \moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
+            redirect($url);
+        }
+    }
 }
 
