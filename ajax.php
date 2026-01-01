@@ -501,10 +501,11 @@ try {
             $modinfo = get_fast_modinfo($class->corecourseid);
             $cms = $modinfo->get_cms();
             
-            // Get excluded BBB modules
-            $excluded_cmids = [];
-            if (!empty($class->bbbmoduleids)) {
-                $excluded_cmids = explode(',', $class->bbbmoduleids);
+            // Get excluded BBB instances (those used in timeline/attendance)
+            $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbactivityid', 'classid = :classid AND bbbactivityid IS NOT NULL', ['classid' => $class->id]);
+            // Ensure we have an array
+            if (!$excluded_instances) {
+                $excluded_instances = [];
             }
 
             $activities = [];
@@ -513,10 +514,13 @@ try {
                 if (!$cm->uservisible) continue;
                 // Exclude label
                 if ($cm->modname === 'label') continue;
-                // Exclude class BBB sessions
-                if (in_array($cm->id, $excluded_cmids)) continue;
+                
+                // Exclude class BBB sessions linked to attendance
+                if ($cm->modname === 'bigbluebuttonbn' && in_array($cm->instance, $excluded_instances)) {
+                    continue;
+                }
 
-                $tags = core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
+                $tags = \core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
                 $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
 
                 $activities[] = [
