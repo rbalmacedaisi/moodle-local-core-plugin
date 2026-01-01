@@ -1,3 +1,4 @@
+<?php
 // pages/debug_activities.php
 
 // Adjust path to find config.php from local/grupomakro_core/pages/
