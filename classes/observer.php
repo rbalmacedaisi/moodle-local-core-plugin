@@ -328,7 +328,7 @@ class local_grupomakro_core_observer
         $message->contexturl = (new \moodle_url('/mod/assign/view.php', ['id' => $cm->id]))->out(false);
         $message->contexturlname = $assignment->name;
         
-        \core\message\manager::send_message($message);
+        message_send($message);
     }
 
     /**
