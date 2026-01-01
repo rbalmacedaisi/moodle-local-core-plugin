@@ -12,8 +12,29 @@ function debug_print($msg) {
 echo "<h1>Debug Activities Logic</h1>";
 
 $classid = optional_param('classid', 0, PARAM_INT);
+
 if (!$classid) {
-    echo "<form>Class ID: <input name='classid' type='number'><button type='submit'>Check</button></form>";
+    echo "<p>Please select a class to debug:</p>";
+    $now = time();
+    $sql = "SELECT c.id, c.name, c.corecourseid 
+            FROM {gmk_class} c
+            WHERE c.instructorid = :userid 
+              AND c.closed = 0
+            ORDER BY c.id DESC";
+    
+    $classes = $DB->get_records_sql($sql, ['userid' => $USER->id]);
+    
+    if (empty($classes)) {
+        echo "<p>No active classes found for user $USER->username (ID: $USER->id)</p>";
+    } else {
+        echo "<ul>";
+        foreach ($classes as $c) {
+            $course = $DB->get_record('course', ['id' => $c->corecourseid], 'fullname');
+            $coursename = $course ? $course->fullname : "Unknown Course";
+            echo "<li><a href='?classid={$c->id}'><strong>{$c->name}</strong></a> - $coursename (ID: {$c->id})</li>";
+        }
+        echo "</ul>";
+    }
     die();
 }
 
