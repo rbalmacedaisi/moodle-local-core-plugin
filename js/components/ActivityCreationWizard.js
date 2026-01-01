@@ -6,7 +6,8 @@
 const ActivityCreationWizard = {
     props: {
         classId: { type: Number, required: true },
-        activityType: { type: String, required: true } // 'bbb', 'assignment', 'resource'
+        activityType: { type: String, required: true }, // 'bbb', 'assignment', 'resource'
+        customLabel: { type: String, default: '' }
     },
     template: `
         <v-dialog v-model="visible" max-width="600px" persistent>
@@ -135,6 +136,7 @@ const ActivityCreationWizard = {
     },
     computed: {
         activityLabel() {
+            if (this.customLabel) return this.customLabel;
             const labels = {
                 bbb: 'Sesión Virtual',
                 assignment: 'Tarea',

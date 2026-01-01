@@ -201,9 +201,9 @@ const ManageClass = {
                     <span>Material / Recurso</span>
                 </v-tooltip>
 
-                 <v-tooltip left>
+                <v-tooltip left>
                      <template v-slot:activator="{ on, attrs }">
-                        <v-btn fab dark small color="grey darken-2" @click="goToCourse" v-bind="attrs" v-on="on">
+                        <v-btn fab dark small color="grey darken-2" @click="openActivitySelector" v-bind="attrs" v-on="on">
                             <v-icon>mdi-dots-horizontal</v-icon>
                         </v-btn>
                     </template>
@@ -211,13 +211,39 @@ const ManageClass = {
                 </v-tooltip>
 
             </v-speed-dial>
-            </v-speed-dial>
+            
+            <!-- Generic Activity Selector Dialog -->
+            <v-dialog v-model="showActivitySelector" max-width="500px">
+                <v-card class="rounded-lg">
+                    <v-card-title class="headline grey lighten-5">
+                        Seleccionar Actividad
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="showActivitySelector = false"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                        <v-list v-if="!isLoadingModules">
+                            <v-list-item v-for="module in availableModules" :key="module.name" @click="selectModule(module)">
+                                <v-list-item-content>
+                                    <v-list-item-title class="font-weight-medium">{{ module.label }}</v-list-item-title>
+                                </v-list-item-content>
+                                <v-list-item-action>
+                                    <v-icon color="grey lighten-1">mdi-chevron-right</v-icon>
+                                </v-list-item-action>
+                            </v-list-item>
+                        </v-list>
+                        <div v-else class="text-center pa-4">
+                             <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                        </div>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
             
             <!-- Activity Creation Wizard -->
             <activity-creation-wizard 
                 v-if="showActivityWizard" 
                 :class-id="parseInt(classId)" 
                 :activity-type="newActivityType"
+                :custom-label="customActivityLabel"
                 @close="showActivityWizard = false"
                 @success="onActivityCreated"
             ></activity-creation-wizard>
@@ -242,7 +268,11 @@ const ManageClass = {
             timeline: [],
             activities: [],
             showActivityWizard: false,
-            newActivityType: ''
+            newActivityType: '',
+            showActivitySelector: false,
+            availableModules: [],
+            isLoadingModules: false,
+            customActivityLabel: ''
         };
     },
     computed: {
@@ -346,9 +376,34 @@ const ManageClass = {
                 // Logic to open attendance manager
             }
         },
-        addActivity(type) {
+        addActivity(type, label = '') {
             this.newActivityType = type;
+            this.customActivityLabel = label;
             this.showActivityWizard = true;
+        },
+        async fetchAvailableModules() {
+            this.isLoadingModules = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_available_modules',
+                    args: {},
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.availableModules = response.data.modules;
+                }
+            } catch (e) { console.error(e); }
+            finally { this.isLoadingModules = false; }
+        },
+        openActivitySelector() {
+            this.showActivitySelector = true;
+            if (this.availableModules.length === 0) {
+                this.fetchAvailableModules();
+            }
+        },
+        selectModule(module) {
+            this.showActivitySelector = false;
+            this.addActivity(module.name, module.label);
         },
         goToCourse() {
             // Redirect to standard course page in editing mode to add other activities

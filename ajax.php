@@ -501,12 +501,20 @@ try {
             $modinfo = get_fast_modinfo($class->corecourseid);
             $cms = $modinfo->get_cms();
             
+            // Get excluded BBB modules
+            $excluded_cmids = [];
+            if (!empty($class->bbbmoduleids)) {
+                $excluded_cmids = explode(',', $class->bbbmoduleids);
+            }
+
             $activities = [];
             
             foreach ($cms as $cm) {
                 if (!$cm->uservisible) continue;
-                // Exclude some module types if needed
-                if ($cm->modname === 'label') continue; 
+                // Exclude label
+                if ($cm->modname === 'label') continue;
+                // Exclude class BBB sessions
+                if (in_array($cm->id, $excluded_cmids)) continue;
 
                 $tags = core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
                 $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
@@ -522,6 +530,33 @@ try {
             }
             
             $response = ['status' => 'success', 'activities' => $activities];
+            break;
+
+        case 'local_grupomakro_get_available_modules':
+            $modules = $DB->get_records('modules', ['visible' => 1], 'name ASC');
+            $available = [];
+            $exclude = ['label', 'forum', 'quiz']; // These are already handled or special? 
+            // Actually user wants "Others" to show the rest. If we show all, we duplicate.
+            // But having a full list is safer for "Generic" selector. 
+            // Let's just return all and let frontend decide or just show all in the dropdown.
+            
+            foreach ($modules as $m) {
+                try {
+                    $label = get_string('modulename', $m->name);
+                } catch (Exception $e) {
+                    $label = $m->name;
+                }
+                $available[] = [
+                    'name' => $m->name,
+                    'label' => $label
+                ];
+            }
+            
+            usort($available, function($a, $b) {
+                return strcmp($a['label'], $b['label']);
+            });
+            
+            $response = ['status' => 'success', 'modules' => $available];
             break;
 
         case 'local_grupomakro_create_express_activity':
