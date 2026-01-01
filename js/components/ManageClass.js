@@ -112,6 +112,45 @@ const ManageClass = {
                             <grades-grid :class-id="classId"></grades-grid>
                         </v-tab-item>
 
+                        <!-- Activities Tab -->
+                        <v-tab-item>
+                             <v-card flat class="transparent pa-4">
+                                <v-expansion-panels multiple hover>
+                                    <v-expansion-panel v-for="(group, name) in groupedActivities" :key="name" class="mb-2 rounded-lg transparent-panel">
+                                        <v-expansion-panel-header class="blue-grey lighten-5">
+                                            <div class="d-flex align-center">
+                                                <v-icon left color="primary">mdi-label</v-icon> 
+                                                <span class="font-weight-bold text-subtitle-1">{{ name }}</span>
+                                                <v-chip x-small class="ml-2" color="white">{{ group.length }}</v-chip>
+                                            </div>
+                                        </v-expansion-panel-header>
+                                        <v-expansion-panel-content class="white">
+                                            <v-list two-line>
+                                                <template v-for="(activity, i) in group">
+                                                    <v-list-item :key="activity.id" :href="activity.url" target="_blank">
+                                                        <v-list-item-avatar>
+                                                            <v-img :src="activity.modicon"></v-img>
+                                                        </v-list-item-avatar>
+                                                        <v-list-item-content>
+                                                            <v-list-item-title class="font-weight-medium">{{ activity.name }}</v-list-item-title>
+                                                            <v-list-item-subtitle class="text-caption grey--text">{{ activity.modname }}</v-list-item-subtitle>
+                                                        </v-list-item-content>
+                                                        <v-list-item-action>
+                                                            <v-btn icon small><v-icon color="grey lighten-1">mdi-open-in-new</v-icon></v-btn>
+                                                        </v-list-item-action>
+                                                    </v-list-item>
+                                                    <v-divider v-if="i < group.length - 1" :key="'div-' + i" inset></v-divider>
+                                                </template>
+                                            </v-list>
+                                        </v-expansion-panel-content>
+                                    </v-expansion-panel>
+                                </v-expansion-panels>
+                                <v-alert v-if="Object.keys(groupedActivities).length === 0" type="info" text class="ma-4 rounded-xl">
+                                    No hay actividades creadas aún. Usa el botón + para añadir una.
+                                </v-alert>
+                             </v-card>
+                        </v-tab-item>
+
                     </v-tabs-items>
                 </v-col>
             </v-row>
@@ -124,13 +163,24 @@ const ManageClass = {
                         <v-icon v-else>mdi-plus</v-icon>
                     </v-btn>
                 </template>
+
+                <!-- New Options -->
                 <v-tooltip left>
                     <template v-slot:activator="{ on, attrs }">
-                        <v-btn fab dark small color="indigo" @click="addActivity('bbb')" v-bind="attrs" v-on="on">
-                            <v-icon>mdi-video</v-icon>
+                        <v-btn fab dark small color="deep-purple" @click="addActivity('quiz')" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-checkbox-marked-circle-outline</v-icon>
                         </v-btn>
                     </template>
-                    <span>Sesión Virtual (BBB)</span>
+                    <span>Cuestionario</span>
+                </v-tooltip>
+
+                <v-tooltip left>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn fab dark small color="teal" @click="addActivity('forum')" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-forum</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Foro</span>
                 </v-tooltip>
 
                 <v-tooltip left>
@@ -150,6 +200,16 @@ const ManageClass = {
                     </template>
                     <span>Material / Recurso</span>
                 </v-tooltip>
+
+                 <v-tooltip left>
+                     <template v-slot:activator="{ on, attrs }">
+                        <v-btn fab dark small color="grey darken-2" @click="goToCourse" v-bind="attrs" v-on="on">
+                            <v-icon>mdi-dots-horizontal</v-icon>
+                        </v-btn>
+                    </template>
+                    <span>Otras Actividades</span>
+                </v-tooltip>
+
             </v-speed-dial>
             </v-speed-dial>
             
@@ -176,16 +236,33 @@ const ManageClass = {
             tabs: [
                 { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
                 { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
-                { id: 2, name: 'Notas', icon: 'mdi-star' }
+                { id: 2, name: 'Notas', icon: 'mdi-star' },
+                { id: 3, name: 'Actividades', icon: 'mdi-view-grid-outline' }
             ],
             timeline: [],
+            activities: [],
             showActivityWizard: false,
             newActivityType: ''
         };
     },
+    computed: {
+        groupedActivities() {
+            const groups = {};
+            this.activities.forEach(activity => {
+                const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
+                tags.forEach(tag => {
+                    if (!groups[tag]) groups[tag] = [];
+                    groups[tag].push(activity);
+                });
+            });
+            // Sort by tag name if needed? Object keys order is not guaranteed but usually insert order in modern JS
+            return groups;
+        }
+    },
     mounted() {
         this.fetchClassDetails();
         this.fetchTimeline();
+        this.fetchActivities();
     },
     methods: {
         async fetchClassDetails() {
@@ -205,10 +282,8 @@ const ManageClass = {
         },
         async fetchTimeline() {
             try {
-                // For now leveraging the consolidated dashboard data or a specific session API
-                // In a real prod environment, we might have local_grupomakro_get_class_sessions
                 const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_class_details', // Assuming this exists or using dashboard
+                    action: 'local_grupomakro_get_class_details',
                     args: { classid: this.classId },
                     ...window.wsStaticParams
                 });
@@ -217,6 +292,20 @@ const ManageClass = {
                 }
             } catch (error) {
                 console.error('Error fetching timeline:', error);
+            }
+        },
+        async fetchActivities() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_all_activities',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.activities = response.data.activities;
+                }
+            } catch (error) {
+                console.error('Error fetching activities:', error);
             }
         },
         getSessionColor(session) {
@@ -261,8 +350,17 @@ const ManageClass = {
             this.newActivityType = type;
             this.showActivityWizard = true;
         },
+        goToCourse() {
+            // Redirect to standard course page in editing mode to add other activities
+            if (this.classDetails.corecourseid) {
+                window.open(`${window.M.cfg.wwwroot}/course/view.php?id=${this.classDetails.corecourseid}`, '_blank');
+            } else {
+                alert('ID del curso no disponible.');
+            }
+        },
         onActivityCreated() {
-            this.fetchTimeline(); // Reload timeline to show new activity if applicable
+            this.fetchTimeline();
+            this.fetchActivities(); // Refresh activities list
         }
     }
 };

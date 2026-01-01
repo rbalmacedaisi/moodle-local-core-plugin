@@ -23,12 +23,18 @@ class create_express_activity extends external_api {
                 'intro' => new external_value(PARAM_RAW, 'The description of the activity', VALUE_DEFAULT, ''),
                 'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
                 'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
-                'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0)
+                'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
+                'tags' => new \external_multiple_structure(
+                    new external_value(PARAM_TEXT, 'Tag name'),
+                    'List of tags',
+                    VALUE_DEFAULT,
+                    []
+                )
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $gradecat = 0) {
+    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -36,14 +42,15 @@ class create_express_activity extends external_api {
             'intro' => $intro,
             'duedate' => $duedate,
             'save_as_template' => $save_as_template,
-            'gradecat' => $gradecat
+            'gradecat' => $gradecat,
+            'tags' => $tags
         ));
 
         $context = \context_system::instance();
         self::validate_context($context);
 
         // Convert alpha type to Moodle module name if necessary
-        $modmap = ['bbb' => 'bigbluebuttonbn', 'assignment' => 'assign', 'task' => 'assign', 'resource' => 'resource'];
+        $modmap = ['bbb' => 'bigbluebuttonbn', 'assignment' => 'assign', 'task' => 'assign', 'resource' => 'resource', 'quiz' => 'quiz', 'forum' => 'forum'];
         $modname = isset($modmap[$params['type']]) ? $modmap[$params['type']] : $params['type'];
 
         $extra = [
@@ -54,6 +61,19 @@ class create_express_activity extends external_api {
 
         try {
             $result = local_grupomakro_create_express_activity($params['classid'], $modname, $params['name'], $params['intro'], $extra);
+            
+            // Handle Tags
+            if (!empty($params['tags']) && !empty($result->coursemodule)) {
+                $cmcontext = \context_module::instance($result->coursemodule);
+                \core_tag_tag::set_item_tags('core', 'course_modules', $result->coursemodule, $cmcontext, $params['tags']);
+            }
+
+            // Handle Grade Category for quizzes/assignments if created successfully
+            // (Wait, local_grupomakro_create_express_activity might handle basic grading, but explicit category assignment might need extra logic 
+            // if not covered in locallib. For now check if locallib handles gradecat. 
+            // Reviewing typical usage: extra['gradecat'] is passed, assume locallib handles it or we'll need to check locallib later.
+            // But user focus is tags now.)
+
             return array(
                 'status' => 'success',
                 'message' => 'Activity created successfully',

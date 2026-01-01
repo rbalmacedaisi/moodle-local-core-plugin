@@ -72,6 +72,20 @@ const ActivityCreationWizard = {
                              </v-col>
                         </v-row>
 
+                        <!-- Tags Input -->
+                        <v-combobox
+                            v-model="formData.tags"
+                            label="Etiquetas / Agrupación"
+                            multiple
+                            chips
+                            small-chips
+                            deletable-chips
+                            outlined
+                            dense
+                            hint="Escriba y presione enter para crear una nueva etiqueta"
+                            persistent-hint
+                        ></v-combobox>
+
                         <div v-if="activityType === 'bbb'" class="blue lighten-5 pa-4 rounded-lg mb-4">
                             <v-icon small color="blue" class="mr-2">mdi-information-outline</v-icon>
                             <span class="text-caption blue--text">
@@ -108,7 +122,8 @@ const ActivityCreationWizard = {
                 name: '',
                 intro: '',
                 duedate: '',
-                gradecat: null
+                gradecat: null,
+                tags: []
             },
             gradeCategories: []
         };
@@ -120,7 +135,13 @@ const ActivityCreationWizard = {
     },
     computed: {
         activityLabel() {
-            const labels = { bbb: 'Sesión Virtual', assignment: 'Tarea', resource: 'Material' };
+            const labels = {
+                bbb: 'Sesión Virtual',
+                assignment: 'Tarea',
+                resource: 'Material',
+                quiz: 'Cuestionario',
+                forum: 'Foro'
+            };
             return labels[this.activityType] || 'Actividad';
         }
     },
@@ -141,7 +162,8 @@ const ActivityCreationWizard = {
                         intro: this.formData.intro,
                         duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
                         save_as_template: this.saveAsTemplate,
-                        gradecat: this.formData.gradecat
+                        gradecat: this.formData.gradecat,
+                        tags: this.formData.tags
                     },
                     ...window.wsStaticParams
                 });

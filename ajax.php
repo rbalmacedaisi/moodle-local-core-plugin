@@ -492,6 +492,38 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_all_activities':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            require_once($CFG->libdir . '/modinfolib.php');
+            $modinfo = get_fast_modinfo($class->corecourseid);
+            $cms = $modinfo->get_cms();
+            
+            $activities = [];
+            
+            foreach ($cms as $cm) {
+                if (!$cm->uservisible) continue;
+                // Exclude some module types if needed
+                if ($cm->modname === 'label') continue; 
+
+                $tags = core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
+                $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+
+                $activities[] = [
+                    'id' => $cm->id,
+                    'name' => $cm->name,
+                    'modname' => $cm->modname,
+                    'modicon' => $cm->get_icon_url()->out(),
+                    'url' => $cm->url ? $cm->url->out(false) : '',
+                    'tags' => array_values($tagNames) // Ensure array for JSON
+                ];
+            }
+            
+            $response = ['status' => 'success', 'activities' => $activities];
+            break;
+
         case 'local_grupomakro_create_express_activity':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/create_express_activity.php');
             $classid = required_param('classid', PARAM_INT);
@@ -500,9 +532,20 @@ try {
             $intro = optional_param('intro', '', PARAM_RAW);
             $duedate = optional_param('duedate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
+            $tags = optional_param('tags', '', PARAM_TEXT); // Receive tags as comma-separated string or array
             
+            // Normalize tags if passed as string
+            $tagList = [];
+            if (!empty($tags)) {
+                if (is_string($tags)) {
+                    $tagList = explode(',', $tags);
+                } else if (is_array($tags)) {
+                   $tagList = $tags;
+                }
+            }
+
             $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                $classid, $type, $name, $intro, $duedate, $save_as_template
+                $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList
             );
             break;
 
