@@ -493,47 +493,70 @@ try {
             break;
 
         case 'local_grupomakro_get_all_activities':
-            $classid = required_param('classid', PARAM_INT);
-            $class = $DB->get_record('gmk_class', ['id' => $classid]);
-            if (!$class) throw new Exception("Clase no encontrada.");
+            $logFile = make_temp_directory('grupomakro') . '/activities_debug.log';
+            file_put_contents($logFile, "--- Request: local_grupomakro_get_all_activities " . date('Y-m-d H:i:s') . " ---\n", FILE_APPEND);
             
-            require_once($CFG->libdir . '/modinfolib.php');
-            $modinfo = get_fast_modinfo($class->corecourseid);
-            $cms = $modinfo->get_cms();
-            
-            // Get excluded BBB instances (those used in timeline/attendance)
-            $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbactivityid', 'classid = :classid AND bbbactivityid IS NOT NULL', ['classid' => $class->id]);
-            // Ensure we have an array
-            if (!$excluded_instances) {
-                $excluded_instances = [];
-            }
+            try {
+                $classid = required_param('classid', PARAM_INT);
+                file_put_contents($logFile, "Class ID: $classid\n", FILE_APPEND);
 
-            $activities = [];
-            
-            foreach ($cms as $cm) {
-                if (!$cm->uservisible) continue;
-                // Exclude label
-                if ($cm->modname === 'label') continue;
-                
-                // Exclude class BBB sessions linked to attendance
-                if ($cm->modname === 'bigbluebuttonbn' && in_array($cm->instance, $excluded_instances)) {
-                    continue;
+                $class = $DB->get_record('gmk_class', ['id' => $classid]);
+                if (!$class) {
+                    file_put_contents($logFile, "Error: Class not found.\n", FILE_APPEND);
+                    throw new Exception("Clase no encontrada.");
                 }
+                file_put_contents($logFile, "Class Found: " . $class->name . " (Course ID: " . $class->corecourseid . ")\n", FILE_APPEND);
+                
+                require_once($CFG->libdir . '/modinfolib.php');
+                $modinfo = get_fast_modinfo($class->corecourseid);
+                $cms = $modinfo->get_cms();
+                file_put_contents($logFile, "CMs count: " . count($cms) . "\n", FILE_APPEND);
+                
+                // Get excluded BBB instances (those used in timeline/attendance)
+                $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbactivityid', 'classid = :classid AND bbbactivityid IS NOT NULL', ['classid' => $class->id]);
+                // Ensure we have an array
+                if (!$excluded_instances) {
+                    $excluded_instances = [];
+                }
+                file_put_contents($logFile, "Excluded Instances: " . json_encode($excluded_instances) . "\n", FILE_APPEND);
 
-                $tags = \core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
-                $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+                $activities = [];
+                
+                foreach ($cms as $cm) {
+                    if (!$cm->uservisible) continue;
+                    // Exclude label
+                    if ($cm->modname === 'label') continue;
+                    
+                    // Exclude class BBB sessions linked to attendance
+                    if ($cm->modname === 'bigbluebuttonbn' && in_array($cm->instance, $excluded_instances)) {
+                        continue;
+                    }
 
-                $activities[] = [
-                    'id' => $cm->id,
-                    'name' => $cm->name,
-                    'modname' => $cm->modname,
-                    'modicon' => $cm->get_icon_url()->out(),
-                    'url' => $cm->url ? $cm->url->out(false) : '',
-                    'tags' => array_values($tagNames) // Ensure array for JSON
-                ];
+                    try {
+                        $tags = \core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
+                        $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+                    } catch (Exception $tagEx) {
+                        file_put_contents($logFile, "Tag Error CM {$cm->id}: " . $tagEx->getMessage() . "\n", FILE_APPEND);
+                        $tagNames = [];
+                    }
+
+                    $activities[] = [
+                        'id' => $cm->id,
+                        'name' => $cm->name,
+                        'modname' => $cm->modname,
+                        'modicon' => $cm->get_icon_url()->out(),
+                        'url' => $cm->url ? $cm->url->out(false) : '',
+                        'tags' => array_values($tagNames) // Ensure array for JSON
+                    ];
+                }
+                
+                file_put_contents($logFile, "Activities Found: " . count($activities) . "\n", FILE_APPEND);
+                $response = ['status' => 'success', 'activities' => $activities];
+
+            } catch (Exception $e) {
+                file_put_contents($logFile, "CRITICAL ERROR: " . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n", FILE_APPEND);
+                throw $e;
             }
-            
-            $response = ['status' => 'success', 'activities' => $activities];
             break;
 
         case 'local_grupomakro_get_available_modules':
