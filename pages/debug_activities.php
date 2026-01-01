@@ -1,8 +1,15 @@
-<?php
 // pages/debug_activities.php
 
-require_once(__DIR__ . '/../../../../config.php');
+// Adjust path to find config.php from local/grupomakro_core/pages/
+$config_path = __DIR__ . '/../../../config.php';
+if (!file_exists($config_path)) {
+    // Fallback if structure is different
+    $config_path = __DIR__ . '/../../../../config.php';
+}
+require_once($config_path);
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
+require_login(); // Ensure user is logged in and $USER is set
 
 // Define a simple log/print helper
 function debug_print($msg) {
