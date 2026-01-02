@@ -93,21 +93,37 @@ class get_dashboard_data extends external_api {
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
-        // Build a map of CourseID -> Course Fullname for ALL events found
+        // Build maps for Course Info and Group Info
         $event_course_ids = [];
+        $event_group_ids = [];
+
         foreach ($events as $event) {
             $event_course_ids[] = $event->courseid;
+            if (!empty($event->groupid)) {
+                $event_group_ids[] = $event->groupid;
+            }
         }
         $event_course_ids = array_unique($event_course_ids);
+        $event_group_ids = array_unique($event_group_ids);
         
-        $course_name_map = [];
+        $course_info_map = [];
         if (!empty($event_course_ids)) {
             list($insql, $inparams) = $DB->get_in_or_equal($event_course_ids);
-            // Query COURSE table directly to get the clean Group/Subject name
-            $sql_map = "SELECT id, fullname FROM {course} WHERE id $insql";
+            // Query COURSE table for fullname and shortname
+            $sql_map = "SELECT id, fullname, shortname FROM {course} WHERE id $insql";
             $mapped_courses = $DB->get_records_sql($sql_map, $inparams);
             foreach ($mapped_courses as $row) {
-                $course_name_map[$row->id] = $row->fullname;
+                $course_info_map[$row->id] = $row;
+            }
+        }
+
+        $group_name_map = [];
+        if (!empty($event_group_ids)) {
+            list($insql, $inparams) = $DB->get_in_or_equal($event_group_ids);
+            $sql_map = "SELECT id, name FROM {groups} WHERE id $insql";
+            $mapped_groups = $DB->get_records_sql($sql_map, $inparams);
+            foreach ($mapped_groups as $row) {
+                $group_name_map[$row->id] = $row->name;
             }
         }
 
@@ -124,8 +140,18 @@ class get_dashboard_data extends external_api {
             // Map to class ID from Active Classes if available
             $e->classid = isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0;
             
-            // Map class name from Course DB lookup (fallback to event name if not found)
-            $e->classname = isset($course_name_map[$event->courseid]) ? $course_name_map[$event->courseid] : $event->name;
+            // Determine best label: Group Name > Course Shortname > Course Fullname > Event Name
+            $label = $event->name;
+            if (!empty($event->groupid) && isset($group_name_map[$event->groupid])) {
+                $label = $group_name_map[$event->groupid];
+            } elseif (isset($course_info_map[$event->courseid])) {
+                // Fallback to shortname if available and looks like a code (usually is), else fullname
+                $label = $course_info_map[$event->courseid]->shortname ?: $course_info_map[$event->courseid]->fullname;
+                 // If shortname is very short or generic, might prefer fullname. But usually shortname is the code.
+                 // Actually user asked for "Nombre del grupo" which we now have. 
+            }
+
+            $e->classname = $label;
 
             $calendar_events[] = $e;
         }

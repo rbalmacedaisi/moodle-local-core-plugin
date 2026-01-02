@@ -213,14 +213,6 @@ const TeacherDashboard = {
                 const tStart = parseInt(e.timestart);
                 const tDur = parseInt(e.timeduration) || 3600;
 
-                // Debug first few events
-                if (this.dashboardData.calendar_events.indexOf(e) < 5) {
-                    console.log(`Event Raw:`, e);
-                    console.log(`Event Name: ${e.name}`);
-                    console.log(`Backend ClassName: ${e.classname}`);
-                    console.log(`Final Name Used: ${e.classname || e.name}`);
-                }
-
                 return {
                     name: e.classname || e.name, // Use backend provided class name
                     activityName: e.name,
