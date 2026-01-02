@@ -131,8 +131,8 @@ const TeacherDashboard = {
                                 @change="onCalendarChange"
                                 @click:date="onClickDate"
                                 @click:more="onClickDate"
-                                :first-interval="7"
-                                :interval-count="16"
+                                :first-interval="6"
+                                :interval-count="18"
                                 locale="es"
                             ></v-calendar>
                         </v-sheet>
@@ -291,23 +291,31 @@ const TeacherDashboard = {
             }
         },
         onClickEvent({ event }) {
-            // Show single event or list for that day? User asked for list of day agenda
-            // But clicking event implies interest in that specific one. 
-            // Let's open the day agenda focusing on that date.
-            const date = event.start.toISOString().substr(0, 10);
+            // event.start is a Date object. Use local date string.
+            const date = this.getLocalDateString(event.start);
             this.openAgenda(date);
         },
         onClickDate({ date }) {
+            // date is already YYYY-MM-DD string
             this.openAgenda(date);
+        },
+        getLocalDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         },
         openAgenda(dateString) {
             // format: YYYY-MM-DD
-            this.selectedDateFormatted = new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+            // Create a date object just for formatting the title (handling timezone offset correctly by treating it as local)
+            const [y, m, d] = dateString.split('-').map(Number);
+            const localDateForTitle = new Date(y, m - 1, d);
 
-            // Filter events for this day
-            // Need to compare date parts
+            this.selectedDateFormatted = localDateForTitle.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+            // Filter events for this day using LOCAL time comparison
             this.selectedDateEvents = this.calendarEvents.filter(e => {
-                const eDate = e.start.toISOString().substr(0, 10);
+                const eDate = this.getLocalDateString(e.start);
                 return eDate === dateString;
             }).map(e => ({
                 ...e,
