@@ -54,7 +54,7 @@ window.TeacherExperience = {
                                 <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
                             </v-btn>
 
-                            <v-menu offset-y transition="slide-y-transition">
+                            <v-menu offset-y transition="slide-y-transition" content-class="gmk-user-menu-dropdown">
                                 <template v-slot:activator="{ on, attrs }">
                                     <v-btn text v-bind="attrs" v-on="on" class="text-none">
                                         <v-avatar size="32" color="blue darken-1" class="mr-2">

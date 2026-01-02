@@ -43,9 +43,12 @@
     z-index: 1000 !important;
 }
 
-/* Ensure menus are above everything */
+/* Ensure menus are above everything and can break out */
+.gmk-user-menu-dropdown,
 .v-menu__content {
-    z-index: 2000 !important;
+    z-index: 9999 !important;
+    position: fixed !important;
+    /* Force fixed to secure z-index context */
 }
 
 .border-bottom {
