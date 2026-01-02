@@ -129,9 +129,46 @@ const TeacherDashboard = {
                                 :events="calendarEvents"
                                 :type="calendarView"
                                 @change="onCalendarChange"
+                                @click:event="onClickEvent"
+                                @click:date="onClickDate"
+                                @click:more="onClickDate"
                                 locale="es"
                             ></v-calendar>
                         </v-sheet>
+                    </v-card-text>
+                </v-card>
+            </v-dialog>
+            
+            <!-- Agenda Dialog (Daily List) -->
+            <v-dialog v-model="showAgendaDialog" max-width="500px">
+                <v-card class="rounded-lg">
+                    <v-card-title class="grey lighten-5">
+                        <span class="text-subtitle-1 font-weight-bold">Agenda: {{ selectedDateFormatted }}</span>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="showAgendaDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-card-title>
+                    <v-card-text class="pa-0">
+                         <v-list v-if="selectedDateEvents.length > 0" two-line>
+                            <template v-for="(event, i) in selectedDateEvents">
+                                <v-list-item :key="i" @click="goToClass(event.classid)">
+                                    <v-list-item-avatar>
+                                        <v-icon class="blue lighten-1" dark small>mdi-calendar-check</v-icon>
+                                    </v-list-item-avatar>
+                                    <v-list-item-content>
+                                        <v-list-item-title class="font-weight-medium">{{ event.name }}</v-list-item-title>
+                                        <v-list-item-subtitle>{{ event.startTime }} - {{ event.endTime }}</v-list-item-subtitle>
+                                    </v-list-item-content>
+                                    <v-list-item-action>
+                                        <v-icon small color="grey">mdi-chevron-right</v-icon>
+                                    </v-list-item-action>
+                                </v-list-item>
+                                <v-divider v-if="i < selectedDateEvents.length - 1" :key="'div-' + i"></v-divider>
+                            </template>
+                        </v-list>
+                        <div v-else class="text-center pa-6 grey--text">
+                            <v-icon large color="grey lighten-2" class="mb-2">mdi-calendar-blank</v-icon>
+                            <div>No hay eventos programados para este día.</div>
+                        </div>
                     </v-card-text>
                 </v-card>
             </v-dialog>
@@ -144,6 +181,9 @@ const TeacherDashboard = {
             calendarValue: '',
             calendarView: 'month',
             calendarTitle: '',
+            showAgendaDialog: false,
+            selectedDateEvents: [],
+            selectedDateFormatted: '',
             viewNames: { 'month': 'Mes', 'week': 'Semana', 'day': 'Día' },
             dashboardData: {
                 active_classes: [],
@@ -167,6 +207,7 @@ const TeacherDashboard = {
                 name: e.name,
                 start: new Date(e.timestart * 1000),
                 end: new Date((e.timestart + (e.timeduration || 3600)) * 1000),
+                classid: e.classid || 0, // Ensure classid is passed
                 color: 'blue',
                 timed: true
             }));
@@ -239,7 +280,41 @@ const TeacherDashboard = {
         calendarPrev() { this.$refs.calendar.prev(); },
         calendarToday() { this.calendarValue = ''; },
         onCalendarChange({ start, end }) {
-            this.calendarTitle = start.month + ' / ' + start.year;
+            // Updated to handle range properly in title
+            // Note: start and end are objects with date info
+            if (this.calendarView === 'month') {
+                this.calendarTitle = new Date(start.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+            } else if (this.calendarView === 'week' || this.calendarView === 'day') {
+                // For week/day, maybe show start - end or just month/year of start
+                this.calendarTitle = new Date(start.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+            }
+        },
+        onClickEvent({ event }) {
+            // Show single event or list for that day? User asked for list of day agenda
+            // But clicking event implies interest in that specific one. 
+            // Let's open the day agenda focusing on that date.
+            const date = event.start.toISOString().substr(0, 10);
+            this.openAgenda(date);
+        },
+        onClickDate({ date }) {
+            this.openAgenda(date);
+        },
+        openAgenda(dateString) {
+            // format: YYYY-MM-DD
+            this.selectedDateFormatted = new Date(dateString + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+            // Filter events for this day
+            // Need to compare date parts
+            this.selectedDateEvents = this.calendarEvents.filter(e => {
+                const eDate = e.start.toISOString().substr(0, 10);
+                return eDate === dateString;
+            }).map(e => ({
+                ...e,
+                startTime: e.start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                endTime: e.end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+            }));
+
+            this.showAgendaDialog = true;
         },
         getClassImage(item) {
             // Placeholder logic for class images
