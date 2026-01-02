@@ -64,9 +64,10 @@ if ($withgrades) {
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
     $query = "
         SELECT cp.id, u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
-               lp.name as career, per.name as periodname, cp.coursename, cp.grade, cp.status as coursestatus
+               lp.name as career, per.name as periodname, cp.coursename, cp.grade, cp.status as coursestatus, fs.status as financial_status
         FROM {gmk_course_progre} cp
         JOIN {user} u ON u.id = cp.userid
+        LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
         JOIN {local_learning_periods} per ON per.id = cp.periodid
         $whereClause
@@ -74,8 +75,8 @@ if ($withgrades) {
 
     $records = $DB->get_records_sql($query, $sqlParams);
 
-    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'course_status'];
-    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Curso'];
+    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status'];
+    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso'];
     
     $data = [];
     $studentStatusCache = [];
@@ -109,6 +110,7 @@ if ($withgrades) {
         $row->course = $cp->coursename;
         $row->grade = number_format($cp->grade, 2);
         $row->student_status = $currentStudentStatus;
+        $row->financial_status = $cp->financial_status ?: 'Pendiente';
         $row->course_status = $statusLabels[$cp->coursestatus] ?? 'Desconocido';
         $data[] = $row;
     }
@@ -138,9 +140,10 @@ if ($withgrades) {
     $query = "
         SELECT lpu.id, u.id as userid, u.email, u.idnumber, u.firstname, u.lastname,
                lp.name as career, per.name as periodname, sub.name as subperiodname,
-               lpu.learningplanid as planid, lpu.currentperiodid as periodid
+               lpu.learningplanid as planid, lpu.currentperiodid as periodid, fs.status as financial_status
         FROM {user} u
         JOIN {local_learning_users} lpu ON lpu.userid = u.id
+        LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
         LEFT JOIN {local_learning_periods} per ON per.id = lpu.currentperiodid
         LEFT JOIN {local_learning_subperiods} sub ON sub.id = lpu.currentsubperiodid
@@ -175,6 +178,7 @@ if ($withgrades) {
             $row->periods = [];
             $row->subperiods = $user->subperiodname ?: '--';
             $row->student_status = $sStatus;
+            $row->financial_status = $user->financial_status ?: 'Pendiente';
             $userData[$user->userid] = $row;
         }
         $userData[$user->userid]->careers[] = $user->career;
@@ -188,8 +192,8 @@ if ($withgrades) {
         $data[] = $row;
     }
 
-    $columns = ['id', 'fullname', 'email', 'identification', 'careers', 'periods', 'subperiods', 'student_status'];
-    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carreras', 'Cuatrimestres', 'Bloque', 'Estado Estudiante'];
+    $columns = ['id', 'fullname', 'email', 'identification', 'careers', 'periods', 'subperiods', 'student_status', 'financial_status'];
+    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carreras', 'Cuatrimestres', 'Bloque', 'Estado Estudiante', 'Estado Financiero'];
 }
 
 $columnsWithHeaders = array_combine($columns, $headers);

@@ -14,10 +14,11 @@ global $DB;
 $query = 
     'SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
     lp.name as career, u.id as userid, u.email as email, u.idnumber,
-    u.firstname as firstname, u.lastname as lastname
+    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
     FROM {local_learning_plans} lp
     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
     JOIN {user} u ON (u.id = lpu.userid)
+    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
     WHERE lpu.userrolename = :userrolename
     ORDER BY u.firstname';
 
@@ -28,10 +29,11 @@ try {
     $query = 
     'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
     lp.name as career, u.id as userid, u.email as email, u.idnumber,
-    u.firstname as firstname, u.lastname as lastname
+    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
     FROM {local_learning_plans} lp
     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
     JOIN {user} u ON (u.id = lpu.userid)
+    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
     WHERE lpu.userrolename = :userrolename
     ORDER BY u.firstname';
     $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
@@ -41,8 +43,8 @@ $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'
 $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
 
 // Columns
-$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status'];
-$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado'];
+$columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'block', 'status', 'financial_status'];
+$headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Bloque', 'Estado', 'Estado Financiero'];
 
 // Prepare Iterator
 $data = [];
@@ -100,6 +102,9 @@ foreach ($infoUsers as $user) {
     }
     $row->status = $status;
     
+    // Financial Status
+    $row->financial_status = $user->financial_status ?: 'Pendiente';
+
     $data[] = $row;
 }
     
