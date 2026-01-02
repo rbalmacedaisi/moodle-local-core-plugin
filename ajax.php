@@ -497,6 +497,10 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
             
+            // Set context for get_icon_url and other core functions
+            $context = context_course::instance($class->corecourseid);
+            $PAGE->set_context($context);
+            
             require_once($CFG->libdir . '/modinfolib.php');
             $modinfo = get_fast_modinfo($class->corecourseid);
             $cms = $modinfo->get_cms();
