@@ -66,6 +66,10 @@ window.TeacherExperience = {
                                 </template>
                                 <v-list dense>
                                     <v-divider></v-divider>
+                                    <v-list-item :href="config.wwwroot + '/local/grupomakro_core/pages/teacher_profile.php'">
+                                        <v-list-item-icon><v-icon small>mdi-account-cog</v-icon></v-list-item-icon>
+                                        <v-list-item-title>Mi Perfil</v-list-item-title>
+                                    </v-list-item>
                                     <v-list-item :href="config.logoutUrl">
                                         <v-list-item-icon><v-icon small color="red">mdi-logout</v-icon></v-list-item-icon>
                                         <v-list-item-title class="red--text">Cerrar Sesión</v-list-item-title>
