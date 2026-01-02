@@ -159,6 +159,16 @@ class get_student_learning_plan_pensum extends external_api
                 }
                 $groupedUserPensumCourses[$userPensumCourse->periodid]['courses'][] = $userPensumCourse;
             }
+                $groupedUserPensumCourses[$userPensumCourse->periodid]['courses'][] = $userPensumCourse;
+            }
+            
+            // Fix: If array is empty, ensure we return an object or array as expected.
+            // Original code implied an object of objects keyed by periodId.
+            // If empty, return empty object.
+            if (empty($groupedUserPensumCourses)) {
+                return ['pensum' => json_encode(new \stdClass())];
+            }
+
             return ['pensum' => json_encode($groupedUserPensumCourses)];
         } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
