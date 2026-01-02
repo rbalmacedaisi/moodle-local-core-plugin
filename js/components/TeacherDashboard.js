@@ -216,12 +216,18 @@ const TeacherDashboard = {
                     classMap[c.courseid] = c.name;
                 });
             }
+            console.log('Class Map:', classMap);
 
             return this.dashboardData.calendar_events.map(e => {
                 const tStart = parseInt(e.timestart);
                 const tDur = parseInt(e.timeduration) || 3600;
                 // Use class name if available, otherwise fallback to event name
                 const displayName = classMap[e.courseid] || e.name;
+
+                // Debug first few events
+                if (this.dashboardData.calendar_events.indexOf(e) < 3) {
+                    console.log(`Event: ${e.name}, CourseID: ${e.courseid}, Mapped: ${classMap[e.courseid]}`);
+                }
 
                 return {
                     name: displayName,
