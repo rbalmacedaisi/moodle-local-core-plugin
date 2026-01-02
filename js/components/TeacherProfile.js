@@ -20,19 +20,21 @@ const TeacherProfile = {
                     </div>
 
                     <v-row>
-                        <!-- Left Column: User Card -->
-                        <v-col cols="12" md="4">
-                            <v-card class="rounded-xl elevation-2 text-center pa-6">
-                                <v-avatar size="120" color="grey lighten-2" class="mb-4">
-                                    <v-img v-if="logoUrl && logoUrl.includes('http')" :src="logoUrl"></v-img>
-                                    <span v-else class="text-h3 grey--text text--darken-2 font-weight-bold">{{ userInitials }}</span>
-                                </v-avatar>
-                                <h2 class="text-h5 font-weight-bold mb-1">{{ userFullname }}</h2>
-                                <div class="text-body-2 grey--text mb-4">{{ profile.email }}</div>
-                                <v-divider class="my-4"></v-divider>
-                                <div class="text-caption grey--text text--lighten-1">ID de Usuario: {{ userId }}</div>
-                            </v-card>
-                        </v-col>
+                <v-col cols="12" md="4">
+                    <v-card class="rounded-xl elevation-2 text-center pa-6">
+                        <v-avatar size="120" color="grey lighten-2" class="mb-4">
+                            <v-img v-if="userPictureUrl" :src="userPictureUrl"></v-img>
+                            <span v-else class="text-h3 grey--text text--darken-2 font-weight-bold">{{ userInitials }}</span>
+                        </v-avatar>
+                        <h2 class="text-h5 font-weight-bold mb-1">{{ userFullname }}</h2>
+                        <div class="text-body-2 grey--text mb-4">{{ profile.email }}</div>
+                        <v-divider class="my-4"></v-divider>
+                        <v-container class="pa-0">
+                            <!-- Just using userPictureUrl for consistency -->
+                        </v-container>
+                        <div class="text-caption grey--text text--lighten-1">ID de Usuario: {{ userId }}</div>
+                    </v-card>
+                </v-col>
 
                         <!-- Right Column: Forms -->
                         <v-col cols="12" md="8">
@@ -191,6 +193,7 @@ const TeacherProfile = {
             userId: 0,
             userFullname: '',
             logoUrl: '',
+            userPictureUrl: '', // Add this
             dashboardUrl: '',
 
             // Profile Data
@@ -242,8 +245,9 @@ const TeacherProfile = {
     methods: {
         initialize(config) {
             this.userId = config.userId;
-            this.userFullname = config.userFullname; // Initial display name
+            this.userFullname = config.userFullname;
             this.logoUrl = config.logoUrl;
+            this.userPictureUrl = config.userPictureUrl || ''; // Initialize from config
             this.dashboardUrl = config.dashboardUrl;
             this.lang = config.strings || {};
 

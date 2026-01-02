@@ -14,8 +14,8 @@ require_login();
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/teacher_profile.php'));
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title(get_string('myprofile'));
-$PAGE->set_heading(get_string('myprofile'));
+$PAGE->set_title('Mi Perfil'); // Using direct string to avoid deprecation issues
+$PAGE->set_heading('Mi Perfil');
 $PAGE->set_pagelayout('standard');
 $PAGE->add_body_class('gmk-full-frame');
 
@@ -30,7 +30,7 @@ $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dis
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherProfile.js?v=20251231022'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherProfile.js?v=20251231023'), true);
 
 // Initialize the experience
 $logoUrl = $OUTPUT->get_logo_url();
@@ -45,19 +45,27 @@ if (!$logoUrl) {
         // Silently fail and use placeholder
     }
 }
+
+// Get full user record to ensure description is present
+$userRecord = $DB->get_record('user', array('id' => $USER->id), '*', MUST_EXIST);
+
+// Get user profile picture
+$userPictureUrl = new moodle_url('/user/pix.php/' . $USER->id . '/f1.jpg');
+
 $config = [
     'wwwroot' => $CFG->wwwroot,
     'userId' => $USER->id,
     'userToken' => $USER->sesskey,
     'logoutUrl' => (new moodle_url('/login/logout.php', ['sesskey' => sesskey()]))->out(false),
     'dashboardUrl' => (new moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php'))->out(false),
-    'logoUrl' => ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=200', 
-    'userFullname' => fullname($USER),
-    'userEmail' => $USER->email,
-    'userPhone' => $USER->phone1,
-    'userDescription' => $USER->description,
-    'userFirstname' => $USER->firstname,
-    'userLastname' => $USER->lastname,
+    'logoUrl' => ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=200',
+    'userPictureUrl' => $userPictureUrl->out(false), 
+    'userFullname' => fullname($userRecord),
+    'userEmail' => $userRecord->email,
+    'userPhone' => $userRecord->phone1,
+    'userDescription' => isset($userRecord->description) ? $userRecord->description : '',
+    'userFirstname' => $userRecord->firstname,
+    'userLastname' => $userRecord->lastname,
 
     'strings' => [
         'name' => get_string('fullname', 'local_grupomakro_core'),
