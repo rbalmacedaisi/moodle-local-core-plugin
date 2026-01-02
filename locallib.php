@@ -3360,6 +3360,12 @@ function local_grupomakro_sync_financial_status($userids = []) {
         $sql .= " AND u.id $insql";
         $params = array_merge($params, $inparams);
     } else {
+        // Prevent infinite loops: Only pick users not updated in the last hour
+        // or never updated.
+        $cutoff = time() - 3600; 
+        $sql .= " AND (fs.lastupdated IS NULL OR fs.lastupdated < :cutoff)";
+        $params['cutoff'] = $cutoff;
+
         // Prioritize those that have never been updated (fs.id IS NULL) or oldest update
         $sql .= " ORDER BY COALESCE(fs.lastupdated, 0) ASC";
     }
@@ -3385,7 +3391,6 @@ function local_grupomakro_sync_financial_status($userids = []) {
          return ['updated' => 0, 'message' => 'No valid document numbers found in batch'];
     }
 
-    // 2. Call Odoo Proxy
     // 2. Call Odoo Proxy (Native cURL to bypass Moodle localhost block)
     // TODO: Move to plugin settings
     $proxyUrl = get_config('local_grupomakro_core', 'odoo_proxy_url');
@@ -3436,8 +3441,13 @@ function local_grupomakro_sync_financial_status($userids = []) {
         
         $record = new stdClass();
         $record->userid = $userid;
-        $record->status = isset($statusInfo['reason']) ? $statusInfo['reason'] : 'none';
-        $record->reason = isset($statusInfo['reason']) ? substr($statusInfo['reason'], 0, 50) : '';
+        // Use 'status' if available from Odoo, otherwise fall back to 'reason'
+        // This is safer if Odoo API changes or if 'reason' was being used as status incorrectly
+        $newStatus = isset($statusInfo['status']) ? $statusInfo['status'] : (isset($statusInfo['reason']) ? $statusInfo['reason'] : 'none');
+        $record->status = $newStatus;
+        
+        // Increase truncation to 255 to match new DB schema
+        $record->reason = isset($statusInfo['reason']) ? substr($statusInfo['reason'], 0, 255) : '';
         $record->json_data = json_encode($statusInfo);
         $record->lastupdated = $time;
         $record->timemodified = $time;
