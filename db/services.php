@@ -667,5 +667,21 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_update_teacher_profile' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\update_profile',
+        'methodname'  => 'execute',
+        'description' => 'Update teacher profile information',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_change_teacher_password' => array(
+        'classname'   => 'local_grupomakro_core\external\teacher\change_password',
+        'methodname'  => 'execute',
+        'description' => 'Change teacher password',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
 );
 
