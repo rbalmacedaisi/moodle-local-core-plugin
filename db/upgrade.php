@@ -1145,10 +1145,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
     if ($oldversion < 20260102002) {
         $table = new xmldb_table('gmk_financial_status');
 
+        // Drop index first to avoid dependency error
+        $index = new xmldb_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
         // Change status field to char(50)
         $fieldStatus = new xmldb_field('status', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, 'none', 'userid');
         if ($dbman->field_exists($table, $fieldStatus)) {
             $dbman->change_field_precision($table, $fieldStatus);
+        }
+
+        // Recreate index
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
         }
 
         // Change reason field to char(255)
