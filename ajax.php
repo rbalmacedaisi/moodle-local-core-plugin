@@ -56,6 +56,16 @@ try {
             $response = \local_grupomakro_core\external\student\sync_progress::execute();
             break;
         
+        case 'local_grupomakro_update_student_status':
+            $userid = required_param('userid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/update_status.php');
+            $result = \local_grupomakro_core\external\student\update_status::execute($userid);
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_update_period':
             $userid = required_param('userid', PARAM_INT);
             $planid = required_param('planid', PARAM_INT);
