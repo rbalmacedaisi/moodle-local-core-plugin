@@ -105,6 +105,15 @@ Vue.component('studenttable', {
                                         dense
                                         clearable
                                     ></v-select>
+                                    <v-select
+                                        v-if="isAdmin"
+                                        v-model="filters.financialStatus"
+                                        :items="['al_dia', 'mora', 'becado', 'convenio', 'sin_contrato_o_usuario']"
+                                        label="Estado Financiero"
+                                        outlined
+                                        dense
+                                        clearable
+                                    ></v-select>
                                     <v-switch
                                         v-model="filters.withGrades"
                                         label="Incluir Notas en Exportación"
@@ -268,7 +277,9 @@ Vue.component('studenttable', {
             filters: {
                 planid: [],
                 periodid: [],
+                periodid: [],
                 status: '',
+                financialStatus: '',
                 withGrades: false
             },
             careers: [],
@@ -369,6 +380,7 @@ Vue.component('studenttable', {
                 params.append('planid', planid);
                 params.append('periodid', periodid);
                 params.append('status', this.filters.status || '');
+                params.append('financial_status', this.filters.financialStatus || '');
                 params.append('classid', this.classId || 0);
 
                 const response = await fetch(url, {
@@ -519,6 +531,7 @@ Vue.component('studenttable', {
                 url += `periodid=${this.filters.periodid.join(',')}&`;
             }
             if (this.filters.status) url += `status=${this.filters.status}&`;
+            if (this.filters.financialStatus) url += `financial_status=${this.filters.financialStatus}&`;
             url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
             window.open(url, '_blank');
         },

@@ -63,6 +63,7 @@ class get_student_info extends external_api {
                 'periodid'       => new external_value(PARAM_RAW, 'Filter by Period IDs (comma separated).', VALUE_DEFAULT, ''),
                 'status'         => new external_value(PARAM_TEXT, 'Filter by Student Status.', VALUE_DEFAULT, ''),
                 'classid'        => new external_value(PARAM_INT, 'Filter by Class ID.', VALUE_DEFAULT, 0),
+                'financial_status' => new external_value(PARAM_TEXT, 'Filter by Financial Status.', VALUE_DEFAULT, ''),
             ]);
     }
 
@@ -74,7 +75,7 @@ class get_student_info extends external_api {
      * @param string $status
      * @return mixed TODO document
      */
-    public static function execute($page, $resultsperpage, $search, $planid = '', $periodid = '', $status = '', $classid = 0) {
+    public static function execute($page, $resultsperpage, $search, $planid = '', $periodid = '', $status = '', $classid = 0, $financial_status = '') {
         global $DB;
         
         // Validate the parameters passed to the function.
@@ -86,6 +87,7 @@ class get_student_info extends external_api {
             'periodid'       => $periodid,
             'status'         => $status,
             'classid'        => $classid,
+            'financial_status' => $financial_status
         ]);
         
         $sqlConditions = ["lpu.userrolename = :userrolename"];
@@ -115,6 +117,12 @@ class get_student_info extends external_api {
                 $sqlParams['groupid'] = $class->groupid;
                 $sqlParams['instructorid'] = $class->instructorid;
             }
+            }
+        }
+
+        if (!empty($params['financial_status'])) {
+            $sqlConditions[] = "fs.status = :financial_status";
+            $sqlParams['financial_status'] = $params['financial_status'];
         }
 
         $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -134,6 +142,7 @@ class get_student_info extends external_api {
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
             JOIN {user} u ON (u.id = lpu.userid)
+            LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
             $gradeJoin
             $whereClause
             ORDER BY u.firstname";
@@ -154,6 +163,7 @@ class get_student_info extends external_api {
                     FROM {local_learning_plans} lp
                     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
                     JOIN {user} u ON (u.id = lpu.userid)
+                    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
                     $gradeJoin
                     $whereClause
                     ORDER BY u.firstname";

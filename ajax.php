@@ -319,11 +319,12 @@ try {
             $planid = optional_param('planid', '', PARAM_RAW);
             $periodid = optional_param('periodid', '', PARAM_RAW);
             $status = optional_param('status', '', PARAM_TEXT);
+            $financial_status = optional_param('financial_status', '', PARAM_TEXT);
             $classid = optional_param('classid', 0, PARAM_INT);
 
             // Execute
             $result = \local_grupomakro_core\external\student\get_student_info::execute(
-                $page, $resultsperpage, $search, $planid, $periodid, $status, $classid
+                $page, $resultsperpage, $search, $planid, $periodid, $status, $classid, $financial_status
             );
             
             // Retrieve actual values from external_value structure if needed, or if array is returned directly

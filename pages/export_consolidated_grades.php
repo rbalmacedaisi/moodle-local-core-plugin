@@ -20,7 +20,8 @@ global $DB;
 
 $planid   = optional_param('planid', '', PARAM_RAW);
 $periodid = optional_param('periodid', '', PARAM_RAW);
-$status   = optional_param('status', '', PARAM_TEXT); 
+$status   = optional_param('status', '', PARAM_TEXT);
+$financial_status = optional_param('financial_status', '', PARAM_TEXT); 
 $withgrades = optional_param('withgrades', 1, PARAM_INT);
 
 // Course Status Mapping
@@ -59,6 +60,11 @@ if ($withgrades) {
             $sqlConditions[] = "cp.periodid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
+    }
+
+    if (!empty($financial_status)) {
+        $sqlConditions[] = "fs.status = :financial_status";
+        $sqlParams['financial_status'] = $financial_status;
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
@@ -134,6 +140,11 @@ if ($withgrades) {
             $sqlConditions[] = "lpu.currentperiodid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
+    }
+    
+    if (!empty($financial_status)) {
+        $sqlConditions[] = "fs.status = :financial_status";
+        $sqlParams['financial_status'] = $financial_status;
     }
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
