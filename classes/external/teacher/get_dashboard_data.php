@@ -93,21 +93,21 @@ class get_dashboard_data extends external_api {
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
-        // Build a map of CourseID -> ClassName for ALL events found
+        // Build a map of CourseID -> Course Fullname for ALL events found
         $event_course_ids = [];
         foreach ($events as $event) {
             $event_course_ids[] = $event->courseid;
         }
         $event_course_ids = array_unique($event_course_ids);
         
-        $course_class_map = [];
+        $course_name_map = [];
         if (!empty($event_course_ids)) {
             list($insql, $inparams) = $DB->get_in_or_equal($event_course_ids);
-            // We want the name of the class associated with this course
-            $sql_map = "SELECT courseid, name FROM {gmk_class} WHERE courseid $insql";
-            $mapped_classes = $DB->get_records_sql($sql_map, $inparams);
-            foreach ($mapped_classes as $row) {
-                $course_class_map[$row->courseid] = $row->name;
+            // Query COURSE table directly to get the clean Group/Subject name
+            $sql_map = "SELECT id, fullname FROM {course} WHERE id $insql";
+            $mapped_courses = $DB->get_records_sql($sql_map, $inparams);
+            foreach ($mapped_courses as $row) {
+                $course_name_map[$row->id] = $row->fullname;
             }
         }
 
@@ -124,8 +124,8 @@ class get_dashboard_data extends external_api {
             // Map to class ID from Active Classes if available
             $e->classid = isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0;
             
-            // Map class name from DB lookup (fallback to event name if no class found)
-            $e->classname = isset($course_class_map[$event->courseid]) ? $course_class_map[$event->courseid] : $event->name;
+            // Map class name from Course DB lookup (fallback to event name if not found)
+            $e->classname = isset($course_name_map[$event->courseid]) ? $course_name_map[$event->courseid] : $event->name;
 
             $calendar_events[] = $e;
         }
