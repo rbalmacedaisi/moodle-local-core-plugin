@@ -121,12 +121,6 @@ const TeacherDashboard = {
                         <v-btn icon @click="showCalendar = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
                     <v-card-text class="pa-4 bg-white">
-                        <v-alert type="info" dense outlined class="mb-2">
-                            Debug Info: {{ calendarEvents.length }} eventos.
-                            Raw: TS={{ calendarEvents.length > 0 ? dashboardData.calendar_events[0].timestart : 'N/A' }} 
-                            Dur={{ calendarEvents.length > 0 ? dashboardData.calendar_events[0].timeduration : 'N/A' }}
-                            -> End={{ calendarEvents.length > 0 ? calendarEvents[0].end.toString() : 'N/A' }}
-                        </v-alert>
                         <v-sheet height="600">
                             <v-calendar
                                 ref="calendar"
@@ -215,11 +209,23 @@ const TeacherDashboard = {
             return window.strings || {};
         },
         calendarEvents() {
+            // Create a lookup map for class names by courseId
+            const classMap = {};
+            if (this.dashboardData.active_classes) {
+                this.dashboardData.active_classes.forEach(c => {
+                    classMap[c.courseid] = c.name;
+                });
+            }
+
             return this.dashboardData.calendar_events.map(e => {
                 const tStart = parseInt(e.timestart);
                 const tDur = parseInt(e.timeduration) || 3600;
+                // Use class name if available, otherwise fallback to event name
+                const displayName = classMap[e.courseid] || e.name;
+
                 return {
-                    name: e.name,
+                    name: displayName,
+                    activityName: e.name, // Keep original name for details if needed
                     start: new Date(tStart * 1000),
                     end: new Date((tStart + tDur) * 1000),
                     classid: e.classid || 0,
