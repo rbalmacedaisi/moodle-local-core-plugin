@@ -3386,26 +3386,37 @@ function local_grupomakro_sync_financial_status($userids = []) {
     }
 
     // 2. Call Odoo Proxy
-    $curl = new curl();
+    // 2. Call Odoo Proxy (Native cURL to bypass Moodle localhost block)
     // TODO: Move to plugin settings
     $proxyUrl = get_config('local_grupomakro_core', 'odoo_proxy_url');
     if (empty($proxyUrl)) {
-        $proxyUrl = 'http://localhost:4000'; // Default to port 4000
+        $proxyUrl = 'https://lms.isi.edu.pa:4000'; // Hardcoded fallback
     }
     $endpoint = rtrim($proxyUrl, '/') . '/api/odoo/status/bulk';
 
     $payload = json_encode(['documentNumbers' => array_keys($docNumbersMap)]);
-    $options = ['CURLOPT_HTTPHEADER' => ['Content-Type: application/json']];
     
-    // Set timeout to avoid hanging cron
-    $curl->setopt(array('CURLOPT_TIMEOUT' => 30, 'CURLOPT_CONNECTTIMEOUT' => 10));
+    $ch = curl_init($endpoint);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
+    curl_close($ch);
 
-    $response = $curl->post($endpoint, $payload, $options);
-    $info = $curl->get_info();
+    if ($response === false) {
+        debugging("Odoo Proxy Connection Error: " . $curl_error, DEBUG_DEVELOPER);
+        return ['error' => 'Proxy Connection Error: ' . $curl_error];
+    }
 
-    if ($info['http_code'] !== 200 && $info['http_code'] !== 201) {
-        debugging("Odoo Proxy Error: " . $info['http_code'] . " - " . $response, DEBUG_DEVELOPER);
-        return ['error' => 'Proxy Error: ' . $info['http_code'], 'details' => substr($response, 0, 200)];
+    if ($http_code !== 200 && $http_code !== 201) {
+        debugging("Odoo Proxy HTTP Error: " . $http_code . " - " . $response, DEBUG_DEVELOPER);
+        return ['error' => 'Proxy Error: ' . $http_code, 'details' => substr($response, 0, 200)];
     }
 
     $data = json_decode($response, true);

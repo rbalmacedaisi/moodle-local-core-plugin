@@ -54,8 +54,7 @@ class update_status extends external_api {
         $result = local_grupomakro_sync_financial_status($targetUserIds);
 
         if (isset($result['error'])) {
-             // Temporary: use generic exception to show the error detail directly
-             throw new \moodle_exception('generalexceptionmessage', 'error', '', $result['error'] . ' - ' . ($result['details'] ?? ''));
+             throw new \moodle_exception('errorproxy', 'local_grupomakro_core', '', $result['error']);
         }
 
         return [
