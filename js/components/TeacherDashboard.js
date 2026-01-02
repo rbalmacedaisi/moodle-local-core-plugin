@@ -122,8 +122,10 @@ const TeacherDashboard = {
                     </v-toolbar>
                     <v-card-text class="pa-4 bg-white">
                         <v-alert type="info" dense outlined class="mb-2">
-                            Debug Info: {{ calendarEvents.length }} eventos cargados.
-                            Sample: {{ calendarEvents.length > 0 ? calendarEvents[0].start.toString() + ' -> ' + calendarEvents[0].end.toString() : 'N/A' }}
+                            Debug Info: {{ calendarEvents.length }} eventos.
+                            Raw: TS={{ calendarEvents.length > 0 ? dashboardData.calendar_events[0].timestart : 'N/A' }} 
+                            Dur={{ calendarEvents.length > 0 ? dashboardData.calendar_events[0].timeduration : 'N/A' }}
+                            -> End={{ calendarEvents.length > 0 ? calendarEvents[0].end.toString() : 'N/A' }}
                         </v-alert>
                         <v-sheet height="600">
                             <v-calendar
@@ -213,14 +215,18 @@ const TeacherDashboard = {
             return window.strings || {};
         },
         calendarEvents() {
-            return this.dashboardData.calendar_events.map(e => ({
-                name: e.name,
-                start: new Date(e.timestart * 1000),
-                end: new Date((e.timestart + (e.timeduration || 3600)) * 1000),
-                classid: e.classid || 0,
-                color: 'primary', // Changed to primary for consistency
-                timed: true
-            }));
+            return this.dashboardData.calendar_events.map(e => {
+                const tStart = parseInt(e.timestart);
+                const tDur = parseInt(e.timeduration) || 3600;
+                return {
+                    name: e.name,
+                    start: new Date(tStart * 1000),
+                    end: new Date((tStart + tDur) * 1000),
+                    classid: e.classid || 0,
+                    color: 'primary',
+                    timed: true
+                };
+            });
         }
     },
     mounted() {
