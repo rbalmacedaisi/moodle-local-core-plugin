@@ -34,13 +34,18 @@
 .sticky-header {
     position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 4;
     box-shadow: var(--gmk-shadow);
 }
 
 /* Ensure App Bar is always on top */
 .v-app-bar {
-    z-index: 50 !important;
+    z-index: 1000 !important;
+}
+
+/* Ensure menus are above everything */
+.v-menu__content {
+    z-index: 2000 !important;
 }
 
 .border-bottom {
