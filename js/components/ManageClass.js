@@ -278,14 +278,20 @@ const ManageClass = {
     computed: {
         groupedActivities() {
             const groups = {};
+            console.log('Calculating groupedActivities', this.activities);
+            if (!this.activities || !Array.isArray(this.activities)) {
+                console.warn('Activities is not an array:', this.activities);
+                return {};
+            }
             this.activities.forEach(activity => {
                 const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
+                console.log('Activity:', activity.name, 'Tags:', tags);
                 tags.forEach(tag => {
                     if (!groups[tag]) groups[tag] = [];
                     groups[tag].push(activity);
                 });
             });
-            // Sort by tag name if needed? Object keys order is not guaranteed but usually insert order in modern JS
+            console.log('Grouped Activities:', groups);
             return groups;
         }
     },
@@ -332,7 +338,10 @@ const ManageClass = {
                     ...window.wsStaticParams
                 });
                 if (response.data.status === 'success') {
+                    console.log('Fetch Activities Success:', response.data.activities);
                     this.activities = response.data.activities;
+                } else {
+                    console.warn('Fetch Activities Failed:', response.data);
                 }
             } catch (error) {
                 console.error('Error fetching activities:', error);
