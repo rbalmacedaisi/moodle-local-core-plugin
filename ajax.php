@@ -369,16 +369,16 @@ try {
                 if ($e->modulename === 'attendance') {
                      // Try to find if this attendance session is linked to a BBB activity
                      // Link: attendance_sessions.caleventid -> gmk_bbb_attendance_relation
-                     $sql = "SELECT rel.bbbactivityid, sess.id as sessionid
+                     $sql = "SELECT rel.bbbid, sess.id as sessionid
                              FROM {attendance_sessions} sess
                              JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = sess.id
                              WHERE sess.caleventid = :caleventid";
                      $rel = $DB->get_record_sql($sql, ['caleventid' => $e->id]);
                      
-                     if ($rel && $rel->bbbactivityid) {
+                     if ($rel && $rel->bbbid) {
                          $session_data->type = 'virtual';
                          try {
-                              $cm = get_coursemodule_from_instance('bigbluebuttonbn', $rel->bbbactivityid);
+                              $cm = get_coursemodule_from_instance('bigbluebuttonbn', $rel->bbbid);
                               if ($cm) {
                                   // requires mod/bigbluebuttonbn/locallib.php if needed? usually autoloaded
                                   $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
@@ -502,7 +502,7 @@ try {
             $cms = $modinfo->get_cms();
             
             // Get excluded BBB instances (those used in timeline/attendance)
-            $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbactivityid', 'classid = :classid AND bbbactivityid IS NOT NULL', ['classid' => $class->id]);
+            $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbid', 'classid = :classid AND bbbid IS NOT NULL', ['classid' => $class->id]);
             // Ensure we have an array
             if (!$excluded_instances) {
                 $excluded_instances = [];

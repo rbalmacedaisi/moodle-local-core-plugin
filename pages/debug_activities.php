@@ -63,7 +63,7 @@ try {
 
     // Check excluded instances
     debug_print("Querying gmk_bbb_attendance_relation for excluded instances...");
-    $sql = "SELECT bbbactivityid FROM {gmk_bbb_attendance_relation} WHERE classid = :classid AND bbbactivityid IS NOT NULL";
+    $sql = "SELECT bbbid FROM {gmk_bbb_attendance_relation} WHERE classid = :classid AND bbbid IS NOT NULL";
     $excluded_instances_raw = $DB->get_fieldset_sql($sql, ['classid' => $class->id]);
     
     if (!$excluded_instances_raw) {
