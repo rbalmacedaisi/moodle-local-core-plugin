@@ -137,7 +137,6 @@ const ManageClass = {
                                                         </v-list-item-content>
                                                         <v-list-item-action>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
-                                                            <v-btn icon small :href="activity.url" target="_blank"><v-icon color="grey lighten-1">mdi-open-in-new</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
                                                     <v-divider v-if="i < group.length - 1" :key="'div-' + i" inset></v-divider>
