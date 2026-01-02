@@ -176,6 +176,7 @@ class get_dashboard_data extends external_api {
                         array(
                             'id' => new external_value(PARAM_INT, 'Class ID'),
                             'name' => new external_value(PARAM_TEXT, 'Class Name'),
+                            'courseid' => new external_value(PARAM_INT, 'Course ID'),
                             'course_fullname' => new external_value(PARAM_TEXT, 'Course Fullname'),
                             'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname'),
                             'type' => new external_value(PARAM_INT, 'Type (0: inplace, 1: virtual)'),
