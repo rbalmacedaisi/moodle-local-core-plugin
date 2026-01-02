@@ -1142,5 +1142,23 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260102001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260102002) {
+        $table = new xmldb_table('gmk_financial_status');
+
+        // Change status field to char(50)
+        $fieldStatus = new xmldb_field('status', XMLDB_TYPE_CHAR, '50', null, XMLDB_NOTNULL, null, 'none', 'userid');
+        if ($dbman->field_exists($table, $fieldStatus)) {
+            $dbman->change_field_precision($table, $fieldStatus);
+        }
+
+        // Change reason field to char(255)
+        $fieldReason = new xmldb_field('reason', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'status');
+        if ($dbman->field_exists($table, $fieldReason)) {
+            $dbman->change_field_precision($table, $fieldReason);
+        }
+
+        upgrade_plugin_savepoint(true, 20260102002, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
