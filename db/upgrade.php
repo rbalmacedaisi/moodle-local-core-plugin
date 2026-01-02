@@ -1112,5 +1112,35 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20251230001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260102001) {
+
+        // Define table gmk_financial_status to be created.
+        $table = new xmldb_table('gmk_financial_status');
+
+        // Adding fields to table gmk_financial_status.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'none');
+        $table->add_field('reason', XMLDB_TYPE_CHAR, '50', null, null, null, null);
+        $table->add_field('json_data', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('lastupdated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_financial_status.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+
+        // Adding indexes to table gmk_financial_status.
+        $table->add_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status']);
+
+        // Conditionally launch create table for gmk_financial_status.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260102001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

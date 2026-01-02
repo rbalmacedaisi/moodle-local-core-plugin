@@ -675,13 +675,20 @@ $functions = array(
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
-    'local_grupomakro_change_teacher_password' => array(
-        'classname'   => 'local_grupomakro_core\external\teacher\change_password',
-        'methodname'  => 'execute',
+    'local_grupomakro_change_teacher_password' => [
+        'classname' => 'local_grupomakro_core\external\teacher\change_password',
+        'methodname' => 'execute',
         'description' => 'Change teacher password',
         'type'        => 'write',
         'ajax'        => true,
-        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
-    ),
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_update_student_status' => [
+        'classname' => 'local_grupomakro_core\external\student\update_status',
+        'methodname' => 'execute',
+        'description' => 'Update student financial status',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );
-

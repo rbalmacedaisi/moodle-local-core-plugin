@@ -3331,3 +3331,123 @@ function local_grupomakro_save_climate_feedback($sessionid, $rating) {
     $feedback->timecreated = time();
     return $DB->insert_record('gmk_climate_feedback', $feedback);
 }
+
+/**
+ * Syncs student financial status from Odoo Proxy.
+ *
+ * @param array $userids Optional list of specific user IDs to sync. If empty, syncs a batch of oldest updated users.
+ * @return array Result stats.
+ */
+function local_grupomakro_sync_financial_status($userids = []) {
+    global $DB, $CFG;
+    require_once($CFG->libdir . '/filelib.php');
+
+    // 1. Identify users to sync
+    $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
+    if (!$fieldDoc) {
+        return ['error' => 'Field documentnumber not found'];
+    }
+
+    $sql = "SELECT u.id, d.data as documentnumber
+            FROM {user} u
+            JOIN {user_info_data} d ON (d.userid = u.id AND d.fieldid = :fieldid)
+            LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
+            WHERE u.deleted = 0 AND d.data IS NOT NULL AND d.data != ''";
+    $params = ['fieldid' => $fieldDoc->id];
+
+    if (!empty($userids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        $sql .= " AND u.id $insql";
+        $params = array_merge($params, $inparams);
+    } else {
+        // Prioritize those that have never been updated (fs.id IS NULL) or oldest update
+        $sql .= " ORDER BY COALESCE(fs.lastupdated, 0) ASC";
+    }
+
+    // Limit batch size to 50 if automated (no IDs provided) to avoid timeouts
+    $limit = empty($userids) ? 50 : 0;
+    
+    $users = $DB->get_records_sql($sql, $params, 0, $limit);
+    if (empty($users)) {
+        return ['updated' => 0, 'message' => 'No users to update'];
+    }
+
+    $docNumbersMap = [];
+    foreach ($users as $u) {
+        $doc = trim($u->documentnumber);
+        // Basic cleanup of doc number if needed
+        if ($doc) {
+            $docNumbersMap[$doc] = $u->id;
+        }
+    }
+
+    if (empty($docNumbersMap)) {
+         return ['updated' => 0, 'message' => 'No valid document numbers found in batch'];
+    }
+
+    // 2. Call Odoo Proxy
+    $curl = new curl();
+    // TODO: Move to plugin settings
+    $proxyUrl = get_config('local_grupomakro_core', 'odoo_proxy_url');
+    if (empty($proxyUrl)) {
+        $proxyUrl = 'http://localhost:3000'; // Fallback
+    }
+    $endpoint = rtrim($proxyUrl, '/') . '/api/odoo/status/bulk';
+
+    $payload = json_encode(['documentNumbers' => array_keys($docNumbersMap)]);
+    $options = ['CURLOPT_HTTPHEADER' => ['Content-Type: application/json']];
+    
+    // Set timeout to avoid hanging cron
+    $curl->setopt(array('CURLOPT_TIMEOUT' => 30, 'CURLOPT_CONNECTTIMEOUT' => 10));
+
+    $response = $curl->post($endpoint, $payload, $options);
+    $info = $curl->get_info();
+
+    if ($info['http_code'] !== 200 && $info['http_code'] !== 201) {
+        debugging("Odoo Proxy Error: " . $info['http_code'] . " - " . $response, DEBUG_DEVELOPER);
+        return ['error' => 'Proxy Error: ' . $info['http_code'], 'details' => substr($response, 0, 200)];
+    }
+
+    $data = json_decode($response, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return ['error' => 'Invalid JSON from Proxy', 'details' => substr($response, 0, 100)];
+    }
+
+    // 3. Update Status
+    $updated = 0;
+    $time = time();
+    $transaction = $DB->start_delegated_transaction();
+
+    foreach ($data as $doc => $statusInfo) {
+        if (!isset($docNumbersMap[$doc])) continue;
+        
+        $userid = $docNumbersMap[$doc];
+        
+        $record = new stdClass();
+        $record->userid = $userid;
+        $record->status = isset($statusInfo['reason']) ? $statusInfo['reason'] : 'none';
+        $record->reason = isset($statusInfo['reason']) ? substr($statusInfo['reason'], 0, 50) : '';
+        $record->json_data = json_encode($statusInfo);
+        $record->lastupdated = $time;
+        $record->timemodified = $time;
+
+        // Check if exists
+        $existing = $DB->get_record('gmk_financial_status', ['userid' => $userid]);
+        if ($existing) {
+            $record->id = $existing->id;
+            $DB->update_record('gmk_financial_status', $record);
+        } else {
+            $DB->insert_record('gmk_financial_status', $record);
+        }
+        $updated++;
+    }
+    
+    $transaction->allow_commit();
+
+    return [
+        'success' => true,
+        'updated' => $updated, 
+        'total_requested' => count($docNumbersMap),
+        'total_fetched' => count($data)
+    ];
+}

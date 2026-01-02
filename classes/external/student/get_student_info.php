@@ -247,7 +247,10 @@ class get_student_info extends external_api {
                     'periods' => [],
                     'subperiods' => $subperiodname,
                     'revalidate' => $revalidate,
-                    'grade' => isset($user->currentgrade) ? round((float)$user->currentgrade, 2) : '--'
+                    'grade' => isset($user->currentgrade) ? round((float)$user->currentgrade, 2) : '--',
+                    'financial_status' => $DB->get_field('gmk_financial_status', 'status', ['userid' => $user->userid]) ?: 'unknown',
+                    'financial_reason' => $DB->get_field('gmk_financial_status', 'reason', ['userid' => $user->userid]) ?: '',
+                    'financial_lastupdated' => $DB->get_field('gmk_financial_status', 'lastupdated', ['userid' => $user->userid]) ?: 0
                 ];
             }
 

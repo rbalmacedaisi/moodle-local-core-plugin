@@ -209,6 +209,32 @@ Vue.component('studenttable', {
                              notas
                         </v-btn>
                     </template>
+
+                    <template v-slot:item.financial_status="{ item }">
+                         <div class="d-flex align-center">
+                            <v-tooltip bottom v-if="item.financial_reason">
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-chip v-bind="attrs" v-on="on" :color="getFinancialColor(item.financial_status)" dark small label 
+                                        class="text-uppercase text-caption font-weight-bold mr-2"
+                                        style="letter-spacing: 0.05em !important;"
+                                    >
+                                         {{ item.financial_status === 'none' ? 'PENDIENTE' : item.financial_status }}
+                                    </v-chip>
+                                </template>
+                                <span>{{ item.financial_reason }}</span>
+                            </v-tooltip>
+                            <v-chip v-else :color="getFinancialColor(item.financial_status)" dark small label 
+                                class="text-uppercase text-caption font-weight-bold mr-2"
+                                style="letter-spacing: 0.05em !important;"
+                            >
+                                 {{ item.financial_status === 'none' ? 'PENDIENTE' : item.financial_status }}
+                            </v-chip>
+
+                            <v-btn icon small color="primary" @click="updateFinancialStatus(item)" :loading="item.updatingFinancial">
+                                <v-icon small>mdi-refresh</v-icon>
+                            </v-btn>
+                         </div>
+                    </template>
                 
                     <template v-slot:no-data>
                         <v-btn text>{{ lang.there_no_data }}</v-btn>
@@ -220,14 +246,51 @@ Vue.component('studenttable', {
         </v-row>
     `,
     data() {
-        const lang = window.strings || {};
+        totalDesserts: 0,
+            activeUsers: 0,
+                syncing: false,
+                    syncLog: '',
+                        loading: true,
+                            options: {
+            page: 1,
+                itemsPerPage: 15,
+                    search: '',
+            },
+        students: [],
+            plans: [], // Initialized
+                availablePeriods: [],
+                    loadingPeriods: false,
+                        filters: {
+            planid: [],
+                periodid: [],
+                    status: '',
+                        withGrades: false
+        },
+        careers: [],
+            quarters: [],
+                statusFilter: '',
+                    careerFilter: '',
+                        quarterFilter: '',
+                            filterDialog: false,
+                                studentsGrades: false,
+                                    studentGradeSelected: { },
+    };
+},
+    computed: {
+    siteUrl() { return window.location.origin + '/webservice/rest/server.php' },
+    lang() { return window.strings || {} },
+    token() { return window.userToken; },
+    isAdmin() { return window.isAdmin || false; },
+    isSuperAdmin() { return window.isSuperAdmin || false; },
+    headers() {
+        const lang = this.lang;
         const headers = [
             {
                 text: lang.name || 'Nombre',
                 align: 'start',
                 sortable: false,
                 value: 'name',
-                width: '250px' // Ensure name has space
+                width: '250px'
             },
             {
                 text: lang.document || 'Identificación',
@@ -245,6 +308,15 @@ Vue.component('studenttable', {
             { text: lang.status || 'Estado', value: 'status', sortable: false, },
         ];
 
+        if (this.isAdmin) {
+            headers.push({
+                text: 'Estado Financiero',
+                value: 'financial_status',
+                sortable: false,
+                width: '160px'
+            });
+        }
+
         headers.push({
             text: lang.grades || 'Calificación',
             value: 'grade',
@@ -252,367 +324,359 @@ Vue.component('studenttable', {
             align: 'right'
         });
 
-        return {
-            headers: headers,
-            totalDesserts: 0,
-            activeUsers: 0,
-            syncing: false,
-            syncLog: '',
-            loading: true,
-            options: {
-                page: 1,
-                itemsPerPage: 15,
-                search: '',
-            },
-            students: [],
-            plans: [], // Initialized
-            availablePeriods: [],
-            loadingPeriods: false,
-            filters: {
-                planid: [],
-                periodid: [],
-                status: '',
-                withGrades: false
-            },
-            careers: [],
-            quarters: [],
-            statusFilter: '',
-            careerFilter: '',
-            quarterFilter: '',
-            filterDialog: false,
-            studentsGrades: false,
-            studentGradeSelected: {},
-            // Removed duplicates (siteUrl, token) as they are in computed
-        };
+        return headers;
     },
-    computed: {
-        lang() {
-            return window.strings || {};
-        },
-        lang() {
-            return window.strings || {};
-        },
-        siteUrl() { return window.location.origin + '/webservice/rest/server.php' },
-        token() { return window.userToken; },
-        isAdmin() {
-            return true; // Simplified for now
-        },
-        isSuperAdmin() {
-            return false; // Simplified for now
-        }
-    },
+},
     created() {
-        console.log('StudentTable Component Created');
-    },
+    console.log('StudentTable Component Created');
+},
     watch: {
-        options: {
-            handler() {
-                this.getDataFromApi()
-            },
-            deep: true,
+    options: {
+        handler() {
+            this.getDataFromApi()
         },
-        classId: {
-            handler() {
-                this.getDataFromApi();
-            },
-            immediate: true
+        deep: true,
+    },
+    classId: {
+        handler() {
+            this.getDataFromApi();
+        },
+        immediate: true
+    }
+},
+    methods: {
+    async getDataFromApi() {
+        this.loading = true;
+        try {
+            // Use the WS URL (ajax.php) defined globally or fallback
+            const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+
+            const params = new URLSearchParams();
+            params.append('action', 'local_grupomakro_get_student_info');
+            params.append('sesskey', M.cfg.sesskey);
+            params.append('page', this.options.page);
+            params.append('resultsperpage', this.options.itemsPerPage);
+            params.append('search', this.options.search || '');
+
+            const planid = Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '';
+            const periodid = Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '';
+
+            params.append('planid', planid);
+            params.append('periodid', periodid);
+            params.append('status', this.filters.status || '');
+            params.append('classid', this.classId || 0);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params
+            });
+
+            const res = await response.json();
+
+            if (res.errorcode) {
+                throw new Error(res.message);
+            }
+
+            if (res.status === 'success' && res.data) {
+                let dataUsers = res.data.dataUsers;
+                if (typeof dataUsers === 'string') {
+                    try {
+                        dataUsers = JSON.parse(dataUsers);
+                    } catch (e) {
+                        console.warn("Failed to parse dataUsers string", e);
+                        dataUsers = [];
+                    }
+                }
+
+                this.activeUsers = res.data.activeUsers || 0;
+                this.totalDesserts = res.data.totalResults;
+
+                this.students = [];
+                if (Array.isArray(dataUsers)) {
+                    dataUsers.forEach((element) => {
+                        this.students.push({
+                            name: element.nameuser,
+                            email: element.email,
+                            id: element.userid,
+                            documentnumber: element.documentnumber,
+                            carrers: element.careers,
+                            subperiods: element.subperiods,
+                            updatingPeriod: null,
+                            revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
+                            status: element.status,
+                            img: element.profileimage,
+                            currentgrade: element.currentgrade || '--',
+                            financial_status: element.financial_status || 'none',
+                            financial_reason: element.financial_reason || '',
+                            updatingFinancial: false
+                        });
+                    });
+                }
+            } else if (res.message) {
+                throw new Error(res.message);
+            }
+
+        } catch (error) {
+            console.error('Error fetching student information:', error);
+            this.syncLog = 'Error fetching data: ' + error.message;
+        } finally {
+            this.loading = false;
         }
     },
-    methods: {
-        async getDataFromApi() {
-            this.loading = true;
+    getChipStyle(item) {
+        const theme = this.$vuetify.theme.dark ? "dark" : "light";
+        const themeColors = {
+            BgChip1: "#b5e8b8", TextChip1: "#143f34",
+            BgChip2: "#F8F0E5", TextChip2: "#D1A55A",
+            BgChip3: "#E8EAF6", TextChip3: "#3F51B4",
+            BgChip4: "#F3BFBF", TextChip4: "#8F130A",
+            BgChip5: "#B9C5D5", TextChip5: "#2F445E",
+        };
+        if (item.status === "Activo") return { background: themeColors.BgChip1, color: themeColors.TextChip1 };
+        else if (item.status === "Inactivo") return { background: themeColors.BgChip2, color: themeColors.TextChip2 };
+        else if (item.status === "Reingreso") return { background: themeColors.BgChip3, color: themeColors.TextChip3 };
+        else if (item.status === "Suspendido") return { background: themeColors.BgChip4, color: themeColors.TextChip4 };
+        return { background: themeColors.BgChip5, color: themeColors.TextChip5 };
+    },
+    gradeDialog(item) {
+        this.studentsGrades = true;
+        this.studentGradeSelected = item;
+    },
+    closeDialog() {
+        this.studentsGrades = false;
+        this.studentGradeSelected = {};
+    },
+    async openFilterDialog() {
+        this.filterDialog = true;
+        if (this.plans.length === 0) {
             try {
-                // Use the WS URL (ajax.php) defined globally or fallback
-                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-
-                const params = new URLSearchParams();
-                params.append('action', 'local_grupomakro_get_student_info');
-                params.append('sesskey', M.cfg.sesskey);
-                params.append('page', this.options.page);
-                params.append('resultsperpage', this.options.itemsPerPage);
-                params.append('search', this.options.search || '');
-
-                const planid = Array.isArray(this.filters.planid) ? this.filters.planid.join(',') : '';
-                const periodid = Array.isArray(this.filters.periodid) ? this.filters.periodid.join(',') : '';
-
-                params.append('planid', planid);
-                params.append('periodid', periodid);
-                params.append('status', this.filters.status || '');
-                params.append('classid', this.classId || 0);
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: params
-                });
-
-                const res = await response.json();
-
-                if (res.errorcode) {
-                    throw new Error(res.message);
-                }
-
-                if (res.status === 'success' && res.data) {
-                    let dataUsers = res.data.dataUsers;
-                    if (typeof dataUsers === 'string') {
-                        try {
-                            dataUsers = JSON.parse(dataUsers);
-                        } catch (e) {
-                            console.warn("Failed to parse dataUsers string", e);
-                            dataUsers = [];
-                        }
-                    }
-
-                    this.activeUsers = res.data.activeUsers || 0;
-                    this.totalDesserts = res.data.totalResults;
-
-                    this.students = [];
-                    if (Array.isArray(dataUsers)) {
-                        dataUsers.forEach((element) => {
-                            this.students.push({
-                                name: element.nameuser,
-                                email: element.email,
-                                id: element.userid,
-                                documentnumber: element.documentnumber,
-                                carrers: element.careers,
-                                subperiods: element.subperiods,
-                                updatingPeriod: null,
-                                revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
-                                status: element.status,
-                                img: element.profileimage,
-                                currentgrade: element.currentgrade || '--'
-                            });
-                        });
-                    }
-                } else if (res.message) {
-                    throw new Error(res.message);
-                }
-
-            } catch (error) {
-                console.error('Error fetching student information:', error);
-                this.syncLog = 'Error fetching data: ' + error.message;
-            } finally {
-                this.loading = false;
-            }
-        },
-        getChipStyle(item) {
-            const theme = this.$vuetify.theme.dark ? "dark" : "light";
-            const themeColors = {
-                BgChip1: "#b5e8b8", TextChip1: "#143f34",
-                BgChip2: "#F8F0E5", TextChip2: "#D1A55A",
-                BgChip3: "#E8EAF6", TextChip3: "#3F51B4",
-                BgChip4: "#F3BFBF", TextChip4: "#8F130A",
-                BgChip5: "#B9C5D5", TextChip5: "#2F445E",
-            };
-            if (item.status === "Activo") return { background: themeColors.BgChip1, color: themeColors.TextChip1 };
-            else if (item.status === "Inactivo") return { background: themeColors.BgChip2, color: themeColors.TextChip2 };
-            else if (item.status === "Reingreso") return { background: themeColors.BgChip3, color: themeColors.TextChip3 };
-            else if (item.status === "Suspendido") return { background: themeColors.BgChip4, color: themeColors.TextChip4 };
-            return { background: themeColors.BgChip5, color: themeColors.TextChip5 };
-        },
-        gradeDialog(item) {
-            this.studentsGrades = true;
-            this.studentGradeSelected = item;
-        },
-        closeDialog() {
-            this.studentsGrades = false;
-            this.studentGradeSelected = {};
-        },
-        async openFilterDialog() {
-            this.filterDialog = true;
-            if (this.plans.length === 0) {
-                try {
-                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_plans`);
-                    if (response.data.status === 'success') {
-                        this.plans = response.data.plans;
-                    }
-                } catch (e) {
-                    console.error("Error loading plans:", e);
-                }
-            }
-        },
-        async onPlanChange() {
-            // Filter out periods that don't belong to the selected plans anymore
-            if (this.filters.periodid.length > 0) {
-                // This is a bit complex since we don't know which period belongs to which plan easily without re-fetching
-                // or having a mapping. For simplicity, we'll clear it or filter if we have metadata.
-                // For now, let's just clear it to avoid invalid selections.
-                this.filters.periodid = [];
-            }
-
-            this.availablePeriods = [];
-            if (!this.filters.planid || this.filters.planid.length === 0) return;
-
-            this.loadingPeriods = true;
-            try {
-                // Fetch periods for ALL selected plans
-                const promises = this.filters.planid.map(id =>
-                    axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${id}`)
-                );
-                const results = await Promise.all(promises);
-
-                let allPeriods = [];
-                results.forEach((response, index) => {
-                    if (response.data.status === 'success') {
-                        const planName = this.plans.find(p => p.id == this.filters.planid[index])?.name || '';
-                        const periods = response.data.periods.map(p => ({
-                            ...p,
-                            name: `${p.name} (${planName})`
-                        }));
-                        allPeriods = [...allPeriods, ...periods];
-                    }
-                });
-                this.availablePeriods = allPeriods;
-            } catch (e) {
-                console.error("Error loading periods:", e);
-            } finally {
-                this.loadingPeriods = false;
-            }
-        },
-        applyFilters() {
-            this.options.page = 1;
-            this.getDataFromApi();
-            this.filterDialog = false;
-        },
-        exportConsolidatedGrades() {
-            let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
-            if (this.filters.planid && this.filters.planid.length > 0) {
-                url += `planid=${this.filters.planid.join(',')}&`;
-            }
-            if (this.filters.periodid && this.filters.periodid.length > 0) {
-                url += `periodid=${this.filters.periodid.join(',')}&`;
-            }
-            if (this.filters.status) url += `status=${this.filters.status}&`;
-            url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
-            window.open(url, '_blank');
-        },
-        exportStudents() {
-            window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
-        },
-        getColor(status) {
-            status = status ? status.toLowerCase() : '';
-            if (status === 'activo') return 'success';
-            if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
-            if (status === 'graduado' || status === 'egresado') return 'primary';
-            return 'grey';
-        },
-        async pollLog(interval = 3000) {
-            try {
-                const logRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
-                if (logRes.data.status === 'success') {
-                    this.syncLog = logRes.data.log;
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_plans`);
+                if (response.data.status === 'success') {
+                    this.plans = response.data.plans;
                 }
             } catch (e) {
-                console.error('Error polling log:', e);
+                console.error("Error loading plans:", e);
             }
-        },
-        async syncProgress() {
-            this.syncing = true;
-            this.syncLog = 'Iniciando...';
-            const logInterval = setInterval(() => this.pollLog(), 3000);
+        }
+    },
+    async onPlanChange() {
+        // Filter out periods that don't belong to the selected plans anymore
+        if (this.filters.periodid.length > 0) {
+            // This is a bit complex since we don't know which period belongs to which plan easily without re-fetching
+            // or having a mapping. For simplicity, we'll clear it or filter if we have metadata.
+            // For now, let's just clear it to avoid invalid selections.
+            this.filters.periodid = [];
+        }
 
-            try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
+        this.availablePeriods = [];
+        if (!this.filters.planid || this.filters.planid.length === 0) return;
+
+        this.loadingPeriods = true;
+        try {
+            // Fetch periods for ALL selected plans
+            const promises = this.filters.planid.map(id =>
+                axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${id}`)
+            );
+            const results = await Promise.all(promises);
+
+            let allPeriods = [];
+            results.forEach((response, index) => {
                 if (response.data.status === 'success') {
-                    await this.getDataFromApi();
-                    alert('Sincronización completada. ' + response.data.count + ' registros.');
-                } else {
-                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                    const planName = this.plans.find(p => p.id == this.filters.planid[index])?.name || '';
+                    const periods = response.data.periods.map(p => ({
+                        ...p,
+                        name: `${p.name} (${planName})`
+                    }));
+                    allPeriods = [...allPeriods, ...periods];
                 }
-            } catch (error) {
-                console.error(error);
-                alert('Error de ejecución.');
-            } finally {
-                clearInterval(logInterval);
-                this.syncing = false;
-                await this.pollLog();
+            });
+            this.availablePeriods = allPeriods;
+        } catch (e) {
+            console.error("Error loading periods:", e);
+        } finally {
+            this.loadingPeriods = false;
+        }
+    },
+    applyFilters() {
+        this.options.page = 1;
+        this.getDataFromApi();
+        this.filterDialog = false;
+    },
+    exportConsolidatedGrades() {
+        let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;
+        if (this.filters.planid && this.filters.planid.length > 0) {
+            url += `planid=${this.filters.planid.join(',')}&`;
+        }
+        if (this.filters.periodid && this.filters.periodid.length > 0) {
+            url += `periodid=${this.filters.periodid.join(',')}&`;
+        }
+        if (this.filters.status) url += `status=${this.filters.status}&`;
+        url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
+        window.open(url, '_blank');
+    },
+    exportStudents() {
+        window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
+    },
+    getColor(status) {
+        status = status ? status.toLowerCase() : '';
+        if (status === 'activo') return 'success';
+        if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
+        if (status === 'graduado' || status === 'egresado') return 'primary';
+        return 'grey';
+    },
+    async pollLog(interval = 3000) {
+        try {
+            const logRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=get_sync_log`);
+            if (logRes.data.status === 'success') {
+                this.syncLog = logRes.data.log;
             }
-        },
-        async syncMigratedPeriods() {
-            if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
+        } catch (e) {
+            console.error('Error polling log:', e);
+        }
+    },
+    async syncProgress() {
+        this.syncing = true;
+        this.syncLog = 'Iniciando...';
+        const logInterval = setInterval(() => this.pollLog(), 3000);
 
-            this.syncing = true;
-            this.syncLog = 'Iniciando sincronización por bloques...';
-            const logInterval = setInterval(() => this.pollLog(), 3000);
+        try {
+            const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
+            if (response.data.status === 'success') {
+                await this.getDataFromApi();
+                alert('Sincronización completada. ' + response.data.count + ' registros.');
+            } else {
+                alert('Error: ' + (response.data.message || 'Error desconocido'));
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error de ejecución.');
+        } finally {
+            clearInterval(logInterval);
+            this.syncing = false;
+            await this.pollLog();
+        }
+    },
+    async syncMigratedPeriods() {
+        if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
 
-            let offset = 0;
-            let finished = false;
+        this.syncing = true;
+        this.syncLog = 'Iniciando sincronización por bloques...';
+        const logInterval = setInterval(() => this.pollLog(), 3000);
 
-            const syncBatch = async () => {
-                try {
-                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods&offset=${offset}`);
-                    if (response.data.status === 'success') {
-                        offset = response.data.offset;
-                        finished = response.data.finished;
-                        if (!finished) {
-                            await syncBatch(); // Regresive call for next batch
-                        }
-                    } else {
-                        throw new Error(response.data.message || 'Error en bloque');
+        let offset = 0;
+        let finished = false;
+
+        const syncBatch = async () => {
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods&offset=${offset}`);
+                if (response.data.status === 'success') {
+                    offset = response.data.offset;
+                    finished = response.data.finished;
+                    if (!finished) {
+                        await syncBatch(); // Regresive call for next batch
                     }
-                } catch (error) {
-                    console.error('Batch error:', error);
-                    alert('Error en el proceso de sincronización: ' + error.message);
-                    finished = true;
-                }
-            };
-
-            try {
-                await syncBatch();
-                if (finished) {
-                    alert('Sincronización completada con éxito.');
-                    await this.getDataFromApi();
-                }
-            } catch (error) {
-                console.error(error);
-            } finally {
-                clearInterval(logInterval);
-                this.syncing = false;
-                await this.pollLog();
-            }
-        },
-        async loadPeriodsForPlan(student, carrer) {
-            if (carrer.availablePeriods) return;
-            try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${carrer.planid}`);
-                if (response.data.status === 'success') {
-                    this.$set(carrer, 'availablePeriods', response.data.periods);
-                }
-            } catch (error) {
-                console.error(error);
-            }
-        },
-        async updateStudentPeriod(student, carrer, period) {
-            if (carrer.periodid == period.id) return;
-            if (!confirm(`¿Cambiar al estudiante al periodo: ${period.name}?`)) return;
-
-            student.updatingPeriod = carrer.planid;
-            try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_update_period&userid=${student.id}&planid=${carrer.planid}&periodid=${period.id}`);
-                if (response.data.status === 'success') {
-                    carrer.periodid = period.id;
-                    carrer.periodname = period.name;
                 } else {
-                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                    throw new Error(response.data.message || 'Error en bloque');
                 }
             } catch (error) {
-                console.error(error);
-                alert('No se pudo actualizar el periodo.');
-            } finally {
-                student.updatingPeriod = null;
+                console.error('Batch error:', error);
+                alert('Error en el proceso de sincronización: ' + error.message);
+                finished = true;
             }
-        },
-        goToProfile(id) {
-            window.open(`${M.cfg.wwwroot}/user/view.php?id=${id}`, '_blank');
-        },
+        };
+
+        try {
+            await syncBatch();
+            if (finished) {
+                alert('Sincronización completada con éxito.');
+                await this.getDataFromApi();
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            clearInterval(logInterval);
+            this.syncing = false;
+            await this.pollLog();
+        }
     },
-    computed: {
-        siteUrl() { return window.location.origin + '/webservice/rest/server.php' },
-        lang() { return window.strings },
-        token() { return window.userToken; },
-        isAdmin() { return window.isAdmin || false; },
-        isSuperAdmin() { return window.isSuperAdmin || false; },
+    async loadPeriodsForPlan(student, carrer) {
+        if (carrer.availablePeriods) return;
+        try {
+            const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_periods&planid=${carrer.planid}`);
+            if (response.data.status === 'success') {
+                this.$set(carrer, 'availablePeriods', response.data.periods);
+            }
+        } catch (error) {
+            console.error(error);
+        }
     },
+    async updateStudentPeriod(student, carrer, period) {
+        if (carrer.periodid == period.id) return;
+        if (!confirm(`¿Cambiar al estudiante al periodo: ${period.name}?`)) return;
+
+        student.updatingPeriod = carrer.planid;
+        try {
+            const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_update_period&userid=${student.id}&planid=${carrer.planid}&periodid=${period.id}`);
+            if (response.data.status === 'success') {
+                carrer.periodid = period.id;
+                carrer.periodname = period.name;
+            } else {
+                alert('Error: ' + (response.data.message || 'Error desconocido'));
+            }
+        } catch (error) {
+            console.error(error);
+            alert('No se pudo actualizar el periodo.');
+        } finally {
+            student.updatingPeriod = null;
+        }
+    },
+    goToProfile(id) {
+        window.open(`${M.cfg.wwwroot}/user/view.php?id=${id}`, '_blank');
+    },
+    getFinancialColor(status) {
+        status = status ? status.toLowerCase() : '';
+        if (status === 'al_dia' || status === 'up_to_date') return 'success';
+        if (status === 'mora' || status === 'arrears') return 'error';
+        if (status === 'becado' || status === 'scholarship') return 'info';
+        return 'grey lighten-1';
+    },
+    async updateFinancialStatus(item) {
+        item.updatingFinancial = true;
+        try {
+            // Using the external API we created
+            const params = new URLSearchParams();
+            params.append('sesskey', M.cfg.sesskey);
+            params.append('action', 'local_grupomakro_update_student_status');
+            params.append('userid', item.id);
+
+            const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+
+            if (response.data.status === 'success') {
+                // Update the item data locally if possible, or reload. 
+                // Ideally the response should contain the new status, but our current API just returns success.
+                // We can either fetch the user info again or just alert.
+                // Let's rely on reload for simplest sync or implement optimistic update if we trust the backend.
+                // Since I didn't make update_status return the *new* status, just "updated_count", I should probably reload this user or just the table.
+                // Reloading the whole table might be heavy. 
+                // Let's just create a quick fetch for this single user or modify the API to return the payload.
+                // For now, reload table or just alert.
+
+                // Actually, let's just reload the table data silently
+                await this.getDataFromApi();
+                // Or at least show a toast
+            } else {
+                alert('Error: ' + (response.data.message || 'Error desconocido'));
+            }
+        } catch (error) {
+            console.error(error);
+            alert('No se pudo actualizar el estado financiero.');
+        } finally {
+            item.updatingFinancial = false;
+        }
+    }
+},
+
 })
