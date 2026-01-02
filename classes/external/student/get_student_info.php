@@ -117,7 +117,6 @@ class get_student_info extends external_api {
                 $sqlParams['groupid'] = $class->groupid;
                 $sqlParams['instructorid'] = $class->instructorid;
             }
-            }
         }
 
         if (!empty($params['financial_status'])) {
