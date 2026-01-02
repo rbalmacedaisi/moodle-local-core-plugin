@@ -129,47 +129,51 @@ const TeacherDashboard = {
                                 :events="calendarEvents"
                                 :type="calendarView"
                                 @change="onCalendarChange"
-                                @click:date="onClickDate"
-                                @click:more="onClickDate"
-                                :first-interval="6"
-                                :interval-count="18"
+                                @click:event="showEvent"
+                                @click:more="viewDay"
+                                @click:date="viewDay"
+                                first-time="06:00"
+                                interval-count="18"
+                                interval-minutes="60"
                                 locale="es"
-                            ></v-calendar>
+                            >
+                                <template v-slot:event="{ event }">
+                                    <div class="pl-1 white--text" style="font-size: 0.75rem; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                                        <strong>{{ event.name }}</strong><br>
+                                        {{ formatEventTime(event.start) }} - {{ formatEventTime(event.end) }}
+                                    </div>
+                                </template>
+                            </v-calendar>
+                            <v-menu
+                                v-model="showSelectedEvent"
+                                :close-on-content-click="false"
+                                :activator="selectedElement"
+                                offset-y
+                                max-width="350px"
+                            >
+                                <v-card color="grey lighten-4" min-width="300px" flat>
+                                    <v-toolbar :color="selectedEvent.color" dark dense flat>
+                                        <v-toolbar-title class="subtitle-2 font-weight-bold pl-0">{{ selectedEvent.name }}</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon small @click="showSelectedEvent = false"><v-icon>mdi-close</v-icon></v-btn>
+                                    </v-toolbar>
+                                    <v-card-text class="pa-3">
+                                        <div class="d-flex align-center mb-2">
+                                            <v-icon small class="mr-2">mdi-clock-outline</v-icon>
+                                            <span class="caption font-weight-bold">
+                                                {{ selectedEvent.start ? formatEventTime(selectedEvent.start) : '' }} - 
+                                                {{ selectedEvent.end ? formatEventTime(selectedEvent.end) : '' }}
+                                            </span>
+                                        </div>
+                                        <div v-if="selectedEvent.classid" class="mt-3">
+                                            <v-btn block small color="primary" @click="goToClass(selectedEvent.classid)">
+                                                Gestionar Clase
+                                            </v-btn>
+                                        </div>
+                                    </v-card-text>
+                                </v-card>
+                            </v-menu>
                         </v-sheet>
-                    </v-card-text>
-                </v-card>
-            </v-dialog>
-            
-            <!-- Agenda Dialog (Daily List) -->
-            <v-dialog v-model="showAgendaDialog" max-width="500px">
-                <v-card class="rounded-lg">
-                    <v-card-title class="grey lighten-5">
-                        <span class="text-subtitle-1 font-weight-bold">Agenda: {{ selectedDateFormatted }}</span>
-                        <v-spacer></v-spacer>
-                        <v-btn icon @click="showAgendaDialog = false"><v-icon>mdi-close</v-icon></v-btn>
-                    </v-card-title>
-                    <v-card-text class="pa-0">
-                         <v-list v-if="selectedDateEvents.length > 0" two-line>
-                            <template v-for="(event, i) in selectedDateEvents">
-                                <v-list-item :key="i" @click="goToClass(event.classid)">
-                                    <v-list-item-avatar>
-                                        <v-icon class="blue lighten-1" dark small>mdi-calendar-check</v-icon>
-                                    </v-list-item-avatar>
-                                    <v-list-item-content>
-                                        <v-list-item-title class="font-weight-medium">{{ event.name }}</v-list-item-title>
-                                        <v-list-item-subtitle>{{ event.startTime }} - {{ event.endTime }}</v-list-item-subtitle>
-                                    </v-list-item-content>
-                                    <v-list-item-action>
-                                        <v-icon small color="grey">mdi-chevron-right</v-icon>
-                                    </v-list-item-action>
-                                </v-list-item>
-                                <v-divider v-if="i < selectedDateEvents.length - 1" :key="'div-' + i"></v-divider>
-                            </template>
-                        </v-list>
-                        <div v-else class="text-center pa-6 grey--text">
-                            <v-icon large color="grey lighten-2" class="mb-2">mdi-calendar-blank</v-icon>
-                            <div>No hay eventos programados para este día.</div>
-                        </div>
                     </v-card-text>
                 </v-card>
             </v-dialog>
@@ -182,9 +186,10 @@ const TeacherDashboard = {
             calendarValue: '',
             calendarView: 'month',
             calendarTitle: '',
-            showAgendaDialog: false,
-            selectedDateEvents: [],
-            selectedDateFormatted: '',
+            // Event Details Popover state
+            showSelectedEvent: false,
+            selectedEvent: {},
+            selectedElement: null,
             viewNames: { 'month': 'Mes', 'week': 'Semana', 'day': 'Día' },
             dashboardData: {
                 active_classes: [],
@@ -290,40 +295,36 @@ const TeacherDashboard = {
                 this.calendarTitle = new Date(start.date).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
             }
         },
-        onClickEvent({ event }) {
-            // event.start is a Date object. Use local date string.
-            const date = this.getLocalDateString(event.start);
-            this.openAgenda(date);
+        viewDay({ date }) {
+            this.calendarValue = date;
+            this.calendarView = 'day';
         },
-        onClickDate({ date }) {
-            // date is already YYYY-MM-DD string
-            this.openAgenda(date);
+        showEvent({ nativeEvent, event }) {
+            const open = () => {
+                this.selectedEvent = event;
+                this.selectedElement = nativeEvent.target;
+                setTimeout(() => {
+                    this.showSelectedEvent = true;
+                }, 10);
+            };
+
+            if (this.showSelectedEvent) {
+                this.showSelectedEvent = false;
+                setTimeout(open, 10);
+            } else {
+                open();
+            }
+
+            nativeEvent.stopPropagation();
         },
-        getLocalDateString(date) {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-        },
-        openAgenda(dateString) {
-            // format: YYYY-MM-DD
-            // Create a date object just for formatting the title (handling timezone offset correctly by treating it as local)
-            const [y, m, d] = dateString.split('-').map(Number);
-            const localDateForTitle = new Date(y, m - 1, d);
-
-            this.selectedDateFormatted = localDateForTitle.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-
-            // Filter events for this day using LOCAL time comparison
-            this.selectedDateEvents = this.calendarEvents.filter(e => {
-                const eDate = this.getLocalDateString(e.start);
-                return eDate === dateString;
-            }).map(e => ({
-                ...e,
-                startTime: e.start.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-                endTime: e.end.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-            }));
-
-            this.showAgendaDialog = true;
+        formatEventTime(date) {
+            // date is a Date object
+            if (!date) return '';
+            return date.toLocaleTimeString("es-ES", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            });
         },
         getClassImage(item) {
             // Placeholder logic for class images
