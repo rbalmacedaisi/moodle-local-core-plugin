@@ -50,6 +50,10 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-account-arrow-right</v-icon>
                                     Asignar Periodos (Migrados)
                                 </v-btn>
+                                <v-btn v-if="isSuperAdmin" color="purple" dark @click="syncFinancialBulk" :loading="syncing" :disabled="syncing">
+                                    <v-icon left>mdi-cash-sync</v-icon>
+                                    Actualizar Financiero (Lote)
+                                </v-btn>
                                 <v-btn color="primary" @click="openFilterDialog">
                                     <v-icon left>mdi-filter-variant</v-icon>
                                     Filtros y Exportar
@@ -656,18 +660,9 @@ Vue.component('studenttable', {
                 const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
 
                 if (response.data.status === 'success') {
-                    // Update the item data locally if possible, or reload. 
-                    // Ideally the response should contain the new status, but our current API just returns success.
-                    // We can either fetch the user info again or just alert.
-                    // Let's rely on reload for simplest sync or implement optimistic update if we trust the backend.
-                    // Since I didn't make update_status return the *new* status, just "updated_count", I should probably reload this user or just the table.
-                    // Reloading the whole table might be heavy. 
-                    // Let's just create a quick fetch for this single user or modify the API to return the payload.
-                    // For now, reload table or just alert.
-
-                    // Actually, let's just reload the table data silently
+                    // Determine if we should reload or just alert
+                    // Reloading silently to show new status
                     await this.getDataFromApi();
-                    // Or at least show a toast
                 } else {
                     alert('Error: ' + (response.data.message || 'Error desconocido'));
                 }
@@ -676,6 +671,55 @@ Vue.component('studenttable', {
                 alert('No se pudo actualizar el estado financiero.');
             } finally {
                 item.updatingFinancial = false;
+            }
+        },
+        async syncFinancialBulk() {
+            if (!confirm('Esta acción actualizará el estado financiero de TODOS los estudiantes en bloques de 50. Puede tardar varios minutos. ¿Continuar?')) return;
+
+            this.syncing = true;
+            this.syncLog = 'Iniciando actualización masiva financiera...';
+            let finished = false;
+            let totalUpdated = 0;
+            let consecutiveZeroUpdates = 0;
+
+            const syncBatch = async () => {
+                try {
+                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_financial_bulk`);
+
+                    if (response.data.status === 'success') {
+                        const result = response.data.data;
+                        const updatedCount = result.updated || 0;
+
+                        if (updatedCount > 0) {
+                            totalUpdated += updatedCount;
+                            this.syncLog = `Actualizados: ${totalUpdated} estudiantes... Continuado...`;
+                            consecutiveZeroUpdates = 0;
+                            await syncBatch(); // Continue next batch
+                        } else {
+                            // If 0 updated, maybe everyone is up to date or no users found needing update
+                            // To be safe, we stop if we hit 0 or if message says so
+                            this.syncLog = `Proceso finalizado. Total actualizados: ${totalUpdated}.`;
+                            finished = true;
+                        }
+                    } else {
+                        throw new Error(response.data.message || 'Error desconocido del servidor');
+                    }
+                } catch (error) {
+                    console.error('Bulk sync error:', error);
+                    this.syncLog += '\nError: ' + error.message;
+                    finished = true; // Stop on error
+                    alert('El proceso se detuvo por un error: ' + error.message);
+                }
+            };
+
+            try {
+                await syncBatch();
+                if (finished) {
+                    await this.getDataFromApi();
+                    alert(`Actualización masiva completada. Se actualizaron ${totalUpdated} registros.`);
+                }
+            } finally {
+                this.syncing = false;
             }
         }
     }

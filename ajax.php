@@ -66,6 +66,19 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_sync_financial_bulk':
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise(300);
+            
+            // This function already handles batching (default 50) and prioritization
+            $result = local_grupomakro_sync_financial_status([]); 
+            
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_update_period':
             $userid = required_param('userid', PARAM_INT);
             $planid = required_param('planid', PARAM_INT);
