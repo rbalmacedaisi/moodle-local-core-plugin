@@ -3390,7 +3390,7 @@ function local_grupomakro_sync_financial_status($userids = []) {
     // TODO: Move to plugin settings
     $proxyUrl = get_config('local_grupomakro_core', 'odoo_proxy_url');
     if (empty($proxyUrl)) {
-        $proxyUrl = 'http://localhost:3000'; // Fallback
+        $proxyUrl = 'http://localhost:4000'; // Default to port 4000
     }
     $endpoint = rtrim($proxyUrl, '/') . '/api/odoo/status/bulk';
 
