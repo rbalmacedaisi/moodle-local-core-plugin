@@ -129,9 +129,10 @@ const TeacherDashboard = {
                                 :events="calendarEvents"
                                 :type="calendarView"
                                 @change="onCalendarChange"
-                                @click:event="onClickEvent"
                                 @click:date="onClickDate"
                                 @click:more="onClickDate"
+                                :first-interval="7"
+                                :interval-count="16"
                                 locale="es"
                             ></v-calendar>
                         </v-sheet>
