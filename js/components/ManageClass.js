@@ -127,7 +127,7 @@ const ManageClass = {
                                         <v-expansion-panel-content class="white">
                                             <v-list two-line>
                                                 <template v-for="(activity, i) in group">
-                                                    <v-list-item :key="activity.id" :href="activity.url" target="_blank">
+                                                    <v-list-item :key="activity.id">
                                                         <v-list-item-avatar>
                                                             <v-img :src="activity.modicon"></v-img>
                                                         </v-list-item-avatar>
