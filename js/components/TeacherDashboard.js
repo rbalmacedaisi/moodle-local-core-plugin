@@ -204,22 +204,14 @@ const TeacherDashboard = {
             return window.strings || {};
         },
         calendarEvents() {
-            const events = this.dashboardData.calendar_events.map(e => {
-                const start = new Date(e.timestart * 1000);
-                const end = new Date((e.timestart + (e.timeduration || 3600)) * 1000);
-                return {
-                    name: e.name,
-                    start: start,
-                    end: end,
-                    classid: e.classid || 0,
-                    color: 'blue',
-                    timed: true,
-                    // Debug string
-                    _debug: `${start.toLocaleString()} - ${end.toLocaleString()}`
-                };
-            });
-            console.log('Calendar Events DEBUG:', events);
-            return events;
+            return this.dashboardData.calendar_events.map(e => ({
+                name: e.name,
+                start: new Date(e.timestart * 1000),
+                end: new Date((e.timestart + (e.timeduration || 3600)) * 1000),
+                classid: e.classid || 0,
+                color: 'primary', // Changed to primary for consistency
+                timed: true
+            }));
         }
     },
     mounted() {

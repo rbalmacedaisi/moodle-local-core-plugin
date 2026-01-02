@@ -81,6 +81,12 @@ class get_dashboard_data extends external_api {
             $active_classes[] = $class_data;
         }
 
+        // Create Course -> Class ID Map
+        $courseToClassId = [];
+        foreach ($active_classes as $cls) {
+            $courseToClassId[$cls->courseid] = $cls->id;
+        }
+
         // 2. Get Calendar Events (next 30 days) using established logic
         $init_date_str = date('Y-m-d', $now);
         $end_date_str = date('Y-m-d', $now + (30 * 24 * 60 * 60));
@@ -93,8 +99,13 @@ class get_dashboard_data extends external_api {
             $e->id = $event->id;
             $e->name = $event->name;
             $e->timestart = $event->timestart;
-            $e->timeduration = isset($event->timeduration) ? $event->timeduration : 3600;
+            $e->timeduration = isset($event->timeduration) ? (int)$event->timeduration : 3600;
+            if ($e->timeduration == 0) $e->timeduration = 3600; // Enforce minimum duration
+            
             $e->courseid = $event->courseid;
+            // Map to class ID if possible
+            $e->classid = isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0;
+            
             $calendar_events[] = $e;
         }
 
@@ -183,7 +194,9 @@ class get_dashboard_data extends external_api {
                             'id' => new external_value(PARAM_INT, 'Event ID'),
                             'name' => new external_value(PARAM_TEXT, 'Event Name'),
                             'timestart' => new external_value(PARAM_INT, 'Start time'),
-                            'courseid' => new external_value(PARAM_INT, 'Course ID')
+                            'timeduration' => new external_value(PARAM_INT, 'Duration in seconds', VALUE_OPTIONAL),
+                            'courseid' => new external_value(PARAM_INT, 'Course ID'),
+                            'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL)
                         )
                     )
                 ),
