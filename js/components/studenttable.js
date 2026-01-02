@@ -677,6 +677,5 @@ Vue.component('studenttable', {
             item.updatingFinancial = false;
         }
     }
-},
-
+}
 })
