@@ -121,6 +121,10 @@ const TeacherDashboard = {
                         <v-btn icon @click="showCalendar = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
                     <v-card-text class="pa-4 bg-white">
+                        <v-alert type="info" dense outlined class="mb-2">
+                            Debug Info: {{ calendarEvents.length }} eventos cargados.
+                            Sample: {{ calendarEvents.length > 0 ? calendarEvents[0].start.toString() + ' -> ' + calendarEvents[0].end.toString() : 'N/A' }}
+                        </v-alert>
                         <v-sheet height="600">
                             <v-calendar
                                 ref="calendar"
@@ -236,6 +240,9 @@ const TeacherDashboard = {
                 if (response.data.status === 'success') {
                     this.dashboardData = response.data.data;
                     this.updateStats();
+                    if (this.$refs.calendar) {
+                        this.$refs.calendar.checkChange();
+                    }
                 } else {
                     console.error('Error fetching dashboard data:', response.data.message);
                 }
