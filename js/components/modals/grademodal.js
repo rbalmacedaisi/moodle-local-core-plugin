@@ -148,7 +148,21 @@ Vue.component('grademodal', {
                 };
 
                 const response = await window.axios.get(this.siteUrl, { params });
-                const data = JSON.parse(response.data.pensum);
+
+                if (!response.data || !response.data.pensum || response.data.pensum === "undefined") {
+                    // Check if it's already an object (sometimes axios/moodle does weird things)
+                    if (response.data && typeof response.data === 'object' && !response.data.pensum) {
+                        // Fallback: maybe the response itself is the data? Unlikely for this structure.
+                        // Just safely return empty
+                        return {};
+                    }
+                    return {};
+                }
+
+                const data = typeof response.data.pensum === 'string'
+                    ? JSON.parse(response.data.pensum)
+                    : response.data.pensum;
+
                 return data; // Returns the grouped object
             } catch (error) {
                 console.error(error);
