@@ -7,13 +7,15 @@ const ActivityCreationWizard = {
     props: {
         classId: { type: Number, required: true },
         activityType: { type: String, required: true }, // 'bbb', 'assignment', 'resource'
-        customLabel: { type: String, default: '' }
+        customLabel: { type: String, default: '' },
+        editMode: { type: Boolean, default: false },
+        editData: { type: Object, default: null }
     },
     template: `
         <v-dialog v-model="visible" max-width="600px" persistent>
             <v-card class="rounded-lg">
                 <v-card-title class="headline font-weight-bold grey lighten-4">
-                    Nueva {{ activityLabel }}
+                    {{ editMode ? 'Editar' : 'Nueva' }} {{ activityLabel }}
                     <v-spacer></v-spacer>
                     <v-btn icon @click="close"><v-icon>mdi-close</v-icon></v-btn>
                 </v-card-title>
@@ -96,18 +98,26 @@ const ActivityCreationWizard = {
 
                         <!-- Template Option -->
                         <v-checkbox
+                            v-if="!editMode"
                             v-model="saveAsTemplate"
                             label="Guardar como plantilla para futuros cursos"
                             hide-details
                             class="mt-0"
                         ></v-checkbox>
+                        
+                        <v-switch
+                            v-if="editMode"
+                            v-model="formData.visible"
+                            label="Visible para estudiantes"
+                            color="success"
+                        ></v-switch>
                     </v-form>
                 </v-card-text>
                 <v-card-actions class="pa-4 pt-0">
                     <v-spacer></v-spacer>
                     <v-btn text @click="close">Cancelar</v-btn>
                     <v-btn color="primary" depressed :loading="saving" @click="saveActivity" :disabled="!valid">
-                        Crear Actividad
+                        {{ editMode ? 'Guardar Cambios' : 'Crear Actividad' }}
                     </v-btn>
                 </v-card-actions>
             </v-card>
@@ -115,6 +125,7 @@ const ActivityCreationWizard = {
     `,
     data() {
         return {
+            visible: true,
             visible: true,
             valid: false,
             saving: false,
@@ -124,12 +135,16 @@ const ActivityCreationWizard = {
                 intro: '',
                 duedate: '',
                 gradecat: null,
-                tags: []
+                tags: [],
+                visible: true
             },
             gradeCategories: []
         };
     },
     mounted() {
+        if (this.editMode && this.editData) {
+            this.fetchActivityDetails(this.editData.id);
+        }
         if (this.activityType === 'assignment') {
             this.fetchGradeCategories();
         }
@@ -154,37 +169,67 @@ const ActivityCreationWizard = {
         async saveActivity() {
             this.saving = true;
             try {
-                // Call Moodle AJAX service (consolidated method)
+                const action = this.editMode
+                    ? 'local_grupomakro_update_activity'
+                    : 'local_grupomakro_create_express_activity';
+
+                const args = this.editMode ? {
+                    cmid: this.editData.id,
+                    name: this.formData.name,
+                    intro: this.formData.intro,
+                    tags: this.formData.tags,
+                    visible: this.formData.visible
+                } : {
+                    classid: this.classId,
+                    type: this.activityType,
+                    name: this.formData.name,
+                    intro: this.formData.intro,
+                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                    save_as_template: this.saveAsTemplate,
+                    gradecat: this.formData.gradecat,
+                    tags: this.formData.tags
+                };
+
                 const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_create_express_activity',
-                    args: {
-                        classid: this.classId,
-                        type: this.activityType,
-                        name: this.formData.name,
-                        intro: this.formData.intro,
-                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                        save_as_template: this.saveAsTemplate,
-                        gradecat: this.formData.gradecat,
-                        tags: this.formData.tags
-                    },
+                    action: action,
+                    args: args,
                     ...window.wsStaticParams
                 });
 
                 if (response.data.status === 'success') {
-                    if (window.M && window.M.util) {
+                    if (window.M && window.M.util && !this.editMode) {
                         window.M.util.js_pending('assignment_created');
-                        location.reload(); // Traditional reload to see new module
+                        // No logic to reload if in simple edit, but maybe refresh list?
                     }
                     this.$emit('success');
                     this.close();
                 } else {
-                    alert('Error creating activity: ' + response.data.message);
+                    alert('Error saving activity: ' + response.data.message);
                 }
             } catch (error) {
                 console.error('Error saving activity:', error);
-                alert('Error de red al crear actividad');
+                alert('Error de red al guardar actividad');
             } finally {
                 this.saving = false;
+            }
+        },
+        async fetchActivityDetails(cmid) {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_activity_details',
+                    args: { cmid: cmid },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    const act = response.data.activity;
+                    this.formData.name = act.name;
+                    this.formData.intro = act.intro;
+                    this.formData.tags = act.tags;
+                    this.formData.visible = act.visible;
+                    // Note: Date loading not implemented for edit yet
+                }
+            } catch (e) {
+                console.error("Error loading details", e);
             }
         },
         async fetchGradeCategories() {

@@ -136,7 +136,8 @@ const ManageClass = {
                                                             <v-list-item-subtitle class="text-caption grey--text">{{ activity.modname }}</v-list-item-subtitle>
                                                         </v-list-item-content>
                                                         <v-list-item-action>
-                                                            <v-btn icon small><v-icon color="grey lighten-1">mdi-open-in-new</v-icon></v-btn>
+                                                            <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
+                                                            <v-btn icon small :href="activity.url" target="_blank"><v-icon color="grey lighten-1">mdi-open-in-new</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
                                                     <v-divider v-if="i < group.length - 1" :key="'div-' + i" inset></v-divider>
@@ -238,12 +239,13 @@ const ManageClass = {
                 </v-card>
             </v-dialog>
             
-            <!-- Activity Creation Wizard -->
             <activity-creation-wizard 
                 v-if="showActivityWizard" 
                 :class-id="parseInt(classId)" 
                 :activity-type="newActivityType"
                 :custom-label="customActivityLabel"
+                :edit-mode="isEditing"
+                :edit-data="editActivityData"
                 @close="showActivityWizard = false"
                 @success="onActivityCreated"
             ></activity-creation-wizard>
@@ -271,8 +273,11 @@ const ManageClass = {
             newActivityType: '',
             showActivitySelector: false,
             availableModules: [],
+            availableModules: [],
             isLoadingModules: false,
-            customActivityLabel: ''
+            customActivityLabel: '',
+            editActivityData: null,
+            isEditing: false
         };
     },
     computed: {
@@ -425,6 +430,14 @@ const ManageClass = {
         onActivityCreated() {
             this.fetchTimeline();
             this.fetchActivities(); // Refresh activities list
+            this.isEditing = false;
+        },
+        openEditActivity(activity) {
+            this.isEditing = true;
+            this.editActivityData = activity;
+            this.newActivityType = activity.modname; // Needed for wizard type context
+            this.customActivityLabel = activity.name; // Temporary till loaded
+            this.showActivityWizard = true;
         }
     }
 };

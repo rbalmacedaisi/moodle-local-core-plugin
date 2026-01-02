@@ -630,6 +630,86 @@ try {
                 'status' => 'success',
                 'categories' => $formatted_cats
             ];
+            $response = [
+                'status' => 'success',
+                'categories' => $formatted_cats
+            ];
+            break;
+
+        case 'local_grupomakro_get_activity_details':
+            $cmid = required_param('cmid', PARAM_INT);
+            $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+            
+            // Set context
+            $context = context_module::instance($cm->id);
+            $PAGE->set_context($context);
+
+            $module_instance = $DB->get_record($cm->modname, ['id' => $cm->instance], '*', MUST_EXIST);
+            
+            $tags = core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
+            $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+
+            // Determine intro/description field (usually 'intro')
+            $intro = isset($module_instance->intro) ? $module_instance->intro : '';
+            
+            $response = [
+                'status' => 'success',
+                'activity' => [
+                    'id' => $cm->id,
+                    'name' => $cm->name,
+                    'modname' => $cm->modname, // For frontend logic if needed
+                    'intro' => $intro,
+                    'visible' => (bool)$cm->visible,
+                    'tags' => array_values($tagNames)
+                ]
+            ];
+            break;
+
+        case 'local_grupomakro_update_activity':
+            $cmid = required_param('cmid', PARAM_INT);
+            $name = required_param('name', PARAM_TEXT);
+            $intro = optional_param('intro', '', PARAM_RAW);
+            $tags = optional_param('tags', [], PARAM_DEFAULT); // Array or comma list
+            $visible = required_param('visible', PARAM_BOOL);
+
+            $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+            $context = context_module::instance($cm->id);
+            $PAGE->set_context($context);
+
+            // Update specific module table (name, intro)
+            $module_record = new stdClass();
+            $module_record->id = $cm->instance;
+            $module_record->name = $name;
+            if ($DB->record_exists_select($cm->modname, "id = :id AND intro IS NOT NULL", ['id' => $cm->instance])) {
+                 $module_record->intro = $intro;
+            }
+            // Update timemodified if exists
+            if ($DB->record_exists_select($cm->modname, "id = :id AND timemodified IS NOT NULL", ['id' => $cm->instance])) {
+                 $module_record->timemodified = time();
+            }
+            $DB->update_record($cm->modname, $module_record);
+
+            // Update course_modules (visible)
+            if ($cm->visible != $visible) {
+                 if ($visible) {
+                     set_coursemodule_visible($cm->id, 1);
+                 } else {
+                     set_coursemodule_visible($cm->id, 0);
+                 }
+            }
+
+            // Update Tags
+            if (!is_array($tags)) {
+                $tags = explode(',', $tags);
+            }
+            // Clean empty tags
+            $tags = array_filter($tags, function($t) { return trim($t) !== ''; });
+            core_tag_tag::set_item_tags('core', 'course_modules', $cm->id, context_module::instance($cm->id), $tags);
+
+            // Rebuild cache
+            rebuild_course_cache($cm->course);
+
+            $response = ['status' => 'success'];
             break;
         
         default:
