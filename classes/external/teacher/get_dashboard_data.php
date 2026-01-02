@@ -93,6 +93,24 @@ class get_dashboard_data extends external_api {
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
+        // Build a map of CourseID -> ClassName for ALL events found
+        $event_course_ids = [];
+        foreach ($events as $event) {
+            $event_course_ids[] = $event->courseid;
+        }
+        $event_course_ids = array_unique($event_course_ids);
+        
+        $course_class_map = [];
+        if (!empty($event_course_ids)) {
+            list($insql, $inparams) = $DB->get_in_or_equal($event_course_ids);
+            // We want the name of the class associated with this course
+            $sql_map = "SELECT courseid, name FROM {gmk_class} WHERE courseid $insql";
+            $mapped_classes = $DB->get_records_sql($sql_map, $inparams);
+            foreach ($mapped_classes as $row) {
+                $course_class_map[$row->courseid] = $row->name;
+            }
+        }
+
         $calendar_events = [];
         foreach ($events as $event) {
             $e = new stdClass();
@@ -103,9 +121,12 @@ class get_dashboard_data extends external_api {
             if ($e->timeduration == 0) $e->timeduration = 3600; // Enforce minimum duration
             
             $e->courseid = $event->courseid;
-            // Map to class ID if possible
+            // Map to class ID from Active Classes if available
             $e->classid = isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0;
             
+            // Map class name from DB lookup (fallback to event name if no class found)
+            $e->classname = isset($course_class_map[$event->courseid]) ? $course_class_map[$event->courseid] : $event->name;
+
             $calendar_events[] = $e;
         }
 
@@ -197,7 +218,8 @@ class get_dashboard_data extends external_api {
                             'timestart' => new external_value(PARAM_INT, 'Start time'),
                             'timeduration' => new external_value(PARAM_INT, 'Duration in seconds', VALUE_OPTIONAL),
                             'courseid' => new external_value(PARAM_INT, 'Course ID'),
-                            'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL)
+                            'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL),
+                            'classname' => new external_value(PARAM_TEXT, 'Class Name from DB', VALUE_OPTIONAL)
                         )
                     )
                 ),
