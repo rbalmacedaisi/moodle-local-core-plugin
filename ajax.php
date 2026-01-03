@@ -413,7 +413,6 @@ try {
                                       $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
                                   }
                               }
-                              }
                          } catch (\Throwable $ex) { 
                              $session_data->debug_error = $ex->getMessage();
                              // Fallback or log?
