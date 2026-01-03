@@ -3232,6 +3232,7 @@ function toggle_class_grade_lock($classId, $locked) {
         $grade_category->set_locked($locked);
     }
 }
+
 /**
  * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
  * Part of the innovative Teacher Experience.
