@@ -24,6 +24,7 @@ class create_express_activity extends external_api {
                 'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
                 'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
                 'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
+                'tags' => new external_multiple_structure(
                     new external_value(PARAM_TEXT, 'Tag name'),
                     'List of tags',
                     VALUE_DEFAULT,
