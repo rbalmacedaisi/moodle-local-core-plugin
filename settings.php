@@ -83,6 +83,11 @@ if ($hassiteconfig) {
         'Gestor de Cursos',
         new moodle_url('/local/grupomakro_core/pages/manage_courses.php')
     );
+    $manageMeetingsPage = new admin_externalpage(
+        'grupomakro_core_manage_meetings',
+        'Gestor de Sesiones Virtuales',
+        new moodle_url('/local/grupomakro_core/pages/manage_meetings.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -94,6 +99,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $importGradesPage);
     $ADMIN->add('grupomakrocore_plugin', $bulkDeletePage);
     $ADMIN->add('grupomakrocore_plugin', $manageCoursesPage);
+    $ADMIN->add('grupomakrocore_plugin', $manageMeetingsPage);
     
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
