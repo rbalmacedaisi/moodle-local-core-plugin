@@ -13,14 +13,14 @@ $PAGE->set_title('Administrar Sesiones de Invitados');
 $PAGE->set_heading('Gestor de Sesiones Virtuales');
 
 // Add Vue and Vuetify
-$PAGE->requires->js('https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js');
-$PAGE->requires->js('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js');
-$PAGE->requires->css('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css');
-$PAGE->requires->css('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css');
-$PAGE->requires->js('https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js');
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js'));
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js'));
+$PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css'));
+$PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css'));
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js'));
 
 // Add our components
-$PAGE->requires->js('/local/grupomakro_core/js/components/MeetingManager.js');
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/MeetingManager.js'));
 
 echo $OUTPUT->header();
 
