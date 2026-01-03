@@ -81,8 +81,7 @@ const ManageClass = {
                                                     small 
                                                     depressed 
                                                     :color="session.type === 'virtual' ? 'blue' : 'green'" 
-                                                    dark 
-                                                    class="rounded-lg px-4" 
+                                                    class="rounded-lg px-4 white--text" 
                                                     @click="enterSession(session)"
                                                     :disabled="session.type === 'virtual' && !isSessionActive(session)"
                                                 >
