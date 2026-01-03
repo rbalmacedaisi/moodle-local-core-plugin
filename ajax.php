@@ -625,9 +625,15 @@ try {
                 }
             }
 
-            $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
-            );
+            try {
+                $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
+                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
+                );
+            } catch (\Throwable $e) {
+                // Return structured error
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+                // We'll set format to JSON below implicitly
+            }
             break;
 
         case 'get_sync_log':
