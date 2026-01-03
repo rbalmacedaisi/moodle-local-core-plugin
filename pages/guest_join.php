@@ -40,34 +40,16 @@ if ($action === 'join' && !empty($username)) {
     $password = $bbb->viewerpass; // 'moderatorpass' for moderators
     
     // BBB Server Config
-    // Use get_config directly to avoid "Class not found" on older plugin versions
-    $bbb_url = trim(get_config('bigbluebuttonbn', 'server_url'));
-    $bbb_secret = trim(get_config('bigbluebuttonbn', 'shared_secret'));
-    
-    // Check for alternative config names just in case
-    if (empty($bbb_url)) $bbb_url = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_server_url'));
-    if (empty($bbb_secret)) $bbb_secret = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_shared_secret'));
+    // Retrieved from global config based on DB dump
+    $bbb_url = trim(get_config('core', 'bigbluebuttonbn_server_url'));
+    if (empty($bbb_url)) $bbb_url = trim($CFG->bigbluebuttonbn_server_url ?? '');
 
-    // DEBUG: Deep Search for Config
+    $bbb_secret = trim(get_config('core', 'bigbluebuttonbn_shared_secret'));
+    if (empty($bbb_secret)) $bbb_secret = trim($CFG->bigbluebuttonbn_shared_secret ?? '');
+
+    // Final fallback if still empty (unlikely given DB dump)
     if (empty($bbb_url) || empty($bbb_secret)) {
-        global $DB;
-        echo "<pre>";
-        echo "Error: BBB Config still not found via standard means.\n";
-        
-        // Search in config_plugins
-        $sql = "SELECT plugin, name, value FROM {config_plugins} WHERE name LIKE '%bigbluebutton%' OR plugin LIKE '%bigbluebutton%'";
-        $results = $DB->get_records_sql($sql);
-        echo "Searching {config_plugins}:\n";
-        print_r($results);
-
-        // Search in config (global)
-        $sql2 = "SELECT name, value FROM {config} WHERE name LIKE '%bigbluebutton%'";
-        $results2 = $DB->get_records_sql($sql2);
-        echo "Searching {config}:\n";
-        print_r($results2);
-        
-        echo "</pre>";
-        die();
+        print_error('noconfig', 'mod_bigbluebuttonbn');
     }
     
     // Build Query
