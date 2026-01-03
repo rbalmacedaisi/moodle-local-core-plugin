@@ -731,7 +731,8 @@ try {
                 // Construct guest link using standard BBB plugin logic if guestlink is empty or just standard pattern
                 // The pattern is usually /mod/bigbluebuttonbn/guest_login.php?id=[cmid]
                 // OR checking if secret is used. But internal guest=1 usually enables the route.
-                $guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $m->cmid;
+                // CORRECTION: Plugin version is old and lacks guest_login.php. We typically redirect to our custom handler.
+                $guest_url = $CFG->wwwroot . '/local/grupomakro_core/pages/guest_join.php?id=' . $m->cmid;
                 
                 $result[] = [
                     'id' => $m->id,
