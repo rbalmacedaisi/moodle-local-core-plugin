@@ -427,7 +427,7 @@ try {
                              if ($cm) {
                                  // Fetch guest status
                                  // Note: We avoid full mod_bigbluebuttonbn\locallib loading if possible, or use DB directly for speed in this list
-                                 $bbb = $DB->get_record('bigbluebuttonbn', ['id' => $e->instance], 'id, guest, guestlink');
+                                 $bbb = $DB->get_record('bigbluebuttonbn', ['id' => $e->instance]);
                                  if ($bbb && !empty($bbb->guest)) {
                                      $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cm->id;
                                  }
@@ -709,12 +709,14 @@ try {
             // Get all BBB activities with guest=1
             // We assume they are in site context (course 1) usually, but we can list all.
             // Joining course_modules to ensure they exist and get cmid
-            $sql = "SELECT b.id, b.name, b.intro, b.timecreated, b.guest, b.guestlink, cm.id as cmid
+            // Get all BBB activities in Site Course (ID 1) as proxy for "Guest Meetings"
+            // Since guest column is missing, we assume Admin created meetings are on Front Page
+            $sql = "SELECT b.id, b.name, b.intro, b.timecreated, cm.id as cmid
                     FROM {bigbluebuttonbn} b
                     JOIN {course_modules} cm ON cm.instance = b.id
                     JOIN {modules} m ON m.id = cm.module
                     WHERE m.name = 'bigbluebuttonbn'
-                    AND b.guest = 1
+                    AND b.course = 1
                     ORDER BY b.timecreated DESC";
             
             $meetings = $DB->get_records_sql($sql);
