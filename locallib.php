@@ -3236,6 +3236,7 @@ function toggle_class_grade_lock($classId, $locked) {
  * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
  * Part of the innovative Teacher Experience.
  */
+function local_grupomakro_create_express_activity($classid, $type, $name, $intro, $extra = []) {
     global $DB, $CFG;
     require_once($CFG->dirroot . '/course/modlib.php');
     
