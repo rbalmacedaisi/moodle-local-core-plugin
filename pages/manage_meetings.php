@@ -22,15 +22,18 @@ echo '
     // Hack to prevent "Mismatched anonymous define() module" error
     // We temporarily hide "define" so Vue/Vuetify register as globals instead of AMD modules
     var _oldDefine = window.define;
+    var _oldRequire = window.require;
     window.define = null;
+    window.require = null; // Prevent libraries from detecting RequireJS
 </script>
 <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script src="' . $CFG->wwwroot . '/local/grupomakro_core/js/components/MeetingManager.js"></script>
 <script>
-    // Restore define
+    // Restore define and require
     if (_oldDefine) window.define = _oldDefine;
+    if (_oldRequire) window.require = _oldRequire;
 </script>
 ';
 
