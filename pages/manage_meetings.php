@@ -12,11 +12,6 @@ $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/manage_meetings.php'
 $PAGE->set_title('Administrar Sesiones de Invitados');
 $PAGE->set_heading('Gestor de Sesiones Virtuales');
 
-// Add our components
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/MeetingManager.js'));
-
-echo $OUTPUT->header();
-
 // Vue & Vuetify - Manual injection to avoid RequireJS/AMD conflicts
 echo '
 <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
@@ -30,6 +25,7 @@ echo '
 <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="' . $CFG->wwwroot . '/local/grupomakro_core/js/components/MeetingManager.js"></script>
 <script>
     // Restore define
     if (_oldDefine) window.define = _oldDefine;
