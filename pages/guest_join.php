@@ -40,12 +40,13 @@ if ($action === 'join' && !empty($username)) {
     $password = $bbb->viewerpass; // 'moderatorpass' for moderators
     
     // BBB Server Config
-    $bbb_url = trim(\mod_bigbluebuttonbn\locallib\config::get('server_url'));
-    $bbb_secret = trim(\mod_bigbluebuttonbn\locallib\config::get('shared_secret'));
+    // Use get_config directly to avoid "Class not found" on older plugin versions
+    $bbb_url = trim(get_config('bigbluebuttonbn', 'server_url'));
+    $bbb_secret = trim(get_config('bigbluebuttonbn', 'shared_secret'));
     
-    // If locallib class structure is different in old version, fallbacks:
-    if (empty($bbb_url)) $bbb_url = trim(get_config('bigbluebuttonbn', 'server_url'));
-    if (empty($bbb_secret)) $bbb_secret = trim(get_config('bigbluebuttonbn', 'shared_secret'));
+    // Check for alternative config names just in case
+    if (empty($bbb_url)) $bbb_url = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_server_url'));
+    if (empty($bbb_secret)) $bbb_secret = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_shared_secret'));
     
     // Build Query
     if (!str_ends_with($bbb_url, '/')) $bbb_url .= '/';
