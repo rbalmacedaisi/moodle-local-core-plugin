@@ -81,10 +81,10 @@ class create_express_activity extends external_api {
                 'message' => 'Activity created successfully',
                 'cmid' => $result->coursemodule
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return array(
                 'status' => 'error',
-                'message' => $e->getMessage(),
+                'message' => 'Backend Error: ' . ($e->getMessage() ?: get_class($e)),
                 'cmid' => 0
             );
         }
