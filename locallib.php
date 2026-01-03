@@ -3279,7 +3279,7 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->participants = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
         $moduleinfo->record = 1;
         if (!empty($extra['guest'])) {
-            $moduleinfo->guest = 1;
+            // $moduleinfo->guest = 1; // Disabled: Column does not exist in this BBB version
         }
     } else if ($type === 'assign') {
         $moduleinfo->grade = 100;
