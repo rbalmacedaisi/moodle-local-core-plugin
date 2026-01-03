@@ -32,8 +32,8 @@ echo '
 <script src="' . $CFG->wwwroot . '/local/grupomakro_core/js/components/MeetingManager.js"></script>
 <script>
     // Restore define and require
-    if (_oldDefine) window.define = _oldDefine;
-    if (_oldRequire) window.require = _oldRequire;
+    window.define = _oldDefine;
+    window.require = _oldRequire;
 </script>
 ';
 
