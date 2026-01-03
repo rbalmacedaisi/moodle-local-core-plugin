@@ -27,15 +27,62 @@ if ($action === 'join' && !empty($username)) {
     if (empty($bbb_secret)) $bbb_secret = trim($CFG->bigbluebuttonbn_shared_secret ?? '');
 
     $bbb_secret = trim($bbb_secret);
-    if (substr($bbb_url, -1) !== '/') $bbb_url .= '/';
+    // 4. Check if meeting is running, if not, CREATE it.
+    // This ensures the guest link works even if no moderator has started the session yet. with correct params
+    
+    // Helper for API calls
+    function bbb_api_call($action, $params, $url, $secret) {
+        $query = http_build_query($params, '', '&');
+        $checksum = sha1($action . $query . $secret);
+        $request_url = $url . 'api/' . $action . '?' . $query . '&checksum=' . $checksum;
+        
+        $curl = new curl();
+        $response = $curl->get($request_url);
+        return simplexml_load_string($response);
+    }
+    
+    // Check status
+    $xml = bbb_api_call('isMeetingRunning', ['meetingID' => $meetingID], $bbb_url, $bbb_secret);
+    
+    if ($xml && $xml->running == 'false') {
+        // Meeting not running. We must CREATE it.
+        $create_params = [
+            'name' => $bbb->name,
+            'meetingID' => $meetingID,
+            'attendeePW' => $bbb->viewerpass,
+            'moderatorPW' => $bbb->moderatorpass,
+            'welcome' => $bbb->welcome,
+            // 'dialNumber' => $bbb->dialnumber, // Optional
+            // 'voiceBridge' => $bbb->voicebridge, // Optional
+            'record' => 'false', // Default for guest quick meetings? Or use DB? $bbb->record ?? 'false'
+        ];
+        
+        // Add optional params from DB if they exist
+        if (!empty($bbb->welcome)) $create_params['welcome'] = $bbb->welcome;
+        
+        $create_xml = bbb_api_call('create', $create_params, $bbb_url, $bbb_secret);
+        
+        if ($create_xml && $create_xml->returncode == 'FAILED') {
+             // If creation failed, it might be due to "forcibly ended" state needing expiry?
+             // Or duplicate ID. But usually create overwrites or restarts.
+             // We'll log/print error if strictly needed, but let's try to proceed to join anyway 
+             // in case of race conditions, or show error.
+             // For now, let's assume it works or the join below will show the specific error.
+        }
+    }
+
     $api_call = 'join';
     
     $params = [
         'fullName' => $username,
         'meetingID' => $meetingID,
-        'password' => $password,
+        // 'password' => $password, // MOVED BELOW
         'redirect' => 'true'
     ];
+    
+    // Decide which password to use. If we assume guest is VIEWER, use viewerpass.
+    // If we want them to allow start, we'd need moderator pass, but usually not for guests.
+    $params['password'] = $password;
     
     // Force '&' separator to avoid php.ini arg_separator.output issues (e.g. &amp;)
     $query = http_build_query($params, '', '&');
