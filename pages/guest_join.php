@@ -49,7 +49,7 @@ if ($action === 'join' && !empty($username)) {
     if (empty($bbb_secret)) $bbb_secret = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_shared_secret'));
     
     // Build Query
-    if (!str_ends_with($bbb_url, '/')) $bbb_url .= '/';
+    if (substr($bbb_url, -1) !== '/') $bbb_url .= '/';
     $api_call = 'join';
     $params = [
         'meetingID' => $meetingID,
