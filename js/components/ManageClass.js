@@ -93,7 +93,11 @@ const ManageClass = {
                                         </v-card>
                                     </v-timeline-item>
                                 </v-timeline>
-                                <v-alert v-if="timeline.length === 0" type="info" text class="ma-4 rounded-xl">
+                                <div v-if="loadingTimeline" class="text-center pa-4">
+                                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                    <div class="caption grey--text mt-2">Cargando sesiones...</div>
+                                </div>
+                                <v-alert v-if="!loadingTimeline && timeline.length === 0" type="info" text class="ma-4 rounded-xl">
                                     No hay sesiones programadas para esta clase.
                                 </v-alert>
                             </v-card>
@@ -264,11 +268,11 @@ const ManageClass = {
                 { id: 3, name: 'Actividades', icon: 'mdi-view-grid-outline' }
             ],
             timeline: [],
+            loadingTimeline: true, // Start loading by default
             activities: [],
             showActivityWizard: false,
             newActivityType: '',
             showActivitySelector: false,
-            availableModules: [],
             availableModules: [],
             isLoadingModules: false,
             customActivityLabel: '',
@@ -318,6 +322,7 @@ const ManageClass = {
             }
         },
         async fetchTimeline() {
+            this.loadingTimeline = true;
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_class_details',
@@ -329,6 +334,8 @@ const ManageClass = {
                 }
             } catch (error) {
                 console.error('Error fetching timeline:', error);
+            } finally {
+                this.loadingTimeline = false;
             }
         },
         async fetchActivities() {
