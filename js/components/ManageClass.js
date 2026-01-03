@@ -399,10 +399,15 @@ const ManageClass = {
         },
         enterSession(session) {
             if (session.type === 'virtual') {
-                if (session.join_url) {
+                if (session.join_url && session.join_url !== '#') {
                     window.open(session.join_url, '_blank');
                 } else {
-                    alert('El enlace a la sesión virtual no está disponible.');
+                    let msg = 'El enlace a la sesión virtual no está disponible.';
+                    if (session.debug_error) {
+                        msg += '\nDetalles: ' + session.debug_error;
+                        console.error('BBB Join Error:', session.debug_error);
+                    }
+                    alert(msg);
                 }
             } else {
                 // Logic to open attendance manager

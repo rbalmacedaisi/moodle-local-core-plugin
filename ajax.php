@@ -413,7 +413,11 @@ try {
                                       $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
                                   }
                               }
-                         } catch (Exception $ex) { /* Ignore */ }
+                              }
+                         } catch (\Throwable $ex) { 
+                             $session_data->debug_error = $ex->getMessage();
+                             // Fallback or log?
+                         }
                      }
                 } elseif ($e->modulename === 'bigbluebuttonbn') {
                     $session_data->type = 'virtual';
@@ -431,7 +435,9 @@ try {
                                  
                                  $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
                              }
-                        } catch (Exception $ex) { /* Ignore */ }
+                        } catch (\Throwable $ex) { 
+                            $session_data->debug_error = $ex->getMessage();
+                        }
                     }
                 }
 
