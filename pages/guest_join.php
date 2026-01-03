@@ -37,22 +37,15 @@ if ($action === 'join' && !empty($username)) {
         'redirect' => 'true'
     ];
     
-    $query = http_build_query($params);
+    // Force '&' separator to avoid php.ini arg_separator.output issues (e.g. &amp;)
+    $query = http_build_query($params, '', '&');
     $checksum = sha1($api_call . $query . $bbb_secret);
     
-    // DEBUG OUTPUT AS PLAIN TEXT
-    header('Content-Type: text/plain');
-    echo "DEBUGGING CHECKSUM ERROR (PLAIN TEXT MODE)\n";
-    echo "========================================\n";
-    echo "Meeting ID: " . $meetingID . "\n";
-    echo "Password: " . $password . "\n";
-    echo "Secret Length: " . strlen($bbb_secret) . "\n";
-    echo "Secret (First 5): " . substr($bbb_secret, 0, 5) . "...\n";
-    echo "Base String: " . $api_call . $query . $bbb_secret . "\n"; 
-    echo "Calculated Checksum: " . $checksum . "\n";
-    echo "URL Query: " . $query . "\n";
-    echo "Server URL: " . $bbb_url . "\n";
-    die();
+    $join_url = $bbb_url . 'api/' . $api_call . '?' . $query . '&checksum=' . $checksum;
+    
+    // Redirect
+    redirect($join_url);
+    exit;
 }
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/guest_join.php', array('id' => $id)));
