@@ -9,6 +9,52 @@ $id = required_param('id', PARAM_INT); // Course Module ID
 $action = optional_param('action', '', PARAM_ALPHA);
 $username = optional_param('username', '', PARAM_TEXT);
 
+// MOVED LOGIC TO TOP TO PREVENT ANY HTML/REDIRECT INTERFERENCE
+if ($action === 'join' && !empty($username)) {
+    // 1. Get Session Details (Manual DB query to avoid page setup reqs if possible, but we have config)
+    // We can use standard calls since config.php is loaded
+    $cm = get_coursemodule_from_id('bigbluebuttonbn', $id, 0, false, MUST_EXIST);
+    $bbb = $DB->get_record('bigbluebuttonbn', array('id' => $cm->instance), '*', MUST_EXIST);
+
+    $meetingID = $bbb->meetingid; 
+    $password = $bbb->viewerpass;
+    
+    // BBB Server Config
+    $bbb_url = trim(get_config('core', 'bigbluebuttonbn_server_url'));
+    if (empty($bbb_url)) $bbb_url = trim($CFG->bigbluebuttonbn_server_url ?? '');
+
+    $bbb_secret = trim(get_config('core', 'bigbluebuttonbn_shared_secret'));
+    if (empty($bbb_secret)) $bbb_secret = trim($CFG->bigbluebuttonbn_shared_secret ?? '');
+
+    $bbb_secret = trim($bbb_secret);
+    if (substr($bbb_url, -1) !== '/') $bbb_url .= '/';
+    $api_call = 'join';
+    
+    $params = [
+        'fullName' => $username,
+        'meetingID' => $meetingID,
+        'password' => $password,
+        'redirect' => 'true'
+    ];
+    
+    $query = http_build_query($params);
+    $checksum = sha1($api_call . $query . $bbb_secret);
+    
+    // DEBUG OUTPUT AS PLAIN TEXT
+    header('Content-Type: text/plain');
+    echo "DEBUGGING CHECKSUM ERROR (PLAIN TEXT MODE)\n";
+    echo "========================================\n";
+    echo "Meeting ID: " . $meetingID . "\n";
+    echo "Password: " . $password . "\n";
+    echo "Secret Length: " . strlen($bbb_secret) . "\n";
+    echo "Secret (First 5): " . substr($bbb_secret, 0, 5) . "...\n";
+    echo "Base String: " . $api_call . $query . $bbb_secret . "\n"; 
+    echo "Calculated Checksum: " . $checksum . "\n";
+    echo "URL Query: " . $query . "\n";
+    echo "Server URL: " . $bbb_url . "\n";
+    die();
+}
+
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/guest_join.php', array('id' => $id)));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Unirse a Sesión Virtual');
