@@ -10,6 +10,7 @@ use external_api;
 use external_function_parameters;
 use external_value;
 use external_single_structure;
+use external_multiple_structure;
 use stdClass;
 
 class create_express_activity extends external_api {
