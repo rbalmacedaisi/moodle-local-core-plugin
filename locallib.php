@@ -3241,6 +3241,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     global $DB, $CFG;
     require_once($CFG->dirroot . '/course/modlib.php');
     
+    // DEBUG LOG
+    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - Creating activity: $name type: $type classid: $classid\n", FILE_APPEND);
+
     if ($classid == -1) {
         $course = get_course(SITEID); // Use Front Page
         // Get section 1 of front page or create if needed

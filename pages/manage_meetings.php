@@ -29,7 +29,7 @@ echo '
 <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-<script src="' . $CFG->wwwroot . '/local/grupomakro_core/js/components/MeetingManager.js"></script>
+<script src="' . $CFG->wwwroot . '/local/grupomakro_core/js/components/MeetingManager.js?v=' . time() . '"></script>
 <script>
     // Restore define and require
     window.define = _oldDefine;
