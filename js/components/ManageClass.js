@@ -89,9 +89,7 @@ const ManageClass = {
                                                     <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
                                                     {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
                                                 </v-btn>
-                                                    <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
-                                                    {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
-                                                </v-btn>
+
                                             </v-card-actions>
                                         </v-card>
                                     </v-timeline-item>
