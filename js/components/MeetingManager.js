@@ -168,7 +168,7 @@ const MeetingManager = {
                     this.newMeeting.intro = '';
                     this.fetchMeetings();
                 } else {
-                    this.showSnackbar(response.data.message || 'Error al crear', 'error');
+                    this.showSnackbar(response.data.message || 'Error: ' + JSON.stringify(response.data), 'error');
                 }
             } catch (error) {
                 this.showSnackbar('Error de conexión', 'error');
