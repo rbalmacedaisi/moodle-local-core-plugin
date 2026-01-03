@@ -72,12 +72,24 @@ if ($action === 'join' && !empty($username)) {
     
     $join_url = $bbb_url . 'api/' . $api_call . '?' . $query . '&checksum=' . $checksum;
     
-    // DEBUG: If it fails again, we might need to debug parameter encoding (spaces in name)
-    // echo "Debug Link: " . $join_url; die(); 
+    // DEBUG: Checksum mismatch investigation
+    // Prevent redirect and show exactly what is being hashed
+    $base_string = $api_call . $query . $bbb_secret;
+    echo "<h3>Debugging Checksum Error</h3>";
+    echo "<b>Meeting ID:</b> " . $meetingID . "<br>";
+    echo "<b>Password:</b> " . $password . "<br>";
+    echo "<b>Secret (Length):</b> " . strlen($bbb_secret) . "<br>";
+    echo "<b>Secret (First 5):</b> " . substr($bbb_secret, 0, 5) . "...<br>";
+    echo "<b>Base String for Checksum:</b> " . $api_call . $query . "[SECRET]<br>";
+    echo "<b>Calculated Checksum:</b> " . $checksum . "<br>";
+    echo "<b>Final URL:</b> " . $join_url . "<br>";
+    echo "<hr>";
+    echo "<a href='" . $join_url . "'>Click here to try link manually</a>";
+    die();
     
     // Redirect
-    redirect($join_url);
-    exit;
+    // redirect($join_url);
+    // exit;
 }
 
 // 3. Render Form
