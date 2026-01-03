@@ -52,24 +52,28 @@ if ($action === 'join' && !empty($username)) {
         print_error('noconfig', 'mod_bigbluebuttonbn');
     }
     
-    // Build Query
+    // Build Query - Ensure parameters are URL encoded correctly
+    // trim() prevents issues with copy-pasted config values
+    $bbb_secret = trim($bbb_secret);
+    
     if (substr($bbb_url, -1) !== '/') $bbb_url .= '/';
     $api_call = 'join';
+    
+    // http_build_query handles URL encoding. Checksum calculation MUST use the exact query string.
     $params = [
-        'meetingID' => $meetingID,
         'fullName' => $username,
+        'meetingID' => $meetingID, // Order doesn't strictly matter for BBB, but convention
         'password' => $password,
         'redirect' => 'true'
     ];
     
-    // Ensure meetingID is set. If not, maybe session didn't start? 
-    // We'll proceed. The server will reject if invalid.
-    
-    // Checksum
     $query = http_build_query($params);
     $checksum = sha1($api_call . $query . $bbb_secret);
     
     $join_url = $bbb_url . 'api/' . $api_call . '?' . $query . '&checksum=' . $checksum;
+    
+    // DEBUG: If it fails again, we might need to debug parameter encoding (spaces in name)
+    // echo "Debug Link: " . $join_url; die(); 
     
     // Redirect
     redirect($join_url);
