@@ -45,7 +45,10 @@ if ($action === 'join' && !empty($username)) {
     // Check status
     $xml = bbb_api_call('isMeetingRunning', ['meetingID' => $meetingID], $bbb_url, $bbb_secret);
     
-    if ($xml && $xml->running == 'false') {
+    // DEBUG API
+    // header('Content-Type: text/plain'); print_r($xml); die(); 
+
+    if ($xml && (string)$xml->running == 'false') {
         // Meeting not running. We must CREATE it.
         $create_params = [
             'name' => $bbb->name,
@@ -53,22 +56,26 @@ if ($action === 'join' && !empty($username)) {
             'attendeePW' => $bbb->viewerpass,
             'moderatorPW' => $bbb->moderatorpass,
             'welcome' => $bbb->welcome,
-            // 'dialNumber' => $bbb->dialnumber, // Optional
-            // 'voiceBridge' => $bbb->voicebridge, // Optional
-            'record' => 'false', // Default for guest quick meetings? Or use DB? $bbb->record ?? 'false'
+            'record' => 'false',
         ];
         
-        // Add optional params from DB if they exist
+        // Add optional params
         if (!empty($bbb->welcome)) $create_params['welcome'] = $bbb->welcome;
         
         $create_xml = bbb_api_call('create', $create_params, $bbb_url, $bbb_secret);
         
-        if ($create_xml && $create_xml->returncode == 'FAILED') {
-             // If creation failed, it might be due to "forcibly ended" state needing expiry?
-             // Or duplicate ID. But usually create overwrites or restarts.
-             // We'll log/print error if strictly needed, but let's try to proceed to join anyway 
-             // in case of race conditions, or show error.
-             // For now, let's assume it works or the join below will show the specific error.
+        // DEBUG CREATE
+        /*
+        echo "Creating Meeting...\n";
+        print_r($create_xml);
+        */
+        
+        if ($create_xml && (string)$create_xml->returncode == 'FAILED') {
+             // If creation failed, show WHY
+             header('Content-Type: text/plain');
+             echo "Error Creating Meeting:\n";
+             print_r($create_xml);
+             die();
         }
     }
 
