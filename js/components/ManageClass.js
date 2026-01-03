@@ -74,6 +74,12 @@ const ManageClass = {
                                                     <v-icon x-small color="blue darken-1" class="mr-1">mdi-information</v-icon>
                                                     El acceso se habilita a la hora del evento.
                                                 </div>
+                                                <!-- Guest Link -->
+                                                <div v-if="session.guest_url" class="mt-2 text-caption">
+                                                    <v-btn x-small text color="blue darken-2" class="px-0" @click="copyGuestLink(session.guest_url)">
+                                                        <v-icon x-small left>mdi-link-variant</v-icon> Copiar enlace de invitado
+                                                    </v-btn>
+                                                </div>
                                             </v-card-text>
                                             <v-divider></v-divider>
                                             <v-card-actions class="grey lighten-5">
@@ -250,6 +256,13 @@ const ManageClass = {
                 @success="onActivityCreated"
             ></activity-creation-wizard>
 
+            <v-snackbar v-model="snackbar" :timeout="3000" color="success">
+                {{ snackbarText }}
+                <template v-slot:action="{ attrs }">
+                    <v-btn text v-bind="attrs" @click="snackbar = false">Cerrar</v-btn>
+                </template>
+            </v-snackbar>
+
         </v-container>
     `,
     data() {
@@ -277,7 +290,9 @@ const ManageClass = {
             isLoadingModules: false,
             customActivityLabel: '',
             editActivityData: null,
-            isEditing: false
+            isEditing: false,
+            snackbar: false,
+            snackbarText: ''
         };
     },
     computed: {
@@ -441,6 +456,15 @@ const ManageClass = {
             this.newActivityType = activity.modname; // Needed for wizard type context
             this.customActivityLabel = activity.name; // Temporary till loaded
             this.showActivityWizard = true;
+        },
+        copyGuestLink(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                this.snackbarText = 'Enlace de invitado copiado al portapapeles';
+                this.snackbar = true;
+            }).catch(err => {
+                console.error('Error al copiar:', err);
+                alert('No se pudo copiar el enlace.');
+            });
         }
     }
 };

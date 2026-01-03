@@ -3236,13 +3236,24 @@ function toggle_class_grade_lock($classId, $locked) {
  * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
  * Part of the innovative Teacher Experience.
  */
-function local_grupomakro_create_express_activity($classid, $type, $name, $intro, $extra = []) {
     global $DB, $CFG;
     require_once($CFG->dirroot . '/course/modlib.php');
     
-    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
-    $course = get_course($class->corecourseid);
-    $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+    if ($classid == -1) {
+        $course = get_course(SITEID); // Use Front Page
+        // Get section 1 of front page or create if needed
+        $modinfo = get_fast_modinfo($course);
+        // Use first available section typically
+        $section = $DB->get_record('course_sections', ['course' => $course->id, 'section' => 1]);
+        if (!$section) {
+            // Fallback to section 0 if 1 doesn't exist (unlikely on front page usually)
+             $section = $DB->get_record('course_sections', ['course' => $course->id, 'section' => 0]);
+        }
+    } else {
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+        $course = get_course($class->corecourseid);
+        $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+    }
     
     $module = $DB->get_record('modules', ['name' => $type], '*', MUST_EXIST);
     
@@ -3265,6 +3276,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->type = 0; // All features
         $moduleinfo->participants = '[{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
         $moduleinfo->record = 1;
+        if (!empty($extra['guest'])) {
+            $moduleinfo->guest = 1;
+        }
     } else if ($type === 'assign') {
         $moduleinfo->grade = 100;
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;

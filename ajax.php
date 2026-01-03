@@ -422,6 +422,13 @@ try {
                         try {
                              $cm = get_coursemodule_from_instance('bigbluebuttonbn', $e->instance);
                              if ($cm) {
+                                 // Fetch guest status
+                                 // Note: We avoid full mod_bigbluebuttonbn\locallib loading if possible, or use DB directly for speed in this list
+                                 $bbb = $DB->get_record('bigbluebuttonbn', ['id' => $e->instance], 'id, guest, guestlink');
+                                 if ($bbb && !empty($bbb->guest)) {
+                                     $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cm->id;
+                                 }
+                                 
                                  $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
                              }
                         } catch (Exception $ex) { /* Ignore */ }
@@ -600,6 +607,8 @@ try {
             $duedate = optional_param('duedate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
             $tags = optional_param('tags', '', PARAM_TEXT); // Receive tags as comma-separated string or array
+            $gradecat = optional_param('gradecat', 0, PARAM_INT);
+            $guest = optional_param('guest', false, PARAM_BOOL);
             
             // Normalize tags if passed as string
             $tagList = [];
@@ -612,7 +621,7 @@ try {
             }
 
             $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList
+                $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
             );
             break;
 
@@ -687,6 +696,46 @@ try {
                     'tags' => array_values($tagNames)
                 ]
             ];
+            break;
+
+        case 'local_grupomakro_get_guest_meetings':
+            require_capability('moodle/site:config', context_system::instance());
+            
+            // Get all BBB activities with guest=1
+            // We assume they are in site context (course 1) usually, but we can list all.
+            // Joining course_modules to ensure they exist and get cmid
+            $sql = "SELECT b.id, b.name, b.intro, b.timecreated, b.guest, b.guestlink, cm.id as cmid
+                    FROM {bigbluebuttonbn} b
+                    JOIN {course_modules} cm ON cm.instance = b.id
+                    JOIN {modules} m ON m.id = cm.module
+                    WHERE m.name = 'bigbluebuttonbn'
+                    AND b.guest = 1
+                    ORDER BY b.timecreated DESC";
+            
+            $meetings = $DB->get_records_sql($sql);
+            $result = [];
+            foreach ($meetings as $m) {
+                // Construct guest link using standard BBB plugin logic if guestlink is empty or just standard pattern
+                // The pattern is usually /mod/bigbluebuttonbn/guest_login.php?id=[cmid]
+                // OR checking if secret is used. But internal guest=1 usually enables the route.
+                $guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $m->cmid;
+                
+                $result[] = [
+                    'id' => $m->id,
+                    'cmid' => $m->cmid,
+                    'name' => $m->name,
+                    'timecreated' => $m->timecreated,
+                    'guest_url' => $guest_url
+                ];
+            }
+            $response = ['status' => 'success', 'meetings' => $result];
+            break;
+
+        case 'local_grupomakro_delete_guest_meeting':
+            require_capability('moodle/site:config', context_system::instance());
+            $cmid = required_param('cmid', PARAM_INT);
+            course_delete_module($cmid);
+            $response = ['status' => 'success'];
             break;
 
         case 'local_grupomakro_update_activity':

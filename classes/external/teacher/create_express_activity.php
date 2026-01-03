@@ -24,17 +24,17 @@ class create_express_activity extends external_api {
                 'duedate' => new external_value(PARAM_INT, 'The due date for assignments', VALUE_DEFAULT, 0),
                 'save_as_template' => new external_value(PARAM_BOOL, 'Whether to save as a template', VALUE_DEFAULT, false),
                 'gradecat' => new external_value(PARAM_INT, 'The grade category ID (rubric)', VALUE_DEFAULT, 0),
-                'tags' => new \external_multiple_structure(
                     new external_value(PARAM_TEXT, 'Tag name'),
                     'List of tags',
                     VALUE_DEFAULT,
                     []
-                )
+                ),
+                'guest' => new external_value(PARAM_BOOL, 'Allow guest access (for BBB)', VALUE_DEFAULT, false)
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0) {
+    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -43,7 +43,8 @@ class create_express_activity extends external_api {
             'duedate' => $duedate,
             'save_as_template' => $save_as_template,
             'gradecat' => $gradecat,
-            'tags' => $tags
+            'tags' => $tags,
+            'guest' => $guest
         ));
 
         $context = \context_system::instance();
@@ -56,7 +57,8 @@ class create_express_activity extends external_api {
         $extra = [
             'duedate' => $params['duedate'],
             'save_as_template' => $params['save_as_template'],
-            'gradecat' => $params['gradecat']
+            'gradecat' => $params['gradecat'],
+            'guest' => $params['guest']
         ];
 
         try {

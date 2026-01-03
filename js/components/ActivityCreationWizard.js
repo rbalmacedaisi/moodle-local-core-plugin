@@ -94,6 +94,9 @@ const ActivityCreationWizard = {
                             <span class="text-caption blue--text">
                                 Se configurará automáticamente con los parámetros de este grupo y horario.
                             </span>
+                            <span class="text-caption blue--text">
+                                Se configurará automáticamente con los parámetros de este grupo y horario.
+                            </span>
                         </div>
 
                         <!-- Template Option -->
@@ -136,7 +139,10 @@ const ActivityCreationWizard = {
                 duedate: '',
                 gradecat: null,
                 tags: [],
-                visible: true
+                gradecat: null,
+                tags: [],
+                visible: true,
+                guest: false
             },
             gradeCategories: []
         };
@@ -187,7 +193,8 @@ const ActivityCreationWizard = {
                     duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
                     save_as_template: this.saveAsTemplate,
                     gradecat: this.formData.gradecat,
-                    tags: this.formData.tags
+                    tags: this.formData.tags,
+                    guest: this.formData.guest
                 };
 
                 const response = await axios.post(window.wsUrl, {
