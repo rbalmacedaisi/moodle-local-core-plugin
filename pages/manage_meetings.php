@@ -1,9 +1,9 @@
 <?php
 
-require_once('../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-admin_externalpage_setup('local_grupomakro_manage_meetings', '', null, '', array('pagelayout' => 'admin'));
+admin_externalpage_setup('grupomakro_core_manage_meetings', '', null, '', array('pagelayout' => 'admin'));
 
 // Check permissions
 require_capability('moodle/site:config', context_system::instance());
