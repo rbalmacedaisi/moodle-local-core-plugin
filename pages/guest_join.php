@@ -47,6 +47,21 @@ if ($action === 'join' && !empty($username)) {
     // Check for alternative config names just in case
     if (empty($bbb_url)) $bbb_url = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_server_url'));
     if (empty($bbb_secret)) $bbb_secret = trim(get_config('bigbluebuttonbn', 'bigbluebuttonbn_shared_secret'));
+
+    // DEBUG: Dump values to see what we are getting
+    if (empty($bbb_url) || empty($bbb_secret)) {
+        echo "<pre>";
+        echo "Error: BBB Config not found.\n";
+        echo "Tried 'server_url' result: [" . get_config('bigbluebuttonbn', 'server_url') . "]\n";
+        echo "Tried 'bigbluebuttonbn_server_url' result: [" . get_config('bigbluebuttonbn', 'bigbluebuttonbn_server_url') . "]\n";
+        echo "Tried all config for bigbluebuttonbn: \n";
+        print_r(get_config('bigbluebuttonbn'));
+        echo "\n";
+        echo "Tried all config for mod_bigbluebuttonbn: \n";
+        print_r(get_config('mod_bigbluebuttonbn'));
+        echo "</pre>";
+        die();
+    }
     
     // Build Query
     if (substr($bbb_url, -1) !== '/') $bbb_url .= '/';
