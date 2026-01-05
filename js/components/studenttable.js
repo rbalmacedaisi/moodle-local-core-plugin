@@ -718,12 +718,20 @@ Vue.component('studenttable', {
             }
         },
         async updateStudentSubperiod(item, carrer, subperiod) {
+            console.log('Update Subperiod Item:', item, 'Career:', carrer, 'Subperiod:', subperiod);
+
+            const userId = item.userid || item.id;
+            if (!userId) {
+                alert("Error: No se encontró el ID del estudiante (userid/id). Revise la consola.");
+                return;
+            }
+
             this.$set(item, 'updatingSubperiod', carrer.planid);
             try {
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_update_subperiod');
                 params.append('sesskey', M.cfg.sesskey);
-                params.append('userid', item.userid);
+                params.append('userid', userId);
                 params.append('planid', carrer.planid);
                 params.append('subperiodid', subperiod.id);
 
