@@ -115,6 +115,17 @@ class planning_manager {
                         }
                     }
 
+                    $pending[] = [
+                        'id' => $course->id,
+                        'name' => $course->fullname,
+                        'semester' => $course->semester_num, // Normalized numeric level
+                        'semesterName' => $course->semester_name,
+                        'isPriority' => $isPreRequisiteMet, 
+                        'isPreRequisiteMet' => $isPreRequisiteMet 
+                    ];
+                }
+            }
+
             // Determine Student's Theoretical Level 
             // (Max level of Approved + 1? Or Current Period?)
             // React logic calculates "Current Sem" based on progress.

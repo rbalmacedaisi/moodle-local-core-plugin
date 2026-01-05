@@ -602,7 +602,8 @@ createApp({
                          
                          if (!subjects[subj.name][gKey][stu.cohortKey]) subjects[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
                          subjects[subj.name][gKey][stu.cohortKey].count++;
-                         subjects[subj.name][gKey][stu.cohortKey].students.push(stu.name);
+                         // Store Name and ID for display
+                         subjects[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
                          
                          // Add to Cohort View
                          if (cohorts[stu.cohortKey] && !cohorts[stu.cohortKey].subjectsByPeriod[deferral].includes(subj.name)) {
@@ -631,7 +632,7 @@ createApp({
                          subject[gKey][cKey].count += data.count;
                          // In wave, we don't have individual student objects readily available in 'data.students' unless we stored them in studentsInSem
                          if (data.students) {
-                              subject[gKey][cKey].students.push(...data.students.map(s => s.name));
+                              subject[gKey][cKey].students.push(...data.students.map(s => `${s.name} (${s.id})`));
                          }
 
                          // Add to Cohort View
