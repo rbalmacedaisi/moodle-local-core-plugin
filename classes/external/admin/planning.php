@@ -64,8 +64,8 @@ class planning extends external_api {
                        llu.currentperiodid, p.name as currentperiodname $jornadaSelect $financialSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id
-                JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
-                JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
+                LEFT JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
+                LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
                 $jornadaJoin
                 $financialJoin
                 WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student'";
