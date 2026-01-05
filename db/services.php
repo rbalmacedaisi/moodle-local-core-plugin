@@ -691,4 +691,37 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    // Academic Planning
+    'local_grupomakro_get_demand_analysis' => [
+        'classname' => 'local_grupomakro_core\external\admin\planning::get_demand_analysis',
+        'methodname' => 'get_demand_analysis',
+        'description' => 'Get student demand analysis',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_get_periods' => [
+        'classname' => 'local_grupomakro_core\external\admin\planning::get_periods',
+        'methodname' => 'get_periods',
+        'description' => 'Get academic periods',
+        'type'        => 'read',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_save_period' => [
+        'classname' => 'local_grupomakro_core\external\admin\planning::save_period',
+        'methodname' => 'save_period',
+        'description' => 'Save academic period',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
+    'local_grupomakro_save_planning' => [
+        'classname' => 'local_grupomakro_core\external\admin\planning::save_planning',
+        'methodname' => 'save_planning',
+        'description' => 'Save academic planning selections',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

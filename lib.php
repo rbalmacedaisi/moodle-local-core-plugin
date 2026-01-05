@@ -50,6 +50,8 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             $CFG->custommenuitems .= PHP_EOL . '-' . get_string('orders', 'local_grupomakro_core') .
                 '|/local_grupomakro_core/pages/orders.php';
         }
+        $CFG->custommenuitems .= PHP_EOL . '-' . 'Planificación Académica' .
+            '|/local/grupomakro_core/pages/academic_planning.php';
     }
 
     // 2. Redirection logic
