@@ -339,7 +339,6 @@ Vue.component('studenttable', {
             filters: {
                 planid: [],
                 periodid: [],
-                periodid: [],
                 status: '',
                 financialStatus: '',
                 withGrades: false
