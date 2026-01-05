@@ -355,8 +355,12 @@ try {
             break;
 
         case 'local_grupomakro_get_periods':
-            $planid = required_param('planid', PARAM_INT);
-            $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
+            $planid = optional_param('planid', 0, PARAM_INT);
+            if ($planid > 0) {
+                $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
+            } else {
+                $periods = $DB->get_records('local_learning_periods', [], 'name ASC', 'id, name');
+            }
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
 

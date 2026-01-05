@@ -42,8 +42,7 @@ class planning_manager {
                 LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
-                WHERE u.deleted = 0 AND u.suspended = 0 
-                AND lp.visible = 1";
+                WHERE u.deleted = 0 AND u.suspended = 0";
 
         $studentsRaw = $DB->get_records_sql($sql);
         $studentList = [];
