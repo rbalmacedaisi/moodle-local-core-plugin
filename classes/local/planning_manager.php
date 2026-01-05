@@ -127,35 +127,16 @@ class planning_manager {
         // Fetch Prereqs
         
         // 1. Get Courses linked to Plans
-        // Table: {local_learning_plan_courses} or similar? 
-        // Let's use `local_learning_lc_courses` (as seen in previous dumps? No, need to verify).
-        // Let's assume standard plugin tables:
-        // local_learning_plans -> local_learning_periods -> local_learning_subperiods -> local_learning_courses (Maybe links course to period?)
+        // Table: {local_learning_courses} (verified in progress_manager.php)
         
-        // Query to get hierarchy: Plan -> Period -> Subperiod -> Course
         $sql = "SELECT p.learningplanid, p.id as period_id, p.name as period_name, p.position as period_pos,
                        c.id as courseid, c.fullname, 
                        lpc.id as linkid
                 FROM {local_learning_periods} p
-                JOIN {local_learning_rel_courses} lpc ON lpc.periodid = p.id
+                JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
                 JOIN {course} c ON c.id = lpc.courseid
                 ORDER BY p.learningplanid, p.position";
-                
-        // NOTE: Table names are guesses based on standard patterns. I should Verify `local_learning_rel_courses` or similar.
-        // Actually, check `local_learning_periods` in `export_student_periods.php`:
-        // It joins `local_learning_plans`, `periods`.
-        // How are courses linked? Usually `local_learning_rel_courses` or `local_learning_plan_courses`.
-        // I will assume `local_learning_rel_courses` based on common practices, but I should probably DB Check if uncertain.
-        // Let's assume strict names: `local_learning_rel_courses` mapping `periodid` <-> `courseid`.
-        
-        // WAIT! I need to know Prereqs too. 
-        // Assuming `local_learning_dependencies` or similar?
-        // If I can't find Prereqs, I will assume NO Prereqs for now (isPreRequisiteMet = true).
-        
-        // Since I don't have the full DB schema for Prereqs exposed in previous turns, 
-        // I will implement a robust fetch that assumes no prereqs if table missing, 
-        // OR simpler: Queries `local_learning_rel_courses`.
-        
+
         $records = $DB->get_records_sql($sql);
         
         $structure = [];
@@ -165,9 +146,9 @@ class planning_manager {
             $structure[$r->learningplanid][] = (object) [
                 'id' => $r->courseid,
                 'fullname' => $r->fullname,
-                'semester_num' => $r->period_pos, // Assuming position is numeric level
+                'semester_num' => $r->period_pos, 
                 'semester_name' => $r->period_name,
-                'prereqs' => [] // TODO: Implement Prereq fetch
+                'prereqs' => [] // TODO: Implement Prereq fetch if table known
             ];
         }
         return $structure;
@@ -175,23 +156,36 @@ class planning_manager {
 
     /**
      * Helper: Get All Approved Courses for All Students.
+     * Checks both 'gmk_course_progre' (Status 3 or 4) AND 'course_completions'.
      * returns [ userid => [ courseId1, courseId2... ] ]
      */
     private static function get_all_approved_courses() {
         global $DB;
         
-        // Using standard Moodle completion or Grades? 
-        // Assuming completions for simplicity and standardness.
-        // table: {course_completions} where timecompleted > 0
-        
-        $sql = "SELECT userid, course FROM {course_completions} WHERE timecompleted > 0";
-        $records = $DB->get_records_sql($sql);
-        
         $map = [];
-        foreach ($records as $r) {
+
+        // 1. Check Custom Progress Table (gmk_course_progre)
+        // Status 3 = Completed, 4 = Approved.
+        $sqlProgre = "SELECT userid, courseid FROM {gmk_course_progre} WHERE status >= 3";
+        $recordsProgre = $DB->get_records_sql($sqlProgre);
+        
+        foreach ($recordsProgre as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
-            $map[$r->userid][] = $r->course;
+            $map[$r->userid][] = $r->courseid;
         }
+
+        // 2. Check Standard Moodle Completion (Fallback/Merge)
+        $sqlMoodle = "SELECT userid, course FROM {course_completions} WHERE timecompleted > 0";
+        $recordsMoodle = $DB->get_records_sql($sqlMoodle);
+
+        foreach ($recordsMoodle as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            // Avoid duplicates
+            if (!in_array($r->course, $map[$r->userid])) {
+                $map[$r->userid][] = $r->course;
+            }
+        }
+
         return $map;
     }
 }
