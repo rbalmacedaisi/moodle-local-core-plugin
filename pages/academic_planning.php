@@ -555,7 +555,7 @@ createApp({
             let students = studentsMap; // Use the processed studentsMap
             
             // Initialize Subjects Map
-            let subjects = {};
+            // subjects already declared above
             allSubjectsList.forEach(subj => {
                  subjects[subj.name] = {
                      id: subj.id,

@@ -2173,29 +2173,36 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         }
         $eventsFiltered[] = $eventComplete;
     }
-    // Filter out BBB events if an Attendance event exists for the same Class and Start Time
+    // Filter out BBB events if an Attendance event exists for the same Class and nearby Start Time
+    // BBB sessions are typically created 10 mins (600s) before class start, while Attendance is at class start.
     $attendanceEvents = [];
     foreach ($eventsFiltered as $event) {
         if ($event->modulename === 'attendance' && !empty($event->classId)) {
-            $key = $event->classId . '-' . $event->timestart;
-            $attendanceEvents[$key] = true;
+            $attendanceEvents[$event->classId][] = $event->timestart;
         }
     }
 
     $finalEvents = [];
     foreach ($eventsFiltered as $event) {
         if ($event->modulename === 'bigbluebuttonbn' && !empty($event->classId)) {
-            $key = $event->classId . '-' . $event->timestart;
-            // If we have an attendance event at the exact same time for this class, skip the BBB one
-            if (isset($attendanceEvents[$key])) {
+            $isDuplicate = false;
+            if (isset($attendanceEvents[$event->classId])) {
+                foreach ($attendanceEvents[$event->classId] as $attTime) {
+                    // Check if times are within 10 minutes (600s) of each other
+                    // Covers exact match and the -600s opening time
+                    if (abs($attTime - $event->timestart) <= 601) { 
+                        $isDuplicate = true;
+                        break;
+                    }
+                }
+            }
+            if ($isDuplicate) {
                 continue;
             }
         }
         $finalEvents[] = $event;
     }
 
-    // print_object(count($finalEvents));
-    // die;
     return $finalEvents;
 }
 
