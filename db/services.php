@@ -693,7 +693,7 @@ $functions = array(
     ],
     // Academic Planning
     'local_grupomakro_get_demand_analysis' => [
-        'classname' => 'local_grupomakro_core\external\admin\planning::get_demand_analysis',
+        'classname' => 'local_grupomakro_core\external\admin\planning',
         'methodname' => 'get_demand_analysis',
         'description' => 'Get student demand analysis',
         'type'        => 'read',
@@ -701,7 +701,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
     'local_grupomakro_get_periods' => [
-        'classname' => 'local_grupomakro_core\external\admin\planning::get_periods',
+        'classname' => 'local_grupomakro_core\external\admin\planning',
         'methodname' => 'get_periods',
         'description' => 'Get academic periods',
         'type'        => 'read',
@@ -709,7 +709,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
     'local_grupomakro_save_period' => [
-        'classname' => 'local_grupomakro_core\external\admin\planning::save_period',
+        'classname' => 'local_grupomakro_core\external\admin\planning',
         'methodname' => 'save_period',
         'description' => 'Save academic period',
         'type'        => 'write',
@@ -717,7 +717,7 @@ $functions = array(
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
     'local_grupomakro_save_planning' => [
-        'classname' => 'local_grupomakro_core\external\admin\planning::save_planning',
+        'classname' => 'local_grupomakro_core\external\admin\planning',
         'methodname' => 'save_planning',
         'description' => 'Save academic planning selections',
         'type'        => 'write',
