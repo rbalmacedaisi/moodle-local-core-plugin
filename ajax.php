@@ -1033,7 +1033,14 @@ try {
             $response = ['status' => 'success'];
             break;
         
-        default:
+        case 'local_grupomakro_get_planning_data':
+        $periodid = required_param('periodid', PARAM_INT);
+        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+        $data = \local_grupomakro_core\local\planning_manager::get_planning_data($periodid);
+        $response = ['data' => $data, 'error' => false];
+        break;
+
+    default:
             $response['message'] = 'Action not found: ' . $action;
             break;
     }

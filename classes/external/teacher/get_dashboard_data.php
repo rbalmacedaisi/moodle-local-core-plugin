@@ -91,9 +91,34 @@ class get_dashboard_data extends external_api {
             $courseToClassId[$cls->courseid] = $cls->id;
         }
 
-        // 2. Get Calendar Events (next 30 days) using established logic
-        $init_date_str = date('Y-m-d', $now);
-        $end_date_str = date('Y-m-d', $now + (30 * 24 * 60 * 60));
+        // 2. Get Calendar Events (Dynamic range based on active classes)
+        // Default to -1 month to +2 months if no classes, otherwise use class limits
+        $min_start = $now - (30 * 24 * 60 * 60); 
+        $max_end = $now + (60 * 24 * 60 * 60);
+
+        if (!empty($active_classes)) {
+            $start_dates = [];
+            $end_dates = [];
+            foreach ($active_classes as $c) {
+                if (!empty($c->initdate)) $start_dates[] = $c->initdate;
+                if (!empty($c->enddate)) $end_dates[] = $c->enddate;
+            }
+            
+            if (!empty($start_dates)) {
+                // Start from the earliest class start date
+                $min_start = min($start_dates);
+                // Optional: Add a small buffer backwards if needed, but strict class start is usually fine.
+                // However, if we want to show context, maybe 1 week before? 
+                // Let's stick to class start date to ensure all sessions are seen.
+            }
+            
+            if (!empty($end_dates)) {
+                $max_end = max($end_dates);
+            }
+        }
+
+        $init_date_str = date('Y-m-d', $min_start);
+        $end_date_str = date('Y-m-d', $max_end);
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
