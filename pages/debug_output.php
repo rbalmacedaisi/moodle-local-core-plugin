@@ -56,6 +56,44 @@ if ($jornada) {
     echo "Field 'jornada' NOT FOUND.\n";
 }
 
-echo "</pre>";
+// ... (previous diagnostics)
 
+echo "<hr><h3>Simulando Ejecución Backend (planning::get_demand_analysis)</h3>";
+
+// Include the class file directly
+$classfile = __DIR__ . '/../classes/external/admin/planning.php';
+if (file_exists($classfile)) {
+    require_once($classfile);
+    echo "Class file loaded.<br>";
+    
+    try {
+        // Prepare parameters
+        $periodid = 0;
+        $filters = json_encode(['career' => '', 'jornada' => '', 'financial_status' => '']);
+        
+        echo "Calling function...<br>";
+        
+        // We need to suppress output buffering if external_api cleans it? 
+        // external_api sometimes does weird things.
+        // But usually safe for read functions.
+        
+        $result = \local_grupomakro_core\external\admin\planning::get_demand_analysis($periodid, $filters);
+        
+        echo "<b>Result Count (Plans):</b> " . count($result['demand']) . "<br>";
+        
+        if (empty($result['demand'])) {
+            echo "<b>WARNING:</b> Demand array is empty.<br>";
+        } else {
+            echo "<pre>" . print_r($result['demand'], true) . "</pre>";
+        }
+        
+    } catch (Exception $e) {
+        echo "<div style='color:red; font-weight:bold'>EXCEPTION THROWN: " . $e->getMessage() . "</div>";
+        echo "<pre>" . $e->getTraceAsString() . "</pre>";
+    }
+} else {
+    echo "Error: Could not find planning.php at $classfile";
+}
+
+echo "</pre>";
 echo $OUTPUT->footer();
