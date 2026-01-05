@@ -46,12 +46,14 @@ echo "Active Users present in Learning Plans (Any Role): " . $DB->count_records_
 $count_courses = $DB->count_records('local_learning_courses');
 echo "Total Curriculum Entries (local_learning_courses): $count_courses\n";
 
-// 7. Check Jornada Field
+// 7. Check ALL User Info Fields
+$all_fields = $DB->get_records('user_info_field');
+echo "Found " . count($all_fields) . " User Profile Fields:\n";
+print_r($all_fields);
+
 $jornada = $DB->get_record('user_info_field', ['shortname' => 'jornada']);
 if ($jornada) {
     echo "Field 'jornada' FOUND (ID: $jornada->id).\n";
-    $data_count = $DB->count_records('user_info_data', ['fieldid' => $jornada->id]);
-    echo " - Users with 'jornada' data: $data_count\n";
 } else {
     echo "Field 'jornada' NOT FOUND.\n";
 }
@@ -79,12 +81,25 @@ if (file_exists($classfile)) {
         
         $result = \local_grupomakro_core\external\admin\planning::get_demand_analysis($periodid, $filters);
         
-        echo "<b>Result Count (Plans):</b> " . count($result['demand']) . "<br>";
+        // Decode JSON response for debugging
+        $demandData = json_decode($result['demand'], true);
+        $studentData = json_decode($result['students'], true);
         
-        if (empty($result['demand'])) {
+        echo "<b>Result Count (Plans):</b> " . count($demandData) . "<br>";
+        echo "<b>Students Count:</b> " . count($studentData) . "<br>";
+        
+        if (empty($demandData)) {
             echo "<b>WARNING:</b> Demand array is empty.<br>";
         } else {
-            echo "<pre>" . print_r($result['demand'], true) . "</pre>";
+            // Show only first key for brevity if too large
+            echo "<pre>" . print_r($demandData, true) . "</pre>";
+        }
+        
+         if (empty($studentData)) {
+            echo "<b>WARNING:</b> Student array is empty.<br>";
+        } else {
+            // Show first 3 students
+            echo "First 3 Students:<br><pre>" . print_r(array_slice($studentData, 0, 3), true) . "</pre>";
         }
         
     } catch (Exception $e) {
