@@ -254,7 +254,7 @@ try {
                 // Flexible header search
                 foreach ($headers as $idx => $h) {
                     if (strpos($h, 'id number') !== false || strpos($h, 'identificación') !== false || $h === 'idnumber') $idIdx = $idx;
-                    if (strpos($h, 'period') !== false || $h === 'bimestre') $periodIdx = $idx;
+                    if (strpos($h, 'period') !== false || $h === 'bimestre' || strpos($h, 'bloque') !== false) $periodIdx = $idx;
                 }
                 
                 if ($idIdx === -1 || $periodIdx === -1) {

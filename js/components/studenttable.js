@@ -79,7 +79,7 @@ Vue.component('studenttable', {
                                             <v-alert type="info" dense text>
                                                 Utilice esta herramienta para actualizar el bimestre (periodo) de los estudiantes masivamente.
                                                 <br>1. Exporte la plantilla (se aplican los filtros actuales).
-                                                <br>2. Modifique la columna 'Periodo Actual'.
+                                                <br>2. Modifique la columna 'Bloque'.
                                                 <br>3. Importe el archivo modificado.
                                             </v-alert>
                                         </v-col>

@@ -65,7 +65,7 @@ $headers = ['ID Number', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual']
 $sheet->setCellValue('A1', 'ID Number');
 $sheet->setCellValue('B1', 'Nombre Completo');
 $sheet->setCellValue('C1', 'Plan de Estudio');
-$sheet->setCellValue('D1', 'Periodo Actual');
+$sheet->setCellValue('D1', 'Bloque');
 
 // Style Header
 $sheet->getStyle('A1:D1')->getFont()->setBold(true);
