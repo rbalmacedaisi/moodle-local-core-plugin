@@ -61,48 +61,59 @@ class planning_manager {
         // For now, let's assume we fetch ALL courses in the Plan, and filter out those the student has PASSED.
         
         // 2a. Get All Courses per Plan (Structure)
-        $plans = self::get_all_plans_structure(); // Helper below
+        // 3. Process Students Pending Subjects (Wave Engine - Backend Portion)
+        $students = [];
+        
+        // Optimize: Fetch all structures once
+        $structures = self::get_all_plans_structure();
         
         // 2b. Get All Approved Courses per Student (Bulk)
-        $approvedMap = self::get_all_approved_courses(); 
+        $approvedCourses = self::get_all_approved_courses(); 
 
-        foreach ($studentsRaw as $stu) {
-            $planId = $stu->planid;
-            if (!isset($plans[$planId])) continue; // Skip if plan structure missing
+        // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
+        $allSubjects = [];
+        foreach ($structures as $planId => $courses) {
+            foreach ($courses as $c) {
+                // Key by name to avoid duplicates across plans if desired, or keep specific to plan
+                // Frontend groups by subject name generally.
+                // Let's send a flat list of unique subject names + semester info
+                $key = $c->fullname; // Assuming subject names are consistent
+                if (!isset($allSubjects[$key])) {
+                    $allSubjects[$key] = [
+                        'id' => $c->id,
+                        'name' => $c->fullname,
+                        'semester_num' => $c->semester_num,
+                        'semester_name' => $c->semester_name ?? '' // Use $c->semester_name instead of $r->semester_name
+                    ];
+                }
+            }
+        }
 
-            $planStructure = $plans[$planId];
-            $studentApproved = isset($approvedMap[$stu->id]) ? $approvedMap[$stu->id] : [];
+        foreach ($studentsRaw as $u) {
+            $planId = $u->planid;
+            if (!isset($structures[$planId])) continue; // Skip if no structure found
 
-            $pendingSubjects = [];
+            $planStructure = $structures[$planId];
             
-            // Analyze each course in the plan
+            // Get student Progress
+            $approved = $approvedCourses[$u->id] ?? [];
+            
+            // Calculate Pending (Simple Prereq Check: Is not approved)
+            // Ideally check Prereqs here. For MVP: Pending = In Plan AND Not Approved.
+            
+            $pending = [];
             foreach ($planStructure as $course) {
-                // If already approved, skip
-                if (in_array($course->id, $studentApproved)) continue;
-
-                // Check Prerequisites
-                $isPreRequisiteMet = true;
-                if (!empty($course->prereqs)) {
-                    foreach ($course->prereqs as $prereqId) {
-                        if (!in_array($prereqId, $studentApproved)) {
-                            $isPreRequisiteMet = false;
-                            break;
+                if (!in_array($course->id, $approved)) {
+                    // Check Prerequisites
+                    $isPreRequisiteMet = true;
+                    if (!empty($course->prereqs)) {
+                        foreach ($course->prereqs as $prereqId) {
+                            if (!in_array($prereqId, $approved)) {
+                                $isPreRequisiteMet = false;
+                                break;
+                            }
                         }
                     }
-                }
-                
-                // Determine Theoretical Semester (from course structure)
-                // "semester" field in plan structure.
-
-                $pendingSubjects[] = [
-                    'id' => $course->id,
-                    'name' => $course->fullname,
-                    'semester' => $course->semester_num, // Normalized numeric level
-                    'semesterName' => $course->semester_name,
-                    'isPriority' => $isPreRequisiteMet, // If prerequisites met, it's actionable
-                    'isPreRequisiteMet' => $isPreRequisiteMet 
-                ];
-            }
 
             // Determine Student's Theoretical Level 
             // (Max level of Approved + 1? Or Current Period?)

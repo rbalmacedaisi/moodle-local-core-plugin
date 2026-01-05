@@ -166,21 +166,32 @@ class get_dashboard_data extends external_api {
             if ($e->timeduration == 0) $e->timeduration = 3600; // Enforce minimum duration
             
             $e->courseid = $event->courseid;
-            // Map to class ID from Active Classes if available
-            $e->classid = isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0;
             
-            // Determine best label: Group Name > Course Shortname > Course Fullname > Event Name
-            $label = $event->name;
-            if (!empty($event->groupid) && isset($group_name_map[$event->groupid])) {
-                $label = $group_name_map[$event->groupid];
-            } elseif (isset($course_info_map[$event->courseid])) {
-                // Fallback to shortname if available and looks like a code (usually is), else fullname
-                $label = $course_info_map[$event->courseid]->shortname ?: $course_info_map[$event->courseid]->fullname;
-                 // If shortname is very short or generic, might prefer fullname. But usually shortname is the code.
-                 // Actually user asked for "Nombre del grupo" which we now have. 
+            // Map to class ID: Prefer existing enriched data, fallback to map
+            $e->classid = !empty($event->classId) ? $event->classId : (isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0);
+            
+            // Determine best label
+            if (!empty($event->className)) {
+                $label = $event->className;
+            } else {
+                // Fallback logic
+                $label = $event->name;
+                if (!empty($event->groupid) && isset($group_name_map[$event->groupid])) {
+                    $label = $group_name_map[$event->groupid];
+                } elseif (isset($course_info_map[$event->courseid])) {
+                    $label = $course_info_map[$event->courseid]->shortname ?: $course_info_map[$event->courseid]->fullname;
+                }
             }
-
+ 
             $e->classname = $label;
+            
+            // Also ensure we pass other useful fields if the frontend eventually uses them
+            if (isset($event->bigBlueButtonActivityUrl)) {
+                 $e->activityUrl = $event->bigBlueButtonActivityUrl;
+            } 
+            if (isset($event->color)) {
+                 $e->color = $event->color;
+            }
 
             $calendar_events[] = $e;
         }

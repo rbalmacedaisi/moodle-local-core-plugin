@@ -76,7 +76,7 @@ echo $OUTPUT->header();
                 <div class="flex flex-col flex-1">
                      <label class="text-xs text-slate-500 font-bold mb-1">Periodo Actual (Base)</label>
                     <select v-model="selectedPeriodId" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full md:w-64">
-                        <option v-for="p in periods" :key="p.id" :value="p.id">{{ p.name }}</option>
+                        <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
                     </select>
                 </div>
 
@@ -530,42 +530,72 @@ createApp({
                  if (!studentsInSem[planningLevel][cohortKey]) studentsInSem[planningLevel][cohortKey] = { count: 0, students: [] };
                  
                  students[stu.id].cohortKey = cohortKey;
+                 studentsMap[stu.id].cohortKey = cohortKey;
                  cohorts[cohortKey].studentCount++;
                  studentsInSem[planningLevel][cohortKey].count++;
-                 studentsInSem[planningLevel][cohortKey].students.push(students[stu.id]);
+                 studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
             });
+
+            // 1. Initialize Subjects from Backend Master List (to show 0 demand items)
+            // Backend now returns { students: [], all_subjects: [] }
+            // Check if rawData has this structure, or backward compatible
+            
+            let students = studentsMap; // Use the processed studentsMap
+            
+            // Initialize Subjects Map
+            let subjects = {};
+            allSubjectsList.forEach(subj => {
+                 subjects[subj.name] = {
+                     id: subj.id,
+                     name: subj.name,
+                     semesterNum: parseInt(subj.semester_num) || 0,
+                     countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
+                     groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {}
+                 };
+            });
+            
+            // If allSubjectsList was empty (fallback), we build subjects dynamically from pending (like before)
+            // But usually we prefer to have the list.
 
             // 2. Process Demand (P-I) from Pending Subjects
             Object.values(students).forEach(stu => {
+                // ... Apply Filters ... (These filters are already applied to 'filtered' array above)
+                // if (searchTerm.value && !stu.name.toLowerCase().includes(searchTerm.value.toLowerCase())) return;
+                // if (selectedCareer.value !== 'Todas' && stu.career !== selectedCareer.value) return;
+                // Note: Filter filteredStudents for Table, but for Aggregate Demand usually we want GLOBAL or FILTERED?
+                // React app: "Global Demand" filters apply to the matrix.
+                // So applied filters logic IS correct here.
+                // if (selectedShift.value !== 'Todas' && stu.shift !== selectedShift.value) return;
+                
                 stu.pendingSubjects.forEach(subj => {
-                    // Only process feasible subjects (Pre-reqs met)
-                    if (!subj.isPriority) return;
-
-                    // Init Subject
-                    if (!subjects[subj.name]) {
-                        subjects[subj.name] = {
-                            id: subj.id,
-                            name: subj.name,
-                            semesterNum: subj.semester,
-                            countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
-                            groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {}
-                        };
-                    }
-                    
-                    // Logic: Is this subject for NOW (P-I)?
-                    // If subject level <= planning level, they need it NOW (Catch up or current).
-                    if (subj.semester <= stu.planningLevel) {
-                         // Check Defers
+                    // Only count if Priority (Prereqs Met)?
+                    // "La Ola" usually counts next immediate need.
+                    if (subj.isPriority) {
+                         if (!subjects[subj.name]) {
+                             // Initialize if not in master list
+                             subjects[subj.name] = {
+                                 id: subj.id,
+                                 name: subj.name,
+                                 semesterNum: parseInt(subj.semester) || 0,
+                                 countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
+                                 groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {}
+                             };
+                         }
+                         
+                         // Check Deferral of Cohort
                          let deferKey = `${subj.name}_${stu.cohortKey}`;
-                         let deferral = deferredGroups[deferKey] !== undefined ? deferredGroups[deferKey] : 0;
+                         let deferral = deferredGroups[deferKey] || 0; // 0 = P-I
                          
                          let pKey = 'countP' + (deferral + 1);
                          let gKey = 'groupsP' + (deferral + 1);
                          
-                         subjects[subj.name][pKey]++;
+                         if (subjects[subj.name][pKey] !== undefined) {
+                             subjects[subj.name][pKey]++;
+                         }
                          
-                         if (!subjects[subj.name][gKey][stu.cohortKey]) subjects[subj.name][gKey][stu.cohortKey] = { count: 0 };
+                         if (!subjects[subj.name][gKey][stu.cohortKey]) subjects[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
                          subjects[subj.name][gKey][stu.cohortKey].count++;
+                         subjects[subj.name][gKey][stu.cohortKey].students.push(stu.name);
                          
                          // Add to Cohort View
                          if (cohorts[stu.cohortKey] && !cohorts[stu.cohortKey].subjectsByPeriod[deferral].includes(subj.name)) {
@@ -590,8 +620,12 @@ createApp({
                          if (subject[pKey] !== undefined) subject[pKey] += data.count;
                          
                          let gKey = 'groupsP' + (actualPeriod + 1);
-                         if (!subject[gKey][cKey]) subject[gKey][cKey] = { count: 0 };
+                         if (!subject[gKey][cKey]) subject[gKey][cKey] = { count: 0, students: [] };
                          subject[gKey][cKey].count += data.count;
+                         // In wave, we don't have individual student objects readily available in 'data.students' unless we stored them in studentsInSem
+                         if (data.students) {
+                              subject[gKey][cKey].students.push(...data.students.map(s => s.name));
+                         }
 
                          // Add to Cohort View
                          if (cohorts[cKey]) {
@@ -668,6 +702,16 @@ createApp({
         });
 
         // -- Computed Properties based on Analysis --
+        // Deduplicate Periods by Name for the dropdown
+        const uniquePeriods = computed(() => {
+            const seen = new Set();
+            return periods.value.filter(p => {
+                const isDuplicate = seen.has(p.name);
+                seen.add(p.name);
+                return !isDuplicate;
+            });
+        });
+
         const careers = computed(() => ['Todas', ...new Set(rawData.value.map(s => s.career))].sort());
         const shifts = computed(() => ['Todas', ...new Set(rawData.value.map(s => s.shift))].sort());
         
@@ -739,7 +783,7 @@ createApp({
         });
 
         return {
-            loading, selectedPeriodId, periods, reloadData, analysis,
+            loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis,
             // Filters
             selectedCareer, selectedShift, careers, shifts,
             activeTab,
