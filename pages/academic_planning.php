@@ -631,7 +631,7 @@ createApp({
         };
 
         const reloadData = () => fetchDemand();
-        const togglePeriodModal = () => alert("Gestión de periodos modal aquí"); // Placeholder
+
         const toggleAll = (e) => {
             if (analysis.value) analysis.value.subjectList.forEach(s => s.checked = e.target.checked);
         };
