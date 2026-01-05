@@ -21,11 +21,12 @@ $where = ["u.deleted = 0", "u.suspended = 0"];
 $params = [];
 
 $sql = "SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber,
-               lp.name as planname, p.name as periodname
+               lp.name as planname, p.name as periodname, sp.name as subperiodname
         FROM {user} u
         JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
         JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
-        JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
+        LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
+        LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
 ";
 
 if (!empty($planid)) {
@@ -60,15 +61,15 @@ $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 
 // Headers
-$headers = ['ID Number', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual']; // Period last or logical?
-// User said "Modifique la columna 'Periodo Actual'".
+$headers = ['ID Number', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual', 'Bloque']; 
 $sheet->setCellValue('A1', 'ID Number');
 $sheet->setCellValue('B1', 'Nombre Completo');
 $sheet->setCellValue('C1', 'Plan de Estudio');
-$sheet->setCellValue('D1', 'Bloque');
+$sheet->setCellValue('D1', 'Periodo Actual');
+$sheet->setCellValue('E1', 'Bloque');
 
 // Style Header
-$sheet->getStyle('A1:D1')->getFont()->setBold(true);
+$sheet->getStyle('A1:E1')->getFont()->setBold(true);
 
 $rowNum = 2;
 foreach ($recordset as $record) {
@@ -76,18 +77,19 @@ foreach ($recordset as $record) {
     $sheet->setCellValue('B' . $rowNum, $record->firstname . ' ' . $record->lastname);
     $sheet->setCellValue('C' . $rowNum, $record->planname);
     $sheet->setCellValue('D' . $rowNum, $record->periodname);
+    $sheet->setCellValue('E' . $rowNum, $record->subperiodname);
     $rowNum++;
 }
 
 $recordset->close();
 
 // AutoSize Columns
-foreach (range('A', 'D') as $col) {
+foreach (range('A', 'E') as $col) {
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
 // Output
-$filename = 'estudiantes_periodos_' . date('YmdHi') . '.xlsx';
+$filename = 'estudiantes_bloques_' . date('YmdHi') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');

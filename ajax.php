@@ -249,16 +249,17 @@ try {
                 
                 $headers = array_map('trim', array_map('strtolower', $rows[0]));
                 $idIdx = -1;
-                $periodIdx = -1;
+                $bloqueIdx = -1;
                 
                 // Flexible header search
                 foreach ($headers as $idx => $h) {
                     if (strpos($h, 'id number') !== false || strpos($h, 'identificación') !== false || $h === 'idnumber') $idIdx = $idx;
-                    if (strpos($h, 'period') !== false || $h === 'bimestre' || strpos($h, 'bloque') !== false) $periodIdx = $idx;
+                    // Look for Bloque, Bimestre, Subperiodo
+                    if (strpos($h, 'bloque') !== false || strpos($h, 'bimestre') !== false || strpos($h, 'subperiod') !== false) $bloqueIdx = $idx;
                 }
                 
-                if ($idIdx === -1 || $periodIdx === -1) {
-                    $response = ['status' => 'error', 'message' => 'No se encontraron las columnas necesarias (ID Number, Periodo).'];
+                if ($idIdx === -1 || $bloqueIdx === -1) {
+                    $response = ['status' => 'error', 'message' => 'No se encontraron las columnas necesarias (ID Number, Bloque).'];
                     break;
                 }
                 
@@ -266,24 +267,31 @@ try {
                 $successCount = 0;
                 $failCount = 0;
                 
-                // Cache period names to IDs map
-                $allPeriods = $DB->get_records('local_learning_periods');
-                $periodMap = []; // Name -> ID
-                foreach ($allPeriods as $p) {
-                    $periodMap[strtoupper(trim($p->name))] = $p;
+                // Cache Subperiods Map: [PlanID][NormalizedName] => SubperiodObject
+                // This is efficient.
+                // Join Periods to get PlanID
+                $sql = "SELECT sp.id, sp.name, sp.periodid, p.learningplanid
+                        FROM {local_learning_subperiods} sp
+                        JOIN {local_learning_periods} p ON p.id = sp.periodid";
+                $allSubperiods = $DB->get_records_sql($sql);
+                
+                $subperiodMap = []; // [planid][UPPER(name)] = sp
+                foreach ($allSubperiods as $sp) {
+                    $nameKey = strtoupper(trim($sp->name));
+                    $subperiodMap[$sp->learningplanid][$nameKey] = $sp;
                 }
                 
                 // Start from row 1 (second row)
                 for ($i = 1; $i < count($rows); $i++) {
                     $row = $rows[$i];
                     $idnumber = trim($row[$idIdx]);
-                    $periodName = strtoupper(trim($row[$periodIdx] ?? ''));
+                    $bloqueName = strtoupper(trim($row[$bloqueIdx] ?? ''));
                     
-                    if (empty($idnumber) || empty($periodName)) continue;
-                    
-                    // Logic Copy from JSON handler (Reuse code via method?)
-                    // To be DRY, ideally check user... but simple enough to repeat for now in this block or extract func.
-                    // Copy-paste for stability now.
+                    if (empty($idnumber)) continue;
+                    if (empty($bloqueName)) {
+                         // Maybe clearing bloque? For now skip
+                         continue;
+                    }
                     
                      // Find User
                     $user = $DB->get_record('user', ['idnumber' => $idnumber, 'deleted' => 0], 'id, firstname, lastname');
@@ -293,14 +301,6 @@ try {
                         continue;
                     }
                     
-                    // Find Period
-                    if (!isset($periodMap[$periodName])) {
-                         $log[] = "Fila " . ($i+1) . ": Periodo '$periodName' no existe.";
-                         $failCount++;
-                         continue;
-                    }
-                    $targetPeriod = $periodMap[$periodName];
-                    
                     // Find Learning Plan for User (Assuming active student)
                     $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                     if (!$lpUser) {
@@ -309,19 +309,24 @@ try {
                         continue;
                     }
                     
-                    // Check if period belongs to plan? (Optional safety check)
-                    if ($targetPeriod->learningplanid != $lpUser->learningplanid) {
-                         $log[] = "Fila " . ($i+1) . ": Periodo '$periodName' no pertenece al plan del usuario $idnumber.";
+                    $planid = $lpUser->learningplanid;
+                    
+                    // Find Target Subperiod
+                    if (!isset($subperiodMap[$planid][$bloqueName])) {
+                         $log[] = "Fila " . ($i+1) . ": Bloque '$bloqueName' no existe para el plan del usuario.";
                          $failCount++;
                          continue;
                     }
                     
-                    // Update
-                    if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
+                    $targetSubperiod = $subperiodMap[$planid][$bloqueName];
+                    
+                    // Update Subperiod (and Period)
+                    // Use new helper method
+                    if (\local_grupomakro_progress_manager::update_student_subperiod($user->id, $planid, $targetSubperiod->id)) {
                         $successCount++;
                     } else {
-                        // $log[] = "Aviso: No se requirió cambio para $idnumber.";
-                        $successCount++; // Count as handled
+                        // Could be no change or error, assume success/no-op
+                        $successCount++;
                     }
                 }
                 
