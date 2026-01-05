@@ -343,13 +343,20 @@ echo $OUTPUT->header();
                  <p class="text-xs font-bold text-slate-500 uppercase mb-2">Desglose por Cohortes ({{ getPeriodLabel(activePopover.periodIndex) }})</p>
                  <div class="space-y-2">
                      <div v-for="(groupData, groupKey) in activePopover.data" :key="groupKey" class="bg-slate-50 p-2 rounded border border-slate-100 text-sm">
-                         <div class="flex justify-between">
-                             <span class="font-medium text-slate-700">{{ groupKey }}</span>
-                             <span class="font-bold text-blue-700 bg-blue-100 px-2 rounded">{{ groupData.count }}</span>
-                         </div>
+                         <details class="group">
+                             <summary class="flex justify-between items-center cursor-pointer list-none select-none">
+                                 <span class="font-medium text-slate-700">{{ groupKey }}</span>
+                                 <span class="font-bold text-blue-700 bg-blue-100 px-2 rounded">{{ groupData.count }}</span>
+                             </summary>
+                             <div class="mt-2 pl-2 border-l-2 border-slate-200">
+                                 <ul class="list-disc list-inside text-xs text-slate-500">
+                                     <li v-for="stuName in groupData.students" :key="stuName">{{ stuName }}</li>
+                                 </ul>
+                             </div>
+                         </details>
                      </div>
                      <div v-if="!activePopover.data || Object.keys(activePopover.data).length === 0" class="text-slate-400 italic text-center text-xs">
-                         Sin estudiantes asignados a este periodo.
+                          Sin estudiantes asignados a este periodo.
                      </div>
                  </div>
              </div>
