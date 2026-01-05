@@ -389,14 +389,30 @@ createApp({
             const wwwroot = '<?php echo $CFG->wwwroot; ?>';
             const sesskey = '<?php echo sesskey(); ?>';
             try {
-                const response = await axios.post(
-                    `${wwwroot}/lib/ajax/service.php?sesskey=${sesskey}&info=${method}`, 
-                    [{ index: 0, methodname: method, args: args }]
-                );
-                if (response.data[0].error) throw new Error(response.data[0].exception.message);
-                return response.data[0].data;
+                // Determine URL: Custom ajax.php for this plugin
+                const url = `${wwwroot}/local/grupomakro_core/ajax.php`;
+                
+                // Payload
+                const payload = {
+                    action: method,
+                    sesskey: sesskey,
+                    args: args // ajax.php handles 'args' by flattening them into $_POST
+                };
+
+                const response = await axios.post(url, payload);
+                
+                // Debug response
+                if (response.data && response.data.error === false) {
+                     return response.data.data;
+                } else if (response.data && response.data.data) {
+                     // Sometimes returns { data: ..., error: false } or just data?
+                     // My ajax.php returns ['data' => ..., 'error' => false]
+                     return response.data.data;
+                } else {
+                     throw new Error(response.data?.message || "Unknown Error");
+                }
             } catch (err) {
-                console.error(err);
+                console.error("AJAX Error:", err);
                 alert("Error: " + err.message);
                 return [];
             }
