@@ -400,16 +400,19 @@ createApp({
                 };
 
                 const response = await axios.post(url, payload);
-                
+                console.log("Raw AJAX Response:", response); // DEBUG
+
+                if (!response || !response.data) {
+                    throw new Error("Respuesta vacía del servidor (sin datos).");
+                }
+
                 // Debug response
-                if (response.data && response.data.error === false) {
+                if (response.data.error === false) {
                      return response.data.data;
-                } else if (response.data && response.data.data) {
-                     // Sometimes returns { data: ..., error: false } or just data?
-                     // My ajax.php returns ['data' => ..., 'error' => false]
+                } else if (response.data.data) {
                      return response.data.data;
                 } else {
-                     throw new Error(response.data?.message || "Unknown Error");
+                     throw new Error(response.data.message || "Error desconocido o estructura inesperada.");
                 }
             } catch (err) {
                 console.error("AJAX Error:", err);
