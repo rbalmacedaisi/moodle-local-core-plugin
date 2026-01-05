@@ -554,6 +554,16 @@ createApp({
             
             let students = studentsMap; // Use the processed studentsMap
             
+            // Extract all_subjects if available
+            let allSubjectsList = [];
+            if (rawData.value.all_subjects && Array.isArray(rawData.value.all_subjects)) {
+                allSubjectsList = rawData.value.all_subjects;
+            } else if (Array.isArray(rawData.value)) {
+                // Fallback: old format, empty list? or extract from students? 
+                // We'll rely on pending subjects loop.
+                allSubjectsList = [];
+            }
+            
             // Initialize Subjects Map
             // subjectsMap already declared above
             allSubjectsList.forEach(subj => {

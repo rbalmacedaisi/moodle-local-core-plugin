@@ -28,13 +28,23 @@ window.TeacherExperience = {
             return;
         }
 
+        // Check for Moodle Dark Mode
+        // Checks for 'dark-mode' class on body or 'data-bs-theme=dark' (Moodle 4.x)
+        const isDarkMode = document.body.classList.contains('dark-mode') ||
+            document.documentElement.getAttribute('data-bs-theme') === 'dark' ||
+            window.matchMedia('(prefers-color-scheme: dark)').matches; // Optional fallback
+
+        console.log('Teacher Experience: Dark Mode detected?', isDarkMode);
+
         const app = new Vue({
             el: '#teacher-app',
-            vuetify: new Vuetify(),
+            vuetify: new Vuetify({
+                theme: { dark: isDarkMode }
+            }),
             template: `
-                <v-app>
+                <v-app :style="{ background: $vuetify.theme.dark ? '#121212' : '#f5f5f5' }">
                     <!-- Enhanced Top Header -->
-                    <v-app-bar app color="white" elevation="1" light>
+                    <v-app-bar app :color="$vuetify.theme.dark ? '#1E1E1E' : 'white'" :elevation="1" :dark="$vuetify.theme.dark" :light="!$vuetify.theme.dark">
                         <v-container class="pa-0 d-flex align-center">
                             <v-img 
                                 v-if="config.logoUrl" 
@@ -44,7 +54,7 @@ window.TeacherExperience = {
                                 contain 
                                 class="mr-4"
                             ></v-img>
-                            <v-toolbar-title class="font-weight-bold grey--text text--darken-2 d-none d-sm-block">
+                            <v-toolbar-title class="font-weight-bold d-none d-sm-block" :class="$vuetify.theme.dark ? 'grey--text text--lighten-1' : 'grey--text text--darken-2'">
                                 ISI - Portal Docente
                             </v-toolbar-title>
                             
@@ -79,7 +89,7 @@ window.TeacherExperience = {
                         </v-container>
                     </v-app-bar>
 
-                    <v-main class="grey lighten-5">
+                    <v-main :class="$vuetify.theme.dark ? '' : 'grey lighten-5'">
                         <v-fade-transition mode="out-in">
                             <teacher-dashboard 
                                 v-if="currentPage === 'dashboard'"

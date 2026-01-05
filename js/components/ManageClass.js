@@ -11,9 +11,9 @@ const ManageClass = {
         }
     },
     template: `
-        <v-container fluid class="pa-4 pt-0 grey lighten-5 h-100">
+        <v-container fluid class="pa-4 pt-0 h-100">
             <!-- Header section -->
-            <v-row class="white py-4 border-bottom sticky-header">
+            <v-row class="py-4 border-bottom sticky-header" :class="$vuetify.theme.dark ? '' : 'white'">
                 <v-col cols="12" class="d-flex align-center">
                     <v-btn icon @click="$emit('back')" class="mr-2">
                         <v-icon>mdi-arrow-left</v-icon>
@@ -32,7 +32,7 @@ const ManageClass = {
             <!-- Navigation Tabs -->
             <v-row>
                 <v-col cols="12" class="py-0">
-                    <v-tabs v-model="activeTab" background-color="white" color="primary" grow>
+                    <v-tabs v-model="activeTab" :background-color="$vuetify.theme.dark ? '' : 'white'" color="primary" grow>
                         <v-tab v-for="tab in tabs" :key="tab.id">
                             <v-icon left small v-if="tab.icon">{{ tab.icon }}</v-icon>
                             {{ tab.name }}
@@ -82,7 +82,8 @@ const ManageClass = {
                                                 </div>
                                             </v-card-text>
                                             <v-divider></v-divider>
-                                            <v-card-actions class="grey lighten-5">
+                                            <v-divider></v-divider>
+                                            <v-card-actions :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-5'">
                                                 <v-btn 
                                                     small 
                                                     depressed 
@@ -124,14 +125,14 @@ const ManageClass = {
                              <v-card flat class="transparent pa-4">
                                 <v-expansion-panels multiple hover>
                                     <v-expansion-panel v-for="(group, name) in groupedActivities" :key="name" class="mb-2 rounded-lg transparent-panel">
-                                        <v-expansion-panel-header class="blue-grey lighten-5">
+                                        <v-expansion-panel-header :class="$vuetify.theme.dark ? 'grey darken-3' : 'blue-grey lighten-5'">
                                             <div class="d-flex align-center">
                                                 <v-icon left color="primary">mdi-label</v-icon> 
                                                 <span class="font-weight-bold text-subtitle-1">{{ name }}</span>
-                                                <v-chip x-small class="ml-2" color="white">{{ group.length }}</v-chip>
+                                                <v-chip x-small class="ml-2" :color="$vuetify.theme.dark ? 'grey darken-1' : 'white'">{{ group.length }}</v-chip>
                                             </div>
                                         </v-expansion-panel-header>
-                                        <v-expansion-panel-content class="white">
+                                        <v-expansion-panel-content :class="$vuetify.theme.dark ? '' : 'white'">
                                             <v-list two-line>
                                                 <template v-for="(activity, i) in group">
                                                     <v-list-item :key="activity.id">
@@ -222,7 +223,7 @@ const ManageClass = {
             <!-- Generic Activity Selector Dialog -->
             <v-dialog v-model="showActivitySelector" max-width="500px">
                 <v-card class="rounded-lg">
-                    <v-card-title class="headline grey lighten-5">
+                    <v-card-title class="headline" :class="$vuetify.theme.dark ? '' : 'grey lighten-5'">
                         Seleccionar Actividad
                         <v-spacer></v-spacer>
                         <v-btn icon @click="showActivitySelector = false"><v-icon>mdi-close</v-icon></v-btn>

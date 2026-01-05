@@ -5,7 +5,7 @@
 
 const TeacherDashboard = {
     template: `
-        <v-container fluid class="pa-4 grey lighten-5">
+        <v-container fluid class="pa-4">
             <v-row v-if="loading">
                 <v-col cols="12" class="text-center">
                     <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -46,7 +46,7 @@ const TeacherDashboard = {
                                 </v-img>
                                 <v-card-text class="pt-4">
                                     <div class="text-overline primary--text font-weight-black mb-1">{{ classItem.course_shortname }}</div>
-                                    <div class="text-h6 font-weight-bold grey--text text--darken-4 mb-2 line-clamp-2" style="height: 3.2em; line-height: 1.6em;">
+                                    <div class="text-h6 font-weight-bold mb-2 line-clamp-2" style="height: 3.2em; line-height: 1.6em;">
                                         {{ classItem.name || classItem.course_fullname }}
                                     </div>
                                     
@@ -120,7 +120,7 @@ const TeacherDashboard = {
 
                         <v-btn icon @click="showCalendar = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
-                    <v-card-text class="pa-4 bg-white">
+                    <v-card-text class="pa-4">
                         <v-sheet height="600">
                             <v-calendar
                                 ref="calendar"
