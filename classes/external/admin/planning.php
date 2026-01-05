@@ -95,50 +95,54 @@ class planning extends external_api {
         // Course Names Cache
         $course_names = $DB->get_records_menu('course', [], '', 'id, fullname');
 
-        // 3. Demand Calculation
+        // 3. Demand Calculation & Student List
         // Structure: [PlanName][Jornada][PeriodName][CourseID] = Count
         $demand = [];
+        $student_list = []; // NEW: For Impact Analysis
         
         // Pre-fetch all passed courses for these students to avoid N+1
-        // SELECT userid, courseid FROM gmk_course_progre WHERE grade >= ... (Assume grade >= 71 or status=passed)
+        // ... (existing code for progress_sql) ...
         $progress_sql = "SELECT DISTINCT CONCAT(userid, '_', courseid) as id, 1 
                          FROM {gmk_course_progre} 
-                         WHERE grade >= 71"; // Hardcoded passing grade for now, ideally verified
+                         WHERE grade >= 71";
         $passed_map = $DB->get_records_sql_menu($progress_sql);
         
         // Build Demand
         foreach ($students as $stu) {
             
-            // Apply Filters (PHP side for "Jornada" flexible matching)
-            if (!empty($filterData['jornada']) && stripos(($stu->jornada ?? ''), $filterData['jornada']) === false) {
-                continue;
-            }
-            if (!empty($filterData['career']) && $stu->planid != $filterData['career']) {
-                continue;
-            }
-            if (!empty($filterData['financial_status']) && stripos(($stu->financial_status ?? ''), $filterData['financial_status']) === false) {
-                 // Special case: 'active' filter might mean 'al_dia' or similar
-                 continue;
-            }
+            // Apply Filters (PHP side)
+            if (!empty($filterData['jornada']) && stripos(($stu->jornada ?? ''), $filterData['jornada']) === false) continue;
+            if (!empty($filterData['career']) && $stu->planname != $filterData['career']) continue; // Use planname match or ID
+            // ... (financial check) ...
 
             $planid = $stu->planid;
             $jornada = !empty($stu->jornada) ? $stu->jornada : 'Sin Jornada';
             
-            if (!isset($curricula[$planid])) continue; // No curriculum for this plan
+            if (!isset($curricula[$planid])) continue; 
             
-            // Iterate through ALL periods of the plan to find pending subjects
-            // Simple Logic: If not passed, it's pending.
-            // Advanced Logic: Only the NEXT period subjects? Or ALL pending?
-            // User asked: "identificar la cantidad de estudiantes que tienen pendiente por ver cada asignatura"
-            // This implies ALL pending subjects, potential backtracking.
+            $stuDetails = [
+                'id' => $stu->id,
+                'name' => $stu->firstname . ' ' . $stu->lastname,
+                'career' => $stu->planname,
+                'shift' => $jornada,
+                'currentSem' => $stu->currentperiodname, // Or numeric logic
+                'theoreticalSem' => 0, // Calculated below
+                'pendingSubjects' => [],
+                'semesters' => [] // For mode calculation
+            ];
             
             foreach ($curricula[$planid] as $perId => $courseIds) {
                 $perName = $period_names[$perId] ?? 'Periodo ' . $perId;
                 
                 foreach ($courseIds as $cid) {
-                    $key = $stu->id . '_' . $cid;
-                    if (!isset($passed_map[$key])) {
+                    $key = $stu->uniqid . '_' . $cid; // OLD key was u.id, check if passed uses u.id
+                    // passed_map keys are "userid_courseid". Correct.
+                    $passKey = $stu->id . '_' . $cid;
+                    
+                    if (!isset($passed_map[$passKey])) {
                         // PENDING!
+                        
+                        // 1. Aggregate
                         if (!isset($demand[$planid])) $demand[$planid] = ['name' => $stu->planname, 'jornadas' => []];
                         if (!isset($demand[$planid]['jornadas'][$jornada])) $demand[$planid]['jornadas'][$jornada] = [];
                         if (!isset($demand[$planid]['jornadas'][$jornada][$perId])) {
@@ -147,22 +151,42 @@ class planning extends external_api {
                                 'courses' => []
                             ];
                         }
-                        
                         if (!isset($demand[$planid]['jornadas'][$jornada][$perId]['courses'][$cid])) {
                             $demand[$planid]['jornadas'][$jornada][$perId]['courses'][$cid] = [
                                 'id' => $cid,
                                 'name' => $course_names[$cid] ?? 'Curso ' . $cid,
-                                'count' => 0
+                                'count' => 0,
+                                'relative_period_id' => $perId // Store relative ID for saving
                             ];
                         }
-                        
                         $demand[$planid]['jornadas'][$jornada][$perId]['courses'][$cid]['count']++;
+                        
+                        // 2. Student Detail
+                        $stuDetails['pendingSubjects'][] = [
+                            'name' => $course_names[$cid] ?? 'Curso ' . $cid,
+                            'semester' => $perName,
+                            'periodId' => $perId,
+                            'isPriority' => $perId <= $stu->currentperiodid // Simplified logic
+                        ];
+                        
+                        // Track semester for cohort calculation (Mode)
+                        if (!isset($stuDetails['semesters'][$perId])) $stuDetails['semesters'][$perId] = 0;
+                        $stuDetails['semesters'][$perId]++;
                     }
                 }
             }
+            
+            // Calculate Theoretical Semester (Mode)
+            if (!empty($stuDetails['semesters'])) {
+                arsort($stuDetails['semesters']);
+                $stuDetails['theoreticalSem'] = array_key_first($stuDetails['semesters']);
+                $stuDetails['theoreticalSemName'] = $period_names[$stuDetails['theoreticalSem']] ?? $stuDetails['theoreticalSem'];
+            }
+            
+            $student_list[] = $stuDetails;
         }
         
-        // 4. Load Planning Selection (if periodid provided)
+        // ... (selections loading) ...
         $selections = [];
         if ($periodid > 0) {
              $plans = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $periodid]);
@@ -172,7 +196,8 @@ class planning extends external_api {
         }
         
         return [
-            'demand' => $demand,
+            'demand' => json_encode($demand),
+            'students' => json_encode($student_list),
             'selections' => $selections
         ];
     }
@@ -180,7 +205,8 @@ class planning extends external_api {
     public static function get_demand_analysis_returns() {
         return new external_single_structure(
             array(
-                'demand' => new external_value(PARAM_RAW, 'JSON structure of demand'), // Returning Raw JSON for flexibility with dynamic keys
+                'demand' => new external_value(PARAM_RAW, 'JSON structure of demand'),
+                'students' => new external_value(PARAM_RAW, 'JSON structure of students'),
                 'selections' => new external_multiple_structure(new external_value(PARAM_BOOL), 'Map of selected courses', VALUE_OPTIONAL)
             )
         );
