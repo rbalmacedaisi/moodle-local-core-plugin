@@ -399,14 +399,7 @@ createApp({
                     args: args // ajax.php handles 'args' by flattening them into $_POST
                 };
 
-                const response = await axios.post(url, payload);
-                console.log("Raw AJAX Response:", response); // DEBUG
 
-                if (!response || !response.data) {
-                    throw new Error("Respuesta vacía del servidor (sin datos).");
-                }
-
-                // Debug response
                 const response = await axios.post(url, payload);
                 console.log("Raw AJAX Response:", response); // DEBUG
 
