@@ -599,7 +599,18 @@ try {
             ];
             
             $events = $DB->get_records_sql($sql, $params);
-            
+
+            // Pre-calculate attendance times for deduplication
+            $attendanceTimes = [];
+            foreach ($events as $e) {
+                // Apply same group filter as main loop to ensure we only track relevant attendance
+                if (!empty($e->groupid) && $e->groupid != $class->groupid) {
+                    continue;
+                }
+                if ($e->modulename === 'attendance') {
+                    $attendanceTimes[] = $e->timestart;
+                }
+            }
 
             $formatted_sessions = [];
             foreach ($events as $e) {
@@ -617,6 +628,20 @@ try {
                 // Allow bigbluebuttonbn module (lowercase)
                 if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
                    continue; 
+                }
+
+                // Deduplicate BBB events (fuzzy match 10 mins)
+                if ($e->modulename === 'bigbluebuttonbn') {
+                    $isDuplicate = false;
+                    foreach ($attendanceTimes as $attTime) {
+                        if (abs($attTime - $e->timestart) <= 601) {
+                            $isDuplicate = true;
+                            break;
+                        }
+                    }
+                    if ($isDuplicate) {
+                        continue;
+                    }
                 }
 
                 $session_data = new stdClass();
