@@ -373,7 +373,7 @@ echo $OUTPUT->header();
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted, nextTick } = Vue;
+const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
 
 createApp({
     setup() {
@@ -471,15 +471,23 @@ createApp({
             let demandData = typeof res.demand === 'string' ? JSON.parse(res.demand) : res.demand;
             let studentsData = typeof res.students === 'string' ? JSON.parse(res.students) : (res.students || []);
             
-            if (demandData) {
-                 processData(demandData, studentsData, res.selections);
-            }
+            // Store Raw Data for Re-filtering
+            rawData.value = { 
+                demand: demandData, 
+                students: studentsData, 
+                selections: res.selections 
+            };
+            
+            processData();
             loading.value = false;
         };
         
         const analysis = ref(null);
         
-        const processData = (demandData, studentsList, selectionsData) => {
+        const processData = () => {
+            if (!rawData.value || !rawData.value.demand) return;
+            const { demand: demandData, students: studentsList, selections: selectionsData } = rawData.value;
+            
             // 1. Process Subjects from Demand (Aggregate View)
             let subjects = [];
             let cohortMap = {};
@@ -629,6 +637,11 @@ createApp({
             
             nextTick(() => lucide.createIcons());
         };
+        
+        // Watch Filters to Re-Process Data locally
+        watch([selectedCareer, selectedShift], () => {
+             processData();
+        });
 
         const reloadData = () => fetchDemand();
 
