@@ -61,9 +61,13 @@ class get_dashboard_data extends external_api {
             $class_data->next_session = self::get_next_session($class->id);
             
             // New fields for card
-            // Count students assigned to this class in groups_members (minus the instructor)
-            $raw_count = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
-            $class_data->student_count = max(0, $raw_count - 1);
+            // Count only REAL students (those in local_learning_users)
+            // This avoids counting teachers or administrative accounts in the group
+            $sql_count = "SELECT COUNT(DISTINCT gm.userid)
+                          FROM {groups_members} gm
+                          JOIN {local_learning_users} llu ON llu.userid = gm.userid
+                          WHERE gm.groupid = :groupid";
+            $class_data->student_count = $DB->count_records_sql($sql_count, ['groupid' => $class->groupid]);
             $class_data->initdate = $class->initdate;
             $class_data->enddate = $class->enddate;
             
