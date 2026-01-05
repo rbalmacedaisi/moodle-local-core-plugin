@@ -2173,9 +2173,30 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         }
         $eventsFiltered[] = $eventComplete;
     }
-    // print_object(count($eventsFiltered));
+    // Filter out BBB events if an Attendance event exists for the same Class and Start Time
+    $attendanceEvents = [];
+    foreach ($eventsFiltered as $event) {
+        if ($event->modulename === 'attendance' && !empty($event->classId)) {
+            $key = $event->classId . '-' . $event->timestart;
+            $attendanceEvents[$key] = true;
+        }
+    }
+
+    $finalEvents = [];
+    foreach ($eventsFiltered as $event) {
+        if ($event->modulename === 'bigbluebuttonbn' && !empty($event->classId)) {
+            $key = $event->classId . '-' . $event->timestart;
+            // If we have an attendance event at the exact same time for this class, skip the BBB one
+            if (isset($attendanceEvents[$key])) {
+                continue;
+            }
+        }
+        $finalEvents[] = $event;
+    }
+
+    // print_object(count($finalEvents));
     // die;
-    return $eventsFiltered;
+    return $finalEvents;
 }
 
 function complete_class_event_information($event, &$fetchedClasses)

@@ -66,8 +66,8 @@ class get_dashboard_data extends external_api {
             $sql_count = "SELECT COUNT(DISTINCT gm.userid)
                           FROM {groups_members} gm
                           JOIN {local_learning_users} llu ON llu.userid = gm.userid
-                          WHERE gm.groupid = :groupid";
-            $class_data->student_count = $DB->count_records_sql($sql_count, ['groupid' => $class->groupid]);
+                          WHERE gm.groupid = :groupid AND gm.userid != :instructorid";
+            $class_data->student_count = $DB->count_records_sql($sql_count, ['groupid' => $class->groupid, 'instructorid' => $class->instructorid]);
             $class_data->initdate = $class->initdate;
             $class_data->enddate = $class->enddate;
             
