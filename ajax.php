@@ -146,6 +146,80 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_bulk_update_periods_json':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            $data = required_param('data', PARAM_RAW);
+            $items = json_decode($data, true);
+            
+            if (!$items) {
+                $response = ['status' => 'error', 'message' => 'Invalid JSON data'];
+                break;
+            }
+
+            $log = [];
+            $successCount = 0;
+            $failCount = 0;
+            
+            // Cache period names to IDs map
+            $allPeriods = $DB->get_records('local_learning_periods');
+            $periodMap = []; // Name -> ID
+            foreach ($allPeriods as $p) {
+                $periodMap[strtoupper(trim($p->name))] = $p;
+            }
+            
+            foreach ($items as $row) {
+                $idnumber = trim($row['idnumber']);
+                $periodName = strtoupper(trim($row['period']));
+                
+                if (empty($idnumber) || empty($periodName)) continue;
+                
+                // Find User
+                $user = $DB->get_record('user', ['idnumber' => $idnumber, 'deleted' => 0], 'id, firstname, lastname');
+                if (!$user) {
+                    $log[] = "Error: Usuario con ID $idnumber no encontrado.";
+                    $failCount++;
+                    continue;
+                }
+                
+                // Find Period
+                if (!isset($periodMap[$periodName])) {
+                     $log[] = "Error: Periodo '$periodName' no existe.";
+                     $failCount++;
+                     continue;
+                }
+                $targetPeriod = $periodMap[$periodName];
+                
+                // Find Learning Plan for User (Assuming active student)
+                $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
+                if (!$lpUser) {
+                    $log[] = "Error: Usuario $idnumber no está inscrito en plan de estudio.";
+                    $failCount++;
+                    continue;
+                }
+                
+                // Check if period belongs to plan? (Optional safety check)
+                if ($targetPeriod->learningplanid != $lpUser->learningplanid) {
+                     $log[] = "Error: Periodo '$periodName' no pertenece al plan del usuario $idnumber.";
+                     $failCount++;
+                     continue;
+                }
+                
+                // Update
+                if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
+                    $successCount++;
+                } else {
+                    $log[] = "Aviso: No se requirió cambio para $idnumber.";
+                    $successCount++; // Count as handled
+                }
+            }
+            
+            $response = [
+                'status' => 'success',
+                'message' => "Proceso finalizado. Actualizados/Verificados: $successCount. Errores: $failCount.",
+                'log' => implode("\n", $log)
+            ];
+            break;
+
         case 'local_grupomakro_get_periods':
             $planid = required_param('planid', PARAM_INT);
             $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');

@@ -54,12 +54,74 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-cash-sync</v-icon>
                                     Actualizar Financiero (Lote)
                                 </v-btn>
+                                <v-btn v-if="isSuperAdmin" color="info" dark @click="openPeriodModal">
+                                    <v-icon left>mdi-calendar-sync</v-icon>
+                                    Gestión Periodos
+                                </v-btn>
                                 <v-btn color="primary" @click="openFilterDialog">
                                     <v-icon left>mdi-filter-variant</v-icon>
                                     Filtros y Exportar
                                 </v-btn>
                             </v-col>
                         </v-row>
+                        
+                        </v-row>
+
+                        <!-- Period Management Dialog -->
+                        <v-dialog v-model="periodModal" max-width="700px">
+                            <v-card>
+                                <v-card-title class="headline grey lighten-2">
+                                    Gestión Masiva de Periodos
+                                </v-card-title>
+                                <v-card-text class="pt-4">
+                                    <v-row>
+                                        <v-col cols="12">
+                                            <v-alert type="info" dense text>
+                                                Utilice esta herramienta para actualizar el bimestre (periodo) de los estudiantes masivamente.
+                                                <br>1. Exporte la plantilla (se aplican los filtros actuales).
+                                                <br>2. Modifique la columna 'Periodo Actual'.
+                                                <br>3. Importe el archivo modificado.
+                                            </v-alert>
+                                        </v-col>
+                                        <v-col cols="12" class="text-center">
+                                            <v-btn color="primary" outlined @click="exportPeriodTemplate">
+                                                <v-icon left>mdi-download</v-icon>
+                                                Descargar Plantilla CSV
+                                            </v-btn>
+                                        </v-col>
+                                        <v-col cols="12">
+                                            <v-divider class="my-3"></v-divider>
+                                            <div class="text-subtitle-1 mb-2">Importar Actualización</div>
+                                            <v-file-input
+                                                v-model="periodImportFile"
+                                                accept=".csv"
+                                                label="Seleccionar archivo CSV modificado"
+                                                outlined
+                                                dense
+                                            ></v-file-input>
+                                        </v-col>
+                                    </v-row>
+                                    
+                                    <v-expand-transition>
+                                        <div v-if="periodImportLog">
+                                            <v-alert type="info" outlined class="text-caption" style="white-space: pre-wrap; font-family: monospace; max-height: 200px; overflow-y: auto;">
+                                                {{ periodImportLog }}
+                                            </v-alert>
+                                        </div>
+                                    </v-expand-transition>
+
+                                </v-card-text>
+                                <v-divider></v-divider>
+                                <v-card-actions class="pa-4">
+                                    <v-btn text @click="periodModal = false">Cerrar</v-btn>
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="success" @click="importPeriodFile" :disabled="!periodImportFile || syncing" :loading="syncing">
+                                        <v-icon left>mdi-upload</v-icon>
+                                        Procesar Importación
+                                    </v-btn>
+                                </v-card-actions>
+                            </v-card>
+                        </v-dialog>
                         
                         <!-- Filter Dialog -->
                         <v-dialog v-model="filterDialog" max-width="500px">
@@ -290,6 +352,9 @@ Vue.component('studenttable', {
             filterDialog: false,
             studentsGrades: false,
             studentGradeSelected: {},
+            periodModal: false,
+            periodImportFile: null,
+            periodImportLog: '',
         };
     },
     computed: {
@@ -734,6 +799,88 @@ Vue.component('studenttable', {
             } finally {
                 this.syncing = false;
             }
+        },
+        openPeriodModal() {
+            this.periodModal = true;
+            this.periodImportLog = '';
+            this.periodImportFile = null;
+        },
+        exportPeriodTemplate() {
+            let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_student_periods.php?`;
+
+            const p = new URLSearchParams();
+            if (this.filters.planid && this.filters.planid.length > 0) p.append('planid', this.filters.planid.join(','));
+            if (this.filters.periodid && this.filters.periodid.length > 0) p.append('periodid', this.filters.periodid.join(','));
+            if (this.filters.status) p.append('status', this.filters.status);
+            if (this.options.search) p.append('search', this.options.search);
+
+            window.open(url + p.toString(), '_blank');
+        },
+        async importPeriodFile() {
+            if (!this.periodImportFile) return;
+
+            this.syncing = true;
+            this.periodImportLog = 'Leyendo archivo...';
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target.result;
+                // Parse CSV Simple
+                // Assuming header: ID Number, Name, Periodo Actual, ...
+                try {
+                    const lines = text.split(/\r\n|\n/);
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+                    // Find columns (case insensitive)
+                    const idIdx = headers.findIndex(h => h.toLowerCase().includes('id number') || h.toLowerCase().includes('idnumber'));
+                    const pIdx = headers.findIndex(h => h.toLowerCase().includes('periodo actual') || h.toLowerCase().includes('period'));
+
+                    if (idIdx === -1 || pIdx === -1) {
+                        throw new Error("No se encontraron las columnas 'ID Number' y 'Periodo Actual' en el CSV. Cabeceras detectadas: " + headers.join(', '));
+                    }
+
+                    const payload = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        if (!lines[i].trim()) continue;
+                        // Handle potential commas in quotes? Simple split for now as IDs don't have commas.
+                        // But Name might. ID is usually first.
+                        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+
+                        // Check bounds
+                        if (cols[idIdx] && cols[pIdx]) {
+                            payload.push({
+                                idnumber: cols[idIdx],
+                                period: cols[pIdx]
+                            });
+                        }
+                    }
+
+                    this.periodImportLog = `Enviando ${payload.length} registros...`;
+
+                    const params = new URLSearchParams();
+                    params.append('action', 'local_grupomakro_bulk_update_periods_json');
+                    params.append('sesskey', M.cfg.sesskey);
+                    params.append('data', JSON.stringify(payload));
+
+                    const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+
+                    if (response.data.status === 'success') {
+                        this.periodImportLog = response.data.message + "\n\n" + (response.data.log || '');
+                        // Refresh data
+                        await this.getDataFromApi();
+                    } else {
+                        this.periodImportLog = "Error: " + (response.data.message || 'Error desconocido');
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    this.periodImportLog = "Error procesando archivo: " + err.message;
+                } finally {
+                    this.syncing = false;
+                }
+            };
+
+            reader.readAsText(this.periodImportFile);
         }
     }
 })
