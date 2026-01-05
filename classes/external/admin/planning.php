@@ -60,7 +60,7 @@ class planning extends external_api {
         $financialJoin = "LEFT JOIN {gmk_financial_status} fs ON fs.userid = u.id";
         $financialSelect = ", fs.status as financial_status";
         
-        $sql = "SELECT u.id, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
+        $sql = "SELECT llu.id as uniqid, u.id, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
                        llu.currentperiodid, p.name as currentperiodname $jornadaSelect $financialSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id
