@@ -3,6 +3,7 @@ namespace local_grupomakro_core\external\admin;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
