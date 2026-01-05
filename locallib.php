@@ -2148,11 +2148,15 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
     $eventsFiltered = [];
 
     foreach ($events as $event) {
-        if ($event->modulename !== 'attendance') {
-            //In this case, we should handle the events of activities outside the normal class activities (ej. quiz, others...)
-            continue;
+        if ($event->modulename === 'attendance') {
+            $eventComplete = complete_class_event_information($event, $fetchedClasses);
+        } elseif ($event->modulename === 'bigbluebuttonbn') {
+             $eventComplete = complete_class_event_information_bbb($event, $fetchedClasses);
+        } else {
+             // Other modules ignored for now, or add generic handler if needed
+             continue;
         }
-        $eventComplete = complete_class_event_information($event, $fetchedClasses);
+
         if (!$eventComplete) {
             continue;
         }
@@ -3490,4 +3494,98 @@ function local_grupomakro_sync_financial_status($userids = []) {
         'total_requested' => count($docNumbersMap),
         'total_fetched' => count($data)
     ];
+}
+
+function complete_class_event_information_bbb($event, &$fetchedClasses)
+{
+    global $DB, $CFG;
+
+    // Define constants if not already defined in scope (safe to redefine or check defined)
+    if (!defined('PRESENCIAL_CLASS_TYPE_INDEX')) define('PRESENCIAL_CLASS_TYPE_INDEX', '0');
+    if (!defined('VIRTUAL_CLASS_TYPE_INDEX')) define('VIRTUAL_CLASS_TYPE_INDEX', '1');
+    if (!defined('MIXTA_CLASS_TYPE_INDEX')) define('MIXTA_CLASS_TYPE_INDEX', '2');
+    if (!defined('PRESENCIAL_CLASS_COLOR')) define('PRESENCIAL_CLASS_COLOR', '#00bcd4');
+    if (!defined('VIRTUAL_CLASS_COLOR')) define('VIRTUAL_CLASS_COLOR', '#2196f3');
+    if (!defined('MIXTA_CLASS_COLOR')) define('MIXTA_CLASS_COLOR', '#673ab7');
+
+    $eventColors = [
+        PRESENCIAL_CLASS_TYPE_INDEX => PRESENCIAL_CLASS_COLOR,
+        VIRTUAL_CLASS_TYPE_INDEX => VIRTUAL_CLASS_COLOR,
+        MIXTA_CLASS_TYPE_INDEX => MIXTA_CLASS_COLOR
+    ];
+
+    // Attempt to link this BBB activity to a Class
+    // 1. Try relation table first (if it's linked to an attendance that we missed or just linked generally)
+    $relation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbid' => $event->instance, 'bbbmoduleid' => $event->courseid], '*', IGNORE_MULTIPLE); // CourseID in event is actually courseid, not module ID. 
+    // Wait, relation table has 'bbbmoduleid' (cmid) and 'bbbid' (instance id). Event->instance is instance id.
+    
+    $gmkClass = null;
+
+    if ($relation) {
+        $eventClassId = $relation->classid;
+    } else {
+        // 2. heuristic: Find class by Group ID if event has one
+        if (!empty($event->groupid)) {
+            $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0]);
+        }
+        
+        // 3. Fallback: Find class by Course ID (if only one active class exists for this course)
+        if (!$gmkClass) {
+             $classes = $DB->get_records('gmk_class', ['corecourseid' => $event->courseid, 'closed' => 0]);
+             if (count($classes) == 1) {
+                 $gmkClass = reset($classes);
+             }
+        }
+    }
+
+    if (isset($eventClassId) && !$gmkClass) {
+        if (array_key_exists($eventClassId, $fetchedClasses)) {
+            $gmkClass = $fetchedClasses[$eventClassId];
+        } else {
+            $gmkClass = $DB->get_record('gmk_class', ['id' => $eventClassId]);
+            if ($gmkClass) $fetchedClasses[$eventClassId] = $gmkClass;
+        }
+    }
+
+    if (!$gmkClass) {
+        // If we can't link it to a specific Makro Class, we return generic event info or skip?
+        // Let's return generic info so it at least shows up
+        $event->color = VIRTUAL_CLASS_COLOR; // Default to virtual
+        $event->className = $event->course->fullname ?? 'Actividad Virtual'; 
+        // Need basic fields to prevent JS errors if it expects them
+        $event->instructorName = '';
+        $event->timeRange = date('H:i', $event->timestart) . ' - ' . date('H:i', $event->timestart + $event->timeduration);
+        $event->classType = 1; 
+    } else {
+        // Populate from Class
+        // Ensure class has helper fields if we fetched it raw
+        if (!isset($gmkClass->instructorName)) {
+             $instructor = $DB->get_record('user', ['id' => $gmkClass->instructorid]);
+             $gmkClass->instructorName = $instructor ? "$instructor->firstname $instructor->lastname" : '';
+             $gmkClass->inithourformatted = $gmkClass->inittime; // Assuming simple string
+             $gmkClass->endhourformatted = $gmkClass->endtime;
+        }
+
+        $event->instructorName = $gmkClass->instructorName;
+        $event->timeRange = $gmkClass->inithourformatted . ' - ' . $gmkClass->endhourformatted;
+        $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
+        $event->classType = $gmkClass->type;
+        $event->className = $gmkClass->name;
+        $event->classId = $gmkClass->id;
+        $event->groupid = $gmkClass->groupid;
+        $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
+    }
+
+    $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $event->cmid; // Need CMID. Event usually has 'cmid' or we find it.
+    // Event object from calendar_get_events usually has 'modulename', 'instance', 'courseid'. 
+    // It might NOT have 'cmid'.
+    if (empty($event->cmid)) {
+        $cm = get_coursemodule_from_instance('bigbluebuttonbn', $event->instance, $event->courseid);
+        $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . ($cm ? $cm->id : 0);
+    }
+
+    $event->start = date('Y-m-d H:i:s', $event->timestart);
+    $event->end = date('Y-m-d H:i:s', $event->timestart + $event->timeduration);
+
+    return $event;
 }

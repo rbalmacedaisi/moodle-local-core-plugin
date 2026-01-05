@@ -407,11 +407,31 @@ createApp({
                 }
 
                 // Debug response
-                if (response.data.error === false) {
+                const response = await axios.post(url, payload);
+                console.log("Raw AJAX Response:", response); // DEBUG
+
+                if (!response || !response.data) {
+                    throw new Error("Respuesta vacía del servidor (sin datos).");
+                }
+
+                // Debug response
+                // standard 'data' wrapper
+                if (response.data.data !== undefined) { 
                      return response.data.data;
-                } else if (response.data.data) {
-                     return response.data.data;
-                } else {
+                }
+                // 'periods' specific wrapper
+                else if (response.data.periods) {
+                     return response.data.periods;
+                }
+                // Generic success with no data field? (e.g. update)
+                else if (response.data.status === 'success' && !response.data.error) {
+                     return response.data; // Return whole object
+                }
+                else if (response.data.error === false) {
+                    // Fallback if data is missing but error is false?
+                    return response.data;
+                }
+                else {
                      throw new Error(response.data.message || "Error desconocido o estructura inesperada.");
                 }
             } catch (err) {

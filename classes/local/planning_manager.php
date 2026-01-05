@@ -140,24 +140,53 @@ class planning_manager {
         // 1. Get Courses linked to Plans
         // Table: {local_learning_courses} (verified in progress_manager.php)
         
-        $sql = "SELECT p.learningplanid, p.id as period_id, p.name as period_name, p.position as period_pos,
+        $sql = "SELECT p.learningplanid, p.id as period_id, p.name as period_name,
                        c.id as courseid, c.fullname, 
                        lpc.id as linkid
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
                 JOIN {course} c ON c.id = lpc.courseid
-                ORDER BY p.learningplanid, p.position";
+                ORDER BY p.learningplanid, p.id";
 
         $records = $DB->get_records_sql($sql);
         
         $structure = [];
+        $planCounters = []; // To track semester index per plan
+        
         foreach ($records as $r) {
-            if (!isset($structure[$r->learningplanid])) $structure[$r->learningplanid] = [];
+            if (!isset($structure[$r->learningplanid])) {
+                $structure[$r->learningplanid] = [];
+                $planCounters[$r->learningplanid] = 1;
+            }
             
-            $structure[$r->learningplanid][] = (object) [
+            // NOTE: Since we order by p.id, we can't guarantee sequential semester numbers (1, 2, 3...)
+            // unless we deduce it. For the "Wave" logic, we need strict 1, 2, 3 levels.
+            // Assumption: Periods are created in order.
+            // We need to map period_id to a sequence number.
+            
+            // Helper to get cached semester num for this period in this plan
+            // This logic is slightly flawed inside a flat loop of courses.
+            // Better: Group by period first?
+            // Actually, let's keep it simple: Use a map of PeriodID -> Index per Plan.
+        }
+        
+        // Re-process for structure:
+        $planPeriodMap = []; // planId => [ periodId => index ]
+        
+        foreach ($records as $r) {
+             if (!isset($planPeriodMap[$r->learningplanid])) {
+                 $planPeriodMap[$r->learningplanid] = [];
+             }
+             if (!isset($planPeriodMap[$r->learningplanid][$r->period_id])) {
+                 $planPeriodMap[$r->learningplanid][$r->period_id] = count($planPeriodMap[$r->learningplanid]) + 1;
+             }
+             
+             $semesterNum = $planPeriodMap[$r->learningplanid][$r->period_id];
+             
+             $structure[$r->learningplanid][] = (object) [
                 'id' => $r->courseid,
                 'fullname' => $r->fullname,
-                'semester_num' => $r->period_pos, 
+                'semester_num' => $semesterNum, 
                 'semester_name' => $r->period_name,
                 'prereqs' => [] // TODO: Implement Prereq fetch if table known
             ];
