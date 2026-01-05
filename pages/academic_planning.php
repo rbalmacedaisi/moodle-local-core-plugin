@@ -467,7 +467,7 @@ createApp({
             if (selectedCareer.value !== 'Todas') filtered = filtered.filter(s => s.career === selectedCareer.value);
             if (selectedShift.value !== 'Todas') filtered = filtered.filter(s => s.shift === selectedShift.value);
 
-            const subjects = {}; 
+            const subjectsMap = {}; 
             const studentsMap = {}; // Renamed from students to avoid conflict
             const cohorts = {};
             const studentsInSem = {}; // Map Level -> Cohort -> Data
@@ -555,9 +555,9 @@ createApp({
             let students = studentsMap; // Use the processed studentsMap
             
             // Initialize Subjects Map
-            // subjects already declared above
+            // subjectsMap already declared above
             allSubjectsList.forEach(subj => {
-                 subjects[subj.name] = {
+                 subjectsMap[subj.name] = {
                      id: subj.id,
                      name: subj.name,
                      semesterNum: parseInt(subj.semester_num) || 0,
@@ -582,10 +582,11 @@ createApp({
                 stu.pendingSubjects.forEach(subj => {
                     // Only count if Priority (Prereqs Met)?
                     // "La Ola" usually counts next immediate need.
+                     // "La Ola" usually counts next immediate need.
                     if (subj.isPriority) {
-                         if (!subjects[subj.name]) {
+                         if (!subjectsMap[subj.name]) {
                              // Initialize if not in master list
-                             subjects[subj.name] = {
+                             subjectsMap[subj.name] = {
                                  id: subj.id,
                                  name: subj.name,
                                  semesterNum: parseInt(subj.semester) || 0,
@@ -601,14 +602,14 @@ createApp({
                          let pKey = 'countP' + (deferral + 1);
                          let gKey = 'groupsP' + (deferral + 1);
                          
-                         if (subjects[subj.name][pKey] !== undefined) {
-                             subjects[subj.name][pKey]++;
+                         if (subjectsMap[subj.name][pKey] !== undefined) {
+                             subjectsMap[subj.name][pKey]++;
                          }
                          
-                         if (!subjects[subj.name][gKey][stu.cohortKey]) subjects[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
-                         subjects[subj.name][gKey][stu.cohortKey].count++;
+                         if (!subjectsMap[subj.name][gKey][stu.cohortKey]) subjectsMap[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
+                         subjectsMap[subj.name][gKey][stu.cohortKey].count++;
                          // Store Name and ID for display
-                         subjects[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
+                         subjectsMap[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
                          
                          // Add to Cohort View
                          if (cohorts[stu.cohortKey] && !cohorts[stu.cohortKey].subjectsByPeriod[deferral].includes(subj.name)) {
@@ -650,7 +651,7 @@ createApp({
                  }
             };
             
-            Object.values(subjects).forEach(subj => {
+            Object.values(subjectsMap).forEach(subj => {
                 const lvl = subj.semesterNum;
                 if (lvl > 0) {
                      // Wave Logic:
@@ -666,7 +667,7 @@ createApp({
             });
 
             // 4. Finalize Subjects List
-            let subjectsArray = Object.values(subjects).map(s => {
+            let subjectsArray = Object.values(subjectsMap).map(s => {
                 const manual = manualProjections[s.name] || 0;
                 const totalP1 = s.countP1 + manual;
                 const isOpen = totalP1 >= 12;
