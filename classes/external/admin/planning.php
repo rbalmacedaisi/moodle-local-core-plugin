@@ -101,7 +101,7 @@ class planning extends external_api {
         
         // Pre-fetch all passed courses for these students to avoid N+1
         // SELECT userid, courseid FROM gmk_course_progre WHERE grade >= ... (Assume grade >= 71 or status=passed)
-        $progress_sql = "SELECT CONCAT(userid, '_', courseid) as id, 1 
+        $progress_sql = "SELECT DISTINCT CONCAT(userid, '_', courseid) as id, 1 
                          FROM {gmk_course_progre} 
                          WHERE grade >= 71"; // Hardcoded passing grade for now, ideally verified
         $passed_map = $DB->get_records_sql_menu($progress_sql);
