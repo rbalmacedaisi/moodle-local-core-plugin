@@ -47,7 +47,7 @@ class planning extends external_api {
         
         // 1. Get all active students
         // We join with user_info_data to get "Jornada" if available
-        $jornadaField = $DB->get_record('user_info_field', ['shortname' => 'jornada']);
+        $jornadaField = $DB->get_record('user_info_field', ['shortname' => 'gmkjourney']);
         $jornadaJoin = "";
         $jornadaSelect = "";
         

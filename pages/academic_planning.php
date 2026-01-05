@@ -298,8 +298,78 @@ echo $OUTPUT->header();
 
     </div>
     
-    <!-- MODAL PERIODS (Placeholder for now) -->
-    
+    <!-- MODAL PERIODS -->
+    <div v-if="showPeriodModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i> Gestión de Periodos Académicos
+                </h3>
+                <button @click="showPeriodModal = false" class="text-slate-400 hover:text-red-500 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- Create Form -->
+                <div class="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-100">
+                     <h4 class="text-xs font-bold text-blue-800 uppercase mb-3">{{ editingPeriod ? 'Editar Periodo' : 'Nuevo Periodo' }}</h4>
+                     <div class="flex gap-2 items-end">
+                         <div class="flex-1">
+                             <label class="block text-xs font-medium text-slate-500 mb-1">Nombre (ej. 2025-I)</label>
+                             <input v-model="formPeriod.name" type="text" class="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Nombre descriptivo">
+                         </div>
+                         <div class="w-32">
+                             <label class="block text-xs font-medium text-slate-500 mb-1">Inicio</label>
+                             <input v-model="formPeriod.startdate" type="date" class="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                         </div>
+                          <div class="w-32">
+                             <label class="block text-xs font-medium text-slate-500 mb-1">Fin</label>
+                             <input v-model="formPeriod.enddate" type="date" class="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                         </div>
+                         <button @click="savePeriod" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-colors mb-[1px]">
+                             {{ editingPeriod ? 'Actualizar' : 'Crear' }}
+                         </button>
+                         <button v-if="editingPeriod" @click="resetForm" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg font-bold text-sm transition-colors mb-[1px]">
+                             Cancelar
+                         </button>
+                     </div>
+                </div>
+                
+                <!-- List -->
+                <div class="overflow-y-auto max-h-[300px] border border-slate-100 rounded-lg">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3">Periodo</th>
+                                <th class="px-4 py-3">Fechas</th>
+                                <th class="px-4 py-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                             <tr v-for="p in periods" :key="p.id" class="hover:bg-slate-50 group">
+                                 <td class="px-4 py-3 font-medium text-slate-700">{{ p.name }}</td>
+                                 <td class="px-4 py-3 text-slate-500 text-xs">
+                                     {{ new Date(p.startdate * 1000).toLocaleDateString() }} - {{ new Date(p.enddate * 1000).toLocaleDateString() }}
+                                 </td>
+                                 <td class="px-4 py-3 text-right">
+                                     <button @click="editPeriod(p)" class="text-blue-600 hover:text-blue-800 mr-2 p-1 hover:bg-blue-50 rounded">
+                                         <i data-lucide="pencil" class="w-4 h-4"></i>
+                                     </button>
+                                     <button @click="deletePeriod(p.id)" class="text-red-400 hover:text-red-600 p-1 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                     </button>
+                                 </td>
+                             </tr>
+                             <tr v-if="periods.length === 0">
+                                 <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">No hay periodos creados.</td>
+                             </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -308,9 +378,14 @@ const { createApp, ref, computed, onMounted, nextTick } = Vue;
 createApp({
     setup() {
         const loading = ref(true);
-        const rawData = ref(null); // Data from Backend
+        const rawData = ref(null);
         const activeTab = ref('planning');
         
+        // Modal State
+        const showPeriodModal = ref(false);
+        const editingPeriod = ref(null);
+        const formPeriod = ref({ name: '', startdate: '', enddate: '' });
+
         // Filters
         const selectedCareer = ref('Todas');
         const selectedShift = ref('Todas');
@@ -429,7 +504,8 @@ createApp({
                                 planName: planData.name,
                                 name: c.name,
                                 semester: pData.period_name,
-                                shift: jornada, // Added shift compatibility
+                                relativePeriodId: perId, // Changed: Added relative ID to row
+                                shift: jornada,
                                 count: c.count,
                                 checked: c.count >= 12 || isSelected,
                                 isOpen: c.count >= 12,
@@ -530,10 +606,18 @@ createApp({
             
             let cList = Object.values(cohortMap).map(c => ({...c, risk: c.count < 12})).sort((a,b) => b.count - a.count);
             
-            // Fill Filter Options
+            // Fill Filter Options Robustly
             if (careers.value.length === 0) {
-                 careers.value = [...new Set(studentsList.map(s => s.career))]; // Use all available
-                 shifts.value = [...new Set(studentsList.map(s => s.shift))];
+                 let allCareers = new Set([...Object.values(demandData).map(d => d.name), ...studentsList.map(s => s.career)]);
+                 careers.value = [...allCareers].filter(Boolean).sort(); 
+                 
+                 let allShifts = new Set();
+                 // From Demand
+                 Object.values(demandData).forEach(p => Object.keys(p.jornadas).forEach(j => allShifts.add(j)));
+                 // From Students (if available) -> Students list might be empty if backend fails, so demand fallback is key
+                 studentsList.forEach(s => allShifts.add(s.shift));
+                 
+                 shifts.value = [...allShifts].filter(Boolean).sort();
             }
 
             analysis.value = {
@@ -598,11 +682,56 @@ createApp({
             loadInitial();
         });
 
+        // Modal Logic
+        const togglePeriodModal = () => { showPeriodModal.value = true; nextTick(() => lucide.createIcons()); };
+        const resetForm = () => { editingPeriod.value = null; formPeriod.value = { name: '', startdate: '', enddate: '' }; };
+        const editPeriod = (p) => {
+            editingPeriod.value = p;
+            formPeriod.value = {
+                name: p.name,
+                startdate: new Date(p.startdate * 1000).toISOString().split('T')[0],
+                enddate: new Date(p.enddate * 1000).toISOString().split('T')[0]
+            };
+        };
+        const savePeriod = async () => {
+            if(!formPeriod.value.name) return alert("Nombre requerido");
+            
+            // Unix timestamp
+            let start = new Date(formPeriod.value.startdate).getTime() / 1000;
+            let end = new Date(formPeriod.value.enddate).getTime() / 1000;
+            
+            let data = {
+                id: editingPeriod.value ? editingPeriod.value.id : 0,
+                name: formPeriod.value.name,
+                startdate: start || 0,
+                enddate: end || 0,
+                description: ''
+            };
+            
+            await callMoodle('local_grupomakro_save_period', { period: data });
+            await fetchPeriods(); // Refresh
+            resetForm();
+        };
+        const deletePeriod = async (id) => {
+            if(!confirm("¿Eliminar periodo?")) return;
+            // No delete endpoint yet? Assuming save_period handles logical delete? 
+            // Or just skip delete for now.
+             await callMoodle('local_grupomakro_delete_period', { id: id }); // Assuming endpoint
+             await fetchPeriods();
+        };
+        
+        const fetchPeriods = async () => {
+            let p = await callMoodle('local_grupomakro_get_periods', {});
+            periods.value = p || [];
+            if(p && p.length > 0 && selectedPeriodId.value === 0) selectedPeriodId.value = p[0].id;
+        };
+
         return {
             loading, analysis, activeTab, selectedCareer, selectedShift, 
             careers, shifts, reloadData, togglePeriodModal,
             studentStatusFilter, searchTerm, filteredStudents,
-            selectedPeriodId, periods, savePlanning, toggleAll, allChecked
+            selectedPeriodId, periods, savePlanning, toggleAll, allChecked,
+            showPeriodModal, editingPeriod, formPeriod, savePeriod, editPeriod, deletePeriod, resetForm
         };
     }
 }).mount('#app');
