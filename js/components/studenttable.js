@@ -268,7 +268,9 @@ Vue.component('studenttable', {
                                             <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
                                         </v-list-item>
                                         <v-list-item v-for="sp in carrer.availableSubperiods" :key="sp.id" @click="updateStudentSubperiod(item, carrer, sp)">
-                                            <v-list-item-title :class="{'primary--text font-weight-bold': sp.name == (carrer.subperiodname || item.subperiods)}">{{ sp.name }}</v-list-item-title>
+                                            <v-list-item-title :class="{'primary--text font-weight-bold': sp.name == (carrer.subperiodname || item.subperiods)}">
+                                                <span class="caption grey--text">{{ sp.periodname }}</span> - {{ sp.name }}
+                                            </v-list-item-title>
                                         </v-list-item>
                                     </v-list>
                                 </v-menu>

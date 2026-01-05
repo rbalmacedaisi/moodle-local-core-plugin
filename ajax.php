@@ -349,7 +349,7 @@ try {
 
         case 'local_grupomakro_get_plan_subperiods':
             $planid = required_param('planid', PARAM_INT);
-            $sql = "SELECT sp.id, sp.name, sp.periodid 
+            $sql = "SELECT sp.id, sp.name, sp.periodid, p.name as periodname
                     FROM {local_learning_subperiods} sp
                     JOIN {local_learning_periods} p ON p.id = sp.periodid
                     WHERE p.learningplanid = :planid
