@@ -281,16 +281,20 @@ class get_student_info extends external_api {
                         'planid' => $user->planid,
                         'career' => $user->career,
                         'periodname' => $periodname,
-                        'periodid' => $user->periodid
+                        'periodid' => $user->periodid,
+                        'subperiodname' => $subperiodname,
+                        'subperiodid' => $user->subperiodid
                     ];
                 }
             } else {
                  // No class context or class has no plan, just append (avoiding full duplicates if any)
-                 $userData[$user->userid]['careers'][] = [
+                $userData[$user->userid]['careers'][] = [
                     'planid' => $user->planid,
                     'career' => $user->career,
                     'periodname' => $periodname,
-                    'periodid' => $user->periodid
+                    'periodid' => $user->periodid,
+                    'subperiodname' => $subperiodname,
+                    'subperiodid' => $user->subperiodid
                 ];
             }
             

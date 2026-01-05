@@ -347,6 +347,31 @@ try {
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
 
+        case 'local_grupomakro_get_plan_subperiods':
+            $planid = required_param('planid', PARAM_INT);
+            $sql = "SELECT sp.id, sp.name, sp.periodid 
+                    FROM {local_learning_subperiods} sp
+                    JOIN {local_learning_periods} p ON p.id = sp.periodid
+                    WHERE p.learningplanid = :planid
+                    ORDER BY p.position ASC, sp.position ASC";
+            $subperiods = $DB->get_records_sql($sql, ['planid' => $planid]);
+            $response = ['status' => 'success', 'subperiods' => array_values($subperiods)];
+            break;
+
+        case 'local_grupomakro_update_subperiod':
+            $userid = required_param('userid', PARAM_INT);
+            $planid = required_param('planid', PARAM_INT);
+            $subperiodid = required_param('subperiodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            
+            $success = \local_grupomakro_progress_manager::update_student_subperiod($userid, $planid, $subperiodid);
+            if ($success) {
+                $response = ['status' => 'success', 'message' => 'Bloque actualizado correctamente.'];
+            } else {
+                $response = ['status' => 'error', 'message' => 'No se pudo actualizar el bloque.'];
+            }
+            break;
+
         case 'local_grupomakro_get_plans':
             $plans = $DB->get_records('local_learning_plans', [], 'name ASC', 'id, name');
             $response = ['status' => 'success', 'plans' => array_values($plans)];

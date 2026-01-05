@@ -254,7 +254,27 @@ Vue.component('studenttable', {
                     </template>
 
                     <template v-slot:item.subperiods="{ item }">
-                        <div class="text-no-wrap font-weight-regular text-body-2">{{ item.subperiods || '--' }}</div>
+                        <div class="py-1">
+                             <div v-for="(carrer, index) in item.carrers" :key="index" class="mb-1">
+                                <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadSubperiodsForPlan(item, carrer)">
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingSubperiod === carrer.planid">
+                                            {{ carrer.subperiodname || item.subperiods || '--' }}
+                                            <v-icon small right>mdi-chevron-down</v-icon>
+                                        </v-btn>
+                                    </template>
+                                    <v-list dense max-height="300" class="overflow-y-auto">
+                                        <v-list-item v-if="!carrer.availableSubperiods">
+                                            <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
+                                        </v-list-item>
+                                        <v-list-item v-for="sp in carrer.availableSubperiods" :key="sp.id" @click="updateStudentSubperiod(item, carrer, sp)">
+                                            <v-list-item-title :class="{'primary--text font-weight-bold': sp.name == (carrer.subperiodname || item.subperiods)}">{{ sp.name }}</v-list-item-title>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-menu>
+                                <span v-else class="text-body-2">{{ carrer.subperiodname || item.subperiods || '--' }}</span>
+                             </div>
+                        </div>
                     </template>
                     
                     <template v-slot:item.revalidate="{ item }">
@@ -693,6 +713,57 @@ Vue.component('studenttable', {
                 }
             } catch (error) {
                 console.error(error);
+            }
+        },
+        async updateStudentSubperiod(item, carrer, subperiod) {
+            this.$set(item, 'updatingSubperiod', carrer.planid);
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_update_subperiod');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('userid', item.userid);
+                params.append('planid', carrer.planid);
+                params.append('subperiodid', subperiod.id);
+
+                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
+
+                if (response.data.status === 'success') {
+                    // Update UI
+                    carrer.subperiodname = subperiod.name;
+                    // Also update parent item.subperiods if it's the main one
+                    if (item.carrers.length === 1 || item.carrers[0] === carrer) {
+                        item.subperiods = subperiod.name;
+                    }
+                    // Ideally reload data to sync Period too if changed, but for responsiveness we update label
+                    this.$toast ? this.$toast.success(response.data.message) : alert(response.data.message);
+                    this.getDataFromApi(); // Refresh to ensure Period/Bloque sync
+                } else {
+                    this.$toast ? this.$toast.error(response.data.message) : alert(response.data.message);
+                }
+            } catch (error) {
+                console.error(error);
+            } finally {
+                this.$set(item, 'updatingSubperiod', false);
+            }
+        },
+        async loadSubperiodsForPlan(item, carrer) {
+            if (carrer.availableSubperiods && carrer.availableSubperiods.length > 0) return;
+
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_plan_subperiods');
+                params.append('sesskey', M.cfg.sesskey);
+                params.append('planid', carrer.planid);
+
+                const response = await fetch(url + '?' + params.toString());
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    this.$set(carrer, 'availableSubperiods', result.subperiods);
+                }
+            } catch (error) {
+                console.error("Error loading subperiods", error);
             }
         },
         async updateStudentPeriod(student, carrer, period) {
