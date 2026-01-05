@@ -295,8 +295,21 @@ try {
                     
                      // Find User
                     $user = $DB->get_record('user', ['idnumber' => $idnumber, 'deleted' => 0], 'id, firstname, lastname');
+                    
+                    // Fallback: Check documentnumber profile field
                     if (!$user) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario con ID $idnumber no encontrado.";
+                        $sql = "SELECT u.id, u.firstname, u.lastname 
+                                FROM {user} u
+                                JOIN {user_info_data} uid ON uid.userid = u.id
+                                JOIN {user_info_field} uif ON uif.id = uid.fieldid
+                                WHERE uif.shortname = 'documentnumber' 
+                                AND uid.data = :docnum 
+                                AND u.deleted = 0";
+                        $user = $DB->get_record_sql($sql, ['docnum' => $idnumber]);
+                    }
+
+                    if (!$user) {
+                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/Cédula $idnumber no encontrado.";
                         $failCount++;
                         continue;
                     }

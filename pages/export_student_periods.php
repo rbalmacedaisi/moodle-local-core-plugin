@@ -21,12 +21,15 @@ $where = ["u.deleted = 0", "u.suspended = 0"];
 $params = [];
 
 $sql = "SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber,
-               lp.name as planname, p.name as periodname, sp.name as subperiodname
+               lp.name as planname, p.name as periodname, sp.name as subperiodname,
+               uid.data as documentnumber
         FROM {user} u
         JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
         JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
         LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
         LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
+        LEFT JOIN {user_info_field} uif ON uif.shortname = 'documentnumber'
+        LEFT JOIN {user_info_data} uid ON uid.userid = u.id AND uid.fieldid = uif.id
 ";
 
 if (!empty($planid)) {
@@ -44,7 +47,7 @@ if (!empty($periodid)) {
 }
 
 if (!empty($search)) {
-    $where[] = "(u.firstname LIKE :search OR u.lastname LIKE :search OR u.email LIKE :search OR u.idnumber LIKE :search)";
+    $where[] = "(u.firstname LIKE :search OR u.lastname LIKE :search OR u.email LIKE :search OR u.idnumber LIKE :search OR uid.data LIKE :search)";
     $params['search'] = '%' . $DB->sql_like_escape($search) . '%';
 }
 
@@ -61,8 +64,8 @@ $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 
 // Headers
-$headers = ['ID Number', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual', 'Bloque']; 
-$sheet->setCellValue('A1', 'ID Number');
+$headers = ['Cédula', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual', 'Bloque']; 
+$sheet->setCellValue('A1', 'Cédula');
 $sheet->setCellValue('B1', 'Nombre Completo');
 $sheet->setCellValue('C1', 'Plan de Estudio');
 $sheet->setCellValue('D1', 'Periodo Actual');
@@ -73,7 +76,8 @@ $sheet->getStyle('A1:E1')->getFont()->setBold(true);
 
 $rowNum = 2;
 foreach ($recordset as $record) {
-    $sheet->setCellValue('A' . $rowNum, $record->idnumber);
+    $idToUse = !empty($record->documentnumber) ? $record->documentnumber : $record->idnumber;
+    $sheet->setCellValue('A' . $rowNum, $idToUse);
     $sheet->setCellValue('B' . $rowNum, $record->firstname . ' ' . $record->lastname);
     $sheet->setCellValue('C' . $rowNum, $record->planname);
     $sheet->setCellValue('D' . $rowNum, $record->periodname);
