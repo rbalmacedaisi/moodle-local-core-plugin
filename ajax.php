@@ -364,11 +364,12 @@ try {
             $subperiodid = required_param('subperiodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
             
-            $success = \local_grupomakro_progress_manager::update_student_subperiod($userid, $planid, $subperiodid);
+            $errorMsg = '';
+            $success = \local_grupomakro_progress_manager::update_student_subperiod($userid, $planid, $subperiodid, null, $errorMsg);
             if ($success) {
                 $response = ['status' => 'success', 'message' => 'Bloque actualizado correctamente.'];
             } else {
-                $response = ['status' => 'error', 'message' => 'No se pudo actualizar el bloque.'];
+                $response = ['status' => 'error', 'message' => 'No se pudo actualizar el bloque: ' . $errorMsg];
             }
             break;
 

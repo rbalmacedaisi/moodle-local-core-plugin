@@ -717,40 +717,46 @@ class local_grupomakro_progress_manager
      * Updates the current subperiod (Bloque) for a user.
      * Automatically updates the parent Period if necessary.
      */
-    public static function update_student_subperiod($userId, $learningPlanId, $targetSubperiodId, $logFile = null) {
+    public static function update_student_subperiod($userId, $learningPlanId, $targetSubperiodId, $logFile = null, &$errorMsg = '') {
         global $DB;
         try {
             $targetSubperiod = $DB->get_record('local_learning_subperiods', ['id' => $targetSubperiodId]);
-            if (!$targetSubperiod) return false;
+            if (!$targetSubperiod) {
+                $errorMsg = "Subperiodo ID $targetSubperiodId no encontrado.";
+                return false;
+            }
 
             $lpUser = $DB->get_record('local_learning_users', [
                 'userid' => $userId, 
                 'learningplanid' => $learningPlanId
             ]);
 
-            if ($lpUser) {
-                $changed = false;
-                
-                // Update Parent Period if different
-                if ($lpUser->currentperiodid != $targetSubperiod->periodid) {
-                    $lpUser->currentperiodid = $targetSubperiod->periodid;
-                    $changed = true;
-                }
-
-                // Update Subperiod
-                if ($lpUser->currentsubperiodid != $targetSubperiodId) {
-                    $lpUser->currentsubperiodid = $targetSubperiodId;
-                    $changed = true;
-                }
-
-                if ($changed) {
-                    $lpUser->timemodified = time();
-                    $DB->update_record('local_learning_users', $lpUser);
-                }
-                return true;
+            if (!$lpUser) {
+                $errorMsg = "Inscripción no encontrada para Usuario $userId en Plan $learningPlanId.";
+                return false;
             }
-            return false;
+
+            $changed = false;
+            
+            // Update Parent Period if different
+            if ($lpUser->currentperiodid != $targetSubperiod->periodid) {
+                $lpUser->currentperiodid = $targetSubperiod->periodid;
+                $changed = true;
+            }
+
+            // Update Subperiod
+            if ($lpUser->currentsubperiodid != $targetSubperiodId) {
+                $lpUser->currentsubperiodid = $targetSubperiodId;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $lpUser->timemodified = time();
+                $DB->update_record('local_learning_users', $lpUser);
+            }
+            return true;
         } catch (Exception $e) {
+            $errorMsg = "Excepción: " . $e->getMessage();
             return false;
         }
     }
