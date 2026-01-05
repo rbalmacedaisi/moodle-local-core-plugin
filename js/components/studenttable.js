@@ -749,21 +749,28 @@ Vue.component('studenttable', {
         async loadSubperiodsForPlan(item, carrer) {
             if (carrer.availableSubperiods && carrer.availableSubperiods.length > 0) return;
 
+            this.$set(carrer, 'loadingSubperiods', true); // Optional naming
+
             try {
-                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_plan_subperiods');
                 params.append('sesskey', M.cfg.sesskey);
                 params.append('planid', carrer.planid);
 
-                const response = await fetch(url + '?' + params.toString());
-                const result = await response.json();
+                // Use axios via global wrapper or direct if available, standardizing on M.cfg.wwwroot
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, { params: params });
 
-                if (result.status === 'success') {
-                    this.$set(carrer, 'availableSubperiods', result.subperiods);
+                if (response.data.status === 'success') {
+                    this.$set(carrer, 'availableSubperiods', response.data.subperiods);
+                } else {
+                    console.error("Failed to load subperiods", response.data);
+                    this.$set(carrer, 'availableSubperiods', []); // Empty array to stop loading spinner
                 }
             } catch (error) {
                 console.error("Error loading subperiods", error);
+                this.$set(carrer, 'availableSubperiods', []); // Empty array on error
+            } finally {
+                this.$set(carrer, 'loadingSubperiods', false);
             }
         },
         async updateStudentPeriod(student, carrer, period) {
