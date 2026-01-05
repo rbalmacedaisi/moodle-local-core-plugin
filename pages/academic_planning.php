@@ -468,7 +468,7 @@ createApp({
             if (selectedShift.value !== 'Todas') filtered = filtered.filter(s => s.shift === selectedShift.value);
 
             const subjects = {}; 
-            const students = {};
+            const studentsMap = {}; // Renamed from students to avoid conflict
             const cohorts = {};
             const studentsInSem = {}; // Map Level -> Cohort -> Data
             
@@ -510,7 +510,8 @@ createApp({
                  const cohortKey = `${stu.career} - ${stu.shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre}`;
                  
                  // Init Student Object
-                 students[stu.id] = {
+                 // Init Student Object
+                 studentsMap[stu.id] = {
                      ...stu,
                      planningLevel,
                      planningBimestre,
@@ -536,10 +537,14 @@ createApp({
                  if (!studentsInSem[planningLevel]) studentsInSem[planningLevel] = {};
                  if (!studentsInSem[planningLevel][cohortKey]) studentsInSem[planningLevel][cohortKey] = { count: 0, students: [] };
                  
-                 students[stu.id].cohortKey = cohortKey;
                  studentsMap[stu.id].cohortKey = cohortKey;
+                 // studentsMap already set above
                  cohorts[cohortKey].studentCount++;
                  studentsInSem[planningLevel][cohortKey].count++;
+                 // Use name/ID string for aggregation? Or object?
+                 // Wait, in Step 5311 I changed this to `${stu.name} (${stu.id})` but in wave process logic.
+                 // Here (Line 543) it pushes `studentsMap[stu.id]`.
+                 // Let's keep object here for Wave Logic which reads properties from it.
                  studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
             });
 
