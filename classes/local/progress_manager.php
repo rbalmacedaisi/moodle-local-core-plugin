@@ -679,7 +679,7 @@ class local_grupomakro_progress_manager
 
             if ($lpUser) {
                 // Find first sub-period for this period
-                $subperiods = $DB->get_records_sql("SELECT id FROM {local_learning_subperiods} WHERE periodid = ? ORDER BY position ASC", [$targetPeriodId], 0, 1);
+                $subperiods = $DB->get_records_sql("SELECT id FROM {local_learning_subperiods} WHERE periodid = ? ORDER BY id ASC", [$targetPeriodId], 0, 1);
                 $subperiod = reset($subperiods);
                 $targetSubperiodId = $subperiod ? $subperiod->id : 0;
 

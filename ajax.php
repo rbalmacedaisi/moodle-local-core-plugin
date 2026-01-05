@@ -353,7 +353,7 @@ try {
                     FROM {local_learning_subperiods} sp
                     JOIN {local_learning_periods} p ON p.id = sp.periodid
                     WHERE p.learningplanid = :planid
-                    ORDER BY p.position ASC, sp.position ASC";
+                    ORDER BY p.position ASC, sp.id ASC";
             $subperiods = $DB->get_records_sql($sql, ['planid' => $planid]);
             $response = ['status' => 'success', 'subperiods' => array_values($subperiods)];
             break;
