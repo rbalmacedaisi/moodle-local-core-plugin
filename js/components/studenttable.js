@@ -86,16 +86,16 @@ Vue.component('studenttable', {
                                         <v-col cols="12" class="text-center">
                                             <v-btn color="primary" outlined @click="exportPeriodTemplate">
                                                 <v-icon left>mdi-download</v-icon>
-                                                Descargar Plantilla CSV
+                                                Descargar Plantilla Excel
                                             </v-btn>
                                         </v-col>
                                         <v-col cols="12">
                                             <v-divider class="my-3"></v-divider>
-                                            <div class="text-subtitle-1 mb-2">Importar Actualización</div>
+                                            <div class="text-subtitle-1 mb-2">Importar Actualización (Excel)</div>
                                             <v-file-input
                                                 v-model="periodImportFile"
-                                                accept=".csv"
-                                                label="Seleccionar archivo CSV modificado"
+                                                accept=".xlsx, .xls"
+                                                label="Seleccionar archivo Excel modificado"
                                                 outlined
                                                 dense
                                             ></v-file-input>
@@ -819,67 +819,35 @@ Vue.component('studenttable', {
             if (!this.periodImportFile) return;
 
             this.syncing = true;
-            this.periodImportLog = 'Leyendo archivo...';
+            this.periodImportLog = 'Subiendo y procesando archivo...';
 
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const text = e.target.result;
-                // Parse CSV Simple
-                // Assuming header: ID Number, Name, Periodo Actual, ...
-                try {
-                    const lines = text.split(/\r\n|\n/);
-                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+            // Construct FormData for Upload
+            const formData = new FormData();
+            formData.append('action', 'local_grupomakro_bulk_update_periods_excel');
+            formData.append('sesskey', M.cfg.sesskey);
+            formData.append('import_file', this.periodImportFile);
 
-                    // Find columns (case insensitive)
-                    const idIdx = headers.findIndex(h => h.toLowerCase().includes('id number') || h.toLowerCase().includes('idnumber'));
-                    const pIdx = headers.findIndex(h => h.toLowerCase().includes('periodo actual') || h.toLowerCase().includes('period'));
-
-                    if (idIdx === -1 || pIdx === -1) {
-                        throw new Error("No se encontraron las columnas 'ID Number' y 'Periodo Actual' en el CSV. Cabeceras detectadas: " + headers.join(', '));
+            try {
+                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
                     }
+                });
 
-                    const payload = [];
-                    for (let i = 1; i < lines.length; i++) {
-                        if (!lines[i].trim()) continue;
-                        // Handle potential commas in quotes? Simple split for now as IDs don't have commas.
-                        // But Name might. ID is usually first.
-                        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-
-                        // Check bounds
-                        if (cols[idIdx] && cols[pIdx]) {
-                            payload.push({
-                                idnumber: cols[idIdx],
-                                period: cols[pIdx]
-                            });
-                        }
-                    }
-
-                    this.periodImportLog = `Enviando ${payload.length} registros...`;
-
-                    const params = new URLSearchParams();
-                    params.append('action', 'local_grupomakro_bulk_update_periods_json');
-                    params.append('sesskey', M.cfg.sesskey);
-                    params.append('data', JSON.stringify(payload));
-
-                    const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, params);
-
-                    if (response.data.status === 'success') {
-                        this.periodImportLog = response.data.message + "\n\n" + (response.data.log || '');
-                        // Refresh data
-                        await this.getDataFromApi();
-                    } else {
-                        this.periodImportLog = "Error: " + (response.data.message || 'Error desconocido');
-                    }
-
-                } catch (err) {
-                    console.error(err);
-                    this.periodImportLog = "Error procesando archivo: " + err.message;
-                } finally {
-                    this.syncing = false;
+                if (response.data.status === 'success') {
+                    this.periodImportLog = response.data.message + "\n\n" + (response.data.log || '');
+                    // Refresh data
+                    await this.getDataFromApi();
+                } else {
+                    this.periodImportLog = "Error: " + (response.data.message || 'Error desconocido');
                 }
-            };
-
-            reader.readAsText(this.periodImportFile);
+            } catch (err) {
+                console.error(err);
+                this.periodImportLog = "Error en la carga/proceso: " + err.message;
+            } finally {
+                this.syncing = false;
+                // Don't clear log immediately so user can see it
+            }
         }
     }
 })

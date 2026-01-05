@@ -220,6 +220,122 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_bulk_update_periods_excel':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            
+            // Check file upload
+            if (empty($_FILES['import_file'])) {
+                $response = ['status' => 'error', 'message' => 'No se recibió ningún archivo.'];
+                break;
+            }
+            
+            $file = $_FILES['import_file'];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                $response = ['status' => 'error', 'message' => 'Error al subir el archivo.'];
+                break;
+            }
+
+            $tmpFilePath = $file['tmp_name'];
+            
+            try {
+                $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($tmpFilePath);
+                $sheet = $spreadsheet->getSheet(0);
+                $rows = $sheet->toArray();
+                
+                if (count($rows) < 2) {
+                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacío (o solo tiene cabecera).'];
+                    break;
+                }
+                
+                $headers = array_map('trim', array_map('strtolower', $rows[0]));
+                $idIdx = -1;
+                $periodIdx = -1;
+                
+                // Flexible header search
+                foreach ($headers as $idx => $h) {
+                    if (strpos($h, 'id number') !== false || strpos($h, 'identificación') !== false || $h === 'idnumber') $idIdx = $idx;
+                    if (strpos($h, 'period') !== false || $h === 'bimestre') $periodIdx = $idx;
+                }
+                
+                if ($idIdx === -1 || $periodIdx === -1) {
+                    $response = ['status' => 'error', 'message' => 'No se encontraron las columnas necesarias (ID Number, Periodo).'];
+                    break;
+                }
+                
+                $log = [];
+                $successCount = 0;
+                $failCount = 0;
+                
+                // Cache period names to IDs map
+                $allPeriods = $DB->get_records('local_learning_periods');
+                $periodMap = []; // Name -> ID
+                foreach ($allPeriods as $p) {
+                    $periodMap[strtoupper(trim($p->name))] = $p;
+                }
+                
+                // Start from row 1 (second row)
+                for ($i = 1; $i < count($rows); $i++) {
+                    $row = $rows[$i];
+                    $idnumber = trim($row[$idIdx]);
+                    $periodName = strtoupper(trim($row[$periodIdx] ?? ''));
+                    
+                    if (empty($idnumber) || empty($periodName)) continue;
+                    
+                    // Logic Copy from JSON handler (Reuse code via method?)
+                    // To be DRY, ideally check user... but simple enough to repeat for now in this block or extract func.
+                    // Copy-paste for stability now.
+                    
+                     // Find User
+                    $user = $DB->get_record('user', ['idnumber' => $idnumber, 'deleted' => 0], 'id, firstname, lastname');
+                    if (!$user) {
+                        $log[] = "Fila " . ($i+1) . ": Usuario con ID $idnumber no encontrado.";
+                        $failCount++;
+                        continue;
+                    }
+                    
+                    // Find Period
+                    if (!isset($periodMap[$periodName])) {
+                         $log[] = "Fila " . ($i+1) . ": Periodo '$periodName' no existe.";
+                         $failCount++;
+                         continue;
+                    }
+                    $targetPeriod = $periodMap[$periodName];
+                    
+                    // Find Learning Plan for User (Assuming active student)
+                    $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
+                    if (!$lpUser) {
+                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no está inscrito en plan de estudio.";
+                        $failCount++;
+                        continue;
+                    }
+                    
+                    // Check if period belongs to plan? (Optional safety check)
+                    if ($targetPeriod->learningplanid != $lpUser->learningplanid) {
+                         $log[] = "Fila " . ($i+1) . ": Periodo '$periodName' no pertenece al plan del usuario $idnumber.";
+                         $failCount++;
+                         continue;
+                    }
+                    
+                    // Update
+                    if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
+                        $successCount++;
+                    } else {
+                        // $log[] = "Aviso: No se requirió cambio para $idnumber.";
+                        $successCount++; // Count as handled
+                    }
+                }
+                
+                $response = [
+                    'status' => 'success',
+                    'message' => "Proceso finalizado. Filas procesadas: $successCount. Errores: $failCount.",
+                    'log' => implode("\n", $log)
+                ];
+
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => 'Excepción procesando archivo: ' . $e->getMessage()];
+            }
+            break;
+
         case 'local_grupomakro_get_periods':
             $planid = required_param('planid', PARAM_INT);
             $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
