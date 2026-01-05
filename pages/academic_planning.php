@@ -462,7 +462,7 @@ createApp({
         const analysis = computed(() => {
             if (rawData.value.length === 0) return { subjectList: [], cohortViewList: [], studentList: [] };
 
-            let filtered = rawData.value;
+            let filtered = Array.isArray(rawData.value) ? rawData.value : (rawData.value.students || []);
             // Filter Source Data
             if (selectedCareer.value !== 'Todas') filtered = filtered.filter(s => s.career === selectedCareer.value);
             if (selectedShift.value !== 'Todas') filtered = filtered.filter(s => s.shift === selectedShift.value);
