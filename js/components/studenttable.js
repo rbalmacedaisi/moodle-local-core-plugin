@@ -65,7 +65,7 @@ Vue.component('studenttable', {
                             </v-col>
                         </v-row>
                         
-                        </v-row>
+
 
                         <!-- Period Management Dialog -->
                         <v-dialog v-model="periodModal" max-width="700px">
