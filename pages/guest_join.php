@@ -50,8 +50,13 @@ if ($action === 'join' && !empty($username)) {
 
     if ($xml && (string)$xml->running == 'false') {
         // Meeting not running. We must CREATE it.
+        $meeting_name = trim($bbb->name);
+        if (strlen($meeting_name) < 2) {
+             $meeting_name = "Sesión Virtual " . $meetingID;
+        }
+
         $create_params = [
-            'name' => $bbb->name,
+            'name' => $meeting_name,
             'meetingID' => $meetingID,
             'attendeePW' => $bbb->viewerpass,
             'moderatorPW' => $bbb->moderatorpass,
@@ -70,6 +75,7 @@ if ($action === 'join' && !empty($username)) {
         print_r($create_xml);
         */
         
+        // Only die if it REALLY fails
         if ($create_xml && (string)$create_xml->returncode == 'FAILED') {
              // If creation failed, show WHY
              header('Content-Type: text/plain');
