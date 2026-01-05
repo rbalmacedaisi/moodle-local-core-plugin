@@ -20,16 +20,28 @@ class planning_manager {
         // 1. Fetch Active Students in Learning Plans
         // We join with Period/Subperiod to get current location
         // We join with User to get valid users
+        // We fetch 'Jornada' from user_info_data (shortname 'gmkjourney')
+        
+        $jornadaField = $DB->get_record('user_info_field', ['shortname' => 'gmkjourney']);
+        $jornadaJoin = "";
+        $jornadaSelect = ", '' as shift";
+        
+        if ($jornadaField) {
+            $jornadaJoin = "LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = " . $jornadaField->id;
+            $jornadaSelect = ", uid_j.data AS shift";
+        }
+
         $sql = "SELECT u.id, u.firstname, u.lastname, u.idnumber, u.email,
                        lp.id as planid, lp.name as planname,
                        p.id as periodid, p.name as periodname,
-                       sp.id as subperiodid, sp.name as subperiodname,
-                       llu.shift
+                       sp.id as subperiodid, sp.name as subperiodname
+                       $jornadaSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
                 JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
                 LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
+                $jornadaJoin
                 WHERE u.deleted = 0 AND u.suspended = 0 
                 AND lp.visible = 1";
 
