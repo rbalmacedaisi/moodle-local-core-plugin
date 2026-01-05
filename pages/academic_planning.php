@@ -506,7 +506,7 @@ createApp({
                             
                             // Check filters just for list building? No, build all then filter.
                             subjects.push({
-                                id: c.id + '_' + planId,
+                                id: `${c.id}_${planId}_${jornada.replace(/\s+/g, '')}_${perId}`,
                                 realId: c.id,
                                 planId: planId,
                                 planName: planData.name,
