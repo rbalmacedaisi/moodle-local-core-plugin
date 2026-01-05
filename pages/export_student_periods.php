@@ -64,31 +64,32 @@ $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 
 // Headers
-$headers = ['Cédula', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual', 'Bloque']; 
-$sheet->setCellValue('A1', 'Cédula');
-$sheet->setCellValue('B1', 'Nombre Completo');
-$sheet->setCellValue('C1', 'Plan de Estudio');
-$sheet->setCellValue('D1', 'Periodo Actual');
-$sheet->setCellValue('E1', 'Bloque');
+$headers = ['ID Number', 'Cédula', 'Nombre Completo', 'Plan de Estudio', 'Periodo Actual', 'Bloque']; 
+$sheet->setCellValue('A1', 'ID Number');
+$sheet->setCellValue('B1', 'Cédula');
+$sheet->setCellValue('C1', 'Nombre Completo');
+$sheet->setCellValue('D1', 'Plan de Estudio');
+$sheet->setCellValue('E1', 'Periodo Actual');
+$sheet->setCellValue('F1', 'Bloque');
 
 // Style Header
-$sheet->getStyle('A1:E1')->getFont()->setBold(true);
+$sheet->getStyle('A1:F1')->getFont()->setBold(true);
 
 $rowNum = 2;
 foreach ($recordset as $record) {
-    $idToUse = !empty($record->documentnumber) ? $record->documentnumber : $record->idnumber;
-    $sheet->setCellValue('A' . $rowNum, $idToUse);
-    $sheet->setCellValue('B' . $rowNum, $record->firstname . ' ' . $record->lastname);
-    $sheet->setCellValue('C' . $rowNum, $record->planname);
-    $sheet->setCellValue('D' . $rowNum, $record->periodname);
-    $sheet->setCellValue('E' . $rowNum, $record->subperiodname);
+    $sheet->setCellValue('A' . $rowNum, $record->idnumber);
+    $sheet->setCellValue('B' . $rowNum, $record->documentnumber);
+    $sheet->setCellValue('C' . $rowNum, $record->firstname . ' ' . $record->lastname);
+    $sheet->setCellValue('D' . $rowNum, $record->planname);
+    $sheet->setCellValue('E' . $rowNum, $record->periodname);
+    $sheet->setCellValue('F' . $rowNum, $record->subperiodname);
     $rowNum++;
 }
 
 $recordset->close();
 
 // AutoSize Columns
-foreach (range('A', 'E') as $col) {
+foreach (range('A', 'F') as $col) {
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
