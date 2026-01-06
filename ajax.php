@@ -79,6 +79,31 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_pending_grading':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
+            $classid = optional_param('classid', 0, PARAM_INT);
+            $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid);
+            $response = ['status' => 'success', 'tasks' => $result];
+            break;
+
+        case 'local_grupomakro_save_grade':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/save_grade.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            
+            if (!$data) {
+                throw new moodle_exception('invalidjson');
+            }
+            
+            $result = \local_grupomakro_core\external\teacher\save_grade::execute(
+                $data['assignmentid'], 
+                $data['studentid'], 
+                $data['grade'], 
+                isset($data['feedback']) ? $data['feedback'] : ''
+            );
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_update_period':
             $userid = required_param('userid', PARAM_INT);
             $planid = required_param('planid', PARAM_INT);
@@ -888,8 +913,11 @@ try {
                 }
             }
 
+            use local_grupomakro_core\external\teacher\create_express_activity;
+            use local_grupomakro_core\external\teacher\get_pending_grading;
+            use local_grupomakro_core\external\teacher\save_grade;
             try {
-                $response = \local_grupomakro_core\external\teacher\create_express_activity::execute(
+                $response = create_express_activity::execute(
                     $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
                 );
             } catch (\Throwable $e) {

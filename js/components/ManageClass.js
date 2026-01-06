@@ -115,6 +115,14 @@ const ManageClass = {
                             <teacher-student-table :class-id="classId"></teacher-student-table>
                         </v-tab-item>
 
+                        <!-- COMPLETED: Grading Tab -->
+                        <v-tab-item>
+                            <pending-grading-view 
+                                :class-id="classId" 
+                                :class-name="classDetails.name"
+                            ></pending-grading-view>
+                        </v-tab-item>
+
                         <!-- Grades Tab -->
                         <v-tab-item>
                             <grades-grid :class-id="classId"></grades-grid>
@@ -278,8 +286,9 @@ const ManageClass = {
             tabs: [
                 { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
                 { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
-                { id: 2, name: 'Notas', icon: 'mdi-star' },
-                { id: 3, name: 'Actividades', icon: 'mdi-view-grid-outline' }
+                { id: 2, name: 'Calificar', icon: 'mdi-clipboard-check-outline' },
+                { id: 3, name: 'Notas', icon: 'mdi-star' },
+                { id: 4, name: 'Actividades', icon: 'mdi-view-grid-outline' }
             ],
             timeline: [],
             loadingTimeline: true, // Start loading by default

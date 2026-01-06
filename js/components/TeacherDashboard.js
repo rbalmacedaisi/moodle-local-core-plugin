@@ -14,7 +14,7 @@ const TeacherDashboard = {
             <v-row v-else>
                 <!-- Overview Stats -->
                 <v-col cols="12" md="4" v-for="(stat, index) in overviewStats" :key="'stat-' + index">
-                    <v-card class="rounded-lg shadow-sm">
+                    <v-card class="rounded-lg shadow-sm" :ripple="!!stat.action" @click="stat.action ? handleStatClick(stat.action) : null" :class="{'cursor-pointer': !!stat.action}">
                         <v-card-text class="d-flex align-center">
                             <v-avatar :color="stat.color + ' lighten-4'" size="48" class="mr-4">
                                 <v-icon :color="stat.color">{{ stat.icon }}</v-icon>
@@ -263,6 +263,12 @@ const TeacherDashboard = {
 
             this.overviewStats[2].label = this.lang.pending_tasks || 'Tareas Pendientes';
             this.overviewStats[2].value = this.dashboardData.pending_tasks.reduce((acc, curr) => acc + (curr.count || 0), 0);
+            this.overviewStats[2].action = 'grading';
+        },
+        handleStatClick(action) {
+            if (action === 'grading') {
+                this.$emit('change-page', { page: 'grading' });
+            }
         },
         getPendingCount(classId) {
             const task = this.dashboardData.pending_tasks.find(t => t.classid === classId);

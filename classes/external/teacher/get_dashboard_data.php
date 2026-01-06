@@ -122,6 +122,37 @@ class get_dashboard_data extends external_api {
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
+        // [NEW] Fetch Assignment Due Dates as events
+        $due_sql = "SELECT e.* 
+                    FROM {event} e 
+                    JOIN {modules} m ON e.modulename = m.name
+                    WHERE e.eventtype = 'due' 
+                      AND e.modulename = 'assign'
+                      AND e.userid = 0 
+                      AND e.timestart >= :start AND e.timestart <= :end
+                      AND EXISTS (
+                          SELECT 1 FROM {gmk_class} c 
+                          WHERE c.courseid = e.courseid AND c.instructorid = :instructorid
+                      )";
+        
+        $due_events = $DB->get_records_sql($due_sql, [
+            'start' => $min_start, 
+            'end' => $max_end, 
+            'instructorid' => $params['userid']
+        ]);
+        
+        // Merge due events
+        foreach ($due_events as $de) {
+            // Check if not already in events (unlikely for 'due' type but safe check)
+            if (!isset($events[$de->id])) {
+                 // Add custom property to distinguish
+                 $de->is_grading_task = true;
+                 $de->color = '#FF9800'; // Orange for tasks
+                 // Manually append to events array (which might be keyed by ID or indexed)
+                 $events[] = $de; 
+            }
+        }
+        
         // Build maps for Course Info and Group Info
         $event_course_ids = [];
         $event_group_ids = [];
@@ -191,6 +222,11 @@ class get_dashboard_data extends external_api {
             } 
             if (isset($event->color)) {
                  $e->color = $event->color;
+            }
+            if (isset($event->is_grading_task)) {
+                 $e->is_grading_task = true;
+                 // Maybe prefix name
+                 $e->name = "📝 " . $event->name;
             }
 
             $calendar_events[] = $e;
@@ -285,7 +321,9 @@ class get_dashboard_data extends external_api {
                             'timeduration' => new external_value(PARAM_INT, 'Duration in seconds', VALUE_OPTIONAL),
                             'courseid' => new external_value(PARAM_INT, 'Course ID'),
                             'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL),
-                            'classname' => new external_value(PARAM_TEXT, 'Class Name from DB', VALUE_OPTIONAL)
+                            'classname' => new external_value(PARAM_TEXT, 'Class Name from DB', VALUE_OPTIONAL),
+                            'is_grading_task' => new external_value(PARAM_BOOL, 'Is a grading task', VALUE_OPTIONAL),
+                            'color' => new external_value(PARAM_TEXT, 'Event Color', VALUE_OPTIONAL)
                         )
                     )
                 ),

@@ -21,6 +21,9 @@ window.TeacherExperience = {
         if (window.ActivityCreationWizard) Vue.component('activity-wizard', window.ActivityCreationWizard);
         if (window.studenttable) Vue.component('studenttable', window.studenttable);
 
+        if (window.PendingGradingView) Vue.component('pending-grading-view', window.PendingGradingView);
+        if (window.QuickGrader) Vue.component('quick-grader', window.QuickGrader);
+
         // Create Vue Application
         const mountPoint = document.getElementById('teacher-app');
         if (!mountPoint) {
@@ -63,6 +66,9 @@ window.TeacherExperience = {
                             <v-btn text small color="primary" class="mr-2 d-none d-md-flex" @click="currentPage = 'dashboard'">
                                 <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
                             </v-btn>
+                            <v-btn text small color="orange" class="mr-2 d-none d-md-flex" @click="currentPage = 'grading'">
+                                <v-icon left>mdi-clipboard-check-outline</v-icon> Calificar
+                            </v-btn>
 
                             <v-menu offset-y transition="slide-y-transition" content-class="gmk-user-menu-dropdown">
                                 <template v-slot:activator="{ on, attrs }">
@@ -101,6 +107,10 @@ window.TeacherExperience = {
                                 :class-id="selectedClassId"
                                 @back="currentPage = 'dashboard'"
                             ></manage-class>
+
+                            <pending-grading-view
+                                v-if="currentPage === 'grading'"
+                            ></pending-grading-view>
                         </v-fade-transition>
                     </v-main>
                 </v-app>
