@@ -20,6 +20,7 @@ use local_grupomakro_core\external\student\sync_progress;
 use local_grupomakro_core\external\teacher\get_dashboard_data;
 
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
+header('Content-Type: application/json'); // Enforce JSON for this AJAX script
 
 // JSON Request Handling (for Axios)
 if (empty($action)) {

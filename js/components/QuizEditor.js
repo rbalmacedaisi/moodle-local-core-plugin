@@ -288,7 +288,12 @@ const QuizEditor = {
                     this.newQuestion.text = '';
                     this.newQuestion.answers = [{ text: '', fraction: 1.0 }, { text: '', fraction: 0.0 }];
                 } else {
-                    alert('Error: ' + (response.data.message || 'Desconocido'));
+                    console.error('Save failed. Response:', response);
+                    console.error('Data:', response.data);
+                    const msg = (response.data && response.data.message)
+                        ? response.data.message
+                        : 'Desconocido. Revise consola. Raw: ' + (typeof response.data === 'string' ? response.data.substring(0, 100) : JSON.stringify(response.data));
+                    alert('Error: ' + msg);
                 }
             } catch (error) {
                 console.error(error);
