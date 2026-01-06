@@ -1,17 +1,37 @@
 const QuizEditor = {
     template: `
-        <v-card flat>
-            <v-app-bar color="white" flat dense class="border-bottom sticky-header">
-                <v-icon left color="primary">mdi-format-list-checks</v-icon>
-                <v-toolbar-title class="subtitle-1 font-weight-bold">Preguntas del Cuestionario</v-toolbar-title>
+    template: `
+        <v-card flat class="fill-height grey lighten-4">
+            <!-- Global Header Replicated -->
+            <v-app-bar color="white" elevate-on-scroll app clipped-left height="64" style="z-index: 100 !important;">
+                <v-img src="https://lms.isi.edu.pa/pluginfile.php/1/theme_moove/logo/1698086745/Logo%20ISI%20-%20Slogan-01.png" max-height="50" max-width="150" contain class="mr-4"></v-img>
+                <v-toolbar-title class="grey--text text--darken-2 font-weight-bold">ISI - Portal Docente</v-toolbar-title>
                 <v-spacer></v-spacer>
-                <v-btn text small color="secondary" class="mr-2" disabled>
-                    <v-icon left small>mdi-bank</v-icon> Banco
-                </v-btn>
-                <v-btn color="primary" small depressed @click="showAddQuestionDialog = true">
-                    <v-icon left small>mdi-plus</v-icon> Nueva Pregunta
-                </v-btn>
+                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php"><v-icon left>mdi-view-dashboard</v-icon> Mi Inicio</v-btn>
+                <v-btn text color="warning"><v-icon left>mdi-check-circle-outline</v-icon> Calificar</v-btn>
+                <v-chip class="ml-2" color="primary" outlined pill>
+                   <v-icon left>mdi-account-circle</v-icon> Mi Cuenta
+                </v-chip>
             </v-app-bar>
+
+            <!-- Main Content Area -->
+            <v-main class="grey lighten-5">
+                <v-container fluid class="pa-0 fill-height align-start">
+                    <v-row no-gutters justify="center" class="fill-height w-100">
+                        <v-col cols="12" md="10" lg="8" class="pa-4">
+                            <!-- Question Manager Toolbar -->
+                            <v-card flat class="rounded-lg mb-4">
+                                <v-app-bar color="white" flat dense class="border-bottom">
+                                    <v-icon left color="primary">mdi-format-list-checks</v-icon>
+                                    <v-toolbar-title class="subtitle-1 font-weight-bold">Gestor de Preguntas del Cuestionario</v-toolbar-title>
+                                    <v-spacer></v-spacer>
+                                    <v-btn text small color="secondary" class="mr-2" disabled>
+                                        <v-icon left small>mdi-bank</v-icon> Banco
+                                    </v-btn>
+                                    <v-btn color="primary" small depressed @click="showAddQuestionDialog = true">
+                                        <v-icon left small>mdi-plus</v-icon> Nueva Pregunta
+                                    </v-btn>
+                                </v-app-bar>
 
             <v-card-text class="pt-4">                
                 <v-skeleton-loader v-if="loading" type="list-item@3"></v-skeleton-loader>

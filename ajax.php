@@ -916,11 +916,21 @@ try {
                 }
             }
             
-            // Get questions via slots
+            // Moodle 4.0+ Compatible Query (quiz_slots -> references -> versions -> question)
             $sql = "SELECT q.id, q.name, q.questiontext, q.qtype, s.slot
-                    FROM {question} q
-                    JOIN {quiz_slots} s ON s.questionid = q.id
+                    FROM {quiz_slots} s
+                    JOIN {question_references} qr ON qr.itemid = s.id
+                    JOIN {question_bank_entries} qbe ON qbe.id = qr.questionbankentryid
+                    JOIN {question_versions} qv ON qv.questionbankentryid = qbe.id
+                    JOIN {question} q ON q.id = qv.questionid
                     WHERE s.quizid = :quizid
+                    AND qr.component = 'mod_quiz'
+                    AND qr.questionarea = 'slot'
+                    AND qv.version = (
+                        SELECT MAX(v.version)
+                        FROM {question_versions} v
+                        WHERE v.questionbankentryid = qbe.id
+                    )
                     ORDER BY s.slot";
             
             $questions = $DB->get_records_sql($sql, ['quizid' => $quiz->id]);
