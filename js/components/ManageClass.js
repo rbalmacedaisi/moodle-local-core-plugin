@@ -151,7 +151,15 @@ const ManageClass = {
                                                             <v-list-item-title class="font-weight-medium">{{ activity.name }}</v-list-item-title>
                                                             <v-list-item-subtitle class="text-caption grey--text">{{ activity.modname }}</v-list-item-subtitle>
                                                         </v-list-item-content>
-                                                        <v-list-item-action>
+                                                        <v-list-item-action class="d-flex flex-row">
+                                                            <v-tooltip bottom v-if="activity.modname === 'quiz'">
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn icon small color="primary" class="mr-2" @click.stop="openQuizQuestions(activity)" v-bind="attrs" v-on="on">
+                                                                        <v-icon>mdi-format-list-checks</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Gestionar Preguntas</span>
+                                                            </v-tooltip>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
@@ -429,6 +437,12 @@ const ManageClass = {
             } else {
                 // Logic to open attendance manager
             }
+        },
+        openQuizQuestions(activity) {
+            // Moodle URL for editing quiz questions: /mod/quiz/edit.php?cmid=ID
+            // We assume window.M.cfg.wwwroot is available or construct relative path
+            const url = `/mod/quiz/edit.php?cmid=${activity.id}`;
+            window.open(url, '_blank');
         },
         addActivity(type, label = '') {
             if (type === 'quiz') {
