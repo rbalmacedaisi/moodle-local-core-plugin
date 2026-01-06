@@ -111,6 +111,26 @@ foreach ($classes as $class) {
 
 echo "<h2>Global Search Diagnosis</h2>";
 
+// 0. Check Group's Course
+if (isset($classes)) {
+    foreach ($classes as $class) {
+        if ($class->groupid > 0) {
+            $group = $DB->get_record('groups', ['id' => $class->groupid]);
+            if ($group) {
+                echo "<h3>Group Diagnosis for Class '{$class->name}'</h3>";
+                echo "<p>Group ID: {$group->id} points to Course ID: <strong>{$group->courseid}</strong></p>";
+                
+                if ($group->courseid != $class->courseid) {
+                     echo "<p style='color:red; font-weight:bold'>MISMATCH DETECTED: Class thinks it is Course {$class->courseid}, but its Group belongs to Course {$group->courseid}.</p>";
+                     echo "<p>The 'Fix Course Link' script should be run to change Class Course ID to {$group->courseid}.</p>";
+                } else {
+                     echo "<p style='color:green'>Group matches Class Course ID.</p>";
+                }
+            }
+        }
+    }
+}
+
 // 1. Search for the specific assignment
 $search_name = "Tarea de prueba%";
 echo "<h3>Searching for assignments matching '$search_name'...</h3>";
