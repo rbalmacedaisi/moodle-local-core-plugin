@@ -3,14 +3,16 @@ const QuizEditor = {
          <v-card flat class="fill-height grey lighten-4">
             <!-- Global Header Replicated -->
             <v-app-bar color="white" elevate-on-scroll app clipped-left height="64" style="z-index: 100 !important;">
-                <v-img src="https://lms.isi.edu.pa/pluginfile.php/1/theme_moove/logo/1698086745/Logo%20ISI%20-%20Slogan-01.png" max-height="50" max-width="150" contain class="mr-4"></v-img>
-                <v-toolbar-title class="grey--text text--darken-2 font-weight-bold">ISI - Portal Docente</v-toolbar-title>
+                <v-img :src="config.logoUrl" max-height="50" max-width="150" contain class="mr-4"></v-img>
+                <v-toolbar-title class="grey--text text--darken-2 font-weight-bold hidden-sm-and-down">ISI - Portal Docente</v-toolbar-title>
                 <v-spacer></v-spacer>
-                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php"><v-icon left>mdi-view-dashboard</v-icon> Mi Inicio</v-btn>
-                <v-btn text color="warning"><v-icon left>mdi-check-circle-outline</v-icon> Calificar</v-btn>
-                <v-chip class="ml-2" color="primary" outlined pill>
-                   <v-icon left>mdi-account-circle</v-icon> Mi Cuenta
-                </v-chip>
+                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold"><v-icon left>mdi-view-dashboard</v-icon> Mi Inicio</v-btn>
+                <v-btn text color="grey darken-1" class="text-capitalize font-weight-bold"><v-icon left>mdi-check-circle-outline</v-icon> Calificar</v-btn>
+                <div class="ml-2">
+                   <v-avatar color="primary" size="36">
+                        <v-icon dark small>mdi-account</v-icon>
+                   </v-avatar>
+                </div>
             </v-app-bar>
 
             <!-- Main Content Area -->
@@ -212,14 +214,18 @@ const QuizEditor = {
     }),
     mounted() {
         this.fetchQuestions();
-        // Aggressively hide Moodle sidebar
-        setTimeout(() => {
+        // Aggressively hide Moodle sidebar with repeated attempts
+        const hideSidebar = () => {
             const selectors = [
                 '#nav-drawer',
                 '[data-region="drawer"]',
                 '.drawer-option',
                 '#page-header',
-                '.secondary-navigation'
+                '.secondary-navigation',
+                '.breadcrumb-nav',
+                '#block-region-side-pre',
+                '#block-region-side-post',
+                '.block_navigation'
             ];
             selectors.forEach(s => {
                 const els = document.querySelectorAll(s);
@@ -230,8 +236,22 @@ const QuizEditor = {
             if (main) {
                 main.style.setProperty('width', '100%', 'important');
                 main.style.setProperty('max-width', '100%', 'important');
+                main.style.setProperty('border', 'none', 'important');
+                main.style.setProperty('padding', '0', 'important');
+                main.style.setProperty('overflow', 'visible', 'important');
             }
-        }, 500);
+            const page = document.getElementById('page');
+            if (page) {
+                page.style.setProperty('margin-top', '0', 'important');
+                page.style.setProperty('padding-top', '0', 'important');
+                page.style.setProperty('background', '#f5f5f5', 'important');
+            }
+        };
+
+        // Run immediately and every 500ms for 5 seconds
+        hideSidebar();
+        const interval = setInterval(hideSidebar, 500);
+        setTimeout(() => clearInterval(interval), 5000);
     },
     methods: {
         async fetchQuestions() {

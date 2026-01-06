@@ -46,23 +46,73 @@ $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dis
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js'), true);
 
+// Retrieve Logo
+$logoUrl = $OUTPUT->get_logo_url();
+if (!$logoUrl) {
+    try {
+        $theme = theme_config::load($CFG->theme);
+        if (isset($theme->settings->logo) && !empty($theme->settings->logo)) {
+            $logo = basename($theme->settings->logo);
+            $logoUrl = new moodle_url('/theme/' . $CFG->theme . '/pix/static/' . $logo);
+        }
+    } catch (Exception $e) {
+        // Silently fail
+    }
+}
+
 // Pass config to JS
 $config = [
     'cmid' => $cmid,
     'quizid' => $cm->instance,
     'courseid' => $course->id,
     'wwwroot' => $CFG->wwwroot,
-    'sesskey' => sesskey()
+    'sesskey' => sesskey(),
+    'logoUrl' => ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : 'https://raw.githubusercontent.com/moodlehq/moodle-local_moodlemobileapp/master/pix/icon.png' // Fallback
 ];
 $PAGE->requires->js_init_code("if(window.QuizEditorApp) { window.QuizEditorApp.init(".json_encode($config)."); }");
 
 echo $OUTPUT->header();
 
+echo '<style>
+    /* NUCLEAR OPTION FOR SIDEBARS */
+    #nav-drawer, 
+    [data-region="drawer"], 
+    .drawer-option, 
+    .secondary-navigation,
+    .breadcrumb-nav,
+    #page-header,
+    .d-print-none[role="complementary"],
+    #block-region-side-pre,
+    #block-region-side-post,
+    .block_navigation {
+        display: none !important;
+        width: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+    #page, #page-content, #region-main {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    /* Ensure our app is on top */
+    .local_grupomakro_core_dashboard_wrapper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        min-height: 100vh;
+        z-index: 9999;
+        background: #f5f5f5;
+    }
+</style>';
+
 echo '<div class="local_grupomakro_core_dashboard_wrapper">';
 echo '<div id="quiz-editor-app">
     <v-app>
         <v-main>
-            <v-container>
+            <v-container fluid class="pa-0 fill-height">
                 <quiz-editor :config="initialConfig"></quiz-editor>
             </v-container>
         </v-main>
