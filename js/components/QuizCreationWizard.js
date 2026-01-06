@@ -293,3 +293,6 @@ const QuizCreationWizard = {
         }
     }
 };
+
+Vue.component('quiz-creation-wizard', QuizCreationWizard);
+window.QuizCreationWizard = QuizCreationWizard;
