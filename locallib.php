@@ -3386,8 +3386,8 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     }
     
     
-    // DEBUG: Log moduleinfo to see what is being passed
-    file_put_contents(__DIR__ . '/debug.log', print_r($moduleinfo, true), FILE_APPEND);
+    // DEBUG: Force crash to see state
+    throw new Exception("DEBUG STOP: Type: $type. Pass: " . (isset($moduleinfo->password) ? $moduleinfo->password : 'UNSET'));
 
     $result = add_moduleinfo($moduleinfo, $course);
     
