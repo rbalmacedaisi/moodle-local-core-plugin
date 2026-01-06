@@ -19,17 +19,6 @@ function local_grupomakro_core_user_home_redirect(&$url) {
     // Check if user is an instructor in any active class
     $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
 
-    // Safety: Do not redirect if we are in a module, course, or admin page
-    // This allows teachers to access specific activities directly strings references
-    $script = $_SERVER['SCRIPT_NAME'];
-    if (strpos($script, '/mod/') !== false || 
-        strpos($script, '/course/') !== false || 
-        strpos($script, '/admin/') !== false || 
-        strpos($script, '/lib/ajax/') !== false ||
-        defined('AJAX_SCRIPT')) {
-        return;
-    }
-
     if ($is_teacher) {
         $dashboard_path = '/local/grupomakro_core/pages/teacher_dashboard.php';
         // Avoid redirect loop by checking if we are already on that script
@@ -73,8 +62,6 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
 
     // Only intercept if we are on the main landing pages
     try {
-        // We use URL_MATCH_BASE which is broad, but the redirect function 
-        // now has a specific Guard Clause to prevent redirecting module pages.
         $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
         $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
         
