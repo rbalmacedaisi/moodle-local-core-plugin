@@ -1,0 +1,55 @@
+<?php
+/**
+ * Custom Quiz Editor Page
+ * Allows teachers to manage questions without accessing the blocked standard interface.
+ */
+
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
+$cmid = required_param('cmid', PARAM_INT);
+
+require_login();
+
+// Validate access
+$cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+$course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
+require_capability('mod/quiz:manage', context_module::instance($cm->id));
+
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/quiz_editor.php', ['cmid' => $cmid]));
+$PAGE->set_context(context_module::instance($cm->id));
+$PAGE->set_title('Gestor de Preguntas del Cuestionario');
+$PAGE->set_heading('Gestor de Preguntas del Cuestionario');
+$PAGE->set_pagelayout('standard');
+
+// Assets
+$PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css'));
+$PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css'));
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js'), true);
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js'), true);
+$PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js'), true);
+
+// Pass config to JS
+$config = [
+    'cmid' => $cmid,
+    'quizid' => $cm->instance,
+    'courseid' => $course->id,
+    'wwwroot' => $CFG->wwwroot,
+    'sesskey' => sesskey()
+];
+$PAGE->requires->js_init_code("if(window.QuizEditorApp) { window.QuizEditorApp.init(".json_encode($config)."); }");
+
+echo $OUTPUT->header();
+
+echo '<div id="quiz-editor-app">
+    <v-app>
+        <v-main>
+            <v-container>
+                <quiz-editor :config="initialConfig"></quiz-editor>
+            </v-container>
+        </v-main>
+    </v-app>
+</div>';
+
+echo $OUTPUT->footer();
