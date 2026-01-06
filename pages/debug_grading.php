@@ -109,4 +109,37 @@ foreach ($classes as $class) {
     }
 }
 
+echo "<h2>Global Search Diagnosis</h2>";
+
+// 1. Search for the specific assignment
+$search_name = "Tarea de prueba%";
+echo "<h3>Searching for assignments matching '$search_name'...</h3>";
+$found_assigns = $DB->get_records_select('assign', "name LIKE :name", ['name' => $search_name]);
+
+if ($found_assigns) {
+    echo "<ul>";
+    foreach ($found_assigns as $a) {
+        $c = $DB->get_record('course', ['id' => $a->course]);
+        echo "<li>FOUND: '{$a->name}' (ID: {$a->id}) in Course: '{$c->fullname}' (ID: {$c->id})</li>";
+    }
+    echo "</ul>";
+} else {
+    echo "<p>No assignments found matching that name.</p>";
+}
+
+// 2. Search for the course name
+$search_course = "%INGLÉS II%";
+echo "<h3>Searching for courses matching '$search_course'...</h3>";
+$found_courses = $DB->get_records_select('course', "fullname LIKE :name", ['name' => $search_course]);
+
+if ($found_courses) {
+    echo "<ul>";
+    foreach ($found_courses as $c) {
+        $count = $DB->count_records('assign', ['course' => $c->id]);
+        echo "<li>Course: '{$c->fullname}' (ID: {$c->id}) - Contains $count assignments.</li>";
+    }
+    echo "</ul>";
+}
+
+echo "<hr>";
 echo $OUTPUT->footer();
