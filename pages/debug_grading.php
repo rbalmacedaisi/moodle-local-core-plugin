@@ -18,6 +18,12 @@ require_login();
 $userid = optional_param('userid', $USER->id, PARAM_INT);
 $courseid = optional_param('courseid', 0, PARAM_INT);
 
+// Fix PAGE setup
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_grading.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Debug Grading');
+$PAGE->set_heading('Debug Grading Logic');
+
 echo $OUTPUT->header();
 echo "<h1>Debug Grading Logic</h1>";
 echo "<p>User ID: $userid</p>";
@@ -36,76 +42,71 @@ foreach ($classes as $class) {
     echo "<hr>";
     echo "<h3>Class: {$class->name} (Course ID: {$class->courseid}, Group ID: {$class->groupid})</h3>";
 
-    // 2. Get Assignments in Course
+    // 2. CHECK ALL MODULES IN COURSE
+    echo "<h4>All Modules in Course {$class->courseid}:</h4>";
+    
+    $sql_mods = "SELECT cm.id, cm.instance, m.name as modname, cm.visible
+                 FROM {course_modules} cm
+                 JOIN {modules} m ON m.id = cm.module
+                 WHERE cm.course = :courseid";
+                 
+    $mods = $DB->get_records_sql($sql_mods, ['course' => $class->courseid]);
+    
+    if (empty($mods)) {
+        echo "<p style='color:red'>No modules found in course_modules table!</p>";
+    } else {
+        $counts = [];
+        foreach ($mods as $m) {
+            $counts[$m->modname] = ($counts[$m->modname] ?? 0) + 1;
+        }
+        echo "<ul>";
+        foreach ($counts as $name => $count) {
+            echo "<li>$name: $count</li>";
+        }
+        echo "</ul>";
+    }
+
+    // 3. Specifically Check Assignments table again
     $assigns = $DB->get_records('assign', ['course' => $class->courseid], 'duedate ASC');
     
     if (empty($assigns)) {
-        echo "<p style='color:orange'>No assignments found in this course.</p>";
-        continue;
-    }
-
-    echo "<ul>";
-    foreach ($assigns as $assign) {
-        $cm = get_coursemodule_from_instance('assign', $assign->id);
-        if (!$cm) continue;
+        echo "<p style='color:orange'>No records in 'assign' table for this course.</p>";
+    } else {
+        echo "<p style='color:green'>Found " . count($assigns) . " records in 'assign'. (Wait, previous run said 0?)</p>";
         
-        $context = context_module::instance($cm->id);
-        $assignObj = new assign($context, $cm, null);
-        
-        echo "<li><strong>Assignment: {$assign->name}</strong> (ID: {$assign->id})<br>";
-        
-        // 3. Debug Counts using API vs SQL
-        
-        // A. SQL Attempt (Current Logic)
-        // Note: Adding group check if class has group
-        $group_sql = "";
-        $params = ['assignid' => $assign->id];
-        
-        if ($class->groupid > 0) {
-            $group_sql = " AND EXISTS (
-                SELECT 1 FROM {groups_members} gm 
-                WHERE gm.userid = s.userid AND gm.groupid = :groupid
-            )";
-            $params['groupid'] = $class->groupid;
-        }
-
-        $sql_pending = "SELECT s.id, s.userid, s.status, s.timemodified
-                        FROM {assign_submission} s 
-                        LEFT JOIN {assign_grades} g ON g.assignment = s.assignment AND g.userid = s.userid
-                        WHERE s.assignment = :assignid 
-                          AND s.status = 'submitted' 
-                          AND (g.grade IS NULL OR g.grade = -1)
-                        $group_sql";
-                        
-        $submissions = $DB->get_records_sql($sql_pending, $params);
-        
-        echo "SQL Pending Count: " . count($submissions) . "<br>";
-        
-        if (count($submissions) > 0) {
-            echo "<table><tr><th>User ID</th><th>Status</th><th>Submitted Time</th><th>Has Grade Record?</th></tr>";
-            foreach ($submissions as $sub) {
-                // Check if grade record exists at all
-                $g = $DB->get_record('assign_grades', ['assignment' => $assign->id, 'userid' => $sub->userid]);
-                $gradeVal = $g ? $g->grade : 'NULL';
-                
-                echo "<tr>";
-                echo "<td>{$sub->userid}</td>";
-                echo "<td>{$sub->status}</td>";
-                echo "<td>" . userdate($sub->timemodified) . "</td>";
-                echo "<td>" . ($g ? "Yes (Val: $gradeVal)" : "No") . "</td>";
-                echo "</tr>";
+        echo "<ul>";
+        foreach ($assigns as $assign) {
+            echo "<li><strong>Assignment: {$assign->name}</strong> (ID: {$assign->id})</li>";
+            // ... (rest of submission check same as before but simplified)
+            
+            $context = context_module::instance(get_coursemodule_from_instance('assign', $assign->id)->id);
+            
+            // Pending Count SQL
+            $group_sql = "";
+            $params = ['assignid' => $assign->id];
+            
+            if ($class->groupid > 0) {
+                // IMPORTANT: Fixed parameter naming collision in previous version if any
+                $group_sql = " AND EXISTS (
+                    SELECT 1 FROM {groups_members} gm 
+                    WHERE gm.userid = s.userid AND gm.groupid = :groupid
+                )";
+                $params['groupid'] = $class->groupid;
             }
-            echo "</table>";
+
+            $sql_pending = "SELECT COUNT(s.id)
+                            FROM {assign_submission} s 
+                            LEFT JOIN {assign_grades} g ON g.assignment = s.assignment AND g.userid = s.userid
+                            WHERE s.assignment = :assignid 
+                              AND s.status = 'submitted' 
+                              AND (g.grade IS NULL OR g.grade = -1)
+                            $group_sql";
+                            
+            $count = $DB->count_records_sql($sql_pending, $params);
+            echo " - Pending Submissions: $count <br>";
         }
-        
-        // B. Check Core API count for comparison
-         if ($assignObj->get_instance()->teamsubmission) {
-             echo " (Team submission enabled - might affect logic)";
-         }
-         
-        echo "</li>";
+        echo "</ul>";
     }
-    echo "</ul>";
 }
 
 echo $OUTPUT->footer();
