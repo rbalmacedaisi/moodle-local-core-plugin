@@ -11,10 +11,24 @@ $cmid = required_param('cmid', PARAM_INT);
 
 require_login();
 
-// Validate access
+// Validate access standard Moodle way
 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
 $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-require_capability('mod/quiz:manage', context_module::instance($cm->id));
+
+require_login($course, true, $cm);
+
+$context = context_module::instance($cm->id);
+
+// Check standard capability FIRST
+if (!has_capability('mod/quiz:manage', $context)) {
+    // Fallback: Check if user is the instructor of the class linked to this course
+    // This supports the custom plugin's permission model if it differs from Moodle roles.
+    $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id, 'closed' => 0]);
+    
+    if (!$is_gmk_instructor) {
+        require_capability('mod/quiz:manage', $context); // This will throw the exception if fallback fails
+    }
+}
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/quiz_editor.php', ['cmid' => $cmid]));
 $PAGE->set_context(context_module::instance($cm->id));
