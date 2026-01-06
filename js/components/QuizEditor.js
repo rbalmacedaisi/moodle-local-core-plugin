@@ -1,7 +1,6 @@
 const QuizEditor = {
     template: `
-    template: `
-        <v-card flat class="fill-height grey lighten-4">
+         <v-card flat class="fill-height grey lighten-4">
             <!-- Global Header Replicated -->
             <v-app-bar color="white" elevate-on-scroll app clipped-left height="64" style="z-index: 100 !important;">
                 <v-img src="https://lms.isi.edu.pa/pluginfile.php/1/theme_moove/logo/1698086745/Logo%20ISI%20-%20Slogan-01.png" max-height="50" max-width="150" contain class="mr-4"></v-img>
@@ -213,6 +212,26 @@ const QuizEditor = {
     }),
     mounted() {
         this.fetchQuestions();
+        // Aggressively hide Moodle sidebar
+        setTimeout(() => {
+            const selectors = [
+                '#nav-drawer',
+                '[data-region="drawer"]',
+                '.drawer-option',
+                '#page-header',
+                '.secondary-navigation'
+            ];
+            selectors.forEach(s => {
+                const els = document.querySelectorAll(s);
+                els.forEach(el => el.style.setProperty('display', 'none', 'important'));
+            });
+            // Force full width
+            const main = document.getElementById('region-main');
+            if (main) {
+                main.style.setProperty('width', '100%', 'important');
+                main.style.setProperty('max-width', '100%', 'important');
+            }
+        }, 500);
     },
     methods: {
         async fetchQuestions() {
