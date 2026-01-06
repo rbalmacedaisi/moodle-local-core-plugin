@@ -12,7 +12,7 @@ if (!file_exists($config_path)) {
 require_once($config_path);
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+// require_capability('moodle/site:config', context_system::instance()); // Disabled for teacher execution
 
 echo $OUTPUT->header();
 echo "<h1>Fix Class Configuration</h1>";
