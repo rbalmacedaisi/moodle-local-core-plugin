@@ -96,15 +96,16 @@ echo '<style>
         width: 100% !important;
         max-width: 100% !important;
     }
-    /* Ensure our app is on top */
+    /* Ensure our app is on top and acts like a SPA Overlay */
     .local_grupomakro_core_dashboard_wrapper {
-        position: absolute;
+        position: fixed;
         top: 0;
         left: 0;
-        width: 100%;
-        min-height: 100vh;
-        z-index: 9999;
+        width: 100vw;
+        height: 100vh;
+        z-index: 99999;
         background: #f5f5f5;
+        overflow-y: auto;
     }
 </style>';
 

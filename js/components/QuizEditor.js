@@ -1,79 +1,114 @@
 const QuizEditor = {
     template: `
-         <v-card flat class="fill-height grey lighten-4">
-            <!-- Global Header Replicated -->
-            <v-app-bar color="white" elevate-on-scroll app clipped-left height="64" style="z-index: 100 !important;">
-                <v-img :src="config.logoUrl" max-height="50" max-width="150" contain class="mr-4"></v-img>
+        <v-app>
+            <!-- Global Header Replicated (Fixed) -->
+            <v-app-bar app color="white" elevate-on-scroll height="64" style="z-index: 100 !important;">
+                <v-img :src="config.logoUrl" max-height="50" max-width="150" contain class="mr-4 cursor-pointer" @click="goHome"></v-img>
                 <v-toolbar-title class="grey--text text--darken-2 font-weight-bold hidden-sm-and-down">ISI - Portal Docente</v-toolbar-title>
                 <v-spacer></v-spacer>
-                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold"><v-icon left>mdi-view-dashboard</v-icon> Mi Inicio</v-btn>
-                <v-btn text color="grey darken-1" class="text-capitalize font-weight-bold"><v-icon left>mdi-check-circle-outline</v-icon> Calificar</v-btn>
-                <div class="ml-2">
-                   <v-avatar color="primary" size="36">
-                        <v-icon dark small>mdi-account</v-icon>
-                   </v-avatar>
-                </div>
+                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold mr-2">
+                    <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
+                </v-btn>
+                <v-btn text color="grey darken-1" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold mr-2">
+                    <v-icon left>mdi-check-circle-outline</v-icon> Calificar
+                </v-btn>
+                <v-menu offset-y>
+                    <template v-slot:activator="{ on, attrs }">
+                        <v-btn icon v-bind="attrs" v-on="on">
+                            <v-avatar color="primary" size="40">
+                                <v-icon dark>mdi-account</v-icon>
+                            </v-avatar>
+                        </v-btn>
+                    </template>
+                    <v-list>
+                        <v-list-item href="/user/profile.php">
+                            <v-list-item-icon><v-icon>mdi-account-circle</v-icon></v-list-item-icon>
+                            <v-list-item-title>Mi Perfil</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item href="/login/logout.php">
+                            <v-list-item-icon><v-icon>mdi-logout</v-icon></v-list-item-icon>
+                            <v-list-item-title>Salir</v-list-item-title>
+                        </v-list-item>
+                    </v-list>
+                </v-menu>
             </v-app-bar>
 
-            <!-- Main Content Area -->
+            <!-- Main Content Area (Harmonic Center) -->
             <v-main class="grey lighten-5">
-                <v-container fluid class="pa-0 fill-height align-start">
-                    <v-row no-gutters justify="center" class="fill-height w-100">
-                        <v-col cols="12" md="10" lg="8" class="pa-4">
-                            <!-- Question Manager Toolbar -->
-                            <v-card flat class="rounded-lg mb-4">
-                                <v-app-bar color="white" flat dense class="border-bottom">
-                                    <v-icon left color="primary">mdi-format-list-checks</v-icon>
-                                    <v-toolbar-title class="subtitle-1 font-weight-bold">Gestor de Preguntas del Cuestionario</v-toolbar-title>
-                                    <v-spacer></v-spacer>
-                                    <v-btn text small color="secondary" class="mr-2" disabled>
-                                        <v-icon left small>mdi-bank</v-icon> Banco
-                                    </v-btn>
-                                    <v-btn color="primary" small depressed @click="showAddQuestionDialog = true">
-                                        <v-icon left small>mdi-plus</v-icon> Nueva Pregunta
-                                    </v-btn>
-                                </v-app-bar>
+                <v-container class="pa-6 mx-auto" style="max-width: 1200px;">
+                    
+                    <!-- Editor Card -->
+                    <v-card class="rounded-lg elevation-1">
+                        <v-toolbar flat color="grey lighten-5" class="border-bottom px-4">
+                            <v-icon color="primary" class="mr-3" large>mdi-file-document-edit-outline</v-icon>
+                            <div>
+                                <v-toolbar-title class="subtitle-1 font-weight-bold text-uppercase grey--text text--darken-2">
+                                    Gestor de Preguntas
+                                </v-toolbar-title>
+                                <div class="caption grey--text">Administre las preguntas de este cuestionario</div>
+                            </div>
+                            <v-spacer></v-spacer>
+                            
+                            <v-btn small text color="secondary" class="mr-2" disabled>
+                                <v-icon left small>mdi-bank</v-icon> Banco (Pronto)
+                            </v-btn>
+                            <v-btn color="primary" depressed @click="showAddQuestionDialog = true">
+                                <v-icon left>mdi-plus</v-icon> Nueva Pregunta
+                            </v-btn>
+                        </v-toolbar>
 
-            <v-card-text class="pt-4">                
-                <v-skeleton-loader v-if="loading" type="list-item@3"></v-skeleton-loader>
-                
-                <div v-else-if="questions.length === 0" class="text-center py-10 grey--text">
-                    <v-icon size="64" color="grey lighten-2">mdi-clipboard-text-outline</v-icon>
-                    <div class="mt-2">No hay preguntas en este cuestionario.</div>
-                    <v-btn text color="primary" class="mt-2" @click="showAddQuestionDialog = true">
-                        Crear la primera pregunta
-                    </v-btn>
-                </div>
-                
-                <v-list v-else two-line class="pa-0">
-                    <draggable v-model="questions" @end="updateOrder">
-                        <v-list-item v-for="(q, index) in questions" :key="q.id" class="mb-1 white elevation-1 rounded-lg">
-                            <v-list-item-avatar color="primary lighten-5" class="primary--text font-weight-bold">
-                                {{ index + 1 }}
-                            </v-list-item-avatar>
+                        <v-card-text class="pa-0">
+                            <v-skeleton-loader v-if="loading" type="list-item@3" class="pa-4"></v-skeleton-loader>
                             
-                            <v-list-item-content>
-                                <v-list-item-title class="font-weight-medium">{{ q.name }}</v-list-item-title>
-                                <v-list-item-subtitle class="text--secondary caption">
-                                    <v-chip x-small label outlined class="mr-2">{{ questionTypeLabel(q.qtype) }}</v-chip>
-                                    {{ q.questiontext }}
-                                </v-list-item-subtitle>
-                            </v-list-item-content>
+                            <div v-else-if="questions.length === 0" class="text-center py-10 grey--text">
+                                <v-icon size="64" color="grey lighten-3">mdi-clipboard-text-outline</v-icon>
+                                <div class="mt-2 body-1">No hay preguntas en este cuestionario.</div>
+                                <v-btn text color="primary" class="mt-2 font-weight-bold" @click="showAddQuestionDialog = true">
+                                    Comenzar ahora
+                                </v-btn>
+                            </div>
                             
-                            <v-list-item-action>
-                                <v-tooltip bottom>
-                                    <template v-slot:activator="{ on, attrs }">
-                                        <v-btn icon color="red lighten-2" small v-bind="attrs" v-on="on" @click="removeQuestion(q)">
-                                            <v-icon small>mdi-delete</v-icon>
-                                        </v-btn>
-                                    </template>
-                                    <span>Eliminar</span>
-                                </v-tooltip>
-                            </v-list-item-action>
-                        </v-list-item>
-                    </draggable>
-                </v-list>
-            </v-card-text>
+                            <v-list v-else two-line class="pa-0">
+                                <draggable v-model="questions" @end="updateOrder">
+                                    <v-list-item v-for="(q, index) in questions" :key="q.id" class="px-4 py-2 border-bottom hover-bg">
+                                        <v-list-item-avatar color="blue lighten-5" class="blue--text font-weight-bold rounded-lg" size="40">
+                                            {{ index + 1 }}
+                                        </v-list-item-avatar>
+                                        
+                                        <v-list-item-content>
+                                            <v-list-item-title class="font-weight-bold text-subtitle-1 mb-1">{{ q.name }}</v-list-item-title>
+                                            <v-list-item-subtitle class="grey--text text--darken-1">
+                                                <v-chip x-small label color="blue lighten-5" text-color="blue" class="mr-2 font-weight-bold">{{ questionTypeLabel(q.qtype) }}</v-chip>
+                                                <span v-html="q.questiontext" class="text-truncate d-inline-block" style="max-width: 600px; vertical-align: middle;"></span>
+                                            </v-list-item-subtitle>
+                                        </v-list-item-content>
+                                        
+                                        <v-list-item-action class="flex-row">
+                                            <v-tooltip bottom>
+                                                <template v-slot:activator="{ on, attrs }">
+                                                    <v-btn icon color="grey" class="mr-1" v-bind="attrs" v-on="on" disabled>
+                                                        <v-icon>mdi-pencil</v-icon>
+                                                    </v-btn>
+                                                </template>
+                                                <span>Editar (Pronto)</span>
+                                            </v-tooltip>
+                                            <v-tooltip bottom>
+                                                <template v-slot:activator="{ on, attrs }">
+                                                    <v-btn icon color="red lighten-2" v-bind="attrs" v-on="on" @click="removeQuestion(q)">
+                                                        <v-icon>mdi-delete</v-icon>
+                                                    </v-btn>
+                                                </template>
+                                                <span>Eliminar</span>
+                                            </v-tooltip>
+                                        </v-list-item-action>
+                                    </v-list-item>
+                                </draggable>
+                            </v-list>
+                        </v-card-text>
+                    </v-card>
+                </v-container>
+            </v-main>
+
 
             <!-- Add Question Dialog -->
             <v-dialog v-model="showAddQuestionDialog" max-width="600px">
@@ -254,6 +289,9 @@ const QuizEditor = {
         setTimeout(() => clearInterval(interval), 5000);
     },
     methods: {
+        goHome() {
+            window.location.href = '/local/grupomakro_core/pages/teacher_dashboard.php';
+        },
         async fetchQuestions() {
             this.loading = true;
             try {
