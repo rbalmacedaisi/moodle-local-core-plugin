@@ -3383,6 +3383,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->completionattemptsexhausted = 0;
     }
     
+    
+    // DEBUG: Log moduleinfo to see what is being passed
+    file_put_contents(__DIR__ . '/debug.log', print_r($moduleinfo, true), FILE_APPEND);
+
     $result = add_moduleinfo($moduleinfo, $course);
     
     // Handle template saving if requested
