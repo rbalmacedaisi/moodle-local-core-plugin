@@ -58,6 +58,7 @@ $PAGE->requires->js_init_code("if(window.QuizEditorApp) { window.QuizEditorApp.i
 
 echo $OUTPUT->header();
 
+echo '<div class="local_grupomakro_core_dashboard_wrapper">';
 echo '<div id="quiz-editor-app">
     <v-app>
         <v-main>
@@ -67,5 +68,6 @@ echo '<div id="quiz-editor-app">
         </v-main>
     </v-app>
 </div>';
+echo '</div>';
 
 echo $OUTPUT->footer();

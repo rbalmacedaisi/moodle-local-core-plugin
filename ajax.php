@@ -910,7 +910,7 @@ try {
             // Permission Logic with Fallback
             if (!has_capability('mod/quiz:manage', $context)) {
                 $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
-                $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id, 'closed' => 0]);
+                $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id]);
                 if (!$is_gmk_instructor) {
                     require_capability('mod/quiz:manage', $context);
                 }

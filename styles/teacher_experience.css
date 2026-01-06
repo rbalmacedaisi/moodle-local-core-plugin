@@ -69,7 +69,12 @@ body.gmk-full-frame .navbar,
 body.gmk-full-frame .fixed-top,
 body.gmk-full-frame footer,
 body.gmk-full-frame .activity-navigation,
-body.gmk-full-frame #region-main-settings-menu {
+body.gmk-full-frame #region-main-settings-menu,
+body.gmk-full-frame .secondary-navigation,
+body.gmk-full-frame .breadcrumb,
+body.gmk-full-frame .breadcrumb-nav,
+body.gmk-full-frame .simplesearchform,
+body.gmk-full-frame #page-footer {
     display: none !important;
 }
 
