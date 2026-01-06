@@ -899,6 +899,39 @@ try {
             $response = ['status' => 'success', 'modules' => $available];
             break;
 
+        case 'local_grupomakro_get_quiz_questions':
+            $cmid = required_param('cmid', PARAM_INT);
+            $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+            $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+            
+            // Validate context (teacher)
+            $context = context_module::instance($cmid);
+            require_capability('mod/quiz:manage', $context);
+            
+            // Get questions via slots
+            $sql = "SELECT q.id, q.name, q.questiontext, q.qtype, s.slot
+                    FROM {question} q
+                    JOIN {quiz_slots} s ON s.questionid = q.id
+                    WHERE s.quizid = :quizid
+                    ORDER BY s.slot";
+            
+            $questions = $DB->get_records_sql($sql, ['quizid' => $quiz->id]);
+            
+            // Clean up content
+            $clean_questions = [];
+            foreach ($questions as $q) {
+                $clean_questions[] = [
+                    'id' => $q->id,
+                    'name' => $q->name,
+                    'questiontext' => strip_tags($q->questiontext), // Plain text preview
+                    'qtype' => $q->qtype,
+                    'slot' => $q->slot
+                ];
+            }
+            
+            $response = ['status' => 'success', 'questions' => $clean_questions];
+            break;
+
         case 'local_grupomakro_create_express_activity':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/create_express_activity.php');
             $classid = required_param('classid', PARAM_INT);

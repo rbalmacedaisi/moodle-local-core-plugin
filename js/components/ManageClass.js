@@ -439,10 +439,9 @@ const ManageClass = {
             }
         },
         openQuizQuestions(activity) {
-            // Moodle URL for editing quiz questions: /mod/quiz/edit.php?cmid=ID
-            // Use M.cfg.wwwroot to ensure correct path even in subdirectories
+            // Use custom quiz editor to bypass redirection issues
             const wwwroot = (window.M && window.M.cfg && window.M.cfg.wwwroot) ? window.M.cfg.wwwroot : '';
-            const url = `${wwwroot}/mod/quiz/edit.php?cmid=${activity.id}`;
+            const url = `${wwwroot}/local/grupomakro_core/pages/quiz_editor.php?cmid=${activity.id}`;
             window.open(url, '_blank');
         },
         addActivity(type, label = '') {

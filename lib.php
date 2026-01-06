@@ -21,8 +21,13 @@ function local_grupomakro_core_user_home_redirect(&$url) {
 
     if ($is_teacher) {
         $dashboard_path = '/local/grupomakro_core/pages/teacher_dashboard.php';
-        // Avoid redirect loop by checking if we are already on that script
-        if (strpos($_SERVER['SCRIPT_NAME'], $dashboard_path) === false) {
+        $quiz_editor_path = '/local/grupomakro_core/pages/quiz_editor.php';
+        
+        // Avoid redirect loop by checking if we are already on allowed scripts
+        $current_script = $_SERVER['SCRIPT_NAME'];
+        
+        if (strpos($current_script, $dashboard_path) === false && 
+            strpos($current_script, $quiz_editor_path) === false) {
             redirect(new moodle_url($dashboard_path));
         }
     }
