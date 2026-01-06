@@ -50,7 +50,7 @@ foreach ($classes as $class) {
                  JOIN {modules} m ON m.id = cm.module
                  WHERE cm.course = :courseid";
                  
-    $mods = $DB->get_records_sql($sql_mods, ['course' => $class->courseid]);
+    $mods = $DB->get_records_sql($sql_mods, ['courseid' => $class->courseid]);
     
     if (empty($mods)) {
         echo "<p style='color:red'>No modules found in course_modules table!</p>";
