@@ -74,46 +74,40 @@ $PAGE->requires->js_init_code("if(window.QuizEditorApp) { window.QuizEditorApp.i
 echo $OUTPUT->header();
 
 echo '<style>
-    /* NUCLEAR OPTION FOR SIDEBARS */
+    /* Hide specific sidebars only, allow Header */
     #nav-drawer, 
     [data-region="drawer"], 
     .drawer-option, 
-    .secondary-navigation,
-    .breadcrumb-nav,
-    #page-header,
-    .d-print-none[role="complementary"],
     #block-region-side-pre,
     #block-region-side-post,
     .block_navigation {
         display: none !important;
-        width: 0 !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
     }
-    #page, #page-content, #region-main {
-        margin-left: 0 !important;
-        padding-left: 0 !important;
+    
+    /* Adjust Main Region to be centered/full width but respect header */
+    #page-content {
+        padding-top: 20px !important;
+    }
+    #region-main {
         width: 100% !important;
         max-width: 100% !important;
+        border: none !important;
+        background: transparent !important;
     }
-    /* Ensure our app is on top and acts like a SPA Overlay */
+    
+    /* Ensure Vue app fits naturally */
     .local_grupomakro_core_dashboard_wrapper {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 99999;
+        width: 100%;
+        min-height: calc(100vh - 60px); /* Approx header height */
         background: #f5f5f5;
-        overflow-y: auto;
     }
 </style>';
 
 echo '<div class="local_grupomakro_core_dashboard_wrapper">';
 echo '<div id="quiz-editor-app">
-    <v-app>
+    <v-app style="background: transparent;">
         <v-main>
-            <v-container fluid class="pa-0 fill-height">
+            <v-container fluid class="pa-0">
                 <quiz-editor :config="initialConfig"></quiz-editor>
             </v-container>
         </v-main>

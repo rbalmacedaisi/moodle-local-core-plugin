@@ -1,45 +1,13 @@
 const QuizEditor = {
     template: `
-        <v-app>
-            <!-- Global Header Replicated (Fixed) -->
-            <v-app-bar app color="white" elevate-on-scroll height="64" style="z-index: 100 !important;">
-                <v-img :src="config.logoUrl" max-height="50" max-width="150" contain class="mr-4 cursor-pointer" @click="goHome"></v-img>
-                <v-toolbar-title class="grey--text text--darken-2 font-weight-bold hidden-sm-and-down">ISI - Portal Docente</v-toolbar-title>
-                <v-spacer></v-spacer>
-                <v-btn text color="primary" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold mr-2">
-                    <v-icon left>mdi-view-dashboard</v-icon> Mi Inicio
-                </v-btn>
-                <v-btn text color="grey darken-1" href="/local/grupomakro_core/pages/teacher_dashboard.php" class="text-capitalize font-weight-bold mr-2">
-                    <v-icon left>mdi-check-circle-outline</v-icon> Calificar
-                </v-btn>
-                <v-menu offset-y>
-                    <template v-slot:activator="{ on, attrs }">
-                        <v-btn icon v-bind="attrs" v-on="on">
-                            <v-avatar color="primary" size="40">
-                                <v-icon dark>mdi-account</v-icon>
-                            </v-avatar>
-                        </v-btn>
-                    </template>
-                    <v-list>
-                        <v-list-item href="/user/profile.php">
-                            <v-list-item-icon><v-icon>mdi-account-circle</v-icon></v-list-item-icon>
-                            <v-list-item-title>Mi Perfil</v-list-item-title>
-                        </v-list-item>
-                        <v-list-item href="/login/logout.php">
-                            <v-list-item-icon><v-icon>mdi-logout</v-icon></v-list-item-icon>
-                            <v-list-item-title>Salir</v-list-item-title>
-                        </v-list-item>
-                    </v-list>
-                </v-menu>
-            </v-app-bar>
-
-            <!-- Main Content Area (Harmonic Center) -->
-            <v-main class="grey lighten-5">
-                <v-container class="pa-6 mx-auto" style="max-width: 1200px;">
+        <v-app style="background: transparent; min-height: auto;">
+            <!-- Main Content Area -->
+            <v-main class="pa-0" style="background: transparent;">
+                <v-container class="pa-4 mx-auto" style="max-width: 1200px;">
                     
                     <!-- Editor Card -->
-                    <v-card class="rounded-lg elevation-1">
-                        <v-toolbar flat color="grey lighten-5" class="border-bottom px-4">
+                    <v-card class="rounded-lg elevation-1 mb-4">
+                        <v-toolbar flat color="white" class="border-bottom px-4">
                             <v-icon color="primary" class="mr-3" large>mdi-file-document-edit-outline</v-icon>
                             <div>
                                 <v-toolbar-title class="subtitle-1 font-weight-bold text-uppercase grey--text text--darken-2">
