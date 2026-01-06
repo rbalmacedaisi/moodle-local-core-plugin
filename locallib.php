@@ -3351,18 +3351,37 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->shuffleanswers = 1;
         
         // Review Options (Default: Show everything after close)
-        // Moodle uses bitmasks for review options. 
-        // 0x10000 = VIEW_AFTER_CLOSE
-        // We set typical defaults: During attempt (0), Immediately after (Marks), Later (Marks), After close (All)
-        // Actually, let's keep it simple: Standard Moodle 'Deferred feedback' defaults.
-        // We won't micromanage reviewoptions bits manually unless needed, 
-        // relying on Moodle's mod_quiz_add_instance defaults if we don't pass them.
-        // BUT, since we are doing add_moduleinfo, we might need to be explicit.
+        // Explicitly set bits for standard behavior if defaults aren't picked up
+        $quiz_review_mask = 0x10000 | 0x01000 | 0x00100 | 0x00010 | 0x00001; // Example mask
         
-        // Let's set basic review options:
-        // reviewattempt, reviewcorrectness, reviewmarks, reviewspecificfeedback, reviewgeneralfeedback, reviewrightanswer, reviewoverallfeedback
-        // for when: during, immediately, open, closed.
-        // This is complex. Standard default is usually fine.
+        // Critical: Missing DB defaults
+        $moduleinfo->password = '';
+        $moduleinfo->subnet = '';
+        $moduleinfo->delay1 = 0;
+        $moduleinfo->delay2 = 0;
+        $moduleinfo->showuserpicture = 0;
+        $moduleinfo->showblocks = 0;
+        $moduleinfo->navmethod = 'free';
+        $moduleinfo->overduehandling = 'autosubmit';
+        $moduleinfo->graceperiod = 0;
+        $moduleinfo->canredoquestions = 0;
+        $moduleinfo->allowofflineattempts = 0;
+        
+        // Review options (during, immediately, open, closed)
+        // 0 = none, or specific bitmask. We set 0 for now or standard.
+        // Moodle 3.x/4.x requires these columns
+        $moduleinfo->reviewattempt = 0;
+        $moduleinfo->reviewcorrectness = 0;
+        $moduleinfo->reviewmarks = 0;
+        $moduleinfo->reviewspecificfeedback = 0;
+        $moduleinfo->reviewgeneralfeedback = 0;
+        $moduleinfo->reviewrightanswer = 0;
+        $moduleinfo->reviewoverallfeedback = 0;
+        
+        // Completion defaults if enabled site-wide
+        $moduleinfo->completionpass = 0;
+        $moduleinfo->completionattemptsexhausted = 0;
+    }
     }
     
     $result = add_moduleinfo($moduleinfo, $course);
