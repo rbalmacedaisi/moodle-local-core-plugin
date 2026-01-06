@@ -14,7 +14,7 @@ const ActivityCreationWizard = {
     template: `
         <v-dialog v-model="visible" max-width="600px" persistent>
             <v-card class="rounded-lg">
-                <v-card-title class="headline font-weight-bold grey lighten-4">
+                <v-card-title class="headline font-weight-bold" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-4'">
                     {{ editMode ? 'Editar' : 'Nueva' }} {{ activityLabel }}
                     <v-spacer></v-spacer>
                     <v-btn icon @click="close"><v-icon>mdi-close</v-icon></v-btn>
@@ -89,12 +89,12 @@ const ActivityCreationWizard = {
                             persistent-hint
                         ></v-combobox>
 
-                        <div v-if="activityType === 'bbb'" class="blue lighten-5 pa-4 rounded-lg mb-4">
+                        <div v-if="activityType === 'bbb'" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'blue-grey darken-4' : 'blue lighten-5'">
                             <v-icon small color="blue" class="mr-2">mdi-information-outline</v-icon>
-                            <span class="text-caption blue--text">
+                            <span class="text-caption blue--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
                                 Se configurará automáticamente con los parámetros de este grupo y horario.
                             </span>
-                            <span class="text-caption blue--text">
+                            <span class="text-caption blue--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
                                 Se configurará automáticamente con los parámetros de este grupo y horario.
                             </span>
                         </div>

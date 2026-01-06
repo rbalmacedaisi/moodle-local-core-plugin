@@ -60,7 +60,7 @@ Vue.component('teacher-student-table', {
                         <!-- Filter Dialog -->
                         <v-dialog v-model="filterDialog" max-width="500px">
                             <v-card>
-                                <v-card-title class="headline grey lighten-2">
+                                <v-card-title class="headline" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-2'">
                                     Filtros Avanzados
                                 </v-card-title>
                                 <v-card-text class="pt-4">
@@ -147,7 +147,7 @@ Vue.component('teacher-student-table', {
                     <template v-slot:item.careers="{ item }">
                         <div class="py-1">
                             <div v-for="(career, index) in item.careers" :key="index" class="mb-1">
-                                <span class="caption font-weight-bold d-block grey--text text--darken-2" style="line-height: 1.2;">
+                                <span class="caption font-weight-bold d-block" :class="$vuetify.theme.dark ? 'grey--text text--lighten-1' : 'grey--text text--darken-2'" style="line-height: 1.2;">
                                     {{ career.career }}
                                 </span>
                             </div>
@@ -402,7 +402,13 @@ Vue.component('teacher-student-table', {
         },
         getChipStyle(item) {
             const theme = this.$vuetify.theme.dark ? "dark" : "light";
-            const themeColors = {
+            const themeColors = this.$vuetify.theme.dark ? {
+                BgChip1: "#1b5e20", TextChip1: "#e8f5e9", // Dark Green / Light Green text
+                BgChip2: "#3e2723", TextChip2: "#ffe0b2", // Dark Brown / Light Orange text
+                BgChip3: "#1a237e", TextChip3: "#c5cae9", // Dark Indigo / Light Indigo text
+                BgChip4: "#b71c1c", TextChip4: "#ffcdd2", // Dark Red / Light Red text
+                BgChip5: "#263238", TextChip5: "#eceff1", // Dark slate / Light slate
+            } : {
                 BgChip1: "#b5e8b8", TextChip1: "#143f34",
                 BgChip2: "#F8F0E5", TextChip2: "#D1A55A",
                 BgChip3: "#E8EAF6", TextChip3: "#3F51B4",

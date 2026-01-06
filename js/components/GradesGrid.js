@@ -33,7 +33,7 @@ Vue.component('grades-grid', {
                     <!-- Student Name Slot -->
                     <template v-slot:item.fullname="{ item }">
                         <div class="d-flex align-center">
-                            <v-avatar size="32" color="grey lighten-2" class="mr-2">
+                            <v-avatar size="32" :color="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-2'" class="mr-2">
                                 <span class="white--text text-caption">{{ item.fullname.charAt(0) }}</span>
                             </v-avatar>
                             <div>
@@ -135,7 +135,7 @@ Vue.component('grades-grid', {
             if (grade === '-' || grade === null || grade === undefined) return '';
             const val = parseFloat(grade);
             if (val < 71) return 'red--text font-weight-bold'; // Failure threshold (example)
-            return 'black--text';
+            return this.$vuetify.theme.dark ? 'white--text' : 'black--text';
         }
     }
 });
