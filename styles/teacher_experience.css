@@ -74,23 +74,34 @@ body.gmk-full-frame .secondary-navigation,
 body.gmk-full-frame .breadcrumb,
 body.gmk-full-frame .breadcrumb-nav,
 body.gmk-full-frame .simplesearchform,
-body.gmk-full-frame #page-footer {
+body.gmk-full-frame #page-footer,
+body.gmk-full-frame [data-region="drawer"],
+body.gmk-full-frame .drawer-option,
+body.gmk-full-frame #block-region-side-pre,
+body.gmk-full-frame #block-region-side-post,
+body.gmk-full-frame .block_navigation,
+body.gmk-full-frame .block_settings {
     display: none !important;
 }
 
 body.gmk-full-frame #page {
     margin-top: 0 !important;
     padding-top: 0 !important;
+    background: white !important;
 }
 
 body.gmk-full-frame #page-content {
     padding: 0 !important;
+    margin: 0 !important;
 }
 
 body.gmk-full-frame #region-main {
     padding: 0 !important;
     border: none !important;
     overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
 }
 
 body.gmk-full-frame .drawer-toggler {

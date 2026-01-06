@@ -1,54 +1,57 @@
 const QuizEditor = {
     template: `
-        <v-card>
-            <v-card-title>
-                Gestor de Preguntas
+        <v-card flat>
+            <v-app-bar color="white" flat dense class="border-bottom sticky-header">
+                <v-icon left color="primary">mdi-format-list-checks</v-icon>
+                <v-toolbar-title class="subtitle-1 font-weight-bold">Preguntas del Cuestionario</v-toolbar-title>
                 <v-spacer></v-spacer>
-            </v-card-title>
-            <v-card-text>
-                <v-alert type="info" text>
-                    Esta es una versión simplificada del editor de cuestionarios.
-                </v-alert>
+                <v-btn text small color="secondary" class="mr-2" disabled>
+                    <v-icon left small>mdi-bank</v-icon> Banco
+                </v-btn>
+                <v-btn color="primary" small depressed @click="showAddQuestionDialog = true">
+                    <v-icon left small>mdi-plus</v-icon> Nueva Pregunta
+                </v-btn>
+            </v-app-bar>
+
+            <v-card-text class="pt-4">                
+                <v-skeleton-loader v-if="loading" type="list-item@3"></v-skeleton-loader>
                 
-                <v-row>
-                    <v-col cols="12" md="8">
-                        <h3>Preguntas del Cuestionario</h3>
-                        <v-skeleton-loader v-if="loading" type="list-item@3"></v-skeleton-loader>
-                        <div v-else-if="questions.length === 0" class="text-center py-5 grey--text">
-                            No hay preguntas en este cuestionario.
-                        </div>
-                        <v-list v-else>
-                            <draggable v-model="questions" @end="updateOrder">
-                                <v-list-item v-for="(q, index) in questions" :key="q.id">
-                                    <v-list-item-avatar color="primary" class="white--text">
-                                        {{ index + 1 }}
-                                    </v-list-item-avatar>
-                                    <v-list-item-content>
-                                        <v-list-item-title>{{ q.name }}</v-list-item-title>
-                                        <v-list-item-subtitle>{{ q.questiontext }} ({{ q.qtype }})</v-list-item-subtitle>
-                                    </v-list-item-content>
-                                    <v-list-item-action>
-                                        <v-btn icon color="red" @click="removeQuestion(q)"><v-icon>mdi-delete</v-icon></v-btn>
-                                    </v-list-item-action>
-                                </v-list-item>
-                            </draggable>
-                        </v-list>
-                    </v-col>
-                    
-                    <v-col cols="12" md="4">
-                        <v-card outlined>
-                            <v-card-title>Agregar Pregunta</v-card-title>
-                            <v-card-text>
-                                <v-btn block color="primary" class="mb-2" @click="showAddQuestionDialog = true">
-                                    <v-icon left>mdi-plus</v-icon> Crear Nueva Pregunta
-                                </v-btn>
-                                 <v-btn block text color="secondary" class="mb-2" href="#" disabled>
-                                    <v-icon left>mdi-bank</v-icon> Banco de Preguntas (Pronto)
-                                </v-btn>
-                            </v-card-text>
-                        </v-card>
-                    </v-col>
-                </v-row>
+                <div v-else-if="questions.length === 0" class="text-center py-10 grey--text">
+                    <v-icon size="64" color="grey lighten-2">mdi-clipboard-text-outline</v-icon>
+                    <div class="mt-2">No hay preguntas en este cuestionario.</div>
+                    <v-btn text color="primary" class="mt-2" @click="showAddQuestionDialog = true">
+                        Crear la primera pregunta
+                    </v-btn>
+                </div>
+                
+                <v-list v-else two-line class="pa-0">
+                    <draggable v-model="questions" @end="updateOrder">
+                        <v-list-item v-for="(q, index) in questions" :key="q.id" class="mb-1 white elevation-1 rounded-lg">
+                            <v-list-item-avatar color="primary lighten-5" class="primary--text font-weight-bold">
+                                {{ index + 1 }}
+                            </v-list-item-avatar>
+                            
+                            <v-list-item-content>
+                                <v-list-item-title class="font-weight-medium">{{ q.name }}</v-list-item-title>
+                                <v-list-item-subtitle class="text--secondary caption">
+                                    <v-chip x-small label outlined class="mr-2">{{ questionTypeLabel(q.qtype) }}</v-chip>
+                                    {{ q.questiontext }}
+                                </v-list-item-subtitle>
+                            </v-list-item-content>
+                            
+                            <v-list-item-action>
+                                <v-tooltip bottom>
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-btn icon color="red lighten-2" small v-bind="attrs" v-on="on" @click="removeQuestion(q)">
+                                            <v-icon small>mdi-delete</v-icon>
+                                        </v-btn>
+                                    </template>
+                                    <span>Eliminar</span>
+                                </v-tooltip>
+                            </v-list-item-action>
+                        </v-list-item>
+                    </draggable>
+                </v-list>
             </v-card-text>
 
             <!-- Add Question Dialog -->
