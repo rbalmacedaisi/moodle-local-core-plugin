@@ -3382,7 +3382,6 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->completionpass = 0;
         $moduleinfo->completionattemptsexhausted = 0;
     }
-    }
     
     $result = add_moduleinfo($moduleinfo, $course);
     
