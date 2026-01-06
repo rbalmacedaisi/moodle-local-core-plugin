@@ -73,21 +73,38 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
 
     // Only intercept if we are on the main landing pages
     try {
-        $is_home = $PAGE->url->compare(new moodle_url('/'), URL_MATCH_BASE);
-        $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
+        // Match exact scripts to ensure we catch Login/Home but NOT modules
+        // Moodle Home is usually /index.php, Dashboard is /my/index.php
+        $script = $_SERVER['SCRIPT_NAME'];
         
-        if ($is_home || $is_dashboard) {
-            // Fix: URL_MATCH_BASE on '/' matches everything. 
-            // We must exclude mod/, course/, and other functional pages explicitly
-            // or rely on pagetype.
-            
-            $pagetype = $PAGE->pagetype; // e.g., 'site-index', 'my-index', 'mod-quiz-edit'
-            
-            // Only redirect if we are truly on the home/dashboard index pages
-            if ($pagetype === 'site-index' || $pagetype === 'my-index' || $pagetype === 'user-profile') {
-                $dummy = null;
-                local_grupomakro_core_user_home_redirect($dummy);
-            }
+        // Define exact paths that should trigger redirection
+        // We use check against the end of the string or exact match logic?
+        // Typically script name is '/index.php' or '/moodle/index.php'.
+        
+        $should_redirect = false;
+        if (substr($script, -10) === '/index.php') {
+             // It's an index page. Check if it is Site Home or Dashboard.
+             // Site Home: /index.php 
+             // Dashboard: /my/index.php
+             // Course Category: /course/index.php (Do NOT redirect)
+             // Mod Index: /mod/quiz/index.php (Do NOT redirect)
+             
+             if (substr($script, -14) === '/my/index.php') {
+                 $should_redirect = true;
+             }
+             // Standard Home check: ends in /index.php AND does not have /mod/, /course/, /admin/ preceding it?
+             // Actually, simplest is to check if it matches the root index.
+             else if ($PAGE->url->compare(new moodle_url('/index.php'), URL_MATCH_EXACT)) {
+                 $should_redirect = true;
+             }
+             else if ($PAGE->url->compare(new moodle_url('/'), URL_MATCH_EXACT)) {
+                 $should_redirect = true;
+             }
+        }
+
+        if ($should_redirect) {
+            $dummy = null;
+            local_grupomakro_core_user_home_redirect($dummy);
         }
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts
