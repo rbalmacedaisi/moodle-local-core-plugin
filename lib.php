@@ -66,8 +66,17 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
         $is_dashboard = $PAGE->url->compare(new moodle_url('/my/'), URL_MATCH_BASE);
         
         if ($is_home || $is_dashboard) {
-            $dummy = null;
-            local_grupomakro_core_user_home_redirect($dummy);
+            // Fix: URL_MATCH_BASE on '/' matches everything. 
+            // We must exclude mod/, course/, and other functional pages explicitly
+            // or rely on pagetype.
+            
+            $pagetype = $PAGE->pagetype; // e.g., 'site-index', 'my-index', 'mod-quiz-edit'
+            
+            // Only redirect if we are truly on the home/dashboard index pages
+            if ($pagetype === 'site-index' || $pagetype === 'my-index' || $pagetype === 'user-profile') {
+                $dummy = null;
+                local_grupomakro_core_user_home_redirect($dummy);
+            }
         }
     } catch (Exception $e) {
         // Avoid crashing the whole site if URL comparison fails in certain contexts
