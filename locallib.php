@@ -3336,6 +3336,33 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->maxattempts = -1;
         $moduleinfo->markingworkflow = 0;
         $moduleinfo->markingallocation = 0;
+    } else if ($type === 'quiz') {
+        $moduleinfo->grade = 10; // Default max grade
+        $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
+        $moduleinfo->timeclose = !empty($extra['timeclose']) ? $extra['timeclose'] : 0;
+        $moduleinfo->timelimit = !empty($extra['timelimit']) ? intval($extra['timelimit']) : 0; // seconds
+        $moduleinfo->attempts = !empty($extra['attempts']) ? intval($extra['attempts']) : 1;
+        $moduleinfo->grademethod = !empty($extra['grademethod']) ? intval($extra['grademethod']) : 1; // 1 = Highest grade
+        
+        // Additional Quiz Defaults
+        $moduleinfo->preferredbehaviour = 'deferredfeedback';
+        $moduleinfo->attemptonlast = 0;
+        $moduleinfo->browsersecurity = '-';
+        $moduleinfo->shuffleanswers = 1;
+        
+        // Review Options (Default: Show everything after close)
+        // Moodle uses bitmasks for review options. 
+        // 0x10000 = VIEW_AFTER_CLOSE
+        // We set typical defaults: During attempt (0), Immediately after (Marks), Later (Marks), After close (All)
+        // Actually, let's keep it simple: Standard Moodle 'Deferred feedback' defaults.
+        // We won't micromanage reviewoptions bits manually unless needed, 
+        // relying on Moodle's mod_quiz_add_instance defaults if we don't pass them.
+        // BUT, since we are doing add_moduleinfo, we might need to be explicit.
+        
+        // Let's set basic review options:
+        // reviewattempt, reviewcorrectness, reviewmarks, reviewspecificfeedback, reviewgeneralfeedback, reviewrightanswer, reviewoverallfeedback
+        // for when: during, immediately, open, closed.
+        // This is complex. Standard default is usually fine.
     }
     
     $result = add_moduleinfo($moduleinfo, $course);

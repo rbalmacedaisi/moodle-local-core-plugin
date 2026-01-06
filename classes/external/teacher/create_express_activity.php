@@ -31,12 +31,17 @@ class create_express_activity extends external_api {
                     VALUE_DEFAULT,
                     []
                 ),
-                'guest' => new external_value(PARAM_BOOL, 'Allow guest access (for BBB)', VALUE_DEFAULT, false)
+                'guest' => new external_value(PARAM_BOOL, 'Allow guest access (for BBB)', VALUE_DEFAULT, false),
+                'timeopen' => new external_value(PARAM_INT, 'Quiz open time', VALUE_DEFAULT, 0),
+                'timeclose' => new external_value(PARAM_INT, 'Quiz close time', VALUE_DEFAULT, 0),
+                'timelimit' => new external_value(PARAM_INT, 'Quiz time limit in seconds', VALUE_DEFAULT, 0),
+                'attempts' => new external_value(PARAM_INT, 'Number of attempts', VALUE_DEFAULT, 1),
+                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1)
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false) {
+    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false, $timeopen = 0, $timeclose = 0, $timelimit = 0, $attempts = 1, $grademethod = 1) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -46,7 +51,12 @@ class create_express_activity extends external_api {
             'save_as_template' => $save_as_template,
             'gradecat' => $gradecat,
             'tags' => $tags,
-            'guest' => $guest
+            'guest' => $guest,
+            'timeopen' => $timeopen,
+            'timeclose' => $timeclose,
+            'timelimit' => $timelimit,
+            'attempts' => $attempts,
+            'grademethod' => $grademethod
         ));
 
         $context = \context_system::instance();
@@ -60,7 +70,12 @@ class create_express_activity extends external_api {
             'duedate' => $params['duedate'],
             'save_as_template' => $params['save_as_template'],
             'gradecat' => $params['gradecat'],
-            'guest' => $params['guest']
+            'guest' => $params['guest'],
+            'timeopen' => $params['timeopen'],
+            'timeclose' => $params['timeclose'],
+            'timelimit' => $params['timelimit'],
+            'attempts' => $params['attempts'],
+            'grademethod' => $params['grademethod']
         ];
 
         try {
