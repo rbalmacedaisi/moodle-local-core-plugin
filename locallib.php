@@ -3317,6 +3317,25 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
         $moduleinfo->assignsubmission_file_enabled = 1;
         $moduleinfo->assignsubmission_onlinetext_enabled = 1;
+        
+        // Fix for missing default values in DB
+        $moduleinfo->submissiondrafts = 0;
+        $moduleinfo->requiresubmissionstatement = 0;
+        $moduleinfo->sendnotifications = 0;
+        $moduleinfo->sendlatenotifications = 0;
+        $moduleinfo->sendstudentnotifications = 1;
+        $moduleinfo->cutoffdate = 0;
+        $moduleinfo->gradingduedate = 0;
+        $moduleinfo->allowsubmissionsfromdate = 0;
+        $moduleinfo->teamsubmission = 0;
+        $moduleinfo->requireallteammemberssubmit = 0;
+        $moduleinfo->blindmarking = 0;
+        $moduleinfo->hidegrader = 0;
+        $moduleinfo->revealidentities = 0;
+        $moduleinfo->attemptreopenmethod = 'none';
+        $moduleinfo->maxattempts = -1;
+        $moduleinfo->markingworkflow = 0;
+        $moduleinfo->markingallocation = 0;
     }
     
     $result = add_moduleinfo($moduleinfo, $course);
