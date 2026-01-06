@@ -3355,9 +3355,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $quiz_review_mask = 0x10000 | 0x01000 | 0x00100 | 0x00010 | 0x00001; // Example mask
         
         // Critical: Missing DB defaults
-        // Trying space to avoid 'empty' checks removing the key
-        $moduleinfo->password = ' '; 
-        $moduleinfo->subnet = ' ';
+        // WORKAROUND: Moodle unsets empty passwords, but DB schema forbids NULL.
+        // We set a dummy password, let it save, then clear it immediately via SQL.
+        $moduleinfo->password = 'temp_pass'; 
+        $moduleinfo->subnet = '';
         $moduleinfo->delay1 = 0;
         $moduleinfo->delay2 = 0;
         $moduleinfo->showuserpicture = 0;
@@ -3389,6 +3390,11 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     file_put_contents(__DIR__ . '/debug.log', print_r($moduleinfo, true), FILE_APPEND);
 
     $result = add_moduleinfo($moduleinfo, $course);
+    
+    // WORKAROUND: Clear the dummy password we set earlier
+    if ($type === 'quiz' && isset($moduleinfo->instance) && $moduleinfo->password === 'temp_pass') {
+        $DB->set_field('quiz', 'password', '', array('id' => $moduleinfo->instance));
+    }
     
     // Handle template saving if requested
     if (!empty($extra['save_as_template'])) {
