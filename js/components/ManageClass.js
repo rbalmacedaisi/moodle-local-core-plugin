@@ -314,10 +314,122 @@ const ManageClass = {
             snackbarText: ''
         };
     },
-    // ... computed ...
-    // ... mounted ...
+    computed: {
+        groupedActivities() {
+            const groups = {};
+            // console.log('Calculating groupedActivities', this.activities);
+            if (!this.activities || !Array.isArray(this.activities)) {
+                // console.warn('Activities is not an array:', this.activities);
+                return {};
+            }
+            this.activities.forEach(activity => {
+                const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
+                // console.log('Activity:', activity.name, 'Tags:', tags);
+                tags.forEach(tag => {
+                    if (!groups[tag]) groups[tag] = [];
+                    groups[tag].push(activity);
+                });
+            });
+            // console.log('Grouped Activities:', groups);
+            return groups;
+        }
+    },
+    mounted() {
+        this.fetchClassDetails();
+        this.fetchTimeline();
+        this.fetchActivities();
+    },
     methods: {
-        // ... methods ...
+        async fetchClassDetails() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_teacher_dashboard_data',
+                    args: { userid: window.userId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    const cls = response.data.data.active_classes.find(c => c.id === this.classId);
+                    if (cls) this.classDetails = cls;
+                }
+            } catch (error) {
+                console.error('Error fetching class details:', error);
+            }
+        },
+        async fetchTimeline() {
+            this.loadingTimeline = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_class_details',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.timeline = response.data.data.sessions;
+                }
+            } catch (error) {
+                console.error('Error fetching timeline:', error);
+            } finally {
+                this.loadingTimeline = false;
+            }
+        },
+        async fetchActivities() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_all_activities',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    // console.log('Fetch Activities Success:', response.data.activities);
+                    this.activities = response.data.activities;
+                } else {
+                    console.warn('Fetch Activities Failed:', response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching activities:', error);
+            }
+        },
+        getSessionColor(session) {
+            const now = new Date();
+            const sessionDate = new Date(parseInt(session.startdate) * 1000);
+            if (sessionDate < now) return 'grey lighten-1';
+            if (this.isNextSession(session)) return 'primary';
+            return 'grey lighten-3';
+        },
+        isNextSession(session) {
+            return false;
+        },
+        isSessionActive(session) {
+            const now = new Date().getTime() / 1000;
+            return now >= (session.startdate - 900);
+        },
+        formatDate(timestamp) {
+            if (!timestamp) return 'No programada';
+            const date = new Date(parseInt(timestamp) * 1000);
+            return date.toLocaleDateString(undefined, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        },
+        enterSession(session) {
+            if (session.type === 'virtual') {
+                if (session.join_url && session.join_url !== '#') {
+                    window.open(session.join_url, '_blank');
+                } else {
+                    let msg = 'El enlace a la sesión virtual no está disponible.';
+                    if (session.debug_error) {
+                        msg += '\nDetalles: ' + session.debug_error;
+                        console.error('BBB Join Error:', session.debug_error);
+                    }
+                    alert(msg);
+                }
+            } else {
+                // Logic to open attendance manager
+            }
+        },
         addActivity(type, label = '') {
             if (type === 'quiz') {
                 this.showQuizWizard = true;
