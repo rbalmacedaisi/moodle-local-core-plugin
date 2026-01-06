@@ -440,8 +440,9 @@ const ManageClass = {
         },
         openQuizQuestions(activity) {
             // Moodle URL for editing quiz questions: /mod/quiz/edit.php?cmid=ID
-            // We assume window.M.cfg.wwwroot is available or construct relative path
-            const url = `/mod/quiz/edit.php?cmid=${activity.id}`;
+            // Use M.cfg.wwwroot to ensure correct path even in subdirectories
+            const wwwroot = (window.M && window.M.cfg && window.M.cfg.wwwroot) ? window.M.cfg.wwwroot : '';
+            const url = `${wwwroot}/mod/quiz/edit.php?cmid=${activity.id}`;
             window.open(url, '_blank');
         },
         addActivity(type, label = '') {
