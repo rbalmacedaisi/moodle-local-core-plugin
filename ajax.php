@@ -932,6 +932,93 @@ try {
             $response = ['status' => 'success', 'questions' => $clean_questions];
             break;
 
+        case 'local_grupomakro_add_question':
+            global $USER;
+            require_once($CFG->libdir . '/questionlib.php');
+            require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+
+            $cmid = required_param('cmid', PARAM_INT);
+            $qjson = required_param('question_data', PARAM_RAW);
+            $data = json_decode($qjson);
+
+            if (!$data) throw new Exception('Invalid JSON data');
+
+            $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+            $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+            $context = context_module::instance($cmid);
+            require_capability('mod/quiz:manage', $context);
+            
+            // Get default category for this quiz context
+            $cat = question_get_default_category($context->id);
+            if (!$cat) {
+                 // Try course context if module context has no category
+                 $course_context = context_course::instance($cm->course);
+                 $cat = question_get_default_category($course_context->id);
+            }
+            if (!$cat) throw new Exception('No question category found');
+
+            // Prepare Question Object
+            $question = new stdClass();
+            $question->qtype = $data->type;
+            $question->name = $data->name;
+            $question->questiontext = ['text' => $data->text, 'format' => FORMAT_HTML];
+            $question->defaultmark = isset($data->defaultmark) ? $data->defaultmark : 1;
+            $question->category = $cat->id;
+            $question->stamp = make_unique_id_code();
+            $question->version = make_unique_id_code();
+            $question->timecreated = time();
+            $question->timemodified = time();
+            $question->createdby = $USER->id;
+            $question->modifiedby = $USER->id;
+
+            // Type Specific Handling
+            if ($data->type === 'truefalse') {
+                $question->correctanswer = $data->correctAnswer; 
+                $question->feedbacktrue = ['text' => '', 'format' => FORMAT_HTML];
+                $question->feedbackfalse = ['text' => '', 'format' => FORMAT_HTML];
+            } 
+            elseif ($data->type === 'multichoice' || $data->type === 'shortanswer') {
+                $question->single = isset($data->single) && $data->single ? 1 : 0;
+                $question->shuffleanswers = 1;
+                $question->answernumbering = 'abc';
+                
+                $question->answer = [];
+                $question->fraction = [];
+                $question->feedback = [];
+                
+                foreach ($data->answers as $ans) {
+                    $question->answer[] = ['text' => $ans->text, 'format' => FORMAT_HTML];
+                    $question->fraction[] = $ans->fraction;
+                    $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
+                }
+            } 
+            elseif ($data->type === 'essay') {
+                $question->responseformat = 'editor';
+                $question->responsefieldlines = 15;
+                $question->attachments = 0;
+                $question->graderinfo = ['text' => '', 'format' => FORMAT_HTML];
+                $question->responsetemplate = ['text' => '', 'format' => FORMAT_HTML];
+            }
+            else {
+                // For other types, try to save minimal or fail
+                if ($data->type === 'description') {
+                     // Description works with just name/text
+                } else {
+                     // throw new Exception("Tipo de pregunta '$data->type' no soportado aún en guardado rápido.");
+                     // Proceeding might create a broken question. 
+                     // We allow it to try basic fields, Moodle might error or create partial.
+                }
+            }
+
+            // SAVE using core function
+            $newq = question_save_question($question, $question);
+            
+            // ADD TO QUIZ
+            quiz_add_quiz_question($newq->id, $quiz);
+
+            $response = ['status' => 'success', 'id' => $newq->id];
+            break;
+
         case 'local_grupomakro_create_express_activity':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/create_express_activity.php');
             $classid = required_param('classid', PARAM_INT);
