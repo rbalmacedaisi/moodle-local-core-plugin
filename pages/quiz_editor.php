@@ -35,8 +35,10 @@ $PAGE->set_context(context_module::instance($cm->id));
 $PAGE->set_title('Gestor de Preguntas del Cuestionario');
 $PAGE->set_heading('Gestor de Preguntas del Cuestionario');
 $PAGE->set_pagelayout('standard');
+$PAGE->add_body_class('gmk-full-frame'); // Force full screen mode
 
 // Assets
+$PAGE->requires->css(new moodle_url('/local/grupomakro_core/styles/teacher_experience.css'));
 $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css'));
 $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css'));
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js'), true);

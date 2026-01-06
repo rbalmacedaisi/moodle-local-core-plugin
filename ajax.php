@@ -906,7 +906,15 @@ try {
             
             // Validate context (teacher)
             $context = context_module::instance($cmid);
-            require_capability('mod/quiz:manage', $context);
+            
+            // Permission Logic with Fallback
+            if (!has_capability('mod/quiz:manage', $context)) {
+                $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
+                $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id, 'closed' => 0]);
+                if (!$is_gmk_instructor) {
+                    require_capability('mod/quiz:manage', $context);
+                }
+            }
             
             // Get questions via slots
             $sql = "SELECT q.id, q.name, q.questiontext, q.qtype, s.slot
@@ -946,7 +954,15 @@ try {
             $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
             $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
             $context = context_module::instance($cmid);
-            require_capability('mod/quiz:manage', $context);
+            
+            // Permission Logic with Fallback
+            if (!has_capability('mod/quiz:manage', $context)) {
+                $course = $DB->get_record('course', ['id' => $cm->course], '*', MUST_EXIST);
+                $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $course->id, 'instructorid' => $USER->id, 'closed' => 0]);
+                if (!$is_gmk_instructor) {
+                    require_capability('mod/quiz:manage', $context);
+                }
+            }
             
             // Get default category for this quiz context
             $cat = question_get_default_category($context->id);
