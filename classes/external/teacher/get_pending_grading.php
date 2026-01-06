@@ -49,8 +49,7 @@ class get_pending_grading extends external_api {
                        u.lastname,
                        u.email,
                        u.picture,
-                       u.imagealt,
-                       u.email
+                       u.imagealt
                 FROM {assign_submission} s
                 JOIN {assign} a ON a.id = s.assignment
                 JOIN {course} c ON c.id = a.course
