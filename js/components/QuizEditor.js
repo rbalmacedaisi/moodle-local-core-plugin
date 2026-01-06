@@ -8,6 +8,9 @@ const QuizEditor = {
                     <!-- Editor Card -->
                     <v-card class="rounded-lg elevation-1 mb-4">
                         <v-toolbar flat color="white" class="border-bottom px-4">
+                            <v-btn icon class="mr-2" @click="$emit('back')">
+                                <v-icon>mdi-arrow-left</v-icon>
+                            </v-btn>
                             <v-icon color="primary" class="mr-3" large>mdi-file-document-edit-outline</v-icon>
                             <div>
                                 <v-toolbar-title class="subtitle-1 font-weight-bold text-uppercase grey--text text--darken-2">
@@ -76,8 +79,7 @@ const QuizEditor = {
                     </v-card>
                 </v-container>
             </v-main>
-
-
+            
             <!-- Add Question Dialog -->
             <v-dialog v-model="showAddQuestionDialog" max-width="600px">
                 <v-card>
@@ -159,9 +161,9 @@ const QuizEditor = {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
-        </v-card>
+        </v-app>
     `,
-    props: ['config'],
+    props: ['config', 'cmid'],
     data: () => ({
         loading: false,
         saving: false,
@@ -217,44 +219,6 @@ const QuizEditor = {
     }),
     mounted() {
         this.fetchQuestions();
-        // Aggressively hide Moodle sidebar with repeated attempts
-        const hideSidebar = () => {
-            const selectors = [
-                '#nav-drawer',
-                '[data-region="drawer"]',
-                '.drawer-option',
-                '#page-header',
-                '.secondary-navigation',
-                '.breadcrumb-nav',
-                '#block-region-side-pre',
-                '#block-region-side-post',
-                '.block_navigation'
-            ];
-            selectors.forEach(s => {
-                const els = document.querySelectorAll(s);
-                els.forEach(el => el.style.setProperty('display', 'none', 'important'));
-            });
-            // Force full width
-            const main = document.getElementById('region-main');
-            if (main) {
-                main.style.setProperty('width', '100%', 'important');
-                main.style.setProperty('max-width', '100%', 'important');
-                main.style.setProperty('border', 'none', 'important');
-                main.style.setProperty('padding', '0', 'important');
-                main.style.setProperty('overflow', 'visible', 'important');
-            }
-            const page = document.getElementById('page');
-            if (page) {
-                page.style.setProperty('margin-top', '0', 'important');
-                page.style.setProperty('padding-top', '0', 'important');
-                page.style.setProperty('background', '#f5f5f5', 'important');
-            }
-        };
-
-        // Run immediately and every 500ms for 5 seconds
-        hideSidebar();
-        const interval = setInterval(hideSidebar, 500);
-        setTimeout(() => clearInterval(interval), 5000);
     },
     methods: {
         goHome() {
@@ -266,7 +230,16 @@ const QuizEditor = {
                 // Use Moodle wwwroot passed in config
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_quiz_questions');
-                params.append('cmid', this.config.cmid);
+
+                // Prioritize prop cmid, fallback to config if exists (for standalone usage)
+                const activeCmid = this.cmid || this.config.cmid;
+
+                if (!activeCmid) {
+                    // console.error('QuizEditor: No CMID provided');
+                    return;
+                }
+
+                params.append('cmid', activeCmid);
                 // Moodle requires sesskey usually for ajax, pass it if needed, though ajax.php seems open-ish or uses require_login
                 if (this.config.sesskey) {
                     params.append('sesskey', this.config.sesskey);
@@ -300,7 +273,7 @@ const QuizEditor = {
             try {
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_add_question');
-                params.append('cmid', this.config.cmid);
+                params.append('cmid', this.cmid || this.config.cmid);
                 if (this.config.sesskey) params.append('sesskey', this.config.sesskey);
 
                 params.append('question_data', JSON.stringify(this.newQuestion));
@@ -325,7 +298,9 @@ const QuizEditor = {
             }
         },
         removeQuestion(q) {
-            confirm('¿Eliminar pregunta del cuestionario? (No se borra del banco)');
+            if (confirm('¿Eliminar pregunta del cuestionario? (No se borra del banco)')) {
+                // To implement
+            }
         },
         updateOrder() {
             // Reorder logic
@@ -334,6 +309,9 @@ const QuizEditor = {
 };
 
 if (typeof window !== 'undefined') {
+    window.QuizEditor = QuizEditor; // Export Component
+
+    // Standalone intialization (legacy support)
     window.QuizEditorApp = {
         init: function (config) {
             new Vue({

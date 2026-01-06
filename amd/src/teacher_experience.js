@@ -23,6 +23,7 @@ window.TeacherExperience = {
 
         if (window.PendingGradingView) Vue.component('pending-grading-view', window.PendingGradingView);
         if (window.QuickGrader) Vue.component('quick-grader', window.QuickGrader);
+        if (window.QuizEditor) Vue.component('quiz-editor', window.QuizEditor);
 
         // Create Vue Application
         const mountPoint = document.getElementById('teacher-app');
@@ -106,11 +107,19 @@ window.TeacherExperience = {
                                 v-if="currentPage === 'manage-class'"
                                 :class-id="selectedClassId"
                                 @back="currentPage = 'dashboard'"
+                                @change-page="navigate"
                             ></manage-class>
 
                             <pending-grading-view
                                 v-if="currentPage === 'grading'"
                             ></pending-grading-view>
+
+                            <quiz-editor
+                                v-if="currentPage === 'quiz-editor'"
+                                :config="config"
+                                :cmid="selectedCmid"
+                                @back="navigate({page: 'manage-class', id: selectedClassId})"
+                            ></quiz-editor>
                         </v-fade-transition>
                     </v-main>
                 </v-app>
@@ -119,13 +128,16 @@ window.TeacherExperience = {
                 return {
                     currentPage: 'dashboard',
                     selectedClassId: null,
+                    selectedCmid: null,
                     config: config
                 };
             },
             methods: {
                 navigate(payload) {
+                    // console.log('Navigating to:', payload);
                     this.currentPage = payload.page;
-                    this.selectedClassId = payload.id;
+                    if (payload.id) this.selectedClassId = payload.id;
+                    if (payload.cmid) this.selectedCmid = payload.cmid;
                 }
             }
         });

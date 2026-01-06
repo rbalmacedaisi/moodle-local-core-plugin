@@ -439,10 +439,12 @@ const ManageClass = {
             }
         },
         openQuizQuestions(activity) {
-            // Use custom quiz editor to bypass redirection issues
-            const wwwroot = (window.M && window.M.cfg && window.M.cfg.wwwroot) ? window.M.cfg.wwwroot : '';
-            const url = `${wwwroot}/local/grupomakro_core/pages/quiz_editor.php?cmid=${activity.id}`;
-            window.open(url, '_blank');
+            // Use SPA navigation instead of new window
+            this.$emit('change-page', {
+                page: 'quiz-editor',
+                cmid: activity.id,
+                id: this.classId // Ensure we keep track of current class
+            });
         },
         addActivity(type, label = '') {
             if (type === 'quiz') {
