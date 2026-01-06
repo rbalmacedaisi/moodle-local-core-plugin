@@ -112,9 +112,10 @@ class get_pending_grading extends external_api {
             $userobj->lastname = $sub->lastname;
             $userobj->imagealt = $sub->imagealt;
             $userobj->email = $sub->email;
+            global $PAGE;
             $user_picture = new \user_picture($userobj);
             $user_picture->size = 1; // f1 size
-            $item->studentavatar = $user_picture->get_url(\context_system::instance())->out(false);
+            $item->studentavatar = $user_picture->get_url($PAGE)->out(false);
 
             $item->submissiontime = $sub->submissiontime;
             $item->duedate = $sub->duedate;
