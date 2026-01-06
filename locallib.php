@@ -3387,7 +3387,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     
     
     // DEBUG: Force crash to see state
-    throw new Exception("DEBUG STOP: Type: $type. Pass: " . (isset($moduleinfo->password) ? $moduleinfo->password : 'UNSET'));
+    // throw new Exception("DEBUG STOP: Type: $type. Pass: " . (isset($moduleinfo->password) ? $moduleinfo->password : 'UNSET'));
+
+    // Try redundant mapping for Moodle form weirdness
+    $moduleinfo->quizpassword = 'temp_pass';
 
     $result = add_moduleinfo($moduleinfo, $course);
     
