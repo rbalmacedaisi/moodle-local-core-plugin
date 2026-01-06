@@ -11,6 +11,14 @@ if (!file_exists($config_path)) {
 require_once($config_path);
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
+use local_grupomakro_core\external\teacher\create_express_activity;
+use local_grupomakro_core\external\teacher\get_pending_grading;
+use local_grupomakro_core\external\teacher\save_grade;
+use local_grupomakro_core\external\student\get_student_info;
+use local_grupomakro_core\external\student\update_status;
+use local_grupomakro_core\external\student\sync_progress;
+use local_grupomakro_core\external\teacher\get_dashboard_data;
+
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
 // JSON Request Handling (for Axios)
@@ -913,9 +921,7 @@ try {
                 }
             }
 
-            use local_grupomakro_core\external\teacher\create_express_activity;
-            use local_grupomakro_core\external\teacher\get_pending_grading;
-            use local_grupomakro_core\external\teacher\save_grade;
+
             try {
                 $response = create_express_activity::execute(
                     $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
