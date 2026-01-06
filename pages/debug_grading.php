@@ -3,7 +3,13 @@
  * Debug Grading Logic
  */
 
-require_once(__DIR__ . '/../../config.php');
+// Try multiple levels up to find config.php
+$config_path = __DIR__ . '/../../../config.php';
+if (!file_exists($config_path)) {
+    // Fallback or error
+    die("Config file not found at " . $config_path);
+}
+require_once($config_path);
 require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
 require_login();
