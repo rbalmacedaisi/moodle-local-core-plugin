@@ -185,6 +185,25 @@ const QuizCreationWizard = {
                         </v-btn>
                      </div>
                 </v-stepper-content>
+                <v-dialog v-model="showErrorDialog" max-width="600px">
+                    <v-card>
+                        <v-card-title class="headline error--text">Error</v-card-title>
+                        <v-card-text>
+                            <p>Ha ocurrido un error al crear el cuestionario. Detalle técnico:</p>
+                            <v-textarea
+                                v-model="errorDetails"
+                                readonly
+                                outlined
+                                rows="5"
+                                auto-grow
+                            ></v-textarea>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="primary" text @click="showErrorDialog = false">Cerrar</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
             </v-stepper>
         </v-card>
     </v-dialog>
@@ -201,6 +220,8 @@ const QuizCreationWizard = {
             saving: false,
             menuOpenDate: false,
             menuCloseDate: false,
+            showErrorDialog: false,
+            errorDetails: '',
             quiz: {
                 name: '',
                 intro: '',
@@ -282,11 +303,16 @@ const QuizCreationWizard = {
                     this.$emit('success');
                     this.closeDialog();
                 } else {
-                    alert('Error: ' + response.data.message);
+                    this.errorDetails = 'Error: ' + response.data.message;
+                    if (response.data.debuginfo) {
+                        this.errorDetails += '\n\nDebug Info:\n' + response.data.debuginfo;
+                    }
+                    this.showErrorDialog = true;
                 }
             } catch (error) {
                 console.error(error);
-                alert('Error de conexión o servidor.');
+                this.errorDetails = 'Error de conexión o servidor: ' + error.message;
+                this.showErrorDialog = true;
             } finally {
                 this.saving = false;
             }

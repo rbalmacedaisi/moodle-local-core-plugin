@@ -3355,8 +3355,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $quiz_review_mask = 0x10000 | 0x01000 | 0x00100 | 0x00010 | 0x00001; // Example mask
         
         // Critical: Missing DB defaults
-        $moduleinfo->password = '';
-        $moduleinfo->subnet = '';
+        // Trying space to avoid 'empty' checks removing the key
+        $moduleinfo->password = ' '; 
+        $moduleinfo->subnet = ' ';
         $moduleinfo->delay1 = 0;
         $moduleinfo->delay2 = 0;
         $moduleinfo->showuserpicture = 0;
