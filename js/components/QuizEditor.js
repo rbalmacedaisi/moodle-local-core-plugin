@@ -117,32 +117,94 @@ const QuizEditor = {
                             </v-alert>
                         </div>
 
-                        <!-- MultiChoice / ShortAnswer -->
-                        <div v-else-if="newQuestion.type === 'multichoice' || newQuestion.type === 'shortanswer'">
-                            <div class="d-flex justify-space-between align-center mb-2">
-                                <h3>Opciones de Respuesta</h3>
-                                <v-btn small text color="primary" @click="addAnswerChoice"><v-icon left>mdi-plus</v-icon> Agregar Opción</v-btn>
+                        <!-- Match Specific -->
+                        <div v-else-if="newQuestion.type === 'match'">
+                            <v-alert type="info" dense text small>
+                                Ingrese al menos dos pares de preguntas y respuestas.
+                            </v-alert>
+                            <div v-for="(subq, i) in newQuestion.subquestions" :key="i" class="mb-4">
+                                <v-card outlined class="pa-3">
+                                    <div class="d-flex justify-space-between caption grey--text text-uppercase font-weight-bold mb-1">
+                                        Par {{ i + 1 }}
+                                        <v-btn icon x-small color="red" @click="removeSubQuestion(i)" v-if="newQuestion.subquestions.length > 2">
+                                            <v-icon>mdi-close</v-icon>
+                                        </v-btn>
+                                    </div>
+                                    <v-text-field label="Pregunta" v-model="subq.text" outlined dense hide-details class="mb-2"></v-text-field>
+                                    <v-text-field label="Respuesta correspondiente" v-model="subq.answer" outlined dense hide-details></v-text-field>
+                                </v-card>
                             </div>
-                            
+                            <v-btn small text color="primary" @click="addSubQuestion" class="mt-1">
+                                <v-icon left>mdi-plus</v-icon> Agregar otro par
+                            </v-btn>
+                            <v-divider class="my-4"></v-divider>
+                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar respuestas" dense></v-checkbox>
+                        </div>
+
+                        <!-- Numerical Specific -->
+                        <div v-else-if="newQuestion.type === 'numerical'">
+                            <v-alert type="info" dense text small>
+                                La respuesta correcta debe tener una calificación del 100%. Puede añadir rangos de tolerancia.
+                            </v-alert>
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <h3>Respuestas Numéricas</h3>
+                                <v-btn small text color="primary" @click="addAnswerChoice"><v-icon left>mdi-plus</v-icon> Agregar Respuesta</v-btn>
+                            </div>
                             <v-card outlined v-for="(ans, i) in newQuestion.answers" :key="i" class="mb-2 pa-2">
                                 <v-row dense align="center">
-                                    <v-col cols="12" md="7">
-                                        <v-text-field label="Respuesta" v-model="newQuestion.answers[i].text" hide-details dense></v-text-field>
+                                    <v-col cols="12" md="4">
+                                        <v-text-field label="Valor Correcto" v-model="newQuestion.answers[i].text" type="number" step="any" hide-details dense></v-text-field>
                                     </v-col>
                                     <v-col cols="6" md="3">
-                                        <v-select 
-                                            label="Calificación" 
-                                            :items="gradeOptions" 
-                                            v-model="newQuestion.answers[i].fraction" 
-                                            hide-details dense
-                                        ></v-select>
+                                        <v-text-field label="Tolerancia (±)" v-model="newQuestion.answers[i].tolerance" type="number" step="any" hide-details dense></v-text-field>
+                                    </v-col>
+                                    <v-col cols="6" md="3">
+                                        <v-select label="Calificación" :items="gradeOptions" v-model="newQuestion.answers[i].fraction" hide-details dense></v-select>
                                     </v-col>
                                     <v-col cols="6" md="2" class="text-right">
                                         <v-btn icon color="red" small @click="removeAnswerChoice(i)"><v-icon>mdi-delete</v-icon></v-btn>
                                     </v-col>
                                 </v-row>
                             </v-card>
-                            <v-checkbox v-if="newQuestion.type === 'multichoice'" v-model="newQuestion.single" label="Solo una respuesta correcta" dense></v-checkbox>
+                            <div class="mt-4">
+                                <h4>Unidades (Opcional)</h4>
+                                <v-row dense>
+                                    <v-col cols="6">
+                                        <v-text-field label="Unidad (ej: kg)" v-model="newQuestion.unit" dense outlined></v-text-field>
+                                    </v-col>
+                                    <v-col cols="6">
+                                        <v-select label="Penalización por unidad" v-model="newQuestion.unitpenalty" :items="[0, 0.1, 0.2, 0.5, 1]" dense outlined></v-select>
+                                    </v-col>
+                                </v-row>
+                            </div>
+                        </div>
+
+                         <!-- Gap Select / DD to Text -->
+                        <div v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'">
+                            <v-alert type="info" dense text small class="mb-2">
+                                En el enunciado, use <code>[[1]]</code>, <code>[[2]]</code>, etc. para indicar dónde van las opciones.
+                            </v-alert>
+                            <div class="d-flex justify-space-between align-center mb-2">
+                                <h3>Opciones (Markers)</h3>
+                                <v-btn small text color="primary" @click="addAnswerChoice"><v-icon left>mdi-plus</v-icon> Agregar Opción</v-btn>
+                            </div>
+                            <v-card outlined v-for="(ans, i) in newQuestion.answers" :key="i" class="mb-2 pa-2">
+                                <v-row dense align="center">
+                                    <v-col cols="1" class="text-center font-weight-bold grey--text">
+                                        [[{{ i + 1 }}]]
+                                    </v-col>
+                                    <v-col cols="12" md="8">
+                                        <v-text-field label="Texto de la opción" v-model="newQuestion.answers[i].text" hide-details dense></v-text-field>
+                                    </v-col>
+                                    <v-col cols="6" md="2">
+                                        <v-select label="Grupo" v-model="newQuestion.answers[i].group" :items="[1,2,3,4,5]" hide-details dense></v-select>
+                                    </v-col>
+                                    <v-col cols="6" md="1" class="text-right">
+                                        <v-btn icon color="red" small @click="removeAnswerChoice(i)"><v-icon>mdi-delete</v-icon></v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar opciones" dense></v-checkbox>
                         </div>
 
                         <!-- Fallback for complex types -->
@@ -194,10 +256,17 @@ const QuizEditor = {
             defaultmark: 1,
             correctAnswer: '1',
             answers: [
-                { text: '', fraction: 1.0 },
-                { text: '', fraction: 0.0 }
+                { text: '', fraction: 1.0, tolerance: 0, group: 1 },
+                { text: '', fraction: 0.0, tolerance: 0, group: 1 }
             ],
-            single: true
+            single: true,
+            subquestions: [
+                { text: '', answer: '' },
+                { text: '', answer: '' }
+            ],
+            shuffleanswers: true,
+            unit: '',
+            unitpenalty: 0.1
         },
         gradeOptions: [
             { text: 'Ninguna (0%)', value: 0.0 },
@@ -259,10 +328,37 @@ const QuizEditor = {
             }
         },
         addAnswerChoice() {
-            this.newQuestion.answers.push({ text: '', fraction: 0.0 });
+            this.newQuestion.answers.push({ text: '', fraction: 0.0, tolerance: 0, group: 1 });
         },
         removeAnswerChoice(index) {
             this.newQuestion.answers.splice(index, 1);
+        },
+        addSubQuestion() {
+            this.newQuestion.subquestions.push({ text: '', answer: '' });
+        },
+        removeSubQuestion(index) {
+            this.newQuestion.subquestions.splice(index, 1);
+        },
+        resetNewQuestion() {
+            this.newQuestion = {
+                type: 'truefalse',
+                name: '',
+                text: '',
+                defaultmark: 1,
+                correctAnswer: '1',
+                answers: [
+                    { text: '', fraction: 1.0, tolerance: 0, group: 1 },
+                    { text: '', fraction: 0.0, tolerance: 0, group: 1 }
+                ],
+                single: true,
+                subquestions: [
+                    { text: '', answer: '' },
+                    { text: '', answer: '' }
+                ],
+                shuffleanswers: true,
+                unit: '',
+                unitpenalty: 0.1
+            };
         },
         questionTypeLabel(type) {
             const t = this.questionTypes.find(x => x.value === type);
@@ -283,10 +379,7 @@ const QuizEditor = {
                 if (response.data && response.data.status === 'success') {
                     this.showAddQuestionDialog = false;
                     this.fetchQuestions();
-                    // Reset
-                    this.newQuestion.name = '';
-                    this.newQuestion.text = '';
-                    this.newQuestion.answers = [{ text: '', fraction: 1.0 }, { text: '', fraction: 0.0 }];
+                    this.resetNewQuestion();
                 } else {
                     console.error('Save failed. Response:', response);
                     console.error('Data:', response.data);

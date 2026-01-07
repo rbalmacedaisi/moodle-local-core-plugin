@@ -1024,6 +1024,49 @@ try {
                         $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
                     }
                 } 
+                elseif ($data->type === 'numerical') {
+                    $question->answer = [];
+                    $question->fraction = [];
+                    $question->tolerance = [];
+                    $question->feedback = [];
+
+                    foreach ($data->answers as $ans) {
+                        $question->answer[] = $ans->text; // Numerical value
+                        $question->fraction[] = $ans->fraction;
+                        $question->tolerance[] = isset($ans->tolerance) ? $ans->tolerance : 0;
+                        $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
+                    }
+                    if (!empty($data->unit)) {
+                        $question->unit = [$data->unit]; // Basic unit support
+                        $question->multiplier = [1.0];
+                    }
+                }
+                elseif ($data->type === 'match') {
+                    $question->shuffleanswers = isset($data->shuffleanswers) && $data->shuffleanswers ? 1 : 0;
+                    $question->subquestions = [];
+                    $question->subanswers = [];
+                    
+                    foreach ($data->subquestions as $sub) {
+                        if (!empty($sub->text) && !empty($sub->answer)) {
+                            $question->subquestions[] = ['text' => $sub->text, 'format' => FORMAT_HTML];
+                            $question->subanswers[] = $sub->answer;
+                        }
+                    }
+                }
+                elseif ($data->type === 'gapselect' || $data->type === 'ddwtos') {
+                    $question->shuffleanswers = isset($data->shuffleanswers) && $data->shuffleanswers ? 1 : 0;
+                    $question->answer = []; // Text
+                    $question->choicegroup = []; // Group
+
+                    foreach ($data->answers as $ans) {
+                        $question->answer[] = ['text' => $ans->text, 'format' => FORMAT_HTML];
+                        $question->choicegroup[] = isset($ans->group) ? $ans->group : 1;
+                    }
+                    // ddwtos might use slightly different structure (choices vs answer), but getting qtype logic usually handles 'answer' if strictly mapped. We use standard generic mapping.
+                }
+                elseif ($data->type === 'description') {
+                    // Just name and questiontext (intro) are needed, already set.
+                }
                 elseif ($data->type === 'essay') {
                     $question->responseformat = 'editor';
                     $question->responsefieldlines = 15;
