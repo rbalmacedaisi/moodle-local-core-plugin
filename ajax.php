@@ -953,9 +953,12 @@ try {
 
         case 'local_grupomakro_add_question':
             try {
-                global $USER;
+                global $USER, $CFG; // Ensure $CFG is available
                 require_once($CFG->libdir . '/questionlib.php');
                 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+                // FIXED: Missing includes for question editing functions
+                require_once($CFG->dirroot . '/question/editlib.php'); 
+                require_once($CFG->dirroot . '/question/lib.php');
 
                 $cmid = required_param('cmid', PARAM_INT);
                 $qjson = required_param('question_data', PARAM_RAW);
@@ -1037,7 +1040,7 @@ try {
 
                 $response = ['status' => 'success', 'id' => $newq->id];
 
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
             }
             break;
