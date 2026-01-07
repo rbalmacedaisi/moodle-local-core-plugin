@@ -1032,8 +1032,9 @@ try {
                     $question->responsetemplate = ['text' => '', 'format' => FORMAT_HTML];
                 }
 
-                // SAVE using core function
-                $newq = question_save_question($question, $question);
+                // SAVE using correct API
+                $qtypeobj = question_bank::get_qtype($question->qtype);
+                $newq = $qtypeobj->save_question($question, $question);
                 
                 // ADD TO QUIZ
                 quiz_add_quiz_question($newq->id, $quiz);
@@ -1041,7 +1042,11 @@ try {
                 $response = ['status' => 'success', 'id' => $newq->id];
 
             } catch (Throwable $e) {
-                $response = ['status' => 'error', 'message' => $e->getMessage()];
+                // Return clear error message
+                $response = ['status' => 'error', 'message' => 'Error al guardar: ' . $e->getMessage()];
+                if (debugging()) {
+                    $response['debug'] = $e->getTraceAsString();
+                }
             }
             break;
 

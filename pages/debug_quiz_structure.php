@@ -4,14 +4,13 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->libdir . '/questionlib.php');
 require_once($CFG->dirroot . '/question/editlib.php');
 
-admin_externalpage_setup('pluginname'); // Adjust or remove if not using admin tree, just require_login usually enough for debug
-
 require_login();
 $context = context_system::instance();
 require_capability('moodle/site:config', $context); // Only admins
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_quiz_structure.php');
 $PAGE->set_context($context);
+$PAGE->set_pagelayout('standard'); // Standard layout, not admin
 $PAGE->set_title('Diagnóstico de Estructura de Preguntas');
 $PAGE->set_heading('Diagnóstico de Estructura de Preguntas');
 
