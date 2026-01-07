@@ -1052,6 +1052,12 @@ try {
                             $question->subanswers[] = $sub->answer;
                         }
                     }
+
+                    // Combined Feedback Defaults (Required for Match)
+                    $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->shownumcorrect = 1;
                 }
                 elseif ($data->type === 'gapselect' || $data->type === 'ddwtos') {
                     $question->shuffleanswers = isset($data->shuffleanswers) && $data->shuffleanswers ? 1 : 0;
@@ -1062,7 +1068,12 @@ try {
                         $question->answer[] = ['text' => $ans->text, 'format' => FORMAT_HTML];
                         $question->choicegroup[] = isset($ans->group) ? $ans->group : 1;
                     }
-                    // ddwtos might use slightly different structure (choices vs answer), but getting qtype logic usually handles 'answer' if strictly mapped. We use standard generic mapping.
+                    
+                    // Combined Feedback Defaults
+                    $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->shownumcorrect = 1;
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.

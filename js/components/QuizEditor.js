@@ -223,6 +223,27 @@ const QuizEditor = {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+            <!-- Error Dialog -->
+            <v-dialog v-model="errorDialog" max-width="600px">
+                <v-card>
+                    <v-card-title class="headline error--text">Error al Guardar</v-card-title>
+                    <v-card-text>
+                        <p>Ocurrió un error al procesar su solicitud. Por favor, copie el siguiente detalle y repórtelo al soporte técnico:</p>
+                        <v-textarea
+                            v-model="errorDetails"
+                            outlined
+                            readonly
+                            rows="10"
+                            class="font-family-monospace"
+                            style="font-family: monospace; font-size: 12px;"
+                        ></v-textarea>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn color="primary" text @click="errorDialog = false">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </v-app>
     `,
     props: ['config', 'cmid'],
@@ -284,7 +305,9 @@ const QuizEditor = {
             { text: '20%', value: 0.2 },
             { text: '-50%', value: -0.5 },
             { text: '-100%', value: -1.0 }
-        ]
+        ],
+        errorDialog: false,
+        errorDetails: ''
     }),
     mounted() {
         this.fetchQuestions();
@@ -383,14 +406,23 @@ const QuizEditor = {
                 } else {
                     console.error('Save failed. Response:', response);
                     console.error('Data:', response.data);
-                    const msg = (response.data && response.data.message)
-                        ? response.data.message
-                        : 'Desconocido. Revise consola. Raw: ' + (typeof response.data === 'string' ? response.data.substring(0, 100) : JSON.stringify(response.data));
-                    alert('Error: ' + msg);
+
+                    let msg = (response.data && response.data.message) ? response.data.message : 'Unknown Error';
+                    let debugInfo = (response.data && response.data.debug) ? response.data.debug : '';
+                    let raw = '';
+
+                    if (typeof response.data !== 'object') {
+                        raw = String(response.data);
+                        msg = 'Respuesta inesperada del servidor (no JSON)';
+                    }
+
+                    this.errorDetails = `Mensaje: ${msg}\n\nDebug Info:\n${debugInfo}\n\nRaw Response (inicio):\n${raw.substring(0, 500)}`;
+                    this.errorDialog = true;
                 }
             } catch (error) {
                 console.error(error);
-                alert('Connection Error');
+                this.errorDetails = `Connection/JS Error:\n${error.toString()}`;
+                this.errorDialog = true;
             } finally {
                 this.saving = false;
             }
