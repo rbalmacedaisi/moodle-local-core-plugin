@@ -4,7 +4,7 @@
  * Can be used globally or scoped to a class.
  */
 
-const PendingGradingView = {
+Vue.component('pending-grading-view', {
     props: {
         classId: { type: [Number, String], default: 0 }, // 0 = Global
         className: { type: String, default: '' }
