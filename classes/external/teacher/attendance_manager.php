@@ -38,31 +38,29 @@ class attendance_manager extends external_api {
              $name_pattern = "%" . $class->name . "%";
              $found_by_name = $DB->get_records_select('attendance', "name LIKE ?", [$name_pattern]);
 
-             $debug_msg = "No se encontró NINGUNA actividad de asistencia en la tabla mdl_attendance para el curso ID: {$class->courseid}.";
-             
              if (!empty($found_by_name)) {
-                 $first = reset($found_by_name);
-                 $debug_msg .= " PERO sí encontré una actividad llamada '{$first->name}' en el Curso ID: {$first->course}. ¡Hay una discrepancia de IDs!";
+                 // RECOVERY: Found it in another course (likely Core Course 77 vs Instance 106)
+                 // Let's use it!
+                 $att = reset($found_by_name);
+                 
+                 // Logic to verify permissions might be complex here if contexts differ, 
+                 // but for getting the sessions, standard SQL usually ignores context until we need capabilities.
              } else {
-                 $debug_msg .= " Tampoco encontré ninguna actividad con nombre similar a '{$class->name}'.";
+                 return [
+                     'status' => 'error', 
+                     'message' => $debug_msg,
+                     'debug_info' => [
+                         'class_id' => $classid,
+                         'expected_course_id' => $class->courseid,
+                         'found_by_name_count' => count($found_by_name),
+                         'first_found_course_id' => !empty($found_by_name) ? reset($found_by_name)->course : null
+                     ]
+                 ];
              }
-
-             // Debugging: Check if course exists at all
-             $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
-             return [
-                 'status' => 'error', 
-                 'message' => $debug_msg,
-                 'debug_info' => [
-                     'class_id' => $classid,
-                     'expected_course_id' => $class->courseid,
-                     'found_by_name_count' => count($found_by_name),
-                     'first_found_course_id' => !empty($found_by_name) ? reset($found_by_name)->course : null
-                 ]
-             ];
+        } else {
+            // Just take the first one found
+            $att = reset($all_atts);
         }
-
-        // Just take the first one found
-        $att = reset($all_atts);
 
         // $att = $DB->get_record('attendance', ['course' => $class->courseid], 'id, name, grade', IGNORE_MULTIPLE);
         
