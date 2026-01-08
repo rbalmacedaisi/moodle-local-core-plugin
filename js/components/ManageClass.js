@@ -110,10 +110,7 @@ const ManageClass = {
                             </v-card>
                         </v-tab-item>
 
-                        <!-- Attendance Tab -->
-                        <v-tab-item>
-                            <attendance-panel :class-id="classId" :config="config"></attendance-panel>
-                        </v-tab-item>
+
                         
                         <!-- Roster Tab -->
                         <v-tab-item>
@@ -293,6 +290,32 @@ const ManageClass = {
                 </template>
             </v-snackbar>
 
+            <!-- QR Dialog -->
+            <v-dialog v-model="qrDialog" max-width="500px" persistent>
+                <v-card v-if="currentQR" class="text-center pa-4">
+                    <v-card-title class="justify-center text-h5">
+                        Código de Asistencia
+                    </v-card-title>
+                    <v-card-text>
+                        <div class="d-flex justify-center my-4" style="background: white; padding: 10px; display: inline-block;">
+                            <div v-html="currentQR.html"></div>
+                        </div>
+                        <div class="text-h4 font-weight-bold primary--text" v-if="currentQR.password">
+                            {{ currentQR.password }}
+                        </div>
+                        <div class="caption mt-2" v-if="currentQR.rotate">
+                            El código rota automáticamente.
+                        </div>
+                    </v-card-text>
+                    <v-card-actions class="justify-center">
+                        <v-btn color="primary" text @click="qrDialog = false">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+                <v-card v-else class="text-center pa-5">
+                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                </v-card>
+            </v-dialog>
+
         </v-container>
     `,
     props: ['classId', 'config'],
@@ -310,7 +333,6 @@ const ManageClass = {
             },
             tabs: [
                 { id: 'timeline', name: 'Sesiones', icon: 'mdi-calendar-clock' },
-                { id: 'attendance', name: 'Asistencia', icon: 'mdi-account-check' },
                 { id: 'roster', name: 'Estudiantes', icon: 'mdi-account-group' },
                 { id: 'tasks', name: 'Por Calificar', icon: 'mdi-clipboard-check' },
                 { id: 'grades', name: 'Calificaciones', icon: 'mdi-grid' },
