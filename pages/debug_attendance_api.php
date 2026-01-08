@@ -1,12 +1,25 @@
-<?php
-require_once('../../config.php');
-require_once($CFG->dirroot . '/mod/attendance/locallib.php');
-require_once($CFG->dirroot . '/mod/attendance/lib.php');
+// Try multiple levels up to find config.php
+$config_path = __DIR__ . '/../../config.php';
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../../../config.php';
+}
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../../../../config.php';
+}
+require_once($config_path);
 
-// Security Check
+// Safe require for attendance
+$att_lib = $CFG->dirroot . '/mod/attendance/lib.php';
+$att_locallib = $CFG->dirroot . '/mod/attendance/locallib.php';
+
+if (file_exists($att_lib)) require_once($att_lib);
+if (file_exists($att_locallib)) require_once($att_locallib);
+
+// Security Check - Allow if Logged In (Debug only)
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
+// Removed explicit capability check to allow instructors to see this debug page
+// require_capability('moodle/site:config', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_attendance_api.php');
 $PAGE->set_context($context);
