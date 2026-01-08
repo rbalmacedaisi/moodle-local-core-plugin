@@ -295,6 +295,7 @@ const ManageClass = {
 
         </v-container>
     `,
+    props: ['classId', 'config'],
     components: {
         // Global components: teacher-student-table, grades-grid, pending-grading-view, attendance-panel
     },
