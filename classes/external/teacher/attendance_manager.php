@@ -103,6 +103,11 @@ class attendance_manager extends external_api {
                $password = $session->studentpassword;
             }
 
+            // Fix: Ensure TCPDF Barcode class is loaded
+            if (!class_exists('TCPDF2DBarcode')) {
+                require_once($CFG->libdir . '/tcpdf/tcpdf_barcodes_2d.php');
+            }
+
             // Capture Output
             ob_start();
             if (function_exists('attendance_renderqrcode')) {
