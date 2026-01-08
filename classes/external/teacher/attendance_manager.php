@@ -74,6 +74,7 @@ class attendance_manager extends external_api {
         foreach ($sessions as $s) {
             $item = new stdClass();
             $item->id = $s->id;
+            $item->sessdate = $s->sessdate; // Required for JS comparison
             $item->date = userdate($s->sessdate, get_string('strftimedatefullshort', 'langconfig'));
             $item->time = userdate($s->sessdate, '%H:%M') . ' - ' . userdate($s->sessdate + $s->duration, '%H:%M');
             $item->description = $s->description;
