@@ -460,20 +460,50 @@ const ManageClass = {
 
                 // Merge Logic: Attach attendance info to timeline session if dates match
                 // Note: Timeline sessions usually have 'startdate' timestamp. Attendance has 'sessdate' timestamp.
-                this.timeline = sessions.map(s => {
+
+                // Track which attendance sessions have been matched
+                const usedAttendanceIds = new Set();
+
+                const mergedTimeline = sessions.map(s => {
                     // Simple logic: find attendance session on same day
-                    // NOTE: Timestamps might differ slightly (e.g. 8:00 vs 8:05). 
-                    // Let's match by Y-m-d.
                     const sDate = new Date(s.startdate * 1000).toDateString();
+
+                    // console.log('Checking Timeline Session:', sDate);
+
                     const att = attSessions.find(a => {
                         const aDate = new Date(a.sessdate * 1000).toDateString();
                         return sDate === aDate;
                     });
 
-                    return { ...s, attendance: att || null };
+                    if (att) {
+                        usedAttendanceIds.add(att.id);
+                        return { ...s, attendance: att };
+                    }
+                    return { ...s, attendance: null };
                 });
-                // If there are attendance sessions NOT in timeline (e.g. ad-hoc), maybe append them?
-                // For now, let's stick to matching existing timeline events to keep it clean.
+
+                // Find orphaned attendance sessions (those not matched to a calendar event)
+                const orphanedAttendance = attSessions.filter(a => !usedAttendanceIds.has(a.id));
+
+                if (orphanedAttendance.length > 0) {
+                    // console.log('Found orphaned attendance sessions:', orphanedAttendance);
+                    const newSessions = orphanedAttendance.map(a => ({
+                        id: 'att_' + a.id, // Synthetic ID
+                        name: 'Sesión de Asistencia',
+                        description: a.description || 'Sesión de asistencia programada',
+                        startdate: a.sessdate,
+                        enddate: a.sessdate + 3600, // Default 1h duration if unknown
+                        type: 'attendance',
+                        attendance: a
+                    }));
+
+                    mergedTimeline.push(...newSessions);
+                }
+
+                // Sort by date again just in case
+                mergedTimeline.sort((a, b) => a.startdate - b.startdate);
+
+                this.timeline = mergedTimeline;
 
             } catch (error) {
                 console.error('Error fetching timeline/attendance:', error);
