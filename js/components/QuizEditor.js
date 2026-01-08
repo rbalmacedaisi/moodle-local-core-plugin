@@ -233,8 +233,7 @@ const QuizEditor = {
                         <!-- Drag & Drop (Image or Markers) -->
                         <div v-else-if="newQuestion.type === 'ddimageortext' || newQuestion.type === 'ddmarker'">
                             <v-alert type="info" dense text small class="mb-2">
-                                Suba una imagen de fondo y defina las zonas/elementos.
-                                <br><i>Nota: Las coordenadas son píxeles desde la esquina superior izquierda (X, Y).</i>
+                                Suba una imagen y <b>arrastre los elementos</b> sobre ella para definir las zonas.
                             </v-alert>
                             
                             <!-- Image Upload -->
@@ -249,90 +248,166 @@ const QuizEditor = {
                                 prepend-icon="mdi-image"
                             ></v-file-input>
                             
-                            <v-img v-if="newQuestion.ddbase64" :src="newQuestion.ddbase64" max-height="200" contain class="mb-3 grey lighten-4 rounded"></v-img>
+                            <!-- Main Visual Editor Area -->
+                            <div v-if="newQuestion.ddbase64" class="mb-4">
+                                <div 
+                                    class="d-flex justify-space-between align-center px-4 py-2 grey lighten-4 rounded-t"
+                                    style="border: 1px solid #e0e0e0; border-bottom: none;"
+                                >
+                                    <div class="subtitle-2">Editor Visual</div>
+                                    <v-btn small text color="primary" @click="addDropZone">
+                                        <v-icon left>mdi-plus</v-icon> Agregar Zona
+                                    </v-btn>
+                                </div>
+                                
+                                <div 
+                                    ref="ddArea"
+                                    style="position: relative; overflow: hidden; border: 1px solid #e0e0e0;"
+                                    @mousemove="onDragMove"
+                                    @mouseup="stopDrag"
+                                    @mouseleave="stopDrag"
+                                    class="rounded-b"
+                                >
+                                    <!-- Background Image -->
+                                    <img 
+                                        :src="newQuestion.ddbase64" 
+                                        style="max-width: 100%; display: block;" 
+                                        ondragstart="return false;"
+                                    >
 
-                            <!-- Draggable Items -->
-                            <div class="subtitle-2 mb-1">Elementos Arrastrables</div>
-                            <v-card outlined v-for="(item, i) in newQuestion.draggables" :key="'drag'+i" class="mb-2 pa-2">
-                                <v-row dense align="center">
-                                    <v-col cols="12" md="8">
-                                        <v-text-field label="Texto / Etiqueta" v-model="item.text" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="6" md="2">
-                                        <v-select label="Grupo" v-model="item.group" :items="[1,2,3]" hide-details dense></v-select>
-                                    </v-col>
-                                    <v-col cols="6" md="2" class="text-right">
-                                         <v-btn icon color="red" x-small @click="newQuestion.draggables.splice(i,1)"><v-icon>mdi-delete</v-icon></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-card>
-                            <v-btn small text color="primary" @click="newQuestion.draggables.push({type:'text', text:'', group:1})" class="mb-4">
-                                <v-icon left>mdi-plus</v-icon> Agregar Elemento
-                            </v-btn>
+                                    <!-- Draggable Drop Zones -->
+                                    <div 
+                                        v-for="(drop, i) in newQuestion.drops" 
+                                        :key="'drop'+i"
+                                        class="elevation-3 rounded white d-flex align-center justify-center px-2 py-1 font-weight-bold"
+                                        :style="{
+                                            position: 'absolute', 
+                                            left: drop.x + 'px', 
+                                            top: drop.y + 'px', 
+                                            cursor: 'move',
+                                            border: '2px solid #1976D2',
+                                            zIndex: 10,
+                                            userSelect: 'none',
+                                            minWidth: '100px',
+                                            backgroundColor: 'rgba(255, 255, 255, 0.9)'
+                                        }"
+                                        @mousedown.prevent="startDrag($event, i)"
+                                    >
+                                        <span class="mr-2">{{ i + 1 }}</span>
+                                        <v-icon small color="red" @click.stop="newQuestion.drops.splice(i,1)" class="ml-1" style="cursor: pointer;">mdi-delete</v-icon>
+                                    </div>
+                                </div>
+                                <div class="caption grey--text mt-1 text-center">
+                                    Arrastre los marcadores a la posición deseada.
+                                </div>
+                            </div>
+                            <v-alert v-else type="warning" dense text icon="mdi-image-off">
+                                Seleccione una imagen para habilitar el editor visual.
+                            </v-alert>
 
-                            <!-- Drop Zones -->
-                            <div class="subtitle-2 mb-1">Zonas de Soltar / Coordenadas</div>
-                             <v-card outlined v-for="(drop, i) in newQuestion.drops" :key="'drop'+i" class="mb-2 pa-2">
-                                <v-row dense align="center">
-                                    <v-col cols="6" md="4">
-                                        <v-select 
-                                            label="Elemento Correspondiente" 
-                                            v-model="drop.choice" 
-                                            :items="newQuestion.draggables.map((d, idx) => ({text: (idx+1) + '. ' + d.text, value: idx+1}))" 
-                                            hide-details dense
-                                        ></v-select>
-                                    </v-col>
-                                    <v-col cols="3" md="3">
-                                        <v-text-field label="X (Left)" v-model="drop.x" type="number" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3" md="3">
-                                        <v-text-field label="Y (Top)" v-model="drop.y" type="number" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="12" md="2" class="text-right">
-                                         <v-btn icon color="red" x-small @click="newQuestion.drops.splice(i,1)"><v-icon>mdi-delete</v-icon></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-card>
-                            <v-btn small text color="primary" @click="newQuestion.drops.push({choice:1, x:0, y:0})">
-                                <v-icon left>mdi-plus</v-icon> Agregar Zona
-                            </v-btn>
+                            <!-- Configuration Panel for Elements -->
+                            <v-expansion-panels flat class="mt-2">
+                                <v-expansion-panel>
+                                    <v-expansion-panel-header color="grey lighten-5">
+                                        Configuración de Elementos y Zonas
+                                    </v-expansion-panel-header>
+                                    <v-expansion-panel-content class="pt-4">
+                                        
+                                        <!-- Draggable Items Defs -->
+                                        <div class="subtitle-2 mb-2">Elementos Disponibles (Textos/Imágenes)</div>
+                                        <v-card outlined v-for="(item, i) in newQuestion.draggables" :key="'drag'+i" class="mb-2 pa-2">
+                                            <v-row dense align="center">
+                                                <v-col cols="1" class="text-center font-weight-bold blue--text">{{ i + 1 }}</v-col>
+                                                <v-col cols="11" md="8">
+                                                    <v-text-field label="Texto / Etiqueta" v-model="item.text" hide-details dense></v-text-field>
+                                                </v-col>
+                                                <v-col cols="6" md="2">
+                                                    <v-select label="Grupo" v-model="item.group" :items="[1,2,3]" hide-details dense></v-select>
+                                                </v-col>
+                                                <v-col cols="6" md="1" class="text-right">
+                                                     <v-btn icon color="red" x-small @click="newQuestion.draggables.splice(i,1)"><v-icon>mdi-delete</v-icon></v-btn>
+                                                </v-col>
+                                            </v-row>
+                                        </v-card>
+                                        <v-btn small text color="primary" @click="newQuestion.draggables.push({type:'text', text:'', group:1})" class="mb-4">
+                                            <v-icon left>mdi-plus</v-icon> Agregar Elemento
+                                        </v-btn>
+
+                                        <v-divider class="mb-4"></v-divider>
+
+                                        <!-- Zone Assignments -->
+                                        <div class="subtitle-2 mb-2">Asignación de Zonas (Marcadores en la imagen)</div>
+                                        <v-simple-table dense>
+                                            <template v-slot:default>
+                                                <thead><tr><th>Zona</th><th>Elemento Correcto</th><th>Posición (X, Y)</th></tr></thead>
+                                                <tbody>
+                                                    <tr v-for="(drop, i) in newQuestion.drops" :key="'d'+i">
+                                                        <td><b>{{ i + 1 }}</b></td>
+                                                        <td>
+                                                            <v-select 
+                                                                v-model="drop.choice" 
+                                                                :items="newQuestion.draggables.map((d, idx) => ({text: (idx+1) + '. ' + d.text, value: idx+1}))" 
+                                                                hide-details dense flat solo
+                                                            ></v-select>
+                                                        </td>
+                                                        <td class="caption grey--text">{{ Math.round(drop.x) }}, {{ Math.round(drop.y) }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </template>
+                                        </v-simple-table>
+
+                                    </v-expansion-panel-content>
+                                </v-expansion-panel>
+                            </v-expansion-panels>
                         </div>
 
                         <!-- Calculated Types -->
                         <div v-else-if="newQuestion.type.startsWith('calculated')">
-                             <v-alert type="info" dense text small>
-                                Use comodines entre llaves en el enunciado, ej: <code>¿Cuánto es {a} + {b}?</code>
-                            </v-alert>
+                            <!-- Visual Header -->
+                             <div class="d-flex align-center mb-2 pa-2 blue lighten-5 rounded border">
+                                <v-icon color="blue" class="mr-2">mdi-calculator</v-icon>
+                                <div>
+                                    <div class="subtitle-2 blue--text text--darken-2">Editor Matemático</div>
+                                    <div class="caption">Escriba la fórmula usando variables entre llaves, ej: <code>{a} + {b}</code></div>
+                                </div>
+                            </div>
 
                             <div v-if="newQuestion.type !== 'calculatedmulti'">
-                                <v-text-field label="Fórmula de Respuesta Correcta" v-model="newQuestion.answers[0].text" hint="Ej: {a} + {b}" persistent-hint outlined dense class="mb-2"></v-text-field>
-                                <v-row dense>
-                                    <v-col cols="6"><v-text-field label="Tolerancia" v-model="newQuestion.answers[0].tolerance" type="number" step="0.01" dense></v-text-field></v-col>
-                                    <v-col cols="6"><v-text-field label="Unidad (opcional)" v-model="newQuestion.unit" dense></v-text-field></v-col>
-                                </v-row>
+                                <v-text-field 
+                                    label="Fórmula de Respuesta" 
+                                    v-model="newQuestion.answers[0].text" 
+                                    outlined 
+                                    class="text-h6"
+                                    placeholder="Ej: {base} * {altura} / 2"
+                                ></v-text-field>
+                                
+                                <v-expansion-panels flat class="mb-4">
+                                     <v-expansion-panel>
+                                        <v-expansion-panel-header>Opciones Avanzadas (Tolerancia/Unidades)</v-expansion-panel-header>
+                                        <v-expansion-panel-content>
+                                            <v-row dense>
+                                                <v-col cols="6"><v-text-field label="Tolerancia" v-model="newQuestion.answers[0].tolerance" type="number" step="0.01" dense outlined></v-text-field></v-col>
+                                                <v-col cols="6"><v-text-field label="Unidad" v-model="newQuestion.unit" dense outlined></v-text-field></v-col>
+                                            </v-row>
+                                        </v-expansion-panel-content>
+                                     </v-expansion-panel>
+                                </v-expansion-panels>
                             </div>
                             
-                            <!-- Simple Dataset Generator UI -->
-                            <div class="subtitle-2 mt-2 mb-1">Definición de Variables (Datasets)</div>
-                             <v-card outlined v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" class="mb-2 pa-2">
-                                <v-row dense align="center">
-                                    <v-col cols="3">
-                                        <v-text-field label="Variable" v-model="ds.name" prefix="{" suffix="}" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3">
-                                        <v-text-field label="Mín" v-model="ds.min" type="number" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3">
-                                        <v-text-field label="Máx" v-model="ds.max" type="number" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3" class="text-right">
-                                         <v-btn icon color="red" x-small @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-delete</v-icon></v-btn>
-                                    </v-col>
-                                </v-row>
+                            <!-- Simplified Dataset UI -->
+                            <div class="subtitle-2 mt-2 mb-1">Variables Detectadas</div>
+                            <div v-if="newQuestion.dataset.length === 0" class="caption grey--text mb-2">
+                                Escriba variables como <code>{x}</code> en la fórmula para configurarlas aquí.
+                            </div>
+                            <v-card outlined v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" class="mb-2 pa-2 d-flex align-center">
+                                <v-chip label color="blue lighten-4" class="mr-2 font-weight-bold" small>{{ ds.name }}</v-chip>
+                                <span class="caption mr-2">Rango:</span>
+                                <v-text-field v-model="ds.min" type="number" dense hide-details class="d-inline-block mr-2" style="max-width: 80px;" outlined></v-text-field>
+                                <span class="caption mr-2">a</span>
+                                <v-text-field v-model="ds.max" type="number" dense hide-details class="d-inline-block mr-2" style="max-width: 80px;" outlined></v-text-field>
+                                <v-spacer></v-spacer>
+                                <v-btn icon color="red" x-small @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
                             </v-card>
-                            <v-btn small text color="primary" @click="newQuestion.dataset.push({name:'x', min:1, max:10})">
-                                <v-icon left>mdi-plus</v-icon> Agregar Variable
-                            </v-btn>
                         </div>
 
                         <!-- Fallback for complex types -->
@@ -351,6 +426,67 @@ const QuizEditor = {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+            <!-- Cloze Wizard Dialog -->
+            <v-dialog v-model="clozeDialog" max-width="500px">
+                <v-card>
+                    <v-card-title>Configurar Hueco</v-card-title>
+                    <v-card-text>
+                        <v-select 
+                            label="Tipo de Pregunta" 
+                            v-model="clozeWizard.type" 
+                            :items="[
+                                {text: 'Respuesta Corta (Texto exacto)', value: 'SHORTANSWER'},
+                                {text: 'Opción Múltiple (Desplegable)', value: 'MULTICHOICE'},
+                                {text: 'Opción Múltiple (Radio Vertical)', value: 'MULTICHOICE_V'},
+                                {text: 'Numérica', value: 'NUMERICAL'}
+                            ]" 
+                            outlined dense
+                        ></v-select>
+
+                        <v-text-field label="Puntuación" v-model="clozeWizard.mark" type="number" outlined dense></v-text-field>
+
+                        <div v-if="clozeWizard.type === 'SHORTANSWER' || clozeWizard.type === 'NUMERICAL'">
+                            <v-text-field 
+                                label="Respuesta Correcta" 
+                                v-model="clozeWizard.correct" 
+                                outlined 
+                                dense
+                                hint="Lo que el estudiante debe escribir"
+                            ></v-text-field>
+                        </div>
+
+                        <div v-if="clozeWizard.type.startsWith('MULTICHOICE')">
+                            <v-text-field 
+                                label="Respuesta Correcta" 
+                                v-model="clozeWizard.correct" 
+                                outlined 
+                                dense
+                                class="mb-2"
+                                prepend-inner-icon="mdi-check"
+                                color="green"
+                            ></v-text-field>
+                            <label class="caption">Distractores (Opciones Incorrectas)</label>
+                            <v-card outlined class="pa-2 mb-2">
+                                <div v-for="(dist, i) in clozeWizard.distractors" :key="i" class="d-flex mb-1">
+                                    <v-text-field v-model="clozeWizard.distractors[i]" dense hide-details placeholder="Incorrecta"></v-text-field>
+                                    <v-btn icon small color="red" @click="clozeWizard.distractors.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
+                                </div>
+                                <v-btn x-small text color="primary" @click="clozeWizard.distractors.push('')">Agregar Opción</v-btn>
+                            </v-card>
+                        </div>
+
+                        <div class="grey--text caption mt-2">
+                            Se generará el código: <code>{{ previewClozeCode }}</code>
+                        </div>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="clozeDialog = false">Cancelar</v-btn>
+                        <v-btn color="deep-purple" dark @click="insertCloze">Insertar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
             <!-- Error Dialog -->
             <v-dialog v-model="errorDialog" max-width="600px">
                 <v-card>
@@ -435,8 +571,39 @@ const QuizEditor = {
             { text: '-100%', value: -1.0 }
         ],
         errorDialog: false,
-        errorDetails: ''
+        errorDetails: '',
+        draggingIndex: -1,
+        dragOffset: { x: 0, y: 0 },
+
+        // Cloze Wizard Data
+        clozeDialog: false,
+        clozeWizard: {
+            type: 'SHORTANSWER',
+            mark: 1,
+            correct: '',
+            distractors: [''],
+            selectionBefore: '', // To know where to insert
+            selectionEnd: 0
+        }
     }),
+    computed: {
+        previewClozeCode() {
+            const w = this.clozeWizard;
+            let code = `{${w.mark}:${w.type}:=`;
+
+            if (w.type === 'SHORTANSWER' || w.type === 'NUMERICAL') {
+                code += w.correct;
+            } else if (w.type.startsWith('MULTICHOICE')) {
+                code += w.correct; // Correct option
+                // Distractors
+                w.distractors.forEach(d => {
+                    if (d) code += `~${d}`;
+                });
+            }
+            code += `}`;
+            return code;
+        }
+    },
     mounted() {
         this.fetchQuestions();
     },
@@ -531,6 +698,86 @@ const QuizEditor = {
         questionTypeLabel(type) {
             const t = this.questionTypes.find(x => x.value === type);
             return t ? t.text : type;
+        },
+        addDropZone() {
+            this.newQuestion.drops.push({ choice: 1, label: '', x: 50, y: 50 });
+        },
+        startDrag(event, index) {
+            this.draggingIndex = index;
+            const drop = this.newQuestion.drops[index];
+            this.dragOffset = {
+                x: event.clientX - drop.x, // This logic assumes absolute positioning relative to viewport, usually we need container offset
+                // Better approach:
+                // We track movement delta.
+            };
+
+            // Simpler approach: Get initial mouse pos relative to item corner?
+            // Let's use the container bounding rect.
+            const rect = this.$refs.ddArea.getBoundingClientRect();
+            // Mouse X relative to container
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            this.dragOffset = {
+                x: mouseX - drop.x,
+                y: mouseY - drop.y
+            };
+
+            document.addEventListener('mousemove', this.onDragMove);
+            document.addEventListener('mouseup', this.stopDrag);
+        },
+        onDragMove(event) {
+            if (this.draggingIndex === -1) return;
+
+            const rect = this.$refs.ddArea.getBoundingClientRect();
+            let x = event.clientX - rect.left - this.dragOffset.x;
+            let y = event.clientY - rect.top - this.dragOffset.y;
+
+            // Constrain
+            x = Math.max(0, Math.min(x, rect.width - 30)); // -30 width of marker approx
+            y = Math.max(0, Math.min(y, rect.height - 30));
+
+            this.newQuestion.drops[this.draggingIndex].x = x;
+            this.newQuestion.drops[this.draggingIndex].y = y;
+        },
+        stopDrag() {
+            this.draggingIndex = -1;
+            document.removeEventListener('mousemove', this.onDragMove);
+            document.removeEventListener('mouseup', this.stopDrag);
+        },
+        openClozeWizard() {
+            // Get selection from textarea
+            const textarea = this.$refs.questionTextarea.$el.querySelector('textarea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+
+            if (!selectedText) {
+                alert('Seleccione primero el texto que desea convertir en hueco.');
+                return;
+            }
+
+            // Init Wizard
+            this.clozeWizard.type = 'SHORTANSWER';
+            this.clozeWizard.correct = selectedText;
+            this.clozeWizard.mark = 1;
+            this.clozeWizard.distractors = [''];
+            this.clozeWizard.selectionStart = start;
+            this.clozeWizard.selectionEnd = end;
+
+            this.clozeDialog = true;
+        },
+        insertCloze() {
+            const code = this.previewClozeCode;
+            const textarea = this.$refs.questionTextarea.$el.querySelector('textarea');
+
+            // Insert code replacing selection
+            const fullText = this.newQuestion.text;
+            const before = fullText.substring(0, this.clozeWizard.selectionStart);
+            const after = fullText.substring(this.clozeWizard.selectionEnd);
+
+            this.newQuestion.text = before + code + after;
+            this.clozeDialog = false;
         },
         onFileChange(file) {
             if (!file) {

@@ -296,8 +296,6 @@ const ManageClass = {
         </v-container>
     `,
     components: {
-        'teacher-student-table': TeacherStudentTable,
-        'grades-grid': GradesGrid,
         'pending-grading-view': PendingGradingView,
         'attendance-panel': AttendancePanel
     },
