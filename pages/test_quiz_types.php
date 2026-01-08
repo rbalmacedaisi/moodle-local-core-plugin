@@ -188,8 +188,9 @@ if (!$category) {
             echo '<td><span class="badge badge-success">OK</span></td>';
             echo '<td>Pregunta creada ID: ' . $savedq->id . '</td>';
             
-            // Clean up?
-            // question_delete_question($savedq->id); 
+            // Clean up
+            question_delete_question($savedq->id);
+            echo '<td><small class="text-muted">Eliminada automaticament</small></td>'; 
             
         } catch (Throwable $e) {
             echo '<td><span class="badge badge-danger">FAIL</span></td>';

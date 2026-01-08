@@ -1051,6 +1051,7 @@ try {
                     $question->graderinfo = ['text' => '', 'format' => FORMAT_HTML];
                     $question->responsetemplate = ['text' => '', 'format' => FORMAT_HTML];
                 }
+                elseif ($data->type === 'numerical') {
                     $question->answer = [];
                     $question->fraction = [];
                     $question->tolerance = [];
@@ -1103,13 +1104,6 @@ try {
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
-                }
-                elseif ($data->type === 'essay') {
-                    $question->responseformat = 'editor';
-                    $question->responsefieldlines = 15;
-                    $question->attachments = 0;
-                    $question->graderinfo = ['text' => '', 'format' => FORMAT_HTML];
-                    $question->responsetemplate = ['text' => '', 'format' => FORMAT_HTML];
                 }
 
                 // SAVE using correct API
