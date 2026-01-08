@@ -16,11 +16,17 @@ require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 require_login();
 
 // Find a course where user is instructor (has quiz manage cap)
+// Find a course where user is instructor (has quiz manage cap OR is gmk instructor)
 $valid_course = null;
+global $DB;
 $courses = enrol_get_users_courses($USER->id, true, '*');
+
 foreach ($courses as $c) {
     $ctx = context_course::instance($c->id);
-    if (has_capability('mod/quiz:manage', $ctx)) {
+    $is_standard_manager = has_capability('mod/quiz:manage', $ctx);
+    $is_gmk_instructor = $DB->record_exists('gmk_class', ['corecourseid' => $c->id, 'instructorid' => $USER->id]);
+
+    if ($is_standard_manager || $is_gmk_instructor) {
         $valid_course = $c;
         $context = $ctx;
         break;
@@ -31,7 +37,7 @@ if (!$valid_course) {
     // Fallback to system if admin, otherwise die
     $context = context_system::instance();
     if (!is_siteadmin()) {
-        die("Error: No tienes permisos de gestión de cuestionarios en ningún curso.");
+        die("Error: No tienes permisos de gestión (Moodle o GMK) en ningún curso.");
     }
 }
 
