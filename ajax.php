@@ -1009,7 +1009,7 @@ try {
                     $question->feedbacktrue = ['text' => '', 'format' => FORMAT_HTML];
                     $question->feedbackfalse = ['text' => '', 'format' => FORMAT_HTML];
                 } 
-                elseif ($data->type === 'multichoice' || $data->type === 'shortanswer') {
+                elseif ($data->type === 'multichoice') {
                     $question->single = isset($data->single) && $data->single ? 1 : 0;
                     $question->shuffleanswers = 1;
                     $question->answernumbering = 'abc';
@@ -1023,8 +1023,34 @@ try {
                         $question->fraction[] = $ans->fraction;
                         $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
                     }
-                } 
-                elseif ($data->type === 'numerical') {
+
+                    // Combined Feedback Defaults
+                    $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->shownumcorrect = 1;
+                }
+                elseif ($data->type === 'shortanswer') {
+                     $question->usecase = 0; // Case insensitive
+                     $question->answer = [];
+                     $question->fraction = [];
+                     $question->feedback = [];
+ 
+                     foreach ($data->answers as $ans) {
+                         $question->answer[] = $ans->text; // Plain string for shortanswer
+                         $question->fraction[] = $ans->fraction;
+                         $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
+                     }
+                }
+                elseif ($data->type === 'essay') {
+                    $question->responseformat = 'editor';
+                    $question->responsefieldlines = 15;
+                    $question->attachments = 0;
+                    $question->responserequired = 0; // Optional by default
+                    $question->attachmentsrequired = 0;
+                    $question->graderinfo = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->responsetemplate = ['text' => '', 'format' => FORMAT_HTML];
+                }
                     $question->answer = [];
                     $question->fraction = [];
                     $question->tolerance = [];
