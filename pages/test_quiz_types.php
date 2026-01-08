@@ -1,3 +1,4 @@
+<?php
 // Try multiple levels up to find config.php
 $config_path = __DIR__ . '/../../config.php';
 if (!file_exists($config_path)) {
