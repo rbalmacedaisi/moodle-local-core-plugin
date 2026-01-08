@@ -16,19 +16,34 @@ function local_grupomakro_core_user_home_redirect(&$url) {
         return;
     }
 
-    // Check if user is an instructor in any active class
-    $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
+    // 1. Check for Active Teachers (Existing Logic)
+    $is_active_teacher = $DB->record_exists('gmk_class', ['instructorid' => $USER->id, 'closed' => 0]);
 
-    if ($is_teacher) {
+    if ($is_active_teacher) {
         $dashboard_path = '/local/grupomakro_core/pages/teacher_dashboard.php';
         $quiz_editor_path = '/local/grupomakro_core/pages/quiz_editor.php';
         
-        // Avoid redirect loop by checking if we are already on allowed scripts
         $current_script = $_SERVER['SCRIPT_NAME'];
         
         if (strpos($current_script, $dashboard_path) === false && 
             strpos($current_script, $quiz_editor_path) === false) {
             redirect(new moodle_url($dashboard_path));
+        }
+        return; // Done
+    }
+
+    // 2. Check for Inactive Teachers (New Logic)
+    // Only redirect if they are actively trying to access Home or Dashboard (caller ensures this)
+    $has_past = $DB->record_exists('gmk_class', ['instructorid' => $USER->id]);
+    $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $USER->id]);
+    $has_disp = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $USER->id]);
+
+    if ($has_past || $has_skills || $has_disp) {
+        $inactive_path = '/local/grupomakro_core/pages/inactive_teacher_dashboard.php';
+        
+        // Prevent redirect loop
+        if (strpos($_SERVER['SCRIPT_NAME'], $inactive_path) === false) {
+             redirect(new moodle_url($inactive_path));
         }
     }
 }
