@@ -329,7 +329,11 @@ const ManageClass = {
             editActivityData: null,
             isEditing: false,
             snackbar: false,
-            snackbarText: ''
+            snackbarText: '',
+            // QR / Attendance Data
+            qrDialog: false,
+            currentQR: null,
+            loadingQR: false
         };
     },
     computed: {
@@ -354,7 +358,7 @@ const ManageClass = {
     },
     mounted() {
         this.fetchClassDetails();
-        this.fetchTimeline();
+        this.fetchTimeline(); // This now handles both timeline + attendance
         this.fetchActivities();
     },
     methods: {
@@ -376,18 +380,102 @@ const ManageClass = {
         async fetchTimeline() {
             this.loadingTimeline = true;
             try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_class_details',
-                    args: { classid: this.classId },
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    this.timeline = response.data.data.sessions;
+                const [timelineResp, attendanceResp] = await Promise.all([
+                    axios.post(window.wsUrl, {
+                        action: 'local_grupomakro_get_class_details',
+                        args: { classid: this.classId },
+                        ...window.wsStaticParams
+                    }),
+                    axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', new URLSearchParams({
+                        action: 'local_grupomakro_get_attendance_sessions',
+                        classid: this.classId
+                    }))
+                ]);
+
+                let sessions = [];
+                if (timelineResp.data.status === 'success') {
+                    sessions = timelineResp.data.data.sessions;
                 }
+
+                let attSessions = [];
+                if (attendanceResp.data.status === 'success') {
+                    attSessions = attendanceResp.data.sessions;
+                }
+
+                // Merge Logic: Attach attendance info to timeline session if dates match
+                // Note: Timeline sessions usually have 'startdate' timestamp. Attendance has 'sessdate' timestamp.
+                this.timeline = sessions.map(s => {
+                    // Simple logic: find attendance session on same day
+                    // NOTE: Timestamps might differ slightly (e.g. 8:00 vs 8:05). 
+                    // Let's match by Y-m-d.
+                    const sDate = new Date(s.startdate * 1000).toDateString();
+                    const att = attSessions.find(a => {
+                        const aDate = new Date(a.sessdate * 1000).toDateString();
+                        return sDate === aDate;
+                    });
+
+                    return { ...s, attendance: att || null };
+                });
+
+                // If there are attendance sessions NOT in timeline (e.g. ad-hoc), maybe append them?
+                // For now, let's stick to matching existing timeline events to keep it clean.
+
             } catch (error) {
-                console.error('Error fetching timeline:', error);
+                console.error('Error fetching timeline/attendance:', error);
             } finally {
                 this.loadingTimeline = false;
+            }
+        },
+        async showQR(session) {
+            if (!session.attendance) return;
+
+            this.loadingQR = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_session_qr');
+                params.append('sessionid', session.attendance.id);
+
+                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                if (response.data && response.data.status === 'success') {
+                    this.currentQR = response.data;
+                    this.qrDialog = true;
+                } else {
+                    this.snackbarText = response.data.message || 'Error al obtener QR';
+                    this.snackbar = true;
+                }
+            } catch (e) {
+                console.error(e);
+                this.snackbarText = 'Error de conexión';
+                this.snackbar = true;
+            } finally {
+                this.loadingQR = false;
+            }
+        },
+        async showQR(session) {
+            if (!session.attendance) return;
+
+            this.loadingQR = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_session_qr');
+                params.append('sessionid', session.attendance.id);
+
+                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                if (response.data && response.data.status === 'success') {
+                    this.currentQR = response.data;
+                    this.qrDialog = true;
+                } else {
+                    this.snackbarText = response.data.message || 'Error al obtener QR';
+                    this.snackbar = true;
+                }
+            } catch (e) {
+                console.error(e);
+                this.snackbarText = 'Error de conexión';
+                this.snackbar = true;
+            } finally {
+                this.loadingQR = false;
             }
         },
         async fetchActivities() {
