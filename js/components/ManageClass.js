@@ -2,7 +2,6 @@
  * Manage Class Component
  * Created for Redesigning Teacher Experience
  */
-console.log('!!! ManageClass.js LOADED v2033 !!!');
 
 const ManageClass = {
     props: {
@@ -414,7 +413,6 @@ const ManageClass = {
             }
         },
         async fetchTimeline() {
-            console.log('!!! fetchTimeline CALLED !!!');
             if (!this.config || !this.config.wwwroot) {
                 console.error('ManageClass: Config or wwwroot missing', this.config);
                 this.loadingTimeline = false;
@@ -433,8 +431,6 @@ const ManageClass = {
                         classid: this.classId
                     }))
                 ]);
-
-                console.log('API RESPONSES:', { timeline: timelineResp.data, attendance: attendanceResp.data });
 
                 let sessions = [];
                 if (timelineResp.data.status === 'success') {
@@ -455,14 +451,11 @@ const ManageClass = {
                     const sDate = new Date(s.startdate * 1000).toDateString();
                     const att = attSessions.find(a => {
                         const aDate = new Date(a.sessdate * 1000).toDateString();
-                        console.log(`Comparing: ${sDate} vs ${aDate}`);
                         return sDate === aDate;
                     });
 
-                    if (att) console.log('MATCH FOUND:', att);
                     return { ...s, attendance: att || null };
                 });
-
                 // If there are attendance sessions NOT in timeline (e.g. ad-hoc), maybe append them?
                 // For now, let's stick to matching existing timeline events to keep it clean.
 
