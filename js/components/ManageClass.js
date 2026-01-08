@@ -296,8 +296,7 @@ const ManageClass = {
         </v-container>
     `,
     components: {
-        'pending-grading-view': PendingGradingView,
-        'attendance-panel': AttendancePanel
+        // Global components: teacher-student-table, grades-grid, pending-grading-view, attendance-panel
     },
     data() {
         return {

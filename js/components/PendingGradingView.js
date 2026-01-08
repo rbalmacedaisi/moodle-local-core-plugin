@@ -199,6 +199,6 @@ const PendingGradingView = {
             // But we need to sync our list state if we want the background list to update.
         }
     }
-};
+});
 
-Vue.component('pending-grading-view', PendingGradingView);
+

@@ -1,5 +1,5 @@
 // AttendancePanel.js
-const AttendancePanel = {
+Vue.component('attendance-panel', {
     props: ['classId', 'config'],
     template: `
         <v-card flat class="ma-0 pa-0">
@@ -156,4 +156,4 @@ const AttendancePanel = {
             }
         }
     }
-};
+});
