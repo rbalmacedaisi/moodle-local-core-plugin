@@ -90,34 +90,39 @@ class attendance_manager extends external_api {
      */
     public static function get_qr($sessionid) {
         global $DB, $CFG;
-        
-        $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
-        $att = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
-        $cm = get_coursemodule_from_instance('attendance', $att->id, $att->course);
-        
-        // Passwords logic
-        // If rotate is on, we might need a specific password.
-        // Calling available functions from debug list
-        if (function_exists('attendance_generate_passwords')) {
-           $password = attendance_generate_passwords($session);
-        } else {
-           $password = $session->studentpassword; // Fallback
-        }
 
-        // Capture Output
-        ob_start();
-        if (function_exists('attendance_renderqrcode')) {
-            attendance_renderqrcode($session, $password);
-        } else {
-            echo "Error: Función QR no encontrada.";
-        }
-        $html = ob_get_clean();
+        try {
+            $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
+            $att = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
+            $cm = get_coursemodule_from_instance('attendance', $att->id, $att->course);
+            
+            // Passwords logic
+            if (function_exists('attendance_generate_passwords')) {
+               $password = attendance_generate_passwords($session);
+            } else {
+               $password = $session->studentpassword;
+            }
 
-        return [
-            'status' => 'success', 
-            'html' => $html, 
-            'password' => $password,
-            'rotate' => $session->rotateqrcode
-        ];
+            // Capture Output
+            ob_start();
+            if (function_exists('attendance_renderqrcode')) {
+                attendance_renderqrcode($session, $password);
+            } else {
+                echo "Error: Función QR no encontrada. Asegúrese de que el plugin attendance está instalado.";
+            }
+            $html = ob_get_clean();
+
+            return [
+                'status' => 'success', 
+                'html' => $html, 
+                'password' => $password,
+                'rotate' => $session->rotateqrcode ?? 0
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Error al generar QR: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine()
+            ];
+        }
     }
 }
