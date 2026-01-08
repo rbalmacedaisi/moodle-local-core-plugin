@@ -1090,6 +1090,7 @@ try {
                     $question->shuffleanswers = isset($data->shuffleanswers) && $data->shuffleanswers ? 1 : 0;
                     $question->answer = []; // Text
                     $question->choicegroup = []; // Group
+                    $question->choices = []; // Silence PHP Notice about undefined property
 
                     foreach ($data->answers as $ans) {
                         $question->answer[] = ['text' => $ans->text, 'format' => FORMAT_HTML];
@@ -1097,6 +1098,98 @@ try {
                     }
                     
                     // Combined Feedback Defaults
+                    $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->shownumcorrect = 1;
+                }
+                elseif ($data->type === 'multianswer') {
+                     // No specific extra fields, code is in questiontext
+                }
+                elseif ($data->type === 'randomsamatch') {
+                    $question->choose = isset($data->choose) ? $data->choose : 2;
+                    $question->subcats = isset($data->subcats) && $data->subcats ? 1 : 0;
+                    $question->shuffleanswers = 1;
+                }
+                elseif (strpos($data->type, 'calculated') === 0) {
+                     // Basic support for Calculated types
+                     $question->answers = [];
+                     $question->fraction = [];
+                     $question->tolerance = [];
+                     $question->tolerancetype = [];
+                     $question->correctanswerlength = [];
+                     $question->correctanswerformat = [];
+                     $question->feedback = [];
+                     
+                     if (isset($data->answers) && is_array($data->answers)) {
+                        foreach ($data->answers as $ans) {
+                            $question->answer[] = $ans->text; // Formula
+                            $question->fraction[] = 1.0; // Default to correct
+                            $question->tolerance[] = isset($ans->tolerance) ? $ans->tolerance : 0.01;
+                            $question->tolerancetype[] = 1; // Relative
+                            $question->correctanswerlength[] = 2; 
+                            $question->correctanswerformat[] = 1; // Decimals
+                            $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
+                        }
+                     }
+                     // Unit support
+                     $question->unit = [isset($data->unit) ? $data->unit : ''];
+                     $question->multiplier = [1.0];
+                     
+                     // Datasets (Simple Mapping)
+                     // Note: Full dataset handling requires creating separate definition records.
+                     // This simple implementation relies on Moodle parsing the wildcards if definitions exist, 
+                     // or creating defaults if allowed. For robust "Wizard" style, we'd need more logic.
+                     $question->synchronize = 0;
+                }
+                elseif ($data->type === 'ddimageortext' || $data->type === 'ddmarker') {
+                    $question->shuffleanswers = 1;
+                    $question->drops = [];
+                    $question->drags = [];
+
+                    // Handle Background Image Upload
+                    if (!empty($_FILES['bgimage'])) {
+                        $draftitemid = file_get_unused_draft_itemid();
+                        $context = context_user::instance($USER->id);
+                        
+                        $fs = get_file_storage();
+                        $filerecord = array(
+                            'contextid' => $context->id,
+                            'component' => 'user',
+                            'filearea'  => 'draft',
+                            'itemid'    => $draftitemid,
+                            'filepath'  => '/',
+                            'filename'  => $_FILES['bgimage']['name']
+                        );
+                        $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
+                        
+                        $question->bgimage = $draftitemid;
+                    }
+
+                    // Process Drags
+                    if (isset($data->draggables) && is_array($data->draggables)) {
+                        foreach ($data->draggables as $idx => $drag) {
+                            $question->drags[] = [
+                                'label' => $drag->text,
+                                'no' => $idx + 1,
+                                'infinite' => 1,
+                                'group' => isset($drag->group) ? $drag->group : 1
+                            ];
+                        }
+                    }
+
+                    // Process Drops (Coords)
+                    if (isset($data->drops) && is_array($data->drops)) {
+                         foreach ($data->drops as $d) {
+                             $question->drops[] = [
+                                 'choice' => $d->choice,
+                                 'label' => '', // Label irrelevant for mapping, uses choice
+                                 'xleft' => $d->x,
+                                 'ytop' => $d->y
+                             ];
+                         }
+                    }
+                    
                     $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];

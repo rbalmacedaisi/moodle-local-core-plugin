@@ -137,6 +137,52 @@ function get_mock_data($type) {
             $base['shownumcorrect'] = 1;
             $base['questiontext']['text'] = 'Test text with [[1]] marker.';
             break;
+        case 'multianswer':
+            $base['questiontext']['text'] = 'Match the following: {1:SHORTANSWER:=Correct}';
+            break;
+        case 'randomsamatch':
+            $base['choose'] = 2;
+            $base['subcats'] = 1;
+            break;
+        case 'calculated':
+            $base['questiontext']['text'] = 'Calculate {a} + {b}';
+            $base['single'] = 1; 
+            $base['shuffleanswers'] = 1;
+            $base['answernumbering'] = 'abc';
+            $base['answer'] = [['text' => '{a}+{b}', 'format' => FORMAT_HTML]]; // Formula
+            $base['fraction'] = [1.0];
+            $base['tolerance'] = [0.01];
+            $base['feedback'] = [['text' => '', 'format' => FORMAT_HTML]];
+            $base['unit'] = [];
+            $base['multiplier'] = [];
+            
+            $base['synchronize'] = 0;
+            $base['correctfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['partiallycorrectfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['incorrectfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['shownumcorrect'] = 1;
+            break;
+        case 'ddimageortext':
+        case 'ddmarker':
+            $base['shuffleanswers'] = 1;
+            // Mock Drags
+            $base['drags'] = [
+                ['label' => 'Item 1', 'no' => 1, 'infinite' => 1, 'group' => 1],
+                ['label' => 'Item 2', 'no' => 2, 'infinite' => 1, 'group' => 1]
+            ];
+            // Mock Drops
+            $base['drops'] = [
+                ['choice' => 1, 'label' => '', 'xleft' => 10, 'ytop' => 10], 
+                ['choice' => 2, 'label' => '', 'xleft' => 50, 'ytop' => 50]
+            ];
+            // Bg Image (mocking draft ID - might fail if validation is strict, check result)
+            $base['bgimage'] = 0; 
+            
+            $base['correctfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['partiallycorrectfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['incorrectfeedback'] = ['text' => '', 'format' => FORMAT_HTML];
+            $base['shownumcorrect'] = 1;
+            break;
         case 'essay':
             $base['responseformat'] = 'editor';
             $base['responsefieldlines'] = 15;
@@ -164,7 +210,12 @@ $types_to_test = [
     'essay',
     'description',
     'gapselect',
-    'ddwtos'
+    'ddwtos',
+    'multianswer',
+    'randomsamatch',
+    'calculated',
+    'ddimageortext',
+    'ddmarker'
 ];
 
 
