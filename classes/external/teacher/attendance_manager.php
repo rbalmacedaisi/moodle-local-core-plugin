@@ -28,22 +28,29 @@ class attendance_manager extends external_api {
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
         
         // 2. Find the Attendance Activity in this Course
-        // Assuming one main attendance instance per course, or we filter by visible?
-        $att = $DB->get_record('attendance', ['course' => $class->courseid], 'id, name, grade', IGNORE_MULTIPLE);
+        // Check ALL attendance instances in this course to see what's going on
+        $all_atts = $DB->get_records('attendance', ['course' => $class->courseid]);
         
-        if (!$att) {
-            // Debugging: Check if course exists at all
-            $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
-            return [
-                'status' => 'error', 
-                'message' => "No se encontró una actividad de asistencia en este curso (ID: {$class->courseid}). ¿Existe el curso? " . ($course_exists ? 'Sí' : 'No'),
-                'debug_info' => [
-                    'class_id' => $classid,
-                    'course_id' => $class->courseid,
-                    'group_id' => $class->groupid
-                ]
-            ];
+        if (empty($all_atts)) {
+             // Debugging: Check if course exists at all
+             $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
+             return [
+                 'status' => 'error', 
+                 'message' => "No se encontró NINGUNA actividad de asistencia en la tabla mdl_attendance para el curso ID: {$class->courseid}.",
+                 'debug_info' => [
+                     'class_id' => $classid,
+                     'course_id' => $class->courseid,
+                     'course_exists' => $course_exists
+                 ]
+             ];
         }
+
+        // Just take the first one found
+        $att = reset($all_atts);
+
+        // $att = $DB->get_record('attendance', ['course' => $class->courseid], 'id, name, grade', IGNORE_MULTIPLE);
+        
+        // if (!$att) { ... } // Removed old check
 
         $cm = get_coursemodule_from_instance('attendance', $att->id, $class->courseid);
         
