@@ -110,6 +110,11 @@ const ManageClass = {
                             </v-card>
                         </v-tab-item>
 
+                        <!-- Attendance Tab -->
+                        <v-tab-item>
+                            <attendance-panel :class-id="classId" :config="config"></attendance-panel>
+                        </v-tab-item>
+                        
                         <!-- Roster Tab -->
                         <v-tab-item>
                             <teacher-student-table :class-id="classId"></teacher-student-table>
@@ -290,9 +295,15 @@ const ManageClass = {
 
         </v-container>
     `,
+    components: {
+        'teacher-student-table': TeacherStudentTable,
+        'grades-grid': GradesGrid,
+        'pending-grading-view': PendingGradingView,
+        'attendance-panel': AttendancePanel
+    },
     data() {
         return {
-            activeTab: 0,
+            activeTab: 'timeline', // Changed to string to match new tab IDs
             fab: false,
             classDetails: {
                 name: '',
@@ -300,11 +311,12 @@ const ManageClass = {
                 type: 0
             },
             tabs: [
-                { id: 0, name: 'Timeline', icon: 'mdi-timeline-clock' },
-                { id: 1, name: 'Estudiantes', icon: 'mdi-account-group' },
-                { id: 2, name: 'Calificar', icon: 'mdi-clipboard-check-outline' },
-                { id: 3, name: 'Notas', icon: 'mdi-star' },
-                { id: 4, name: 'Actividades', icon: 'mdi-view-grid-outline' }
+                { id: 'timeline', name: 'Sesiones', icon: 'mdi-calendar-clock' },
+                { id: 'attendance', name: 'Asistencia', icon: 'mdi-account-check' },
+                { id: 'roster', name: 'Estudiantes', icon: 'mdi-account-group' },
+                { id: 'tasks', name: 'Por Calificar', icon: 'mdi-clipboard-check' },
+                { id: 'grades', name: 'Calificaciones', icon: 'mdi-grid' },
+                { id: 'content', name: 'Actividades', icon: 'mdi-folder-open' }
             ],
             timeline: [],
             loadingTimeline: true, // Start loading by default

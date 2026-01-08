@@ -41,6 +41,7 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/Pending
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20251231026'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20251231026'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20251231026'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20251231026'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20251231026'), true);
