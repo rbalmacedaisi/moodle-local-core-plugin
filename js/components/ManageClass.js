@@ -476,11 +476,15 @@ const ManageClass = {
 
                 const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
 
+                console.log('QR Response Payload:', response.data);
+
                 if (response.data && response.data.status === 'success') {
                     this.currentQR = response.data;
                     this.qrDialog = true;
                 } else {
-                    this.snackbarText = response.data.message || 'Error al obtener QR';
+                    console.error('QR Logic Error:', response.data);
+                    this.snackbarText = (response.data && response.data.message) ? response.data.message : 'Error al obtener QR (Respuesta inválida)';
+                    this.snackbarColor = 'error';
                     this.snackbar = true;
                 }
             } catch (e) {
@@ -491,160 +495,154 @@ const ManageClass = {
                 this.loadingQR = false;
             }
         },
-        async showQR(session) {
-            if (!session.attendance) return;
 
-            this.loadingQR = true;
-            try {
-                const params = new URLSearchParams();
-                params.append('action', 'local_grupomakro_get_session_qr');
-                params.append('sessionid', session.attendance.id);
+        params.append('sessionid', session.attendance.id);
 
-                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+        const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
 
-                if (response.data && response.data.status === 'success') {
-                    this.currentQR = response.data;
-                    this.qrDialog = true;
+        if(response.data && response.data.status === 'success') {
+            this.currentQR = response.data;
+this.qrDialog = true;
                 } else {
-                    this.snackbarText = response.data.message || 'Error al obtener QR';
-                    this.snackbar = true;
-                }
+    this.snackbarText = response.data.message || 'Error al obtener QR';
+    this.snackbar = true;
+}
             } catch (e) {
-                console.error(e);
-                this.snackbarText = 'Error de conexión';
-                this.snackbar = true;
-            } finally {
-                this.loadingQR = false;
-            }
+    console.error(e);
+    this.snackbarText = 'Error de conexión';
+    this.snackbar = true;
+} finally {
+    this.loadingQR = false;
+}
         },
         async fetchActivities() {
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_all_activities',
-                    args: { classid: this.classId },
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    // console.log('Fetch Activities Success:', response.data.activities);
-                    this.activities = response.data.activities;
-                } else {
-                    console.warn('Fetch Activities Failed:', response.data);
-                }
-            } catch (error) {
-                console.error('Error fetching activities:', error);
-            }
-        },
-        getSessionColor(session) {
-            const now = new Date();
-            const sessionDate = new Date(parseInt(session.startdate) * 1000);
-            if (sessionDate < now) return 'grey lighten-1';
-            if (this.isNextSession(session)) return 'primary';
-            return 'grey lighten-3';
-        },
-        isNextSession(session) {
-            return false;
-        },
-        isSessionActive(session) {
-            const now = new Date().getTime() / 1000;
-            return now >= (session.startdate - 900);
-        },
-        formatDate(timestamp) {
-            if (!timestamp) return 'No programada';
-            const date = new Date(parseInt(timestamp) * 1000);
-            return date.toLocaleDateString(undefined, {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        },
-        enterSession(session) {
-            if (session.type === 'virtual') {
-                if (session.join_url && session.join_url !== '#') {
-                    window.open(session.join_url, '_blank');
-                } else {
-                    let msg = 'El enlace a la sesión virtual no está disponible.';
-                    if (session.debug_error) {
-                        msg += '\nDetalles: ' + session.debug_error;
-                        console.error('BBB Join Error:', session.debug_error);
-                    }
-                    alert(msg);
-                }
-            } else {
-                // Logic to open attendance manager
-            }
-        },
-        openQuizQuestions(activity) {
-            // Use SPA navigation instead of new window
-            this.$emit('change-page', {
-                page: 'quiz-editor',
-                cmid: activity.id,
-                id: this.classId // Ensure we keep track of current class
-            });
-        },
-        addActivity(type, label = '') {
-            if (type === 'quiz') {
-                this.showQuizWizard = true;
-            } else {
-                this.newActivityType = type;
-                this.customActivityLabel = label;
-                this.showActivityWizard = true;
-            }
-        },
-        async fetchAvailableModules() {
-            this.isLoadingModules = true;
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_available_modules',
-                    args: {},
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    this.availableModules = response.data.modules;
-                }
-            } catch (e) { console.error(e); }
-            finally { this.isLoadingModules = false; }
-        },
-        openActivitySelector() {
-            this.showActivitySelector = true;
-            if (this.availableModules.length === 0) {
-                this.fetchAvailableModules();
-            }
-        },
-        selectModule(module) {
-            this.showActivitySelector = false;
-            this.addActivity(module.name, module.label);
-        },
-        goToCourse() {
-            // Redirect to standard course page in editing mode to add other activities
-            if (this.classDetails.corecourseid) {
-                window.open(`${window.M.cfg.wwwroot}/course/view.php?id=${this.classDetails.corecourseid}`, '_blank');
-            } else {
-                alert('ID del curso no disponible.');
-            }
-        },
-        onActivityCreated() {
-            this.fetchTimeline();
-            this.fetchActivities(); // Refresh activities list
-            this.isEditing = false;
-        },
-        openEditActivity(activity) {
-            this.isEditing = true;
-            this.editActivityData = activity;
-            this.newActivityType = activity.modname; // Needed for wizard type context
-            this.customActivityLabel = activity.name; // Temporary till loaded
-            this.showActivityWizard = true;
-        },
-        copyGuestLink(url) {
-            navigator.clipboard.writeText(url).then(() => {
-                this.snackbarText = 'Enlace de invitado copiado al portapapeles';
-                this.snackbar = true;
-            }).catch(err => {
-                console.error('Error al copiar:', err);
-                alert('No se pudo copiar el enlace.');
-            });
+    try {
+        const response = await axios.post(window.wsUrl, {
+            action: 'local_grupomakro_get_all_activities',
+            args: { classid: this.classId },
+            ...window.wsStaticParams
+        });
+        if (response.data.status === 'success') {
+            // console.log('Fetch Activities Success:', response.data.activities);
+            this.activities = response.data.activities;
+        } else {
+            console.warn('Fetch Activities Failed:', response.data);
         }
+    } catch (error) {
+        console.error('Error fetching activities:', error);
+    }
+},
+getSessionColor(session) {
+    const now = new Date();
+    const sessionDate = new Date(parseInt(session.startdate) * 1000);
+    if (sessionDate < now) return 'grey lighten-1';
+    if (this.isNextSession(session)) return 'primary';
+    return 'grey lighten-3';
+},
+isNextSession(session) {
+    return false;
+},
+isSessionActive(session) {
+    const now = new Date().getTime() / 1000;
+    return now >= (session.startdate - 900);
+},
+formatDate(timestamp) {
+    if (!timestamp) return 'No programada';
+    const date = new Date(parseInt(timestamp) * 1000);
+    return date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+},
+enterSession(session) {
+    if (session.type === 'virtual') {
+        if (session.join_url && session.join_url !== '#') {
+            window.open(session.join_url, '_blank');
+        } else {
+            let msg = 'El enlace a la sesión virtual no está disponible.';
+            if (session.debug_error) {
+                msg += '\nDetalles: ' + session.debug_error;
+                console.error('BBB Join Error:', session.debug_error);
+            }
+            alert(msg);
+        }
+    } else {
+        // Logic to open attendance manager
+    }
+},
+openQuizQuestions(activity) {
+    // Use SPA navigation instead of new window
+    this.$emit('change-page', {
+        page: 'quiz-editor',
+        cmid: activity.id,
+        id: this.classId // Ensure we keep track of current class
+    });
+},
+addActivity(type, label = '') {
+    if (type === 'quiz') {
+        this.showQuizWizard = true;
+    } else {
+        this.newActivityType = type;
+        this.customActivityLabel = label;
+        this.showActivityWizard = true;
+    }
+},
+        async fetchAvailableModules() {
+    this.isLoadingModules = true;
+    try {
+        const response = await axios.post(window.wsUrl, {
+            action: 'local_grupomakro_get_available_modules',
+            args: {},
+            ...window.wsStaticParams
+        });
+        if (response.data.status === 'success') {
+            this.availableModules = response.data.modules;
+        }
+    } catch (e) { console.error(e); }
+    finally { this.isLoadingModules = false; }
+},
+openActivitySelector() {
+    this.showActivitySelector = true;
+    if (this.availableModules.length === 0) {
+        this.fetchAvailableModules();
+    }
+},
+selectModule(module) {
+    this.showActivitySelector = false;
+    this.addActivity(module.name, module.label);
+},
+goToCourse() {
+    // Redirect to standard course page in editing mode to add other activities
+    if (this.classDetails.corecourseid) {
+        window.open(`${window.M.cfg.wwwroot}/course/view.php?id=${this.classDetails.corecourseid}`, '_blank');
+    } else {
+        alert('ID del curso no disponible.');
+    }
+},
+onActivityCreated() {
+    this.fetchTimeline();
+    this.fetchActivities(); // Refresh activities list
+    this.isEditing = false;
+},
+openEditActivity(activity) {
+    this.isEditing = true;
+    this.editActivityData = activity;
+    this.newActivityType = activity.modname; // Needed for wizard type context
+    this.customActivityLabel = activity.name; // Temporary till loaded
+    this.showActivityWizard = true;
+},
+copyGuestLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+        this.snackbarText = 'Enlace de invitado copiado al portapapeles';
+        this.snackbar = true;
+    }).catch(err => {
+        console.error('Error al copiar:', err);
+        alert('No se pudo copiar el enlace.');
+    });
+}
     }
 };
 

@@ -118,7 +118,7 @@ class attendance_manager extends external_api {
                 'password' => $password,
                 'rotate' => $session->rotateqrcode ?? 0
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return [
                 'status' => 'error',
                 'message' => 'Error al generar QR: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine()
