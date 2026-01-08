@@ -91,11 +91,21 @@ function get_mock_data($type) {
             $base['feedbackfalse'] = ['text' => 'Bad', 'format' => FORMAT_HTML];
             break;
         case 'multichoice':
-        case 'shortanswer':
             $base['single'] = 1;
             $base['shuffleanswers'] = 1;
             $base['answernumbering'] = 'abc';
             $base['answer'] = [['text' => 'Correct', 'format' => FORMAT_HTML], ['text' => 'Wrong', 'format' => FORMAT_HTML]];
+            $base['fraction'] = [1.0, 0.0];
+            $base['feedback'] = [['text' => '', 'format' => FORMAT_HTML], ['text' => '', 'format' => FORMAT_HTML]];
+            
+            $base['correctfeedback'] = ['text' => 'Correct', 'format' => FORMAT_HTML];
+            $base['partiallycorrectfeedback'] = ['text' => 'Partially', 'format' => FORMAT_HTML];
+            $base['incorrectfeedback'] = ['text' => 'Incorrect', 'format' => FORMAT_HTML];
+            $base['shownumcorrect'] = 1;
+            break;
+        case 'shortanswer':
+            $base['usecase'] = 0;
+            $base['answer'] = ['Correct', 'Wrong']; // Plain strings for shortanswer
             $base['fraction'] = [1.0, 0.0];
             $base['feedback'] = [['text' => '', 'format' => FORMAT_HTML], ['text' => '', 'format' => FORMAT_HTML]];
             break;
@@ -131,6 +141,8 @@ function get_mock_data($type) {
             $base['responseformat'] = 'editor';
             $base['responsefieldlines'] = 15;
             $base['attachments'] = 0;
+            $base['responserequired'] = 0;
+            $base['attachmentsrequired'] = 0;
             $base['graderinfo'] = ['text' => '', 'format' => FORMAT_HTML];
             $base['responsetemplate'] = ['text' => '', 'format' => FORMAT_HTML];
             break;
