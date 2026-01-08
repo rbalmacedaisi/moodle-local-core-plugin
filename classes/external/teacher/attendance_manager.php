@@ -38,7 +38,7 @@ class attendance_manager extends external_api {
         $cm = get_coursemodule_from_instance('attendance', $att->id, $class->courseid);
         
         // Init Structure
-        $att_structure = new mod_attendance_structure($att, $cm, $class->courseid, \context_module::instance($cm->id));
+        // $att_structure = new mod_attendance_structure($att, $cm, $class->courseid, \context_module::instance($cm->id));
 
         // 3. Get Sessions for "Today" (or recent) filtered by Group
         // mod_attendance usually filters by group mode.
