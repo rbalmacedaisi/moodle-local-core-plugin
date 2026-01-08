@@ -88,7 +88,7 @@ $observers = array(
     ),
     array(
         'eventname' => 'core\event\user_loggedin',
-        'callback' => 'local_grupomakro_core_observer::user_loggedin',
+        'callback' => '\local_grupomakro_core\event\user_login_handler::user_loggedin',
     )
 );
 
