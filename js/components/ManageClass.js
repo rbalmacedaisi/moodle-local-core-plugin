@@ -318,10 +318,22 @@ const ManageClass = {
                         </div>
                         <div class="caption mt-2" v-if="currentQR.rotate">
                             El código rota automáticamente.
+                            <div class="mt-2" v-if="qrSecondsLeft > 0">
+                                <v-progress-circular
+                                    :rotate="-90"
+                                    :size="40"
+                                    :width="4"
+                                    :value="(qrSecondsLeft / qrTotalSeconds) * 100"
+                                    color="primary"
+                                >
+                                    {{ qrSecondsLeft }}
+                                </v-progress-circular>
+                                <div class="caption mt-1">Actualizando en {{ qrSecondsLeft }}s</div>
+                            </div>
                         </div>
                     </v-card-text>
                     <v-card-actions class="justify-center">
-                        <v-btn color="primary" text @click="qrDialog = false">Cerrar</v-btn>
+                        <v-btn color="primary" text @click="closeQRDialog">Cerrar</v-btn>
                     </v-card-actions>
                 </v-card>
                 <v-card v-else class="text-center pa-5">
@@ -368,264 +380,295 @@ const ManageClass = {
             // QR / Attendance Data
             qrDialog: false,
             currentQR: null,
-            loadingQR: false
-        };
-    },
-    computed: {
-        groupedActivities() {
-            const groups = {};
-            // console.log('Calculating groupedActivities', this.activities);
-            if (!this.activities || !Array.isArray(this.activities)) {
-                // console.warn('Activities is not an array:', this.activities);
-                return {};
-            }
-            this.activities.forEach(activity => {
-                const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
-                // console.log('Activity:', activity.name, 'Tags:', tags);
-                tags.forEach(tag => {
-                    if (!groups[tag]) groups[tag] = [];
-                    groups[tag].push(activity);
-                });
-            });
-            // console.log('Grouped Activities:', groups);
-            return groups;
-        }
-    },
-    mounted() {
-        this.fetchClassDetails();
-        this.fetchTimeline(); // This now handles both timeline + attendance
-        this.fetchActivities();
-    },
-    methods: {
-        async fetchClassDetails() {
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_teacher_dashboard_data',
-                    args: { userid: window.userId },
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    const cls = response.data.data.active_classes.find(c => c.id === this.classId);
-                    if (cls) this.classDetails = cls;
-                }
-            } catch (error) {
-                console.error('Error fetching class details:', error);
-            }
+            currentSession: null,
+            loadingQR: false,
+            qrTimer: null,
+            qrSecondsLeft: 0,
+            qrTotalSeconds: 30
         },
-        async fetchTimeline() {
-            if (!this.config || !this.config.wwwroot) {
-                console.error('ManageClass: Config or wwwroot missing', this.config);
-                this.loadingTimeline = false;
-                return;
-            }
-            this.loadingTimeline = true;
-            try {
-                const [timelineResp, attendanceResp] = await Promise.all([
-                    axios.post(window.wsUrl, {
-                        action: 'local_grupomakro_get_class_details',
-                        args: { classid: this.classId },
-                        ...window.wsStaticParams
-                    }),
-                    axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', new URLSearchParams({
-                        action: 'local_grupomakro_get_attendance_sessions',
-                        classid: this.classId
-                    }))
-                ]);
-
-                let sessions = [];
-                if (timelineResp.data.status === 'success') {
-                    sessions = timelineResp.data.data.sessions;
+            computed: {
+            groupedActivities() {
+                const groups = {};
+                // console.log('Calculating groupedActivities', this.activities);
+                if (!this.activities || !Array.isArray(this.activities)) {
+                    // console.warn('Activities is not an array:', this.activities);
+                    return {};
                 }
-
-                let attSessions = [];
-                if (attendanceResp.data.status === 'success') {
-                    attSessions = attendanceResp.data.sessions;
-                }
-
-                // Merge Logic: Attach attendance info to timeline session if dates match
-                // Note: Timeline sessions usually have 'startdate' timestamp. Attendance has 'sessdate' timestamp.
-                this.timeline = sessions.map(s => {
-                    // Simple logic: find attendance session on same day
-                    // NOTE: Timestamps might differ slightly (e.g. 8:00 vs 8:05). 
-                    // Let's match by Y-m-d.
-                    const sDate = new Date(s.startdate * 1000).toDateString();
-                    const att = attSessions.find(a => {
-                        const aDate = new Date(a.sessdate * 1000).toDateString();
-                        return sDate === aDate;
+                this.activities.forEach(activity => {
+                    const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
+                    // console.log('Activity:', activity.name, 'Tags:', tags);
+                    tags.forEach(tag => {
+                        if (!groups[tag]) groups[tag] = [];
+                        groups[tag].push(activity);
                     });
-
-                    return { ...s, attendance: att || null };
                 });
-                // If there are attendance sessions NOT in timeline (e.g. ad-hoc), maybe append them?
-                // For now, let's stick to matching existing timeline events to keep it clean.
-
-            } catch (error) {
-                console.error('Error fetching timeline/attendance:', error);
-            } finally {
-                this.loadingTimeline = false;
+                // console.log('Grouped Activities:', groups);
+                return groups;
             }
         },
-        async showQR(session) {
-            if (!session.attendance) return;
-
-            this.loadingQR = true;
-            try {
-                const params = new URLSearchParams();
-                params.append('action', 'local_grupomakro_get_session_qr');
-                params.append('sessionid', session.attendance.id);
-
-                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
-
-                console.log('QR Response Payload:', response.data);
-
-                if (response.data && response.data.status === 'success') {
-                    this.currentQR = response.data;
-                    this.qrDialog = true;
-                } else {
-                    console.error('QR Logic Error:', response.data);
-                    this.snackbarText = (response.data && response.data.message) ? response.data.message : 'Error al obtener QR (Respuesta inválida)';
-                    this.snackbarColor = 'error';
-                    this.snackbar = true;
+        mounted() {
+            this.fetchClassDetails();
+            this.fetchTimeline(); // This now handles both timeline + attendance
+            this.fetchActivities();
+        },
+        methods: {
+        async fetchClassDetails() {
+                try {
+                    const response = await axios.post(window.wsUrl, {
+                        action: 'local_grupomakro_get_teacher_dashboard_data',
+                        args: { userid: window.userId },
+                        ...window.wsStaticParams
+                    });
+                    if (response.data.status === 'success') {
+                        const cls = response.data.data.active_classes.find(c => c.id === this.classId);
+                        if (cls) this.classDetails = cls;
+                    }
+                } catch (error) {
+                    console.error('Error fetching class details:', error);
                 }
-            } catch (e) {
-                console.error(e);
-                this.snackbarText = 'Error de conexión';
-                this.snackbar = true;
-            } finally {
-                this.loadingQR = false;
-            }
-        },
+            },
+        async fetchTimeline() {
+                if (!this.config || !this.config.wwwroot) {
+                    console.error('ManageClass: Config or wwwroot missing', this.config);
+                    this.loadingTimeline = false;
+                    return;
+                }
+                this.loadingTimeline = true;
+                try {
+                    const [timelineResp, attendanceResp] = await Promise.all([
+                        axios.post(window.wsUrl, {
+                            action: 'local_grupomakro_get_class_details',
+                            args: { classid: this.classId },
+                            ...window.wsStaticParams
+                        }),
+                        axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', new URLSearchParams({
+                            action: 'local_grupomakro_get_attendance_sessions',
+                            classid: this.classId
+                        }))
+                    ]);
+
+                    let sessions = [];
+                    if (timelineResp.data.status === 'success') {
+                        sessions = timelineResp.data.data.sessions;
+                    }
+
+                    let attSessions = [];
+                    if (attendanceResp.data.status === 'success') {
+                        attSessions = attendanceResp.data.sessions;
+                    }
+
+                    // Merge Logic: Attach attendance info to timeline session if dates match
+                    // Note: Timeline sessions usually have 'startdate' timestamp. Attendance has 'sessdate' timestamp.
+                    this.timeline = sessions.map(s => {
+                        // Simple logic: find attendance session on same day
+                        // NOTE: Timestamps might differ slightly (e.g. 8:00 vs 8:05). 
+                        // Let's match by Y-m-d.
+                        const sDate = new Date(s.startdate * 1000).toDateString();
+                        const att = attSessions.find(a => {
+                            const aDate = new Date(a.sessdate * 1000).toDateString();
+                            return sDate === aDate;
+                        });
+
+                        return { ...s, attendance: att || null };
+                    });
+                    // If there are attendance sessions NOT in timeline (e.g. ad-hoc), maybe append them?
+                    // For now, let's stick to matching existing timeline events to keep it clean.
+
+                } catch (error) {
+                    console.error('Error fetching timeline/attendance:', error);
+                } finally {
+                    this.loadingTimeline = false;
+                }
+            },
+        async showQR(session) {
+                if (!session.attendance) return;
+
+                this.currentSession = session;
+                this.loadingQR = true;
+                try {
+                    const params = new URLSearchParams();
+                    params.append('action', 'local_grupomakro_get_session_qr');
+                    params.append('sessionid', session.attendance.id);
+
+                    const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                    console.log('QR Response Payload:', response.data);
+
+                    if (response.data && response.data.status === 'success') {
+                        this.currentQR = response.data;
+                        this.currentSession = session; // Store the session for rotation
+                        this.qrDialog = true;
+
+                        // Handle Rotation
+                        if (this.currentQR.rotate) {
+                            this.startQRRotation();
+                        }
+                    } else {
+                        console.error('QR Logic Error:', response.data);
+                        this.snackbarText = (response.data && response.data.message) ? response.data.message : 'Error al obtener QR (Respuesta inválida)';
+                        this.snackbarColor = 'error';
+                        this.snackbar = true;
+                    }
+                } catch (e) {
+                    console.error(e);
+                    this.snackbarText = 'Error de conexión';
+                    this.snackbar = true;
+                } finally {
+                    this.loadingQR = false;
+                }
+            },
+            startQRRotation() {
+                if (this.qrTimer) clearInterval(this.qrTimer);
+                this.qrTotalSeconds = 10; // Fast 10s rotation for UX
+                this.qrSecondsLeft = this.qrTotalSeconds;
+
+                this.qrTimer = setInterval(() => {
+                    this.qrSecondsLeft--;
+                    if (this.qrSecondsLeft <= 0) {
+                        clearInterval(this.qrTimer);
+                        // Refresh if dialog open
+                        if (this.qrDialog && this.currentSession) {
+                            this.showQR(this.currentSession);
+                        }
+                    }
+                }, 1000);
+            },
+            closeQRDialog() {
+                this.qrDialog = false;
+                if (this.qrTimer) clearInterval(this.qrTimer);
+                this.currentSession = null;
+            },
 
 
         async fetchActivities() {
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_all_activities',
-                    args: { classid: this.classId },
-                    ...window.wsStaticParams
-                });
-                if (response.data.status === 'success') {
-                    // console.log('Fetch Activities Success:', response.data.activities);
-                    this.activities = response.data.activities;
-                } else {
-                    console.warn('Fetch Activities Failed:', response.data);
-                }
-            } catch (error) {
-                console.error('Error fetching activities:', error);
-            }
-        },
-        getSessionColor(session) {
-            const now = new Date();
-            const sessionDate = new Date(parseInt(session.startdate) * 1000);
-            if (sessionDate < now) return 'grey lighten-1';
-            if (this.isNextSession(session)) return 'primary';
-            return 'grey lighten-3';
-        },
-        isNextSession(session) {
-            return false;
-        },
-        isSessionActive(session) {
-            const now = new Date().getTime() / 1000;
-            return now >= (session.startdate - 900);
-        },
-        formatDate(timestamp) {
-            if (!timestamp) return 'No programada';
-            const date = new Date(parseInt(timestamp) * 1000);
-            return date.toLocaleDateString(undefined, {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        },
-        enterSession(session) {
-            if (session.type === 'virtual') {
-                if (session.join_url && session.join_url !== '#') {
-                    window.open(session.join_url, '_blank');
-                } else {
-                    let msg = 'El enlace a la sesión virtual no está disponible.';
-                    if (session.debug_error) {
-                        msg += '\nDetalles: ' + session.debug_error;
-                        console.error('BBB Join Error:', session.debug_error);
+                try {
+                    const response = await axios.post(window.wsUrl, {
+                        action: 'local_grupomakro_get_all_activities',
+                        args: { classid: this.classId },
+                        ...window.wsStaticParams
+                    });
+                    if (response.data.status === 'success') {
+                        // console.log('Fetch Activities Success:', response.data.activities);
+                        this.activities = response.data.activities;
+                    } else {
+                        console.warn('Fetch Activities Failed:', response.data);
                     }
-                    alert(msg);
+                } catch (error) {
+                    console.error('Error fetching activities:', error);
                 }
-            } else {
-                // Logic to open attendance manager
-            }
-        },
-        openQuizQuestions(activity) {
-            // Use SPA navigation instead of new window
-            this.$emit('change-page', {
-                page: 'quiz-editor',
-                cmid: activity.id,
-                id: this.classId // Ensure we keep track of current class
-            });
-        },
-        addActivity(type, label = '') {
-            if (type === 'quiz') {
-                this.showQuizWizard = true;
-            } else {
-                this.newActivityType = type;
-                this.customActivityLabel = label;
-                this.showActivityWizard = true;
-            }
-        },
-        async fetchAvailableModules() {
-            this.isLoadingModules = true;
-            try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_available_modules',
-                    args: {},
-                    ...window.wsStaticParams
+            },
+            getSessionColor(session) {
+                const now = new Date();
+                const sessionDate = new Date(parseInt(session.startdate) * 1000);
+                if (sessionDate < now) return 'grey lighten-1';
+                if (this.isNextSession(session)) return 'primary';
+                return 'grey lighten-3';
+            },
+            isNextSession(session) {
+                return false;
+            },
+            isSessionActive(session) {
+                const now = new Date().getTime() / 1000;
+                return now >= (session.startdate - 900);
+            },
+            formatDate(timestamp) {
+                if (!timestamp) return 'No programada';
+                const date = new Date(parseInt(timestamp) * 1000);
+                return date.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    hour: '2-digit',
+                    minute: '2-digit'
                 });
-                if (response.data.status === 'success') {
-                    this.availableModules = response.data.modules;
+            },
+            enterSession(session) {
+                if (session.type === 'virtual') {
+                    if (session.join_url && session.join_url !== '#') {
+                        window.open(session.join_url, '_blank');
+                    } else {
+                        let msg = 'El enlace a la sesión virtual no está disponible.';
+                        if (session.debug_error) {
+                            msg += '\nDetalles: ' + session.debug_error;
+                            console.error('BBB Join Error:', session.debug_error);
+                        }
+                        alert(msg);
+                    }
+                } else {
+                    // Logic to open attendance manager
                 }
-            } catch (e) { console.error(e); }
-            finally { this.isLoadingModules = false; }
-        },
-        openActivitySelector() {
-            this.showActivitySelector = true;
-            if (this.availableModules.length === 0) {
-                this.fetchAvailableModules();
+            },
+            openQuizQuestions(activity) {
+                // Use SPA navigation instead of new window
+                this.$emit('change-page', {
+                    page: 'quiz-editor',
+                    cmid: activity.id,
+                    id: this.classId // Ensure we keep track of current class
+                });
+            },
+            addActivity(type, label = '') {
+                if (type === 'quiz') {
+                    this.showQuizWizard = true;
+                } else {
+                    this.newActivityType = type;
+                    this.customActivityLabel = label;
+                    this.showActivityWizard = true;
+                }
+            },
+        async fetchAvailableModules() {
+                this.isLoadingModules = true;
+                try {
+                    const response = await axios.post(window.wsUrl, {
+                        action: 'local_grupomakro_get_available_modules',
+                        args: {},
+                        ...window.wsStaticParams
+                    });
+                    if (response.data.status === 'success') {
+                        this.availableModules = response.data.modules;
+                    }
+                } catch (e) { console.error(e); }
+                finally { this.isLoadingModules = false; }
+            },
+            openActivitySelector() {
+                this.showActivitySelector = true;
+                if (this.availableModules.length === 0) {
+                    this.fetchAvailableModules();
+                }
+            },
+            selectModule(module) {
+                this.showActivitySelector = false;
+                this.addActivity(module.name, module.label);
+            },
+            goToCourse() {
+                // Redirect to standard course page in editing mode to add other activities
+                if (this.classDetails.corecourseid) {
+                    window.open(`${window.M.cfg.wwwroot}/course/view.php?id=${this.classDetails.corecourseid}`, '_blank');
+                } else {
+                    alert('ID del curso no disponible.');
+                }
+            },
+            onActivityCreated() {
+                this.fetchTimeline();
+                this.fetchActivities(); // Refresh activities list
+                this.isEditing = false;
+            },
+            openEditActivity(activity) {
+                this.isEditing = true;
+                this.editActivityData = activity;
+                this.newActivityType = activity.modname; // Needed for wizard type context
+                this.customActivityLabel = activity.name; // Temporary till loaded
+                this.showActivityWizard = true;
+            },
+            copyGuestLink(url) {
+                navigator.clipboard.writeText(url).then(() => {
+                    this.snackbarText = 'Enlace de invitado copiado al portapapeles';
+                    this.snackbar = true;
+                }).catch(err => {
+                    console.error('Error al copiar:', err);
+                    alert('No se pudo copiar el enlace.');
+                });
             }
-        },
-        selectModule(module) {
-            this.showActivitySelector = false;
-            this.addActivity(module.name, module.label);
-        },
-        goToCourse() {
-            // Redirect to standard course page in editing mode to add other activities
-            if (this.classDetails.corecourseid) {
-                window.open(`${window.M.cfg.wwwroot}/course/view.php?id=${this.classDetails.corecourseid}`, '_blank');
-            } else {
-                alert('ID del curso no disponible.');
-            }
-        },
-        onActivityCreated() {
-            this.fetchTimeline();
-            this.fetchActivities(); // Refresh activities list
-            this.isEditing = false;
-        },
-        openEditActivity(activity) {
-            this.isEditing = true;
-            this.editActivityData = activity;
-            this.newActivityType = activity.modname; // Needed for wizard type context
-            this.customActivityLabel = activity.name; // Temporary till loaded
-            this.showActivityWizard = true;
-        },
-        copyGuestLink(url) {
-            navigator.clipboard.writeText(url).then(() => {
-                this.snackbarText = 'Enlace de invitado copiado al portapapeles';
-                this.snackbar = true;
-            }).catch(err => {
-                console.error('Error al copiar:', err);
-                alert('No se pudo copiar el enlace.');
-            });
         }
-    }
-};
+    };
 
-window.ManageClass = ManageClass;
+    window.ManageClass = ManageClass;
