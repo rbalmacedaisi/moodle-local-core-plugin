@@ -411,6 +411,84 @@ const QuizEditor = {
                         </div>
 
                         <!-- Fallback for complex types -->
+                        <!-- Multiple Choice UI -->
+                        <div v-else-if="newQuestion.type === 'multichoice'">
+                            <v-row>
+                                <v-col cols="12" md="6">
+                                    <v-switch 
+                                        label="¿Se permite una o varias respuestas?" 
+                                        v-model="newQuestion.single" 
+                                        :true-value="true" 
+                                        :false-value="false"
+                                        inset
+                                        dense
+                                    >
+                                        <template v-slot:label>
+                                            {{ newQuestion.single ? 'Solo una respuesta' : 'Se permiten varias respuestas' }}
+                                        </template>
+                                    </v-switch>
+                                </v-col>
+                                <v-col cols="12" md="6">
+                                    <v-switch 
+                                        label="Barajar respuestas" 
+                                        v-model="newQuestion.shuffleanswers" 
+                                        inset
+                                        dense
+                                    ></v-switch>
+                                </v-col>
+                            </v-row>
+
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="subtitle-2">Opciones de Respuesta</div>
+                                <v-btn small text color="primary" @click="newQuestion.answers.push({text: '', fraction: 0.0, feedback: ''})">
+                                    <v-icon left>mdi-plus</v-icon> Agregar Opción
+                                </v-btn>
+                            </div>
+                            
+                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" outlined class="mb-3 pa-3">
+                                <v-row dense align="start">
+                                    <v-col cols="12" md="7">
+                                        <v-text-field 
+                                            :label="'Opción ' + (i+1)" 
+                                            v-model="answer.text" 
+                                            placeholder="Texto de la opción" 
+                                            outlined dense
+                                            hide-details="auto"
+                                        >
+                                            <template v-slot:prepend-inner>
+                                                 <v-icon v-if="answer.fraction > 0" color="success">mdi-check-circle-outline</v-icon>
+                                                 <v-icon v-else color="grey lighten-1">mdi-circle-outline</v-icon>
+                                            </template>
+                                        </v-text-field>
+                                        <v-text-field 
+                                            label="Retroalimentación (Opcional)" 
+                                            v-model="answer.feedback" 
+                                            dense filled class="mt-2 rounded-lg"
+                                            hide-details
+                                            placeholder="Comentario si elige esta opción"
+                                        ></v-text-field>
+                                    </v-col>
+                                    <v-col cols="8" md="4">
+                                        <v-select 
+                                            label="Calificación" 
+                                            v-model="answer.fraction" 
+                                            :items="gradeOptions" 
+                                            outlined dense
+                                        >
+                                            <template v-slot:selection="{ item }">
+                                                <span :class="item.value > 0 ? 'green--text' : 'red--text'">{{ item.text }}</span>
+                                            </template>
+                                        </v-select>
+                                    </v-col>
+                                    <v-col cols="4" md="1" class="text-right">
+                                        <v-btn icon color="red lighten-2" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 2">
+                                            <v-icon>mdi-delete</v-icon>
+                                        </v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                        </div>
+                        
                         <!-- Short Answer UI -->
                         <div v-else-if="newQuestion.type === 'shortanswer'">
                             <v-alert type="info" text class="mb-4" dense icon="mdi-text-short-title" border="left" colored-border>
