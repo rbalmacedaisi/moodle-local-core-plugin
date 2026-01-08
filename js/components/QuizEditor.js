@@ -411,6 +411,69 @@ const QuizEditor = {
                         </div>
 
                         <!-- Fallback for complex types -->
+                        <!-- Short Answer UI -->
+                        <div v-else-if="newQuestion.type === 'shortanswer'">
+                            <v-alert type="info" text class="mb-4" dense icon="mdi-text-short-title" border="left" colored-border>
+                                Defina las respuestas correctas. Puede usar <code>*</code> como comodín.
+                            </v-alert>
+
+                            <v-select
+                                label="¿Sensible a mayúsculas/minúsculas?"
+                                v-model="newQuestion.usecase"
+                                :items="[{text: 'No, es igual (a = A)', value: 0}, {text: 'Sí, debe coincidir exactamente (a != A)', value: 1}]"
+                                outlined dense
+                                class="mb-4"
+                            ></v-select>
+
+                            <div class="d-flex align-center justify-space-between mb-2">
+                                <div class="subtitle-2">Respuestas Aceptadas</div>
+                                <v-btn small text color="primary" @click="newQuestion.answers.push({text: '', fraction: 1.0, feedback: ''})">
+                                    <v-icon left>mdi-plus</v-icon> Agregar Respuesta
+                                </v-btn>
+                            </div>
+                            
+                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" outlined class="mb-3 pa-3">
+                                <v-row dense align="start">
+                                    <v-col cols="12" md="7">
+                                        <v-text-field 
+                                            label="Respuesta" 
+                                            v-model="answer.text" 
+                                            placeholder="Ej: París" 
+                                            outlined dense
+                                            hide-details="auto"
+                                            :prepend-inner-icon="answer.fraction == 1 ? 'mdi-check-circle-outline' : 'mdi-circle-outline'"
+                                            :color="answer.fraction == 1 ? 'success' : ''"
+                                        ></v-text-field>
+                                        <v-text-field 
+                                            label="Retroalimentación (Opcional)" 
+                                            v-model="answer.feedback" 
+                                            dense filled class="mt-2 rounded-lg"
+                                            hide-details
+                                            placeholder="Comentario para el estudiante si elige esta respuesta"
+                                        ></v-text-field>
+                                    </v-col>
+                                    <v-col cols="8" md="4">
+                                        <v-select 
+                                            label="Calificación" 
+                                            v-model="answer.fraction" 
+                                            :items="gradeOptions" 
+                                            outlined dense
+                                        >
+                                            <template v-slot:selection="{ item }">
+                                                <span :class="item.value > 0 ? 'green--text' : 'red--text'">{{ item.text }}</span>
+                                            </template>
+                                        </v-select>
+                                    </v-col>
+                                    <v-col cols="4" md="1" class="text-right">
+                                        <v-btn icon color="red lighten-2" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 1">
+                                            <v-icon>mdi-delete</v-icon>
+                                        </v-btn>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                        </div>
+
+                        <!-- Fallback for complex types -->
                         <div v-else>
                             <v-alert type="warning" text border="left">
                                 La configuración visual avanzada para <b>{{ questionTypeLabel(newQuestion.type) }}</b> está en desarrollo.<br>
@@ -550,6 +613,7 @@ const QuizEditor = {
                 { text: '', answer: '' }
             ],
             shuffleanswers: true,
+            usecase: 0,
             unit: '',
             unitpenalty: 0.1
         },
