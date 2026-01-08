@@ -340,12 +340,26 @@ class local_grupomakro_core_observer
         
         $userid = $event->userid;
         
-        // Check if user is an instructor in any active class
-        $is_teacher = $DB->record_exists('gmk_class', ['instructorid' => $userid, 'closed' => 0]);
+        // 1. Check for ACTIVE classes (Target: Teacher Dashboard)
+        $has_active_classes = $DB->record_exists('gmk_class', ['instructorid' => $userid, 'closed' => 0]);
         
-        if ($is_teacher) {
-            // Redirect to the new teacher dashboard
+        if ($has_active_classes) {
             $url = new \moodle_url('/local/grupomakro_core/pages/teacher_dashboard.php');
+            redirect($url);
+        }
+
+        // 2. Check for INACTIVE Teacher status (Target: Inactive Dashboard)
+        // A user is considered a "Inactive Teacher" if they don't have active classes BUT:
+        // - Have PAST classes assigned OR
+        // - Have registered Teacher Skills OR
+        // - Have registered Teacher Availability
+        
+        $has_past_classes = $DB->record_exists('gmk_class', ['instructorid' => $userid]);
+        $has_skills = $DB->record_exists('gmk_teacher_skill_relation', ['userid' => $userid]);
+        $has_availability = $DB->record_exists('gmk_teacher_disponibility', ['userid' => $userid]);
+
+        if ($has_past_classes || $has_skills || $has_availability) {
+            $url = new \moodle_url('/local/grupomakro_core/pages/inactive_teacher_dashboard.php');
             redirect($url);
         }
     }
