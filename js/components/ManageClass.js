@@ -413,6 +413,11 @@ const ManageClass = {
             }
         },
         async fetchTimeline() {
+            if (!this.config || !this.config.wwwroot) {
+                console.error('ManageClass: Config or wwwroot missing', this.config);
+                this.loadingTimeline = false;
+                return;
+            }
             this.loadingTimeline = true;
             try {
                 const [timelineResp, attendanceResp] = await Promise.all([
