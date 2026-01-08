@@ -434,6 +434,8 @@ const ManageClass = {
                     }))
                 ]);
 
+                console.log('API RESPONSES:', { timeline: timelineResp.data, attendance: attendanceResp.data });
+
                 let sessions = [];
                 if (timelineResp.data.status === 'success') {
                     sessions = timelineResp.data.data.sessions;
