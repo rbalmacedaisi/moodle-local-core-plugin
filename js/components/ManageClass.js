@@ -451,9 +451,11 @@ const ManageClass = {
                     const sDate = new Date(s.startdate * 1000).toDateString();
                     const att = attSessions.find(a => {
                         const aDate = new Date(a.sessdate * 1000).toDateString();
+                        // console.log(`Comparing: ${sDate} vs ${aDate}`);
                         return sDate === aDate;
                     });
 
+                    if (att) console.log('MATCH FOUND:', att);
                     return { ...s, attendance: att || null };
                 });
 

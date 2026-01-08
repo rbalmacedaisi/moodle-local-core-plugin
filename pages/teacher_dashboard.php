@@ -30,21 +30,21 @@ $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dis
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components (Standard JS files)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20251231029'), true);
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20251231029'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherDashboard.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ActivityCreationWizard.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ManageClass.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/TeacherStudentTable.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/GradesGrid.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/PendingGradingView.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuickGrader.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizCreationWizard.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js?v=20251231031'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/AttendancePanel.js?v=20251231031'), true);
 
 // Load main experience module as standard JS (bypassing AMD build issues)
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20251231029'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/amd/src/teacher_experience.js?v=20251231031'), true);
 
 // Initialize the experience
 $logoUrl = $OUTPUT->get_logo_url();
