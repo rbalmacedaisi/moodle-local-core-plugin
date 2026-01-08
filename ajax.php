@@ -1239,17 +1239,35 @@ try {
                 }
             }
 
-
             try {
-                $response = create_express_activity::execute(
+                $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
                     $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
                 );
-            } catch (\Throwable $e) {
-                // Return structured error
-                $response = ['status' => 'error', 'message' => $e->getMessage()];
-                // We'll set format to JSON below implicitly
+                $response = ['status' => 'success', 'data' => $result];
+            } catch (Exception $e) {
+                 $response = ['status' => 'error', 'message' => $e->getMessage()];
             }
             break;
+
+        case 'local_grupomakro_get_attendance_sessions':
+             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/attendance_manager.php');
+             $classid = required_param('classid', PARAM_INT);
+             try {
+                $response = \local_grupomakro_core\external\teacher\attendance_manager::get_sessions($classid);
+             } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+             }
+             break;
+
+        case 'local_grupomakro_get_session_qr':
+             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/attendance_manager.php');
+             $sessionid = required_param('sessionid', PARAM_INT);
+             try {
+                $response = \local_grupomakro_core\external\teacher\attendance_manager::get_qr($sessionid);
+             } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+             }
+             break;
 
         case 'get_sync_log':
             $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';
