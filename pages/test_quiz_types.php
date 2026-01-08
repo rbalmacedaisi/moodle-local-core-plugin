@@ -12,10 +12,28 @@ require_once($CFG->libdir . '/questionlib.php');
 require_once($CFG->dirroot . '/question/editlib.php');
 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 
-// Security Check (Admins only for this powerful debug tool)
+// Security Check
 require_login();
-$context = context_system::instance();
-require_capability('moodle/site:config', $context);
+
+// Find a course where user is instructor (has quiz manage cap)
+$valid_course = null;
+$courses = enrol_get_users_courses($USER->id, true, '*');
+foreach ($courses as $c) {
+    $ctx = context_course::instance($c->id);
+    if (has_capability('mod/quiz:manage', $ctx)) {
+        $valid_course = $c;
+        $context = $ctx;
+        break;
+    }
+}
+
+if (!$valid_course) {
+    // Fallback to system if admin, otherwise die
+    $context = context_system::instance();
+    if (!is_siteadmin()) {
+        die("Error: No tienes permisos de gestión de cuestionarios en ningún curso.");
+    }
+}
 
 $PAGE->set_url('/local/grupomakro_core/pages/test_quiz_types.php');
 $PAGE->set_context($context);
@@ -25,8 +43,27 @@ $PAGE->set_heading('Test Masivo de Tipos de Pregunta');
 
 echo $OUTPUT->header();
 echo '<h2>Ejecución de Prueba Masiva</h2>';
+if ($valid_course) {
+    echo '<p>Ejecutando en contexto del curso: <strong>' . $valid_course->fullname . '</strong></p>';
+} else {
+    echo '<p>Ejecutando en contexto del Sistema</p>';
+}
 
-// Mock Data Generators
+// ... helper function unchanged ...
+
+// Get a category
+$category = $DB->get_record('question_categories', ['contextid' => $context->id], '*', IGNORE_MULTIPLE);
+if (!$category) {
+    // Try to find ANY category in this context or parent
+    $cats = question_category_options([$context]); // Gets categories user can use
+    // flatten
+    foreach ($cats as $key => $name) {
+         // id is usually key
+         $category = $DB->get_record('question_categories', ['id' => $key]);
+         if ($category) break;
+    }
+}
+
 function get_mock_data($type) {
     $base = [
         'name' => 'Test ' . $type . ' ' . date('H:i:s'),
@@ -112,15 +149,10 @@ $types_to_test = [
     'ddwtos'
 ];
 
-// Get a category
-$category = $DB->get_record('question_categories', ['contextid' => $context->id], '*', IGNORE_MULTIPLE);
-if (!$category) {
-    // try any category
-    $category = $DB->get_records('question_categories', null, 'id ASC', '*', 0, 1);
-    $category = reset($category);
-}
 
+// Category is already resolved above.
 if (!$category) {
+
     echo '<div class="alert alert-danger">No se encontró ninguna categoría de preguntas para probar.</div>';
 } else {
     echo '<p>Usando Categoría ID: ' . $category->id . ' (' . $category->name . ')</p>';
