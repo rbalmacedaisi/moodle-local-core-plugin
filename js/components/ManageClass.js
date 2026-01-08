@@ -95,6 +95,19 @@ const ManageClass = {
                                                     <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
                                                     {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
                                                 </v-btn>
+                                                
+                                                <v-spacer></v-spacer>
+                                                
+                                                <!-- Attendance QR Button (Merged) -->
+                                                <v-btn 
+                                                    v-if="session.attendance && session.attendance.has_qr" 
+                                                    small 
+                                                    text
+                                                    color="secondary" 
+                                                    @click="showQR(session)"
+                                                >
+                                                    <v-icon left small>mdi-qrcode</v-icon> Mostrar QR
+                                                </v-btn>
 
                                             </v-card-actions>
                                         </v-card>
