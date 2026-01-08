@@ -32,15 +32,31 @@ class attendance_manager extends external_api {
         $all_atts = $DB->get_records('attendance', ['course' => $class->courseid]);
         
         if (empty($all_atts)) {
+             // Debugging: Try to find it by name logic "Asistencia [Class Name]"
+             // The screenshot shows "Asistencia 2025-VI (S) INGLÉS II (PRESENCIAL)-125"
+             // Let's try to match loosely
+             $name_pattern = "%" . $class->name . "%";
+             $found_by_name = $DB->get_records_select('attendance', "name LIKE ?", [$name_pattern]);
+
+             $debug_msg = "No se encontró NINGUNA actividad de asistencia en la tabla mdl_attendance para el curso ID: {$class->courseid}.";
+             
+             if (!empty($found_by_name)) {
+                 $first = reset($found_by_name);
+                 $debug_msg .= " PERO sí encontré una actividad llamada '{$first->name}' en el Curso ID: {$first->course}. ¡Hay una discrepancia de IDs!";
+             } else {
+                 $debug_msg .= " Tampoco encontré ninguna actividad con nombre similar a '{$class->name}'.";
+             }
+
              // Debugging: Check if course exists at all
              $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
              return [
                  'status' => 'error', 
-                 'message' => "No se encontró NINGUNA actividad de asistencia en la tabla mdl_attendance para el curso ID: {$class->courseid}.",
+                 'message' => $debug_msg,
                  'debug_info' => [
                      'class_id' => $classid,
-                     'course_id' => $class->courseid,
-                     'course_exists' => $course_exists
+                     'expected_course_id' => $class->courseid,
+                     'found_by_name_count' => count($found_by_name),
+                     'first_found_course_id' => !empty($found_by_name) ? reset($found_by_name)->course : null
                  ]
              ];
         }
