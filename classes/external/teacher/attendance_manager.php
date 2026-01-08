@@ -44,15 +44,15 @@ class attendance_manager extends external_api {
         // mod_attendance usually filters by group mode.
         // We want sessions specifically for this $class class (Group).
         
-        // Get all sessions for this group?
-        $today = time();
-        $start_date = strtotime('today', $today);
-        $end_date = strtotime('tomorrow', $today) - 1;
-
-        // get_sessions($startdate, $enddate, $users) - Note: method signature varies.
-        // Let's use get_filtered_sessions or direct DB query if needed to be safe.
-        // Debug output showed: get_filtered_sessions
+        // Use class/period dates to fetch all relevant sessions
+        $start_date = $class->initdate;
+        $end_date = $class->enddate;
         
+        // If enddate is 0 or null, default to far future or +1 year
+        if (empty($end_date)) {
+            $end_date = time() + (365 * 24 * 3600);
+        }
+
         // Using direct SQL for precision given we want specific Group
         $sql = "SELECT s.* 
                 FROM {attendance_sessions} s
@@ -65,8 +65,8 @@ class attendance_manager extends external_api {
         $sessions = $DB->get_records_sql($sql, [
             'attid' => $att->id,
             'groupid' => $class->groupid,
-            'start' => $start_date, // Today
-            'end' => $end_date + (7 * 24 * 3600) // Show Next 7 days? Or just today? Let's show Today + Future
+            'start' => $start_date,
+            'end' => $end_date 
         ]);
         
         // Format for frontend
