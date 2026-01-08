@@ -106,12 +106,14 @@ window.TeacherExperience = {
                             <manage-class 
                                 v-if="currentPage === 'manage-class'"
                                 :class-id="selectedClassId"
+                                :config="config"
                                 @back="currentPage = 'dashboard'"
                                 @change-page="navigate"
                             ></manage-class>
 
                             <pending-grading-view
                                 v-if="currentPage === 'grading'"
+                                :config="config"
                             ></pending-grading-view>
 
                             <quiz-editor
