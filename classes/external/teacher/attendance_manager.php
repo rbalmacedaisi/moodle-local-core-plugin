@@ -45,13 +45,9 @@ class attendance_manager extends external_api {
         // We want sessions specifically for this $class class (Group).
         
         // Use class/period dates to fetch all relevant sessions
-        $start_date = $class->initdate;
-        $end_date = $class->enddate;
-        
-        // If enddate is 0 or null, default to far future or +1 year
-        if (empty($end_date)) {
-            $end_date = time() + (365 * 24 * 3600);
-        }
+        // Add buffer: 1 month before start, 2 months after end to cover exams or schedule changes
+        $start_date = $class->initdate - (30 * 24 * 3600);
+        $end_date = !empty($class->enddate) ? $class->enddate + (60 * 24 * 3600) : time() + (365 * 24 * 3600);
 
         // Using direct SQL for precision given we want specific Group
         $sql = "SELECT s.* 
