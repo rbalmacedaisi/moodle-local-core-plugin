@@ -2,6 +2,7 @@
  * Manage Class Component
  * Created for Redesigning Teacher Experience
  */
+console.log('!!! ManageClass.js LOADED v2033 !!!');
 
 const ManageClass = {
     props: {
@@ -413,6 +414,7 @@ const ManageClass = {
             }
         },
         async fetchTimeline() {
+            console.log('!!! fetchTimeline CALLED !!!');
             if (!this.config || !this.config.wwwroot) {
                 console.error('ManageClass: Config or wwwroot missing', this.config);
                 this.loadingTimeline = false;
