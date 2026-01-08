@@ -500,7 +500,9 @@ const ManageClass = {
                         this.qrDialog = true;
 
                         // Handle Rotation
+                        // console.log('QR Loop Check:', this.currentQR.rotate);
                         if (this.currentQR.rotate) {
+                            console.log('Starting Rotation...');
                             this.startQRRotation();
                         }
                     } else {
@@ -518,12 +520,14 @@ const ManageClass = {
                 }
             },
             startQRRotation() {
+                console.log('startQRRotation called');
                 if (this.qrTimer) clearInterval(this.qrTimer);
-                this.qrTotalSeconds = 10; // Fast 10s rotation for UX
+                this.qrTotalSeconds = 10;
                 this.qrSecondsLeft = this.qrTotalSeconds;
 
                 this.qrTimer = setInterval(() => {
                     this.qrSecondsLeft--;
+                    // console.log('Timer:', this.qrSecondsLeft);
                     if (this.qrSecondsLeft <= 0) {
                         clearInterval(this.qrTimer);
                         // Refresh if dialog open
