@@ -32,7 +32,17 @@ class attendance_manager extends external_api {
         $att = $DB->get_record('attendance', ['course' => $class->courseid], 'id, name, grade', IGNORE_MULTIPLE);
         
         if (!$att) {
-            return ['status' => 'error', 'message' => 'No se encontró una actividad de asistencia en este curso.'];
+            // Debugging: Check if course exists at all
+            $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
+            return [
+                'status' => 'error', 
+                'message' => "No se encontró una actividad de asistencia en este curso (ID: {$class->courseid}). ¿Existe el curso? " . ($course_exists ? 'Sí' : 'No'),
+                'debug_info' => [
+                    'class_id' => $classid,
+                    'course_id' => $class->courseid,
+                    'group_id' => $class->groupid
+                ]
+            ];
         }
 
         $cm = get_coursemodule_from_instance('attendance', $att->id, $class->courseid);
