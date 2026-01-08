@@ -448,6 +448,9 @@ const ManageClass = {
                     }))
                 ]);
 
+                console.log('Timeline Resp:', timelineResp.data);
+                console.log('Attendance Resp:', attendanceResp.data);
+
                 let sessions = [];
                 if (timelineResp.data.status === 'success') {
                     sessions = timelineResp.data.data.sessions;
