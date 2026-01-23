@@ -3667,26 +3667,37 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         $event->className = $event->course->fullname ?? 'Actividad Virtual'; 
         // Need basic fields to prevent JS errors if it expects them
         $event->instructorName = '';
+        $event->instructorid = 0;
         $event->timeRange = date('H:i', $event->timestart) . ' - ' . date('H:i', $event->timestart + $event->timeduration);
+        $event->classDaysES = [];
+        $event->classDaysEN = [];
         $event->classType = 1; 
+        $event->typelabel = 'VIRTUAL';
+        $event->coursename = $event->className;
     } else {
         // Populate from Class
-        // Ensure class has helper fields if we fetched it raw
-        if (!isset($gmkClass->instructorName)) {
-             $instructor = $DB->get_record('user', ['id' => $gmkClass->instructorid]);
-             $gmkClass->instructorName = $instructor ? "$instructor->firstname $instructor->lastname" : '';
-             $gmkClass->inithourformatted = $gmkClass->inittime; // Assuming simple string
-             $gmkClass->endhourformatted = $gmkClass->endtime;
+        // Ensure class has helper fields if we fetched it raw (using list_classes for consistency)
+        if (!isset($gmkClass->selectedDaysES)) {
+             $enrichedClasses = list_classes(['id' => $gmkClass->id]);
+             if (!empty($enrichedClasses)) {
+                  $gmkClass = $enrichedClasses[$gmkClass->id];
+                  $fetchedClasses[$gmkClass->id] = $gmkClass;
+             }
         }
 
-        $event->instructorName = $gmkClass->instructorName;
-        $event->timeRange = $gmkClass->inithourformatted . ' - ' . $gmkClass->endhourformatted;
+        $event->instructorName = $gmkClass->instructorName ?? '';
+        $event->instructorid = $gmkClass->instructorid ?? 0;
+        $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+        $event->classDaysES = $gmkClass->selectedDaysES ?? [];
+        $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
         $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
-        $event->classType = $gmkClass->type;
-        $event->className = $gmkClass->name;
+        $event->classType = $gmkClass->type ?? 1;
+        $event->className = $gmkClass->name ?? '';
+        $event->coursename = $gmkClass->course->fullname ?? $event->className;
         $event->classId = $gmkClass->id;
         $event->groupid = $gmkClass->groupid;
         $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
+        $event->timeduration = $gmkClass->classduration ?? $event->timeduration;
     }
 
     $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $event->cmid; // Need CMID. Event usually has 'cmid' or we find it.
