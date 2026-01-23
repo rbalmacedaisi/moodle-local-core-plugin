@@ -2107,9 +2107,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
 {
     global $DB;
 
-    //Set the date range to look for the events (should be required always from arguments)
-    $initDate = $initDate ? $initDate : '2023-01-01';
-    $endDate = $endDate ? $endDate : '2024-12-30';
+    // Set the date range to look for the events (should be required always from arguments)
+    $initDate = $initDate ? $initDate : date('Y-01-01');
+    $endDate = $endDate ? $endDate : date('Y-12-31', strtotime('+1 year'));
 
     //Initialize events array
     $events = [];
@@ -2133,10 +2133,17 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         //Get the events filtered by date range, groups and courses.
         $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $userGroupIds, $userCourseIds, true);
     }
-    //If the user is null, let's get all the class events,
+    // If the user is null, let's get all the class events.
     else {
-        // ... (truncated for brevity, logic similar)
-        // ...
+        // Fetch active classes to get their course and group IDs.
+        $classes = $DB->get_records('gmk_class', ['closed' => 0], '', 'corecourseid, groupid');
+        $courseIds = array_unique(array_filter(array_column($classes, 'corecourseid')));
+        $groupIds = array_unique(array_filter(array_column($classes, 'groupid')));
+
+        if (!empty($courseIds) || !empty($groupIds)) {
+            // Fetch events for these specific courses and groups.
+            $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $groupIds ?: false, $courseIds ?: false, true);
+        }
     }
 
     $fetchedClasses = [];

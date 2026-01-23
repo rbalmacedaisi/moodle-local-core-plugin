@@ -29,38 +29,30 @@ class attendance_manager extends external_api {
         
         // 2. Find the Attendance Activity in this Course
         // Check ALL attendance instances in this course to see what's going on
-        $all_atts = $DB->get_records('attendance', ['course' => $class->courseid]);
-        
         if (empty($all_atts)) {
-             // Debugging: Try to find it by name logic "Asistencia [Class Name]"
-             // The screenshot shows "Asistencia 2025-VI (S) INGLÉS II (PRESENCIAL)-125"
-             // Let's try to match loosely
-             $name_pattern = "%" . $class->name . "%";
-             $found_by_name = $DB->get_records_select('attendance', "name LIKE ?", [$name_pattern]);
-
-             if (!empty($found_by_name)) {
-                 // RECOVERY: Found it in another course (likely Core Course 77 vs Instance 106)
-                 // Let's use it!
-                 $att = reset($found_by_name);
-                 
-                 // Logic to verify permissions might be complex here if contexts differ, 
-                 // but for getting the sessions, standard SQL usually ignores context until we need capabilities.
-             } else {
-                 return [
-                     'status' => 'error', 
-                     'message' => $debug_msg,
-                     'debug_info' => [
-                         'class_id' => $classid,
-                         'expected_course_id' => $class->courseid,
-                         'found_by_name_count' => count($found_by_name),
-                         'first_found_course_id' => !empty($found_by_name) ? reset($found_by_name)->course : null
-                     ]
-                 ];
+             // FALLBACK: Check in the Core Course (Template)
+             // Often matched classes use the attendance from the parent template
+             if (!empty($class->corecourseid) && $class->corecourseid != $class->courseid) {
+                 $all_atts = $DB->get_records('attendance', ['course' => $class->corecourseid]);
              }
-        } else {
-            // Just take the first one found
-            $att = reset($all_atts);
         }
+
+        if (empty($all_atts)) {
+             // Debugging: Check if course exists at all
+             $course_exists = $DB->record_exists('course', ['id' => $class->courseid]);
+             return [
+                 'status' => 'error', 
+                 'message' => "No se encontró actividad de asistencia en el curso (ID: {$class->courseid}) ni en el curso plantilla (ID: {$class->corecourseid}).",
+                 'debug_info' => [
+                     'class_id' => $classid,
+                     'course_id' => $class->courseid,
+                     'core_course_id' => $class->corecourseid
+                 ]
+             ];
+        }
+
+        // Use the first one found (either from main course or core course)
+        $att = reset($all_atts);
 
         // $att = $DB->get_record('attendance', ['course' => $class->courseid], 'id, name, grade', IGNORE_MULTIPLE);
         
