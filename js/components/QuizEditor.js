@@ -1276,7 +1276,7 @@ const QuizEditor = {
         }
     },
     components: {
-        draggable: typeof vuedraggable !== 'undefined' ? vuedraggable : null
+        draggable: typeof vuedraggable !== 'undefined' ? (vuedraggable.default || vuedraggable) : null
     },
     created() {
         if (this.config) {
