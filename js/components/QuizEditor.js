@@ -100,21 +100,62 @@ const QuizEditor = {
 
                         <!-- True/False Specific -->
                         <div v-if="newQuestion.type === 'truefalse'">
-                           <h3>Respuesta Correcta</h3>
-                           <v-radio-group v-model="newQuestion.correctAnswer" row>
-                                <v-radio label="Verdadero" value="1"></v-radio>
-                                <v-radio label="Falso" value="0"></v-radio>
-                           </v-radio-group>
+                            <v-alert colored-border border="left" color="primary" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="primary" class="mr-3">mdi-check-circle-outline</v-icon>
+                                    <span class="text-body-2">Pregunta de respuesta binaria. Seleccione cuál es la opción correcta.</span>
+                                </div>
+                            </v-alert>
+
+                            <div class="subtitle-2 mb-3 grey--text text-uppercase font-weight-bold">Respuesta Correcta</div>
+                            <v-btn-toggle
+                                v-model="newQuestion.correctAnswer"
+                                mandatory
+                                color="primary"
+                                class="d-flex mb-6"
+                            >
+                                <v-btn value="1" x-large class="flex-grow-1 py-8 rounded-l-lg" outlined>
+                                    <v-icon left>mdi-check-bold</v-icon> VERDADERO
+                                </v-btn>
+                                <v-btn value="0" x-large class="flex-grow-1 py-8 rounded-r-lg" outlined>
+                                    <v-icon left>mdi-close-thick</v-icon> FALSO
+                                </v-btn>
+                            </v-btn-toggle>
                         </div>
                         
                         <!-- Essay / Description -->
                         <div v-else-if="newQuestion.type === 'essay' || newQuestion.type === 'description'">
-                            <v-alert type="info" text dense v-if="newQuestion.type === 'essay'">
-                                El alumno deberá escribir una respuesta libre. Se calificará manualmente.
+                            <v-alert colored-border border="left" :color="newQuestion.type === 'essay' ? 'amber' : 'blue'" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon :color="newQuestion.type === 'essay' ? 'amber' : 'blue'" class="mr-3">
+                                        {{ newQuestion.type === 'essay' ? 'mdi-file-document-edit-outline' : 'mdi-information-outline' }}
+                                    </v-icon>
+                                    <span class="text-body-2">
+                                        {{ newQuestion.type === 'essay' ? 'El estudiante deberá redactar una respuesta libre extensa. Este tipo de pregunta requiere calificación manual por parte del profesor.' : 'Este elemento no requiere respuesta; se utiliza para proporcionar información, textos largos o instrucciones adicionales entre preguntas.' }}
+                                    </span>
+                                </div>
                             </v-alert>
-                             <v-alert type="info" text dense v-if="newQuestion.type === 'description'">
-                                Solo muestra texto/imagen. No requiere respuesta.
-                            </v-alert>
+                            
+                            <v-card v-if="newQuestion.type === 'essay'" outlined class="pa-4 rounded-xl grey lighten-5">
+                                <v-row>
+                                    <v-col cols="12" md="6">
+                                        <v-select
+                                            label="Formato de respuesta"
+                                            v-model="newQuestion.responseformat"
+                                            :items="[{text: 'Editor HTML', value: 'editor'}, {text: 'Texto plano', value: 'plain'}]"
+                                            outlined dense hide-details
+                                        ></v-select>
+                                    </v-col>
+                                    <v-col cols="12" md="6">
+                                        <v-select
+                                            label="Tamaño del área de texto"
+                                            v-model="newQuestion.responserequired"
+                                            :items="[{text: '15 líneas', value: 15}, {text: '30 líneas', value: 30}, {text: '45 líneas', value: 45}]"
+                                            outlined dense hide-details
+                                        ></v-select>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
                         </div>
 
                         <!-- Match Specific -->
@@ -484,77 +525,80 @@ const QuizEditor = {
                         <!-- Fallback for complex types -->
                         <!-- Multiple Choice UI -->
                         <div v-else-if="newQuestion.type === 'multichoice'">
-                            <v-row>
+                            <v-row class="mb-4">
                                 <v-col cols="12" md="6">
-                                    <v-switch 
-                                        label="¿Se permite una o varias respuestas?" 
-                                        v-model="newQuestion.single" 
-                                        :true-value="true" 
-                                        :false-value="false"
-                                        inset
-                                        dense
-                                    >
-                                        <template v-slot:label>
-                                            {{ newQuestion.single ? 'Solo una respuesta' : 'Se permiten varias respuestas' }}
-                                        </template>
-                                    </v-switch>
+                                    <v-card outlined class="pa-4 rounded-lg h-100">
+                                        <div class="caption grey--text font-weight-bold mb-2">MODO DE RESPUESTA</div>
+                                        <v-radio-group v-model="newQuestion.single" hide-details class="mt-0">
+                                            <v-radio :value="true" label="Solo una respuesta correcta"></v-radio>
+                                            <v-radio :value="false" label="Se permiten varias respuestas"></v-radio>
+                                        </v-radio-group>
+                                    </v-card>
                                 </v-col>
                                 <v-col cols="12" md="6">
-                                    <v-switch 
-                                        label="Barajar respuestas" 
-                                        v-model="newQuestion.shuffleanswers" 
-                                        inset
-                                        dense
-                                    ></v-switch>
+                                    <v-card outlined class="pa-4 rounded-lg h-100 d-flex align-center">
+                                        <v-switch 
+                                            label="Barajar opciones al azar" 
+                                            v-model="newQuestion.shuffleanswers" 
+                                            inset
+                                            hide-details
+                                            color="primary"
+                                        ></v-switch>
+                                    </v-card>
                                 </v-col>
                             </v-row>
 
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="subtitle-2">Opciones de Respuesta</div>
-                                <v-btn small text color="primary" @click="newQuestion.answers.push({text: '', fraction: 0.0, feedback: ''})">
-                                    <v-icon left>mdi-plus</v-icon> Agregar Opción
+                            <div class="d-flex align-center justify-space-between mb-4">
+                                <div class="subtitle-2 grey--text text-uppercase font-weight-bold">Opciones de Respuesta</div>
+                                <v-btn small depressed color="primary lighten-5" class="primary--text" @click="newQuestion.answers.push({text: '', fraction: 0.0, feedback: ''})">
+                                    <v-icon left small>mdi-plus-circle</v-icon> Nueva Opción
                                 </v-btn>
                             </div>
                             
-                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" outlined class="mb-3 pa-3">
-                                <v-row dense align="start">
-                                    <v-col cols="12" md="7">
-                                        <v-text-field 
-                                            :label="'Opción ' + (i+1)" 
-                                            v-model="answer.text" 
-                                            placeholder="Texto de la opción" 
-                                            outlined dense
-                                            hide-details="auto"
-                                        >
-                                            <template v-slot:prepend-inner>
-                                                 <v-icon v-if="answer.fraction > 0" color="success">mdi-check-circle-outline</v-icon>
-                                                 <v-icon v-else color="grey lighten-1">mdi-circle-outline</v-icon>
-                                            </template>
-                                        </v-text-field>
-                                        <v-text-field 
-                                            label="Retroalimentación (Opcional)" 
-                                            v-model="answer.feedback" 
-                                            dense filled class="mt-2 rounded-lg"
-                                            hide-details
-                                            placeholder="Comentario si elige esta opción"
-                                        ></v-text-field>
+                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" flat class="mb-4 border rounded-xl overflow-hidden shadow-sm">
+                                <v-row no-gutters>
+                                    <v-col cols="1" class="d-flex align-center justify-center border-right" :class="answer.fraction > 0 ? 'success lighten-5' : 'grey lighten-5'">
+                                        <v-icon :color="answer.fraction > 0 ? 'success' : 'grey lighten-1'">
+                                            {{ answer.fraction > 0 ? 'mdi-check-circle' : 'mdi-circle-outline' }}
+                                        </v-icon>
                                     </v-col>
-                                    <v-col cols="8" md="4">
-                                        <v-select 
-                                            label="Calificación" 
-                                            v-model="answer.fraction" 
-                                            :items="gradeOptions" 
-                                            outlined dense
-                                        >
-                                            <template v-slot:selection="{ item }">
-                                                <span :class="item.value > 0 ? 'green--text' : 'red--text'">{{ item.text }}</span>
-                                            </template>
-                                        </v-select>
-                                    </v-col>
-                                    <v-col cols="4" md="1" class="text-right">
-                                        <v-btn icon color="red lighten-2" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 2">
-                                            <v-icon>mdi-delete</v-icon>
-                                        </v-btn>
+                                    <v-col cols="11" class="pa-4">
+                                        <v-row dense>
+                                            <v-col cols="12" md="8">
+                                                <v-text-field 
+                                                    v-model="answer.text" 
+                                                    placeholder="Escriba el contenido de la opción..." 
+                                                    outlined dense
+                                                    hide-details="auto"
+                                                    label="Enunciado de la opción"
+                                                ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="12" md="3">
+                                                <v-select 
+                                                    label="Calificación / Peso" 
+                                                    v-model="answer.fraction" 
+                                                    :items="gradeOptions" 
+                                                    outlined dense
+                                                    hide-details
+                                                    class="rounded-lg"
+                                                ></v-select>
+                                            </v-col>
+                                            <v-col cols="12" md="1" class="text-right">
+                                                <v-btn icon color="red lighten-3" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 2">
+                                                    <v-icon>mdi-delete-outline</v-icon>
+                                                </v-btn>
+                                            </v-col>
+                                            <v-col cols="12" class="mt-2">
+                                                <v-text-field 
+                                                    label="Retroalimentación específica" 
+                                                    v-model="answer.feedback" 
+                                                    dense rounded filled 
+                                                    hide-details
+                                                    placeholder="Comentario que verá el estudiante al elegir esta opción"
+                                                    prepend-inner-icon="mdi-comment-outline"
+                                                ></v-text-field>
+                                            </v-col>
+                                        </v-row>
                                     </v-col>
                                 </v-row>
                             </v-card>
@@ -562,64 +606,321 @@ const QuizEditor = {
                         
                         <!-- Short Answer UI -->
                         <div v-else-if="newQuestion.type === 'shortanswer'">
-                            <v-alert type="info" text class="mb-4" dense icon="mdi-text-short-title" border="left" colored-border>
-                                Defina las respuestas correctas. Puede usar <code>*</code> como comodín.
+                            <v-alert colored-border border="left" color="primary" class="mb-4 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="primary" class="mr-3">mdi-text-short-title</v-icon>
+                                    <span class="text-body-2">El estudiante escribe una palabra o frase corta. Puedes definir múltiples respuestas aceptables.</span>
+                                </div>
                             </v-alert>
 
-                            <v-select
-                                label="¿Sensible a mayúsculas/minúsculas?"
-                                v-model="newQuestion.usecase"
-                                :items="[{text: 'No, es igual (a = A)', value: 0}, {text: 'Sí, debe coincidir exactamente (a != A)', value: 1}]"
-                                outlined dense
-                                class="mb-4"
-                            ></v-select>
+                            <v-card outlined class="pa-4 mb-6 rounded-xl grey lighten-5">
+                                <v-select
+                                    label="Sensibilidad a Mayúsculas"
+                                    v-model="newQuestion.usecase"
+                                    :items="[{text: 'No, es igual (a = A)', value: 0}, {text: 'Sí, debe coincidor (A != a)', value: 1}]"
+                                    outlined dense hide-details
+                                    prepend-inner-icon="mdi-format-letter-case"
+                                ></v-select>
+                            </v-card>
 
-                            <div class="d-flex align-center justify-space-between mb-2">
-                                <div class="subtitle-2">Respuestas Aceptadas</div>
-                                <v-btn small text color="primary" @click="newQuestion.answers.push({text: '', fraction: 1.0, feedback: ''})">
-                                    <v-icon left>mdi-plus</v-icon> Agregar Respuesta
+                            <div class="d-flex align-center justify-space-between mb-4">
+                                <div class="subtitle-2 grey--text text-uppercase font-weight-bold">Respuestas Válidas</div>
+                                <v-btn small depressed color="primary lighten-5" class="primary--text" @click="newQuestion.answers.push({text: '', fraction: 1.0, feedback: ''})">
+                                    <v-icon left small>mdi-plus-circle</v-icon> Añadir Variante
                                 </v-btn>
                             </div>
                             
-                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" outlined class="mb-3 pa-3">
-                                <v-row dense align="start">
-                                    <v-col cols="12" md="7">
-                                        <v-text-field 
-                                            label="Respuesta" 
-                                            v-model="answer.text" 
-                                            placeholder="Ej: París" 
-                                            outlined dense
-                                            hide-details="auto"
-                                            :prepend-inner-icon="answer.fraction == 1 ? 'mdi-check-circle-outline' : 'mdi-circle-outline'"
-                                            :color="answer.fraction == 1 ? 'success' : ''"
-                                        ></v-text-field>
-                                        <v-text-field 
-                                            label="Retroalimentación (Opcional)" 
-                                            v-model="answer.feedback" 
-                                            dense filled class="mt-2 rounded-lg"
-                                            hide-details
-                                            placeholder="Comentario para el estudiante si elige esta respuesta"
-                                        ></v-text-field>
+                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" flat class="mb-3 border rounded-xl overflow-hidden shadow-sm">
+                                <v-row no-gutters>
+                                    <v-col cols="1" class="d-flex align-center justify-center border-right" :class="answer.fraction == 1 ? 'success lighten-5' : 'grey lighten-5'">
+                                        <v-icon :color="answer.fraction == 1 ? 'success' : 'grey lighten-1'">
+                                            {{ answer.fraction == 1 ? 'mdi-check-decagram' : 'mdi-check-circle-outline' }}
+                                        </v-icon>
                                     </v-col>
-                                    <v-col cols="8" md="4">
-                                        <v-select 
-                                            label="Calificación" 
-                                            v-model="answer.fraction" 
-                                            :items="gradeOptions" 
-                                            outlined dense
-                                        >
-                                            <template v-slot:selection="{ item }">
-                                                <span :class="item.value > 0 ? 'green--text' : 'red--text'">{{ item.text }}</span>
-                                            </template>
-                                        </v-select>
-                                    </v-col>
-                                    <v-col cols="4" md="1" class="text-right">
-                                        <v-btn icon color="red lighten-2" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 1">
-                                            <v-icon>mdi-delete</v-icon>
-                                        </v-btn>
+                                    <v-col cols="11" class="pa-4">
+                                        <v-row dense align="center">
+                                            <v-col cols="12" md="8">
+                                                <v-text-field 
+                                                    v-model="answer.text" 
+                                                    label="Respuesta esperada" 
+                                                    outlined dense hide-details
+                                                    placeholder="Ej: La fotosíntesis"
+                                                ></v-text-field>
+                                            </v-col>
+                                            <v-col cols="10" md="3">
+                                                <v-select 
+                                                    label="Calificación" 
+                                                    v-model="answer.fraction" 
+                                                    :items="gradeOptions" 
+                                                    outlined dense hide-details
+                                                ></v-select>
+                                            </v-col>
+                                            <v-col cols="2" md="1" class="text-right">
+                                                <v-btn icon color="red lighten-3" @click="newQuestion.answers.splice(i, 1)" :disabled="newQuestion.answers.length <= 1">
+                                                    <v-icon>mdi-delete-outline</v-icon>
+                                                </v-btn>
+                                            </v-col>
+                                        </v-row>
                                     </v-col>
                                 </v-row>
                             </v-card>
+                        </div>
+                        <!-- Numerical Specific -->
+                        <div v-else-if="newQuestion.type === 'numerical'">
+                            <v-alert colored-border border="left" color="primary" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="primary" class="mr-3">mdi-numeric</v-icon>
+                                    <span class="text-body-2">Respuestas numéricas exactas con margen de tolerancia opcional.</span>
+                                </div>
+                            </v-alert>
+
+                            <div class="d-flex align-center justify-space-between mb-4">
+                                <div class="subtitle-2 grey--text text-uppercase font-weight-bold">Respuestas Aceptadas</div>
+                                <v-btn small depressed color="primary lighten-5" class="primary--text" @click="addAnswerChoice">
+                                    <v-icon left small>mdi-plus-circle</v-icon> Añadir Valor
+                                </v-btn>
+                            </div>
+
+                            <v-card v-for="(answer, i) in newQuestion.answers" :key="i" flat class="mb-3 border rounded-xl overflow-hidden shadow-sm">
+                                <v-row no-gutters>
+                                    <v-col cols="1" class="d-flex align-center justify-center border-right" :class="answer.fraction == 1 ? 'success lighten-5' : 'grey lighten-5'">
+                                        <v-icon :color="answer.fraction == 1 ? 'success' : 'grey lighten-1'">
+                                            {{ answer.fraction == 1 ? 'mdi-check-decagram' : 'mdi-numeric' }}
+                                        </v-icon>
+                                    </v-col>
+                                    <v-col cols="11" class="pa-4">
+                                        <v-row dense align="center">
+                                            <v-col cols="12" md="4">
+                                                <v-text-field label="Valor" v-model="answer.text" type="number" outlined dense hide-details></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6" md="3">
+                                                <v-text-field label="Tolerancia (±)" v-model="answer.tolerance" type="number" outlined dense hide-details></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6" md="4">
+                                                <v-select label="Calificación" v-model="answer.fraction" :items="gradeOptions" outlined dense hide-details></v-select>
+                                            </v-col>
+                                            <v-col cols="12" md="1" class="text-right">
+                                                <v-btn icon color="red lighten-3" @click="removeAnswerChoice(i)" :disabled="newQuestion.answers.length <= 1">
+                                                    <v-icon>mdi-delete-outline</v-icon>
+                                                </v-btn>
+                                            </v-col>
+                                        </v-row>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+
+                            <v-card outlined class="pa-4 mt-6 rounded-xl grey lighten-5">
+                                <div class="caption grey--text font-weight-bold mb-3">CONFIGURACIÓN DE UNIDADES</div>
+                                <v-row dense>
+                                    <v-col cols="6">
+                                        <v-text-field label="Unidad (ej: metros, kg)" v-model="newQuestion.unit" outlined dense hide-details background-color="white"></v-text-field>
+                                    </v-col>
+                                    <v-col cols="6">
+                                        <v-select label="Penalización" v-model="newQuestion.unitpenalty" :items="[0, 0.1, 0.2, 0.33, 0.5]" outlined dense hide-details background-color="white"></v-select>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                        </div>
+
+                        <!-- Calculated Types -->
+                        <div v-else-if="newQuestion.type.startsWith('calculated')">
+                            <v-alert colored-border border="left" color="blue" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="blue" class="mr-3">mdi-calculator-variant</v-icon>
+                                    <span class="text-body-2">Crea preguntas con valores aleatorios basados en fórmulas matemáticas. Usa variables entre llaves, ej: <code>{base} * {altura}</code>.</span>
+                                </div>
+                            </v-alert>
+
+                            <!-- Formula Input -->
+                            <v-card outlined class="pa-4 mb-6 rounded-xl blue lighten-5 border-blue">
+                                <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Fórmula de Respuesta</div>
+                                <v-text-field 
+                                    v-model="newQuestion.answers[0].text" 
+                                    outlined dense hide-details
+                                    placeholder="Ej: {a} + {b}"
+                                    background-color="white"
+                                    prepend-inner-icon="mdi-function-variant"
+                                ></v-text-field>
+                            </v-card>
+
+                            <v-row class="mb-4">
+                                <v-col cols="12" md="6">
+                                    <v-text-field 
+                                        label="Tolerancia (±)" 
+                                        v-model="newQuestion.answers[0].tolerance" 
+                                        type="number" 
+                                        outlined dense hide-details
+                                    ></v-text-field>
+                                </v-col>
+                                <v-col cols="12" md="6">
+                                    <v-select 
+                                        label="Tipo de Tolerancia" 
+                                        :items="['Relativa', 'Nominal', 'Geométrica']" 
+                                        outlined dense hide-details
+                                    ></v-select>
+                                </v-col>
+                            </v-row>
+
+                            <v-row v-if="newQuestion.type === 'calculated' || newQuestion.type === 'calculatedsimple'">
+                                <v-col cols="12">
+                                    <v-switch 
+                                        label="Sincronizar el conjunto de datos con otras preguntas de este curso" 
+                                        v-model="newQuestion.synchronize" 
+                                        inset color="blue"
+                                    ></v-switch>
+                                </v-col>
+                            </v-row>
+                        </div>
+
+                        <!-- Multianswer (Cloze) -->
+                        <div v-else-if="newQuestion.type === 'multianswer'">
+                            <v-alert colored-border border="left" color="deep-purple" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="deep-purple" class="mr-3">mdi-puzzle-outline</v-icon>
+                                    <span class="text-body-2">Crea textos con huecos de diferentes tipos (múltiple, corto, numérico). Usa el asistente para insertar el código correctamente.</span>
+                                </div>
+                            </v-alert>
+
+                            <v-card outlined class="pa-6 rounded-xl deep-purple lighten-5 border-dashed text-center mb-6">
+                                <v-icon large color="deep-purple lighten-2" class="mb-3">mdi-auto-fix</v-icon>
+                                <div class="subtitle-1 font-weight-bold mb-2">Editor Asistido de Cloze</div>
+                                <v-btn color="deep-purple" dark depressed rounded @click="openClozeWizard" class="px-6">
+                                    <v-icon left>mdi-plus-box</v-icon> Configurar nuevo hueco
+                                </v-btn>
+                            </v-card>
+                        </div>
+
+                        <!-- Random Short-Answer Match -->
+                        <div v-else-if="newQuestion.type === 'randomsamatch'">
+                            <v-alert colored-border border="left" color="teal" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="teal" class="mr-3">mdi-shuffle-variant</v-icon>
+                                    <span class="text-body-2">Genera un emparejamiento automático usando preguntas de Respuesta Corta que ya existen en esta categoría.</span>
+                                </div>
+                            </v-alert>
+
+                            <v-card outlined class="pa-4 rounded-xl grey lighten-5">
+                                <v-row dense>
+                                    <v-col cols="12" md="6">
+                                        <v-text-field label="Cantidad de preguntas a incluir" v-model="newQuestion.choose" type="number" min="2" outlined dense hide-details prepend-inner-icon="mdi-format-list-numbered"></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" md="6" class="d-flex align-center">
+                                        <v-checkbox v-model="newQuestion.subcats" label="Incluir subcategorías" dense hide-details color="teal"></v-checkbox>
+                                    </v-col>
+                                </v-row>
+                            </v-card>
+                        </div>
+
+                        <!-- Drag & Drop (Image or Markers) -->
+                        <div v-else-if="newQuestion.type === 'ddimageortext' || newQuestion.type === 'ddmarker'">
+                            <v-alert colored-border border="left" color="indigo" class="mb-4 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="indigo" class="mr-3">mdi-image-move</v-icon>
+                                    <span class="text-body-2">Define zonas interactivas sobre una imagen. Los estudiantes deberán arrastrar textos o imágenes a las posiciones correctas.</span>
+                                </div>
+                            </v-alert>
+
+                            <!-- Image Upload Section -->
+                            <v-card outlined class="pa-4 mb-6 rounded-xl grey lighten-5">
+                                <v-file-input 
+                                    label="Subir Imagen de Fondo" 
+                                    outlined dense 
+                                    accept="image/*" 
+                                    v-model="newQuestion.ddfile"
+                                    @change="onFileChange" 
+                                    show-size
+                                    prepend-inner-icon="mdi-camera"
+                                    prepend-icon=""
+                                    background-color="white"
+                                    hide-details
+                                ></v-file-input>
+                            </v-card>
+                            
+                            <!-- Visual Editor Container -->
+                            <div v-if="newQuestion.ddbase64" class="mb-6">
+                                <v-card outlined class="rounded-xl overflow-hidden border-indigo shadow-sm">
+                                    <v-toolbar flat color="indigo lighten-5" dense>
+                                        <v-toolbar-title class="caption font-weight-bold indigo--text">EDITOR VISUAL DE POSICIONAMIENTO</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn small depressed color="indigo" dark @click="addDropZone">
+                                            <v-icon left x-small>mdi-plus-box</v-icon> Nueva Zona
+                                        </v-btn>
+                                    </v-toolbar>
+                                    
+                                    <div 
+                                        ref="ddArea"
+                                        style="position: relative; overflow: auto; min-height: 200px; background-color: #f0f0f0;"
+                                        class="pa-2 d-flex justify-center"
+                                        @mousemove="onDragMove"
+                                        @mouseup="stopDrag"
+                                        @mouseleave="stopDrag"
+                                    >
+                                        <div style="position: relative; display: inline-block;">
+                                            <!-- Background Image -->
+                                            <img 
+                                                :src="newQuestion.ddbase64" 
+                                                style="max-width: 100%; display: block;" 
+                                                ondragstart="return false;"
+                                                class="rounded-lg shadow"
+                                            >
+
+                                            <!-- Draggable Markers -->
+                                            <div 
+                                                v-for="(drop, i) in newQuestion.drops" 
+                                                :key="'drop'+i"
+                                                class="elevation-4 rounded-pill primary d-flex align-center justify-center px-4 py-2 white--text font-weight-bold"
+                                                :style="{
+                                                    position: 'absolute', 
+                                                    left: drop.x + 'px', 
+                                                    top: drop.y + 'px', 
+                                                    cursor: 'move',
+                                                    zIndex: 100,
+                                                    userSelect: 'none',
+                                                    border: '2px solid white',
+                                                    fontSize: '12px',
+                                                    transform: 'translate(-50%, -50%)'
+                                                }"
+                                                @mousedown.prevent="startDrag($event, i)"
+                                            >
+                                                {{ i + 1 }}
+                                                <v-icon x-small color="white" class="ml-2" @click.stop="newQuestion.drops.splice(i,1)">mdi-close-circle</v-icon>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <v-divider></v-divider>
+                                    <div class="pa-2 caption grey--text text-center italic">
+                                        <v-icon x-small grey>mdi-gesture-tap-hold</v-icon> Arrastra los números sobre la imagen para asignar las zonas correctas.
+                                    </div>
+                                </v-card>
+                            </div>
+
+                            <!-- Config Panel -->
+                            <v-expansion-panels flat class="rounded-xl overflow-hidden border">
+                                <v-expansion-panel>
+                                    <v-expansion-panel-header color="grey lighten-5">
+                                        <span class="subtitle-2">Configuración de Marcadores</span>
+                                    </v-expansion-panel-header>
+                                    <v-expansion-panel-content class="pt-4">
+                                        <div v-for="(item, i) in newQuestion.draggables" :key="'drag'+i" class="mb-4 pa-3 border rounded-lg">
+                                            <v-row dense align="center">
+                                                <v-col cols="1" class="text-center subtitle-2 indigo--text">{{ i + 1 }}</v-col>
+                                                <v-col cols="8">
+                                                    <v-text-field label="Etiqueta / Texto" v-model="item.text" hide-details dense outlined class="rounded-lg"></v-text-field>
+                                                </v-col>
+                                                <v-col cols="2">
+                                                    <v-select label="Grup" v-model="item.group" :items="[1,2,3,4,5]" hide-details dense outlined class="rounded-lg"></v-select>
+                                                </v-col>
+                                                <v-col cols="1" class="text-right">
+                                                    <v-btn icon color="red lighten-4" @click="newQuestion.draggables.splice(i,1)"><v-icon small>mdi-delete</v-icon></v-btn>
+                                                </v-col>
+                                            </v-row>
+                                        </div>
+                                        <v-btn block depressed color="indigo lighten-5" class="indigo--text" @click="newQuestion.draggables.push({type:'text', text:'', group:1})">
+                                            <v-icon left small>mdi-plus-circle</v-icon> Nuevo Elemento
+                                        </v-btn>
+                                    </v-expansion-panel-content>
+                                </v-expansion-panel>
+                            </v-expansion-panels>
                         </div>
 
                         <!-- Fallback for complex types -->
