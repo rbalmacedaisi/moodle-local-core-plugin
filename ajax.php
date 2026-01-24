@@ -993,7 +993,7 @@ try {
                 $question = new stdClass();
                 $question->qtype = $data->type;
                 $question->name = $data->name;
-                $question->questiontext = ['text' => $data->text, 'format' => FORMAT_HTML];
+                $question->questiontext = ['text' => isset($data->questiontext) ? $data->questiontext : (isset($data->text) ? $data->text : ''), 'format' => FORMAT_HTML];
                 $question->defaultmark = isset($data->defaultmark) ? $data->defaultmark : 1;
                 $question->category = $cat->id;
                 $question->stamp = make_unique_id_code();
@@ -1169,24 +1169,24 @@ try {
                     // Process Drags
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $question->drags[] = [
-                                'label' => $drag->text,
-                                'no' => $idx + 1,
-                                'infinite' => 1,
-                                'group' => isset($drag->group) ? $drag->group : 1
-                            ];
+                            $item = new stdClass();
+                            $item->label = !empty($drag->text) ? $drag->text : ' '; // Space if empty
+                            $item->no = $idx + 1;
+                            $item->infinite = 1;
+                            $item->group = isset($drag->group) ? $drag->group : 1;
+                            $question->drags[] = $item;
                         }
                     }
 
                     // Process Drops (Coords)
                     if (isset($data->drops) && is_array($data->drops)) {
                          foreach ($data->drops as $d) {
-                             $question->drops[] = [
-                                 'choice' => $d->choice,
-                                 'label' => '', // Label irrelevant for mapping, uses choice
-                                 'xleft' => $d->x,
-                                 'ytop' => $d->y
-                             ];
+                             $drop = new stdClass();
+                             $drop->choice = $d->choice;
+                             $drop->label = ''; // Explicit empty string, database may reject NULL
+                             $drop->xleft = $d->x;
+                             $drop->ytop = $d->y;
+                             $question->drops[] = $drop;
                          }
                     }
                     
