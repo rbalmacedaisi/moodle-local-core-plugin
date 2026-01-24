@@ -23,7 +23,7 @@ const QuizEditor = {
                             <v-btn small text color="secondary" class="mr-2" disabled>
                                 <v-icon left small>mdi-bank</v-icon> Banco (Pronto)
                             </v-btn>
-                            <v-btn color="primary" depressed @click="showAddQuestionDialog = true">
+                            <v-btn color="primary" depressed @click="resetNewQuestion(); showAddQuestionDialog = true">
                                 <v-icon left>mdi-plus</v-icon> Nueva Pregunta
                             </v-btn>
                         </v-toolbar>
@@ -335,7 +335,7 @@ const QuizEditor = {
 
                             <div class="d-flex align-center justify-space-between mb-4">
                                 <div class="subtitle-2 grey--text text-uppercase font-weight-bold">Opciones de Respuesta</div>
-                                <v-btn small depressed color="primary lighten-5" class="primary--text" @click="newQuestion.answers.push({text: '', fraction: 0.0, feedback: ''})">
+                                <v-btn small depressed color="primary lighten-5" class="primary--text" @click="addAnswerChoice">
                                     <v-icon left small>mdi-plus-circle</v-icon> Nueva Opción
                                 </v-btn>
                             </div>
@@ -736,7 +736,7 @@ const QuizEditor = {
                                                 </v-col>
                                             </v-row>
                                         </div>
-                                        <v-btn block depressed color="indigo lighten-5" class="indigo--text" @click="newQuestion.draggables.push({type:'text', text:'', group:1})">
+                                        <v-btn block depressed color="indigo lighten-5" class="indigo--text" @click="addDraggableElement">
                                             <v-icon left small>mdi-plus-circle</v-icon> Nuevo Elemento
                                         </v-btn>
                                     </v-expansion-panel-content>
@@ -869,14 +869,14 @@ const QuizEditor = {
             { text: 'Descripción', value: 'description' }
         ],
         newQuestion: {
-            type: 'truefalse',
+            type: 'multichoice',
             name: '',
-            text: '',
+            questiontext: '',
             defaultmark: 1,
             correctAnswer: '1',
             answers: [
-                { text: '', fraction: 1.0, tolerance: 0, group: 1 },
-                { text: '', fraction: 0.0, tolerance: 0, group: 1 }
+                { text: '', fraction: 1.0, feedback: '', tolerance: 0, group: 1 },
+                { text: '', fraction: 0.0, feedback: '', tolerance: 0, group: 1 }
             ],
             single: true,
             subquestions: [
@@ -886,7 +886,19 @@ const QuizEditor = {
             shuffleanswers: true,
             usecase: 0,
             unit: '',
-            unitpenalty: 0.1
+            unitpenalty: 0.1,
+            responseformat: 'editor',
+            responserequired: 15,
+            choose: 4,
+            subcats: 0,
+            ddfile: null,
+            ddbase64: '',
+            draggables: [
+                { type: 'text', text: '', group: 1, infinite: true }
+            ],
+            drops: [],
+            dataset: [],
+            formulas: []
         },
         gradeOptions: [
             { text: 'Ninguna (0%)', value: 0.0 },
@@ -981,12 +993,14 @@ const QuizEditor = {
             }
         },
         addAnswerChoice() {
+            if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
             this.newQuestion.answers.push({ text: '', fraction: 0.0, tolerance: 0, group: 1 });
         },
         removeAnswerChoice(index) {
             this.newQuestion.answers.splice(index, 1);
         },
         addSubQuestion() {
+            if (!this.newQuestion.subquestions) this.$set(this.newQuestion, 'subquestions', []);
             this.newQuestion.subquestions.push({ text: '', answer: '' });
         },
         removeSubQuestion(index) {
@@ -994,14 +1008,14 @@ const QuizEditor = {
         },
         resetNewQuestion() {
             this.newQuestion = {
-                type: 'truefalse',
+                type: 'multichoice',
                 name: '',
-                text: '',
+                questiontext: '',
                 defaultmark: 1,
                 correctAnswer: '1',
                 answers: [
-                    { text: '', fraction: 1.0, tolerance: 0, group: 1 },
-                    { text: '', fraction: 0.0, tolerance: 0, group: 1 }
+                    { text: '', fraction: 1.0, feedback: '', tolerance: 0, group: 1 },
+                    { text: '', fraction: 0.0, feedback: '', tolerance: 0, group: 1 }
                 ],
                 single: true,
                 subquestions: [
@@ -1009,23 +1023,19 @@ const QuizEditor = {
                     { text: '', answer: '' }
                 ],
                 shuffleanswers: true,
+                usecase: 0,
                 unit: '',
                 unitpenalty: 0.1,
-                toggle: false,
-                choose: 2,
-                subcats: 1,
-                // DD Fields
-                ddfile: null, // For file upload object
-                ddbase64: '', // For preview
+                responseformat: 'editor',
+                responserequired: 15,
+                choose: 4,
+                subcats: 0,
+                ddfile: null,
+                ddbase64: '',
                 draggables: [
-                    { type: 'text', text: '', group: 1, infinite: true },
                     { type: 'text', text: '', group: 1, infinite: true }
                 ],
-                drops: [
-                    { choice: 1, label: '', x: 0, y: 0 },
-                    { choice: 2, label: '', x: 0, y: 0 }
-                ],
-                // Derived/Calculated
+                drops: [],
                 dataset: [],
                 formulas: []
             };
@@ -1035,7 +1045,12 @@ const QuizEditor = {
             return t ? t.text : type;
         },
         addDropZone() {
+            if (!this.newQuestion.drops) this.$set(this.newQuestion, 'drops', []);
             this.newQuestion.drops.push({ choice: 1, label: '', x: 50, y: 50 });
+        },
+        addDraggableElement() {
+            if (!this.newQuestion.draggables) this.$set(this.newQuestion, 'draggables', []);
+            this.newQuestion.draggables.push({ type: 'text', text: '', group: 1, infinite: true });
         },
         startDrag(event, index) {
             this.draggingIndex = index;
@@ -1107,11 +1122,11 @@ const QuizEditor = {
             const textarea = this.$refs.questionTextarea.$el.querySelector('textarea');
 
             // Insert code replacing selection
-            const fullText = this.newQuestion.text;
+            const fullText = this.newQuestion.questiontext;
             const before = fullText.substring(0, this.clozeWizard.selectionStart);
             const after = fullText.substring(this.clozeWizard.selectionEnd);
 
-            this.newQuestion.text = before + code + after;
+            this.newQuestion.questiontext = before + code + after;
             this.clozeDialog = false;
         },
         onFileChange(file) {
@@ -1127,33 +1142,6 @@ const QuizEditor = {
             reader.onerror = (error) => {
                 console.error('Error: ', error);
             };
-        },
-        addDropZone() {
-            this.newQuestion.drops.push({ x: 50, y: 50, choice: 1 });
-        },
-        startDrag(event, index) {
-            this.draggingItem = index;
-            const drop = this.newQuestion.drops[index];
-            this.dragOffset = {
-                x: event.clientX - drop.x,
-                y: event.clientY - drop.y
-            };
-        },
-        onDragMove(event) {
-            if (this.draggingItem === null) return;
-            const drop = this.newQuestion.drops[this.draggingItem];
-            drop.x = event.clientX - this.dragOffset.x;
-            drop.y = event.clientY - this.dragOffset.y;
-
-            // Constrain
-            const img = event.currentTarget.querySelector('img');
-            if (img) {
-                drop.x = Math.max(0, Math.min(drop.x, img.clientWidth));
-                drop.y = Math.max(0, Math.min(drop.y, img.clientHeight));
-            }
-        },
-        stopDrag() {
-            this.draggingItem = null;
         },
         insertGap() {
             const textarea = document.getElementById('question-text-area');
@@ -1206,6 +1194,7 @@ const QuizEditor = {
             });
         },
         detectDatasetVariables() {
+            if (!this.newQuestion.dataset) this.$set(this.newQuestion, 'dataset', []);
             const formula = this.newQuestion.answers[0].text;
             const matches = formula.match(/\{([a-zA-Z0-9]+)\}/g);
             if (matches) {
@@ -1243,7 +1232,8 @@ const QuizEditor = {
             return html;
         },
         questionTypeLabel(type) {
-            const found = this.questionTypes.find(t => t.value === type);
+            const t = this.questionTypes.find(x => x.value === type);
+            return t ? t.text : type;
         },
         async saveQuestion() {
             this.saving = true;
