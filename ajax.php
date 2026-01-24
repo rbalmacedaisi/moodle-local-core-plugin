@@ -1183,9 +1183,9 @@ try {
                          foreach ($data->drops as $d) {
                              $question->drops[] = [
                                  'choice' => $d->choice,
-                                 'label' => '', 
-                                 'xleft' => $d->x,
-                                 'ytop' => $d->y
+                                 'label'  => ' ', // Space instead of empty string to avoid NULL
+                                 'xleft'  => $d->x,
+                                 'ytop'   => $d->y
                              ];
                          }
                     }

@@ -1,11 +1,11 @@
 <?php
 define('CLI_SCRIPT', true);
-require(__DIR__ . '/../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
+require(__DIR__ . '/../../../config.php');
 
-$table = 'local_learning_courses';
+$table = 'qtype_ddimageortext_drops';
 $columns = $DB->get_columns($table);
-echo "Columns in $table:\n";
-foreach ($columns as $col) {
-    echo " - " . $col->name . " (Type: " . $col->type . ")\n";
+
+echo "Columns for $table:\n";
+foreach ($columns as $name => $col) {
+    echo "- $name (Type: {$col->type}, Not Null: " . ($col->not_null ? 'Yes' : 'No') . ")\n";
 }
