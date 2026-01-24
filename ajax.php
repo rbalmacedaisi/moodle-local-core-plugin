@@ -1169,24 +1169,24 @@ try {
                     // Process Drags
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $item = new stdClass();
-                            $item->label = !empty($drag->text) ? $drag->text : ' '; // Space if empty
-                            $item->no = $idx + 1;
-                            $item->infinite = 1;
-                            $item->group = isset($drag->group) ? $drag->group : 1;
-                            $question->drags[] = $item;
+                            $question->drags[] = [
+                                'label' => !empty($drag->text) ? $drag->text : ' ',
+                                'no' => $idx + 1,
+                                'infinite' => 1,
+                                'group' => isset($drag->group) ? $drag->group : 1
+                            ];
                         }
                     }
 
                     // Process Drops (Coords)
                     if (isset($data->drops) && is_array($data->drops)) {
                          foreach ($data->drops as $d) {
-                             $drop = new stdClass();
-                             $drop->choice = $d->choice;
-                             $drop->label = ''; // Explicit empty string, database may reject NULL
-                             $drop->xleft = $d->x;
-                             $drop->ytop = $d->y;
-                             $question->drops[] = $drop;
+                             $question->drops[] = [
+                                 'choice' => $d->choice,
+                                 'label' => '', 
+                                 'xleft' => $d->x,
+                                 'ytop' => $d->y
+                             ];
                          }
                     }
                     
