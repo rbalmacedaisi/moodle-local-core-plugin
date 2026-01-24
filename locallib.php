@@ -3390,6 +3390,11 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         // Completion defaults if enabled site-wide
         $moduleinfo->completionpass = 0;
         $moduleinfo->completionattemptsexhausted = 0;
+    } else if ($type === 'forum') {
+        $moduleinfo->type = 'general'; // Standard general forum
+        $moduleinfo->forcesubscribe = 1; // Auto-subscribe
+        $moduleinfo->maxbytes = 0; // Course limit
+        $moduleinfo->maxattachments = 9;
     }
     
     

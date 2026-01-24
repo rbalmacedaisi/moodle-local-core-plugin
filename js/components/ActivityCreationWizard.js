@@ -38,7 +38,7 @@ const ActivityCreationWizard = {
                         ></v-textarea>
 
                         <v-row v-if="activityType === 'assignment'">
-                            <v-col cols="12" sm="6">
+                            <v-col cols="12">
                                 <v-text-field
                                     v-model="formData.duedate"
                                     label="Fecha de entrega"
@@ -47,15 +47,26 @@ const ActivityCreationWizard = {
                                     dense
                                 ></v-text-field>
                             </v-col>
+                        </v-row>
+
+                        <v-row v-if="activityType === 'quiz'">
                             <v-col cols="12" sm="6">
-                                <v-file-input
-                                    label="Archivos adjuntos"
+                                <v-text-field
+                                    v-model="formData.timeopen"
+                                    label="Abrir cuestionario"
+                                    type="datetime-local"
                                     outlined
                                     dense
-                                    multiple
-                                    prepend-icon=""
-                                    append-icon="mdi-paperclip"
-                                ></v-file-input>
+                                ></v-text-field>
+                            </v-col>
+                            <v-col cols="12" sm="6">
+                                <v-text-field
+                                    v-model="formData.timeclose"
+                                    label="Cerrar cuestionario"
+                                    type="datetime-local"
+                                    outlined
+                                    dense
+                                ></v-text-field>
                             </v-col>
                         </v-row>
 
@@ -94,8 +105,12 @@ const ActivityCreationWizard = {
                             <span class="text-caption blue--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
                                 Se configurará automáticamente con los parámetros de este grupo y horario.
                             </span>
-                            <span class="text-caption blue--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
-                                Se configurará automáticamente con los parámetros de este grupo y horario.
+                        </div>
+
+                        <div v-if="activityType === 'forum'" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'deep-purple darken-4' : 'deep-purple lighten-5'">
+                            <v-icon small color="deep-purple" class="mr-2">mdi-forum-outline</v-icon>
+                            <span class="text-caption deep-purple--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
+                                Se creará un foro de uso general donde todos pueden iniciar discusiones.
                             </span>
                         </div>
 
@@ -137,8 +152,9 @@ const ActivityCreationWizard = {
                 name: '',
                 intro: '',
                 duedate: '',
-                gradecat: null,
-                tags: [],
+                timeopen: '',
+                timeclose: '',
+                attempts: 1,
                 gradecat: null,
                 tags: [],
                 visible: true,
@@ -184,13 +200,19 @@ const ActivityCreationWizard = {
                     name: this.formData.name,
                     intro: this.formData.intro,
                     tags: this.formData.tags,
-                    visible: this.formData.visible
+                    visible: this.formData.visible,
+                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                    attempts: this.formData.attempts
                 } : {
                     classid: this.classId,
                     type: this.activityType,
                     name: this.formData.name,
                     intro: this.formData.intro,
                     duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
                     save_as_template: this.saveAsTemplate,
                     gradecat: this.formData.gradecat,
                     tags: this.formData.tags,
@@ -233,7 +255,17 @@ const ActivityCreationWizard = {
                     this.formData.intro = act.intro;
                     this.formData.tags = act.tags;
                     this.formData.visible = act.visible;
-                    // Note: Date loading not implemented for edit yet
+
+                    if (act.duedate) {
+                        this.formData.duedate = new Date(act.duedate * 1000).toISOString().slice(0, 16);
+                    }
+                    if (act.timeopen) {
+                        this.formData.timeopen = new Date(act.timeopen * 1000).toISOString().slice(0, 16);
+                    }
+                    if (act.timeclose) {
+                        this.formData.timeclose = new Date(act.timeclose * 1000).toISOString().slice(0, 16);
+                    }
+                    this.formData.attempts = act.attempts || 1;
                 }
             } catch (e) {
                 console.error("Error loading details", e);

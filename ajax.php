@@ -1337,7 +1337,11 @@ try {
                     'modname' => $cm->modname, // For frontend logic if needed
                     'intro' => $intro,
                     'visible' => (bool)$cm->visible,
-                    'tags' => array_values($tagNames)
+                    'tags' => array_values($tagNames),
+                    'duedate' => isset($module_instance->duedate) ? (int)$module_instance->duedate : 0,
+                    'timeopen' => isset($module_instance->timeopen) ? (int)$module_instance->timeopen : 0,
+                    'timeclose' => isset($module_instance->timeclose) ? (int)$module_instance->timeclose : 0,
+                    'attempts' => isset($module_instance->attempts) ? (int)$module_instance->attempts : 0,
                 ]
             ];
             break;
@@ -1391,6 +1395,12 @@ try {
             $intro = optional_param('intro', '', PARAM_RAW);
             $tags = optional_param('tags', [], PARAM_DEFAULT); // Array or comma list
             $visible = required_param('visible', PARAM_BOOL);
+            
+            // New optional params
+            $duedate = optional_param('duedate', null, PARAM_INT);
+            $timeopen = optional_param('timeopen', null, PARAM_INT);
+            $timeclose = optional_param('timeclose', null, PARAM_INT);
+            $attempts = optional_param('attempts', null, PARAM_INT);
 
             $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
             $context = context_module::instance($cm->id);
@@ -1400,23 +1410,30 @@ try {
             $module_record = new stdClass();
             $module_record->id = $cm->instance;
             $module_record->name = $name;
-            if ($DB->record_exists_select($cm->modname, "id = :id AND intro IS NOT NULL", ['id' => $cm->instance])) {
-                 $module_record->intro = $intro;
+
+            // Check columns to avoid errors
+            $columns = $DB->get_columns($cm->modname);
+            if (isset($columns['intro'])) {
+                $module_record->intro = $intro;
             }
-            // Update timemodified if exists
-            if ($DB->record_exists_select($cm->modname, "id = :id AND timemodified IS NOT NULL", ['id' => $cm->instance])) {
-                 $module_record->timemodified = time();
+            if (isset($columns['timemodified'])) {
+                $module_record->timemodified = time();
             }
+
+            // Specific fields
+            if ($cm->modname === 'assign' && $duedate !== null) {
+                $module_record->duedate = $duedate;
+            }
+            if ($cm->modname === 'quiz') {
+                if ($timeopen !== null) $module_record->timeopen = $timeopen;
+                if ($timeclose !== null) $module_record->timeclose = $timeclose;
+                if ($attempts !== null) $module_record->attempts = $attempts;
+            }
+
             $DB->update_record($cm->modname, $module_record);
 
-            // Update course_modules (visible)
-            if ($cm->visible != $visible) {
-                 if ($visible) {
-                     set_coursemodule_visible($cm->id, 1);
-                 } else {
-                     set_coursemodule_visible($cm->id, 0);
-                 }
-            }
+            // Update visibility
+            set_coursemodule_visible($cmid, $visible ? 1 : 0);
 
             // Update Tags
             if (!is_array($tags)) {
@@ -1424,7 +1441,7 @@ try {
             }
             // Clean empty tags
             $tags = array_filter($tags, function($t) { return trim($t) !== ''; });
-            core_tag_tag::set_item_tags('core', 'course_modules', $cm->id, context_module::instance($cm->id), $tags);
+            core_tag_tag::set_item_tags('local_grupomakro_core', 'course_modules', $cm->id, $context, $tags);
 
             // Rebuild cache
             rebuild_course_cache($cm->course);

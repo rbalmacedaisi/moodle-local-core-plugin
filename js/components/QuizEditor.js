@@ -119,26 +119,62 @@ const QuizEditor = {
 
                         <!-- Match Specific -->
                         <div v-else-if="newQuestion.type === 'match'">
-                            <v-alert type="info" dense text small>
-                                Ingrese al menos dos pares de preguntas y respuestas.
+                            <v-alert colored-border border="left" color="primary" class="mb-6 elevation-1" text>
+                                <div class="d-flex align-center">
+                                    <v-icon color="primary" class="mr-3">mdi-lightbulb-on-outline</v-icon>
+                                    <span class="text-body-2">Define parejas de conceptos. El estudiante deberá asociar cada pregunta con su respuesta correcta.</span>
+                                </div>
                             </v-alert>
-                            <div v-for="(subq, i) in newQuestion.subquestions" :key="i" class="mb-4">
-                                <v-card outlined class="pa-3">
-                                    <div class="d-flex justify-space-between caption grey--text text-uppercase font-weight-bold mb-1">
-                                        Par {{ i + 1 }}
-                                        <v-btn icon x-small color="red" @click="removeSubQuestion(i)" v-if="newQuestion.subquestions.length > 2">
-                                            <v-icon>mdi-close</v-icon>
-                                        </v-btn>
-                                    </div>
-                                    <v-text-field label="Pregunta" v-model="subq.text" outlined dense hide-details class="mb-2"></v-text-field>
-                                    <v-text-field label="Respuesta correspondiente" v-model="subq.answer" outlined dense hide-details></v-text-field>
-                                </v-card>
-                            </div>
-                            <v-btn small text color="primary" @click="addSubQuestion" class="mt-1">
-                                <v-icon left>mdi-plus</v-icon> Agregar otro par
+
+                            <v-row v-for="(subq, i) in newQuestion.subquestions" :key="i" class="mb-4 align-center">
+                                <v-col cols="5">
+                                    <v-text-field 
+                                        label="Pregunta / Concepto" 
+                                        v-model="subq.text" 
+                                        outlined 
+                                        dense 
+                                        hide-details
+                                        background-color="grey lighten-5"
+                                        class="rounded-lg shadow-sm"
+                                    ></v-text-field>
+                                </v-col>
+                                <v-col cols="2" class="text-center">
+                                    <v-icon color="grey lighten-1">mdi-swap-horizontal</v-icon>
+                                </v-col>
+                                <v-col cols="5" class="d-flex align-center">
+                                    <v-text-field 
+                                        label="Respuesta" 
+                                        v-model="subq.answer" 
+                                        outlined 
+                                        dense 
+                                        hide-details
+                                        background-color="grey lighten-5"
+                                        class="rounded-lg shadow-sm mr-2"
+                                    ></v-text-field>
+                                    <v-btn icon color="red lighten-1" @click="removeSubQuestion(i)" v-if="newQuestion.subquestions.length > 2">
+                                        <v-icon small>mdi-delete-outline</v-icon>
+                                    </v-btn>
+                                </v-col>
+                            </v-row>
+
+                            <v-btn block color="primary lighten-5" class="primary--text py-6 rounded-lg border-dashed" depressed @click="addSubQuestion">
+                                <v-icon left>mdi-plus-circle-outline</v-icon>
+                                Añadir nueva pareja
                             </v-btn>
-                            <v-divider class="my-4"></v-divider>
-                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar respuestas" dense></v-checkbox>
+
+                            <v-divider class="my-6"></v-divider>
+                            <v-row>
+                                <v-col cols="12" class="py-0">
+                                    <v-checkbox 
+                                        v-model="newQuestion.shuffleanswers" 
+                                        label="Barajar respuestas (Recomendado)" 
+                                        dense 
+                                        color="primary"
+                                        hint="Las respuestas se presentarán en orden aleatorio para cada estudiante"
+                                        persistent-hint
+                                    ></v-checkbox>
+                                </v-col>
+                            </v-row>
                         </div>
 
                         <!-- Numerical Specific -->
@@ -181,30 +217,65 @@ const QuizEditor = {
 
                         <!-- Gap Select / DD to Text -->
                         <div v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'">
-                            <v-alert type="info" dense text small class="mb-2">
-                                En el enunciado, use <code>[[1]]</code>, <code>[[2]]</code>, etc. para indicar dónde van las opciones.
+                            <v-alert colored-border border="left" color="info" class="mb-4 elevation-1" text>
+                                <div class="d-flex align-baseline">
+                                    <v-icon color="info" small class="mr-2">mdi-help-circle-outline</v-icon>
+                                    <span class="text-caption">Escriba su texto y use el botón <strong>[[ + ]]</strong> para insertar huecos. Luego defina qué palabra va en cada hueco.</span>
+                                </div>
                             </v-alert>
-                            <div class="d-flex justify-space-between align-center mb-2">
-                                <h3>Opciones (Markers)</h3>
-                                <v-btn small text color="primary" @click="addAnswerChoice"><v-icon left>mdi-plus</v-icon> Agregar Opción</v-btn>
+
+                            <!-- Text Editor with Tool -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <span class="caption font-weight-bold grey--text">TEXTO DEL ENUNCIADO</span>
+                                    <v-btn x-small color="primary" depressed @click="insertGap">
+                                        <v-icon x-small left>mdi-plus-box</v-icon> Insertar Hueco [[{{ newQuestion.answers.length + 1 }}]]
+                                    </v-btn>
+                                </div>
+                                <v-textarea
+                                    v-model="newQuestion.questiontext"
+                                    outlined
+                                    dense
+                                    rows="4"
+                                    hide-details
+                                    placeholder="Ejemplo: El cielo es [[1]] y el sol es [[2]]."
+                                    id="question-text-area"
+                                ></v-textarea>
                             </div>
-                            <v-card outlined v-for="(ans, i) in newQuestion.answers" :key="i" class="mb-2 pa-2">
-                                <v-row dense align="center">
-                                    <v-col cols="1" class="text-center font-weight-bold grey--text">
+
+                            <!-- Live Preview -->
+                            <div class="pa-4 mb-6 rounded-lg border shadow-sm" :class="$vuetify.theme.dark ? 'grey darken-4' : 'grey lighten-4'">
+                                <div class="caption grey--text mb-2 font-weight-bold">PREVISUALIZACIÓN</div>
+                                <div class="text-body-1" v-html="renderLivePreview()"></div>
+                            </div>
+
+                            <div class="d-flex justify-space-between align-center mb-4">
+                                <h3 class="text-subtitle-2 font-weight-bold grey--text text-uppercase">Opciones de Respuesta</h3>
+                                <v-btn small text color="primary" @click="addAnswerChoice">
+                                    <v-icon left>mdi-plus</v-icon> Nueva Opción
+                                </v-btn>
+                            </div>
+
+                            <v-card v-for="(ans, i) in newQuestion.answers" :key="i" flat class="mb-3 border rounded-lg overflow-hidden">
+                                <v-row no-gutters align="center">
+                                    <v-col cols="1" class="primary white--text d-flex align-center justify-center font-weight-bold" style="min-height: 56px;">
                                         [[{{ i + 1 }}]]
                                     </v-col>
-                                    <v-col cols="12" md="8">
-                                        <v-text-field label="Texto de la opción" v-model="newQuestion.answers[i].text" hide-details dense></v-text-field>
+                                    <v-col cols="7" class="pa-2">
+                                        <v-text-field label="Palabra / Frase" v-model="newQuestion.answers[i].text" hide-details dense flat solo background-color="transparent"></v-text-field>
                                     </v-col>
-                                    <v-col cols="6" md="2">
-                                        <v-select label="Grupo" v-model="newQuestion.answers[i].group" :items="[1,2,3,4,5]" hide-details dense></v-select>
+                                    <v-col cols="3" class="pa-2 border-left">
+                                        <v-select label="Grupo" v-model="newQuestion.answers[i].group" :items="[1,2,3,4,5]" hide-details dense flat solo background-color="transparent"></v-select>
                                     </v-col>
-                                    <v-col cols="6" md="1" class="text-right">
-                                        <v-btn icon color="red" small @click="removeAnswerChoice(i)"><v-icon>mdi-delete</v-icon></v-btn>
+                                    <v-col cols="1" class="text-center">
+                                        <v-btn icon color="red lighten-3" small @click="removeAnswerChoice(i)">
+                                            <v-icon small>mdi-delete</v-icon>
+                                        </v-btn>
                                     </v-col>
                                 </v-row>
                             </v-card>
-                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar opciones" dense></v-checkbox>
+
+                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar opciones al azar" dense color="primary"></v-checkbox>
                         </div>
 
                         <!-- Multianswer (Cloze) -->
@@ -926,14 +997,56 @@ const QuizEditor = {
                 this.newQuestion.ddbase64 = '';
                 return;
             }
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-                this.newQuestion.ddbase64 = reader.result;
-            };
             reader.onerror = (error) => {
                 console.error('Error: ', error);
             };
+        },
+        insertGap() {
+            const textarea = document.getElementById('question-text-area');
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = this.newQuestion.questiontext;
+
+            this.addAnswerChoice();
+            const gapNumber = this.newQuestion.answers.length;
+            const marker = `[[${gapNumber}]]`;
+
+            this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
+
+            // Refocus and place cursor after marker
+            this.$nextTick(() => {
+                textarea.focus();
+                const newPos = start + marker.length;
+                textarea.setSelectionRange(newPos, newPos);
+            });
+        },
+        renderLivePreview() {
+            if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
+
+            let html = this.newQuestion.questiontext
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;")
+                .replace(/\n/g, '<br>');
+
+            // Replace [[n]] with a visual element
+            html = html.replace(/\[\[(\d+)\]\]/g, (match, number) => {
+                const index = parseInt(number) - 1;
+                const opt = this.newQuestion.answers[index];
+                const text = (opt && opt.text) ? opt.text : `Hueco ${number}`;
+                const color = this.newQuestion.type === 'ddwtos' ? 'primary' : 'grey lighten-2';
+                const textColor = this.newQuestion.type === 'ddwtos' ? 'white--text' : '';
+
+                return `<span class="px-2 py-1 mx-1 rounded ${color} ${textColor} font-weight-bold shadow-sm" style="border: 1px dashed #ccc; font-size: 0.85em;">
+                    ${text}
+                </span>`;
+            });
+
+            return html;
         },
 
         async saveQuestion() {
