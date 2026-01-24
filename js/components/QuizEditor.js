@@ -1275,6 +1275,9 @@ const QuizEditor = {
             // Reorder logic
         }
     },
+    components: {
+        draggable: typeof vuedraggable !== 'undefined' ? vuedraggable : null
+    },
     created() {
         if (this.config) {
             this.courseId = this.config.courseid;
