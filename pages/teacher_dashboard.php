@@ -27,8 +27,8 @@ $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/
 // Load base libraries via CDN (Same as import_grades.php)
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js'), true);
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js'), true);
-$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/sortablejs@1.10.2/dist/sortable.umd.js'), true);
-$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuedraggable@2.24.3/dist/vuedraggable.umd.min.js'), true);
+$PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js'), true);
+$PAGE->requires->js(new moodle_url('https://cdnjs.cloudflare.com/ajax/libs/Vue.Draggable/2.24.3/vuedraggable.umd.min.js'), true);
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
 
 // Load components (Standard JS files)
