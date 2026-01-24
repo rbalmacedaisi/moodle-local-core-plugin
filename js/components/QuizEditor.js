@@ -81,22 +81,44 @@ const QuizEditor = {
             </v-main>
             
             <!-- Add Question Dialog -->
-            <v-dialog v-model="showAddQuestionDialog" max-width="600px">
-                <v-card>
-                    <v-card-title>Crear Nueva Pregunta</v-card-title>
-                    <v-card-text>
-                        <v-select label="Tipo de Pregunta" :items="questionTypes" v-model="newQuestion.type" outlined></v-select>
-                        
-                        <v-text-field label="Nombre de la Pregunta" v-model="newQuestion.name" outlined dense></v-text-field>
-                        <v-textarea label="Enunciado de la Pregunta" v-model="newQuestion.text" outlined rows="3"></v-textarea>
-                        
+            <v-dialog v-model="showAddQuestionDialog" max-width="900px" persistent>
+                <v-card class="rounded-xl overflow-hidden">
+                    <v-toolbar flat dark color="primary">
+                        <v-icon left>mdi-plus-circle</v-icon>
+                        <v-toolbar-title class="font-weight-bold">Configurar Nueva Pregunta</v-toolbar-title>
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="showAddQuestionDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+                    </v-toolbar>
+
+                    <v-card-text class="pa-6">
                         <v-row>
-                            <v-col cols="6">
-                                <v-text-field label="Puntuación por defecto" v-model="newQuestion.defaultmark" type="number" outlined dense></v-text-field>
+                            <v-col cols="12" md="8">
+                                <v-text-field label="Nombre identificador" v-model="newQuestion.name" outlined dense placeholder="Ej: Pregunta sobre fotosíntesis" prepend-inner-icon="mdi-tag-outline"></v-text-field>
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-select label="Tipo de Pregunta" :items="questionTypes" v-model="newQuestion.type" outlined dense prepend-inner-icon="mdi-format-list-bulleted-type"></v-select>
+                            </v-col>
+                        </v-row>
+                        
+                        <!-- Common Question Text (Enunciado) -->
+                        <div v-if="newQuestion.type !== 'multianswer' && newQuestion.type !== 'gapselect' && newQuestion.type !== 'ddwtos'">
+                            <div class="caption grey--text font-weight-bold mb-2">ENUNCIADO DE LA PREGUNTA</div>
+                            <v-textarea 
+                                v-model="newQuestion.questiontext" 
+                                outlined 
+                                rows="3" 
+                                placeholder="Escribe aquí la pregunta que verá el estudiante..."
+                                class="rounded-lg"
+                            ></v-textarea>
+                        </div>
+                        
+                        <v-row class="mb-4">
+                            <v-col cols="12" md="4">
+                                <v-text-field label="Puntuación" v-model="newQuestion.defaultmark" type="number" outlined dense prepend-inner-icon="mdi-star-outline"></v-text-field>
                             </v-col>
                         </v-row>
 
-                        <v-divider class="mb-4"></v-divider>
+                        <v-divider class="mb-6"></v-divider>
 
                         <!-- True/False Specific -->
                         <div v-if="newQuestion.type === 'truefalse'">
@@ -218,43 +240,7 @@ const QuizEditor = {
                             </v-row>
                         </div>
 
-                        <!-- Numerical Specific -->
-                        <div v-else-if="newQuestion.type === 'numerical'">
-                            <v-alert type="info" dense text small>
-                                La respuesta correcta debe tener una calificación del 100%. Puede añadir rangos de tolerancia.
-                            </v-alert>
-                            <div class="d-flex justify-space-between align-center mb-2">
-                                <h3>Respuestas Numéricas</h3>
-                                <v-btn small text color="primary" @click="addAnswerChoice"><v-icon left>mdi-plus</v-icon> Agregar Respuesta</v-btn>
-                            </div>
-                            <v-card outlined v-for="(ans, i) in newQuestion.answers" :key="i" class="mb-2 pa-2">
-                                <v-row dense align="center">
-                                    <v-col cols="12" md="4">
-                                        <v-text-field label="Valor Correcto" v-model="newQuestion.answers[i].text" type="number" step="any" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="6" md="3">
-                                        <v-text-field label="Tolerancia (±)" v-model="newQuestion.answers[i].tolerance" type="number" step="any" hide-details dense></v-text-field>
-                                    </v-col>
-                                    <v-col cols="6" md="3">
-                                        <v-select label="Calificación" :items="gradeOptions" v-model="newQuestion.answers[i].fraction" hide-details dense></v-select>
-                                    </v-col>
-                                    <v-col cols="6" md="2" class="text-right">
-                                        <v-btn icon color="red" small @click="removeAnswerChoice(i)"><v-icon>mdi-delete</v-icon></v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-card>
-                            <div class="mt-4">
-                                <h4>Unidades (Opcional)</h4>
-                                <v-row dense>
-                                    <v-col cols="6">
-                                        <v-text-field label="Unidad (ej: kg)" v-model="newQuestion.unit" dense outlined></v-text-field>
-                                    </v-col>
-                                    <v-col cols="6">
-                                        <v-select label="Penalización por unidad" v-model="newQuestion.unitpenalty" :items="[0, 0.1, 0.2, 0.5, 1]" dense outlined></v-select>
-                                    </v-col>
-                                </v-row>
-                            </div>
-                        </div>
+
 
                         <!-- Gap Select / DD to Text -->
                         <div v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'">
@@ -319,208 +305,7 @@ const QuizEditor = {
                             <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar opciones al azar" dense color="primary"></v-checkbox>
                         </div>
 
-                        <!-- Multianswer (Cloze) -->
-                        <div v-else-if="newQuestion.type === 'multianswer'">
-                            <v-alert type="info" border="left" colored-border color="deep-purple accent-4" elevation="2">
-                                <div class="font-weight-bold mb-1">Instrucciones Cloze:</div>
-                                <div class="caption">
-                                    Escriba el texto y use códigos para los huecos. Ejemplos:<br>
-                                    <code>{1:SHORTANSWER:=Respuesta}</code> - Respuesta Corta<br>
-                                    <code>{1:MULTICHOICE:=Correcta#Bien~Incorrecta#Mal}</code> - Opción Múltiple<br>
-                                    <code>{1:NUMERICAL:=15:0.1}</code> - Numérica (Valor:Tol)
-                                </div>
-                            </v-alert>
-                            <!-- No extra fields needed, logic is in questiontext -->
-                        </div>
 
-                        <!-- Random Short-Answer Match -->
-                        <div v-else-if="newQuestion.type === 'randomsamatch'">
-                            <v-alert type="info" dense text>
-                                Moodle seleccionará aleatoriamente preguntas de <b>Respuesta Corta</b> de la categoría actual para crear un emparejamiento.
-                            </v-alert>
-                            <v-text-field label="Número de preguntas" v-model="newQuestion.choose" type="number" min="2" outlined dense></v-text-field>
-                            <v-checkbox v-model="newQuestion.subcats" label="Incluir subcategorías" dense></v-checkbox>
-                        </div>
-
-                        <!-- Drag & Drop (Image or Markers) -->
-                        <div v-else-if="newQuestion.type === 'ddimageortext' || newQuestion.type === 'ddmarker'">
-                            <v-alert type="info" dense text small class="mb-2">
-                                Suba una imagen y <b>arrastre los elementos</b> sobre ella para definir las zonas.
-                            </v-alert>
-                            
-                            <!-- Image Upload -->
-                            <v-file-input 
-                                label="Imagen de Fondo" 
-                                outlined 
-                                dense 
-                                accept="image/*" 
-                                v-model="newQuestion.ddfile"
-                                @change="onFileChange" 
-                                show-size
-                                prepend-icon="mdi-image"
-                            ></v-file-input>
-                            
-                            <!-- Main Visual Editor Area -->
-                            <div v-if="newQuestion.ddbase64" class="mb-4">
-                                <div 
-                                    class="d-flex justify-space-between align-center px-4 py-2 grey lighten-4 rounded-t"
-                                    style="border: 1px solid #e0e0e0; border-bottom: none;"
-                                >
-                                    <div class="subtitle-2">Editor Visual</div>
-                                    <v-btn small text color="primary" @click="addDropZone">
-                                        <v-icon left>mdi-plus</v-icon> Agregar Zona
-                                    </v-btn>
-                                </div>
-                                
-                                <div 
-                                    ref="ddArea"
-                                    style="position: relative; overflow: hidden; border: 1px solid #e0e0e0;"
-                                    @mousemove="onDragMove"
-                                    @mouseup="stopDrag"
-                                    @mouseleave="stopDrag"
-                                    class="rounded-b"
-                                >
-                                    <!-- Background Image -->
-                                    <img 
-                                        :src="newQuestion.ddbase64" 
-                                        style="max-width: 100%; display: block;" 
-                                        ondragstart="return false;"
-                                    >
-
-                                    <!-- Draggable Drop Zones -->
-                                    <div 
-                                        v-for="(drop, i) in newQuestion.drops" 
-                                        :key="'drop'+i"
-                                        class="elevation-3 rounded white d-flex align-center justify-center px-2 py-1 font-weight-bold"
-                                        :style="{
-                                            position: 'absolute', 
-                                            left: drop.x + 'px', 
-                                            top: drop.y + 'px', 
-                                            cursor: 'move',
-                                            border: '2px solid #1976D2',
-                                            zIndex: 10,
-                                            userSelect: 'none',
-                                            minWidth: '100px',
-                                            backgroundColor: 'rgba(255, 255, 255, 0.9)'
-                                        }"
-                                        @mousedown.prevent="startDrag($event, i)"
-                                    >
-                                        <span class="mr-2">{{ i + 1 }}</span>
-                                        <v-icon small color="red" @click.stop="newQuestion.drops.splice(i,1)" class="ml-1" style="cursor: pointer;">mdi-delete</v-icon>
-                                    </div>
-                                </div>
-                                <div class="caption grey--text mt-1 text-center">
-                                    Arrastre los marcadores a la posición deseada.
-                                </div>
-                            </div>
-                            <v-alert v-else type="warning" dense text icon="mdi-image-off">
-                                Seleccione una imagen para habilitar el editor visual.
-                            </v-alert>
-
-                            <!-- Configuration Panel for Elements -->
-                            <v-expansion-panels flat class="mt-2">
-                                <v-expansion-panel>
-                                    <v-expansion-panel-header color="grey lighten-5">
-                                        Configuración de Elementos y Zonas
-                                    </v-expansion-panel-header>
-                                    <v-expansion-panel-content class="pt-4">
-                                        
-                                        <!-- Draggable Items Defs -->
-                                        <div class="subtitle-2 mb-2">Elementos Disponibles (Textos/Imágenes)</div>
-                                        <v-card outlined v-for="(item, i) in newQuestion.draggables" :key="'drag'+i" class="mb-2 pa-2">
-                                            <v-row dense align="center">
-                                                <v-col cols="1" class="text-center font-weight-bold blue--text">{{ i + 1 }}</v-col>
-                                                <v-col cols="11" md="8">
-                                                    <v-text-field label="Texto / Etiqueta" v-model="item.text" hide-details dense></v-text-field>
-                                                </v-col>
-                                                <v-col cols="6" md="2">
-                                                    <v-select label="Grupo" v-model="item.group" :items="[1,2,3]" hide-details dense></v-select>
-                                                </v-col>
-                                                <v-col cols="6" md="1" class="text-right">
-                                                     <v-btn icon color="red" x-small @click="newQuestion.draggables.splice(i,1)"><v-icon>mdi-delete</v-icon></v-btn>
-                                                </v-col>
-                                            </v-row>
-                                        </v-card>
-                                        <v-btn small text color="primary" @click="newQuestion.draggables.push({type:'text', text:'', group:1})" class="mb-4">
-                                            <v-icon left>mdi-plus</v-icon> Agregar Elemento
-                                        </v-btn>
-
-                                        <v-divider class="mb-4"></v-divider>
-
-                                        <!-- Zone Assignments -->
-                                        <div class="subtitle-2 mb-2">Asignación de Zonas (Marcadores en la imagen)</div>
-                                        <v-simple-table dense>
-                                            <template v-slot:default>
-                                                <thead><tr><th>Zona</th><th>Elemento Correcto</th><th>Posición (X, Y)</th></tr></thead>
-                                                <tbody>
-                                                    <tr v-for="(drop, i) in newQuestion.drops" :key="'d'+i">
-                                                        <td><b>{{ i + 1 }}</b></td>
-                                                        <td>
-                                                            <v-select 
-                                                                v-model="drop.choice" 
-                                                                :items="newQuestion.draggables.map((d, idx) => ({text: (idx+1) + '. ' + d.text, value: idx+1}))" 
-                                                                hide-details dense flat solo
-                                                            ></v-select>
-                                                        </td>
-                                                        <td class="caption grey--text">{{ Math.round(drop.x) }}, {{ Math.round(drop.y) }}</td>
-                                                    </tr>
-                                                </tbody>
-                                            </template>
-                                        </v-simple-table>
-
-                                    </v-expansion-panel-content>
-                                </v-expansion-panel>
-                            </v-expansion-panels>
-                        </div>
-
-                        <!-- Calculated Types -->
-                        <div v-else-if="newQuestion.type.startsWith('calculated')">
-                            <!-- Visual Header -->
-                             <div class="d-flex align-center mb-2 pa-2 blue lighten-5 rounded border">
-                                <v-icon color="blue" class="mr-2">mdi-calculator</v-icon>
-                                <div>
-                                    <div class="subtitle-2 blue--text text--darken-2">Editor Matemático</div>
-                                    <div class="caption">Escriba la fórmula usando variables entre llaves, ej: <code>{a} + {b}</code></div>
-                                </div>
-                            </div>
-
-                            <div v-if="newQuestion.type !== 'calculatedmulti'">
-                                <v-text-field 
-                                    label="Fórmula de Respuesta" 
-                                    v-model="newQuestion.answers[0].text" 
-                                    outlined 
-                                    class="text-h6"
-                                    placeholder="Ej: {base} * {altura} / 2"
-                                ></v-text-field>
-                                
-                                <v-expansion-panels flat class="mb-4">
-                                     <v-expansion-panel>
-                                        <v-expansion-panel-header>Opciones Avanzadas (Tolerancia/Unidades)</v-expansion-panel-header>
-                                        <v-expansion-panel-content>
-                                            <v-row dense>
-                                                <v-col cols="6"><v-text-field label="Tolerancia" v-model="newQuestion.answers[0].tolerance" type="number" step="0.01" dense outlined></v-text-field></v-col>
-                                                <v-col cols="6"><v-text-field label="Unidad" v-model="newQuestion.unit" dense outlined></v-text-field></v-col>
-                                            </v-row>
-                                        </v-expansion-panel-content>
-                                     </v-expansion-panel>
-                                </v-expansion-panels>
-                            </div>
-                            
-                            <!-- Simplified Dataset UI -->
-                            <div class="subtitle-2 mt-2 mb-1">Variables Detectadas</div>
-                            <div v-if="newQuestion.dataset.length === 0" class="caption grey--text mb-2">
-                                Escriba variables como <code>{x}</code> en la fórmula para configurarlas aquí.
-                            </div>
-                            <v-card outlined v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" class="mb-2 pa-2 d-flex align-center">
-                                <v-chip label color="blue lighten-4" class="mr-2 font-weight-bold" small>{{ ds.name }}</v-chip>
-                                <span class="caption mr-2">Rango:</span>
-                                <v-text-field v-model="ds.min" type="number" dense hide-details class="d-inline-block mr-2" style="max-width: 80px;" outlined></v-text-field>
-                                <span class="caption mr-2">a</span>
-                                <v-text-field v-model="ds.max" type="number" dense hide-details class="d-inline-block mr-2" style="max-width: 80px;" outlined></v-text-field>
-                                <v-spacer></v-spacer>
-                                <v-btn icon color="red" x-small @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
-                            </v-card>
-                        </div>
 
                         <!-- Fallback for complex types -->
                         <!-- Multiple Choice UI -->
@@ -727,67 +512,103 @@ const QuizEditor = {
                             <v-alert colored-border border="left" color="blue" class="mb-6 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon color="blue" class="mr-3">mdi-calculator-variant</v-icon>
-                                    <span class="text-body-2">Crea preguntas con valores aleatorios basados en fórmulas matemáticas. Usa variables entre llaves, ej: <code>{base} * {altura}</code>.</span>
+                                    <span class="text-body-2">Crea preguntas con valores aleatorios. Usa variables entre llaves, ej: <code>{base} * {altura}</code>.</span>
                                 </div>
                             </v-alert>
 
-                            <!-- Formula Input -->
                             <v-card outlined class="pa-4 mb-6 rounded-xl blue lighten-5 border-blue">
-                                <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Fórmula de Respuesta</div>
-                                <v-text-field 
-                                    v-model="newQuestion.answers[0].text" 
-                                    outlined dense hide-details
-                                    placeholder="Ej: {a} + {b}"
-                                    background-color="white"
-                                    prepend-inner-icon="mdi-function-variant"
-                                ></v-text-field>
+                                <v-row align="center">
+                                    <v-col cols="12" md="8">
+                                        <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Fórmula de Respuesta</div>
+                                        <v-text-field 
+                                            v-model="newQuestion.answers[0].text" 
+                                            outlined dense hide-details
+                                            placeholder="Ej: {a} + {b}"
+                                            background-color="white"
+                                            prepend-inner-icon="mdi-function-variant"
+                                            class="text-h6"
+                                        ></v-text-field>
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Unidad</div>
+                                        <v-text-field v-model="newQuestion.unit" outlined dense hide-details background-color="white" placeholder="ej: m/s"></v-text-field>
+                                    </v-col>
+                                </v-row>
                             </v-card>
 
-                            <v-row class="mb-4">
-                                <v-col cols="12" md="6">
-                                    <v-text-field 
-                                        label="Tolerancia (±)" 
-                                        v-model="newQuestion.answers[0].tolerance" 
-                                        type="number" 
-                                        outlined dense hide-details
-                                    ></v-text-field>
-                                </v-col>
-                                <v-col cols="12" md="6">
-                                    <v-select 
-                                        label="Tipo de Tolerancia" 
-                                        :items="['Relativa', 'Nominal', 'Geométrica']" 
-                                        outlined dense hide-details
-                                    ></v-select>
-                                </v-col>
-                            </v-row>
+                            <v-divider class="mb-6"></v-divider>
 
-                            <v-row v-if="newQuestion.type === 'calculated' || newQuestion.type === 'calculatedsimple'">
-                                <v-col cols="12">
-                                    <v-switch 
-                                        label="Sincronizar el conjunto de datos con otras preguntas de este curso" 
-                                        v-model="newQuestion.synchronize" 
-                                        inset color="blue"
-                                    ></v-switch>
+                            <div class="subtitle-2 blue--text mb-4 d-flex align-center">
+                                <v-icon left color="blue" small>mdi-database-edit</v-icon> Configuración de Variables (Datasets)
+                            </div>
+                            
+                            <v-row v-if="newQuestion.dataset && newQuestion.dataset.length > 0">
+                                <v-col v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" cols="12" md="6">
+                                    <v-card outlined class="pa-3 rounded-lg border-dashed">
+                                        <div class="d-flex justify-space-between align-center mb-2">
+                                            <v-chip label color="blue" dark small class="font-weight-bold">{{ ds.name }}</v-chip>
+                                            <v-btn icon x-small color="red lighten-2" @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
+                                        </div>
+                                        <v-row dense>
+                                            <v-col cols="6">
+                                                <v-text-field label="Mínimo" v-model="ds.min" type="number" dense outlined hide-details></v-text-field>
+                                            </v-col>
+                                            <v-col cols="6">
+                                                <v-text-field label="Máximo" v-model="ds.max" type="number" dense outlined hide-details></v-text-field>
+                                            </v-col>
+                                        </v-row>
+                                    </v-card>
                                 </v-col>
                             </v-row>
+                            <v-alert v-else text color="grey" class="text-center rounded-xl py-8">
+                                <v-icon large color="grey lighten-1">mdi-variable</v-icon>
+                                <div class="mt-2">Las variables detectadas en tu fórmula aparecerán aquí automáticamente.</div>
+                            </v-alert>
+                            
+                            <v-expansion-panels flat class="mt-6 border rounded-xl overflow-hidden">
+                                <v-expansion-panel>
+                                    <v-expansion-panel-header color="grey lighten-5">Parámetros Avanzados de Tolerancia</v-expansion-panel-header>
+                                    <v-expansion-panel-content class="pt-4">
+                                        <v-row dense>
+                                            <v-col cols="12" md="6">
+                                                <v-text-field label="Margen de error (±)" v-model="newQuestion.answers[0].tolerance" type="number" step="0.01" outlined dense></v-text-field>
+                                            </v-col>
+                                            <v-col cols="12" md="6">
+                                                <v-select label="Tipo de Tolerancia" :items="['Relativa', 'Nominal', 'Geométrica']" outlined dense></v-select>
+                                            </v-col>
+                                        </v-row>
+                                    </v-expansion-panel-content>
+                                </v-expansion-panel>
+                            </v-expansion-panels>
                         </div>
 
                         <!-- Multianswer (Cloze) -->
                         <div v-else-if="newQuestion.type === 'multianswer'">
-                            <v-alert colored-border border="left" color="deep-purple" class="mb-6 elevation-1" text>
+                            <v-alert colored-border border="left" color="deep-purple" class="mb-4 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon color="deep-purple" class="mr-3">mdi-puzzle-outline</v-icon>
-                                    <span class="text-body-2">Crea textos con huecos de diferentes tipos (múltiple, corto, numérico). Usa el asistente para insertar el código correctamente.</span>
+                                    <span class="text-body-2">Crea textos enriquecidos con huecos inteligentes. No necesitas aprenderte los códigos; usa el asistente visual.</span>
                                 </div>
                             </v-alert>
 
-                            <v-card outlined class="pa-6 rounded-xl deep-purple lighten-5 border-dashed text-center mb-6">
-                                <v-icon large color="deep-purple lighten-2" class="mb-3">mdi-auto-fix</v-icon>
-                                <div class="subtitle-1 font-weight-bold mb-2">Editor Asistido de Cloze</div>
-                                <v-btn color="deep-purple" dark depressed rounded @click="openClozeWizard" class="px-6">
-                                    <v-icon left>mdi-plus-box</v-icon> Configurar nuevo hueco
-                                </v-btn>
-                            </v-card>
+                            <div class="mb-4">
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <span class="caption font-weight-bold grey--text text-uppercase">CONTENIDO DEL TEXTO</span>
+                                    <v-btn small color="deep-purple" dark depressed rounded @click="openClozeWizard">
+                                        <v-icon left small>mdi-auto-fix</v-icon> Insertar Hueco Inteligente
+                                    </v-btn>
+                                </div>
+                                <v-textarea
+                                    v-model="newQuestion.questiontext"
+                                    outlined
+                                    dense
+                                    rows="10"
+                                    placeholder="Escribe tu texto aquí. El asistente insertará los huecos automáticamente en la posición del cursor."
+                                    id="cloze-textarea"
+                                    class="rounded-xl custom-editor shadow-sm"
+                                    background-color="white"
+                                ></v-textarea>
+                            </div>
                         </div>
 
                         <!-- Random Short-Answer Match -->
@@ -1298,9 +1119,41 @@ const QuizEditor = {
                 this.newQuestion.ddbase64 = '';
                 return;
             }
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                this.newQuestion.ddbase64 = reader.result;
+            };
             reader.onerror = (error) => {
                 console.error('Error: ', error);
             };
+        },
+        addDropZone() {
+            this.newQuestion.drops.push({ x: 50, y: 50, choice: 1 });
+        },
+        startDrag(event, index) {
+            this.draggingItem = index;
+            const drop = this.newQuestion.drops[index];
+            this.dragOffset = {
+                x: event.clientX - drop.x,
+                y: event.clientY - drop.y
+            };
+        },
+        onDragMove(event) {
+            if (this.draggingItem === null) return;
+            const drop = this.newQuestion.drops[this.draggingItem];
+            drop.x = event.clientX - this.dragOffset.x;
+            drop.y = event.clientY - this.dragOffset.y;
+
+            // Constrain
+            const img = event.currentTarget.querySelector('img');
+            if (img) {
+                drop.x = Math.max(0, Math.min(drop.x, img.clientWidth));
+                drop.y = Math.max(0, Math.min(drop.y, img.clientHeight));
+            }
+        },
+        stopDrag() {
+            this.draggingItem = null;
         },
         insertGap() {
             const textarea = document.getElementById('question-text-area');
@@ -1316,12 +1169,53 @@ const QuizEditor = {
 
             this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
 
-            // Refocus and place cursor after marker
             this.$nextTick(() => {
                 textarea.focus();
                 const newPos = start + marker.length;
                 textarea.setSelectionRange(newPos, newPos);
             });
+        },
+        openClozeWizard() {
+            this.clozeWizard.options = [{ text: '', isCorrect: true }];
+            this.clozeWizard.show = true;
+        },
+        insertClozeGap() {
+            const textarea = document.getElementById('cloze-textarea');
+            if (!textarea) return;
+
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = this.newQuestion.questiontext;
+
+            // Build Cloze Syntax: {WEIGHT:TYPE:=Correct#Feedback~Incorrect#Feedback}
+            let type = this.clozeWizard.type;
+            let optionsStr = this.clozeWizard.options.map(opt => {
+                let prefix = opt.isCorrect ? '=' : '';
+                return `${prefix}${opt.text}`;
+            }).join('~');
+
+            const marker = `{1:${type}:${optionsStr}}`;
+
+            this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
+            this.clozeWizard.show = false;
+
+            this.$nextTick(() => {
+                textarea.focus();
+                const newPos = start + marker.length;
+                textarea.setSelectionRange(newPos, newPos);
+            });
+        },
+        detectDatasetVariables() {
+            const formula = this.newQuestion.answers[0].text;
+            const matches = formula.match(/\{([a-zA-Z0-9]+)\}/g);
+            if (matches) {
+                matches.forEach(m => {
+                    const name = m.replace('{', '').replace('}', '');
+                    if (!this.newQuestion.dataset.some(d => d.name === name)) {
+                        this.newQuestion.dataset.push({ name: name, min: 1, max: 10, decimals: 1 });
+                    }
+                });
+            }
         },
         renderLivePreview() {
             if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
@@ -1334,7 +1228,6 @@ const QuizEditor = {
                 .replace(/'/g, "&#039;")
                 .replace(/\n/g, '<br>');
 
-            // Replace [[n]] with a visual element
             html = html.replace(/\[\[(\d+)\]\]/g, (match, number) => {
                 const index = parseInt(number) - 1;
                 const opt = this.newQuestion.answers[index];
@@ -1349,48 +1242,35 @@ const QuizEditor = {
 
             return html;
         },
-
+        questionTypeLabel(type) {
+            const found = this.questionTypes.find(t => t.value === type);
+        },
         async saveQuestion() {
             this.saving = true;
             try {
-                const params = new FormData();
-                params.append('action', 'local_grupomakro_add_question');
-                params.append('sesskey', this.config.sesskey);
-                params.append('courseid', this.courseId);
-                params.append('cmid', this.cmid || this.config.cmid);
-
-                // Append File if exists
+                const fd = new FormData();
+                fd.append('action', 'local_grupomakro_add_question');
+                fd.append('courseid', this.courseId);
+                fd.append('cmid', this.cmid || this.config.cmid);
+                fd.append('sesskey', this.config.sesskey);
+                fd.append('question_data', JSON.stringify(this.newQuestion));
                 if (this.newQuestion.ddfile) {
-                    params.append('bgimage', this.newQuestion.ddfile);
+                    fd.append('bgimage', this.newQuestion.ddfile);
                 }
 
-                params.append('question_data', JSON.stringify(this.newQuestion));
-
-                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', fd);
 
                 if (response.data && response.data.status === 'success') {
                     this.showAddQuestionDialog = false;
                     this.fetchQuestions();
                     this.resetNewQuestion();
                 } else {
-                    console.error('Save failed. Response:', response);
-                    console.error('Data:', response.data);
-
                     let msg = (response.data && response.data.message) ? response.data.message : 'Unknown Error';
-                    let debugInfo = (response.data && response.data.debug) ? response.data.debug : '';
-                    let raw = '';
-
-                    if (typeof response.data !== 'object') {
-                        raw = String(response.data);
-                        msg = 'Respuesta inesperada del servidor (no JSON)';
-                    }
-
-                    this.errorDetails = `Mensaje: ${msg}\n\nDebug Info:\n${debugInfo}\n\nRaw Response (inicio):\n${raw.substring(0, 500)}`;
+                    this.errorDetails = `Error: ${msg}`;
                     this.errorDialog = true;
                 }
             } catch (error) {
-                console.error(error);
-                this.errorDetails = `Connection/JS Error:\n${error.toString()}`;
+                this.errorDetails = `Error: ${error.toString()}`;
                 this.errorDialog = true;
             } finally {
                 this.saving = false;
@@ -1404,25 +1284,26 @@ const QuizEditor = {
         updateOrder() {
             // Reorder logic
         }
+    },
+    created() {
+        if (this.config) {
+            this.courseId = this.config.courseid;
+            this.fetchQuestions();
+        }
     }
 };
 
 if (typeof window !== 'undefined') {
-    window.QuizEditor = QuizEditor; // Export Component
-
-    // Standalone intialization (legacy support)
+    window.QuizEditor = QuizEditor;
     window.QuizEditorApp = {
         init: function (config) {
             new Vue({
                 el: '#quiz-editor-app',
                 vuetify: new Vuetify(),
-                data: {
-                    initialConfig: config
-                },
-                components: {
-                    'quiz-editor': QuizEditor
-                }
+                data: { initialConfig: config },
+                components: { 'quiz-editor': QuizEditor }
             });
         }
     };
 }
+
