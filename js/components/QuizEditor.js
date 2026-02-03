@@ -571,40 +571,76 @@ const QuizEditor = {
                                     
                                     <v-card-text class="pa-6">
                                         <div class="mb-6">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">1. La Lógica del Profesor</div>
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">1. La Lógica General</div>
                                             <p class="body-2 grey--text text--darken-2">
-                                                En lugar de una respuesta fija, escribes una <strong>fórmula</strong> usando variables entre llaves como <code>{base}</code> o <code>{altura}</code>.
-                                                Luego defines el rango de valores (ej: de 1 a 10) para cada variable.
+                                                En lugar de una respuesta fija, escribes una <strong>fórmula</strong> usando variables entre llaves como <code>{base}</code>.
+                                                Moodle las reemplaza por números reales aleatorios para cada estudiante.
                                             </p>
                                         </div>
 
-                                        <div class="mb-6 pa-4 blue lighten-5 rounded-lg border-blue">
-                                            <div class="caption font-weight-bold blue--text mb-1">EJEMPLO DE CONFIGURACIÓN</div>
-                                            <div class="body-2 italic">
-                                                "Calcula el área de un triángulo de base {base} y altura {altura}."
-                                                <br><strong>Fórmula:</strong> ({base} * {altura}) / 2
-                                            </div>
-                                        </div>
-
+                                        <!-- Comparison Section -->
                                         <div class="mb-6">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">2. Lo que ve el Estudiante</div>
-                                            <p class="body-2 grey--text text--darken-2">
-                                                El estudiante <strong>nunca ve la fórmula ni las llaves</strong>. Moodle reemplaza las variables por números reales aleatorios.
-                                            </p>
-                                            <v-alert dense outlined color="green" icon="mdi-eye" class="caption">
-                                                <strong>Estudiante A:</strong> "Base: 5, Altura: 12" (R: 30)
-                                                <br><strong>Estudiante B:</strong> "Base: 8, Altura: 6" (R: 24)
-                                            </v-alert>
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-3 text-uppercase">2. ¿Cuál tipo elegir?</div>
+                                            
+                                            <v-card outlined class="mb-3 pa-3 rounded-lg border-blue">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="blue" class="mr-3 mt-1">mdi-numeric</v-icon>
+                                                    <div>
+                                                        <div class="body-2 font-weight-bold">Calculada Normal / Simple</div>
+                                                        <div class="caption grey--text text--darken-1">
+                                                            El alumno debe <strong>escribir el número</strong>. Ideal para evaluar el cálculo final y procesos matemáticos abiertos.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </v-card>
+
+                                        <v-card outlined class="pa-3 rounded-lg border-orange">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="orange darken-2" class="mr-3 mt-1">mdi-format-list-bulleted-type</v-icon>
+                                                    <div>
+                                                        <div class="body-2 font-weight-bold">Calculada de Opción Múltiple</div>
+                                                        <div class="caption grey--text text--darken-1">
+                                                            Tú escribes una fórmula para cada opción (A, B, C). **Moodle calcula los números de todas las opciones** y el estudiante elige el resultado correcto.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </v-card>
                                         </div>
 
-                                        <div class="pa-4 grey lighten-4 rounded-lg">
-                                            <div class="d-flex align-center">
-                                                <v-icon color="indigo" class="mr-2">mdi-shield-lock</v-icon>
-                                                <span class="body-2 font-weight-bold">Seguridad Total:</span>
+                                        <div class="mb-6 pa-4 amber lighten-5 rounded-lg border-amber">
+                                            <div class="subtitle-2 font-weight-bold amber--text text--darken-4 mb-1">
+                                                <v-icon small color="amber darken-4" class="mr-1">mdi-lightbulb-on</v-icon> ¿Por qué usar Opción Múltiple?
                                             </div>
-                                            <p class="caption mb-0 mt-1">
-                                                Es casi imposible que dos estudiantes tengan la misma respuesta numérica, lo que previene el plagio de forma efectiva.
+                                            <p class="caption mb-0 grey--text text--darken-3">
+                                                Te permite poner <strong>"distractores inteligentes"</strong>. Por ejemplo, puedes poner una opción cuya fórmula sea un error común. Moodle calculará el número exacto de ese error para que el alumno deba razonar cuál es la fórmula correcta.
                                             </p>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">3. Diferencia en la Vista del Alumno</div>
+                                            <v-simple-table dense class="grey lighten-5 rounded-lg border mb-2">
+                                                <template v-slot:default>
+                                                    <thead>
+                                                        <tr>
+                                                            <th class="caption font-weight-bold text-uppercase">Tipo</th>
+                                                            <th class="caption font-weight-bold text-uppercase">El Alumno Ve...</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="caption font-weight-bold">Normal / Simple</td>
+                                                            <td class="caption italic">Un cuadro vacío para <strong>escribir</strong> el número.</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="caption font-weight-bold">Opción Múltiple</td>
+                                                            <td class="caption italic">Una lista (A, B, C) con los <strong>números ya calculados</strong>.</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </template>
+                                            </v-simple-table>
+                                            <div class="caption indigo--text font-weight-bold">
+                                                * En ambos casos se usan cálculos, la diferencia es cómo responde el alumno.
+                                            </div>
                                         </div>
                                     </v-card-text>
 
