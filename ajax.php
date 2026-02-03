@@ -1000,8 +1000,12 @@ try {
                 $question->version = make_unique_id_code();
                 $question->timecreated = time();
                 $question->timemodified = time();
+                $question->contextid = $cat->contextid;
                 $question->createdby = $USER->id;
                 $question->modifiedby = $USER->id;
+
+                // We'll use a separate $form_data object when needed (especially for D&D)
+                $form_data = $question;
 
                 // Type Specific Handling
                 if ($data->type === 'truefalse') {
@@ -1147,18 +1151,18 @@ try {
                     $question->drags = [];
                     $question->drops = [];
 
-                    // We create a separate "form data" object to satisfy Moodle's dual requirements
-                    $form_data = new stdClass();
+                    // Override $form_data for D&D to satisfy Moodle's dual requirements
+                    $form_data = clone $question;
                     $form_data->drags = [];
                     $form_data->drops = [];
 
                     // Handle Background Image Upload
                     if (!empty($_FILES['bgimage'])) {
                         $draftitemid = file_get_unused_draft_itemid();
-                        $context = context_user::instance($USER->id);
+                        $usercontext = context_user::instance($USER->id);
                         $fs = get_file_storage();
                         $filerecord = array(
-                            'contextid' => $context->id, 'component' => 'user', 'filearea' => 'draft',
+                            'contextid' => $usercontext->id, 'component' => 'user', 'filearea' => 'draft',
                             'itemid' => $draftitemid, 'filepath' => '/', 'filename' => $_FILES['bgimage']['name']
                         );
                         $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
@@ -1172,7 +1176,6 @@ try {
                             $no = $idx + 1;
                             $label = !empty($drag->text) ? (string)$drag->text : ' ';
                             
-                            // Array for form-like access
                             $drag_arr = [
                                 'no' => $no,
                                 'label' => $label,
@@ -1196,7 +1199,7 @@ try {
                             $drop_arr = [
                                 'no' => $no,
                                 'choice' => (int)$d->choice,
-                                'label' => '' // Force empty string instead of null
+                                'label' => ''
                             ];
 
                             if ($data->type === 'ddmarker') {
@@ -1218,17 +1221,11 @@ try {
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
 
-                    // Execute save using the dual structure
-                    $qtypeobj = question_bank::get_qtype($question->qtype);
-                    $newq = $qtypeobj->save_question($question, $form_data);
-                    
-                    // ADD TO QUIZ
-                    quiz_add_quiz_question($newq->id, $quiz);
-                    $response = ['status' => 'success', 'id' => $newq->id];
-                    
-                    // Standard save logic already handled, skip the default break
-                    echo json_encode($response);
-                    die();
+                    // Update $form_data with feedback for consistency
+                    $form_data->correctfeedback = $question->correctfeedback;
+                    $form_data->partiallycorrectfeedback = $question->partiallycorrectfeedback;
+                    $form_data->incorrectfeedback = $question->incorrectfeedback;
+                    $form_data->shownumcorrect = 1;
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
@@ -1236,7 +1233,7 @@ try {
 
                 // SAVE using correct API
                 $qtypeobj = question_bank::get_qtype($question->qtype);
-                $newq = $qtypeobj->save_question($question, $question);
+                $newq = $qtypeobj->save_question($question, $form_data);
                 
                 // ADD TO QUIZ
                 quiz_add_quiz_question($newq->id, $quiz);
