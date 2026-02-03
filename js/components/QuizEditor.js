@@ -545,28 +545,76 @@ const QuizEditor = {
 
                         <!-- Calculated Types (Visual Formula Builder) -->
                         <div v-else-if="newQuestion.type && newQuestion.type.startsWith('calculated')">
-                            <!-- Helper Legend -->
-                            <v-card flat class="mb-4 rounded-xl border-dashed indigo lighten-5 pa-4" style="border-width: 2px !important;">
-                                <div class="d-flex align-center mb-2">
-                                    <v-icon color="indigo" class="mr-2">mdi-comment-question-outline</v-icon>
-                                    <span class="subtitle-2 font-weight-bold indigo--text text-uppercase">Guía: Uso de Comodines (Wildcards)</span>
-                                </div>
-                                <div class="text-caption indigo--text text--darken-3">
-                                    Usa nombres entre llaves como <strong>{base}</strong> o <strong>{altura}</strong> en el enunciado de arriba. 
-                                    Moodle reemplazará estos nombres por números reales distintos para cada estudiante.
-                                    <div class="mt-2 d-flex align-center">
-                                        <v-icon x-small color="indigo" class="mr-1">mdi-shield-check</v-icon>
-                                        <span>Los estudiantes verán números, no variables, reduciendo significativamente la posibilidad de copia.</span>
-                                    </div>
-                                </div>
-                            </v-card>
-
                             <v-alert colored-border border="left" color="blue" class="mb-4 elevation-1" text v-if="newQuestion.answers && newQuestion.answers.length > 0">
                                 <div class="d-flex align-center">
                                     <v-icon color="blue" class="mr-3">mdi-auto-fix</v-icon>
-                                    <span class="text-body-2"><strong>Constructor Visual:</strong> Crea fórmulas complejas haciendo clic en operadores y variables. No necesitas escribir códigos.</span>
+                                    <div class="d-flex flex-column">
+                                        <span class="text-body-2"><strong>Constructor Visual:</strong> Crea fórmulas complejas haciendo clic en operadores y variables.</span>
+                                        <div class="mt-1">
+                                            <v-btn x-small color="indigo" text class="pa-0 font-weight-bold" @click="showCalculatedHelp = true">
+                                                <v-icon left x-small>mdi-information-outline</v-icon> ¿Cómo funcionan las preguntas calculadas?
+                                            </v-btn>
+                                        </div>
+                                    </div>
                                 </div>
                             </v-alert>
+
+                            <!-- Help Modal -->
+                            <v-dialog v-model="showCalculatedHelp" max-width="600px" scrollable>
+                                <v-card class="rounded-xl">
+                                    <v-toolbar flat color="indigo" dark>
+                                        <v-icon left>mdi-calculator-variant</v-icon>
+                                        <v-toolbar-title>Mecánica de Preguntas Calculadas</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon @click="showCalculatedHelp = false"><v-icon>mdi-close</v-icon></v-btn>
+                                    </v-toolbar>
+                                    
+                                    <v-card-text class="pa-6">
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">1. La Lógica del Profesor</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                En lugar de una respuesta fija, escribes una <strong>fórmula</strong> usando variables entre llaves como <code>{base}</code> o <code>{altura}</code>.
+                                                Luego defines el rango de valores (ej: de 1 a 10) para cada variable.
+                                            </p>
+                                        </div>
+
+                                        <div class="mb-6 pa-4 blue lighten-5 rounded-lg border-blue">
+                                            <div class="caption font-weight-bold blue--text mb-1">EJEMPLO DE CONFIGURACIÓN</div>
+                                            <div class="body-2 italic">
+                                                "Calcula el área de un triángulo de base {base} y altura {altura}."
+                                                <br><strong>Fórmula:</strong> ({base} * {altura}) / 2
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">2. Lo que ve el Estudiante</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                El estudiante <strong>nunca ve la fórmula ni las llaves</strong>. Moodle reemplaza las variables por números reales aleatorios.
+                                            </p>
+                                            <v-alert dense outlined color="green" icon="mdi-eye" class="caption">
+                                                <strong>Estudiante A:</strong> "Base: 5, Altura: 12" (R: 30)
+                                                <br><strong>Estudiante B:</strong> "Base: 8, Altura: 6" (R: 24)
+                                            </v-alert>
+                                        </div>
+
+                                        <div class="pa-4 grey lighten-4 rounded-lg">
+                                            <div class="d-flex align-center">
+                                                <v-icon color="indigo" class="mr-2">mdi-shield-lock</v-icon>
+                                                <span class="body-2 font-weight-bold">Seguridad Total:</span>
+                                            </div>
+                                            <p class="caption mb-0 mt-1">
+                                                Es casi imposible que dos estudiantes tengan la misma respuesta numérica, lo que previene el plagio de forma efectiva.
+                                            </p>
+                                        </div>
+                                    </v-card-text>
+
+                                    <v-divider></v-divider>
+                                    <v-card-actions class="pa-4">
+                                        <v-spacer></v-spacer>
+                                        <v-btn depressed color="indigo" dark class="rounded-lg px-6" @click="showCalculatedHelp = false">Entendido</v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </v-dialog>
 
                             <!-- Formula Display & Controls -->
                             <template v-if="newQuestion.answers && newQuestion.answers.length > 0">
@@ -1112,7 +1160,8 @@ const QuizEditor = {
         newVarName: '',
         newVarMin: 1,
         newVarMax: 10,
-        formulaConstant: ''
+        formulaConstant: '',
+        showCalculatedHelp: false
     }),
     computed: {
         previewClozeCode() {
