@@ -894,7 +894,7 @@ const QuizEditor = {
                                         <v-spacer></v-spacer>
                                         <v-btn depressed color="deep-purple" dark class="rounded-lg px-6" @click="showClozeHelp = false">Entendido</v-btn>
                                     </v-card-actions>
-                                </card>
+                                </v-card>
                             </v-dialog>
 
                             <div class="mb-4">
