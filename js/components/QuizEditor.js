@@ -544,7 +544,7 @@ const QuizEditor = {
                         </div>
 
                         <!-- Calculated Types -->
-                        <div v-else-if="newQuestion.type.startsWith('calculated')">
+                        <div v-else-if="newQuestion.type.startsWith('calculated') && newQuestion.answers && newQuestion.answers.length > 0">
                             <v-alert colored-border border="left" color="blue" class="mb-6 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon color="blue" class="mr-3">mdi-calculator-variant</v-icon>
@@ -1035,6 +1035,11 @@ const QuizEditor = {
             } else if (newType === 'multichoice' || newType === 'truefalse') {
                 if (this.newQuestion.answers.length === 0) {
                     this.addAnswerChoice();
+                    this.addAnswerChoice();
+                }
+            } else if (newType.startsWith('calculated')) {
+                const minAnswers = (newType === 'calculatedmulti') ? 2 : 1;
+                while (this.newQuestion.answers.length < minAnswers) {
                     this.addAnswerChoice();
                 }
             }
