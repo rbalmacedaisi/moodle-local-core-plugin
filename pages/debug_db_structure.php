@@ -9,36 +9,54 @@ $PAGE->set_title('Debug DB Structure - Moodle Questions');
 
 echo $OUTPUT->header();
 
-$tables = ['question_ddmarker', 'question_ddimageortext', 'question_ddmarker_drops', 'question_ddimageortext_drops', 'question_ddmarker_drags', 'question_ddimageortext_drags'];
+$all_tables = $DB->get_manager()->get_install_xml_schema()->getTables();
+$search_patterns = ['ddmarker', 'ddimageortext', 'drag', 'drop', 'question'];
+$found_tables = [];
 
-foreach ($tables as $table) {
-    echo "<h3>Table: {$table}</h3>";
-    if ($DB->get_manager()->table_exists($table)) {
-        $columns = $DB->get_columns($table);
-        echo "<table border='1' cellpadding='5' style='border-collapse: collapse; min-width: 600px;'>
-                <thead>
-                    <tr style='background: #f4f4f4;'>
-                        <th>Column</th>
-                        <th>Type</th>
-                        <th>Max Length</th>
-                        <th>Not Null</th>
-                        <th>Default</th>
-                    </tr>
-                </thead>
-                <tbody>";
-        foreach ($columns as $column) {
-            echo "<tr>
-                    <td>{$column->name}</td>
-                    <td>{$column->type}</td>
-                    <td>{$column->max_length}</td>
-                    <td>" . ($column->not_null ? 'Yes' : 'No') . "</td>
-                    <td>{$column->default_value}</td>
-                  </tr>";
+// Alternative: list all tables from the database directly
+$db_tables = $DB->get_tables();
+foreach ($db_tables as $table) {
+    foreach ($search_patterns as $pattern) {
+        if (strpos($table, $pattern) !== false) {
+            $found_tables[] = $table;
+            break;
         }
-        echo "</tbody></table>";
-    } else {
-        echo "<p style='color: red;'>Table does not exist.</p>";
     }
+}
+
+$found_tables = array_unique($found_tables);
+sort($found_tables);
+
+echo "<h3>Found Tables matching patterns: " . implode(', ', $search_patterns) . "</h3>";
+
+if (empty($found_tables)) {
+    echo "<p>No tables found matching patterns.</p>";
+}
+
+foreach ($found_tables as $table) {
+    echo "<h4>Table: {$table}</h4>";
+    $columns = $DB->get_columns($table);
+    echo "<table border='1' cellpadding='5' style='border-collapse: collapse; min-width: 600px; margin-bottom: 20px;'>
+            <thead>
+                <tr style='background: #f4f4f4;'>
+                    <th>Column</th>
+                    <th>Type</th>
+                    <th>Max Length</th>
+                    <th>Not Null</th>
+                    <th>Default</th>
+                </tr>
+            </thead>
+            <tbody>";
+    foreach ($columns as $column) {
+        echo "<tr>
+                <td>{$column->name}</td>
+                <td>{$column->type}</td>
+                <td>{$column->max_length}</td>
+                <td>" . ($column->not_null ? 'Yes' : 'No') . "</td>
+                <td>" . var_export($column->default_value, true) . "</td>
+              </tr>";
+    }
+    echo "</tbody></table>";
 }
 
 echo $OUTPUT->footer();
