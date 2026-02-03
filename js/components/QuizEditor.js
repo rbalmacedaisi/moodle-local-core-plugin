@@ -740,7 +740,7 @@ const QuizEditor = {
                                                 @mousedown.prevent="startDrag($event, i)"
                                             >
                                                 {{ i + 1 }}
-                                                <v-icon x-small color="white" class="ml-2" @click.stop="newQuestion.drops.splice(i,1)">mdi-close-circle</v-icon>
+                                                <v-icon x-small color="white" class="ml-2" @click.stop="removeDropZone(i)">mdi-close-circle</v-icon>
                                             </div>
                                         </div>
                                     </div>
@@ -768,7 +768,7 @@ const QuizEditor = {
                                                     <v-select label="Grup" v-model="item.group" :items="[1,2,3,4,5]" hide-details dense outlined class="rounded-lg"></v-select>
                                                 </v-col>
                                                 <v-col cols="1" class="text-right">
-                                                    <v-btn icon color="red lighten-4" @click="newQuestion.draggables.splice(i,1)"><v-icon small>mdi-delete</v-icon></v-btn>
+                                                    <v-btn icon color="red lighten-4" @click="removeDraggable(i)"><v-icon small>mdi-delete</v-icon></v-btn>
                                                 </v-col>
                                             </v-row>
                                         </div>
@@ -1132,6 +1132,31 @@ const QuizEditor = {
         addDraggableElement() {
             if (!this.newQuestion.draggables) this.$set(this.newQuestion, 'draggables', []);
             this.newQuestion.draggables.push({ type: 'text', text: '', group: 1, infinite: true });
+        },
+        removeDropZone(index) {
+            const drop = this.newQuestion.drops[index];
+            const choice = drop.choice;
+            this.newQuestion.drops.splice(index, 1);
+
+            // Smart Sync: If no other drop uses this choice, remove the draggable too
+            const stillUsed = this.newQuestion.drops.some(d => d.choice === choice);
+            if (!stillUsed) {
+                this.removeDraggable(choice - 1);
+            }
+        },
+        removeDraggable(index) {
+            const choiceToRemove = index + 1;
+            this.newQuestion.draggables.splice(index, 1);
+
+            // Smart Sync: Remove all drops that pointed to this choice
+            this.newQuestion.drops = this.newQuestion.drops.filter(d => d.choice !== choiceToRemove);
+
+            // Smart Sync: Shift all higher choices down by 1 to maintain index consistency
+            this.newQuestion.drops.forEach(d => {
+                if (d.choice > choiceToRemove) {
+                    d.choice--;
+                }
+            });
         },
         startDrag(event, index) {
             this.draggingIndex = index;
