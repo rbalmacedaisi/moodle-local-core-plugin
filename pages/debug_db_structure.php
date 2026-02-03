@@ -59,4 +59,25 @@ foreach ($found_tables as $table) {
     echo "</tbody></table>";
 }
 
+$tables = [
+    'qtype_ddimageortext_drops',
+    'qtype_ddmarker_drops',
+    'qtype_ddimageortext_drags',
+    'qtype_ddmarker_drags'
+];
+
+foreach ($tables as $t) {
+    echo "<h3>Table: $t</h3>";
+    try {
+        $columns = $DB->get_columns($t);
+        echo "<table border='1'><tr><th>Column</th><th>Type</th><th>Not Null</th></tr>";
+        foreach ($columns as $name => $col) {
+            echo "<tr><td>$name</td><td>$col->type</td><td>" . ($col->not_null ? 'Yes' : 'No') . "</td></tr>";
+        }
+        echo "</table>";
+    } catch (Exception $e) {
+        echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
+    }
+}
+
 echo $OUTPUT->footer();
