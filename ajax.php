@@ -1148,6 +1148,13 @@ try {
                 }
                 elseif ($data->type === 'ddimageortext' || $data->type === 'ddmarker') {
                     $question->shuffleanswers = 1;
+                    
+                    // Create $form_data following Moodle's internal form structure
+                    $form_data = clone $question;
+                    $form_data->drags = [];
+                    $form_data->drops = [];
+                    $form_data->draglabel = []; // Specific for ddimageortext
+                    $form_data->dragitem = [];  // Specific for ddimageortext
 
                     // Background Image
                     if (!empty($_FILES['bgimage'])) {
@@ -1160,45 +1167,55 @@ try {
                         );
                         $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
                         $question->bgimage = $draftitemid;
+                        $form_data->bgimage = $draftitemid;
                     }
 
-                    // Process Draggables (Base-1 indexing)
-                    $question->drags = [];
+                    // Process Draggables
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $no = $idx + 1;
-                            $dragobj = new stdClass();
-                            $dragobj->no = $no;
-                            $dragobj->label = !empty($drag->text) ? (string)$drag->text : ' ';
-                            $dragobj->infinite = !empty($drag->infinite) ? 1 : 0;
+                            $no = $idx; // The diagnostic shows: foreach (array_keys($formdata->drags) as $dragno) ... $drag->no = $dragno + 1;
+                                       // This means $dragno is the KEY. We'll use 0-based keys.
                             
-                            if ($data->type === 'ddmarker') {
-                                $dragobj->noofdrags = 1;
+                            $label = !empty($drag->text) ? (string)$drag->text : ' ';
+                            
+                            if ($data->type === 'ddimageortext') {
+                                // ddimageortext expects draglabel and dragitem as top-level arrays
+                                $form_data->draglabel[$no] = $label;
+                                $form_data->dragitem[$no] = 0; // Draft ID for images, 0 for text
+                                $form_data->drags[$no] = [
+                                    'draggroup' => isset($drag->group) ? (int)$drag->group : 1,
+                                    'infinite' => !empty($drag->infinite) ? 1 : 0,
+                                    'dragitemtype' => 'text' // We are sending text
+                                ];
                             } else {
-                                $dragobj->draggroup = isset($drag->group) ? (int)$drag->group : 1;
+                                // ddmarker expects label inside drags
+                                $form_data->drags[$no] = [
+                                    'label' => $label,
+                                    'noofdrags' => !empty($drag->infinite) ? 0 : 1
+                                ];
                             }
-                            $question->drags[$no] = $dragobj;
                         }
                     }
 
-                    // Process Drops (Base-1 indexing)
-                    $question->drops = [];
+                    // Process Drops
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
-                            $no = $idx + 1;
-                            $dropobj = new stdClass();
-                            $dropobj->no = $no;
-                            $dropobj->choice = (int)$d->choice;
-                            $dropobj->label = 'drop' . $no; // THIS MUST BE HERE AND NOT NULL
-
-                            if ($data->type === 'ddmarker') {
-                                $dropobj->shape = 'circle';
-                                $dropobj->coords = sprintf('%d,%d;15', (int)$d->x, (int)$d->y);
+                            $no = $idx; // Again, diagnostic uses index as $dropno
+                            
+                            if ($data->type === 'ddimageortext') {
+                                $form_data->drops[$no] = [
+                                    'choice' => (int)$d->choice,
+                                    'xleft' => (int)$d->x,
+                                    'ytop' => (int)$d->y,
+                                    'droplabel' => 'drop' . ($no + 1) // CRITICAL: It was droplabel, not label!
+                                ];
                             } else {
-                                $dropobj->xleft = (int)$d->x;
-                                $dropobj->ytop = (int)$d->y;
+                                $form_data->drops[$no] = [
+                                    'choice' => (int)$d->choice,
+                                    'shape' => 'circle',
+                                    'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y)
+                                ];
                             }
-                            $question->drops[$no] = $dropobj;
                         }
                     }
                     
@@ -1207,8 +1224,14 @@ try {
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
 
-                    // Final setup
-                    $form_data = $question;
+                    $form_data->correctfeedback = $question->correctfeedback;
+                    $form_data->partiallycorrectfeedback = $question->partiallycorrectfeedback;
+                    $form_data->incorrectfeedback = $question->incorrectfeedback;
+                    $form_data->shownumcorrect = 1;
+                    
+                    if ($data->type === 'ddmarker') {
+                        $form_data->showmisplaced = 1;
+                    }
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
