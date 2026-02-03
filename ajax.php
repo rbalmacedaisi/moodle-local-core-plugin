@@ -1114,6 +1114,12 @@ try {
                     $question->choose = isset($data->choose) ? $data->choose : 2;
                     $question->subcats = isset($data->subcats) && $data->subcats ? 1 : 0;
                     $question->shuffleanswers = 1;
+                    
+                    // Combined Feedback Defaults (Required to avoid NULL errors in DB)
+                    $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                    $question->shownumcorrect = 1;
                 }
                 elseif (strpos($data->type, 'calculated') === 0) {
                      // Basic support for Calculated types
