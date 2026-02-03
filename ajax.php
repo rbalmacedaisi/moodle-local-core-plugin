@@ -1166,45 +1166,54 @@ try {
                         $question->bgimage = $draftitemid;
                     }
 
-                    // Process Drags
-                    if (isset($data->draggables) && is_array($data->draggables)) {
-                        foreach ($data->draggables as $idx => $drag) {
-                            $dragitem = new stdClass();
-                            $dragitem->no = $idx + 1;
-                            $dragitem->label = !empty($drag->text) ? $drag->text : ' ';
-                            $dragitem->infinite = !empty($drag->infinite) ? 1 : 0;
-
-                            if ($data->type === 'ddmarker') {
-                                $dragitem->noofdrags = 1; // Default for markers
-                            } else {
-                                $dragitem->draggroup = isset($drag->group) ? (int)$drag->group : 1;
-                            }
-
-                            $question->drags[] = $dragitem;
+                    // IMPORTANT: D&D Image/Markers need entries in the 'answer' table for their text
+                    $question->answer = [];
+                    if (isset($data->draggables)) {
+                        foreach ($data->draggables as $drag) {
+                            $question->answer[] = ['text' => !empty($drag->text) ? $drag->text : ' ', 'format' => FORMAT_HTML];
                         }
                     }
 
-                    // Process Drops (Coords/Shape logic)
+                    // Process Drags (Base 1 indexing is crucial for Moodle forms)
+                    $question->drags = [];
+                    if (isset($data->draggables) && is_array($data->draggables)) {
+                        foreach ($data->draggables as $idx => $drag) {
+                            $dragitem = [
+                                'no' => $idx + 1,
+                                'label' => !empty($drag->text) ? $drag->text : ' ',
+                                'infinite' => !empty($drag->infinite) ? 1 : 0
+                            ];
+
+                            if ($data->type === 'ddmarker') {
+                                $dragitem['noofdrags'] = 1;
+                            } else {
+                                $dragitem['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                            }
+
+                            $question->drags[$idx + 1] = $dragitem;
+                        }
+                    }
+
+                    // Process Drops (Base 1 indexing)
+                    $question->drops = [];
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
                             if ($data->type === 'ddmarker') {
-                                // Markers use shape (circle) and coords (x,y;radius)
-                                $radius = 15; // Standard radius for markers
-                                $dropObj = new stdClass();
-                                $dropObj->no = $idx + 1;
-                                $dropObj->choice = (int)$d->choice;
-                                $dropObj->shape = 'circle';
-                                $dropObj->coords = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
-                                $question->drops[] = $dropObj;
+                                $radius = 15;
+                                $question->drops[$idx + 1] = [
+                                    'no' => $idx + 1,
+                                    'choice' => (int)$d->choice,
+                                    'shape'  => 'circle',
+                                    'coords' => sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius)
+                                ];
                             } else {
-                                // Normal D&D image uses xleft, ytop and label
-                                $dropObj = new stdClass();
-                                $dropObj->no = $idx + 1;
-                                $dropObj->choice = (int)$d->choice;
-                                $dropObj->label = 'drop' . ($idx + 1);
-                                $dropObj->xleft = (int)$d->x;
-                                $dropObj->ytop = (int)$d->y;
-                                $question->drops[] = $dropObj;
+                                $question->drops[$idx + 1] = [
+                                    'no' => $idx + 1,
+                                    'choice' => (int)$d->choice,
+                                    'label'  => 'drop' . ($idx + 1),
+                                    'xleft'  => (int)$d->x,
+                                    'ytop'   => (int)$d->y
+                                ];
                             }
                         }
                     }
