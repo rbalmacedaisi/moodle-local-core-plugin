@@ -1180,12 +1180,13 @@ try {
 
                     // Process Drops (Coords)
                     if (isset($data->drops) && is_array($data->drops)) {
-                         foreach ($data->drops as $d) {
+                         foreach ($data->drops as $idx => $d) {
                              $question->drops[] = [
-                                 'choice' => $d->choice,
-                                 'label'  => ' ', // Space instead of empty string to avoid NULL
-                                 'xleft'  => $d->x,
-                                 'ytop'   => $d->y
+                                 'no' => $idx + 1,
+                                 'choice' => (int)$d->choice,
+                                 'label'  => 'drop' . ($idx + 1), 
+                                 'xleft'  => (int)$d->x,
+                                 'ytop'   => (int)$d->y
                              ];
                          }
                     }
