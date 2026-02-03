@@ -1187,11 +1187,13 @@ try {
                         foreach ($data->drops as $idx => $d) {
                             $no = $idx + 1;
                             if ($data->type === 'ddmarker') {
+                                $radius = 15;
                                 $question->drops[$idx] = [
                                     'no' => $no,
                                     'choice' => (int)$d->choice,
                                     'shape' => 'circle',
-                                    'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y)
+                                    'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y),
+                                    'label' => 'drop' . $no // Explicitly set even if not always used in SQL for markers
                                 ];
                             } else {
                                 $question->drops[$idx] = [
@@ -1199,7 +1201,7 @@ try {
                                     'choice' => (int)$d->choice,
                                     'xleft' => (int)$d->x,
                                     'ytop' => (int)$d->y,
-                                    'label' => 'drop' . $no
+                                    'label' => 'drop' . $no // This MUST NOT BE NULL
                                 ];
                             }
                         }
