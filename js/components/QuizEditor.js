@@ -938,7 +938,10 @@ const QuizEditor = {
                                                         small 
                                                         label 
                                                         class="mx-1 px-2 token-gap shadow-sm deep-purple white--text font-weight-bold" 
-                                                        @click="revertClozeToText(idx)">
+                                                        close
+                                                        close-icon="mdi-close-circle"
+                                                        @click:close="revertClozeToText(idx)"
+                                                        @click="openClozeWizard(idx)">
                                                     <v-icon left x-small color="white">mdi-puzzle</v-icon>
                                                     {{ token.display }}
                                                 </v-chip>
@@ -1342,8 +1345,9 @@ const QuizEditor = {
             mark: 1,
             correct: '',
             distractors: [''],
-            selectionBefore: '', // To know where to insert
-            selectionEnd: 0
+            selectionStart: 0,
+            selectionEnd: 0,
+            editingTokenIdx: -1
         },
         showAddVariableDialog: false,
         newVarName: '',
@@ -1611,21 +1615,43 @@ const QuizEditor = {
             document.removeEventListener('mousemove', this.onDragMove);
             document.removeEventListener('mouseup', this.stopDrag);
         },
-        openClozeWizard() {
-            const textarea = document.getElementById('cloze-textarea');
-            if (!textarea) return;
+        openClozeWizard(tokenIdx = -1) {
+            if (tokenIdx !== -1) {
+                // Editing existing token
+                const token = this.tokenizedText[tokenIdx];
+                if (!token || !token.isCloze) return;
 
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const selectedText = textarea.value.substring(start, end);
+                // Parse Cloze code {1:TYPE:=Correct~Distractor1...}
+                const match = token.value.match(/^\{(\d+):([A-Z_]+):(.*)\}$/);
+                if (match) {
+                    const options = match[3].split('~');
+                    const correctToken = options.find(o => o.startsWith('='));
+                    const correct = correctToken ? correctToken.replace(/^=/, '').split('#')[0] : options[0].split('#')[0];
+                    const distractors = options.filter(o => !o.startsWith('=')).map(o => o.split('#')[0]);
 
-            // Init Wizard
-            this.clozeWizard.type = 'SHORTANSWER';
-            this.clozeWizard.correct = selectedText || '';
-            this.clozeWizard.mark = 1;
-            this.clozeWizard.distractors = [''];
-            this.clozeWizard.selectionStart = start;
-            this.clozeWizard.selectionEnd = end;
+                    this.clozeWizard.mark = parseInt(match[1]);
+                    this.clozeWizard.type = match[2];
+                    this.clozeWizard.correct = correct;
+                    this.clozeWizard.distractors = distractors.length > 0 ? distractors : [''];
+                    this.clozeWizard.editingTokenIdx = tokenIdx;
+                }
+            } else {
+                // New selection from textarea
+                const textarea = document.getElementById('cloze-textarea');
+                if (!textarea) return;
+
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const selectedText = textarea.value.substring(start, end);
+
+                this.clozeWizard.type = 'SHORTANSWER';
+                this.clozeWizard.correct = selectedText || '';
+                this.clozeWizard.mark = 1;
+                this.clozeWizard.distractors = [''];
+                this.clozeWizard.selectionStart = start;
+                this.clozeWizard.selectionEnd = end;
+                this.clozeWizard.editingTokenIdx = -1;
+            }
 
             this.clozeDialog = true;
         },
@@ -1655,10 +1681,19 @@ const QuizEditor = {
             const code = this.previewClozeCode;
             const fullText = this.newQuestion.questiontext;
 
-            const before = fullText.substring(0, this.clozeWizard.selectionStart);
-            const after = fullText.substring(this.clozeWizard.selectionEnd);
+            if (this.clozeWizard.editingTokenIdx !== -1) {
+                // Replacing an existing token from the visual selector
+                const newTokens = [...this.tokenizedText];
+                const cleanWord = this.clozeWizard.correct;
+                newTokens[this.clozeWizard.editingTokenIdx] = { type: 'gap', value: code, display: cleanWord, isCloze: true };
+                this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
+            } else {
+                // Replacing a manual selection in the textarea
+                const before = fullText.substring(0, this.clozeWizard.selectionStart);
+                const after = fullText.substring(this.clozeWizard.selectionEnd);
+                this.newQuestion.questiontext = before + code + after;
+            }
 
-            this.newQuestion.questiontext = before + code + after;
             this.clozeDialog = false;
         },
         onFileChange(file) {
