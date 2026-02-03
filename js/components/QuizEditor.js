@@ -833,9 +833,69 @@ const QuizEditor = {
                             <v-alert colored-border border="left" color="deep-purple" class="mb-4 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon color="deep-purple" class="mr-3">mdi-puzzle-outline</v-icon>
-                                    <span class="text-body-2">Crea textos enriquecidos con huecos inteligentes. No necesitas aprenderte los códigos; usa el asistente visual.</span>
+                                    <div class="d-flex flex-column">
+                                        <span class="text-body-2"><strong>Examen de Huecos:</strong> Crea textos con preguntas integradas. Selecciona una palabra y haz clic en el botón morado.</span>
+                                        <div class="mt-1">
+                                            <v-btn x-small color="deep-purple" text class="pa-0 font-weight-bold" @click="showClozeHelp = true">
+                                                <v-icon left x-small>mdi-information-outline</v-icon> ¿Qué es una pregunta Cloze?
+                                            </v-btn>
+                                        </div>
+                                    </div>
                                 </div>
                             </v-alert>
+
+                            <!-- Cloze Help Modal -->
+                            <v-dialog v-model="showClozeHelp" max-width="600px" scrollable>
+                                <v-card class="rounded-xl">
+                                    <v-toolbar flat color="deep-purple" dark>
+                                        <v-icon left>mdi-puzzle</v-icon>
+                                        <v-toolbar-title>Respuestas Anidadas (Cloze)</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon @click="showClozeHelp = false"><v-icon>mdi-close</v-icon></v-btn>
+                                    </v-toolbar>
+                                    
+                                    <v-card-text class="pa-6">
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold deep-purple--text mb-2 text-uppercase">1. ¿Qué es este tipo de pregunta?</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                Te permite crear un párrafo o párrafo donde las preguntas están <strong>dentro del mismo texto</strong>. Es ideal para evaluar comprensión lectora o gramática.
+                                            </p>
+                                        </div>
+
+                                        <v-card flat class="mb-6 pa-4 deep-purple lighten-5 rounded-lg border-purple">
+                                            <div class="subtitle-2 font-weight-bold deep-purple--text mb-2">Ejemplo de Resultado Final:</div>
+                                            <div class="body-2 p-2 white rounded border">
+                                                Panamá es un país ubicado en <span class="blue--text px-1">[Centroamérica ▼]</span> y su moneda es el <span class="blue--text px-1">[.....]</span>.
+                                            </div>
+                                        </v-card>
+
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold deep-purple--text mb-2 text-uppercase">2. ¿Cómo usar el Asistente?</div>
+                                            <ol class="body-2 grey--text text--darken-2 pl-4">
+                                                <li class="mb-2">Escribe tu texto completo en el recuadro grande.</li>
+                                                <li class="mb-2"><strong>Sombra con el ratón</strong> la palabra que quieres convertir en hueco.</li>
+                                                <li>Haz clic en <strong>"Insertar Hueco Inteligente"</strong> para definir la respuesta correcta y las incorrectas.</li>
+                                            </ol>
+                                        </div>
+
+                                        <div class="pa-4 grey lighten-4 rounded-lg">
+                                            <div class="d-flex align-center mb-1">
+                                                <v-icon color="deep-purple" class="mr-2" small>mdi-flash</v-icon>
+                                                <span class="body-2 font-weight-bold">Sin Códigos:</span>
+                                            </div>
+                                            <p class="caption mb-0">
+                                                Normalmente el Cloze requiere aprenderse códigos difíciles como <code>{1:MC:....}</code>. Nuestro asistente crea esos códigos por ti automáticamente.
+                                            </p>
+                                        </div>
+                                    </v-card-text>
+
+                                    <v-divider></v-divider>
+                                    <v-card-actions class="pa-4">
+                                        <v-spacer></v-spacer>
+                                        <v-btn depressed color="deep-purple" dark class="rounded-lg px-6" @click="showClozeHelp = false">Entendido</v-btn>
+                                    </v-card-actions>
+                                </card>
+                            </v-dialog>
 
                             <div class="mb-4">
                                 <div class="d-flex justify-space-between align-center mb-1">
@@ -849,7 +909,7 @@ const QuizEditor = {
                                     outlined
                                     dense
                                     rows="10"
-                                    placeholder="Escribe tu texto aquí. El asistente insertará los huecos automáticamente en la posición del cursor."
+                                    placeholder="Escribe tu texto aquí. Selecciona un texto y presiona el botón morado..."
                                     id="cloze-textarea"
                                     class="rounded-xl custom-editor shadow-sm"
                                     background-color="white"
@@ -1256,7 +1316,8 @@ const QuizEditor = {
         newVarMax: 10,
         formulaConstant: '',
         showCalculatedHelp: false,
-        showRandomSAMatchHelp: false
+        showRandomSAMatchHelp: false,
+        showClozeHelp: false
     }),
     computed: {
         previewClozeCode() {
@@ -1500,20 +1561,16 @@ const QuizEditor = {
             document.removeEventListener('mouseup', this.stopDrag);
         },
         openClozeWizard() {
-            // Get selection from textarea
-            const textarea = this.$refs.questionTextarea.$el.querySelector('textarea');
+            const textarea = document.getElementById('cloze-textarea');
+            if (!textarea) return;
+
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
             const selectedText = textarea.value.substring(start, end);
 
-            if (!selectedText) {
-                alert('Seleccione primero el texto que desea convertir en hueco.');
-                return;
-            }
-
             // Init Wizard
             this.clozeWizard.type = 'SHORTANSWER';
-            this.clozeWizard.correct = selectedText;
+            this.clozeWizard.correct = selectedText || '';
             this.clozeWizard.mark = 1;
             this.clozeWizard.distractors = [''];
             this.clozeWizard.selectionStart = start;
@@ -1523,10 +1580,8 @@ const QuizEditor = {
         },
         insertCloze() {
             const code = this.previewClozeCode;
-            const textarea = this.$refs.questionTextarea.$el.querySelector('textarea');
-
-            // Insert code replacing selection
             const fullText = this.newQuestion.questiontext;
+
             const before = fullText.substring(0, this.clozeWizard.selectionStart);
             const after = fullText.substring(this.clozeWizard.selectionEnd);
 
@@ -1672,85 +1727,6 @@ const QuizEditor = {
             const drag = this.newQuestion.draggables[choice - 1];
             const group = (drag && drag.group) ? drag.group : 1;
             return `gmk-group-${group}`;
-        },
-        openClozeWizard() {
-            this.clozeWizard.options = [{ text: '', isCorrect: true }];
-            this.clozeWizard.show = true;
-        },
-        insertClozeGap() {
-            const textarea = document.getElementById('cloze-textarea');
-            if (!textarea) return;
-
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const text = this.newQuestion.questiontext;
-
-            // Build Cloze Syntax: {WEIGHT:TYPE:=Correct#Feedback~Incorrect#Feedback}
-            let type = this.clozeWizard.type;
-            let optionsStr = this.clozeWizard.options.map(opt => {
-                let prefix = opt.isCorrect ? '=' : '';
-                return `${prefix}${opt.text}`;
-            }).join('~');
-
-            const marker = `{1:${type}:${optionsStr}}`;
-
-            this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
-            this.clozeWizard.show = false;
-
-            this.$nextTick(() => {
-                textarea.focus();
-                const newPos = start + marker.length;
-                textarea.setSelectionRange(newPos, newPos);
-            });
-        },
-        detectDatasetVariables() {
-            if (!this.newQuestion.dataset) this.$set(this.newQuestion, 'dataset', []);
-            const formula = this.newQuestion.answers[0].text;
-            const matches = formula.match(/\{([a-zA-Z0-9]+)\}/g);
-            if (matches) {
-                matches.forEach(m => {
-                    const name = m.replace('{', '').replace('}', '');
-                    if (!this.newQuestion.dataset.some(d => d.name === name)) {
-                        this.newQuestion.dataset.push({ name: name, min: 1, max: 10, decimals: 1 });
-                    }
-                });
-            }
-        },
-        addToFormula(val, ansIdx = 0) {
-            if (!this.newQuestion.answers[ansIdx]) {
-                if (ansIdx === 0) this.addAnswerChoice();
-                else return;
-            }
-            let current = this.newQuestion.answers[ansIdx].text || '';
-            // Add a space if current doesn't end with space and val isn't a closing bracket or comma
-            if (current.length > 0 && !current.endsWith(' ') && !['*', '/', '+', '-', ',', ')'].includes(val.charAt(0)) && !['(', ')', '*', '/', '+', '-'].includes(current.slice(-1))) {
-                current += ' ';
-            }
-            this.newQuestion.answers[ansIdx].text = current + val;
-        },
-        addVariable() {
-            if (!this.newVarName) return;
-            const cleanName = this.newVarName.replace(/[^a-zA-Z0-9]/g, '');
-            if (!this.newQuestion.dataset.some(d => d.name === cleanName)) {
-                this.newQuestion.dataset.push({ name: cleanName, min: this.newVarMin, max: this.newVarMax, decimals: 1 });
-            }
-            this.newVarName = '';
-            this.showAddVariableDialog = false;
-        },
-        parseFormula(formula) {
-            if (!formula) return [];
-            // Match variables {name} or numbers or operators
-            const parts = formula.split(/(\{[a-zA-Z0-9]+\}|[\+\-\*\/\(\)\,\^]|sqrt|pow|\d+(?:\.\d+)?)/g).filter(x => x && x.trim().length > 0);
-            return parts.map(p => {
-                const trimmed = p.trim();
-                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                    return { type: 'variable', value: trimmed.replace('{', '').replace('}', '') };
-                }
-                if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
-                    return { type: 'constant', value: trimmed };
-                }
-                return { type: 'operator', value: trimmed };
-            });
         },
         renderLivePreview() {
             if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
