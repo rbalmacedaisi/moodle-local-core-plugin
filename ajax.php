@@ -1164,43 +1164,44 @@ try {
                         $question->bgimage = $draftitemid;
                     }
 
-                    // Process Draggables (Moodle standard for form data is array of arrays)
+                    // Process Draggables (Base-0 indexing for standard Moodle loops)
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
                             $no = $idx + 1;
-                            $dragArr = [
+                            $dragitem = [
                                 'no' => $no,
                                 'label' => !empty($drag->text) ? (string)$drag->text : ' ',
                                 'infinite' => !empty($drag->infinite) ? 1 : 0
                             ];
                             if ($data->type === 'ddmarker') {
-                                $dragArr['noofdrags'] = 1;
+                                $dragitem['noofdrags'] = 1;
                             } else {
-                                $dragArr['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                                $dragitem['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
                             }
-                            $question->drags[$no] = $dragArr;
+                            $question->drags[$idx] = $dragitem;
                         }
                     }
 
-                    // Process Drops (Moodle standard: array of arrays, indexed by 'no')
+                    // Process Drops (Base-0 indexing, explicit labels)
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
                             $no = $idx + 1;
-                            $dropArr = [
-                                'no' => $no,
-                                'choice' => (int)$d->choice,
-                                'label' => 'drop' . $no // MUST BE A STRING
-                            ];
-                            
                             if ($data->type === 'ddmarker') {
-                                $radius = 15;
-                                $dropArr['shape'] = 'circle';
-                                $dropArr['coords'] = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
+                                $question->drops[$idx] = [
+                                    'no' => $no,
+                                    'choice' => (int)$d->choice,
+                                    'shape' => 'circle',
+                                    'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y)
+                                ];
                             } else {
-                                $dropArr['xleft'] = (int)$d->x;
-                                $dropArr['ytop'] = (int)$d->y;
+                                $question->drops[$idx] = [
+                                    'no' => $no,
+                                    'choice' => (int)$d->choice,
+                                    'xleft' => (int)$d->x,
+                                    'ytop' => (int)$d->y,
+                                    'label' => 'drop' . $no
+                                ];
                             }
-                            $question->drops[$no] = $dropArr;
                         }
                     }
                     
@@ -1208,8 +1209,7 @@ try {
                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
-                    
-                    $form_data = $question; // Both are now arrays of arrays
+                    $form_data = $question;
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
