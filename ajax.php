@@ -1269,6 +1269,12 @@ try {
                     $form_data->draglabel = []; // Specific for ddimageortext
                     $form_data->dragitem = [];  // Specific for ddimageortext
 
+                    // Ensure context compatibility
+                    if (!empty($data->id)) {
+                        $question->contextid = $old_question->contextid;
+                        $form_data->contextid = $old_question->contextid;
+                    }
+
                     // Background Image
                     if (!empty($_FILES['bgimage'])) {
                         $draftitemid = file_get_unused_draft_itemid();
@@ -1302,23 +1308,19 @@ try {
                     // Process Draggables
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $no = $idx; // The diagnostic shows: foreach (array_keys($formdata->drags) as $dragno) ... $drag->no = $dragno + 1;
-                                       // This means $dragno is the KEY. We'll use 0-based keys.
-                            
+                            $no = $idx;
                             $label = !empty($drag->text) ? (string)$drag->text : ' ';
                             
                             if ($data->type === 'ddimageortext') {
-                                // ddimageortext expects draglabel and dragitem as top-level arrays
                                 $form_data->draglabel[$no] = $label;
-                                $form_data->dragitem[$no] = 0; // Draft ID for images, 0 for text
-                                $form_data->drags[$no] = [
+                                $form_data->dragitem[$no] = 0;
+                                $form_data->drags[$no] = (object)[
                                     'draggroup' => isset($drag->group) ? (int)$drag->group : 1,
                                     'infinite' => !empty($drag->infinite) ? 1 : 0,
-                                    'dragitemtype' => 'text' // We are sending text
+                                    'dragitemtype' => 'text'
                                 ];
                             } else {
-                                // ddmarker expects label inside drags
-                                $form_data->drags[$no] = [
+                                $form_data->drags[$no] = (object)[
                                     'label' => $label,
                                     'noofdrags' => !empty($drag->infinite) ? 0 : 1
                                 ];
@@ -1329,17 +1331,16 @@ try {
                     // Process Drops
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
-                            $no = $idx; // Again, diagnostic uses index as $dropno
-                            
+                            $no = $idx;
                             if ($data->type === 'ddimageortext') {
-                                $form_data->drops[$no] = [
+                                $form_data->drops[$no] = (object)[
                                     'choice' => (int)$d->choice,
                                     'xleft' => (int)$d->x,
                                     'ytop' => (int)$d->y,
-                                    'droplabel' => 'drop' . ($no + 1) // CRITICAL: It was droplabel, not label!
+                                    'droplabel' => 'drop' . ($no + 1)
                                 ];
                             } else {
-                                $form_data->drops[$no] = [
+                                $form_data->drops[$no] = (object)[
                                     'choice' => (int)$d->choice,
                                     'shape' => 'circle',
                                     'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y)
