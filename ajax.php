@@ -1144,77 +1144,72 @@ try {
                 }
                 elseif ($data->type === 'ddimageortext' || $data->type === 'ddmarker') {
                     $question->shuffleanswers = 1;
-                    $question->drops = [];
                     $question->drags = [];
+                    $question->drops = [];
+
+                    // We create a separate "form data" object to satisfy Moodle's dual requirements
+                    $form_data = new stdClass();
+                    $form_data->drags = [];
+                    $form_data->drops = [];
 
                     // Handle Background Image Upload
                     if (!empty($_FILES['bgimage'])) {
                         $draftitemid = file_get_unused_draft_itemid();
                         $context = context_user::instance($USER->id);
-                        
                         $fs = get_file_storage();
                         $filerecord = array(
-                            'contextid' => $context->id,
-                            'component' => 'user',
-                            'filearea'  => 'draft',
-                            'itemid'    => $draftitemid,
-                            'filepath'  => '/',
-                            'filename'  => $_FILES['bgimage']['name']
+                            'contextid' => $context->id, 'component' => 'user', 'filearea' => 'draft',
+                            'itemid' => $draftitemid, 'filepath' => '/', 'filename' => $_FILES['bgimage']['name']
                         );
                         $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
-                        
                         $question->bgimage = $draftitemid;
+                        $form_data->bgimage = $draftitemid;
                     }
 
-                    // IMPORTANT: D&D Image/Markers need entries in the 'answer' table for their text
-                    $question->answer = [];
-                    if (isset($data->draggables)) {
-                        foreach ($data->draggables as $drag) {
-                            $question->answer[] = ['text' => !empty($drag->text) ? $drag->text : ' ', 'format' => FORMAT_HTML];
+                    // Process Draggables
+                    if (isset($data->draggables) && is_array($data->draggables)) {
+                        foreach ($data->draggables as $idx => $drag) {
+                            $no = $idx + 1;
+                            $label = !empty($drag->text) ? (string)$drag->text : ' ';
+                            
+                            // Array for form-like access
+                            $drag_arr = [
+                                'no' => $no,
+                                'label' => $label,
+                                'infinite' => !empty($drag->infinite) ? 1 : 0
+                            ];
+                            if ($data->type === 'ddmarker') {
+                                $drag_arr['noofdrags'] = 1;
+                            } else {
+                                $drag_arr['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                            }
+                            
+                            $form_data->drags[$no] = $drag_arr;
+                            $question->drags[$no] = (object)$drag_arr;
                         }
                     }
 
-                    // Process Drags (Base 1 indexing is crucial for Moodle forms)
-                    $question->drags = [];
-                    if (isset($data->draggables) && is_array($data->draggables)) {
-                        foreach ($data->draggables as $idx => $drag) {
-                            $dragitem = [
-                                'no' => $idx + 1,
-                                'label' => !empty($drag->text) ? $drag->text : ' ',
-                                'infinite' => !empty($drag->infinite) ? 1 : 0
+                    // Process Drops
+                    if (isset($data->drops) && is_array($data->drops)) {
+                        foreach ($data->drops as $idx => $d) {
+                            $no = $idx + 1;
+                            $drop_arr = [
+                                'no' => $no,
+                                'choice' => (int)$d->choice,
+                                'label' => '' // Force empty string instead of null
                             ];
 
                             if ($data->type === 'ddmarker') {
-                                $dragitem['noofdrags'] = 1;
-                            } else {
-                                $dragitem['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
-                            }
-
-                            $question->drags[$idx + 1] = $dragitem;
-                        }
-                    }
-
-                    // Process Drops (Base 1 indexing)
-                    $question->drops = [];
-                    if (isset($data->drops) && is_array($data->drops)) {
-                        foreach ($data->drops as $idx => $d) {
-                            if ($data->type === 'ddmarker') {
                                 $radius = 15;
-                                $question->drops[$idx + 1] = [
-                                    'no' => $idx + 1,
-                                    'choice' => (int)$d->choice,
-                                    'shape'  => 'circle',
-                                    'coords' => sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius)
-                                ];
+                                $drop_arr['shape'] = 'circle';
+                                $drop_arr['coords'] = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
                             } else {
-                                $question->drops[$idx + 1] = [
-                                    'no' => $idx + 1,
-                                    'choice' => (int)$d->choice,
-                                    'label'  => 'drop' . ($idx + 1),
-                                    'xleft'  => (int)$d->x,
-                                    'ytop'   => (int)$d->y
-                                ];
+                                $drop_arr['xleft'] = (int)$d->x;
+                                $drop_arr['ytop'] = (int)$d->y;
                             }
+
+                            $form_data->drops[$no] = $drop_arr;
+                            $question->drops[$no] = (object)$drop_arr;
                         }
                     }
                     
@@ -1222,6 +1217,18 @@ try {
                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
+
+                    // Execute save using the dual structure
+                    $qtypeobj = question_bank::get_qtype($question->qtype);
+                    $newq = $qtypeobj->save_question($question, $form_data);
+                    
+                    // ADD TO QUIZ
+                    quiz_add_quiz_question($newq->id, $quiz);
+                    $response = ['status' => 'success', 'id' => $newq->id];
+                    
+                    // Standard save logic already handled, skip the default break
+                    echo json_encode($response);
+                    die();
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
