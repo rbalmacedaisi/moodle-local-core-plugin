@@ -1505,6 +1505,7 @@ const QuizEditor = {
                     if (q.draggables) this.newQuestion.draggables = q.draggables;
                     if (q.drops) this.newQuestion.drops = q.drops;
                     if (q.dataset) this.newQuestion.dataset = q.dataset;
+                    if (q.ddbase64) this.newQuestion.ddbase64 = q.ddbase64;
 
                     this.showAddQuestionDialog = true;
                 } else {

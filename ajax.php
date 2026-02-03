@@ -944,22 +944,42 @@ try {
                 }
 
                 if ($qdata->qtype === 'ddimageortext' || $qdata->qtype === 'ddmarker') {
+                    // Background Image URL
+                    $fs = get_file_storage();
+                    $filearea = 'bgimage';
+                    $component = 'qtype_' . $qdata->qtype;
+                    $files = $fs->get_area_files($qdata->contextid, $component, $filearea, $qdata->id, 'itemid, filepath, filename', false);
+                    if (!empty($files)) {
+                        $file = reset($files);
+                        $details['ddbase64'] = moodle_url::make_pluginfile_url($file->get_contextid(), $file->get_component(), $file->get_filearea(), $file->get_itemid(), $file->get_filepath(), $file->get_filename(), false)->out(false);
+                    }
+
                     if (isset($qdata->options->drags)) {
                         foreach ($qdata->options->drags as $drag) {
                             $details['draggables'][] = [
                                 'type' => $drag->dragitemtype ?? 'text',
                                 'text' => $drag->label ?? '',
-                                'group' => (int)$drag->draggroup,
-                                'infinite' => (bool)$drag->infinite
+                                'group' => (int)($drag->draggroup ?? 1),
+                                'infinite' => isset($drag->noofdrags) ? ((int)$drag->noofdrags === 0) : (bool)($drag->infinite ?? true)
                             ];
                         }
                     }
                     if (isset($qdata->options->drops)) {
                         foreach ($qdata->options->drops as $drop) {
+                            $x = 0; $y = 0;
+                            if ($qdata->qtype === 'ddmarker' && !empty($drop->coords)) {
+                                $parts = explode(';', $drop->coords);
+                                $coords = explode(',', $parts[0]);
+                                $x = (int)$coords[0];
+                                $y = (int)$coords[1];
+                            } else {
+                                $x = (int)($drop->xleft ?? $drop->x ?? 0);
+                                $y = (int)($drop->ytop ?? $drop->y ?? 0);
+                            }
                             $details['drops'][] = [
                                 'choice' => (int)$drop->choice,
-                                'x' => (int)($drop->xleft ?? $drop->x ?? 0),
-                                'y' => (int)($drop->ytop ?? $drop->y ?? 0)
+                                'x' => $x,
+                                'y' => $y
                             ];
                         }
                     }
