@@ -1128,23 +1128,29 @@ try {
                      if (isset($data->answers) && is_array($data->answers)) {
                         foreach ($data->answers as $ans) {
                             $question->answer[] = $ans->text; // Formula
-                            $question->fraction[] = 1.0; // Default to correct
+                            $question->fraction[] = isset($ans->fraction) ? (float)$ans->fraction : 1.0;
                             $question->tolerance[] = isset($ans->tolerance) ? $ans->tolerance : 0.01;
                             $question->tolerancetype[] = 1; // Relative
                             $question->correctanswerlength[] = 2; 
                             $question->correctanswerformat[] = 1; // Decimals
-                            $question->feedback[] = ['text' => '', 'format' => FORMAT_HTML];
+                            $question->feedback[] = ['text' => isset($ans->feedback) ? $ans->feedback : '', 'format' => FORMAT_HTML];
                         }
                      }
                      // Unit support
                      $question->unit = [isset($data->unit) ? $data->unit : ''];
                      $question->multiplier = [1.0];
                      
-                     // Datasets (Simple Mapping)
-                     // Note: Full dataset handling requires creating separate definition records.
-                     // This simple implementation relies on Moodle parsing the wildcards if definitions exist, 
-                     // or creating defaults if allowed. For robust "Wizard" style, we'd need more logic.
+                     // Options fields (FIXED: Required by qtype_calculated_options table)
                      $question->synchronize = 0;
+                     $question->single = ($data->type === 'calculatedmulti') ? (isset($data->single) ? ($data->single ? 1 : 0) : 1) : 1;
+                     $question->answernumbering = 'abc';
+                     $question->shuffleanswers = isset($data->shuffleanswers) ? ($data->shuffleanswers ? 1 : 0) : 0;
+                     
+                     // Combined Feedback (Required fields for calculated_options)
+                     $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+                     $question->shownumcorrect = 1;
                 }
                 elseif ($data->type === 'ddimageortext' || $data->type === 'ddmarker') {
                     $question->shuffleanswers = 1;

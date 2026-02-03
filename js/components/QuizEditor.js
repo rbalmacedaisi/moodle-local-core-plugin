@@ -545,6 +545,22 @@ const QuizEditor = {
 
                         <!-- Calculated Types (Visual Formula Builder) -->
                         <div v-else-if="newQuestion.type && newQuestion.type.startsWith('calculated')">
+                            <!-- Helper Legend -->
+                            <v-card flat class="mb-4 rounded-xl border-dashed indigo lighten-5 pa-4" style="border-width: 2px !important;">
+                                <div class="d-flex align-center mb-2">
+                                    <v-icon color="indigo" class="mr-2">mdi-comment-question-outline</v-icon>
+                                    <span class="subtitle-2 font-weight-bold indigo--text text-uppercase">Guía: Uso de Comodines (Wildcards)</span>
+                                </div>
+                                <div class="text-caption indigo--text text--darken-3">
+                                    Usa nombres entre llaves como <strong>{base}</strong> o <strong>{altura}</strong> en el enunciado de arriba. 
+                                    Moodle reemplazará estos nombres por números reales distintos para cada estudiante.
+                                    <div class="mt-2 d-flex align-center">
+                                        <v-icon x-small color="indigo" class="mr-1">mdi-shield-check</v-icon>
+                                        <span>Los estudiantes verán números, no variables, reduciendo significativamente la posibilidad de copia.</span>
+                                    </div>
+                                </div>
+                            </v-card>
+
                             <v-alert colored-border border="left" color="blue" class="mb-4 elevation-1" text v-if="newQuestion.answers && newQuestion.answers.length > 0">
                                 <div class="d-flex align-center">
                                     <v-icon color="blue" class="mr-3">mdi-auto-fix</v-icon>
