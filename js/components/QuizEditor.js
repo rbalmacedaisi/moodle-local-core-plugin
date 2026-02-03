@@ -1270,7 +1270,46 @@ const QuizEditor = {
             this.rebuildTextFromTokens(newTokens);
         },
         rebuildTextFromTokens(tokens) {
-            this.newQuestion.questiontext = tokens.map(t => t.value).join('');
+            // Identify which gap indexes are currently present in the tokens
+            const usedGapIndexes = [];
+            const tokensList = Array.isArray(tokens) ? tokens : this.tokenizedText;
+
+            tokensList.forEach(t => {
+                if (t.type === 'gap' && !usedGapIndexes.includes(t.gapIndex)) {
+                    usedGapIndexes.push(t.gapIndex);
+                }
+            });
+
+            // For DDWTOS and GapSelect, we sync answer choices with used gaps
+            if (this.newQuestion.type === 'ddwtos' || this.newQuestion.type === 'gapselect') {
+                const oldAnswers = [...this.newQuestion.answers];
+                const newAnswers = [];
+                const indexMapping = {}; // Old Index (1-based) -> New Index (1-based)
+
+                // Sort based on appearance or just keep relative order of used ones
+                // Let's keep relative order of appearance for better UX
+                let currentNewIdx = 1;
+                tokensList.forEach(t => {
+                    if (t.type === 'gap' && !indexMapping[t.gapIndex]) {
+                        newAnswers.push(oldAnswers[t.gapIndex - 1]);
+                        indexMapping[t.gapIndex] = currentNewIdx++;
+                    }
+                });
+
+                // Update tokens with target mapping
+                tokensList.forEach(t => {
+                    if (t.type === 'gap') {
+                        const newIdx = indexMapping[t.gapIndex];
+                        t.gapIndex = newIdx;
+                        t.value = `[[${newIdx}]]`;
+                    }
+                });
+
+                this.newQuestion.answers = newAnswers;
+                this.newQuestion.questiontext = tokensList.map(t => t.value).join('');
+            } else {
+                this.newQuestion.questiontext = tokensList.map(t => t.value).join('');
+            }
         },
         formatToken(val) {
             return val.replace(/\n/g, '<br>');
