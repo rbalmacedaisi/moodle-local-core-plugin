@@ -588,10 +588,11 @@ const QuizEditor = {
                                                 <v-chip v-for="(part, pi) in parseFormula(ans.text)" 
                                                         :key="pi" 
                                                         small 
-                                                        :color="part.type === 'variable' ? 'blue' : 'grey lighten-2'"
+                                                        :color="part.type === 'variable' ? 'blue' : (part.type === 'constant' ? 'indigo lighten-4' : 'grey lighten-2')"
                                                         :dark="part.type === 'variable'"
                                                         label
                                                         class="font-weight-bold"
+                                                        :class="part.type === 'constant' ? 'indigo--text' : ''"
                                                 >
                                                     {{ part.value }}
                                                 </v-chip>
@@ -607,6 +608,31 @@ const QuizEditor = {
                                             <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('sqrt(', ansIdx)">√</v-btn>
                                             <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('pow(', ansIdx)">^</v-btn>
                                             <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula(',', ansIdx)"> , </v-btn>
+                                        </div>
+
+                                        <!-- Constant Input -->
+                                        <div class="d-flex align-center justify-center mb-4" style="gap: 8px;">
+                                            <v-text-field
+                                                v-model="formulaConstant"
+                                                label="Añadir Número"
+                                                type="number"
+                                                outlined
+                                                dense
+                                                hide-details
+                                                class="rounded-lg bg-white"
+                                                style="max-width: 120px;"
+                                                @keyup.enter="if(formulaConstant !== '') { addToFormula(formulaConstant, ansIdx); formulaConstant = ''; }"
+                                            ></v-text-field>
+                                            <v-btn 
+                                                depressed 
+                                                color="indigo" 
+                                                dark 
+                                                small 
+                                                class="rounded-lg"
+                                                @click="if(formulaConstant !== '') { addToFormula(formulaConstant, ansIdx); formulaConstant = ''; }"
+                                            >
+                                                <v-icon left small>mdi-plus-circle</v-icon> Insertar
+                                            </v-btn>
                                         </div>
 
                                         <!-- Variable Shortcuts -->
@@ -1085,7 +1111,8 @@ const QuizEditor = {
         showAddVariableDialog: false,
         newVarName: '',
         newVarMin: 1,
-        newVarMax: 10
+        newVarMax: 10,
+        formulaConstant: ''
     }),
     computed: {
         previewClozeCode() {
@@ -1569,12 +1596,16 @@ const QuizEditor = {
         parseFormula(formula) {
             if (!formula) return [];
             // Match variables {name} or numbers or operators
-            const parts = formula.split(/(\{[a-zA-Z0-9]+\}|[\+\-\*\/\(\)\,\^]|sqrt|pow)/g).filter(x => x && x.trim().length > 0);
+            const parts = formula.split(/(\{[a-zA-Z0-9]+\}|[\+\-\*\/\(\)\,\^]|sqrt|pow|\d+(?:\.\d+)?)/g).filter(x => x && x.trim().length > 0);
             return parts.map(p => {
-                if (p.startsWith('{') && p.endsWith('}')) {
-                    return { type: 'variable', value: p.replace('{', '').replace('}', '') };
+                const trimmed = p.trim();
+                if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                    return { type: 'variable', value: trimmed.replace('{', '').replace('}', '') };
                 }
-                return { type: 'operator', value: p.trim() };
+                if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+                    return { type: 'constant', value: trimmed };
+                }
+                return { type: 'operator', value: trimmed };
             });
         },
         renderLivePreview() {
