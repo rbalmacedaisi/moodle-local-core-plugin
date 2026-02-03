@@ -544,8 +544,8 @@ const QuizEditor = {
                         </div>
 
                         <!-- Calculated Types (Visual Formula Builder) -->
-                        <div v-else-if="newQuestion.type.startsWith('calculated') && newQuestion.answers && newQuestion.answers.length > 0">
-                            <v-alert colored-border border="left" color="blue" class="mb-4 elevation-1" text>
+                        <div v-else-if="newQuestion.type && newQuestion.type.startsWith('calculated')">
+                            <v-alert colored-border border="left" color="blue" class="mb-4 elevation-1" text v-if="newQuestion.answers && newQuestion.answers.length > 0">
                                 <div class="d-flex align-center">
                                     <v-icon color="blue" class="mr-3">mdi-auto-fix</v-icon>
                                     <span class="text-body-2"><strong>Constructor Visual:</strong> Crea fórmulas complejas haciendo clic en operadores y variables. No necesitas escribir códigos.</span>
@@ -553,68 +553,70 @@ const QuizEditor = {
                             </v-alert>
 
                             <!-- Formula Display & Controls -->
-                            <div v-for="(ans, ansIdx) in newQuestion.answers" :key="'formula'+ansIdx" class="mb-6">
-                                <v-card outlined class="pa-4 rounded-xl blue lighten-5 border-blue shadow-sm">
-                                    <div class="caption blue--text font-weight-bold mb-2 text-uppercase d-flex justify-space-between align-center">
-                                        <span>{{ newQuestion.type === 'calculatedmulti' ? 'Opción ' + (ansIdx + 1) : 'Fórmula de Respuesta' }}</span>
-                                        <div v-if="newQuestion.type === 'calculatedmulti'">
-                                            <v-btn x-small icon color="red" class="mr-2" @click="newQuestion.answers.splice(ansIdx, 1)" :disabled="newQuestion.answers.length <= 2">
-                                                <v-icon>mdi-delete</v-icon>
-                                            </v-btn>
+                            <template v-if="newQuestion.answers && newQuestion.answers.length > 0">
+                                <div v-for="(ans, ansIdx) in newQuestion.answers" :key="'formula'+ansIdx" class="mb-6">
+                                    <v-card outlined class="pa-4 rounded-xl blue lighten-5 border-blue shadow-sm">
+                                        <div class="caption blue--text font-weight-bold mb-2 text-uppercase d-flex justify-space-between align-center">
+                                            <span>{{ questionTypeLabel(newQuestion.type) }} {{ newQuestion.type === 'calculatedmulti' ? 'Opción ' + (ansIdx + 1) : '' }}</span>
+                                            <div v-if="newQuestion.type === 'calculatedmulti'">
+                                                <v-btn x-small icon color="red" class="mr-2" @click="newQuestion.answers.splice(ansIdx, 1)" :disabled="newQuestion.answers.length <= 2">
+                                                    <v-icon>mdi-delete</v-icon>
+                                                </v-btn>
+                                            </div>
+                                            <v-btn x-small text color="red" @click="ans.text = ''">Limpiar</v-btn>
                                         </div>
-                                        <v-btn x-small text color="red" @click="ans.text = ''">Limpiar</v-btn>
-                                    </div>
-                                    
-                                    <div class="formula-preview-area pa-3 white rounded-lg border shadow-inner mb-4 min-height-60 d-flex flex-wrap align-center bg-white" 
-                                         style="min-height: 80px; gap: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05) !important;">
-                                        <template v-if="ans.text">
-                                            <v-chip v-for="(part, pi) in parseFormula(ans.text)" 
-                                                    :key="pi" 
-                                                    small 
-                                                    :color="part.type === 'variable' ? 'blue' : 'grey lighten-2'"
-                                                    :dark="part.type === 'variable'"
-                                                    label
-                                                    class="font-weight-bold"
-                                            >
-                                                {{ part.value }}
-                                            </v-chip>
-                                        </template>
-                                        <span v-else class="grey--text subtitle-1 italic">Construye la fórmula para esta opción...</span>
-                                    </div>
+                                        
+                                        <div class="formula-preview-area pa-3 white rounded-lg border shadow-inner mb-4 min-height-60 d-flex flex-wrap align-center bg-white" 
+                                             style="min-height: 80px; gap: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05) !important;">
+                                            <template v-if="ans.text">
+                                                <v-chip v-for="(part, pi) in parseFormula(ans.text)" 
+                                                        :key="pi" 
+                                                        small 
+                                                        :color="part.type === 'variable' ? 'blue' : 'grey lighten-2'"
+                                                        :dark="part.type === 'variable'"
+                                                        label
+                                                        class="font-weight-bold"
+                                                >
+                                                    {{ part.value }}
+                                                </v-chip>
+                                            </template>
+                                            <span v-else class="grey--text subtitle-1 italic">Construye la fórmula para esta opción...</span>
+                                        </div>
 
-                                    <!-- Operators Toolbar -->
-                                    <div class="d-flex flex-wrap gap-2 justify-center mb-4" style="gap: 8px;">
-                                        <v-btn v-for="op in ['+', '-', '*', '/', '(', ')']" :key="op" 
-                                               small depressed color="white" class="font-weight-bold border" 
-                                               @click="addToFormula(op, ansIdx)">{{ op }}</v-btn>
-                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('sqrt(', ansIdx)">√</v-btn>
-                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('pow(', ansIdx)">^</v-btn>
-                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula(',', ansIdx)"> , </v-btn>
-                                    </div>
+                                        <!-- Operators Toolbar -->
+                                        <div class="d-flex flex-wrap gap-2 justify-center mb-4" style="gap: 8px;">
+                                            <v-btn v-for="op in ['+', '-', '*', '/', '(', ')']" :key="op" 
+                                                   small depressed color="white" class="font-weight-bold border" 
+                                                   @click="addToFormula(op, ansIdx)">{{ op }}</v-btn>
+                                            <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('sqrt(', ansIdx)">√</v-btn>
+                                            <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('pow(', ansIdx)">^</v-btn>
+                                            <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula(',', ansIdx)"> , </v-btn>
+                                        </div>
 
-                                    <!-- Variable Shortcuts -->
-                                    <div v-if="newQuestion.dataset.length > 0" class="d-flex flex-wrap gap-2 justify-center pt-2" style="gap: 8px; border-top: 1px dashed #bbdefb;">
-                                        <v-btn v-for="ds in newQuestion.dataset" :key="ds.name" 
-                                               x-small depressed color="blue" dark class="rounded-pill px-3" 
-                                               @click="addToFormula('{' + ds.name + '}', ansIdx)">
-                                            <v-icon left x-small>mdi-variable</v-icon>
-                                            {{ ds.name }}</v-btn>
-                                    </div>
+                                        <!-- Variable Shortcuts -->
+                                        <div v-if="newQuestion.dataset && newQuestion.dataset.length > 0" class="d-flex flex-wrap gap-2 justify-center pt-2" style="gap: 8px; border-top: 1px dashed #bbdefb;">
+                                            <v-btn v-for="ds in newQuestion.dataset" :key="ds.name" 
+                                                   x-small depressed color="blue" dark class="rounded-pill px-3" 
+                                                   @click="addToFormula('{' + ds.name + '}', ansIdx)">
+                                                <v-icon left x-small>mdi-variable</v-icon>
+                                                {{ ds.name }}</v-btn>
+                                        </div>
 
-                                    <v-row v-if="newQuestion.type === 'calculatedmulti'" class="mt-4 pt-4 border-top">
-                                        <v-col cols="12" md="6">
-                                            <v-select label="Calificación" v-model="ans.fraction" :items="gradeOptions" outlined dense hide-details></v-select>
-                                        </v-col>
-                                        <v-col cols="12" md="6">
-                                            <v-text-field label="Retroalimentación" v-model="ans.feedback" outlined dense hide-details prepend-inner-icon="mdi-comment-outline"></v-text-field>
-                                        </v-col>
-                                    </v-row>
-                                </v-card>
-                            </div>
+                                        <v-row v-if="newQuestion.type === 'calculatedmulti'" class="mt-4 pt-4 border-top">
+                                            <v-col cols="12" md="6">
+                                                <v-select label="Calificación" v-model="ans.fraction" :items="gradeOptions" outlined dense hide-details></v-select>
+                                            </v-col>
+                                            <v-col cols="12" md="6">
+                                                <v-text-field label="Retroalimentación" v-model="ans.feedback" outlined dense hide-details prepend-inner-icon="mdi-comment-outline"></v-text-field>
+                                            </v-col>
+                                        </v-row>
+                                    </v-card>
+                                </div>
 
-                            <v-btn v-if="newQuestion.type === 'calculatedmulti'" block depressed color="blue lighten-5" class="blue--text mb-6 rounded-xl border-dashed" @click="addAnswerChoice">
-                                <v-icon left>mdi-plus-circle</v-icon> Añadir Opción
-                            </v-btn>
+                                <v-btn v-if="newQuestion.type === 'calculatedmulti'" block depressed color="blue lighten-5" class="blue--text mb-6 rounded-xl border-dashed" @click="addAnswerChoice">
+                                    <v-icon left>mdi-plus-circle</v-icon> Añadir Opción
+                                </v-btn>
+                            </template>
 
                             <!-- Variable Manager -->
                             <v-card outlined class="pa-4 rounded-xl border-dashed">
@@ -1204,6 +1206,7 @@ const QuizEditor = {
                 usecase: 0,
                 unit: '',
                 unitpenalty: 0.1,
+                tolerance: 0.01,
                 responseformat: 'editor',
                 responserequired: 15,
                 choose: 4,
