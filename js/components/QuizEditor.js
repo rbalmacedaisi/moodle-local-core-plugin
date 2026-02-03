@@ -911,10 +911,7 @@ const QuizEditor = {
             questiontext: '',
             defaultmark: 1,
             correctAnswer: '1',
-            answers: [
-                { text: '', fraction: 1.0, feedback: '', tolerance: 0, group: 1 },
-                { text: '', fraction: 0.0, feedback: '', tolerance: 0, group: 1 }
-            ],
+            answers: [], // Start empty, will be populated by type or user
             single: true,
             subquestions: [
                 { text: '', answer: '' },
@@ -1012,6 +1009,22 @@ const QuizEditor = {
             return tokens;
         }
     },
+    watch: {
+        'newQuestion.type'(newType) {
+            // When switching type, if answers are empty or standard empty ones, adjust
+            if (newType === 'ddwtos' || newType === 'gapselect') {
+                const onlyEmpty = this.newQuestion.answers.every(a => !a.text || a.text.trim() === '');
+                if (onlyEmpty) {
+                    this.newQuestion.answers = [];
+                }
+            } else if (newType === 'multichoice' || newType === 'truefalse') {
+                if (this.newQuestion.answers.length === 0) {
+                    this.addAnswerChoice();
+                    this.addAnswerChoice();
+                }
+            }
+        }
+    },
     mounted() {
         this.fetchQuestions();
     },
@@ -1074,10 +1087,7 @@ const QuizEditor = {
                 questiontext: '',
                 defaultmark: 1,
                 correctAnswer: '1',
-                answers: [
-                    { text: '', fraction: 1.0, feedback: '', tolerance: 0, group: 1 },
-                    { text: '', fraction: 0.0, feedback: '', tolerance: 0, group: 1 }
-                ],
+                answers: [], // Start empty
                 single: true,
                 subquestions: [
                     { text: '', answer: '' },
@@ -1100,11 +1110,6 @@ const QuizEditor = {
                 dataset: [],
                 formulas: []
             };
-
-            // For DDWTOS and GapSelect, start with empty answers to avoid "noise"
-            if (this.newQuestion.type === 'ddwtos' || this.newQuestion.type === 'gapselect') {
-                this.newQuestion.answers = [];
-            }
         },
         questionTypeLabel(type) {
             const t = this.questionTypes.find(x => x.value === type);
