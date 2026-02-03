@@ -951,7 +951,9 @@ try {
                     $files = $fs->get_area_files($qdata->contextid, $component, $filearea, $qdata->id, 'itemid, filepath, filename', false);
                     if (!empty($files)) {
                         $file = reset($files);
-                        $details['ddbase64'] = moodle_url::make_pluginfile_url($file->get_contextid(), $file->get_component(), $file->get_filearea(), $file->get_itemid(), $file->get_filepath(), $file->get_filename(), false)->out(false);
+                        $content = $file->get_content();
+                        $mimetype = $file->get_mimetype();
+                        $details['ddbase64'] = 'data:' . $mimetype . ';base64,' . base64_encode($content);
                     }
 
                     if (isset($qdata->options->drags)) {
@@ -1279,6 +1281,22 @@ try {
                         $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
                         $question->bgimage = $draftitemid;
                         $form_data->bgimage = $draftitemid;
+                    } elseif (!empty($data->id)) {
+                        // Keep existing image if editing
+                        $fs = get_file_storage();
+                        $old_files = $fs->get_area_files($old_question->contextid, 'qtype_'.$data->type, 'bgimage', $old_question->id, 'id, itemid, filepath, filename', false);
+                        if (!empty($old_files)) {
+                            $old_file = reset($old_files);
+                            $draftitemid = file_get_unused_draft_itemid();
+                            $usercontext = context_user::instance($USER->id);
+                            $filerecord = array(
+                                'contextid' => $usercontext->id, 'component' => 'user', 'filearea' => 'draft',
+                                'itemid' => $draftitemid, 'filepath' => '/', 'filename' => $old_file->get_filename()
+                            );
+                            $fs->create_file_from_storedfile($filerecord, $old_file);
+                            $question->bgimage = $draftitemid;
+                            $form_data->bgimage = $draftitemid;
+                        }
                     }
 
                     // Process Draggables
