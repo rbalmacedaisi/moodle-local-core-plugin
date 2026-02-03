@@ -900,6 +900,77 @@ try {
             $response = ['status' => 'success', 'modules' => $available];
             break;
 
+        case 'local_grupomakro_get_question_details':
+            $questionid = required_param('questionid', PARAM_INT);
+            try {
+                require_once($CFG->libdir . '/questionlib.php');
+                $qdata = question_bank::load_question_data($questionid);
+                if (!$qdata) throw new Exception("Pregunta no encontrada.");
+
+                // Map to frontend structure
+                $details = [
+                    'id' => $qdata->id,
+                    'type' => $qdata->qtype,
+                    'name' => $qdata->name,
+                    'questiontext' => $qdata->questiontext,
+                    'defaultmark' => (float)$qdata->defaultmark,
+                    'answers' => [],
+                    'subquestions' => [],
+                    'draggables' => [],
+                    'drops' => [],
+                    'dataset' => []
+                ];
+
+                // Type Specific Mapping
+                if (isset($qdata->options->answers)) {
+                    foreach ($qdata->options->answers as $ans) {
+                        $details['answers'][] = [
+                            'id' => $ans->id,
+                            'text' => $ans->answer,
+                            'fraction' => (float)$ans->fraction,
+                            'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
+                            'feedback' => $ans->feedback
+                        ];
+                    }
+                }
+
+                if ($qdata->qtype === 'match' && isset($qdata->options->subquestions)) {
+                    foreach ($qdata->options->subquestions as $sub) {
+                        $details['subquestions'][] = [
+                            'text' => $sub->questiontext,
+                            'answer' => $sub->answertext
+                        ];
+                    }
+                }
+
+                if ($qdata->qtype === 'ddimageortext' || $qdata->qtype === 'ddmarker') {
+                    if (isset($qdata->options->drags)) {
+                        foreach ($qdata->options->drags as $drag) {
+                            $details['draggables'][] = [
+                                'type' => $drag->dragitemtype ?? 'text',
+                                'text' => $drag->label ?? '',
+                                'group' => (int)$drag->draggroup,
+                                'infinite' => (bool)$drag->infinite
+                            ];
+                        }
+                    }
+                    if (isset($qdata->options->drops)) {
+                        foreach ($qdata->options->drops as $drop) {
+                            $details['drops'][] = [
+                                'choice' => (int)$drop->choice,
+                                'x' => (int)($drop->xleft ?? $drop->x ?? 0),
+                                'y' => (int)($drop->ytop ?? $drop->y ?? 0)
+                            ];
+                        }
+                    }
+                }
+
+                $response = ['status' => 'success', 'question' => $details];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
         case 'local_grupomakro_get_quiz_questions':
             $cmid = required_param('cmid', PARAM_INT);
             $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
@@ -991,13 +1062,21 @@ try {
 
                 // Prepare Question Object
                 $question = new stdClass();
+                if (!empty($data->id)) {
+                    $question->id = (int)$data->id;
+                    $old_question = question_bank::load_question_data($question->id);
+                    $question->stamp = $old_question->stamp;
+                    $question->version = $old_question->version;
+                } else {
+                    $question->stamp = make_unique_id_code();
+                    $question->version = make_unique_id_code();
+                }
+
                 $question->qtype = $data->type;
                 $question->name = $data->name;
                 $question->questiontext = ['text' => isset($data->questiontext) ? $data->questiontext : (isset($data->text) ? $data->text : ''), 'format' => FORMAT_HTML];
                 $question->defaultmark = isset($data->defaultmark) ? $data->defaultmark : 1;
                 $question->category = $cat->id;
-                $question->stamp = make_unique_id_code();
-                $question->version = make_unique_id_code();
                 $question->timecreated = time();
                 $question->timemodified = time();
                 $question->contextid = $cat->contextid;
@@ -1253,8 +1332,10 @@ try {
                 $qtypeobj = question_bank::get_qtype($question->qtype);
                 $newq = $qtypeobj->save_question($question, $form_data);
                 
-                // ADD TO QUIZ
-                quiz_add_quiz_question($newq->id, $quiz);
+                // ADD TO QUIZ (Only if new)
+                if (empty($data->id)) {
+                    quiz_add_quiz_question($newq->id, $quiz);
+                }
 
                 $response = ['status' => 'success', 'id' => $newq->id];
 
@@ -1266,6 +1347,22 @@ try {
                 }
             }
             break;
+
+        case 'local_grupomakro_remove_quiz_question':
+            $cmid = required_param('cmid', PARAM_INT);
+            $slot = required_param('slot', PARAM_INT);
+            try {
+                require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+                $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+                $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+                
+                quiz_remove_slot($quiz, $slot);
+                $response = ['status' => 'success'];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
 
         case 'local_grupomakro_create_express_activity':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/create_express_activity.php');

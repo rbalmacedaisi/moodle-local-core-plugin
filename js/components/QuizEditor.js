@@ -34,7 +34,7 @@ const QuizEditor = {
                             <div v-else-if="questions.length === 0" class="text-center py-10 grey--text">
                                 <v-icon size="64" color="grey lighten-3">mdi-clipboard-text-outline</v-icon>
                                 <div class="mt-2 body-1">No hay preguntas en este cuestionario.</div>
-                                <v-btn text color="primary" class="mt-2 font-weight-bold" @click="showAddQuestionDialog = true">
+                                <v-btn text color="primary" class="mt-2 font-weight-bold" @click="resetNewQuestion(); showAddQuestionDialog = true">
                                     Comenzar ahora
                                 </v-btn>
                             </div>
@@ -57,11 +57,11 @@ const QuizEditor = {
                                         <v-list-item-action class="flex-row">
                                             <v-tooltip bottom>
                                                 <template v-slot:activator="{ on, attrs }">
-                                                    <v-btn icon color="grey" class="mr-1" v-bind="attrs" v-on="on" disabled>
+                                                    <v-btn icon color="primary" class="mr-1" v-bind="attrs" v-on="on" @click="loadQuestionDetails(q.id)">
                                                         <v-icon>mdi-pencil</v-icon>
                                                     </v-btn>
                                                 </template>
-                                                <span>Editar (Pronto)</span>
+                                                <span>Editar Pregunta</span>
                                             </v-tooltip>
                                             <v-tooltip bottom>
                                                 <template v-slot:activator="{ on, attrs }">
@@ -84,8 +84,8 @@ const QuizEditor = {
             <v-dialog v-model="showAddQuestionDialog" max-width="900px" persistent>
                 <v-card class="rounded-xl overflow-hidden">
                     <v-toolbar flat dark color="primary">
-                        <v-icon left>mdi-plus-circle</v-icon>
-                        <v-toolbar-title class="font-weight-bold">Configurar Nueva Pregunta</v-toolbar-title>
+                        <v-icon left>{{ newQuestion.id ? 'mdi-pencil' : 'mdi-plus-circle' }}</v-icon>
+                        <v-toolbar-title class="font-weight-bold">{{ newQuestion.id ? 'Editar Pregunta' : 'Configurar Nueva Pregunta' }}</v-toolbar-title>
                         <v-spacer></v-spacer>
                         <v-btn icon @click="showAddQuestionDialog = false"><v-icon>mdi-close</v-icon></v-btn>
                     </v-toolbar>
@@ -1478,6 +1478,45 @@ const QuizEditor = {
                 this.loading = false;
             }
         },
+        async loadQuestionDetails(qid) {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_question_details');
+                params.append('questionid', qid);
+                if (this.config.sesskey) params.append('sesskey', this.config.sesskey);
+
+                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                if (response.data && response.data.status === 'success') {
+                    // Populate newQuestion with details
+                    const q = response.data.question;
+                    this.resetNewQuestion(); // Clear first
+
+                    // Map results to newQuestion state
+                    this.newQuestion.id = q.id;
+                    this.newQuestion.type = q.type;
+                    this.newQuestion.name = q.name;
+                    this.newQuestion.questiontext = q.questiontext;
+                    this.newQuestion.defaultmark = q.defaultmark;
+
+                    if (q.answers) this.newQuestion.answers = q.answers;
+                    if (q.subquestions) this.newQuestion.subquestions = q.subquestions;
+                    if (q.draggables) this.newQuestion.draggables = q.draggables;
+                    if (q.drops) this.newQuestion.drops = q.drops;
+                    if (q.dataset) this.newQuestion.dataset = q.dataset;
+
+                    this.showAddQuestionDialog = true;
+                } else {
+                    alert('Error al cargar detalles: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error de conexión al cargar la pregunta.');
+            } finally {
+                this.loading = false;
+            }
+        },
         addAnswerChoice() {
             if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
             this.newQuestion.answers.push({ text: '', fraction: 0.0, tolerance: 0, group: 1 });
@@ -1494,6 +1533,7 @@ const QuizEditor = {
         },
         resetNewQuestion() {
             this.newQuestion = {
+                id: null,
                 type: 'multichoice',
                 name: '',
                 questiontext: '',
@@ -1897,9 +1937,29 @@ const QuizEditor = {
                 this.saving = false;
             }
         },
-        removeQuestion(q) {
-            if (confirm('¿Eliminar pregunta del cuestionario? (No se borra del banco)')) {
-                // To implement
+        async removeQuestion(q) {
+            if (confirm(`¿Eliminar la pregunta "${q.name}" del cuestionario? (Permanecerá en el banco de preguntas)`)) {
+                this.loading = true;
+                try {
+                    const params = new URLSearchParams();
+                    params.append('action', 'local_grupomakro_remove_quiz_question');
+                    params.append('cmid', this.cmid || this.config.cmid);
+                    params.append('slot', q.slot);
+                    if (this.config.sesskey) params.append('sesskey', this.config.sesskey);
+
+                    const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                    if (response.data && response.data.status === 'success') {
+                        this.fetchQuestions();
+                    } else {
+                        alert('Error al eliminar: ' + (response.data.message || 'Error desconocido'));
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Error de conexión al eliminar la pregunta.');
+                } finally {
+                    this.loading = false;
+                }
             }
         },
         updateOrder() {
