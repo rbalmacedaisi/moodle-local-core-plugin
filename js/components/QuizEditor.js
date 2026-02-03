@@ -859,12 +859,70 @@ const QuizEditor = {
 
                         <!-- Random Short-Answer Match -->
                         <div v-else-if="newQuestion.type === 'randomsamatch'">
-                            <v-alert colored-border border="left" color="teal" class="mb-6 elevation-1" text>
+                            <v-alert colored-border border="left" color="teal" class="mb-4 elevation-1" text>
                                 <div class="d-flex align-center">
                                     <v-icon color="teal" class="mr-3">mdi-shuffle-variant</v-icon>
-                                    <span class="text-body-2">Genera un emparejamiento automático usando preguntas de Respuesta Corta que ya existen en esta categoría.</span>
+                                    <div class="d-flex flex-column">
+                                        <span class="text-body-2"><strong>Generador Automático:</strong> Crea un examen de emparejar usando tus preguntas de "Respuesta Corta".</span>
+                                        <div class="mt-1">
+                                            <v-btn x-small color="teal" text class="pa-0 font-weight-bold" @click="showRandomSAMatchHelp = true">
+                                                <v-icon left x-small>mdi-information-outline</v-icon> ¿Cómo funciona este tipo de pregunta?
+                                            </v-btn>
+                                        </div>
+                                    </div>
                                 </div>
                             </v-alert>
+
+                            <!-- RandomSAMatch Help Modal -->
+                            <v-dialog v-model="showRandomSAMatchHelp" max-width="600px" scrollable>
+                                <v-card class="rounded-xl">
+                                    <v-toolbar flat color="teal" dark>
+                                        <v-icon left>mdi-shuffle-variant</v-icon>
+                                        <v-toolbar-title>Emparejamiento Aleatorio</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon @click="showRandomSAMatchHelp = false"><v-icon>mdi-close</v-icon></v-btn>
+                                    </v-toolbar>
+                                    
+                                    <v-card-text class="pa-6">
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold teal--text mb-2 text-uppercase">1. ¿Qué es este tipo de pregunta?</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                Es un <strong>"recolector" de preguntas</strong>. En lugar de escribir el contenido aquí, Moodle busca preguntas de <strong>Respuesta Corta</strong> que ya tengas creadas en este curso y las une para formar un examen de "unir con flechas" (dropdowns).
+                                            </p>
+                                        </div>
+
+                                        <div class="mb-6 pa-4 teal lighten-5 rounded-lg border-teal">
+                                            <div class="caption font-weight-bold teal--text mb-1 text-uppercase">Requisito Indispensable</div>
+                                            <p class="body-2 mb-0">
+                                                Debes tener al menos <strong>2 o 3 preguntas de "Respuesta Corta"</strong> guardadas previamente en esta misma categoría. Si no hay preguntas, este examen saldrá vacío.
+                                            </p>
+                                        </div>
+
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold teal--text mb-2 text-uppercase">2. ¿Por qué es útil?</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                Si tienes un banco de 20 preguntas de geografía, puedes configurar este "Emparejamiento Aleatorio" para que elija 5 al azar. Cada estudiante verá un examen de emparejar totalmente distinto.
+                                            </p>
+                                        </div>
+
+                                        <div class="pa-4 grey lighten-4 rounded-lg">
+                                            <div class="d-flex align-center mb-1">
+                                                <v-icon color="teal" class="mr-2" small>mdi-lightbulb-on</v-icon>
+                                                <span class="body-2 font-weight-bold">Tip de Uso:</span>
+                                            </div>
+                                            <p class="caption mb-0">
+                                                Ideal para repasos rápidos o exámenes finales donde quieres que el sistema mezcle automáticamente conceptos que ya evaluaste por separado.
+                                            </p>
+                                        </div>
+                                    </v-card-text>
+
+                                    <v-divider></v-divider>
+                                    <v-card-actions class="pa-4">
+                                        <v-spacer></v-spacer>
+                                        <v-btn depressed color="teal" dark class="rounded-lg px-6" @click="showRandomSAMatchHelp = false">Entendido</v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </v-dialog>
 
                             <v-card outlined class="pa-4 rounded-xl grey lighten-5">
                                 <v-row dense>
@@ -1197,7 +1255,8 @@ const QuizEditor = {
         newVarMin: 1,
         newVarMax: 10,
         formulaConstant: '',
-        showCalculatedHelp: false
+        showCalculatedHelp: false,
+        showRandomSAMatchHelp: false
     }),
     computed: {
         previewClozeCode() {
