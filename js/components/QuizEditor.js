@@ -543,63 +543,146 @@ const QuizEditor = {
                             </v-card>
                         </div>
 
-                        <!-- Calculated Types -->
+                        <!-- Calculated Types (Visual Formula Builder) -->
                         <div v-else-if="newQuestion.type.startsWith('calculated') && newQuestion.answers && newQuestion.answers.length > 0">
-                            <v-alert colored-border border="left" color="blue" class="mb-6 elevation-1" text>
+                            <v-alert colored-border border="left" color="blue" class="mb-4 elevation-1" text>
                                 <div class="d-flex align-center">
-                                    <v-icon color="blue" class="mr-3">mdi-calculator-variant</v-icon>
-                                    <span class="text-body-2">Crea preguntas con valores aleatorios. Usa variables entre llaves, ej: <code>{base} * {altura}</code>.</span>
+                                    <v-icon color="blue" class="mr-3">mdi-auto-fix</v-icon>
+                                    <span class="text-body-2"><strong>Constructor Visual:</strong> Crea fórmulas complejas haciendo clic en operadores y variables. No necesitas escribir códigos.</span>
                                 </div>
                             </v-alert>
 
-                            <v-card outlined class="pa-4 mb-6 rounded-xl blue lighten-5 border-blue">
-                                <v-row align="center">
-                                    <v-col cols="12" md="8">
-                                        <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Fórmula de Respuesta</div>
-                                        <v-text-field 
-                                            v-model="newQuestion.answers[0].text" 
-                                            outlined dense hide-details
-                                            placeholder="Ej: {a} + {b}"
-                                            background-color="white"
-                                            prepend-inner-icon="mdi-function-variant"
-                                            class="text-h6"
-                                        ></v-text-field>
-                                    </v-col>
-                                    <v-col cols="12" md="4">
-                                        <div class="caption blue--text font-weight-bold mb-2 text-uppercase">Unidad</div>
-                                        <v-text-field v-model="newQuestion.unit" outlined dense hide-details background-color="white" placeholder="ej: m/s"></v-text-field>
+                            <!-- Formula Display & Controls -->
+                            <div v-for="(ans, ansIdx) in newQuestion.answers" :key="'formula'+ansIdx" class="mb-6">
+                                <v-card outlined class="pa-4 rounded-xl blue lighten-5 border-blue shadow-sm">
+                                    <div class="caption blue--text font-weight-bold mb-2 text-uppercase d-flex justify-space-between align-center">
+                                        <span>{{ newQuestion.type === 'calculatedmulti' ? 'Opción ' + (ansIdx + 1) : 'Fórmula de Respuesta' }}</span>
+                                        <div v-if="newQuestion.type === 'calculatedmulti'">
+                                            <v-btn x-small icon color="red" class="mr-2" @click="newQuestion.answers.splice(ansIdx, 1)" :disabled="newQuestion.answers.length <= 2">
+                                                <v-icon>mdi-delete</v-icon>
+                                            </v-btn>
+                                        </div>
+                                        <v-btn x-small text color="red" @click="ans.text = ''">Limpiar</v-btn>
+                                    </div>
+                                    
+                                    <div class="formula-preview-area pa-3 white rounded-lg border shadow-inner mb-4 min-height-60 d-flex flex-wrap align-center bg-white" 
+                                         style="min-height: 80px; gap: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05) !important;">
+                                        <template v-if="ans.text">
+                                            <v-chip v-for="(part, pi) in parseFormula(ans.text)" 
+                                                    :key="pi" 
+                                                    small 
+                                                    :color="part.type === 'variable' ? 'blue' : 'grey lighten-2'"
+                                                    :dark="part.type === 'variable'"
+                                                    label
+                                                    class="font-weight-bold"
+                                            >
+                                                {{ part.value }}
+                                            </v-chip>
+                                        </template>
+                                        <span v-else class="grey--text subtitle-1 italic">Construye la fórmula para esta opción...</span>
+                                    </div>
+
+                                    <!-- Operators Toolbar -->
+                                    <div class="d-flex flex-wrap gap-2 justify-center mb-4" style="gap: 8px;">
+                                        <v-btn v-for="op in ['+', '-', '*', '/', '(', ')']" :key="op" 
+                                               small depressed color="white" class="font-weight-bold border" 
+                                               @click="addToFormula(op, ansIdx)">{{ op }}</v-btn>
+                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('sqrt(', ansIdx)">√</v-btn>
+                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula('pow(', ansIdx)">^</v-btn>
+                                        <v-btn small depressed color="white" class="font-weight-bold border px-4" @click="addToFormula(',', ansIdx)"> , </v-btn>
+                                    </div>
+
+                                    <!-- Variable Shortcuts -->
+                                    <div v-if="newQuestion.dataset.length > 0" class="d-flex flex-wrap gap-2 justify-center pt-2" style="gap: 8px; border-top: 1px dashed #bbdefb;">
+                                        <v-btn v-for="ds in newQuestion.dataset" :key="ds.name" 
+                                               x-small depressed color="blue" dark class="rounded-pill px-3" 
+                                               @click="addToFormula('{' + ds.name + '}', ansIdx)">
+                                            <v-icon left x-small>mdi-variable</v-icon>
+                                            {{ ds.name }}</v-btn>
+                                    </div>
+
+                                    <v-row v-if="newQuestion.type === 'calculatedmulti'" class="mt-4 pt-4 border-top">
+                                        <v-col cols="12" md="6">
+                                            <v-select label="Calificación" v-model="ans.fraction" :items="gradeOptions" outlined dense hide-details></v-select>
+                                        </v-col>
+                                        <v-col cols="12" md="6">
+                                            <v-text-field label="Retroalimentación" v-model="ans.feedback" outlined dense hide-details prepend-inner-icon="mdi-comment-outline"></v-text-field>
+                                        </v-col>
+                                    </v-row>
+                                </v-card>
+                            </div>
+
+                            <v-btn v-if="newQuestion.type === 'calculatedmulti'" block depressed color="blue lighten-5" class="blue--text mb-6 rounded-xl border-dashed" @click="addAnswerChoice">
+                                <v-icon left>mdi-plus-circle</v-icon> Añadir Opción
+                            </v-btn>
+
+                            <!-- Variable Manager -->
+                            <v-card outlined class="pa-4 rounded-xl border-dashed">
+                                <div class="subtitle-2 blue--text mb-4 d-flex align-center justify-space-between">
+                                    <div class="d-flex align-center">
+                                        <v-icon left color="blue" small>mdi-database-edit</v-icon>
+                                        Gestor de Variables (Dataset)
+                                    </div>
+                                    <v-dialog v-model="showAddVariableDialog" max-width="400">
+                                        <template v-slot:activator="{ on, attrs }">
+                                            <v-btn v-bind="attrs" v-on="on" x-small fab color="blue" dark>
+                                                <v-icon>mdi-plus</v-icon>
+                                            </v-btn>
+                                        </template>
+                                        <v-card class="rounded-xl">
+                                            <v-card-title class="blue white--text">Nueva Variable</v-card-title>
+                                            <v-card-text class="pa-4">
+                                                <v-text-field v-model="newVarName" label="Nombre (ej: base)" outlined dense hide-details class="mb-4" autofocus @keyup.enter="addVariable"></v-text-field>
+                                                <v-row dense>
+                                                    <v-col cols="6"><v-text-field v-model="newVarMin" label="Mín" type="number" outlined dense></v-text-field></v-col>
+                                                    <v-col cols="6"><v-text-field v-model="newVarMax" label="Máx" type="number" outlined dense></v-text-field></v-col>
+                                                </v-row>
+                                            </v-card-text>
+                                            <v-card-actions>
+                                                <v-spacer></v-spacer>
+                                                <v-btn text @click="showAddVariableDialog = false">Cancelar</v-btn>
+                                                <v-btn color="blue" dark @click="addVariable">Añadir</v-btn>
+                                            </v-card-actions>
+                                        </v-card>
+                                    </v-dialog>
+                                </div>
+                                
+                                <v-row v-if="newQuestion.dataset && newQuestion.dataset.length > 0">
+                                    <v-col v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" cols="12" md="6">
+                                        <v-card outlined class="pa-3 rounded-lg border bg-white shadow-sm hover-shadow">
+                                            <div class="d-flex justify-space-between align-center mb-2">
+                                                <v-chip label color="blue lighten-5" text-color="blue" small class="font-weight-bold">
+                                                    <v-icon left x-small>mdi-variable</v-icon>{{ ds.name }}
+                                                </v-chip>
+                                                <v-btn icon x-small color="red lighten-3" @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
+                                            </div>
+                                            <v-row dense>
+                                                <v-col cols="6">
+                                                    <v-text-field label="Mín" v-model="ds.min" type="number" dense outlined hide-details class="custom-small-input"></v-text-field>
+                                                </v-col>
+                                                <v-col cols="6">
+                                                    <v-text-field label="Máx" v-model="ds.max" type="number" dense outlined hide-details class="custom-small-input"></v-text-field>
+                                                </v-col>
+                                            </v-row>
+                                        </v-card>
                                     </v-col>
                                 </v-row>
+                                <div v-else class="text-center py-6 grey--text rounded-lg border-dashed">
+                                    <v-icon color="grey lighten-2" size="40">mdi-variable-off</v-icon>
+                                    <div class="caption">Haz clic en + para crear una variable</div>
+                                </div>
                             </v-card>
 
-                            <v-divider class="mb-6"></v-divider>
-
-                            <div class="subtitle-2 blue--text mb-4 d-flex align-center">
-                                <v-icon left color="blue" small>mdi-database-edit</v-icon> Configuración de Variables (Datasets)
-                            </div>
-                            
-                            <v-row v-if="newQuestion.dataset && newQuestion.dataset.length > 0">
-                                <v-col v-for="(ds, i) in newQuestion.dataset" :key="'ds'+i" cols="12" md="6">
-                                    <v-card outlined class="pa-3 rounded-lg border-dashed">
-                                        <div class="d-flex justify-space-between align-center mb-2">
-                                            <v-chip label color="blue" dark small class="font-weight-bold">{{ ds.name }}</v-chip>
-                                            <v-btn icon x-small color="red lighten-2" @click="newQuestion.dataset.splice(i,1)"><v-icon>mdi-close</v-icon></v-btn>
-                                        </div>
-                                        <v-row dense>
-                                            <v-col cols="6">
-                                                <v-text-field label="Mínimo" v-model="ds.min" type="number" dense outlined hide-details></v-text-field>
-                                            </v-col>
-                                            <v-col cols="6">
-                                                <v-text-field label="Máximo" v-model="ds.max" type="number" dense outlined hide-details></v-text-field>
-                                            </v-col>
-                                        </v-row>
-                                    </v-card>
+                            <!-- Units and Others -->
+                            <v-row class="mt-4">
+                                <v-col cols="12" md="6">
+                                    <v-text-field v-model="newQuestion.unit" label="Unidad (opcional)" outlined dense placeholder="ej: m/s, kg" prepend-inner-icon="mdi-ruler"></v-text-field>
+                                </v-col>
+                                <v-col cols="12" md="6">
+                                    <v-select label="Tolerancia" v-model="newQuestion.tolerance" :items="[0.001, 0.01, 0.05, 0.1]" outlined dense prepend-inner-icon="mdi-plus-minus"></v-select>
                                 </v-col>
                             </v-row>
-                            <v-alert v-else text color="grey" class="text-center rounded-xl py-8">
-                                <v-icon large color="grey lighten-1">mdi-variable</v-icon>
-                                <div class="mt-2">Las variables detectadas en tu fórmula aparecerán aquí automáticamente.</div>
-                            </v-alert>
+                        </div>
                             
                             <v-expansion-panels flat class="mt-6 border rounded-xl overflow-hidden">
                                 <v-expansion-panel>
@@ -980,7 +1063,11 @@ const QuizEditor = {
             distractors: [''],
             selectionBefore: '', // To know where to insert
             selectionEnd: 0
-        }
+        },
+        showAddVariableDialog: false,
+        newVarName: '',
+        newVarMin: 1,
+        newVarMax: 10
     }),
     computed: {
         previewClozeCode() {
@@ -1438,6 +1525,38 @@ const QuizEditor = {
                     }
                 });
             }
+        },
+        addToFormula(val, ansIdx = 0) {
+            if (!this.newQuestion.answers[ansIdx]) {
+                if (ansIdx === 0) this.addAnswerChoice();
+                else return;
+            }
+            let current = this.newQuestion.answers[ansIdx].text || '';
+            // Add a space if current doesn't end with space and val isn't a closing bracket or comma
+            if (current.length > 0 && !current.endsWith(' ') && !['*', '/', '+', '-', ',', ')'].includes(val.charAt(0)) && !['(', ')', '*', '/', '+', '-'].includes(current.slice(-1))) {
+                current += ' ';
+            }
+            this.newQuestion.answers[ansIdx].text = current + val;
+        },
+        addVariable() {
+            if (!this.newVarName) return;
+            const cleanName = this.newVarName.replace(/[^a-zA-Z0-9]/g, '');
+            if (!this.newQuestion.dataset.some(d => d.name === cleanName)) {
+                this.newQuestion.dataset.push({ name: cleanName, min: this.newVarMin, max: this.newVarMax, decimals: 1 });
+            }
+            this.newVarName = '';
+            this.showAddVariableDialog = false;
+        },
+        parseFormula(formula) {
+            if (!formula) return [];
+            // Match variables {name} or numbers or operators
+            const parts = formula.split(/(\{[a-zA-Z0-9]+\}|[\+\-\*\/\(\)\,\^]|sqrt|pow)/g).filter(x => x && x.trim().length > 0);
+            return parts.map(p => {
+                if (p.startsWith('{') && p.endsWith('}')) {
+                    return { type: 'variable', value: p.replace('{', '').replace('}', '') };
+                }
+                return { type: 'operator', value: p.trim() };
+            });
         },
         renderLivePreview() {
             if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
