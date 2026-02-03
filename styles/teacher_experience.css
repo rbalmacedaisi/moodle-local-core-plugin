@@ -159,6 +159,32 @@ body.gmk-full-frame .drawer-toggler {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
+/* Group Colors */
+.gmk-group-1 {
+    background-color: #1976D2 !important;
+    color: white !important;
+}
+
+.gmk-group-2 {
+    background-color: #4CAF50 !important;
+    color: white !important;
+}
+
+.gmk-group-3 {
+    background-color: #FF5252 !important;
+    color: white !important;
+}
+
+.gmk-group-4 {
+    background-color: #FB8C00 !important;
+    color: white !important;
+}
+
+.gmk-group-5 {
+    background-color: #9C27B0 !important;
+    color: white !important;
+}
+
 /* Transitions */
 .list-enter-active,
 .list-leave-active {

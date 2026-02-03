@@ -286,9 +286,8 @@ const QuizEditor = {
                                                     :key="'g'+idx" 
                                                     small 
                                                     label 
-                                                    color="primary" 
-                                                    dark 
-                                                    class="mx-1 px-2 token-gap shadow-sm" 
+                                                    :class="['mx-1 px-2 token-gap shadow-sm', getGapColorClass(token.gapIndex)]" 
+                                                    dark
                                                     @click="revertToText(idx)">
                                                 <v-icon left x-small>mdi-tag</v-icon>
                                                 {{ getGapShortText(token.gapIndex) }}
@@ -307,7 +306,7 @@ const QuizEditor = {
 
                             <v-card v-for="(ans, i) in newQuestion.answers" :key="i" flat class="mb-3 border rounded-lg overflow-hidden">
                                 <v-row no-gutters align="center">
-                                    <v-col cols="1" class="primary white--text d-flex align-center justify-center font-weight-bold" style="min-height: 56px;">
+                                    <v-col cols="1" :class="[getGapColorClass(i + 1), 'white--text d-flex align-center justify-center font-weight-bold']" style="min-height: 56px;">
                                         [[{{ i + 1 }}]]
                                     </v-col>
                                     <v-col cols="7" class="pa-2">
@@ -1280,6 +1279,21 @@ const QuizEditor = {
             const ans = this.newQuestion.answers[idx - 1];
             return (ans && ans.text) ? ans.text : `[${idx}]`;
         },
+        getGapColorClass(idx) {
+            const ans = this.newQuestion.answers[idx - 1];
+            const group = (ans && ans.group) ? ans.group : 1;
+            return `gmk-group-${group}`;
+        },
+        getGroupColorHex(group) {
+            const colors = {
+                1: '#1976D2',
+                2: '#4CAF50',
+                3: '#FF5252',
+                4: '#FB8C00',
+                5: '#9C27B0'
+            };
+            return colors[group] || '#1976D2';
+        },
         openClozeWizard() {
             this.clozeWizard.options = [{ text: '', isCorrect: true }];
             this.clozeWizard.show = true;
@@ -1338,10 +1352,11 @@ const QuizEditor = {
                 const index = parseInt(number) - 1;
                 const opt = this.newQuestion.answers[index];
                 const text = (opt && opt.text) ? opt.text : `Hueco ${number}`;
-                const color = this.newQuestion.type === 'ddwtos' ? 'primary' : 'grey lighten-2';
-                const textColor = this.newQuestion.type === 'ddwtos' ? 'white--text' : '';
+                const group = (opt && opt.group) ? opt.group : 1;
+                const bgColor = this.newQuestion.type === 'ddwtos' ? this.getGroupColorHex(group) : '#e0e0e0';
+                const textColor = this.newQuestion.type === 'ddwtos' ? 'white' : 'black';
 
-                return `<span class="px-2 py-1 mx-1 rounded ${color} ${textColor} font-weight-bold shadow-sm" style="border: 1px dashed #ccc; font-size: 0.85em;">
+                return `<span class="px-2 py-1 mx-1 rounded font-weight-bold shadow-sm" style="background-color: ${bgColor}; color: ${textColor}; border: 1px dashed #ccc; font-size: 0.85em;">
                     ${text}
                 </span>`;
             });
