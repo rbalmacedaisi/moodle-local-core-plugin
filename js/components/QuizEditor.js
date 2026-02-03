@@ -1116,7 +1116,18 @@ const QuizEditor = {
         },
         addDropZone() {
             if (!this.newQuestion.drops) this.$set(this.newQuestion, 'drops', []);
-            this.newQuestion.drops.push({ choice: 1, label: '', x: 50, y: 50 });
+            if (!this.newQuestion.draggables) this.$set(this.newQuestion, 'draggables', []);
+
+            const nextChoice = this.newQuestion.drops.length + 1;
+
+            // Smart Sync: If there is no draggable for this choice, create it automatically
+            if (this.newQuestion.draggables.length < nextChoice) {
+                this.addDraggableElement();
+                // Set a default text for the new draggable
+                this.newQuestion.draggables[nextChoice - 1].text = 'Marcador ' + nextChoice;
+            }
+
+            this.newQuestion.drops.push({ choice: nextChoice, label: '', x: 50, y: 50 });
         },
         addDraggableElement() {
             if (!this.newQuestion.draggables) this.$set(this.newQuestion, 'draggables', []);
