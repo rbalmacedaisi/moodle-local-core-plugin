@@ -1169,16 +1169,15 @@ try {
                     // Process Drags
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $dragitem = [
-                                'no' => $idx + 1,
-                                'label' => !empty($drag->text) ? $drag->text : ' ',
-                                'infinite' => !empty($drag->infinite) ? 1 : 0
-                            ];
+                            $dragitem = new stdClass();
+                            $dragitem->no = $idx + 1;
+                            $dragitem->label = !empty($drag->text) ? $drag->text : ' ';
+                            $dragitem->infinite = !empty($drag->infinite) ? 1 : 0;
 
                             if ($data->type === 'ddmarker') {
-                                $dragitem['noofdrags'] = 1; // Default for markers
+                                $dragitem->noofdrags = 1; // Default for markers
                             } else {
-                                $dragitem['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                                $dragitem->draggroup = isset($drag->group) ? (int)$drag->group : 1;
                             }
 
                             $question->drags[] = $dragitem;
@@ -1191,21 +1190,21 @@ try {
                             if ($data->type === 'ddmarker') {
                                 // Markers use shape (circle) and coords (x,y;radius)
                                 $radius = 15; // Standard radius for markers
-                                $question->drops[] = [
-                                    'no' => $idx + 1,
-                                    'choice' => (int)$d->choice,
-                                    'shape'  => 'circle',
-                                    'coords' => sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius)
-                                ];
+                                $dropObj = new stdClass();
+                                $dropObj->no = $idx + 1;
+                                $dropObj->choice = (int)$d->choice;
+                                $dropObj->shape = 'circle';
+                                $dropObj->coords = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
+                                $question->drops[] = $dropObj;
                             } else {
                                 // Normal D&D image uses xleft, ytop and label
-                                $question->drops[] = [
-                                    'no' => $idx + 1,
-                                    'choice' => (int)$d->choice,
-                                    'label'  => 'drop' . ($idx + 1), 
-                                    'xleft'  => (int)$d->x,
-                                    'ytop'   => (int)$d->y
-                                ];
+                                $dropObj = new stdClass();
+                                $dropObj->no = $idx + 1;
+                                $dropObj->choice = (int)$d->choice;
+                                $dropObj->label = 'drop' . ($idx + 1);
+                                $dropObj->xleft = (int)$d->x;
+                                $dropObj->ytop = (int)$d->y;
+                                $question->drops[] = $dropObj;
                             }
                         }
                     }
