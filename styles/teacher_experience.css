@@ -124,6 +124,57 @@ body.gmk-full-frame .drawer-toggler {
     border-radius: 12px !important;
 }
 
+/* Word Selector for DDWTOS / GapSelect */
+.word-selector-area {
+    line-height: 2.2;
+    word-spacing: 0.2em;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+}
+
+.token-word {
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.token-word:hover {
+    background-color: rgba(25, 118, 210, 0.1);
+    color: var(--gmk-primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.token-gap {
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    vertical-align: middle;
+}
+
+.token-gap:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Transitions */
+.list-enter-active,
+.list-leave-active {
+    transition: all 0.3s ease;
+}
+
+.list-enter,
+.list-leave-to {
+    opacity: 0;
+    transform: translateY(10px);
+}
+
+.list-move {
+    transition: transform 0.3s ease;
+}
+
 /* Mobile optimizations */
 @media (max-width: 600px) {
     .v-card__title {

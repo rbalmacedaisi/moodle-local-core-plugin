@@ -270,10 +270,34 @@ const QuizEditor = {
                                 ></v-textarea>
                             </div>
 
-                            <!-- Live Preview -->
+                            <!-- Live Preview & Word Selector -->
                             <div class="pa-4 mb-6 rounded-lg border shadow-sm" :class="$vuetify.theme.dark ? 'grey darken-4' : 'grey lighten-4'">
-                                <div class="caption grey--text mb-2 font-weight-bold">PREVISUALIZACIÓN</div>
-                                <div class="text-body-1" v-html="renderLivePreview()"></div>
+                                <div class="d-flex justify-space-between align-center mb-2">
+                                    <span class="caption grey--text font-weight-bold">SELECTOR VISUAL DE HUECOS (Haz clic para alternar)</span>
+                                    <v-chip x-small color="info" outlined>Premium Beta</v-chip>
+                                </div>
+                                <div class="text-body-1 word-selector-area">
+                                    <transition-group name="list" tag="div">
+                                        <template v-for="(token, idx) in tokenizedText">
+                                            <span v-if="token.type === 'text'" 
+                                                  :key="'w'+idx" 
+                                                  class="token-word" 
+                                                  @click="convertToGap(idx)"
+                                                  v-html="formatToken(token.value)"></span>
+                                            <v-chip v-else 
+                                                    :key="'g'+idx" 
+                                                    small 
+                                                    label 
+                                                    color="primary" 
+                                                    dark 
+                                                    class="mx-1 px-2 token-gap shadow-sm" 
+                                                    @click="revertToText(idx)">
+                                                <v-icon left x-small>mdi-tag</v-icon>
+                                                {{ getGapShortText(token.gapIndex) }}
+                                            </v-chip>
+                                        </template>
+                                    </transition-group>
+                                </div>
                             </div>
 
                             <div class="d-flex justify-space-between align-center mb-4">
@@ -949,6 +973,30 @@ const QuizEditor = {
             }
             code += `}`;
             return code;
+        },
+        tokenizedText() {
+            if (!this.newQuestion.questiontext) return [];
+
+            // Regex to match [[n]] gaps
+            const parts = this.newQuestion.questiontext.split(/(\[\[\d+\]\])/g);
+            let tokens = [];
+
+            parts.forEach(part => {
+                const match = part.match(/\[\[(\d+)\]\]/);
+                if (match) {
+                    tokens.push({ type: 'gap', value: part, gapIndex: parseInt(match[1]) });
+                } else {
+                    // Split remaining text into words/tokens (preserving spaces)
+                    // We split by spaces but keep the spaces as separate tokens or attached to words
+                    const words = part.split(/(\s+)/g);
+                    words.forEach(word => {
+                        if (word.length > 0) {
+                            tokens.push({ type: 'text', value: word });
+                        }
+                    });
+                }
+            });
+            return tokens;
         }
     },
     mounted() {
@@ -1150,9 +1198,16 @@ const QuizEditor = {
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
             const text = this.newQuestion.questiontext;
+            const selectedText = text.substring(start, end);
 
             this.addAnswerChoice();
             const gapNumber = this.newQuestion.answers.length;
+
+            // If text was selected, put it in the answer choice automatically
+            if (selectedText && selectedText.trim().length > 0) {
+                this.newQuestion.answers[gapNumber - 1].text = selectedText.trim();
+            }
+
             const marker = `[[${gapNumber}]]`;
 
             this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
@@ -1162,6 +1217,45 @@ const QuizEditor = {
                 const newPos = start + marker.length;
                 textarea.setSelectionRange(newPos, newPos);
             });
+        },
+        convertToGap(tokenIdx) {
+            const token = this.tokenizedText[tokenIdx];
+            if (token.type !== 'text' || token.value.trim().length === 0) return;
+
+            // Find position in original string
+            // This is tricky because same word can appear multiple times.
+            // Better: Re-build text from tokens.
+            const newTokens = [...this.tokenizedText];
+            this.addAnswerChoice();
+            const gapNum = this.newQuestion.answers.length;
+            this.newQuestion.answers[gapNum - 1].text = token.value.trim();
+
+            newTokens[tokenIdx] = { type: 'gap', value: `[[${gapNum}]]`, gapIndex: gapNum };
+            this.rebuildTextFromTokens(newTokens);
+        },
+        revertToText(tokenIdx) {
+            const token = this.tokenizedText[tokenIdx];
+            if (token.type !== 'gap') return;
+
+            const newTokens = [...this.tokenizedText];
+            const gapText = this.newQuestion.answers[token.gapIndex - 1].text || ('Hueco ' + token.gapIndex);
+
+            newTokens[tokenIdx] = { type: 'text', value: gapText };
+
+            // Also optionally remove answer choice if it's the last one or something?
+            // Moodle keeps gaps consistent, usually better just to revert the tag.
+
+            this.rebuildTextFromTokens(newTokens);
+        },
+        rebuildTextFromTokens(tokens) {
+            this.newQuestion.questiontext = tokens.map(t => t.value).join('');
+        },
+        formatToken(val) {
+            return val.replace(/\n/g, '<br>');
+        },
+        getGapShortText(idx) {
+            const ans = this.newQuestion.answers[idx - 1];
+            return (ans && ans.text) ? ans.text : `[${idx}]`;
         },
         openClozeWizard() {
             this.clozeWizard.options = [{ text: '', isCorrect: true }];
