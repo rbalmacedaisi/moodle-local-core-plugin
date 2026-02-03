@@ -1151,7 +1151,7 @@ try {
                     $question->drags = [];
                     $question->drops = [];
 
-                    // Background Image
+                    // Restore Background Image Upload
                     if (!empty($_FILES['bgimage'])) {
                         $draftitemid = file_get_unused_draft_itemid();
                         $usercontext = context_user::instance($USER->id);
@@ -1164,41 +1164,43 @@ try {
                         $question->bgimage = $draftitemid;
                     }
 
-                    // Process Draggables (Moodle standard: array of objects)
+                    // Process Draggables (Moodle standard for form data is array of arrays)
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
                             $no = $idx + 1;
-                            $dragObj = new stdClass();
-                            $dragObj->no = $no;
-                            $dragObj->label = !empty($drag->text) ? (string)$drag->text : ' ';
-                            $dragObj->infinite = !empty($drag->infinite) ? 1 : 0;
+                            $dragArr = [
+                                'no' => $no,
+                                'label' => !empty($drag->text) ? (string)$drag->text : ' ',
+                                'infinite' => !empty($drag->infinite) ? 1 : 0
+                            ];
                             if ($data->type === 'ddmarker') {
-                                $dragObj->noofdrags = 1;
+                                $dragArr['noofdrags'] = 1;
                             } else {
-                                $dragObj->draggroup = isset($drag->group) ? (int)$drag->group : 1;
+                                $dragArr['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
                             }
-                            $question->drags[$no] = $dragObj;
+                            $question->drags[$no] = $dragArr;
                         }
                     }
 
-                    // Process Drops (Moodle standard: array of objects)
+                    // Process Drops (Moodle standard: array of arrays, indexed by 'no')
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
                             $no = $idx + 1;
-                            $dropObj = new stdClass();
-                            $dropObj->no = $no;
-                            $dropObj->choice = (int)$d->choice;
-                            $dropObj->label = 'drop' . $no; // Explicit string label
+                            $dropArr = [
+                                'no' => $no,
+                                'choice' => (int)$d->choice,
+                                'label' => 'drop' . $no // MUST BE A STRING
+                            ];
                             
                             if ($data->type === 'ddmarker') {
                                 $radius = 15;
-                                $dropObj->shape = 'circle';
-                                $dropObj->coords = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
+                                $dropArr['shape'] = 'circle';
+                                $dropArr['coords'] = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
                             } else {
-                                $dropObj->xleft = (int)$d->x;
-                                $dropObj->ytop = (int)$d->y;
+                                $dropArr['xleft'] = (int)$d->x;
+                                $dropArr['ytop'] = (int)$d->y;
                             }
-                            $question->drops[$no] = $dropObj;
+                            $question->drops[$no] = $dropArr;
                         }
                     }
                     
@@ -1207,7 +1209,7 @@ try {
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
                     
-                    $form_data = $question; // Sync objects
+                    $form_data = $question; // Both are now arrays of arrays
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
