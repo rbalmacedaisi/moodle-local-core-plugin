@@ -1169,26 +1169,45 @@ try {
                     // Process Drags
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
-                            $question->drags[] = [
-                                'label' => !empty($drag->text) ? $drag->text : ' ',
+                            $dragitem = [
                                 'no' => $idx + 1,
-                                'infinite' => 1,
-                                'group' => isset($drag->group) ? $drag->group : 1
+                                'label' => !empty($drag->text) ? $drag->text : ' ',
+                                'infinite' => !empty($drag->infinite) ? 1 : 0
                             ];
+
+                            if ($data->type === 'ddmarker') {
+                                $dragitem['noofdrags'] = 1; // Default for markers
+                            } else {
+                                $dragitem['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                            }
+
+                            $question->drags[] = $dragitem;
                         }
                     }
 
-                    // Process Drops (Coords)
+                    // Process Drops (Coords/Shape logic)
                     if (isset($data->drops) && is_array($data->drops)) {
-                         foreach ($data->drops as $idx => $d) {
-                             $question->drops[] = [
-                                 'no' => $idx + 1,
-                                 'choice' => (int)$d->choice,
-                                 'label'  => 'drop' . ($idx + 1), 
-                                 'xleft'  => (int)$d->x,
-                                 'ytop'   => (int)$d->y
-                             ];
-                         }
+                        foreach ($data->drops as $idx => $d) {
+                            if ($data->type === 'ddmarker') {
+                                // Markers use shape (circle) and coords (x,y;radius)
+                                $radius = 15; // Standard radius for markers
+                                $question->drops[] = [
+                                    'no' => $idx + 1,
+                                    'choice' => (int)$d->choice,
+                                    'shape'  => 'circle',
+                                    'coords' => sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius)
+                                ];
+                            } else {
+                                // Normal D&D image uses xleft, ytop and label
+                                $question->drops[] = [
+                                    'no' => $idx + 1,
+                                    'choice' => (int)$d->choice,
+                                    'label'  => 'drop' . ($idx + 1), 
+                                    'xleft'  => (int)$d->x,
+                                    'ytop'   => (int)$d->y
+                                ];
+                            }
+                        }
                     }
                     
                     $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
