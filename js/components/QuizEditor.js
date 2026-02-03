@@ -725,7 +725,8 @@ const QuizEditor = {
                                             <div 
                                                 v-for="(drop, i) in newQuestion.drops" 
                                                 :key="'drop'+i"
-                                                class="elevation-4 rounded-pill primary d-flex align-center justify-center px-4 py-2 white--text font-weight-bold"
+                                                class="elevation-4 rounded-pill d-flex align-center justify-center px-4 py-2 white--text font-weight-bold"
+                                                :class="getDraggableColorClass(drop.choice)"
                                                 :style="{
                                                     position: 'absolute', 
                                                     left: drop.x + 'px', 
@@ -760,12 +761,27 @@ const QuizEditor = {
                                     <v-expansion-panel-content class="pt-4">
                                         <div v-for="(item, i) in newQuestion.draggables" :key="'drag'+i" class="mb-4 pa-3 border rounded-lg">
                                             <v-row dense align="center">
-                                                <v-col cols="1" class="text-center subtitle-2 indigo--text">{{ i + 1 }}</v-col>
-                                                <v-col cols="8">
+                                                <v-col cols="1" class="text-center subtitle-2 indigo--text">
+                                                    <v-avatar :color="getGroupColorHex(item.group || 1)" size="24" class="white--text caption">
+                                                        {{ i + 1 }}
+                                                    </v-avatar>
+                                                </v-col>
+                                                <v-col cols="7">
                                                     <v-text-field label="Etiqueta / Texto" v-model="item.text" hide-details dense outlined class="rounded-lg"></v-text-field>
                                                 </v-col>
-                                                <v-col cols="2">
-                                                    <v-select label="Grup" v-model="item.group" :items="[1,2,3,4,5]" hide-details dense outlined class="rounded-lg"></v-select>
+                                                <v-col cols="3">
+                                                    <v-select 
+                                                        label="Color / Grupo" 
+                                                        v-model="item.group" 
+                                                        :items="[
+                                                            {text: 'Grupo 1 (Azul)', value: 1},
+                                                            {text: 'Grupo 2 (Verde)', value: 2},
+                                                            {text: 'Grupo 3 (Rojo)', value: 3},
+                                                            {text: 'Grupo 4 (Naranja)', value: 4},
+                                                            {text: 'Grupo 5 (Purpura)', value: 5}
+                                                        ]" 
+                                                        hide-details dense outlined class="rounded-lg"
+                                                    ></v-select>
                                                 </v-col>
                                                 <v-col cols="1" class="text-right">
                                                     <v-btn icon color="red lighten-4" @click="removeDraggable(i)"><v-icon small>mdi-delete</v-icon></v-btn>
@@ -1368,6 +1384,12 @@ const QuizEditor = {
                 5: '#9C27B0'
             };
             return colors[group] || '#1976D2';
+        },
+        getDraggableColorClass(choice) {
+            if (!this.newQuestion.draggables) return 'primary';
+            const drag = this.newQuestion.draggables[choice - 1];
+            const group = (drag && drag.group) ? drag.group : 1;
+            return `gmk-group-${group}`;
         },
         openClozeWizard() {
             this.clozeWizard.options = [{ text: '', isCorrect: true }];
