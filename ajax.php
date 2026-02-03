@@ -1001,7 +1001,7 @@ try {
                 $question->timecreated = time();
                 $question->timemodified = time();
                 $question->contextid = $cat->contextid;
-                $question->context = context::instance_by_id($cat->contextid); // Added full context object
+                $question->context = context::instance_by_id($cat->contextid);
                 $question->createdby = $USER->id;
                 $question->modifiedby = $USER->id;
 
@@ -1151,10 +1151,6 @@ try {
                     $question->drags = [];
                     $question->drops = [];
 
-                    $form_data = clone $question;
-                    $form_data->drags = [];
-                    $form_data->drops = [];
-
                     // Background Image
                     if (!empty($_FILES['bgimage'])) {
                         $draftitemid = file_get_unused_draft_itemid();
@@ -1166,52 +1162,43 @@ try {
                         );
                         $fs->create_file_from_pathname($filerecord, $_FILES['bgimage']['tmp_name']);
                         $question->bgimage = $draftitemid;
-                        $form_data->bgimage = $draftitemid;
                     }
 
-                    // Process Draggables (Moodle expects 0-indexed array in many places)
+                    // Process Draggables (Moodle standard: array of objects)
                     if (isset($data->draggables) && is_array($data->draggables)) {
                         foreach ($data->draggables as $idx => $drag) {
                             $no = $idx + 1;
-                            $label = !empty($drag->text) ? (string)$drag->text : ' ';
-                            
-                            $drag_data = [
-                                'no' => $no,
-                                'label' => $label,
-                                'infinite' => !empty($drag->infinite) ? 1 : 0
-                            ];
+                            $dragObj = new stdClass();
+                            $dragObj->no = $no;
+                            $dragObj->label = !empty($drag->text) ? (string)$drag->text : ' ';
+                            $dragObj->infinite = !empty($drag->infinite) ? 1 : 0;
                             if ($data->type === 'ddmarker') {
-                                $drag_data['noofdrags'] = 1;
+                                $dragObj->noofdrags = 1;
                             } else {
-                                $drag_data['draggroup'] = isset($drag->group) ? (int)$drag->group : 1;
+                                $dragObj->draggroup = isset($drag->group) ? (int)$drag->group : 1;
                             }
-                            
-                            $form_data->drags[$idx] = $drag_data;
-                            $question->drags[$idx] = (object)$drag_data;
+                            $question->drags[$no] = $dragObj;
                         }
                     }
 
-                    // Process Drops (0-indexed for $form_data keys)
+                    // Process Drops (Moodle standard: array of objects)
                     if (isset($data->drops) && is_array($data->drops)) {
                         foreach ($data->drops as $idx => $d) {
                             $no = $idx + 1;
-                            $drop_data = [
-                                'no' => $no,
-                                'choice' => (int)$d->choice,
-                                'label' => ' ' // Use a space to ensure NOT NULL in database
-                            ];
-
+                            $dropObj = new stdClass();
+                            $dropObj->no = $no;
+                            $dropObj->choice = (int)$d->choice;
+                            $dropObj->label = 'drop' . $no; // Explicit string label
+                            
                             if ($data->type === 'ddmarker') {
                                 $radius = 15;
-                                $drop_data['shape'] = 'circle';
-                                $drop_data['coords'] = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
+                                $dropObj->shape = 'circle';
+                                $dropObj->coords = sprintf('%d,%d;%d', (int)$d->x, (int)$d->y, $radius);
                             } else {
-                                $drop_data['xleft'] = (int)$d->x;
-                                $drop_data['ytop'] = (int)$d->y;
+                                $dropObj->xleft = (int)$d->x;
+                                $dropObj->ytop = (int)$d->y;
                             }
-
-                            $form_data->drops[$idx] = $drop_data;
-                            $question->drops[$idx] = (object)$drop_data;
+                            $question->drops[$no] = $dropObj;
                         }
                     }
                     
@@ -1219,11 +1206,8 @@ try {
                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
-
-                    $form_data->correctfeedback = $question->correctfeedback;
-                    $form_data->partiallycorrectfeedback = $question->partiallycorrectfeedback;
-                    $form_data->incorrectfeedback = $question->incorrectfeedback;
-                    $form_data->shownumcorrect = 1;
+                    
+                    $form_data = $question; // Sync objects
                 }
                 elseif ($data->type === 'description') {
                     // Just name and questiontext (intro) are needed, already set.
