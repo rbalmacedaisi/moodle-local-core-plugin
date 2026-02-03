@@ -244,10 +244,10 @@ const QuizEditor = {
 
                         <!-- Gap Select / DD to Text -->
                         <div v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'">
-                            <v-alert colored-border border="left" color="info" class="mb-4 elevation-1" text>
+                            <v-alert colored-border border="left" color="primary" class="mb-4 elevation-1" text>
                                 <div class="d-flex align-baseline">
-                                    <v-icon color="info" small class="mr-2">mdi-help-circle-outline</v-icon>
-                                    <span class="text-caption">Escriba su texto y use el botón <strong>[[ + ]]</strong> para insertar huecos. Luego defina qué palabra va en cada hueco.</span>
+                                    <v-icon color="primary" small class="mr-2">mdi-auto-fix</v-icon>
+                                    <span class="text-caption">Escribe tu texto y usa el <strong>Selector Visual</strong> de abajo para convertir palabras en huecos con un solo clic.</span>
                                 </div>
                             </v-alert>
 
@@ -255,9 +255,6 @@ const QuizEditor = {
                             <div class="mb-4">
                                 <div class="d-flex justify-space-between align-center mb-1">
                                     <span class="caption font-weight-bold grey--text">TEXTO DEL ENUNCIADO</span>
-                                    <v-btn x-small color="primary" depressed @click="insertGap">
-                                        <v-icon x-small left>mdi-plus-box</v-icon> Insertar Hueco [[{{ newQuestion.answers.length + 1 }}]]
-                                    </v-btn>
                                 </div>
                                 <v-textarea
                                     v-model="newQuestion.questiontext"
@@ -265,8 +262,9 @@ const QuizEditor = {
                                     dense
                                     rows="4"
                                     hide-details
-                                    placeholder="Ejemplo: El cielo es [[1]] y el sol es [[2]]."
+                                    placeholder="Escribe el párrafo aquí. Luego usa el selector de abajo..."
                                     id="question-text-area"
+                                    class="rounded-lg shadow-sm"
                                 ></v-textarea>
                             </div>
 
@@ -316,7 +314,22 @@ const QuizEditor = {
                                         <v-text-field label="Palabra / Frase" v-model="newQuestion.answers[i].text" hide-details dense flat solo background-color="transparent"></v-text-field>
                                     </v-col>
                                     <v-col cols="3" class="pa-2 border-left">
-                                        <v-select label="Grupo" v-model="newQuestion.answers[i].group" :items="[1,2,3,4,5]" hide-details dense flat solo background-color="transparent"></v-select>
+                                        <v-select 
+                                            label="Color / Grupo" 
+                                            v-model="newQuestion.answers[i].group" 
+                                            :items="[
+                                                {text: 'Grupo 1 (Azul)', value: 1},
+                                                {text: 'Grupo 2 (Verde)', value: 2},
+                                                {text: 'Grupo 3 (Rojo)', value: 3},
+                                                {text: 'Grupo 4 (Amarillo)', value: 4},
+                                                {text: 'Grupo 5 (Morado)', value: 5}
+                                            ]" 
+                                            hide-details dense flat solo background-color="transparent"
+                                        >
+                                            <template v-slot:selection="{ item }">
+                                                <span class="caption">{{ item.text }}</span>
+                                            </template>
+                                        </v-select>
                                     </v-col>
                                     <v-col cols="1" class="text-center">
                                         <v-btn icon color="red lighten-3" small @click="removeAnswerChoice(i)">
@@ -1087,6 +1100,11 @@ const QuizEditor = {
                 dataset: [],
                 formulas: []
             };
+
+            // For DDWTOS and GapSelect, start with empty answers to avoid "noise"
+            if (this.newQuestion.type === 'ddwtos' || this.newQuestion.type === 'gapselect') {
+                this.newQuestion.answers = [];
+            }
         },
         questionTypeLabel(type) {
             const t = this.questionTypes.find(x => x.value === type);
