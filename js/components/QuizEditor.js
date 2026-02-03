@@ -682,13 +682,12 @@ const QuizEditor = {
                                     <v-select label="Tolerancia" v-model="newQuestion.tolerance" :items="[0.001, 0.01, 0.05, 0.1]" outlined dense prepend-inner-icon="mdi-plus-minus"></v-select>
                                 </v-col>
                             </v-row>
-                        </div>
-                            
+                            <!-- Advanced Tolerance Parameters (Inside calculated block) -->
                             <v-expansion-panels flat class="mt-6 border rounded-xl overflow-hidden">
                                 <v-expansion-panel>
                                     <v-expansion-panel-header color="grey lighten-5">Parámetros Avanzados de Tolerancia</v-expansion-panel-header>
                                     <v-expansion-panel-content class="pt-4">
-                                        <v-row dense>
+                                        <v-row dense v-if="newQuestion.answers && newQuestion.answers.length > 0">
                                             <v-col cols="12" md="6">
                                                 <v-text-field label="Margen de error (±)" v-model="newQuestion.answers[0].tolerance" type="number" step="0.01" outlined dense></v-text-field>
                                             </v-col>
@@ -1019,6 +1018,7 @@ const QuizEditor = {
             usecase: 0,
             unit: '',
             unitpenalty: 0.1,
+            tolerance: 0.01,
             responseformat: 'editor',
             responserequired: 15,
             choose: 4,
