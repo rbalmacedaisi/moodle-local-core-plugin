@@ -908,12 +908,47 @@ const QuizEditor = {
                                     v-model="newQuestion.questiontext"
                                     outlined
                                     dense
-                                    rows="10"
+                                    rows="6"
+                                    hide-details
                                     placeholder="Escribe tu texto aquí. Selecciona un texto y presiona el botón morado..."
                                     id="cloze-textarea"
-                                    class="rounded-xl custom-editor shadow-sm"
+                                    class="rounded-xl custom-editor shadow-sm mb-4"
                                     background-color="white"
                                 ></v-textarea>
+
+                                <!-- Cloze Word Selector -->
+                                <div class="pa-4 mb-6 rounded-xl border shadow-sm" :class="$vuetify.theme.dark ? 'grey darken-4' : 'grey lighten-5'">
+                                    <div class="d-flex justify-space-between align-center mb-2">
+                                        <div class="d-flex align-center">
+                                            <v-icon color="deep-purple" small class="mr-2">mdi-gesture-tap</v-icon>
+                                            <span class="caption deep-purple--text font-weight-bold uppercase">SELECTOR VISUAL CLOZE (Haz clic en palabras)</span>
+                                        </div>
+                                        <v-chip x-small color="deep-purple" outlined>No-Code Assistant</v-chip>
+                                    </div>
+                                    <div class="text-body-1 word-selector-area">
+                                        <transition-group name="list" tag="div">
+                                            <template v-for="(token, idx) in tokenizedText">
+                                                <span v-if="token.type === 'text'" 
+                                                      :key="'w'+idx" 
+                                                      class="token-word" 
+                                                      @click="convertToClozeGap(idx)"
+                                                      v-html="formatToken(token.value)"></span>
+                                                <v-chip v-else 
+                                                        :key="'g'+idx" 
+                                                        small 
+                                                        label 
+                                                        class="mx-1 px-2 token-gap shadow-sm deep-purple white--text font-weight-bold" 
+                                                        @click="revertClozeToText(idx)">
+                                                    <v-icon left x-small color="white">mdi-puzzle</v-icon>
+                                                    {{ token.display }}
+                                                </v-chip>
+                                            </template>
+                                        </transition-group>
+                                    </div>
+                                    <div class="mt-2 caption grey--text italic">
+                                        Haz clic en las palabras de arriba para convertirlas automáticamente en huecos Cloze.
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -1339,24 +1374,40 @@ const QuizEditor = {
         tokenizedText() {
             if (!this.newQuestion.questiontext) return [];
 
-            // Regex to match [[n]] gaps
-            const parts = this.newQuestion.questiontext.split(/(\[\[\d+\]\])/g);
+            const isCloze = this.newQuestion.type === 'multianswer';
+            // Regex to match [[n]] gaps OR {cloze} tags
+            const regex = isCloze ? /(\{[^{}]+\})/g : /(\[\[\d+\]\])/g;
+            const parts = this.newQuestion.questiontext.split(regex);
             let tokens = [];
 
             parts.forEach(part => {
-                const match = part.match(/\[\[(\d+)\]\]/);
-                if (match) {
-                    tokens.push({ type: 'gap', value: part, gapIndex: parseInt(match[1]) });
+                if (!part) return;
+
+                if (isCloze) {
+                    const match = part.match(/^\{(\d+):([A-Z_]+):(.*)\}$/);
+                    if (match) {
+                        const optionsStr = match[3];
+                        const options = optionsStr.split('~');
+                        const correct = options.find(o => o.startsWith('=')) || options[0];
+                        const cleanText = correct.replace(/^=/, '').split('#')[0];
+                        tokens.push({ type: 'gap', value: part, display: cleanText, isCloze: true });
+                        return;
+                    }
                 } else {
-                    // Split remaining text into words/tokens (preserving spaces)
-                    // We split by spaces but keep the spaces as separate tokens or attached to words
-                    const words = part.split(/(\s+)/g);
-                    words.forEach(word => {
-                        if (word.length > 0) {
-                            tokens.push({ type: 'text', value: word });
-                        }
-                    });
+                    const match = part.match(/^\[\[(\d+)\]\]$/);
+                    if (match) {
+                        tokens.push({ type: 'gap', value: part, gapIndex: parseInt(match[1]), isCloze: false });
+                        return;
+                    }
                 }
+
+                // Split remaining text into words/tokens
+                const words = part.split(/(\s+)/g);
+                words.forEach(word => {
+                    if (word.length > 0) {
+                        tokens.push({ type: 'text', value: word });
+                    }
+                });
             });
             return tokens;
         }
@@ -1577,6 +1628,28 @@ const QuizEditor = {
             this.clozeWizard.selectionEnd = end;
 
             this.clozeDialog = true;
+        },
+        convertToClozeGap(tokenIdx) {
+            const token = this.tokenizedText[tokenIdx];
+            if (token.type !== 'text' || token.value.trim().length === 0) return;
+
+            const newTokens = [...this.tokenizedText];
+            const cleanWord = token.value.trim();
+
+            // Build simple SHORTANSWER cloze code
+            const clozeCode = `{1:SHORTANSWER:=${cleanWord}}`;
+            newTokens[tokenIdx] = { type: 'gap', value: clozeCode, display: cleanWord, isCloze: true };
+
+            this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
+        },
+        revertClozeToText(tokenIdx) {
+            const token = this.tokenizedText[tokenIdx];
+            if (token.type !== 'gap' || !token.isCloze) return;
+
+            const newTokens = [...this.tokenizedText];
+            newTokens[tokenIdx] = { type: 'text', value: token.display };
+
+            this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
         },
         insertCloze() {
             const code = this.previewClozeCode;
