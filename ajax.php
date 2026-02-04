@@ -1670,22 +1670,30 @@ try {
                         // DIRECT DB QUERY STRATEGY
                         $expected_wildcards = [];
                         
-                        // 1. Scan Answers directly from DB
+                        // 1. Scan Answers directly from DB (Answer + Feedback)
                         $db_answers = $DB->get_records('question_answers', ['question' => $target_qid]);
                         
                         if ($db_answers) {
                             foreach ($db_answers as $ans) {
+                                 // Check Answer Formula
                                  if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                                     foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                                 }
+                                 // Check Feedback (Crucial for Calculated Multi)
+                                 if (isset($ans->feedback) && preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->feedback, $matches)) {
                                      foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                                  }
                             }
                         }
                         
-                        // 2. Scan Question Text directly from DB
+                        // 2. Scan Question Text + General Feedback directly from DB
                         // corrected: 'category' is NOT in {question} table in Moodle 4+
-                        $db_q = $DB->get_record('question', ['id' => $target_qid], 'questiontext'); 
-                        if ($db_q && isset($db_q->questiontext)) {
-                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
+                        $db_q = $DB->get_record('question', ['id' => $target_qid], 'questiontext, generalfeedback'); 
+                        if ($db_q) {
+                             if (isset($db_q->questiontext) && preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
+                                 foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                             }
+                             if (isset($db_q->generalfeedback) && preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->generalfeedback, $matches)) {
                                  foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                              }
                         }
