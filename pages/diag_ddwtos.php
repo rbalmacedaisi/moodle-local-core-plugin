@@ -15,6 +15,20 @@ $PAGE->set_heading('Debug DDWTOS Saving');
 $action = optional_param('action', '', PARAM_ALPHA);
 $qid = optional_param('qid', 0, PARAM_INT);
 
+function get_choices_table() {
+    global $DB;
+    if ($DB->get_manager()->table_exists('question_ddwtos_choices')) {
+        return 'question_ddwtos_choices';
+    }
+    if ($DB->get_manager()->table_exists('qtype_ddwtos_choices')) {
+        return 'qtype_ddwtos_choices';
+    }
+    return 'question_answers'; // Fallback to check if they are there
+}
+
+$choices_table = get_choices_table();
+echo "<h4>Using table: <strong>$choices_table</strong></h4>";
+
 echo $OUTPUT->header();
 
 if ($action === 'inspect' && $qid) {
@@ -24,11 +38,13 @@ if ($action === 'inspect' && $qid) {
     echo "<pre>" . print_r($qdata, true) . "</pre>";
     
     echo "<h4>Options Table:</h4>";
-    $options = $DB->get_record('qtype_ddwtos_options', array('questionid' => $qid));
+    $option_table = $DB->get_manager()->table_exists('question_ddwtos') ? 'question_ddwtos' : 'qtype_ddwtos_options';
+    $options = $DB->get_record($option_table, array('questionid' => $qid));
     echo "<pre>" . print_r($options, true) . "</pre>";
 
-    echo "<h4>Choices Table:</h4>";
-    $choices = $DB->get_records('qtype_ddwtos_choices', array('questionid' => $qid), 'choiceno ASC');
+    echo "<h4>Choices (from $choices_table):</h4>";
+    $lookup_col = ($choices_table === 'question_answers') ? 'question' : 'questionid';
+    $choices = $DB->get_records($choices_table, array($lookup_col => $qid));
     echo "<pre>" . print_r($choices, true) . "</pre>";
 
     echo '<a href="diag_ddwtos.php" class="btn btn-secondary">Back</a>';
@@ -37,9 +53,11 @@ elseif ($action === 'testsave' && $qid) {
     echo "<h3>Testing Save for Question ID: $qid</h3>";
     
     $last_q = $DB->get_record('question', array('id' => $qid));
-    $choices = $DB->get_records('qtype_ddwtos_choices', array('questionid' => $qid), 'choiceno ASC');
+    $lookup_col = ($choices_table === 'question_answers') ? 'question' : 'questionid';
+    $choices = $DB->get_records($choices_table, array($lookup_col => $qid));
     
     if ($choices) {
+        // ... (remaining test logic using $choices_table and $choices)
         $first_choice = reset($choices);
         $new_group = ($first_choice->choicegroup % 5) + 1;
         echo "<p>Attempting to change choice #{$first_choice->choiceno} group from {$first_choice->choicegroup} to <b>$new_group</b></p>";
@@ -90,15 +108,19 @@ elseif ($action === 'testsave' && $qid) {
             echo "<div class='alert alert-success'>save_question_options executed.</div>";
             
             // Verify
-            $choices_after = $DB->get_records('qtype_ddwtos_choices', array('questionid' => $qid), 'choiceno ASC');
+            $choices_after = $DB->get_records($choices_table, array($lookup_col => $qid));
             echo "<h4>Current Database State:</h4>";
             echo "<table class='table'>";
             echo "<tr><th>ID</th><th>No</th><th>Text</th><th>Group</th><th>Status</th></tr>";
             foreach ($choices_after as $c) {
+                // Determine group property name (choicegroup or draggroup)
+                $g = $c->choicegroup ?? ($c->draggroup ?? '?');
+                $no = $c->choiceno ?? ($c->no ?? '?');
+                
                 $status = ($c->id == $first_choice->id) ? 
-                          ($c->choicegroup == $new_group ? '<span class="badge badge-success">UPDATED!</span>' : '<span class="badge badge-danger">FAILED</span>') 
+                          ($g == $new_group ? '<span class="badge badge-success">UPDATED!</span>' : '<span class="badge badge-danger">FAILED</span>') 
                           : '';
-                echo "<tr><td>{$c->id}</td><td>{$c->choiceno}</td><td>{$c->answer}</td><td>{$c->choicegroup}</td><td>$status</td></tr>";
+                echo "<tr><td>{$c->id}</td><td>{$no}</td><td>{$c->answer}</td><td>{$g}</td><td>$status</td></tr>";
             }
             echo "</table>";
             
@@ -120,10 +142,12 @@ elseif ($action === 'testsave' && $qid) {
             echo "<td>{$q->id}</td>";
             echo "<td>{$q->name}</td>";
             echo "<td>";
-            $choices = $DB->get_records('qtype_ddwtos_choices', array('questionid' => $q->id), 'choiceno ASC');
+            $choices = $DB->get_records($choices_table, array($lookup_col => $q->id));
             if ($choices) {
                 foreach ($choices as $c) {
-                    echo "<div>#{$c->choiceno}: <b>{$c->choicegroup}</b> - {$c->answer}</div>";
+                    $g = $c->choicegroup ?? ($c->draggroup ?? '?');
+                    $no = $c->choiceno ?? ($c->no ?? '?');
+                    echo "<div>#{$no}: <b>{$g}</b> - {$c->answer}</div>";
                 }
             }
             echo "</td>";
