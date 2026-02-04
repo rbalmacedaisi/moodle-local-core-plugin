@@ -1392,40 +1392,52 @@ try {
                      // Always initialize dataset array to avoid "undefined" behavior in save_question
                      $form_data->dataset = [];
                      
-                     // 1. Auto-detect wildcards in formulas AND question text if not provided manually
+                     // 1. Auto-detect wildcards in formulas AND question text ALWAYS
+                     // We merge this with any existing data to ensure nothing is lost during edits.
                      $detected_wildcards = [];
-                     if (!isset($data->dataset) || empty($data->dataset)) {
-                         // Scan Answer Formulas
-                         foreach ($question->answer as $formula) {
-                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $formula, $matches)) {
-                                 foreach ($matches[1] as $wildcard) {
-                                     $detected_wildcards[$wildcard] = true;
-                                 }
-                             }
-                         }
-                         // Scan Question Text (Crucial so students can see the variables)
-                         if (isset($question->questiontext['text'])) {
-                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $question->questiontext['text'], $matches)) {
-                                 foreach ($matches[1] as $wildcard) {
-                                     $detected_wildcards[$wildcard] = true;
-                                 }
-                             }
-                         }
-                         
-                         // Create default definition objects for detected wildcards
-                         if (!empty($detected_wildcards)) {
-                             $data->dataset = [];
-                             foreach (array_keys($detected_wildcards) as $wc) {
-                                 $ds = new stdClass();
-                                 $ds->name = $wc;
-                                 $ds->min = 1;
-                                 $ds->max = 10;
-                                 $ds->items = []; // Empty items will force generation or use defaults
-                                 $data->dataset[] = $ds;
+                     
+                     // Scan Answer Formulas
+                     foreach ($question->answer as $formula) {
+                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $formula, $matches)) {
+                             foreach ($matches[1] as $wildcard) {
+                                 $detected_wildcards[$wildcard] = true;
                              }
                          }
                      }
+                     // Scan Question Text (Crucial so students can see the variables)
+                     if (isset($question->questiontext['text'])) {
+                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $question->questiontext['text'], $matches)) {
+                             foreach ($matches[1] as $wildcard) {
+                                 $detected_wildcards[$wildcard] = true;
+                             }
+                         }
+                     }
+                     
+                     // Merge detected wildcards into $data->dataset
+                     if (!isset($data->dataset) || !is_array($data->dataset)) {
+                         $data->dataset = [];
+                     }
+                     
+                     // Map existing dataset names to avoid duplicates
+                     $existing_names = [];
+                     foreach ($data->dataset as $ds) {
+                         if (isset($ds->name)) $existing_names[$ds->name] = true;
+                     }
+                     
+                     // Add any newly detected wildcards that aren't in the dataset list
+                     foreach (array_keys($detected_wildcards) as $wc) {
+                         if (!isset($existing_names[$wc])) {
+                             $ds = new stdClass();
+                             $ds->name = $wc;
+                             $ds->min = 1;
+                             $ds->max = 10;
+                             $ds->items = []; 
+                             $data->dataset[] = $ds;
+                             $existing_names[$wc] = true; // Mark as added
+                         }
+                     }
 
+                     // Now process the dataset array to populate form_data
                      if (isset($data->dataset) && is_array($data->dataset)) {
                          foreach ($data->dataset as $ds) {
                               $name = $ds->name; // e.g. {x}
