@@ -98,6 +98,17 @@ const QuizEditor = {
                             <v-col cols="12" md="4">
                                 <v-select label="Tipo de Pregunta" :items="questionTypes" v-model="newQuestion.type" outlined dense prepend-inner-icon="mdi-format-list-bulleted-type"></v-select>
                             </v-col>
+                            <v-col cols="12" class="pt-0">
+                                <v-switch 
+                                    v-model="newQuestion.save_to_course" 
+                                    label="Guardar en el Banco de Preguntas de la Asignatura" 
+                                    color="success"
+                                    hide-details
+                                    dense
+                                    class="mt-minus-2"
+                                ></v-switch>
+                                <div class="caption grey--text ml-8 mt-n1">Las preguntas guardadas aquí podrán ser reutilizadas en el futuro desde la sección "BANCO".</div>
+                            </v-col>
                         </v-row>
                         
                         <!-- Common Question Text (Enunciado) -->
@@ -1419,7 +1430,8 @@ const QuizEditor = {
             ],
             drops: [],
             dataset: [],
-            formulas: []
+            formulas: [],
+            save_to_course: true
         },
         gradeOptions: [
             { text: 'Ninguna (0%)', value: 0.0 },
@@ -1728,7 +1740,8 @@ const QuizEditor = {
                 ],
                 drops: [],
                 dataset: [],
-                formulas: []
+                formulas: [],
+                save_to_course: true
             };
         },
         questionTypeLabel(type) {
