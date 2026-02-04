@@ -1090,14 +1090,20 @@ try {
                     }
                 }
                 
-                // Get default category for this quiz context
-                $cat = question_get_default_category($context->id);
-                if (!$cat) {
-                     // Try course context if module context has no category
-                     $course_context = context_course::instance($cm->course);
-                     $cat = question_get_default_category($course_context->id);
+                // Get target category based on 'save_to_course' flag
+                $course_context = context_course::instance($cm->course);
+                $save_to_course = isset($data->save_to_course) && $data->save_to_course;
+                
+                if ($save_to_course) {
+                    $cat = question_get_default_category($course_context->id);
+                } else {
+                    $cat = question_get_default_category($context->id);
+                    if (!$cat) {
+                        $cat = question_get_default_category($course_context->id);
+                    }
                 }
-                if (!$cat) throw new Exception('No question category found for this quiz context.');
+                
+                if (!$cat) throw new Exception('No question category found for the selected context.');
 
                 // Prepare Question Object
                 $question = new stdClass();
@@ -1402,13 +1408,41 @@ try {
                     // Just name and questiontext (intro) are needed, already set.
                 }
 
-                // SAVE using correct API
-                $qtypeobj = question_bank::get_qtype($question->qtype);
-                $newq = $qtypeobj->save_question($question, $form_data);
-                
-                // ADD TO QUIZ (Only if new)
+                // SAVE or USE EXISTING (Duplicate detection)
+                $newq = null;
                 if (empty($data->id)) {
-                    quiz_add_quiz_question($newq->id, $quiz);
+                    // Search for identical question in the target category (Duplicate detection)
+                    $existing = $DB->get_record_sql("
+                        SELECT q.id 
+                        FROM {question} q
+                        JOIN {question_versions} qv ON qv.questionid = q.id
+                        JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                        WHERE qbe.questioncategoryid = :categoryid
+                        AND q.qtype = :qtype
+                        AND q.questiontext = :questiontext
+                        AND q.parent = 0
+                        ORDER BY qv.version DESC
+                        LIMIT 1", [
+                            'categoryid' => $question->category,
+                            'qtype' => $question->qtype,
+                            'questiontext' => $question->questiontext['text']
+                        ]);
+
+                    if ($existing) {
+                        $newq = $existing;
+                    }
+                }
+
+                if (!$newq) {
+                    $qtypeobj = question_bank::get_qtype($question->qtype);
+                    $newq = $qtypeobj->save_question($question, $form_data);
+                }
+                
+                // ADD TO QUIZ (Only if new to the quiz)
+                if (empty($data->id)) {
+                    if (!$DB->record_exists('quiz_slots', ['quizid' => $quiz->id, 'questionid' => $newq->id])) {
+                        quiz_add_quiz_question($newq->id, $quiz);
+                    }
                 }
 
                 $response = ['status' => 'success', 'id' => $newq->id];
