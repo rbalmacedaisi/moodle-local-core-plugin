@@ -922,16 +922,24 @@ try {
                 ];
 
                 // Type Specific Mapping
-                if (isset($qdata->options->answers)) {
-                    foreach ($qdata->options->answers as $ans) {
-                        $details['answers'][] = [
-                            'id' => $ans->id,
-                            'text' => $ans->answer,
-                            'fraction' => (float)$ans->fraction,
-                            'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
-                            'feedback' => $ans->feedback
-                        ];
-                    }
+                $raw_answers = [];
+                if (isset($qdata->answers) && !empty($qdata->answers)) {
+                    $raw_answers = $qdata->answers;
+                } elseif (isset($qdata->options->answers)) {
+                    $raw_answers = $qdata->options->answers;
+                } elseif (isset($qdata->options->choices)) {
+                    $raw_answers = $qdata->options->choices;
+                }
+
+                foreach ($raw_answers as $ans) {
+                    $details['answers'][] = [
+                        'id' => $ans->id,
+                        'text' => (string)($ans->answer ?? ''),
+                        'fraction' => (float)($ans->fraction ?? 0),
+                        'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
+                        'feedback' => is_string($ans->feedback ?? null) ? $ans->feedback : ($ans->feedback->text ?? ''),
+                        'group' => (int)($ans->draggroup ?? ($ans->group ?? 1))
+                    ];
                 }
 
                 if ($qdata->qtype === 'match' && isset($qdata->options->subquestions)) {

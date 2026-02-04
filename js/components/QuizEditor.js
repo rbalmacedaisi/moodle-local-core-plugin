@@ -1421,7 +1421,7 @@ const QuizEditor = {
             // When switching type, if answers are empty or standard empty ones, adjust
             if (newType === 'ddwtos' || newType === 'gapselect') {
                 const onlyEmpty = this.newQuestion.answers.every(a => !a.text || a.text.trim() === '');
-                if (onlyEmpty) {
+                if (this.newQuestion.answers.length > 0 && onlyEmpty) {
                     this.newQuestion.answers = [];
                 }
             } else if (newType === 'multichoice' || newType === 'truefalse') {
@@ -1539,12 +1539,12 @@ const QuizEditor = {
 
                     // Map results to newQuestion state
                     this.newQuestion.id = q.id;
-                    this.newQuestion.type = q.type;
                     this.newQuestion.name = q.name;
                     this.newQuestion.questiontext = q.questiontext;
                     this.newQuestion.defaultmark = q.defaultmark;
 
                     if (q.answers) this.newQuestion.answers = q.answers;
+                    this.newQuestion.type = q.type; // Set type AFTER answers to avoid watcher clearing them
                     if (q.subquestions) this.newQuestion.subquestions = q.subquestions;
                     if (q.draggables) this.newQuestion.draggables = q.draggables;
                     if (q.drops) this.newQuestion.drops = q.drops;
