@@ -177,6 +177,9 @@ if ($action === 'run_test') {
                                 $DB->insert_record('question_dataset_items', $item);
                             }
                             // echo "<p>Generated 10 items for '{$def->name}'</p>";
+                            
+                            // CRITICAL: Update itemcount
+                            $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
                     }
                     
                     // CRITICAL MATCH with ajax.php: Ensure linkage

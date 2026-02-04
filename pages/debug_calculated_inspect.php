@@ -55,6 +55,7 @@ if ($qid) {
                  $def = $DB->get_record('question_dataset_definitions', ['id' => $link->datasetdefinition]);
                  if ($def) {
                      echo "<br><strong>Variable:</strong> {$def->name} (Type: {$def->type}, Category: {$def->category})";
+                     echo "<br><strong>DB ItemCount:</strong> {$def->itemcount}"; // Show persisted count
                      
                      // 5. Items
                      $items = $DB->get_records('question_dataset_items', ['definition' => $def->id], 'itemnumber ASC');

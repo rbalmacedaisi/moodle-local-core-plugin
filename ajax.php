@@ -1615,6 +1615,9 @@ try {
                                  $DB->insert_record('question_dataset_items', $item);
                              }
                              error_log("GMK_QUIZ_DEBUG: Generated 10 items for dataset '{$def->name}' (Def ID: {$def->id})");
+                             
+                             // CRITICAL: Update the definition itemcount so Moodle knows items exist
+                             $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
                         }
                         
                         // CRITICAL FIX: Ensure the question is linked to this dataset definition in `question_datasets`
