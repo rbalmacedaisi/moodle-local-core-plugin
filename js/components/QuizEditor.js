@@ -1444,6 +1444,40 @@ const QuizEditor = {
         goHome() {
             window.location.href = '/local/grupomakro_core/pages/teacher_dashboard.php';
         },
+        parseFormula(formula) {
+            if (!formula) return [];
+            // Regex to match variables {name}, numbers, or operators/functions
+            const parts = formula.match(/\{[a-zA-Z0-9_]+\}|[0-9]+(\.[0-9]+)?|[a-zA-Z_]+\(|[+\-*/().,^]|[^+\-*/().,^ \t\n]+/g) || [];
+            return parts.map(p => {
+                if (p.startsWith('{') && p.endsWith('}')) {
+                    return { type: 'variable', value: p };
+                } else if (!isNaN(p)) {
+                    return { type: 'constant', value: p };
+                } else {
+                    return { type: 'operator', value: p };
+                }
+            });
+        },
+        addToFormula(value, ansIdx) {
+            if (!this.newQuestion.answers[ansIdx]) return;
+            if (this.newQuestion.answers[ansIdx].text === undefined) {
+                this.$set(this.newQuestion.answers[ansIdx], 'text', '');
+            }
+            this.newQuestion.answers[ansIdx].text += value;
+        },
+        addVariable() {
+            if (!this.newVarName) return;
+            if (!this.newQuestion.dataset) this.$set(this.newQuestion, 'dataset', []);
+
+            this.newQuestion.dataset.push({
+                name: this.newVarName,
+                min: parseFloat(this.newVarMin) || 1,
+                max: parseFloat(this.newVarMax) || 10
+            });
+
+            this.newVarName = '';
+            this.showAddVariableDialog = false;
+        },
         async fetchQuestions() {
             this.loading = true;
             try {
