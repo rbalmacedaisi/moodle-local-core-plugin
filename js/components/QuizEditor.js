@@ -279,77 +279,6 @@ const QuizEditor = {
                                 ></v-textarea>
                             </div>
 
-                            <!-- Live Preview & Word Selector -->
-                            <div class="pa-4 mb-6 rounded-lg border shadow-sm" :class="$vuetify.theme.dark ? 'grey darken-4' : 'grey lighten-4'">
-                                <div class="d-flex justify-space-between align-center mb-2">
-                                    <span class="caption grey--text font-weight-bold">SELECTOR VISUAL DE HUECOS (Haz clic para alternar)</span>
-                                    <v-chip x-small color="info" outlined>Premium Beta</v-chip>
-                                </div>
-                                <div class="text-body-1 word-selector-area">
-                                    <transition-group name="list" tag="div">
-                                        <template v-for="(token, idx) in tokenizedText">
-                                            <span v-if="token.type === 'text'" 
-                                                  :key="'w'+idx" 
-                                                  class="token-word" 
-                                                  @click="convertToGap(idx)"
-                                                  v-html="formatToken(token.value)"></span>
-                                            <v-chip v-else 
-                                                    :key="'g'+idx" 
-                                                    small 
-                                                    label 
-                                                    :class="['mx-1 px-2 token-gap shadow-sm', getGapColorClass(token.gapIndex)]" 
-                                                    dark
-                                                    @click="revertToText(idx)">
-                                                <v-icon left x-small>mdi-tag</v-icon>
-                                                {{ getGapShortText(token.gapIndex) }}
-                                            </v-chip>
-                                        </template>
-                                    </transition-group>
-                                </div>
-                            </div>
-
-                            <div class="d-flex justify-space-between align-center mb-4">
-                                <h3 class="text-subtitle-2 font-weight-bold grey--text text-uppercase">Opciones de Respuesta</h3>
-                                <v-btn small text color="primary" @click="addAnswerChoice">
-                                    <v-icon left>mdi-plus</v-icon> Nueva Opción
-                                </v-btn>
-                            </div>
-
-                            <v-card v-for="(ans, i) in newQuestion.answers" :key="i" flat class="mb-3 border rounded-lg overflow-hidden">
-                                <v-row no-gutters align="center">
-                                    <v-col cols="1" :class="[getGapColorClass(i + 1), 'white--text d-flex align-center justify-center font-weight-bold']" style="min-height: 56px;">
-                                        [[{{ i + 1 }}]]
-                                    </v-col>
-                                    <v-col cols="7" class="pa-2">
-                                        <v-text-field label="Palabra / Frase" v-model="newQuestion.answers[i].text" hide-details dense flat solo background-color="transparent"></v-text-field>
-                                    </v-col>
-                                    <v-col cols="3" class="pa-2 border-left">
-                                        <v-select 
-                                            label="Color / Grupo" 
-                                            v-model="newQuestion.answers[i].group" 
-                                            :items="[
-                                                {text: 'Grupo 1 (Azul)', value: 1},
-                                                {text: 'Grupo 2 (Verde)', value: 2},
-                                                {text: 'Grupo 3 (Rojo)', value: 3},
-                                                {text: 'Grupo 4 (Amarillo)', value: 4},
-                                                {text: 'Grupo 5 (Morado)', value: 5}
-                                            ]" 
-                                            hide-details dense flat solo background-color="transparent"
-                                        >
-                                            <template v-slot:selection="{ item }">
-                                                <span class="caption">{{ item.text }}</span>
-                                            </template>
-                                        </v-select>
-                                    </v-col>
-                                    <v-col cols="1" class="text-center">
-                                        <v-btn icon color="red lighten-3" small @click="removeAnswerChoice(i)">
-                                            <v-icon small>mdi-delete</v-icon>
-                                        </v-btn>
-                                    </v-col>
-                                </v-row>
-                            </v-card>
-
-                            <v-checkbox v-model="newQuestion.shuffleanswers" label="Barajar opciones al azar" dense color="primary"></v-checkbox>
                         </div>
 
 
@@ -1401,8 +1330,9 @@ const QuizEditor = {
                     }
                 });
             });
-            return tokens;
-        }
+        },
+        tokens() { return this.tokenizedText; },
+        previewHtml() { return ''; }
     },
     watch: {
         'newQuestion.type'(newType) {

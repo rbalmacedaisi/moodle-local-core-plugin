@@ -1237,14 +1237,20 @@ try {
                             $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
                             $group = isset($ans->group) ? (int)$ans->group : 1;
 
-                            $choice_data = [
+                            $choice_record = [
                                 'answer' => $text,
                                 'choicegroup' => $group,
                                 'draggroup' => $group, // Use both for maximum compatibility
                                 'infinite' => 0
                             ];
 
-                            $form_data->choices[$no] = $choice_data;
+                            // Include ID if available to ensure we edit instead of recreate
+                            if (!empty($ans->id)) {
+                                $choice_record['id'] = $ans->id;
+                            }
+
+                            $form_data->choices[$no] = $choice_record;
+                            $form_data->choice[$idx] = $choice_record; // Some Moodle versions expect singular 'choice' (0-based)
                             
                             // Also set flattened arrays as some Moodle versions expect them this way in save_question_options
                             $form_data->draglabel[$no] = $text;
