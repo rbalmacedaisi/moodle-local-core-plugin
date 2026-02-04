@@ -1388,6 +1388,27 @@ try {
                      $question->unit = [isset($data->unit) ? $data->unit : ''];
                      $question->multiplier = [1.0];
                      
+                     // Dataset Mapping (FIX: prevent corruption/missing items)
+                     if (isset($data->dataset) && is_array($data->dataset)) {
+                         // This minimal mapping allows save_question to recognize them
+                         // Note: Full dataset item generation usually requires a second pass in Moodle
+                         // but we can at least save the definitions.
+                         $form_data->dataset = [];
+                         foreach ($data->dataset as $ds) {
+                              $name = $ds->name; // e.g. {x}
+                              $form_data->dataset[] = $name;
+                              
+                              // We simulate the form data properties Moodle expects for each wildcard
+                              $form_data->{"dataset_$name"} = '0'; // 0 = Reuse existing, but here we might need more logic
+                              $form_data->{"number_$name"} = isset($ds->items) ? count($ds->items) : 10;
+                              $form_data->{"options_$name"} = 'uniform'; 
+                              $form_data->{"calcmin_$name"} = isset($ds->min) ? $ds->min : 1;
+                              $form_data->{"calcmax_$name"} = isset($ds->max) ? $ds->max : 10;
+                              $form_data->{"calclength_$name"} = 1;
+                              $form_data->{"calcdistribution_$name"} = isset($ds->distribution) ? $ds->distribution : 'uniform';
+                         }
+                     }
+                     
                      // Options fields (FIXED: Required by qtype_calculated_options table)
                      $question->synchronize = 0;
                      $question->single = ($data->type === 'calculatedmulti') ? (isset($data->single) ? ($data->single ? 1 : 0) : 1) : 1;
