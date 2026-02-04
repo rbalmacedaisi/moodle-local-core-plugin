@@ -14,51 +14,36 @@ echo "<h1>ULTRA Diagnostic Tool - Scanning ALL Tables</h1>";
 if ($qid === 0) {
     echo "<p>Please provide a question ID (?qid=XXX)</p>";
 } else {
-    try {
-        echo "<h2>Analyzing Question ID: $qid</h2>";
-        
-        $tables = $DB->get_tables();
-        echo "<p>Checking " . count($tables) . " tables for references to ID $qid...</p>";
-        
-        echo "<ul>";
-        foreach ($tables as $table) {
-            $columns = $DB->get_columns($table);
-            $qid_cols = [];
-            foreach ($columns as $colname => $colinfo) {
-                // Focus on potential foreign keys
-                if ($colname == 'questionid' || $colname == 'question' || $colname == 'parent' || $colname == 'itemid') {
-                    $qid_cols[] = $colname;
-                }
-            }
-            
-            if (!empty($qid_cols)) {
-                foreach ($qid_cols as $col) {
-                    $count = $DB->count_records($table, [$col => $qid]);
-                    if ($count > 0) {
-                        echo "<li><strong>$table</strong> (Column: $col): Found $count records.<br>";
-                        $records = $DB->get_records($table, [$col => $qid]);
-                        echo "<pre>" . htmlspecialchars(print_r($records, true)) . "</pre>";
-                        echo "</li>";
-                    }
-                }
-            }
-        }
-        echo "</ul>";
+        echo "<h2>System Investigation</h2>";
+        echo "Moodle Version: " . get_config('core', 'version') . "<br>";
 
-        // Also check if any answer references it in question_answers
-        // But wait, question_answers has its own ID. 
-        // Let's check for any record that contains '[[1]]' or similar in question_answers? 
-        // No, let's search for DDWTOS records.
-        
-        echo "<h3>All Database Tables</h3>";
-        $all_tables = $DB->get_tables();
-        sort($all_tables);
-        echo "<div style='column-count: 3;'><ul>";
-        foreach ($all_tables as $t) {
-            $style = (strpos($t, 'qtype') !== false || strpos($t, 'question') !== false) ? "style='color:blue;font-weight:bold;'" : "";
-            echo "<li $style>$t</li>";
+        echo "<h3>1. Table Schemas</h3>";
+        $schemas = ['question_answers', 'question_ddwtos', 'question_gapselect'];
+        foreach ($schemas as $s) {
+            if ($DB->get_manager()->table_exists($s)) {
+                $cols = array_keys($DB->get_columns($s));
+                echo "<strong>$s</strong>: " . implode(', ', $cols) . "<br>";
+            }
         }
-        echo "</ul></div>";
+
+        echo "<h3>2. Searching for SUCCESSFUL DDWTOS Questions</h3>";
+        // Find any ddwtos question that HAS records in question_answers
+        $sql = "SELECT q.id, q.name FROM {question} q 
+                JOIN {question_answers} qa ON q.id = qa.question
+                WHERE q.qtype = 'ddwtos' LIMIT 3";
+        $examples = $DB->get_records_sql($sql);
+        if ($examples) {
+            foreach ($examples as $ex) {
+                echo "<h4>Example SUCCESSFUL Question: {$ex->name} (ID: {$ex->id})</h4>";
+                $ex_data = question_bank::load_question_data($ex->id);
+                echo "<pre>" . htmlspecialchars(print_r($ex_data, true)) . "</pre>";
+            }
+        } else {
+            echo "<p>No existing ddwtos questions found with answers in question_answers.</p>";
+        }
+
+        echo "<h3>3. Search for references to ID $qid</h3>";
+        $tables = $DB->get_tables();
 
     } catch (Exception $e) {
         echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
