@@ -1201,13 +1201,18 @@ try {
                 }
                 elseif ($data->type === 'gapselect' || $data->type === 'ddwtos') {
                     $question->shuffleanswers = isset($data->shuffleanswers) && $data->shuffleanswers ? 1 : 0;
-                    $question->answer = []; // Text
-                    $question->choicegroup = []; // Group
-                    $question->choices = []; // Silence PHP Notice about undefined property
+                    
+                    // Create $form_data following Moodle's internal form structure
+                    $form_data = clone $question;
+                    $form_data->choices = [];
 
-                    foreach ($data->answers as $ans) {
-                        $question->answer[] = ['text' => $ans->text, 'format' => FORMAT_HTML];
-                        $question->choicegroup[] = isset($ans->group) ? $ans->group : 1;
+                    if (isset($data->answers) && is_array($data->answers)) {
+                        foreach ($data->answers as $idx => $ans) {
+                            $form_data->choices[$idx] = [
+                                'answer' => ['text' => $ans->text, 'format' => FORMAT_HTML],
+                                'draggroup' => isset($ans->group) ? (int)$ans->group : 1
+                            ];
+                        }
                     }
                     
                     // Combined Feedback Defaults
@@ -1215,6 +1220,11 @@ try {
                     $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
                     $question->shownumcorrect = 1;
+
+                    $form_data->correctfeedback = $question->correctfeedback;
+                    $form_data->partiallycorrectfeedback = $question->partiallycorrectfeedback;
+                    $form_data->incorrectfeedback = $question->incorrectfeedback;
+                    $form_data->shownumcorrect = 1;
                 }
                 elseif ($data->type === 'multianswer') {
                      // No specific extra fields, code is in questiontext
