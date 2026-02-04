@@ -2,8 +2,10 @@
 /**
  * Debug page to inspect GapSelect question data.
  */
-require_once(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/questionlib.php');
+
+global $DB, $CFG, $OUTPUT, $PAGE, $USER;
 
 require_login();
 $context = context_system::instance();
