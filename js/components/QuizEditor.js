@@ -77,6 +77,9 @@ const QuizEditor = {
                              <v-btn small text color="primary" class="mr-2" @click="showBankDialog = true">
                                 <v-icon left small>mdi-bank</v-icon> Banco
                             </v-btn>
+                            <v-btn small text color="orange darken-2" class="mr-2" @click="syncQuizGrades">
+                                <v-icon left small>mdi-sync</v-icon> Reparar Calificaciones
+                            </v-btn>
                             <v-btn color="primary" depressed @click="resetNewQuestion(); showAddQuestionDialog = true">
                                 <v-icon left>mdi-plus</v-icon> Nueva Pregunta
                             </v-btn>
@@ -104,7 +107,8 @@ const QuizEditor = {
                                             <v-list-item-title class="font-weight-bold text-subtitle-1 mb-1">{{ q.name }}</v-list-item-title>
                                             <v-list-item-subtitle class="grey--text text--darken-1">
                                                 <v-chip x-small label color="blue lighten-5" text-color="blue" class="mr-2 font-weight-bold">{{ questionTypeLabel(q.qtype) }}</v-chip>
-                                                <span v-html="q.questiontext" class="text-truncate d-inline-block" style="max-width: 600px; vertical-align: middle;"></span>
+                                                <v-chip v-if="q.maxmark !== undefined" x-small outlined color="grey" class="mr-2">{{ q.maxmark }} pts</v-chip>
+                                                <span v-html="q.questiontext" class="text-truncate d-inline-block" style="max-width: 500px; vertical-align: middle;"></span>
                                             </v-list-item-subtitle>
                                         </v-list-item-content>
                                         
@@ -1464,23 +1468,12 @@ const QuizEditor = {
         async fetchQuestions() {
             this.loading = true;
             try {
-                // Use Moodle wwwroot passed in config
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_get_quiz_questions');
-
-                // Prioritize prop cmid, fallback to config if exists (for standalone usage)
                 const activeCmid = this.cmid || this.config.cmid;
-
-                if (!activeCmid) {
-                    // console.error('QuizEditor: No CMID provided');
-                    return;
-                }
-
+                if (!activeCmid) return;
                 params.append('cmid', activeCmid);
-                // Moodle requires sesskey usually for ajax, pass it if needed, though ajax.php seems open-ish or uses require_login
-                if (this.config.sesskey) {
-                    params.append('sesskey', this.config.sesskey);
-                }
+                if (this.config.sesskey) params.append('sesskey', this.config.sesskey);
 
                 const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
 
@@ -1491,6 +1484,29 @@ const QuizEditor = {
                 }
             } catch (error) {
                 console.error(error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        async syncQuizGrades() {
+            this.loading = true;
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_sync_quiz_grades');
+                params.append('cmid', this.cmid || this.config.cmid);
+                if (this.config.sesskey) params.append('sesskey', this.config.sesskey);
+
+                const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', params);
+
+                if (response.data && response.data.status === 'success') {
+                    this.fetchQuestions();
+                    alert('Calificaciones sincronizadas correctamente.');
+                } else {
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error de conexión.');
             } finally {
                 this.loading = false;
             }

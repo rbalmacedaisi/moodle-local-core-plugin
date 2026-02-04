@@ -1052,7 +1052,7 @@ try {
             }
             
             // Moodle 4.0+ Compatible Query (quiz_slots -> references -> versions -> question)
-            $sql = "SELECT q.id, q.name, q.questiontext, q.qtype, s.slot
+            $sql = "SELECT q.id, q.name, q.questiontext, q.qtype, s.slot, s.maxmark
                     FROM {quiz_slots} s
                     JOIN {question_references} qr ON qr.itemid = s.id
                     JOIN {question_bank_entries} qbe ON qbe.id = qr.questionbankentryid
@@ -1078,7 +1078,8 @@ try {
                     'name' => $q->name,
                     'questiontext' => strip_tags($q->questiontext), // Plain text preview
                     'qtype' => $q->qtype,
-                    'slot' => $q->slot
+                    'slot' => $q->slot,
+                    'maxmark' => (float)$q->maxmark
                 ];
             }
             
@@ -1520,7 +1521,7 @@ try {
                 
                 // ADD TO QUIZ (Only if new to the quiz)
                 if (empty($data->id)) {
-                    // Moodle 4.0+: Check if question is already in the quiz using proper joins
+                    // Moodle 4.0+: Check if question is already in the quiz
                     $already_in_quiz = $DB->record_exists_sql("
                         SELECT s.id 
                         FROM {quiz_slots} s
@@ -1534,7 +1535,13 @@ try {
                     ", ['quizid' => $quiz->id, 'questionid' => $newq->id]);
 
                     if (!$already_in_quiz) {
-                        quiz_add_quiz_question($newq->id, $quiz);
+                        $course = $DB->get_record('course', ['id' => $cm->course]);
+                        $quizobj = new quiz($quiz, $cm, $course);
+                        $structure = \mod_quiz\structure::create_for_quiz($quizobj);
+                        $structure->add_quiz_question($newq->id, 0, $question->defaultmark);
+                        
+                        // Force update sumgrades
+                        quiz_update_sumgrades($quiz);
                     }
                 }
 
@@ -1546,6 +1553,38 @@ try {
                 if (debugging()) {
                     $response['debug'] = $e->getTraceAsString();
                 }
+            }
+            break;
+
+        case 'local_grupomakro_sync_quiz_grades':
+            $cmid = required_param('cmid', PARAM_INT);
+            try {
+                require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+                $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+                $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+                
+                // Get all slots and their questions
+                $sql = "SELECT s.id as slotid, q.defaultmark
+                        FROM {quiz_slots} s
+                        JOIN {question_references} qr ON qr.itemid = s.id
+                        JOIN {question_bank_entries} qbe ON qbe.id = qr.questionbankentryid
+                        JOIN {question_versions} qv ON qv.questionbankentryid = qbe.id
+                        JOIN {question} q ON q.id = qv.questionid
+                        WHERE s.quizid = :quizid
+                        AND qr.component = 'mod_quiz'
+                        AND qr.questionarea = 'slot'
+                        AND qv.version = (SELECT MAX(v.version) FROM {question_versions} v WHERE v.questionbankentryid = qbe.id)";
+                
+                $slots = $DB->get_records_sql($sql, ['quizid' => $quiz->id]);
+                foreach ($slots as $s) {
+                    $DB->set_field('quiz_slots', 'maxmark', $s->defaultmark, ['id' => $s->slotid]);
+                }
+                
+                quiz_update_sumgrades($quiz);
+                
+                $response = ['status' => 'success'];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
             }
             break;
 
@@ -1620,9 +1659,14 @@ try {
                 
                 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
                 $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+                $course = $DB->get_record('course', ['id' => $cm->course]);
                 
-                // Add to quiz using Moodle API
-                quiz_add_quiz_question($questionid, $quiz);
+                // Add to quiz using modern API to ensure maxmark is inherited
+                $quizobj = new quiz($quiz, $cm, $course);
+                $structure = \mod_quiz\structure::create_for_quiz($quizobj);
+                $structure->add_quiz_question($questionid, 0);
+                
+                quiz_update_sumgrades($quiz);
                 
                 $response = ['status' => 'success'];
             } catch (Exception $e) {
