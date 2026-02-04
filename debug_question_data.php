@@ -42,19 +42,23 @@ if ($qid === 0) {
         print_r($qdata);
         echo "</pre>";
 
-        echo "<h3>3. Database Search (qtype tables)</h3>";
+        echo "<h3>3. Database Search (Exhaustive)</h3>";
         $tables = $DB->get_tables();
-        $relevant_tables = array_filter($tables, function($t) {
-            return strpos($t, 'qtype_') !== false;
+        
+        // Include core tables that might hold answer data
+        $system_tables = ['question_answers', 'question_hints', 'question_multianswer'];
+        $relevant_tables = array_filter($tables, function($t) use ($system_tables) {
+            return strpos($t, 'qtype_') !== false || in_array($t, $system_tables);
         });
 
         echo "<ul>";
         foreach ($relevant_tables as $table) {
             $column_info = $DB->get_columns($table);
-            $has_qid = isset($column_info['questionid']) || isset($column_info['question']);
-            $col_name = isset($column_info['questionid']) ? 'questionid' : 'question';
+            $col_name = '';
+            if (isset($column_info['questionid'])) $col_name = 'questionid';
+            elseif (isset($column_info['question'])) $col_name = 'question';
 
-            if ($has_qid) {
+            if ($col_name) {
                 $count = $DB->count_records($table, [$col_name => $qid]);
                 if ($count > 0) {
                     echo "<li><strong>$table</strong>: Found $count records. Data:<br>";
@@ -65,6 +69,16 @@ if ($qid === 0) {
             }
         }
         echo "</ul>";
+
+        // Specialized check for gapselect/ddwtos related tables
+        echo "<h3>4. GapSelect/DDWTOS Specific Check</h3>";
+        $gap_tables = ['qtype_gapselect', 'qtype_ddwtos'];
+        foreach ($gap_tables as $table) {
+            if ($DB->get_manager()->table_exists($table)) {
+                $rec = $DB->get_record($table, ['questionid' => $qid]);
+                echo "<strong>$table</strong> detail: <pre>" . htmlspecialchars(print_r($rec, true)) . "</pre>";
+            }
+        }
 
     } catch (Exception $e) {
         echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
