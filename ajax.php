@@ -1594,18 +1594,39 @@ try {
                 // Post-Save: Generate Items for Calculated Questions
                 // SELF-HEALING LOGIC: Detects what SHOULD be there and ensures it exists in DB.
                 if ($newq && strpos($data->type, 'calculated') === 0) {
-                    // Re-detect wildcards from the FINAL question text/answers to be sure
+                    
+                    // RELOAD QUESTION to ensure we have the full Moodle object structure (with options->answers)
+                    // This fixes the bug where $newq->answers was undefined/empty after a save.
+                    $full_q_obj = question_bank::load_question($newq->id);
+                    
+                    // Re-detect wildcards from the FINAL question text/answers
                     $expected_wildcards = [];
-                    foreach ($newq->answers as $ans) {
-                        if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
-                            foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                    
+                    // CHECK ANSWERS (Moodle stores them in options->answers for calculated types)
+                    if (isset($full_q_obj->options->answers) && is_array($full_q_obj->options->answers)) {
+                        foreach ($full_q_obj->options->answers as $ans) {
+                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                                 foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                             }
                         }
+                    } elseif (isset($full_q_obj->answers) && is_array($full_q_obj->answers)) {
+                         // Fallback for some structures
+                         foreach ($full_q_obj->answers as $ans) {
+                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                                 foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                             }
+                         }
                     }
-                    if (isset($newq->questiontext)) {
-                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $newq->questiontext, $matches)) {
+                    
+                    // CHECK QUESTION TEXT
+                    if (isset($full_q_obj->questiontext)) {
+                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $full_q_obj->questiontext, $matches)) {
                              foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                          }
                     }
+                    
+                    // Log detection for debugging
+                    error_log("GMK_QUIZ_DEBUG: Self-Healing detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
 
                     foreach (array_keys($expected_wildcards) as $name) {
                          // 1. Find Definition
