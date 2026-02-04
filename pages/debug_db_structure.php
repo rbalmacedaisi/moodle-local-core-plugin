@@ -15,49 +15,16 @@ $found_tables = [];
 
 // Alternative: list all tables from the database directly
 $db_tables = $DB->get_tables();
+echo "<h3>All Tables (" . count($db_tables) . ")</h3>";
+echo "<ul>";
 foreach ($db_tables as $table) {
-    foreach ($search_patterns as $pattern) {
-        if (strpos($table, $pattern) !== false) {
-            $found_tables[] = $table;
-            break;
-        }
+    if (strpos($table, 'qtype') !== false || strpos($table, 'question') !== false || strpos($table, 'dd') !== false || strpos($table, 'gap') !== false) {
+        echo "<li><strong>$table</strong></li>";
+    } else {
+        echo "<li>$table</li>";
     }
 }
-
-$found_tables = array_unique($found_tables);
-sort($found_tables);
-
-echo "<h3>Found Tables matching patterns: " . implode(', ', $search_patterns) . "</h3>";
-
-if (empty($found_tables)) {
-    echo "<p>No tables found matching patterns.</p>";
-}
-
-foreach ($found_tables as $table) {
-    echo "<h4>Table: {$table}</h4>";
-    $columns = $DB->get_columns($table);
-    echo "<table border='1' cellpadding='5' style='border-collapse: collapse; min-width: 600px; margin-bottom: 20px;'>
-            <thead>
-                <tr style='background: #f4f4f4;'>
-                    <th>Column</th>
-                    <th>Type</th>
-                    <th>Max Length</th>
-                    <th>Not Null</th>
-                    <th>Default</th>
-                </tr>
-            </thead>
-            <tbody>";
-    foreach ($columns as $column) {
-        echo "<tr>
-                <td>{$column->name}</td>
-                <td>{$column->type}</td>
-                <td>{$column->max_length}</td>
-                <td>" . ($column->not_null ? 'Yes' : 'No') . "</td>
-                <td>" . var_export($column->default_value, true) . "</td>
-              </tr>";
-    }
-    echo "</tbody></table>";
-}
+echo "</ul>";
 
 $tables = [
     'qtype_ddimageortext_drops',
