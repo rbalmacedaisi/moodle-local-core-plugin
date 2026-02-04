@@ -1280,14 +1280,22 @@ try {
                             $form_data->choicegroup[$no] = $group;
                             $form_data->infinite[$no] = 0;
 
-                            // CRITICAL FIX: This Moodle installation uses question_answers table with serialized settings in feedback.
-                            // We construct the arrays required by the base save_question method.
-                            $extra_settings = new stdClass();
-                            $extra_settings->draggroup = $group;
-                            $extra_settings->infinite = 0;
-
-                            $question->answer[] = $text;
-                            $question->feedback[] = ['text' => serialize($extra_settings), 'format' => 0];
+                            // CRITICAL FIX: Separate handling for gapselect (Standard) vs ddwtos (Custom/Serialized)
+                            if ($data->type === 'gapselect') {
+                                // For standard gapselect, the 'feedback' column stores the Group ID directly.
+                                $question->answer[] = $text;
+                                $question->feedback[] =  ['text' => $group, 'format' => 0]; 
+                                // Note: Moodle might expect just the value if it's not an editor, but usually the save_question_options handles 'choices' array.
+                                // By passing 'choicegroup' in $choice_record below, standard save_question_options should pick it up.
+                                // However, populating $question->feedback ensures compatibility if save_question uses it directly.
+                            } else {
+                                // For ddwtos (Custom implementation), use serialized settings in feedback
+                                $extra_settings = new stdClass();
+                                $extra_settings->draggroup = $group;
+                                $extra_settings->infinite = 0;
+                                $question->answer[] = $text;
+                                $question->feedback[] = ['text' => serialize($extra_settings), 'format' => 0];
+                            }
                             $question->fraction[] = 0.0;
                         }
                     }
