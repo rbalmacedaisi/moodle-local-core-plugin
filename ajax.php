@@ -1625,101 +1625,116 @@ try {
                 if ($newq && $is_calculated) {
                     gmk_log("GMK_QUIZ_DEBUG: Entering Calculated Self-Healing for QID " . $newq->id);
                     
-                    // DIRECT DB QUERY STRATEGY
-                    // Bypass object hydration/caching issues by going straight to the source tables.
-                    $expected_wildcards = [];
+                    // STRATEGY: Find ALL versions of this question (siblings) and fix them ALL.
+                    // This handles cases where Moodle creates a new version (ID+1) that we missed.
+                    $all_versions = [];
+                    $all_versions[] = $newq->id; // Always include the current one
                     
-                    // 1. Scan Answers directly from DB
-                    $db_answers = $DB->get_records('question_answers', ['question' => $newq->id]);
-                    gmk_log("DB Answers found count: " . count($db_answers));
+                    try {
+                        // Find Question Bank Entry ID
+                        $entry_id = $DB->get_field_sql("
+                            SELECT questionbankentryid 
+                            FROM {question_versions} 
+                            WHERE questionid = :qid", ['qid' => $newq->id]);
+                            
+                        if ($entry_id) {
+                            $siblings = $DB->get_records_sql("
+                                SELECT questionid 
+                                FROM {question_versions} 
+                                WHERE questionbankentryid = :entryid
+                                ORDER BY version DESC
+                                LIMIT 5", ['entryid' => $entry_id]); // Limit to recent 5 just in case
+                                
+                            foreach ($siblings as $sib) {
+                                $all_versions[] = $sib->questionid;
+                            }
+                        }
+                    } catch (Exception $e) {
+                        gmk_log("Error fetching siblings: " . $e->getMessage());
+                    }
                     
-                    if ($db_answers) {
-                        foreach ($db_answers as $ans) {
-                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                    $all_versions = array_unique($all_versions);
+                    gmk_log("Targeting Versions for Repair: " . implode(', ', $all_versions));
+
+                    // LOOP THROUGH ALL VERSIONS
+                    foreach ($all_versions as $target_qid) {
+                        gmk_log("--- Repairing QID: $target_qid ---");
+                        
+                        // DIRECT DB QUERY STRATEGY
+                        $expected_wildcards = [];
+                        
+                        // 1. Scan Answers directly from DB
+                        $db_answers = $DB->get_records('question_answers', ['question' => $target_qid]);
+                        
+                        if ($db_answers) {
+                            foreach ($db_answers as $ans) {
+                                 if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                                     foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                                 }
+                            }
+                        }
+                        
+                        // 2. Scan Question Text directly from DB
+                        $db_q = $DB->get_record('question', ['id' => $target_qid], 'questiontext, category'); // Need category too!
+                        if ($db_q && isset($db_q->questiontext)) {
+                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
                                  foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                              }
                         }
-                    } else {
-                         gmk_log("GMK_QUIZ_DEBUG: No answers found in DB for QID " . $newq->id);
-                    }
-                    
-                    // 2. Scan Question Text directly from DB
-                    // We can use $newq->questiontext if available, but let's be paranoid and fetch it.
-                    $db_q = $DB->get_record('question', ['id' => $newq->id], 'questiontext');
-                    if ($db_q && isset($db_q->questiontext)) {
-                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
-                             foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
-                         }
-                    }
-                    
-                    // Log detection for debugging
-                    gmk_log("Self-Healing (DB-Mode) detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
-
-                    foreach (array_keys($expected_wildcards) as $name) {
-                         // 1. Find Definition
-                         // Try shared (category) first, then private (0). 
-                         // Note: qtype_calculated typically uses category=0 for private, or category=id for shared.
-                         // We look for ANY definition matching this name and our category context.
-                         $def = $DB->get_record_sql("
-                            SELECT * FROM {question_dataset_definitions} 
-                            WHERE name = ? AND (category = 0 OR category = ?)
-                            ORDER BY id DESC LIMIT 1
-                         ", [$name, $newq->category]);
-                         
-                         // 2. Create Definition if missing
-                         if (!$def) {
-                             $def = new stdClass();
-                             $def->xmlid = '';
-                             $def->category = 0; // Private to this question by default
-                             $def->name = $name;
-                             $def->type = 1; // 1 = Literal
-                             $def->options = 'uniform'; 
-                             $def->itemcount = 0;
-                             $def->id = $DB->insert_record('question_dataset_definitions', $def);
-                             gmk_log("Created NEW Dataset Definition for '{$name}' (ID: {$def->id})");
-                         } else {
-                             gmk_log("Found existing Definition for '{$name}' (ID: {$def->id})");
-                         }
-                         
-                         // 3. Ensure Link exists (Critical for "cannotgetdsfordependent")
-                         if (!$DB->record_exists('question_datasets', ['question' => $newq->id, 'datasetdefinition' => $def->id])) {
-                            $link = new stdClass();
-                            $link->question = $newq->id;
-                            $link->datasetdefinition = $def->id;
-                            $DB->insert_record('question_datasets', $link);
-                            gmk_log("Linked Question {$newq->id} to Dataset Def {$def->id}");
-                         } else {
-                            gmk_log("Link exists for Q {$newq->id} -> Def {$def->id}");
-                         }
-                         
-                         // 4. Ensure Items exist
-                         if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
-                             $min = isset($form_data->{"calcmin_{$name}"}) ? $form_data->{"calcmin_{$name}"} : 1.0;
-                             $max = isset($form_data->{"calcmax_{$name}"}) ? $form_data->{"calcmax_{$name}"} : 10.0;
-                             $dec = isset($form_data->{"calclength_{$name}"}) ? $form_data->{"calclength_{$name}"} : 1;
-                             $dist = isset($form_data->{"calcdistribution_{$name}"}) ? $form_data->{"calcdistribution_{$name}"} : 'uniform';
-
-                             for ($i = 1; $i <= 10; $i++) {
-                                 $val = 0;
-                                 if ($dist === 'uniform') {
-                                     $val = $min + ($max - $min) * (mt_rand() / mt_getrandmax());
-                                 } else { 
-                                     $val = exp(log($min) + (log($max) - log($min)) * (mt_rand() / mt_getrandmax()));
-                                 }
-                                 $val = round($val, $dec);
-
-                                 $item = new stdClass();
-                                 $item->definition = $def->id;
-                                 $item->itemnumber = $i;
-                                 $item->value = $val;
-                                 $DB->insert_record('question_dataset_items', $item);
+                        
+                        // Log detection for debugging
+                        gmk_log("Detected wildcards for QID {$target_qid}: " . implode(', ', array_keys($expected_wildcards)));
+    
+                        foreach (array_keys($expected_wildcards) as $name) {
+                             // 1. Find Definition
+                             $def = $DB->get_record_sql("
+                                SELECT * FROM {question_dataset_definitions} 
+                                WHERE name = ? AND (category = 0 OR category = ?)
+                                ORDER BY id DESC LIMIT 1
+                             ", [$name, $db_q->category]);
+                             
+                             // 2. Create Definition if missing
+                             if (!$def) {
+                                 $def = new stdClass();
+                                 $def->xmlid = '';
+                                 $def->category = 0; 
+                                 $def->name = $name;
+                                 $def->type = 1; 
+                                 $def->options = 'uniform'; 
+                                 $def->itemcount = 0;
+                                 $def->id = $DB->insert_record('question_dataset_definitions', $def);
+                                 gmk_log("Created NEW Definition '{$name}' (ID: {$def->id})");
                              }
-                             $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
-                             gmk_log("Generated 10 items for '{$name}'");
-                         }
-                    }
+                             
+                             // 3. Ensure Link exists
+                             if (!$DB->record_exists('question_datasets', ['question' => $target_qid, 'datasetdefinition' => $def->id])) {
+                                $link = new stdClass();
+                                $link->question = $target_qid;
+                                $link->datasetdefinition = $def->id;
+                                $DB->insert_record('question_datasets', $link);
+                                gmk_log("Restored Link Q {$target_qid} -> Def {$def->id}");
+                             }
+                             
+                             // 4. Ensure Items exist
+                             if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
+                                 // ... (Generation logic) ...
+                                 // Simplified generation for siblings (using defaults)
+                                 for ($i = 1; $i <= 10; $i++) {
+                                     $val = 1.0 + (9.0 * (mt_rand() / mt_getrandmax()));
+                                     $val = round($val, 1);
+                                     $item = new stdClass();
+                                     $item->definition = $def->id;
+                                     $item->itemnumber = $i;
+                                     $item->value = $val;
+                                     $DB->insert_record('question_dataset_items', $item);
+                                 }
+                                 $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
+                                 gmk_log("Generated items for '{$name}'");
+                             }
+                        }
+                    } // End foreach version
                     
-                    // Force refresh question instance
+                    // Force refresh main question instance
                     $newq = question_bank::load_question($newq->id);
                 }
 
