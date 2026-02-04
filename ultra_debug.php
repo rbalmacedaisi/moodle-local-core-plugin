@@ -50,23 +50,15 @@ if ($qid === 0) {
         // Let's check for any record that contains '[[1]]' or similar in question_answers? 
         // No, let's search for DDWTOS records.
         
-        echo "<h3>Searching for ANY record in question_answers related to DDWTOS choices</h3>";
-        $ans = $DB->get_records('question_answers', ['question' => $qid]);
-        echo "Direct get_records in question_answers: " . count($ans) . " results.<br>";
-        if($ans) {
-             echo "<pre>" . htmlspecialchars(print_r($ans, true)) . "</pre>";
-        }
-
-        echo "<h3>Listing all tables containing 'dd' or 'gap' or 'text'</h3>";
+        echo "<h3>All Database Tables</h3>";
         $all_tables = $DB->get_tables();
-        $matching = array_filter($all_tables, function($t) {
-            return strpos($t, 'dd') !== false || strpos($t, 'gap') !== false || strpos($t, 'text') !== false;
-        });
-        echo "<ul>";
-        foreach ($matching as $t) {
-            echo "<li>$t</li>";
+        sort($all_tables);
+        echo "<div style='column-count: 3;'><ul>";
+        foreach ($all_tables as $t) {
+            $style = (strpos($t, 'qtype') !== false || strpos($t, 'question') !== false) ? "style='color:blue;font-weight:bold;'" : "";
+            echo "<li $style>$t</li>";
         }
-        echo "</ul>";
+        echo "</ul></div>";
 
     } catch (Exception $e) {
         echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
