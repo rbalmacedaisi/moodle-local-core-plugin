@@ -56,6 +56,12 @@ if ($action === 'run_test') {
             $form_data->choices = [];
             $form_data->selectgroup = [];
             $form_data->shuffleanswers = 1;
+            
+            // Mandatory feedback fields to avoid DB errors
+            $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
+            $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+            $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
+            $question->shownumcorrect = 1;
 
             if (isset($data->answers) && is_array($data->answers)) {
                 $question->answer = [];
@@ -72,7 +78,8 @@ if ($action === 'run_test') {
                         'answer' => $text,
                         'choicegroup' => $group,
                         'selectgroup' => $group,
-                        'choiceno' => $no
+                        'choiceno' => $no,
+                        'fraction' => 0
                     ];
 
                     $form_data->choices[$no] = $choice_entry;
@@ -84,6 +91,12 @@ if ($action === 'run_test') {
                     $question->fraction[] = 0.0;
                 }
             }
+
+            // Sync form_data with these as well
+            $form_data->correctfeedback = $question->correctfeedback;
+            $form_data->partiallycorrectfeedback = $question->partiallycorrectfeedback;
+            $form_data->incorrectfeedback = $question->incorrectfeedback;
+            $form_data->shownumcorrect = $question->shownumcorrect;
 
             echo "<h4>1. Data Prepared for Moodle:</h4>";
             echo "<p><strong>Question Text:</strong> " . htmlspecialchars($question->questiontext['text']) . "</p>";
