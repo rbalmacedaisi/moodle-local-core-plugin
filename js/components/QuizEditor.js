@@ -1267,11 +1267,14 @@ const QuizEditor = {
             const isCloze = this.newQuestion.type === 'multianswer';
             // Regex to match [[n]] gaps OR {cloze} tags
             const regex = isCloze ? /(\{[^{}]+\})/g : /(\[\[\d+\]\])/g;
+
+            // We split while keeping the separators (if regex has capturing groups)
             const parts = this.newQuestion.questiontext.split(regex);
             let tokens = [];
 
             parts.forEach(part => {
-                if (!part) return;
+                if (part === undefined || part === null) return;
+                if (part === '') return;
 
                 if (isCloze) {
                     const match = part.match(/^\{(\d+):([A-Z_]+):(.*)\}$/);
@@ -1291,11 +1294,16 @@ const QuizEditor = {
                     }
                 }
 
-                // Split remaining text into words/tokens
-                const words = part.split(/(\s+)/g);
-                words.forEach(word => {
-                    if (word.length > 0) {
-                        tokens.push({ type: 'text', value: word });
+                // For text parts, we WANT to preserve everything including spaces
+                // but we split into "clickable" chunks. 
+                // We split by whitespace but keep the whitespace as tokens too.
+                const subParts = part.split(/(\s+)/g);
+                subParts.forEach(sp => {
+                    if (sp === '') return;
+                    if (sp.match(/^\s+$/)) {
+                        tokens.push({ type: 'text', value: sp, isWhitespace: true });
+                    } else {
+                        tokens.push({ type: 'text', value: sp, isWhitespace: false });
                     }
                 });
             });
@@ -1465,9 +1473,12 @@ const QuizEditor = {
         },
         // Gap Select / DDWTOS Methods
         convertToGap(idx) {
-            const tokens = this.tokenizedText;
+            const tokens = this.tokens; // Use the computed property
             const token = tokens[idx];
-            if (!token || token.type !== 'text' || token.value.trim().length === 0) return;
+            if (!token || token.type !== 'text' || token.isWhitespace) {
+                console.warn(`GMK_DEBUG: Ignoring click on token at ${idx}`, token);
+                return;
+            }
 
             const cleanWord = token.value.trim();
             const newTokens = [...tokens];

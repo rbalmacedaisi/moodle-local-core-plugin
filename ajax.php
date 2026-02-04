@@ -1280,6 +1280,8 @@ try {
                         $question->answer = [];
                         $question->feedback = [];
                         $question->fraction = [];
+                        $question->selectgroup = []; // Added for 0-indexed gapselect groups
+                        $question->draggroup = [];   // Added for 0-indexed ddwtos groups
 
                         foreach ($data->answers as $idx => $ans) {
                             $no = $idx + 1; // Moodle forms usually use 1-based indexing
@@ -1316,26 +1318,22 @@ try {
                             if ($data->type === 'gapselect') {
                                 $question->answer[] = $text;
                                 $question->feedback[] = $group; // GapSelect expects the group number directly
+                                $question->selectgroup[] = $group; // 0-indexed for Moodle's loop
                             } else {
                                 $extra_settings = new stdClass();
                                 $extra_settings->draggroup = $group;
                                 $extra_settings->selectgroup = $group;
                                 $extra_settings->infinite = 0;
                                 $question->answer[] = $text;
-                                $question->feedback[] = serialize($extra_settings); // DDWTOS might expect serialized if using custom fields
+                                $question->feedback[] = serialize($extra_settings);
+                                $question->draggroup[] = $group; // 0-indexed
                             }
                             $question->fraction[] = 0.0;
                         }
                     }
                     
-                    // Assign these arrays to both $question and form_data to ensure save_question sees them
+                    // Specific fields to ensure save_question sees EVERYTHING
                     $question->choices = $form_data->choices;
-                    $question->answer = $form_data->answer;
-                    $question->feedback = $form_data->feedback;
-                    $question->fraction = $form_data->fraction;
-                    
-                    // Specific fields for qtype_gapselect_choices table
-                    $question->selectgroup = $form_data->selectgroup;
                     $question->shuffleanswers = $form_data->shuffleanswers;
                     
                     // Combined Feedback Defaults
@@ -1504,9 +1502,8 @@ try {
                         $form_data->showmisplaced = 1;
                     }
                 }
-                elseif ($data->type === 'description') {
-                    // Just name and questiontext (intro) are needed, already set.
-                }
+                // ADD LOGGING: Final state of questiontext before saving
+                error_log("GMK_QUIZ_DEBUG: Final Question Text to DB: " . (isset($question->questiontext['text']) ? $question->questiontext['text'] : 'NOT SET'));
 
                 // SAVE or USE EXISTING (Duplicate detection)
                 $newq = null;
