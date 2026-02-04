@@ -19,6 +19,15 @@ use local_grupomakro_core\external\student\update_status;
 use local_grupomakro_core\external\student\sync_progress;
 use local_grupomakro_core\external\teacher\get_dashboard_data;
 
+if (!function_exists('gmk_log')) {
+    function gmk_log($message) {
+        $logfile = __DIR__ . '/gmk_debug.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $formatted = "[$timestamp] $message\n";
+        file_put_contents($logfile, $formatted, FILE_APPEND);
+    }
+}
+
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 header('Content-Type: application/json'); // Enforce JSON for this AJAX script
 
