@@ -1392,14 +1392,38 @@ try {
                      // Always initialize dataset array to avoid "undefined" behavior in save_question
                      $form_data->dataset = [];
                      
+                     // 1. Auto-detect wildcards in formulas if not provided manually
+                     $detected_wildcards = [];
+                     if (!isset($data->dataset) || empty($data->dataset)) {
+                         foreach ($question->answer as $formula) {
+                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $formula, $matches)) {
+                                 foreach ($matches[1] as $wildcard) {
+                                     $detected_wildcards[$wildcard] = true;
+                                 }
+                             }
+                         }
+                         // Create default definition objects for detected wildcards
+                         if (!empty($detected_wildcards)) {
+                             $data->dataset = [];
+                             foreach (array_keys($detected_wildcards) as $wc) {
+                                 $ds = new stdClass();
+                                 $ds->name = $wc;
+                                 $ds->min = 1;
+                                 $ds->max = 10;
+                                 $ds->items = []; // Empty items will force generation or use defaults
+                                 $data->dataset[] = $ds;
+                             }
+                         }
+                     }
+
                      if (isset($data->dataset) && is_array($data->dataset)) {
                          foreach ($data->dataset as $ds) {
                               $name = $ds->name; // e.g. {x}
                               $form_data->dataset[] = $name;
                               
                               // We simulate the form data properties Moodle expects for each wildcard
-                              $form_data->{"dataset_$name"} = '0'; // 0 = Reuse existing, but here we might need more logic
-                              $form_data->{"number_$name"} = isset($ds->items) ? count($ds->items) : 10;
+                              $form_data->{"dataset_$name"} = '0'; // 0 = Reuse existing
+                              $form_data->{"number_$name"} = (isset($ds->items) && !empty($ds->items)) ? count($ds->items) : 10;
                               $form_data->{"options_$name"} = 'uniform'; 
                               $form_data->{"calcmin_$name"} = isset($ds->min) ? $ds->min : 1;
                               $form_data->{"calcmax_$name"} = isset($ds->max) ? $ds->max : 10;
