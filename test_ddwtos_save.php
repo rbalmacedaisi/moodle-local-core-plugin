@@ -26,6 +26,15 @@ function test_save($name, $q_data, $f_data) {
         $question->penalty = 0.33;
         $question->qtype = 'ddwtos';
         
+        // Mandatory fields to avoid SQL "cannot be null" errors
+        $question->correctfeedback = "";
+        $question->correctfeedbackformat = FORMAT_HTML;
+        $question->partiallycorrectfeedback = "";
+        $question->partiallycorrectfeedbackformat = FORMAT_HTML;
+        $question->incorrectfeedback = "";
+        $question->incorrectfeedbackformat = FORMAT_HTML;
+        $question->shownumcorrect = 1;
+
         // Merge in specific test data
         foreach ($q_data as $key => $val) {
             $question->$key = $val;
@@ -47,7 +56,9 @@ function test_save($name, $q_data, $f_data) {
         if ($ans_count > 0) {
             echo "<span style='color:green;font-weight:bold;'>SUCCESS!</span> format '$name' works.<br>";
             $ans = $DB->get_records('question_answers', ['question' => $newq->id]);
-            echo "<pre>" . htmlspecialchars(print_r($ans, true)) . "</pre>";
+            foreach($ans as $a) {
+                echo " - Answer: {$a->answer}, Feedback: " . htmlspecialchars($a->feedback) . "<br>";
+            }
         } else {
             echo "<span style='color:red;'>FAILED</span> format '$name' did not save answers.<br>";
         }
@@ -57,27 +68,29 @@ function test_save($name, $q_data, $f_data) {
     }
 }
 
-// Variation 1: $question->choices (Array of arrays)
-test_save("question_choices_array", [
+// Variation 1: $form_data->choices with 'choicegroup' (Notice suggested this)
+test_save("form_data_choices_choicegroup", [], [
     'choices' => [
-        ['answer' => 'Alpha', 'draggroup' => 1, 'infinite' => 0],
-        ['answer' => 'Beta', 'draggroup' => 1, 'infinite' => 0]
-    ]
-], []);
-
-// Variation 2: $form_data->choices (Matching Moodle Form)
-test_save("form_data_choices_nested", [], [
-    'choices' => [
-        ['answer' => 'Gamma', 'draggroup' => 1],
-        ['answer' => 'Delta', 'draggroup' => 1]
+        ['answer' => 'Alpha', 'choicegroup' => 1, 'infinite' => 0],
+        ['answer' => 'Beta', 'choicegroup' => 1, 'infinite' => 0]
     ]
 ]);
 
-// Variation 3: Flattened (Moodle 2.x/3.x style sometimes)
-test_save("flattened_draglabel", [], [
-    'draglabel' => ['Epsilon', 'Zeta'],
-    'draggroup' => [1, 1],
-    'infinite' => [0, 0]
+// Variation 2: $form_data->choices with 'draggroup' (Standard for some versions)
+test_save("form_data_choices_draggroup", [], [
+    'choices' => [
+        ['answer' => 'Gamma', 'draggroup' => 1, 'infinite' => 0],
+        ['answer' => 'Delta', 'draggroup' => 1, 'infinite' => 0]
+    ]
 ]);
+
+// Variation 4: Native Form Format (choice[0][answer], choice[0][choicegroup])
+$native_form = [
+    'choice' => [
+        0 => ['answer' => 'Epsilon', 'choicegroup' => 1],
+        1 => ['answer' => 'Zeta', 'choicegroup' => 1]
+    ]
+];
+test_save("form_data_choice_array", [], $native_form);
 
 echo "<br><br><a href='?'>Run Again</a>";
