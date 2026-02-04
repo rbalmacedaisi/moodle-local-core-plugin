@@ -1581,6 +1581,46 @@ try {
                     $newq = $qtypeobj->save_question($question, $form_data);
                 }
 
+                // Post-Save: Generate Items for Calculated Questions
+                // Fixes "cannotgetdsfordependent" by ensuring items exist immediately.
+                if ($newq && strpos($data->type, 'calculated') === 0 && !empty($form_data->dataset)) {
+                    $definitions = $DB->get_records_sql("
+                        SELECT qdd.* 
+                        FROM {question_dataset_definitions} qdd
+                        JOIN {question_datasets} qd ON qd.datasetdefinition = qdd.id
+                        WHERE qd.question = ?
+                    ", [$newq->id]);
+
+                    foreach ($definitions as $def) {
+                        if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
+                             // Use config from form_data or defaults
+                             $min = isset($form_data->{"calcmin_{$def->name}"}) ? $form_data->{"calcmin_{$def->name}"} : 1.0;
+                             $max = isset($form_data->{"calcmax_{$def->name}"}) ? $form_data->{"calcmax_{$def->name}"} : 10.0;
+                             $dec = isset($form_data->{"calclength_{$def->name}"}) ? $form_data->{"calclength_{$def->name}"} : 1;
+                             $dist = isset($form_data->{"calcdistribution_{$def->name}"}) ? $form_data->{"calcdistribution_{$def->name}"} : 'uniform';
+
+                             for ($i = 1; $i <= 10; $i++) {
+                                 $val = 0;
+                                 if ($dist === 'uniform') {
+                                     $val = $min + ($max - $min) * (mt_rand() / mt_getrandmax());
+                                 } else { // Loguniform
+                                     $val = exp(log($min) + (log($max) - log($min)) * (mt_rand() / mt_getrandmax()));
+                                 }
+                                 $val = round($val, $dec);
+
+                                 $item = new stdClass();
+                                 $item->definition = $def->id;
+                                 $item->itemnumber = $i;
+                                 $item->value = $val;
+                                 $DB->insert_record('question_dataset_items', $item);
+                             }
+                             error_log("GMK_QUIZ_DEBUG: Generated 10 items for dataset '{$def->name}' (Def ID: {$def->id})");
+                        }
+                    }
+                    // Sync question instance just in case
+                    $newq = question_bank::load_question($newq->id);
+                }
+
                 // If editing (id is present), ensure the question_bank_entry is moved if category changed
                 if (!empty($data->id)) {
                     // In Moodle 4.0+, the category is in question_bank_entries

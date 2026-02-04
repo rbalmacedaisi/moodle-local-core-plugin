@@ -152,6 +152,35 @@ if ($action === 'run_test') {
             $qtypeobj = question_bank::get_qtype('calculated');
             $newq = $qtypeobj->save_question($question, $form_data);
 
+            // Post-Save: Generate Items (Match ajax.php logic)
+            if ($newq && !empty($form_data->dataset)) {
+                $definitions = $DB->get_records_sql("
+                    SELECT qdd.* 
+                    FROM {question_dataset_definitions} qdd
+                    JOIN {question_datasets} qd ON qd.datasetdefinition = qdd.id
+                    WHERE qd.question = ?
+                ", [$newq->id]);
+
+                foreach ($definitions as $def) {
+                    if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
+                            $min = isset($form_data->{"calcmin_{$def->name}"}) ? $form_data->{"calcmin_{$def->name}"} : 1.0;
+                            $max = isset($form_data->{"calcmax_{$def->name}"}) ? $form_data->{"calcmax_{$def->name}"} : 10.0;
+                            $dec = isset($form_data->{"calclength_{$def->name}"}) ? $form_data->{"calclength_{$def->name}"} : 1;
+                            
+                            for ($i = 1; $i <= 10; $i++) {
+                                $val = $min + ($max - $min) * (mt_rand() / mt_getrandmax());
+                                $val = round($val, $dec);
+                                $item = new stdClass();
+                                $item->definition = $def->id;
+                                $item->itemnumber = $i;
+                                $item->value = $val;
+                                $DB->insert_record('question_dataset_items', $item);
+                            }
+                            // echo "<p>Generated 10 items for '{$def->name}'</p>";
+                    }
+                }
+            }
+
             echo "<div class='alert alert-success'>Save called. Resulting ID: " . ($newq ? $newq->id : 'FAILED') . "</div>";
 
             if ($newq) {
