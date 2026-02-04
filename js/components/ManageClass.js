@@ -105,6 +105,7 @@ const ManageClass = {
                                                     text
                                                     color="secondary" 
                                                     @click="showQR(session)"
+                                                    :disabled="!isSessionActive(session)"
                                                 >
                                                     <v-icon left small>mdi-qrcode</v-icon> Mostrar QR
                                                 </v-btn>
@@ -607,7 +608,19 @@ const ManageClass = {
         },
         isSessionActive(session) {
             const now = new Date().getTime() / 1000;
-            return now >= (session.startdate - 900);
+            const start = parseInt(session.startdate);
+            let end = parseInt(session.enddate);
+
+            if (!end || isNaN(end)) {
+                if (session.timeduration) {
+                    end = start + parseInt(session.timeduration);
+                } else {
+                    end = start + 3600; // Default 1 hour
+                }
+            }
+
+            // Window: 15 mins before start -> End time
+            return now >= (start - 900) && now <= end;
         },
         formatDate(timestamp) {
             if (!timestamp) return 'No programada';
