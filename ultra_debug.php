@@ -42,6 +42,29 @@ if ($qid === 0) {
             echo "<p>No existing ddwtos questions found with answers in question_answers.</p>";
         }
 
+        echo "<h3>2.1 Searching for Cloze (multianswer) Questions</h3>";
+        $sql = "SELECT id, name, questiontext FROM {question} WHERE qtype = 'multianswer' ORDER BY id DESC LIMIT 5";
+        $clozes = $DB->get_records_sql($sql);
+        if ($clozes) {
+            echo "<ul>";
+            foreach ($clozes as $cl) {
+                echo "<li><strong>ID: {$cl->id}</strong> - Name: " . htmlspecialchars($cl->name) . "<br>";
+                echo "Text: <pre>" . htmlspecialchars($cl->questiontext) . "</pre>";
+                
+                // Check if it has child questions
+                $children = $DB->get_records('question', ['parent' => $cl->id]);
+                echo "Children found: " . count($children) . "<br>";
+                foreach($children as $child) {
+                     $child_ans = $DB->get_records('question_answers', ['question' => $child->id]);
+                     echo "&nbsp;&nbsp; - Child ID: {$child->id} (Type: {$child->qtype}) - Answers: " . count($child_ans) . "<br>";
+                }
+                echo "</li>";
+            }
+            echo "</ul>";
+        } else {
+            echo "<p>No Cloze questions found.</p>";
+        }
+
         echo "<h3>3. Search for references to ID $qid</h3>";
         $tables = $DB->get_tables();
         echo "<ul>";
