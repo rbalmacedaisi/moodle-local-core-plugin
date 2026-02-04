@@ -10,7 +10,7 @@ $PAGE->set_title('Debug DB Structure - Moodle Questions');
 echo $OUTPUT->header();
 
 $all_tables = $DB->get_manager()->get_install_xml_schema()->getTables();
-$search_patterns = ['ddmarker', 'ddimageortext', 'drag', 'drop', 'question'];
+$search_patterns = ['ddmarker', 'ddimageortext', 'drag', 'drop', 'question', 'ddwtos', 'gapselect'];
 $found_tables = [];
 
 // Alternative: list all tables from the database directly
