@@ -1081,7 +1081,7 @@ const QuizEditor = {
 
                         <!-- Drag and Drop Over Text Editor / Gap Select -->
                         <drag-drop-text-editor 
-                            v-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'"
+                            v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'"
                             :tokens="tokens"
                             :answers="newQuestion.answers"
                             :questiontext.sync="newQuestion.questiontext"
@@ -1131,6 +1131,13 @@ const QuizEditor = {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <!-- Cloze Wizard component -->
+            <cloze-wizard 
+                v-model="clozeDialog" 
+                :wizard="clozeWizard" 
+                @insert="insertCloze"
+            ></cloze-wizard>
 
             <!-- Question Bank Dialog -->
                 <question-bank-dialog 
@@ -1900,7 +1907,9 @@ const QuizEditor = {
     components: {
         draggable: typeof vuedraggable !== 'undefined' ? (vuedraggable.default || vuedraggable) : null,
         'question-bank-dialog': window.QuestionBankDialog,
-        'drag-drop-text-editor': window.DragDropTextEditor
+        'drag-drop-text-editor': window.DragDropTextEditor,
+        'cloze-editor': window.ClozeEditor,
+        'cloze-wizard': window.ClozeWizard
     },
     created() {
         if (this.config) {

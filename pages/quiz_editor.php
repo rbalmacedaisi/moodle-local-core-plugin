@@ -44,6 +44,9 @@ $PAGE->requires->css(new moodle_url('https://cdn.jsdelivr.net/npm/@mdi/font@6.x/
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js'), true);
 $PAGE->requires->js(new moodle_url('https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js'), true);
 $PAGE->requires->js(new moodle_url('https://unpkg.com/axios/dist/axios.min.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/TypeEditors.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/ClozeWizard.js'), true);
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/quizeditor/QuestionBankDialog.js'), true);
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/QuizEditor.js'), true);
 
 // Retrieve Logo
