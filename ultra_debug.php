@@ -14,6 +14,7 @@ echo "<h1>ULTRA Diagnostic Tool - Scanning ALL Tables</h1>";
 if ($qid === 0) {
     echo "<p>Please provide a question ID (?qid=XXX)</p>";
 } else {
+    try {
         echo "<h2>System Investigation</h2>";
         echo "Moodle Version: " . get_config('core', 'version') . "<br>";
 
@@ -27,7 +28,6 @@ if ($qid === 0) {
         }
 
         echo "<h3>2. Searching for SUCCESSFUL DDWTOS Questions</h3>";
-        // Find any ddwtos question that HAS records in question_answers
         $sql = "SELECT q.id, q.name FROM {question} q 
                 JOIN {question_answers} qa ON q.id = qa.question
                 WHERE q.qtype = 'ddwtos' LIMIT 3";
@@ -44,6 +44,21 @@ if ($qid === 0) {
 
         echo "<h3>3. Search for references to ID $qid</h3>";
         $tables = $DB->get_tables();
+        echo "<ul>";
+        foreach ($tables as $table) {
+            $columns = $DB->get_columns($table);
+            foreach ($columns as $colname => $colinfo) {
+                if ($colname == 'questionid' || $colname == 'question' || $colname == 'parent') {
+                    $count = $DB->count_records($table, [$colname => $qid]);
+                    if ($count > 0) {
+                        echo "<li><strong>$table</strong> ($colname): Found $count records.</li>";
+                        $recs = $DB->get_records($table, [$colname => $qid]);
+                        echo "<pre>" . htmlspecialchars(print_r($recs, true)) . "</pre>";
+                    }
+                }
+            }
+        }
+        echo "</ul>";
 
     } catch (Exception $e) {
         echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
