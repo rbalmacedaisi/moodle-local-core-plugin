@@ -1389,11 +1389,10 @@ try {
                      $question->multiplier = [1.0];
                      
                      // Dataset Mapping (FIX: prevent corruption/missing items)
+                     // Always initialize dataset array to avoid "undefined" behavior in save_question
+                     $form_data->dataset = [];
+                     
                      if (isset($data->dataset) && is_array($data->dataset)) {
-                         // This minimal mapping allows save_question to recognize them
-                         // Note: Full dataset item generation usually requires a second pass in Moodle
-                         // but we can at least save the definitions.
-                         $form_data->dataset = [];
                          foreach ($data->dataset as $ds) {
                               $name = $ds->name; // e.g. {x}
                               $form_data->dataset[] = $name;
