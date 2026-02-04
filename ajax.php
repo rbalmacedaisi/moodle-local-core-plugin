@@ -1291,9 +1291,13 @@ try {
                                 'choicegroup' => $group,
                                 'selectgroup' => $group,
                                 'draggroup' => $group,
-                                'infinite' => 0
+                                'infinite' => 0,
+                                'choiceno' => $no
                             ];
                             if (!empty($ans->id)) $choice_entry['id'] = $ans->id;
+
+                            // Debug log choice
+                            error_log("GMK_QUIZ_DEBUG: Choice #$no (Group $group): $text");
 
                             // Extensive mapping for all qtype variations
                             $form_data->choices[$no] = $choice_entry;

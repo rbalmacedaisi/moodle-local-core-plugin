@@ -1481,17 +1481,21 @@ const QuizEditor = {
             let newIndex;
             if (targetIndex !== -1) {
                 newIndex = targetIndex + 1;
+                console.log(`GMK_DEBUG: Reusing answer at index ${newIndex} for word: "${cleanWord}"`);
             } else {
                 if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
                 this.newQuestion.answers.push({ text: cleanWord, fraction: 0.0, group: 1 });
                 newIndex = this.newQuestion.answers.length;
+                console.log(`GMK_DEBUG: Created new answer at index ${newIndex} for word: "${cleanWord}"`);
             }
 
             // 2. Update specifically this token
-            newTokens[idx] = { type: 'gap', value: `[[${newIndex}]]`, gapIndex: newIndex };
+            const marker = `[[${newIndex}]]`;
+            newTokens[idx] = { type: 'gap', value: marker, gapIndex: newIndex };
 
-            // Rebuild questiontext to avoid replace() collision with duplicate words
+            // Rebuild questiontext
             this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
+            console.log("GMK_DEBUG: New questiontext: " + this.newQuestion.questiontext);
         },
         revertToText(idx) {
             const tokens = this.tokenizedText;
@@ -1852,11 +1856,11 @@ const QuizEditor = {
                 fd.append('courseid', this.courseId);
                 fd.append('cmid', this.cmid || this.config.cmid);
                 fd.append('sesskey', this.config.sesskey);
+                console.log("GMK_QUIZ_DEBUG: Sending question data:", JSON.parse(JSON.stringify(this.newQuestion)));
                 fd.append('question_data', JSON.stringify(this.newQuestion));
                 if (this.newQuestion.ddfile) {
                     fd.append('bgimage', this.newQuestion.ddfile);
                 }
-
                 const response = await axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', fd);
 
                 if (response.data && response.data.status === 'success') {
