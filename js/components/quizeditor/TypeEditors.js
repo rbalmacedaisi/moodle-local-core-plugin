@@ -3,61 +3,82 @@
  */
 const DragDropTextEditor = {
     template: `
-        <div class="gmk-gap-editor mb-6">
-            <v-card outlined class="rounded-xl pa-4 bg-light shadow-sm">
-                <div class="d-flex align-center mb-3">
-                    <v-icon color="indigo" class="mr-2">mdi-text-box-search-outline</v-icon>
-                    <span class="subtitle-2 font-weight-bold">Configuración de Huecos</span>
+        <div class="gmk-gap-editor">
+            <v-alert type="info" text border="left" class="mb-4 rounded-xl">
+                <div class="d-flex align-center">
+                    <div>
+                        Haz clic en las palabras del texto para convertirlas en <b>Huecos</b>.
+                        Las opciones de respuesta se crearán automáticamente abajo.
+                    </div>
                     <v-spacer></v-spacer>
-                    <v-btn small depressed color="indigo lighten-5" class="indigo--text rounded-lg" @click="$emit('insert-gap')">
+                    <v-btn small depressed color="indigo" dark class="rounded-lg" @click="$emit('insert-gap')">
                         <v-icon left small>mdi-plus-circle</v-icon> Insertar Hueco
                     </v-btn>
                 </div>
+            </v-alert>
 
-                <div class="live-preview-box mb-4 pa-4 rounded-lg border bg-white" v-html="previewHtml"></div>
+            <v-card outlined class="rounded-xl pa-4 bg-light mb-6">
+                 <div class="d-flex align-center mb-2">
+                    <v-icon x-small color="grey" class="mr-1">mdi-cursor-default-click</v-icon>
+                    <span class="caption font-weight-bold grey--text">EDITOR VISUAL (CLIC EN PALABRAS)</span>
+                </div>
 
-                <div class="tokens-container d-flex flex-wrap gap-2">
+                <div class="tokens-container d-flex flex-wrap gap-2 pa-3 bg-white rounded-lg border min-height-100">
                     <v-chip 
                         v-for="(token, idx) in tokens" 
                         :key="idx"
                         small
-                        :color="token.type === 'gap' ? getGapColor(token.gapIndex) : 'grey lighten-4'"
+                        :color="token.type === 'gap' ? getGapColor(token.gapIndex) : 'transparent'"
                         :text-color="token.type === 'gap' ? 'white' : 'black'"
-                        class="ma-1 rounded-lg"
+                        :class="['ma-1 rounded-lg', token.type === 'gap' ? 'elevation-1' : '']"
                         style="height: auto; padding: 4px 8px;"
                     >
                         <span v-if="token.type === 'text'" class="body-2" @click="$emit('convert-to-gap', idx)" style="cursor: pointer;">
                             <span v-html="formatToken(token.value)"></span>
                         </span>
-                        <v-btn v-else x-small icon color="white" class="mr-1" @click="$emit('revert-to-text', idx)">
+                        
+                        <v-btn v-if="token.type === 'gap'" x-small icon color="white" class="mr-1" @click="$emit('revert-to-text', idx)">
                             <v-icon x-small>mdi-close-circle</v-icon>
                         </v-btn>
-                        <strong v-if="token.type === 'gap'">[[{{token.gapIndex}}]] {{ getGapShortText(token.gapIndex) }}</strong>
+                        <strong v-if="token.type === 'gap'" @click="scrollToAnswer(token.gapIndex)" style="cursor: pointer;">
+                            [[{{token.gapIndex}}]] {{ getGapShortText(token.gapIndex) }}
+                        </strong>
                     </v-chip>
                 </div>
             </v-card>
 
+            <v-card outlined class="rounded-xl pa-4 mb-4 border-indigo-light">
+                <div class="d-flex align-center mb-4">
+                    <v-icon color="indigo" class="mr-2">mdi-eye-outline</v-icon>
+                    <span class="subtitle-2 font-weight-bold">Previsualización Dinámica</span>
+                </div>
+                <div class="live-preview-box pa-4 rounded-lg border bg-white shadow-inner" v-html="previewHtml"></div>
+            </v-card>
+
             <div class="mt-4 answers-grid">
-                <v-subheader class="px-0 font-weight-bold grey--text text--darken-2">OPCIONES DISPONIBLES</v-subheader>
-                <div v-for="(ans, i) in answers" :key="'gapans'+i" class="mb-3 pa-3 border rounded-xl bg-white shadow-sm hover-elevate transition-all">
+                <v-subheader class="px-0 font-weight-bold grey--text text--darken-2">
+                    OPCIONES DE RESPUESTA
+                    <v-chip x-small class="ml-2">{{ answers.length }} definidas</v-chip>
+                </v-subheader>
+                
+                <div v-for="(ans, i) in answers" :key="'gapans'+i" :id="'ans-idx-'+(i+1)" class="mb-3 pa-3 border rounded-xl bg-white shadow-sm hover-elevate transition-all border-left-lg" :style="{ borderLeftColor: getGroupColorHex(ans.group || 1) }">
                     <v-row dense align="center">
-                        <v-col cols="1" class="text-center">
-                            <v-avatar :color="getGroupColorHex(ans.group || 1)" size="28" class="white--text font-weight-bold subtitle-2 shadow-sm">
+                        <v-col cols="auto">
+                            <v-avatar :color="getGroupColorHex(ans.group || 1)" size="32" class="white--text font-weight-bold subtitle-2 shadow-sm">
                                 {{ i + 1 }}
                             </v-avatar>
                         </v-col>
-                        <v-col cols="7">
+                        <v-col>
                             <v-text-field 
                                 label="Texto de la opción" 
                                 v-model="ans.text" 
                                 hide-details dense outlined 
                                 class="rounded-lg custom-field"
-                                placeholder="Escribe la respuesta..."
                             ></v-text-field>
                         </v-col>
-                        <v-col cols="3">
+                        <v-col cols="12" md="3">
                             <v-select 
-                                label="Grupo / Color" 
+                                label="Grupo Color" 
                                 v-model="ans.group" 
                                 :items="[
                                     {text: 'Grupo 1 (Azul)', value: 1},
@@ -67,24 +88,30 @@ const DragDropTextEditor = {
                                     {text: 'Grupo 5 (Púrpura)', value: 5}
                                 ]" 
                                 hide-details dense outlined class="rounded-lg"
-                            ></v-select>
+                            >
+                                <template v-slot:selection="{ item }">
+                                    <v-icon x-small :color="getGroupColorHex(item.value)" class="mr-1">mdi-circle</v-icon>
+                                    {{ item.text }}
+                                </template>
+                            </v-select>
                         </v-col>
-                        <v-col cols="1" class="text-right">
+                        <v-col cols="auto">
                             <v-btn icon color="red lighten-4" @click="$emit('remove-answer', i)"><v-icon small>mdi-delete</v-icon></v-btn>
                         </v-col>
                     </v-row>
                 </div>
-                <v-btn block depressed color="blue lighten-5" class="blue--text font-weight-bold rounded-lg py-6 mt-2" @click="$emit('add-answer')">
-                    <v-icon left>mdi-plus-circle-outline</v-icon> Agregar Opción de Respuesta
+                <v-btn block depressed color="indigo lighten-5" class="indigo--text font-weight-bold rounded-lg py-6 mt-2 shadow-sm" @click="$emit('add-answer')">
+                    <v-icon left>mdi-plus-circle</v-icon> Agregar Opción Manualmente
                 </v-btn>
             </div>
         </div>
     `,
     props: ['tokens', 'answers', 'previewHtml'],
     methods: {
-        formatToken(val) { return val.replace(/\n/g, '<br>'); },
+        formatToken(val) { return val ? val.replace(/\n/g, '<br>') : ''; },
         getGapColor(idx) {
-            const group = this.answers[idx - 1]?.group || 1;
+            const ans = this.answers[idx - 1];
+            const group = ans ? (ans.group || 1) : 1;
             return this.getGroupColorClass(group);
         },
         getGroupColorClass(group) {
@@ -98,6 +125,14 @@ const DragDropTextEditor = {
         getGapShortText(idx) {
             const ans = this.answers[idx - 1];
             return (ans && ans.text) ? ans.text : `[${idx}]`;
+        },
+        scrollToAnswer(idx) {
+            const el = document.getElementById('ans-idx-' + idx);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el.style.backgroundColor = '#FFFDE7';
+                setTimeout(() => { el.style.backgroundColor = 'white'; }, 2000);
+            }
         }
     }
 };

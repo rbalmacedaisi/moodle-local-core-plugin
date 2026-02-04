@@ -1,57 +1,3 @@
-if (typeof window.DragDropTextEditor === 'undefined') {
-    window.DragDropTextEditor = {
-        props: ['tokens', 'answers'],
-        template: `
-            <div class="mb-4">
-                <div class="d-flex flex-wrap pa-4 rounded-lg grey lighten-5 border" style="gap: 8px; line-height: 2.5; align-items: center;">
-                    <template v-for="(token, i) in tokens">
-                        <v-chip
-                            v-if="token.type === 'gap'"
-                            :key="i"
-                            color="primary"
-                            text-color="white"
-                            label
-                            close
-                            @click:close="$emit('revert-to-text', token)"
-                            small
-                            class="ma-1 font-weight-bold"
-                        >
-                            [[{{ token.gapIndex }}]] {{ getAnswerText(token.gapIndex) }}
-                        </v-chip>
-                        <span 
-                            v-else 
-                            :key="i" 
-                            class="d-inline-block px-1 rounded hover-bg-blue cursor-pointer transition-swing"
-                            @click="$emit('convert-to-gap', token)"
-                            title="Clic para convertir en hueco"
-                            style="border-bottom: 2px dashed #ccc; user-select: none;"
-                            @mouseover="$event.target.style.backgroundColor = '#e3f2fd'; $event.target.style.borderColor = '#2196f3'"
-                            @mouseleave="$event.target.style.backgroundColor = 'transparent'; $event.target.style.borderColor = '#ccc'"
-                        >
-                            {{ token.value }}
-                        </span>
-                    </template>
-                </div>
-                <div class="d-flex justify-space-between align-center mt-2">
-                     <div class="caption grey--text">
-                        <v-icon x-small color="primary">mdi-cursor-default-click</v-icon> Haz clic en las palabras para convertirlas en huecos.
-                    </div>
-                     <v-btn x-small text color="primary" @click="$emit('add-answer')">
-                        <v-icon left x-small>mdi-plus</v-icon> Añadir Opción Extra (Distractor)
-                    </v-btn>
-                </div>
-               
-            </div>
-        `,
-        methods: {
-            getAnswerText(index) {
-                if (!this.answers || !this.answers[index - 1]) return '???';
-                return this.answers[index - 1].text;
-            }
-        }
-    };
-}
-
 const QuizEditor = {
     template: `
         <v-app style="background: transparent; min-height: auto;">
@@ -1391,7 +1337,25 @@ const QuizEditor = {
             return tokens;
         },
         tokens() { return this.tokenizedText; },
-        previewHtml() { return ''; }
+        clozeTokens() { return this.tokenizedText; },
+        previewHtml() {
+            if (this.newQuestion.type === 'gapselect' || this.newQuestion.type === 'ddwtos') {
+                if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
+
+                return this.newQuestion.questiontext.replace(/\[\[(\d+)\]\]/g, (match, p1) => {
+                    const idx = parseInt(p1);
+                    const ans = this.newQuestion.answers[idx - 1];
+                    const text = (ans && ans.text) ? ans.text : `[[${idx}]]`;
+                    const group = (ans && ans.group) ? ans.group : 1;
+
+                    const colors = { 1: '#1976D2', 2: '#4CAF50', 3: '#FF5252', 4: '#FB8C00', 5: '#9C27B0' };
+                    const color = colors[group] || '#1976D2';
+
+                    return `<span class="px-2 py-0 mx-1 white--text rounded-lg d-inline-block" style="background-color: ${color}; font-weight: bold; font-size: 0.85em; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); line-height: 1.5;">${text}</span>`;
+                });
+            }
+            return '';
+        }
     },
     watch: {
         'newQuestion.type'(newType) {
@@ -1553,41 +1517,70 @@ const QuizEditor = {
             }
         },
         // Gap Select / DDWTOS Methods
-        convertToGap(token) {
+        convertToGap(idx) {
+            const tokens = this.tokenizedText;
+            const token = tokens[idx];
+            if (!token || token.type !== 'text' || token.value.trim().length === 0) return;
+
+            const cleanWord = token.value.trim();
+            const newTokens = [...tokens];
+
             // 1. Add new answer
             if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
-            this.newQuestion.answers.push({ text: token.value.trim(), fraction: 0.0, group: 1 });
+            this.newQuestion.answers.push({ text: cleanWord, fraction: 0.0, group: 1 });
             const newIndex = this.newQuestion.answers.length;
 
-            // 2. Replace text in questiontext
-            // Use replace first occurrence
-            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(token.value, `[[${newIndex}]]`);
+            // 2. Update specifically this token
+            newTokens[idx] = { type: 'gap', value: `[[${newIndex}]]`, gapIndex: newIndex };
+
+            // Rebuild questiontext to avoid replace() collision with duplicate words
+            this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
         },
-        revertToText(token) {
-            const index = token.gapIndex;
-            const answer = this.newQuestion.answers[index - 1];
-            if (!answer) return;
+        revertToText(idx) {
+            const tokens = this.tokenizedText;
+            const token = tokens[idx];
+            if (!token || token.type !== 'gap' || token.isCloze) return;
 
-            // Restore text
-            const regex = new RegExp(`\\[\\[${index}\\]\\]`);
-            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(regex, answer.text);
+            const newIndex = token.gapIndex;
+            const answer = this.newQuestion.answers[newIndex - 1];
+            const originalText = answer ? answer.text : `[${newIndex}]`;
 
-            // Remove answer and shift indices
-            this.newQuestion.answers.splice(index - 1, 1);
+            const newTokens = [...tokens];
+            newTokens[idx] = { type: 'text', value: originalText };
 
-            // Shift indices in text for all subsequent gaps
-            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(/\[\[(\d+)\]\]/g, (match, p1) => {
-                const n = parseInt(p1);
-                if (n > index) return `[[${n - 1}]]`;
-                if (n === index) return match; // Should be gone, but just in case
-                return match;
-            });
+            // Remove answer
+            this.newQuestion.answers.splice(newIndex - 1, 1);
+
+            // Rebuild questiontext while shifting subsequent gap indices
+            this.newQuestion.questiontext = newTokens.map(t => {
+                if (t.type === 'gap' && !t.isCloze) {
+                    let n = t.gapIndex;
+                    if (n > newIndex) {
+                        n--;
+                        return `[[${n}]]`;
+                    }
+                }
+                return t.value;
+            }).join('');
         },
         insertGap(text) {
-            // Not strictly used by click interactions but good to have
+            // If text is provided, use it. Otherwise try to get selection from main text editor
+            let cleanText = text || '';
+
+            if (!cleanText) {
+                const textarea = document.querySelector('.v-textarea textarea');
+                if (textarea) {
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    if (start !== end) {
+                        cleanText = textarea.value.substring(start, end).trim();
+                    }
+                }
+            }
+
             this.addAnswerChoice();
             const newIndex = this.newQuestion.answers.length;
-            this.newQuestion.answers[newIndex - 1].text = text || '';
+            this.newQuestion.answers[newIndex - 1].text = cleanText;
             this.newQuestion.questiontext += ` [[${newIndex}]]`;
         },
         addAnswer() {
