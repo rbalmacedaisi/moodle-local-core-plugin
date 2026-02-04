@@ -1599,8 +1599,10 @@ try {
                 }
 
                 if (!$newq) {
+                    gmk_log("Calling save_question for type: " . $question->qtype);
                     $qtypeobj = question_bank::get_qtype($question->qtype);
                     $newq = $qtypeobj->save_question($question, $form_data);
+                    gmk_log("save_question returned ID: " . ($newq ? $newq->id : 'NULL'));
                 }
 
                 // Post-Save: Generate Items for Calculated Questions
@@ -1608,9 +1610,11 @@ try {
                 // Relaxed condition: Check question object type OR input data type
                 $is_calculated = (isset($question->qtype) && strpos($question->qtype, 'calculated') === 0) 
                               || (isset($data->type) && strpos($data->type, 'calculated') === 0);
+                
+                gmk_log("Checking Self-Healing Condition: IsCalculated=" . ($is_calculated ? 'YES' : 'NO') . ", NewQ=" . ($newq ? 'YES' : 'NO'));
 
                 if ($newq && $is_calculated) {
-                    error_log("GMK_QUIZ_DEBUG: Entering Calculated Self-Healing for QID " . $newq->id);
+                    gmk_log("GMK_QUIZ_DEBUG: Entering Calculated Self-Healing for QID " . $newq->id);
                     
                     // DIRECT DB QUERY STRATEGY
                     // Bypass object hydration/caching issues by going straight to the source tables.
@@ -1618,6 +1622,8 @@ try {
                     
                     // 1. Scan Answers directly from DB
                     $db_answers = $DB->get_records('question_answers', ['question' => $newq->id]);
+                    gmk_log("DB Answers found count: " . count($db_answers));
+                    
                     if ($db_answers) {
                         foreach ($db_answers as $ans) {
                              if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
@@ -1625,7 +1631,7 @@ try {
                              }
                         }
                     } else {
-                         error_log("GMK_QUIZ_DEBUG: No answers found in DB for QID " . $newq->id);
+                         gmk_log("GMK_QUIZ_DEBUG: No answers found in DB for QID " . $newq->id);
                     }
                     
                     // 2. Scan Question Text directly from DB
@@ -1638,7 +1644,7 @@ try {
                     }
                     
                     // Log detection for debugging
-                    error_log("GMK_QUIZ_DEBUG: Self-Healing (DB-Mode) detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
+                    gmk_log("Self-Healing (DB-Mode) detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
 
                     foreach (array_keys($expected_wildcards) as $name) {
                          // 1. Find Definition
@@ -1661,7 +1667,9 @@ try {
                              $def->options = 'uniform'; 
                              $def->itemcount = 0;
                              $def->id = $DB->insert_record('question_dataset_definitions', $def);
-                             error_log("GMK_QUIZ_DEBUG: Created NEW Dataset Definition for '{$name}' (ID: {$def->id})");
+                             gmk_log("Created NEW Dataset Definition for '{$name}' (ID: {$def->id})");
+                         } else {
+                             gmk_log("Found existing Definition for '{$name}' (ID: {$def->id})");
                          }
                          
                          // 3. Ensure Link exists (Critical for "cannotgetdsfordependent")
@@ -1670,7 +1678,9 @@ try {
                             $link->question = $newq->id;
                             $link->datasetdefinition = $def->id;
                             $DB->insert_record('question_datasets', $link);
-                            error_log("GMK_QUIZ_DEBUG: Linked Question {$newq->id} to Dataset Def {$def->id}");
+                            gmk_log("Linked Question {$newq->id} to Dataset Def {$def->id}");
+                         } else {
+                            gmk_log("Link exists for Q {$newq->id} -> Def {$def->id}");
                          }
                          
                          // 4. Ensure Items exist
@@ -1696,7 +1706,7 @@ try {
                                  $DB->insert_record('question_dataset_items', $item);
                              }
                              $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
-                             error_log("GMK_QUIZ_DEBUG: Generated 10 items for '{$name}'");
+                             gmk_log("Generated 10 items for '{$name}'");
                          }
                     }
                     
