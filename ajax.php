@@ -1631,30 +1631,37 @@ try {
                     $all_versions[] = $newq->id; // Always include the current one
                     
                     try {
-                        // Find Question Bank Entry ID
-                        $entry_id = $DB->get_field_sql("
-                            SELECT questionbankentryid 
-                            FROM {question_versions} 
-                            WHERE questionid = :qid", ['qid' => $newq->id]);
+                        // Find Question Bank Entry ID AND Category (Moodle 4.x)
+                        $entry_data = $DB->get_record_sql("
+                            SELECT qv.questionbankentryid, qbe.questioncategoryid 
+                            FROM {question_versions} qv 
+                            JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                            WHERE qv.questionid = :qid", ['qid' => $newq->id]);
                             
-                        if ($entry_id) {
+                        if ($entry_data) {
+                            $entry_id = $entry_data->questionbankentryid;
+                            $master_category = $entry_data->questioncategoryid;
+                            
                             $siblings = $DB->get_records_sql("
                                 SELECT questionid 
                                 FROM {question_versions} 
                                 WHERE questionbankentryid = :entryid
                                 ORDER BY version DESC
-                                LIMIT 5", ['entryid' => $entry_id]); // Limit to recent 5 just in case
+                                LIMIT 5", ['entryid' => $entry_id]); 
                                 
                             foreach ($siblings as $sib) {
                                 $all_versions[] = $sib->questionid;
                             }
+                        } else {
+                            $master_category = $newq->category; // Fallback
                         }
                     } catch (Exception $e) {
-                        gmk_log("Error fetching siblings: " . $e->getMessage());
+                        gmk_log("Error fetching siblings/category: " . $e->getMessage());
+                        $master_category = $newq->category; // Fallback
                     }
                     
                     $all_versions = array_unique($all_versions);
-                    gmk_log("Targeting Versions for Repair: " . implode(', ', $all_versions));
+                    gmk_log("Targeting Versions for Repair: " . implode(', ', $all_versions) . " (Category: $master_category)");
 
                     // LOOP THROUGH ALL VERSIONS
                     foreach ($all_versions as $target_qid) {
@@ -1675,7 +1682,8 @@ try {
                         }
                         
                         // 2. Scan Question Text directly from DB
-                        $db_q = $DB->get_record('question', ['id' => $target_qid], 'questiontext, category'); // Need category too!
+                        // corrected: 'category' is NOT in {question} table in Moodle 4+
+                        $db_q = $DB->get_record('question', ['id' => $target_qid], 'questiontext'); 
                         if ($db_q && isset($db_q->questiontext)) {
                              if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
                                  foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
@@ -1691,7 +1699,7 @@ try {
                                 SELECT * FROM {question_dataset_definitions} 
                                 WHERE name = ? AND (category = 0 OR category = ?)
                                 ORDER BY id DESC LIMIT 1
-                             ", [$name, $db_q->category]);
+                             ", [$name, $master_category]);
                              
                              // 2. Create Definition if missing
                              if (!$def) {
