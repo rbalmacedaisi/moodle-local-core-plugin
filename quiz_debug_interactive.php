@@ -47,10 +47,12 @@ if ($action === 'delete' && $quizid && $slot) {
     try {
         $quiz = $DB->get_record('quiz', ['id' => $quizid], '*', MUST_EXIST);
         $cm = get_coursemodule_from_instance('quiz', $quiz->id, $quiz->course, false, MUST_EXIST);
+        $course = $DB->get_record('course', ['id' => $quiz->course], '*', MUST_EXIST);
         
         echo "<div class='success-log'>Intentando eliminar slot <strong>$slot</strong> en <strong>{$quiz->name}</strong>...</div>";
         
-        $structure = \mod_quiz\structure::create_for_quiz($quiz);
+        $quizobj = new quiz($quiz, $cm, $course);
+        $structure = \mod_quiz\structure::create_for_quiz($quizobj);
         $structure->remove_slot($slot);
         
         echo "<div class='success-log'>¡Éxito! La ranura ha sido eliminada.</div>";

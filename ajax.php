@@ -1429,9 +1429,11 @@ try {
                 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
                 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
                 $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+                $course = $DB->get_record('course', array('id' => $cm->course), '*', MUST_EXIST);
                 
-                // Moodle 4.0+ Compatible Slot Removal
-                $structure = \mod_quiz\structure::create_for_quiz($quiz);
+                // Moodle 4.0+ Compatible Slot Removal: Requires a 'quiz' object wrapper
+                $quizobj = new quiz($quiz, $cm, $course);
+                $structure = \mod_quiz\structure::create_for_quiz($quizobj);
                 $structure->remove_slot($slot);
                 
                 $response = ['status' => 'success'];
