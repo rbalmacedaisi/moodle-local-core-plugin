@@ -1535,10 +1535,7 @@ try {
                     ", ['quizid' => $quiz->id, 'questionid' => $newq->id]);
 
                     if (!$already_in_quiz) {
-                        $course = $DB->get_record('course', ['id' => $cm->course]);
-                        $quizobj = new quiz($quiz, $cm, $course);
-                        $structure = \mod_quiz\structure::create_for_quiz($quizobj);
-                        $structure->add_quiz_question($newq->id, 0, $question->defaultmark);
+                        quiz_add_quiz_question($newq->id, $quiz, 0, $question->defaultmark);
                         
                         // Force update sumgrades
                         quiz_update_sumgrades($quiz);
@@ -1659,12 +1656,9 @@ try {
                 
                 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
                 $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
-                $course = $DB->get_record('course', ['id' => $cm->course]);
                 
-                // Add to quiz using modern API to ensure maxmark is inherited
-                $quizobj = new quiz($quiz, $cm, $course);
-                $structure = \mod_quiz\structure::create_for_quiz($quizobj);
-                $structure->add_quiz_question($questionid, 0);
+                // Add to quiz using standard API
+                quiz_add_quiz_question($questionid, $quiz);
                 
                 quiz_update_sumgrades($quiz);
                 
