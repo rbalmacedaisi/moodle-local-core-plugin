@@ -1232,6 +1232,10 @@ try {
                     $form_data->infinite = [];
 
                     if (isset($data->answers) && is_array($data->answers)) {
+                        $question->answer = [];
+                        $question->feedback = [];
+                        $question->fraction = [];
+
                         foreach ($data->answers as $idx => $ans) {
                             $no = $idx + 1; // Moodle forms usually use 1-based indexing
                             $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
@@ -1256,8 +1260,23 @@ try {
                             $form_data->draggroup[$no] = $group;
                             $form_data->choicegroup[$no] = $group;
                             $form_data->infinite[$no] = 0;
+
+                            // CRITICAL FIX: This Moodle installation uses question_answers table with serialized settings in feedback.
+                            // We construct the arrays required by the base save_question method.
+                            $extra_settings = new stdClass();
+                            $extra_settings->draggroup = $group;
+                            $extra_settings->infinite = 0;
+
+                            $question->answer[] = $text;
+                            $question->feedback[] = ['text' => serialize($extra_settings), 'format' => 0];
+                            $question->fraction[] = 0.0;
                         }
                     }
+                    
+                    // Assign these arrays to form_data so save_question sees them
+                    $form_data->answer = $question->answer;
+                    $form_data->feedback = $question->feedback;
+                    $form_data->fraction = $question->fraction;
                     
                     // Combined Feedback Defaults
                     $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
