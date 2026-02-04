@@ -559,6 +559,25 @@ const QuizEditor = {
                                                 * En ambos casos se usan cálculos, la diferencia es cómo responde el alumno.
                                             </div>
                                         </div>
+
+                                        <div class="mb-2">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">4. Cómo escribir el enunciado</div>
+                                            <v-card outlined class="pa-3 rounded-lg border-indigo grey lighten-5">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="indigo" class="mr-2 mt-1" small>mdi-format-text</v-icon>
+                                                    <div>
+                                                        <p class="body-2 mb-2">Debes poner las variables entre llaves <code>{}</code> dentro del texto de la pregunta para que aparezcan los números.</p>
+                                                        <div class="caption font-weight-bold mb-1">Ejemplo Correcto:</div>
+                                                        <div class="white pa-2 rounded border mb-2 body-2 font-italic">
+                                                            "Calcula el área de un triángulo de base <strong>{b}</strong> m y altura <strong>{h}</strong> m."
+                                                        </div>
+                                                        <p class="caption mb-0 grey--text text--darken-3">
+                                                            Cuando el alumno entre, verá: "Calcula el área de un triángulo de base <strong>5.4</strong> m y altura <strong>8.2</strong> m." (los números cambian para cada uno).
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </v-card>
+                                        </div>
                                     </v-card-text>
 
                                     <v-divider></v-divider>
