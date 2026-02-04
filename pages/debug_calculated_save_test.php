@@ -78,13 +78,17 @@ if ($action === 'run_test') {
              $question->unit = [''];
              $question->multiplier = [1.0];
              $question->synchronize = 0;
-             $question->single = 1;
+             $question->single = 1; // For calculated simple/multi
              $question->answernumbering = 'abc';
              $question->shuffleanswers = 0;
              $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
              $question->partiallycorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
              $question->incorrectfeedback = ['text' => '', 'format' => FORMAT_HTML];
              $question->shownumcorrect = 1;
+
+             // Ensure form_data also has them for initial cloning if needed logic relies on it
+             $form_data->answernumbering = 'abc';
+             $form_data->shuffleanswers = 0;
 
              // --- LOGIC TO TEST: Regex & Datasets ---
              $form_data->dataset = [];
