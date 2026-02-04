@@ -1592,28 +1592,66 @@ try {
                 }
 
                 // Post-Save: Generate Items for Calculated Questions
-                // Fixes "cannotgetdsfordependent" by ensuring items exist immediately.
-                if ($newq && strpos($data->type, 'calculated') === 0 && !empty($form_data->dataset)) {
-                    $definitions = $DB->get_records_sql("
-                        SELECT qdd.* 
-                        FROM {question_dataset_definitions} qdd
-                        JOIN {question_datasets} qd ON qd.datasetdefinition = qdd.id
-                        WHERE qd.question = ?
-                    ", [$newq->id]);
+                // SELF-HEALING LOGIC: Detects what SHOULD be there and ensures it exists in DB.
+                if ($newq && strpos($data->type, 'calculated') === 0) {
+                    // Re-detect wildcards from the FINAL question text/answers to be sure
+                    $expected_wildcards = [];
+                    foreach ($newq->answers as $ans) {
+                        if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
+                            foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                        }
+                    }
+                    if (isset($newq->questiontext)) {
+                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $newq->questiontext, $matches)) {
+                             foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
+                         }
+                    }
 
-                    foreach ($definitions as $def) {
-                        if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
-                             // Use config from form_data or defaults
-                             $min = isset($form_data->{"calcmin_{$def->name}"}) ? $form_data->{"calcmin_{$def->name}"} : 1.0;
-                             $max = isset($form_data->{"calcmax_{$def->name}"}) ? $form_data->{"calcmax_{$def->name}"} : 10.0;
-                             $dec = isset($form_data->{"calclength_{$def->name}"}) ? $form_data->{"calclength_{$def->name}"} : 1;
-                             $dist = isset($form_data->{"calcdistribution_{$def->name}"}) ? $form_data->{"calcdistribution_{$def->name}"} : 'uniform';
+                    foreach (array_keys($expected_wildcards) as $name) {
+                         // 1. Find Definition
+                         // Try shared (category) first, then private (0). 
+                         // Note: qtype_calculated typically uses category=0 for private, or category=id for shared.
+                         // We look for ANY definition matching this name and our category context.
+                         $def = $DB->get_record_sql("
+                            SELECT * FROM {question_dataset_definitions} 
+                            WHERE name = ? AND (category = 0 OR category = ?)
+                            ORDER BY id DESC LIMIT 1
+                         ", [$name, $newq->category]);
+                         
+                         // 2. Create Definition if missing
+                         if (!$def) {
+                             $def = new stdClass();
+                             $def->xmlid = '';
+                             $def->category = 0; // Private to this question by default
+                             $def->name = $name;
+                             $def->type = 1; // 1 = Literal
+                             $def->options = 'uniform'; 
+                             $def->itemcount = 0;
+                             $def->id = $DB->insert_record('question_dataset_definitions', $def);
+                             error_log("GMK_QUIZ_DEBUG: Created NEW Dataset Definition for '{$name}' (ID: {$def->id})");
+                         }
+                         
+                         // 3. Ensure Link exists (Critical for "cannotgetdsfordependent")
+                         if (!$DB->record_exists('question_datasets', ['question' => $newq->id, 'datasetdefinition' => $def->id])) {
+                            $link = new stdClass();
+                            $link->question = $newq->id;
+                            $link->datasetdefinition = $def->id;
+                            $DB->insert_record('question_datasets', $link);
+                            error_log("GMK_QUIZ_DEBUG: Linked Question {$newq->id} to Dataset Def {$def->id}");
+                         }
+                         
+                         // 4. Ensure Items exist
+                         if ($DB->count_records('question_dataset_items', ['definition' => $def->id]) == 0) {
+                             $min = isset($form_data->{"calcmin_{$name}"}) ? $form_data->{"calcmin_{$name}"} : 1.0;
+                             $max = isset($form_data->{"calcmax_{$name}"}) ? $form_data->{"calcmax_{$name}"} : 10.0;
+                             $dec = isset($form_data->{"calclength_{$name}"}) ? $form_data->{"calclength_{$name}"} : 1;
+                             $dist = isset($form_data->{"calcdistribution_{$name}"}) ? $form_data->{"calcdistribution_{$name}"} : 'uniform';
 
                              for ($i = 1; $i <= 10; $i++) {
                                  $val = 0;
                                  if ($dist === 'uniform') {
                                      $val = $min + ($max - $min) * (mt_rand() / mt_getrandmax());
-                                 } else { // Loguniform
+                                 } else { 
                                      $val = exp(log($min) + (log($max) - log($min)) * (mt_rand() / mt_getrandmax()));
                                  }
                                  $val = round($val, $dec);
@@ -1624,23 +1662,12 @@ try {
                                  $item->value = $val;
                                  $DB->insert_record('question_dataset_items', $item);
                              }
-                             error_log("GMK_QUIZ_DEBUG: Generated 10 items for dataset '{$def->name}' (Def ID: {$def->id})");
-                             
-                             // CRITICAL: Update the definition itemcount so Moodle knows items exist
                              $DB->set_field('question_dataset_definitions', 'itemcount', 10, ['id' => $def->id]);
-                        }
-                        
-                        // CRITICAL FIX: Ensure the question is linked to this dataset definition in `question_datasets`
-                        // Sometimes save_question fails to create this link if the dataset definition was just created.
-                        if (!$DB->record_exists('question_datasets', ['question' => $newq->id, 'datasetdefinition' => $def->id])) {
-                            $link = new stdClass();
-                            $link->question = $newq->id;
-                            $link->datasetdefinition = $def->id;
-                            $DB->insert_record('question_datasets', $link);
-                            error_log("GMK_QUIZ_DEBUG: Linked Question {$newq->id} to Dataset Def {$def->id}");
-                        }
+                             error_log("GMK_QUIZ_DEBUG: Generated 10 items for '{$name}'");
+                         }
                     }
-                    // Sync question instance just in case
+                    
+                    // Force refresh question instance
                     $newq = question_bank::load_question($newq->id);
                 }
 
