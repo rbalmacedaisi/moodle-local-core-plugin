@@ -54,18 +54,38 @@ try {
         echo "<ul>";
         foreach ($clozes as $cl) {
             echo "<li><strong>ID: {$cl->id}</strong> - Name: " . htmlspecialchars($cl->name) . "<br>";
-            echo "Text: <pre>" . htmlspecialchars($cl->questiontext) . "</pre>";
             
-            // Check if it has child questions
-            $children = $DB->get_records('question', ['parent' => $cl->id]);
-            echo "Children found: " . count($children) . "<br>";
-            foreach($children as $child) {
-                 $child_ans = $DB->get_records('question_answers', ['question' => $child->id]);
-                 echo "&nbsp;&nbsp; - Child ID: {$child->id} (Type: {$child->qtype}) - Answers: " . count($child_ans) . "<br>";
+            // Full Load
+            $full_data = question_bank::load_question_data($cl->id);
+            echo "<h4>Full Data for ID {$cl->id}:</h4>";
+            echo "<pre>" . htmlspecialchars(print_r($full_data, true)) . "</pre>";
+
+            echo "Text in DB: <pre>" . htmlspecialchars($cl->questiontext) . "</pre>";
+            
+            // Reconstructed Tags
+            echo "<strong>Sub-questions details:</strong><br>";
+            if (isset($full_data->options->questions)) {
+                foreach ($full_data->options->questions as $seq => $subq) {
+                    echo "&nbsp;&nbsp; - Sequence #{$seq} (ID: {$subq->id}, Type: {$subq->qtype})<br>";
+                    // List answers for this subq
+                    if (isset($subq->answers)) {
+                        foreach ($subq->answers as $ans) {
+                            echo "&nbsp;&nbsp;&nbsp;&nbsp; * Answer: {$ans->answer} (Fraction: {$ans->fraction})<br>";
+                        }
+                    }
+                }
+            } else {
+                 // Fallback to manual check if options->questions is empty
+                 $children = $DB->get_records('question', ['parent' => $cl->id]);
+                 echo "Children found in DB: " . count($children) . "<br>";
+                 foreach($children as $child) {
+                      $child_ans = $DB->get_records('question_answers', ['question' => $child->id]);
+                      echo "&nbsp;&nbsp; - Child ID: {$child->id} (Type: {$child->qtype}) - Answers: " . count($child_ans) . "<br>";
+                 }
             }
-            echo "</li>";
+            echo "</li><hr>";
         }
-        echo "</ul>";
+        echo "<ul>";
     } else {
         echo "<p>No Cloze questions found.</p>";
     }
