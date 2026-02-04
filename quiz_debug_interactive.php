@@ -50,7 +50,8 @@ if ($action === 'delete' && $quizid && $slot) {
         
         echo "<div class='success-log'>Intentando eliminar slot <strong>$slot</strong> en <strong>{$quiz->name}</strong>...</div>";
         
-        quiz_remove_slot($quiz, $slot);
+        $structure = \mod_quiz\structure::create_for_quiz($quiz);
+        $structure->remove_slot($slot);
         
         echo "<div class='success-log'>¡Éxito! La ranura ha sido eliminada.</div>";
     } catch (Throwable $e) {

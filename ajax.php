@@ -1430,7 +1430,10 @@ try {
                 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
                 $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
                 
-                quiz_remove_slot($quiz, $slot);
+                // Moodle 4.0+ Compatible Slot Removal
+                $structure = \mod_quiz\structure::create_for_quiz($quiz);
+                $structure->remove_slot($slot);
+                
                 $response = ['status' => 'success'];
             } catch (Exception $e) {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
