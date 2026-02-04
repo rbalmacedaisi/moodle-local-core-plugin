@@ -1004,6 +1004,10 @@ try {
                     $details['questiontext'] = $text;
                 }
 
+                // Detect if question belongs to a course-level category
+                $cat_context = context::instance_by_id($qdata->contextid);
+                $details['save_to_course'] = ($cat_context->contextlevel == CONTEXT_COURSE);
+
                 $response = ['status' => 'success', 'question' => $details];
             } catch (Exception $e) {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
@@ -1436,6 +1440,19 @@ try {
                 if (!$newq) {
                     $qtypeobj = question_bank::get_qtype($question->qtype);
                     $newq = $qtypeobj->save_question($question, $form_data);
+                }
+
+                // If editing (id is present), ensure the question_bank_entry is moved if category changed
+                if (!empty($data->id)) {
+                    // In Moodle 4.0+, the category is in question_bank_entries
+                    $entryid = $DB->get_field_sql("
+                        SELECT qv.questionbankentryid 
+                        FROM {question_versions} qv 
+                        WHERE qv.questionid = :questionid", ['questionid' => $newq->id]);
+                    
+                    if ($entryid) {
+                        $DB->set_field('question_bank_entries', 'questioncategoryid', $question->category, ['id' => $entryid]);
+                    }
                 }
                 
                 // ADD TO QUIZ (Only if new to the quiz)

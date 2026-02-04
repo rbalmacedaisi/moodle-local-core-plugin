@@ -1684,6 +1684,7 @@ const QuizEditor = {
                     if (q.drops) this.newQuestion.drops = q.drops;
                     if (q.dataset) this.newQuestion.dataset = q.dataset;
                     if (q.ddbase64) this.newQuestion.ddbase64 = q.ddbase64;
+                    if (q.save_to_course !== undefined) this.newQuestion.save_to_course = q.save_to_course;
 
                     this.showAddQuestionDialog = true;
                 } else {
