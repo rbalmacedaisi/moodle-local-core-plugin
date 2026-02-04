@@ -51,13 +51,22 @@ if ($qid === 0) {
         // No, let's search for DDWTOS records.
         
         echo "<h3>Searching for ANY record in question_answers related to DDWTOS choices</h3>";
-        // Often ddwtos choices have fraction 0
-        $sql = "SELECT * FROM {question_answers} WHERE question = ?";
-        $ans = $DB->get_records_sql($sql, [$qid]);
-        echo "Direct SQL search in question_answers: " . count($ans) . " results.<br>";
+        $ans = $DB->get_records('question_answers', ['question' => $qid]);
+        echo "Direct get_records in question_answers: " . count($ans) . " results.<br>";
         if($ans) {
-             echo "<pre>" . print_r($ans, true) . "</pre>";
+             echo "<pre>" . htmlspecialchars(print_r($ans, true)) . "</pre>";
         }
+
+        echo "<h3>Listing all tables containing 'dd' or 'gap' or 'text'</h3>";
+        $all_tables = $DB->get_tables();
+        $matching = array_filter($all_tables, function($t) {
+            return strpos($t, 'dd') !== false || strpos($t, 'gap') !== false || strpos($t, 'text') !== false;
+        });
+        echo "<ul>";
+        foreach ($matching as $t) {
+            echo "<li>$t</li>";
+        }
+        echo "</ul>";
 
     } catch (Exception $e) {
         echo "<p style='color:red'>Error: " . $e->getMessage() . "</p>";
