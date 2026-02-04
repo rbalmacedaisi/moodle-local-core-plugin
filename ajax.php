@@ -1302,7 +1302,9 @@ try {
                             error_log("GMK_QUIZ_DEBUG: Choice #$no (Group $group): $text");
 
                             // Extensive mapping for all qtype variations
-                            $form_data->choices[$no] = $choice_entry;
+                            // CRITICAL FIX: Use 0-based indexing for form_data arrays to match question->answer
+                            // This prevents Moodle from corrupting [[n]] markers during save_question validation.
+                            $form_data->choices[$idx] = $choice_entry; // Was $no
                             $form_data->choice[$idx] = $choice_entry;
                             $form_data->drags[$idx] = [
                                 'label' => $text,
@@ -1310,10 +1312,10 @@ try {
                                 'infinite' => 0
                             ];
 
-                            $form_data->selectgroup[$no] = $group;
-                            $form_data->draggroup[$no] = $group;
-                            $form_data->choicegroup[$no] = $group;
-                            $form_data->draglabel[$no] = $text;
+                            $form_data->selectgroup[$idx] = $group; // Was $no
+                            $form_data->draggroup[$idx] = $group;   // Was $no
+                            $form_data->choicegroup[$idx] = $group; // Was $no
+                            $form_data->draglabel[$idx] = $text;    // Was $no
 
                             if ($data->type === 'gapselect') {
                                 $question->answer[] = $text;
