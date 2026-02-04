@@ -923,7 +923,9 @@ try {
 
                 // Type Specific Mapping
                 $raw_answers = [];
-                if (isset($qdata->answers) && !empty($qdata->answers)) {
+                if (($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect') && isset($qdata->options->choices)) {
+                    $raw_answers = $qdata->options->choices;
+                } elseif (isset($qdata->answers) && !empty($qdata->answers)) {
                     $raw_answers = $qdata->answers;
                 } elseif (isset($qdata->options->answers)) {
                     $raw_answers = $qdata->options->answers;
