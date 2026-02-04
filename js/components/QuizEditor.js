@@ -1465,10 +1465,20 @@ const QuizEditor = {
             const cleanWord = token.value.trim();
             const newTokens = [...tokens];
 
-            // 1. Add new answer
-            if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
-            this.newQuestion.answers.push({ text: cleanWord, fraction: 0.0, group: 1 });
-            const newIndex = this.newQuestion.answers.length;
+            // Reuse answer if it already exists to avoid redundant options
+            let targetIndex = -1;
+            if (this.newQuestion.answers) {
+                targetIndex = this.newQuestion.answers.findIndex(a => a.text.trim() === cleanWord);
+            }
+
+            let newIndex;
+            if (targetIndex !== -1) {
+                newIndex = targetIndex + 1;
+            } else {
+                if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
+                this.newQuestion.answers.push({ text: cleanWord, fraction: 0.0, group: 1 });
+                newIndex = this.newQuestion.answers.length;
+            }
 
             // 2. Update specifically this token
             newTokens[idx] = { type: 'gap', value: `[[${newIndex}]]`, gapIndex: newIndex };
@@ -1492,24 +1502,50 @@ const QuizEditor = {
             this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
         },
         insertGap(text) {
-            // If text is provided, use it. Otherwise try to get selection from main text editor
             let cleanText = text || '';
+            // Try to find the textarea within the DragDropTextEditor
+            const textarea = document.getElementById('question-text-area');
+            const innerTextarea = textarea ? textarea.querySelector('textarea') : null;
 
-            if (!cleanText) {
-                const textarea = document.querySelector('.v-textarea textarea');
-                if (textarea) {
-                    const start = textarea.selectionStart;
-                    const end = textarea.selectionEnd;
-                    if (start !== end) {
-                        cleanText = textarea.value.substring(start, end).trim();
-                    }
+            if (innerTextarea) {
+                const start = innerTextarea.selectionStart;
+                const end = innerTextarea.selectionEnd;
+                const fullText = this.newQuestion.questiontext;
+
+                if (!cleanText && start !== end) {
+                    cleanText = fullText.substring(start, end).trim();
                 }
-            }
 
-            this.addAnswerChoice();
-            const newIndex = this.newQuestion.answers.length;
-            this.newQuestion.answers[newIndex - 1].text = cleanText;
-            this.newQuestion.questiontext += ` [[${newIndex}]]`;
+                // Reuse logic
+                let targetIndex = -1;
+                if (cleanText && this.newQuestion.answers) {
+                    targetIndex = this.newQuestion.answers.findIndex(a => a.text.trim() === cleanText);
+                }
+
+                let newIndex;
+                if (targetIndex !== -1) {
+                    newIndex = targetIndex + 1;
+                } else {
+                    this.addAnswerChoice();
+                    newIndex = this.newQuestion.answers.length;
+                    this.newQuestion.answers[newIndex - 1].text = cleanText;
+                }
+
+                const marker = `[[${newIndex}]]`;
+                this.newQuestion.questiontext = fullText.substring(0, start) + marker + fullText.substring(end);
+
+                this.$nextTick(() => {
+                    innerTextarea.focus();
+                    const newPos = start + marker.length;
+                    innerTextarea.setSelectionRange(newPos, newPos);
+                });
+            } else {
+                // Fallback
+                this.addAnswerChoice();
+                const newIndex = this.newQuestion.answers.length;
+                this.newQuestion.answers[newIndex - 1].text = cleanText;
+                this.newQuestion.questiontext += ` [[${newIndex}]]`;
+            }
         },
         addAnswer() {
             this.addAnswerChoice();
@@ -1792,6 +1828,10 @@ const QuizEditor = {
             });
 
             return html;
+        },
+        formatToken(val) {
+            if (!val) return '';
+            return val.replace(/\n/g, '<br>');
         },
         questionTypeLabel(type) {
             const t = this.questionTypes.find(x => x.value === type);
