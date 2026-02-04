@@ -1392,9 +1392,10 @@ try {
                      // Always initialize dataset array to avoid "undefined" behavior in save_question
                      $form_data->dataset = [];
                      
-                     // 1. Auto-detect wildcards in formulas if not provided manually
+                     // 1. Auto-detect wildcards in formulas AND question text if not provided manually
                      $detected_wildcards = [];
                      if (!isset($data->dataset) || empty($data->dataset)) {
+                         // Scan Answer Formulas
                          foreach ($question->answer as $formula) {
                              if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $formula, $matches)) {
                                  foreach ($matches[1] as $wildcard) {
@@ -1402,6 +1403,15 @@ try {
                                  }
                              }
                          }
+                         // Scan Question Text (Crucial so students can see the variables)
+                         if (isset($question->questiontext['text'])) {
+                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $question->questiontext['text'], $matches)) {
+                                 foreach ($matches[1] as $wildcard) {
+                                     $detected_wildcards[$wildcard] = true;
+                                 }
+                             }
+                         }
+                         
                          // Create default definition objects for detected wildcards
                          if (!empty($detected_wildcards)) {
                              $data->dataset = [];
