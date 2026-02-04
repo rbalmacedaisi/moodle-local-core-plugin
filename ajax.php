@@ -1593,11 +1593,21 @@ try {
 
                 // Post-Save: Generate Items for Calculated Questions
                 // SELF-HEALING LOGIC: Detects what SHOULD be there and ensures it exists in DB.
-                if ($newq && strpos($data->type, 'calculated') === 0) {
+                // Relaxed condition: Check question object type OR input data type
+                $is_calculated = (isset($question->qtype) && strpos($question->qtype, 'calculated') === 0) 
+                              || (isset($data->type) && strpos($data->type, 'calculated') === 0);
+
+                if ($newq && $is_calculated) {
+                    error_log("GMK_QUIZ_DEBUG: Entering Calculated Self-Healing for QID " . $newq->id);
                     
                     // RELOAD QUESTION to ensure we have the full Moodle object structure (with options->answers)
                     // This fixes the bug where $newq->answers was undefined/empty after a save.
-                    $full_q_obj = question_bank::load_question($newq->id);
+                    try {
+                        $full_q_obj = question_bank::load_question($newq->id);
+                    } catch (Exception $e) {
+                         error_log("GMK_QUIZ_DEBUG: Error loading question for self-healing: " . $e->getMessage());
+                         $full_q_obj = $newq; // Fallback
+                    }
                     
                     // Re-detect wildcards from the FINAL question text/answers
                     $expected_wildcards = [];
