@@ -1422,6 +1422,87 @@ try {
             }
             break;
 
+        case 'local_grupomakro_get_categories':
+            try {
+                $cmid = required_param('cmid', PARAM_INT);
+                $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+                $course_context = context_course::instance($cm->course);
+                $system_context = context_system::instance();
+                
+                // Fetch categories from course and system contexts
+                $sql = "SELECT id, name, parent FROM {question_categories} 
+                        WHERE contextid IN (:coursecontext, :systemcontext)
+                        ORDER BY name ASC";
+                $categories = $DB->get_records_sql($sql, [
+                    'coursecontext' => $course_context->id,
+                    'systemcontext' => $system_context->id
+                ]);
+                
+                // Add question count for each category
+                foreach ($categories as $cat) {
+                    $cat->questioncount = $DB->count_records('question_bank_entries', ['questioncategoryid' => $cat->id]);
+                }
+                
+                $response = ['status' => 'success', 'categories' => array_values($categories)];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
+        case 'local_grupomakro_get_bank_questions':
+            try {
+                $categoryid = required_param('categoryid', PARAM_INT);
+                
+                // Moodle 4.0 Query for questions in category
+                $sql = "SELECT q.id, q.name, q.questiontext, q.qtype
+                        FROM {question} q
+                        JOIN {question_versions} qv ON qv.questionid = q.id
+                        JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                        WHERE qbe.questioncategoryid = :categoryid
+                        AND qv.version = (
+                            SELECT MAX(v.version)
+                            FROM {question_versions} v
+                            WHERE v.questionbankentryid = qbe.id
+                        )
+                        AND q.parent = 0
+                        ORDER BY q.name ASC";
+                
+                $questions = $DB->get_records_sql($sql, ['categoryid' => $categoryid]);
+                
+                $clean_questions = [];
+                foreach ($questions as $q) {
+                    $clean_questions[] = [
+                        'id' => $q->id,
+                        'name' => $q->name,
+                        'questiontext' => strip_tags($q->questiontext),
+                        'qtype' => $q->qtype
+                    ];
+                }
+                
+                $response = ['status' => 'success', 'questions' => $clean_questions];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
+        case 'local_grupomakro_add_bank_question':
+            try {
+                require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+                $cmid = required_param('cmid', PARAM_INT);
+                $questionid = required_param('questionid', PARAM_INT);
+                
+                $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
+                $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
+                
+                // Add to quiz using Moodle API
+                quiz_add_quiz_question($questionid, $quiz);
+                
+                $response = ['status' => 'success'];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
+
         case 'local_grupomakro_remove_quiz_question':
             $cmid = required_param('cmid', PARAM_INT);
             $slot = required_param('slot', PARAM_INT);
