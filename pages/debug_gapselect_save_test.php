@@ -3,6 +3,9 @@
  * Interactive Debug Page for GapSelect Saving Logic.
  * This page simulates the exact logic from ajax.php but provides granular debugging.
  */
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/questionlib.php');
 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
@@ -18,7 +21,7 @@ $PAGE->set_heading('GMK Debug: GapSelect Save Test');
 
 echo $OUTPUT->header();
 
-$action = optional_param('action', '', PARAM_ALPHA);
+$action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
 if ($action === 'run_test') {
     $raw_json = required_param('json_data', PARAM_RAW);
