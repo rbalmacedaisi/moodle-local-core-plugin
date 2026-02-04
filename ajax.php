@@ -934,13 +934,31 @@ try {
                 }
 
                 foreach ($raw_answers as $ans) {
+                    $group = 1;
+                    $infinite = 0;
+                    
+                    // Try standard fields first
+                    if (isset($ans->draggroup)) $group = (int)$ans->draggroup;
+                    elseif (isset($ans->choicegroup)) $group = (int)$ans->choicegroup;
+                    elseif (isset($ans->group)) $group = (int)$ans->group;
+                    
+                    // Fallback: Check for serialized data in feedback (Custom DDWTOS storage)
+                    if (isset($ans->feedback) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
+                        $fb_text = is_string($ans->feedback) ? $ans->feedback : ($ans->feedback->text ?? '');
+                        if (!empty($fb_text) && ($settings = @unserialize($fb_text)) !== false) {
+                             if (isset($settings->draggroup)) $group = (int)$settings->draggroup;
+                             if (isset($settings->infinite)) $infinite = (int)$settings->infinite;
+                        }
+                    }
+
                     $details['answers'][] = [
                         'id' => $ans->id,
                         'text' => (string)($ans->answer ?? ($ans->text ?? '')),
                         'fraction' => (float)($ans->fraction ?? 0),
                         'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
-                        'feedback' => is_string($ans->feedback ?? null) ? $ans->feedback : ($ans->feedback->text ?? ''),
-                        'group' => (int)($ans->draggroup ?? ($ans->choicegroup ?? ($ans->group ?? 1)))
+                        'feedback' => '', // Clean feedback for frontend (don't show serialized data)
+                        'group' => $group,
+                        'infinite' => $infinite
                     ];
                 }
 
