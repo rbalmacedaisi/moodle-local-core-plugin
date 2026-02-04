@@ -82,8 +82,12 @@ if ($action === 'run_test') {
                         'fraction' => 0
                     ];
 
-                    $form_data->choices[$no] = $choice_entry;
-                    $form_data->selectgroup[$no] = $group;
+                    // TEST: Changing form_data keys to 0-based to match question->answer
+                    $form_data->choices[$idx] = $choice_entry; // Was $no
+                    $form_data->selectgroup[$idx] = $group;   // Was $no
+                    
+                    // We also keep the 'choiceno' as 1-based inside the properties if Moodle needs it? 
+                    // But the array key is critical for iteration.
 
                     $question->answer[] = $text;
                     $question->feedback[] = $group;
