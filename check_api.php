@@ -14,3 +14,15 @@ if (class_exists('\mod_quiz\structure')) {
 } else {
     echo "<p style='color:red;'>Class \mod_quiz\structure NOT FOUND</p>";
 }
+
+if (class_exists('\mod_quiz\quiz_settings')) {
+    echo "<p style='color:green;'>Class \mod_quiz\quiz_settings FOUND</p>";
+    $methods = get_class_methods('\mod_quiz\quiz_settings');
+    echo "<ul>";
+    foreach ($methods as $m) {
+        echo "<li>$m</li>";
+    }
+    echo "</ul>";
+} else {
+    echo "<p style='color:red;'>Class \mod_quiz\quiz_settings NOT FOUND</p>";
+}
