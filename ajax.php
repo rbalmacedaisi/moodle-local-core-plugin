@@ -951,19 +951,6 @@ try {
                     }
                 }
 
-                // Fallback for answers if empty (Standard for DDWTOS/GapSelect in some Moodle versions)
-                if (empty($details['answers']) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
-                    $raw_answers = $DB->get_records('question_answers', ['question' => $qid], 'id ASC');
-                    foreach ($raw_answers as $ans) {
-                        $details['answers'][] = [
-                            'id' => $ans->id,
-                            'text' => (string)$ans->answer,
-                            'fraction' => (float)$ans->fraction,
-                            'group' => (int)($ans->feedback ? strip_tags((string)$ans->feedback) : 1)
-                        ];
-                    }
-                }
-
                 if ($qdata->qtype === 'ddimageortext' || $qdata->qtype === 'ddmarker') {
                     // Background Image URL
                     $fs = get_file_storage();
@@ -1230,13 +1217,9 @@ try {
 
                             $form_data->choices[$idx] = [
                                 'answer' => $text,
-                                'draggroup' => $group,
+                                'choicegroup' => $group,
                                 'infinite' => 0
                             ];
-                            // Also provide flattened arrays as backup
-                            $form_data->draglabel[$idx] = $text;
-                            $form_data->draggroup[$idx] = $group;
-                            $form_data->infinite[$idx] = 0;
                         }
                     }
                     
