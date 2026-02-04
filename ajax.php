@@ -944,8 +944,11 @@ try {
                     elseif (isset($ans->group)) $group = (int)$ans->group;
                     
                     // Fallback for objects returned by load_question_data
-                    if ($group === 1 && isset($ans->options) && isset($ans->options->selectgroup)) {
-                         $group = (int)$ans->options->selectgroup;
+                    if ($group === 1) {
+                         if (isset($ans->options) && isset($ans->options->selectgroup)) $group = (int)$ans->options->selectgroup;
+                         elseif (isset($ans->selectgroup)) $group = (int)$ans->selectgroup;
+                         elseif (isset($ans->choicegroup)) $group = (int)$ans->choicegroup;
+                         elseif (isset($ans->draggroup)) $group = (int)$ans->draggroup;
                     }
 
                     // Fallback: Check for serialized data in feedback
@@ -1114,7 +1117,15 @@ try {
                 $qjson = required_param('question_data', PARAM_RAW);
                 $data = json_decode($qjson);
 
-                if (!$data) throw new Exception('Invalid JSON data');
+                if (!$data) {
+                    error_log("GMK_QUIZ_ERROR: Invalid JSON received: " . $qjson);
+                    throw new Exception('Invalid JSON data');
+                }
+                
+                // DEBUG: Log the type and indices for GapSelect investigation
+                if ($data->type === 'gapselect' || $data->type === 'ddwtos') {
+                    error_log("GMK_QUIZ_DEBUG: Saving {$data->type}. Question text: " . ($data->questiontext ?? 'EMPTY'));
+                }
 
                 $cm = get_coursemodule_from_id('quiz', $cmid, 0, false, MUST_EXIST);
                 $quiz = $DB->get_record('quiz', array('id' => $cm->instance), '*', MUST_EXIST);
@@ -1313,10 +1324,15 @@ try {
                         }
                     }
                     
-                    // Assign these arrays to form_data so save_question sees them
-                    $form_data->answer = $question->answer;
-                    $form_data->feedback = $question->feedback;
-                    $form_data->fraction = $question->fraction;
+                    // Assign these arrays to both $question and form_data to ensure save_question sees them
+                    $question->choices = $form_data->choices;
+                    $question->answer = $form_data->answer;
+                    $question->feedback = $form_data->feedback;
+                    $question->fraction = $form_data->fraction;
+                    
+                    // Specific fields for qtype_gapselect_choices table
+                    $question->selectgroup = $form_data->selectgroup;
+                    $question->shuffleanswers = $form_data->shuffleanswers;
                     
                     // Combined Feedback Defaults
                     $question->correctfeedback = ['text' => '', 'format' => FORMAT_HTML];
