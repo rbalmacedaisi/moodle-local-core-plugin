@@ -1414,13 +1414,13 @@ try {
                             if ($data->type === 'ddimageortext') {
                                 $form_data->draglabel[$no] = $label;
                                 $form_data->dragitem[$no] = 0;
-                                $form_data->drags[$no] = (object)[
+                                $form_data->drags[$no] = [
                                     'draggroup' => isset($drag->group) ? (int)$drag->group : 1,
                                     'infinite' => !empty($drag->infinite) ? 1 : 0,
                                     'dragitemtype' => 'text'
                                 ];
                             } else {
-                                $form_data->drags[$no] = (object)[
+                                $form_data->drags[$no] = [
                                     'label' => $label,
                                     'noofdrags' => !empty($drag->infinite) ? 0 : 1
                                 ];
@@ -1433,14 +1433,14 @@ try {
                         foreach ($data->drops as $idx => $d) {
                             $no = $idx;
                             if ($data->type === 'ddimageortext') {
-                                $form_data->drops[$no] = (object)[
+                                $form_data->drops[$no] = [
                                     'choice' => (int)$d->choice,
                                     'xleft' => (int)$d->x,
                                     'ytop' => (int)$d->y,
                                     'droplabel' => 'drop' . ($no + 1)
                                 ];
                             } else {
-                                $form_data->drops[$no] = (object)[
+                                $form_data->drops[$no] = [
                                     'choice' => (int)$d->choice,
                                     'shape' => 'circle',
                                     'coords' => sprintf('%d,%d;15', (int)$d->x, (int)$d->y)
