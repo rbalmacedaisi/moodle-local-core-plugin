@@ -1616,6 +1616,16 @@ try {
                              }
                              error_log("GMK_QUIZ_DEBUG: Generated 10 items for dataset '{$def->name}' (Def ID: {$def->id})");
                         }
+                        
+                        // CRITICAL FIX: Ensure the question is linked to this dataset definition in `question_datasets`
+                        // Sometimes save_question fails to create this link if the dataset definition was just created.
+                        if (!$DB->record_exists('question_datasets', ['question' => $newq->id, 'datasetdefinition' => $def->id])) {
+                            $link = new stdClass();
+                            $link->question = $newq->id;
+                            $link->datasetdefinition = $def->id;
+                            $DB->insert_record('question_datasets', $link);
+                            error_log("GMK_QUIZ_DEBUG: Linked Question {$newq->id} to Dataset Def {$def->id}");
+                        }
                     }
                     // Sync question instance just in case
                     $newq = question_bank::load_question($newq->id);
