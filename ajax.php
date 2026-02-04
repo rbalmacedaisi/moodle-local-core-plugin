@@ -995,6 +995,15 @@ try {
                     }
                 }
 
+                // Reconstruct Cloze text if applicable (Moodle stores markers like {#1})
+                if ($qdata->qtype === 'multianswer' && isset($qdata->options->questions)) {
+                    $text = $qdata->questiontext;
+                    foreach ($qdata->options->questions as $seq => $subq) {
+                        $text = str_replace('{#'.$seq.'}', $subq->questiontext, $text);
+                    }
+                    $details['questiontext'] = $text;
+                }
+
                 $response = ['status' => 'success', 'question' => $details];
             } catch (Exception $e) {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
