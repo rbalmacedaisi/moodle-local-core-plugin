@@ -178,6 +178,14 @@ if ($action === 'run_test') {
                             }
                             // echo "<p>Generated 10 items for '{$def->name}'</p>";
                     }
+                    
+                    // CRITICAL MATCH with ajax.php: Ensure linkage
+                    if (!$DB->record_exists('question_datasets', ['question' => $newq->id, 'datasetdefinition' => $def->id])) {
+                        $link = new stdClass();
+                        $link->question = $newq->id;
+                        $link->datasetdefinition = $def->id;
+                        $DB->insert_record('question_datasets', $link);
+                    }
                 }
             }
 
