@@ -943,21 +943,30 @@ try {
                     elseif (isset($ans->selectgroup)) $group = (int)$ans->selectgroup;
                     elseif (isset($ans->group)) $group = (int)$ans->group;
                     
-                    // Fallback: Check for serialized data in feedback (Custom DDWTOS storage)
-                    if (isset($ans->feedback) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
-                        $fb_text = is_string($ans->feedback) ? $ans->feedback : ($ans->feedback->text ?? '');
-                        if (!empty($fb_text) && ($settings = @unserialize($fb_text)) !== false) {
-                             if (isset($settings->draggroup)) $group = (int)$settings->draggroup;
-                             if (isset($settings->infinite)) $infinite = (int)$settings->infinite;
-                        }
+                    // Fallback for objects returned by load_question_data
+                    if ($group === 1 && isset($ans->options) && isset($ans->options->selectgroup)) {
+                         $group = (int)$ans->options->selectgroup;
                     }
+
+                    // Fallback: Check for serialized data in feedback
+                    if (isset($ans->feedback) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
+                         $fb_text = is_string($ans->feedback) ? $ans->feedback : ($ans->feedback->text ?? '');
+                         if (!empty($fb_text) && ($settings = @unserialize($fb_text)) !== false) {
+                              if (isset($settings->draggroup)) $group = (int)$settings->draggroup;
+                              if (isset($settings->selectgroup)) $group = (int)$settings->selectgroup;
+                              if (isset($settings->choicegroup)) $group = (int)$settings->choicegroup;
+                              if (isset($settings->infinite)) $infinite = (int)$settings->infinite;
+                         }
+                    }
+
+                    $ans_text = (string)($ans->answer ?? ($ans->text ?? ''));
 
                     $details['answers'][] = [
                         'id' => $ans->id,
-                        'text' => (string)($ans->answer ?? ($ans->text ?? '')),
+                        'text' => $ans_text,
                         'fraction' => (float)($ans->fraction ?? 0),
                         'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
-                        'feedback' => '', // Clean feedback for frontend (don't show serialized data)
+                        'feedback' => '', 
                         'group' => $group,
                         'infinite' => $infinite
                     ];
@@ -1261,41 +1270,36 @@ try {
                             $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
                             $group = isset($ans->group) ? (int)$ans->group : 1;
 
-                            $choice_record = [
+                            $choice_entry = [
                                 'answer' => $text,
                                 'choicegroup' => $group,
                                 'selectgroup' => $group,
-                                'draggroup' => $group, // Use all for maximum compatibility
+                                'draggroup' => $group,
+                                'infinite' => 0
+                            ];
+                            if (!empty($ans->id)) $choice_entry['id'] = $ans->id;
+
+                            // Extensive mapping for all qtype variations
+                            $form_data->choices[$no] = $choice_entry;
+                            $form_data->choice[$idx] = $choice_entry;
+                            $form_data->drags[$idx] = [
+                                'label' => $text,
+                                'draggroup' => $group,
                                 'infinite' => 0
                             ];
 
-                            // Include ID if available to ensure we edit instead of recreate
-                            if (!empty($ans->id)) {
-                                $choice_record['id'] = $ans->id;
-                            }
-
-                            $form_data->choices[$no] = $choice_record;
-                            $form_data->choice[$idx] = $choice_record; // Some Moodle versions expect singular 'choice' (0-based)
-                            
-                            // Also set flattened arrays as some Moodle versions expect them this way in save_question_options
-                            $form_data->draglabel[$no] = $text;
+                            $form_data->selectgroup[$no] = $group;
                             $form_data->draggroup[$no] = $group;
                             $form_data->choicegroup[$no] = $group;
-                            $form_data->selectgroup[$no] = $group;
-                            $form_data->infinite[$no] = 0;
+                            $form_data->draglabel[$no] = $text;
 
-                            // CRITICAL FIX: Separate handling for gapselect (Standard) vs ddwtos (Custom/Serialized)
                             if ($data->type === 'gapselect') {
-                                // For standard gapselect, the 'feedback' column stores the Group ID directly.
                                 $question->answer[] = $text;
-                                $question->feedback[] =  ['text' => $group, 'format' => 0]; 
-                                // Note: Moodle might expect just the value if it's not an editor, but usually the save_question_options handles 'choices' array.
-                                // By passing 'choicegroup' in $choice_record below, standard save_question_options should pick it up.
-                                // However, populating $question->feedback ensures compatibility if save_question uses it directly.
+                                $question->feedback[] = ['text' => $group, 'format' => 0]; 
                             } else {
-                                // For ddwtos (Custom implementation), use serialized settings in feedback
                                 $extra_settings = new stdClass();
                                 $extra_settings->draggroup = $group;
+                                $extra_settings->selectgroup = $group;
                                 $extra_settings->infinite = 0;
                                 $question->answer[] = $text;
                                 $question->feedback[] = ['text' => serialize($extra_settings), 'format' => 0];
