@@ -3,54 +3,81 @@
  */
 const DragDropTextEditor = {
     template: `
-        <div class="gmk-gap-editor">
-            <v-alert type="info" text border="left" class="mb-4 rounded-xl">
-                <div class="d-flex align-center">
-                    <div>
-                        Haz clic en las palabras del texto para convertirlas en <b>Huecos</b>.
-                        Las opciones de respuesta se crearán automáticamente abajo.
-                    </div>
-                    <v-spacer></v-spacer>
-                    <v-btn small depressed color="indigo" dark class="rounded-lg" @click="$emit('insert-gap')">
-                        <v-icon left small>mdi-plus-circle</v-icon> Insertar Hueco
-                    </v-btn>
+        <div class="gmk-gap-editor mt-4">
+            <v-alert colored-border border="left" color="indigo" class="mb-4 elevation-1" text>
+                <div class="d-flex align-baseline">
+                    <v-icon color="indigo" small class="mr-2">mdi-auto-fix</v-icon>
+                    <span class="text-caption">Escribe tu texto y usa el <strong>Selector Visual</strong> de abajo para convertir palabras en huecos con un solo clic.</span>
                 </div>
             </v-alert>
 
-            <v-card outlined class="rounded-xl pa-4 bg-light mb-6">
-                 <div class="d-flex align-center mb-2">
-                    <v-icon x-small color="grey" class="mr-1">mdi-cursor-default-click</v-icon>
-                    <span class="caption font-weight-bold grey--text">EDITOR VISUAL (CLIC EN PALABRAS)</span>
+            <!-- Text Area for main content -->
+            <div class="mb-4">
+                <div class="d-flex justify-space-between align-center mb-1">
+                    <span class="caption font-weight-bold grey--text text-uppercase">TEXTO DEL ENUNCIADO</span>
+                </div>
+                <v-textarea
+                    :value="questiontext"
+                    @input="$emit('update:questiontext', $event)"
+                    outlined
+                    dense
+                    rows="6"
+                    hide-details
+                    placeholder="Escribe el párrafo aquí. Luego usa el selector de abajo..."
+                    id="question-text-area"
+                    class="rounded-xl custom-editor shadow-sm mb-4"
+                    background-color="white"
+                ></v-textarea>
+            </div>
+
+            <v-card outlined class="rounded-xl pa-4 bg-light mb-6 border shadow-sm">
+                <div class="d-flex justify-space-between align-center mb-3">
+                    <div class="d-flex align-center">
+                        <v-icon color="indigo" small class="mr-2">mdi-gesture-tap</v-icon>
+                        <span class="caption indigo--text font-weight-bold text-uppercase">SELECTOR VISUAL HUECOS (Haz clic en palabras)</span>
+                    </div>
+                    <div>
+                        <v-btn x-small depressed color="indigo" dark class="rounded-lg px-2" @click="$emit('insert-gap')">
+                            <v-icon left x-small>mdi-plus-circle</v-icon> Insertar Hueco
+                        </v-btn>
+                    </div>
                 </div>
 
-                <div class="tokens-container d-flex flex-wrap gap-1 pa-3 bg-white rounded-lg border min-height-100">
-                    <v-chip 
-                        v-for="(token, idx) in tokens" 
-                        :key="idx"
-                        small
-                        :color="token.type === 'gap' ? getGapColor(token.gapIndex) : 'transparent'"
-                        :text-color="token.type === 'gap' ? 'white' : 'black'"
-                        :class="['ma-1 rounded-lg', token.type === 'gap' ? 'elevation-1' : '']"
-                        style="height: auto; padding: 4px 8px;"
-                    >
-                        <span v-if="token.type === 'text'" class="body-2" @click="$emit('convert-to-gap', idx)" style="cursor: pointer;">
-                            <span v-html="formatToken(token.value)"></span>
+                <div class="tokens-container d-flex flex-wrap gap-1 pa-3 bg-white rounded-lg border min-height-100 word-selector-area">
+                    <template v-for="(token, idx) in tokens">
+                        <span v-if="token.type === 'text'"
+                              :key="'tw'+idx"
+                              class="token-word cursor-pointer"
+                              @click="$emit('convert-to-gap', idx)"
+                              v-html="formatToken(token.value)">
                         </span>
                         
-                        <v-btn v-if="token.type === 'gap'" x-small icon color="white" class="mr-1" @click.stop="$emit('revert-to-text', idx)">
-                            <v-icon x-small>mdi-close-circle</v-icon>
-                        </v-btn>
-                        <strong v-if="token.type === 'gap'" @click.stop="scrollToAnswer(token.gapIndex)" style="cursor: pointer;">
+                        <v-chip 
+                            v-else
+                            :key="'tg'+idx"
+                            small
+                            label
+                            class="mx-1 px-2 token-gap shadow-sm white--text font-weight-bold"
+                            :color="getGroupColorHex(getGroupForGap(token.gapIndex))"
+                            close
+                            close-icon="mdi-close-circle"
+                            @click:close="$emit('revert-to-text', idx)"
+                            @click="scrollToAnswer(token.gapIndex)"
+                        >
+                            <v-icon left x-small color="white">mdi-puzzle</v-icon>
                             [[{{token.gapIndex}}]] {{ getGapShortText(token.gapIndex) }}
-                        </strong>
-                    </v-chip>
+                        </v-chip>
+                    </template>
+                </div>
+                <div class="mt-2 caption grey--text italic">
+                    Haz clic en las palabras de arriba para convertirlas automáticamente en huecos.
                 </div>
             </v-card>
 
             <div class="mt-4 answers-grid">
-                <v-subheader class="px-0 font-weight-bold grey--text text--darken-2">
+                <v-subheader class="px-0 font-weight-bold grey--text text--darken-2 text-uppercase">
                     OPCIONES DE RESPUESTA
-                    <v-chip x-small class="ml-2">{{ answers.length }} definidas</v-chip>
+                    <v-chip x-small class="ml-2 grey lighten-3">{{ answers.length }} definidas</v-chip>
                 </v-subheader>
                 
                 <div v-for="(ans, i) in answers" :key="'gapans'+i" :id="'ans-idx-'+(i+1)" class="mb-3 pa-3 border rounded-xl bg-white shadow-sm hover-elevate transition-all border-left-lg" :style="{ borderLeftColor: getGroupColorHex(ans.group || 1) }">
@@ -98,17 +125,12 @@ const DragDropTextEditor = {
             </div>
         </div>
     `,
-    props: ['tokens', 'answers'],
+    props: ['tokens', 'answers', 'questiontext'],
     methods: {
         formatToken(val) { return val ? val.replace(/\n/g, '<br>') : ''; },
-        getGapColor(idx) {
+        getGroupForGap(idx) {
             const ans = this.answers[idx - 1];
-            const group = ans ? (ans.group || 1) : 1;
-            return this.getGroupColorClass(group);
-        },
-        getGroupColorClass(group) {
-            const classes = { 1: 'blue', 2: 'green', 3: 'red', 4: 'orange', 5: 'purple' };
-            return classes[group] || 'blue';
+            return ans ? (ans.group || 1) : 1;
         },
         getGroupColorHex(group) {
             const colors = { 1: '#1976D2', 2: '#4CAF50', 3: '#FF5252', 4: '#FB8C00', 5: '#9C27B0' };
@@ -123,7 +145,7 @@ const DragDropTextEditor = {
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 el.style.backgroundColor = '#E8EAF6';
-                setTimeout(() => { el.style.backgroundColor = 'white'; }, 2000);
+                setTimeout(() => { if (el) el.style.backgroundColor = 'white'; }, 2000);
             }
         }
     }

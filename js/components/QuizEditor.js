@@ -257,33 +257,6 @@ const QuizEditor = {
 
 
 
-                        <!-- Gap Select / DD to Text -->
-                        <div v-else-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'">
-                            <v-alert colored-border border="left" color="primary" class="mb-4 elevation-1" text>
-                                <div class="d-flex align-baseline">
-                                    <v-icon color="primary" small class="mr-2">mdi-auto-fix</v-icon>
-                                    <span class="text-caption">Escribe tu texto y usa el <strong>Selector Visual</strong> de abajo para convertir palabras en huecos con un solo clic.</span>
-                                </div>
-                            </v-alert>
-
-                            <!-- Text Editor with Tool -->
-                            <div class="mb-4">
-                                <div class="d-flex justify-space-between align-center mb-1">
-                                    <span class="caption font-weight-bold grey--text">TEXTO DEL ENUNCIADO</span>
-                                </div>
-                                <v-textarea
-                                    v-model="newQuestion.questiontext"
-                                    outlined
-                                    dense
-                                    rows="4"
-                                    hide-details
-                                    placeholder="Escribe el párrafo aquí. Luego usa el selector de abajo..."
-                                    id="question-text-area"
-                                    class="rounded-lg shadow-sm"
-                                ></v-textarea>
-                            </div>
-
-                        </div>
 
 
 
@@ -1111,6 +1084,7 @@ const QuizEditor = {
                             v-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'"
                             :tokens="tokens"
                             :answers="newQuestion.answers"
+                            :questiontext.sync="newQuestion.questiontext"
                             @insert-gap="insertGap"
                             @convert-to-gap="convertToGap"
                             @revert-to-text="revertToText"
@@ -1118,21 +1092,6 @@ const QuizEditor = {
                             @remove-answer="removeAnswer"
                         ></drag-drop-text-editor>
 
-                        <!-- MultiAnswer (CLOZE) WIZARD -->
-                        <cloze-editor
-                            v-if="newQuestion.type === 'multianswer'"
-                            :tokens="clozeTokens"
-                            @open-wizard="openClozeWizard"
-                            @convert-to-gap="convertClozeToGap"
-                            @revert-to-text="revertClozeToText"
-                        ></cloze-editor>
-
-                        <!-- Cloze Wizard component -->
-                        <cloze-wizard
-                            v-model="clozeDialog"
-                            :wizard="clozeWizard"
-                            @insert="insertCloze"
-                        ></cloze-wizard>
 
                         <!-- Fallback for complex types -->
                         <div v-else>
@@ -1524,25 +1483,13 @@ const QuizEditor = {
 
             const newIndex = token.gapIndex;
             const answer = this.newQuestion.answers[newIndex - 1];
-            const originalText = answer ? answer.text : `[${newIndex}]`;
+            const originalText = answer ? (answer.text || `[[${newIndex}]]`) : `[[${newIndex}]]`;
 
             const newTokens = [...tokens];
             newTokens[idx] = { type: 'text', value: originalText };
 
-            // Remove answer
-            this.newQuestion.answers.splice(newIndex - 1, 1);
-
-            // Rebuild questiontext while shifting subsequent gap indices
-            this.newQuestion.questiontext = newTokens.map(t => {
-                if (t.type === 'gap' && !t.isCloze) {
-                    let n = t.gapIndex;
-                    if (n > newIndex) {
-                        n--;
-                        return `[[${n}]]`;
-                    }
-                }
-                return t.value;
-            }).join('');
+            // CRITICAL: We don't shift indices or delete answers to avoid data corruption
+            this.newQuestion.questiontext = newTokens.map(t => t.value).join('');
         },
         insertGap(text) {
             // If text is provided, use it. Otherwise try to get selection from main text editor
@@ -1804,116 +1751,6 @@ const QuizEditor = {
                 console.error('Error: ', error);
             };
         },
-        insertGap() {
-            const textarea = document.getElementById('question-text-area');
-            if (!textarea) return;
-
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const text = this.newQuestion.questiontext;
-            const selectedText = text.substring(start, end);
-
-            this.addAnswerChoice();
-            const gapNumber = this.newQuestion.answers.length;
-
-            // If text was selected, put it in the answer choice automatically
-            if (selectedText && selectedText.trim().length > 0) {
-                this.newQuestion.answers[gapNumber - 1].text = selectedText.trim();
-            }
-
-            const marker = `[[${gapNumber}]]`;
-
-            this.newQuestion.questiontext = text.substring(0, start) + marker + text.substring(end);
-
-            this.$nextTick(() => {
-                textarea.focus();
-                const newPos = start + marker.length;
-                textarea.setSelectionRange(newPos, newPos);
-            });
-        },
-        convertToGap(tokenIdx) {
-            const token = this.tokenizedText[tokenIdx];
-            if (token.type !== 'text' || token.value.trim().length === 0) return;
-
-            // Find position in original string
-            // This is tricky because same word can appear multiple times.
-            // Better: Re-build text from tokens.
-            const newTokens = [...this.tokenizedText];
-            this.addAnswerChoice();
-            const gapNum = this.newQuestion.answers.length;
-            this.newQuestion.answers[gapNum - 1].text = token.value.trim();
-
-            newTokens[tokenIdx] = { type: 'gap', value: `[[${gapNum}]]`, gapIndex: gapNum };
-            this.rebuildTextFromTokens(newTokens);
-        },
-        revertToText(tokenIdx) {
-            const token = this.tokenizedText[tokenIdx];
-            if (token.type !== 'gap') return;
-
-            const newTokens = [...this.tokenizedText];
-            const gapText = this.newQuestion.answers[token.gapIndex - 1].text || ('Hueco ' + token.gapIndex);
-
-            newTokens[tokenIdx] = { type: 'text', value: gapText };
-
-            // Also optionally remove answer choice if it's the last one or something?
-            // Moodle keeps gaps consistent, usually better just to revert the tag.
-
-            this.rebuildTextFromTokens(newTokens);
-        },
-        rebuildTextFromTokens(tokens) {
-            // Identify which gap indexes are currently present in the tokens
-            const usedGapIndexes = [];
-            const tokensList = Array.isArray(tokens) ? tokens : this.tokenizedText;
-
-            tokensList.forEach(t => {
-                if (t.type === 'gap' && !usedGapIndexes.includes(t.gapIndex)) {
-                    usedGapIndexes.push(t.gapIndex);
-                }
-            });
-
-            // For DDWTOS and GapSelect, we sync answer choices with used gaps
-            if (this.newQuestion.type === 'ddwtos' || this.newQuestion.type === 'gapselect') {
-                const oldAnswers = [...this.newQuestion.answers];
-                const newAnswers = [];
-                const indexMapping = {}; // Old Index (1-based) -> New Index (1-based)
-
-                // Sort based on appearance or just keep relative order of used ones
-                // Let's keep relative order of appearance for better UX
-                let currentNewIdx = 1;
-                tokensList.forEach(t => {
-                    if (t.type === 'gap' && !indexMapping[t.gapIndex]) {
-                        newAnswers.push(oldAnswers[t.gapIndex - 1]);
-                        indexMapping[t.gapIndex] = currentNewIdx++;
-                    }
-                });
-
-                // Update tokens with target mapping
-                tokensList.forEach(t => {
-                    if (t.type === 'gap') {
-                        const newIdx = indexMapping[t.gapIndex];
-                        t.gapIndex = newIdx;
-                        t.value = `[[${newIdx}]]`;
-                    }
-                });
-
-                this.newQuestion.answers = newAnswers;
-                this.newQuestion.questiontext = tokensList.map(t => t.value).join('');
-            } else {
-                this.newQuestion.questiontext = tokensList.map(t => t.value).join('');
-            }
-        },
-        formatToken(val) {
-            return val.replace(/\n/g, '<br>');
-        },
-        getGapShortText(idx) {
-            const ans = this.newQuestion.answers[idx - 1];
-            return (ans && ans.text) ? ans.text : `[${idx}]`;
-        },
-        getGapColorClass(idx) {
-            const ans = this.newQuestion.answers[idx - 1];
-            const group = (ans && ans.group) ? ans.group : 1;
-            return `gmk-group-${group}`;
-        },
         getGroupColorHex(group) {
             const colors = {
                 1: '#1976D2',
@@ -2023,9 +1860,7 @@ const QuizEditor = {
     components: {
         draggable: typeof vuedraggable !== 'undefined' ? (vuedraggable.default || vuedraggable) : null,
         'question-bank-dialog': window.QuestionBankDialog,
-        'drag-drop-text-editor': window.DragDropTextEditor,
-        'cloze-editor': window.ClozeEditor,
-        'cloze-wizard': window.ClozeWizard
+        'drag-drop-text-editor': window.DragDropTextEditor
     },
     created() {
         if (this.config) {
