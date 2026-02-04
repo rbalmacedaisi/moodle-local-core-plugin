@@ -1233,14 +1233,24 @@ try {
 
                     if (isset($data->answers) && is_array($data->answers)) {
                         foreach ($data->answers as $idx => $ans) {
+                            $no = $idx + 1; // Moodle forms usually use 1-based indexing
                             $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
                             $group = isset($ans->group) ? (int)$ans->group : 1;
 
-                            $form_data->choices[$idx] = [
+                            $choice_data = [
                                 'answer' => $text,
                                 'choicegroup' => $group,
+                                'draggroup' => $group, // Use both for maximum compatibility
                                 'infinite' => 0
                             ];
+
+                            $form_data->choices[$no] = $choice_data;
+                            
+                            // Also set flattened arrays as some Moodle versions expect them this way in save_question_options
+                            $form_data->draglabel[$no] = $text;
+                            $form_data->draggroup[$no] = $group;
+                            $form_data->choicegroup[$no] = $group;
+                            $form_data->infinite[$no] = 0;
                         }
                     }
                     

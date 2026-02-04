@@ -16,32 +16,10 @@ $qdata = question_bank::load_question_data($qid);
 echo "QUESTION ID: $qid\n";
 echo "QTYPE: {$qdata->qtype}\n";
 
-echo "\n--- TOP LEVEL ---\n";
-foreach ($qdata as $key => $val) {
-    if (!is_array($val) && !is_object($val)) {
-        echo "$key: $val\n";
-    } else {
-        echo "$key: [" . gettype($val) . "]\n";
-    }
-}
-
-if (isset($qdata->answers)) {
-    echo "\n--- ANSWERS (" . count($qdata->answers) . ") ---\n";
-    print_r($qdata->answers);
-}
-
-if (isset($qdata->options)) {
-    echo "\n--- OPTIONS ---\n";
-    foreach ($qdata->options as $key => $val) {
-        if (!is_array($val) && !is_object($val)) {
-            echo "$key: $val\n";
-        } else {
-            echo "$key: [" . gettype($val) . "]\n";
-        }
-    }
-    
-    if (isset($qdata->options->choices)) {
-        echo "\n--- OPTIONS->CHOICES (" . count($qdata->options->choices) . ") ---\n";
-        print_r($qdata->options->choices);
+if (isset($qdata->options->choices)) {
+    echo "\n--- OPTIONS->CHOICES (" . count($qdata->options->choices) . ") ---\n";
+    foreach ($qdata->options->choices as $id => $choice) {
+        echo "Choice ID $id:\n";
+        print_r($choice);
     }
 }
