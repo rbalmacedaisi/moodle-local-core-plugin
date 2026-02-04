@@ -951,11 +951,16 @@ try {
                     // Fallback: Check for serialized data in feedback
                     if (isset($ans->feedback) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
                          $fb_text = is_string($ans->feedback) ? $ans->feedback : ($ans->feedback->text ?? '');
-                         if (!empty($fb_text) && ($settings = @unserialize($fb_text)) !== false) {
-                              if (isset($settings->draggroup)) $group = (int)$settings->draggroup;
-                              if (isset($settings->selectgroup)) $group = (int)$settings->selectgroup;
-                              if (isset($settings->choicegroup)) $group = (int)$settings->choicegroup;
-                              if (isset($settings->infinite)) $infinite = (int)$settings->infinite;
+                         if (!empty($fb_text)) {
+                              if (($settings = @unserialize($fb_text)) !== false) {
+                                   if (isset($settings->draggroup)) $group = (int)$settings->draggroup;
+                                   if (isset($settings->selectgroup)) $group = (int)$settings->selectgroup;
+                                   if (isset($settings->choicegroup)) $group = (int)$settings->choicegroup;
+                                   if (isset($settings->infinite)) $infinite = (int)$settings->infinite;
+                              } elseif (is_numeric($fb_text)) {
+                                   // GapSelect usually stores the group number directly in feedback text in some cases
+                                   $group = (int)$fb_text;
+                              }
                          }
                     }
 
@@ -1295,14 +1300,14 @@ try {
 
                             if ($data->type === 'gapselect') {
                                 $question->answer[] = $text;
-                                $question->feedback[] = ['text' => $group, 'format' => 0]; 
+                                $question->feedback[] = $group; // GapSelect expects the group number directly
                             } else {
                                 $extra_settings = new stdClass();
                                 $extra_settings->draggroup = $group;
                                 $extra_settings->selectgroup = $group;
                                 $extra_settings->infinite = 0;
                                 $question->answer[] = $text;
-                                $question->feedback[] = ['text' => serialize($extra_settings), 'format' => 0];
+                                $question->feedback[] = serialize($extra_settings); // DDWTOS might expect serialized if using custom fields
                             }
                             $question->fraction[] = 0.0;
                         }
