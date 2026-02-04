@@ -1431,8 +1431,18 @@ const QuizEditor = {
                 }
             } else if (newType.startsWith('calculated')) {
                 const minAnswers = (newType === 'calculatedmulti') ? 2 : 1;
+                const maxAnswers = (newType === 'calculatedmulti') ? 100 : 1;
+
+                // Add missing answers
                 while (this.newQuestion.answers.length < minAnswers) {
                     this.addAnswerChoice();
+                }
+
+                // Trim excess answers for single-answer calculated types
+                if (newType === 'calculated' || newType === 'calculatedsimple') {
+                    if (this.newQuestion.answers.length > 1) {
+                        this.newQuestion.answers = this.newQuestion.answers.slice(0, 1);
+                    }
                 }
             }
         }
