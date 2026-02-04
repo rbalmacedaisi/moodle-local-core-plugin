@@ -43,41 +43,42 @@ if ($qid === 0) {
         echo "</pre>";
 
         echo "<h3>3. Database Search (Exhaustive)</h3>";
-        $tables = $DB->get_tables();
+        $prefix = $DB->get_prefix();
         
-        // Include core tables that might hold answer data
-        $system_tables = ['question_answers', 'question_hints', 'question_multianswer'];
-        $relevant_tables = array_filter($tables, function($t) use ($system_tables) {
-            return strpos($t, 'qtype_') !== false || in_array($t, $system_tables);
-        });
+        $tables_to_check = [
+            'question_answers', 
+            'question_hints', 
+            'qtype_ddwtos', 
+            'qtype_gapselect'
+        ];
 
         echo "<ul>";
-        foreach ($relevant_tables as $table) {
-            $column_info = $DB->get_columns($table);
-            $col_name = '';
-            if (isset($column_info['questionid'])) $col_name = 'questionid';
-            elseif (isset($column_info['question'])) $col_name = 'question';
+        foreach ($tables_to_check as $short_table) {
+            if ($DB->get_manager()->table_exists($short_table)) {
+                $column_info = $DB->get_columns($short_table);
+                $col_name = isset($column_info['questionid']) ? 'questionid' : (isset($column_info['question']) ? 'question' : '');
 
-            if ($col_name) {
-                $count = $DB->count_records($table, [$col_name => $qid]);
-                if ($count > 0) {
-                    echo "<li><strong>$table</strong>: Found $count records. Data:<br>";
-                    $records = $DB->get_records($table, [$col_name => $qid]);
-                    echo "<pre>" . htmlspecialchars(print_r($records, true)) . "</pre>";
+                if ($col_name) {
+                    $records = $DB->get_records($short_table, [$col_name => $qid]);
+                    echo "<li><strong>$short_table</strong>: Found " . count($records) . " records.<br>";
+                    if (!empty($records)) {
+                        echo "<pre>" . htmlspecialchars(print_r($records, true)) . "</pre>";
+                    }
                     echo "</li>";
+                } else {
+                    echo "<li><strong>$short_table</strong>: Table exists but no questionid/question column found.</li>";
                 }
+            } else {
+                echo "<li><strong>$short_table</strong>: Table does not exist (checked with prefix '$prefix').</li>";
             }
         }
         echo "</ul>";
 
-        // Specialized check for gapselect/ddwtos related tables
-        echo "<h3>4. GapSelect/DDWTOS Specific Check</h3>";
-        $gap_tables = ['qtype_gapselect', 'qtype_ddwtos'];
-        foreach ($gap_tables as $table) {
-            if ($DB->get_manager()->table_exists($table)) {
-                $rec = $DB->get_record($table, ['questionid' => $qid]);
-                echo "<strong>$table</strong> detail: <pre>" . htmlspecialchars(print_r($rec, true)) . "</pre>";
-            }
+        echo "<h3>4. Answer Mapping Test</h3>";
+        $raw_answers = $DB->get_records('question_answers', ['question' => $qid]);
+        echo "Found in question_answers: " . count($raw_answers) . "<br>";
+        foreach($raw_answers as $ra) {
+            echo " - ID: {$ra->id}, Answer: " . htmlspecialchars($ra->answer) . "<br>";
         }
 
     } catch (Exception $e) {
