@@ -1237,16 +1237,15 @@ try {
                             $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
                             $group = isset($ans->group) ? (int)$ans->group : 1;
 
-                            $choice_record = [
-                                'answer' => $text,
-                                'choicegroup' => $group,
-                                'draggroup' => $group, // Use both for maximum compatibility
-                                'infinite' => 0
-                            ];
+                            $choice_record = new stdClass();
+                            $choice_record->answer = $text;
+                            $choice_record->choicegroup = $group;
+                            $choice_record->draggroup = $group; // Use both for maximum compatibility
+                            $choice_record->infinite = 0;
 
                             // Include ID if available to ensure we edit instead of recreate
                             if (!empty($ans->id)) {
-                                $choice_record['id'] = $ans->id;
+                                $choice_record->id = $ans->id;
                             }
 
                             $form_data->choices[$no] = $choice_record;
