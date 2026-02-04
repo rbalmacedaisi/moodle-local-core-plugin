@@ -934,11 +934,11 @@ try {
                 foreach ($raw_answers as $ans) {
                     $details['answers'][] = [
                         'id' => $ans->id,
-                        'text' => (string)($ans->answer ?? ''),
+                        'text' => (string)($ans->answer ?? ($ans->text ?? '')),
                         'fraction' => (float)($ans->fraction ?? 0),
                         'tolerance' => isset($ans->tolerance) ? (float)$ans->tolerance : 0,
                         'feedback' => is_string($ans->feedback ?? null) ? $ans->feedback : ($ans->feedback->text ?? ''),
-                        'group' => (int)($ans->draggroup ?? ($ans->group ?? 1))
+                        'group' => (int)($ans->draggroup ?? ($ans->choicegroup ?? ($ans->group ?? 1)))
                     ];
                 }
 
@@ -1457,7 +1457,20 @@ try {
                 
                 // ADD TO QUIZ (Only if new to the quiz)
                 if (empty($data->id)) {
-                    if (!$DB->record_exists('quiz_slots', ['quizid' => $quiz->id, 'questionid' => $newq->id])) {
+                    // Moodle 4.0+: Check if question is already in the quiz using proper joins
+                    $already_in_quiz = $DB->record_exists_sql("
+                        SELECT s.id 
+                        FROM {quiz_slots} s
+                        JOIN {question_references} qr ON qr.itemid = s.id
+                        JOIN {question_bank_entries} qbe ON qbe.id = qr.questionbankentryid
+                        JOIN {question_versions} qv ON qv.questionbankentryid = qbe.id
+                        WHERE s.quizid = :quizid 
+                        AND qv.questionid = :questionid
+                        AND qr.component = 'mod_quiz'
+                        AND qr.questionarea = 'slot'
+                    ", ['quizid' => $quiz->id, 'questionid' => $newq->id]);
+
+                    if (!$already_in_quiz) {
                         quiz_add_quiz_question($newq->id, $quiz);
                     }
                 }
