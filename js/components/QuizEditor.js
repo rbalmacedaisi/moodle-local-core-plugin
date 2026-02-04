@@ -1,3 +1,55 @@
+const DragDropTextEditor = {
+    props: ['tokens', 'answers'],
+    template: `
+        <div class="mb-4">
+            <div class="d-flex flex-wrap pa-4 rounded-lg grey lighten-5 border" style="gap: 8px; line-height: 2.5; align-items: center;">
+                <template v-for="(token, i) in tokens">
+                    <v-chip
+                        v-if="token.type === 'gap'"
+                        :key="i"
+                        color="primary"
+                        text-color="white"
+                        label
+                        close
+                        @click:close="$emit('revert-to-text', token)"
+                        small
+                        class="ma-1 font-weight-bold"
+                    >
+                        [[{{ token.gapIndex }}]] {{ getAnswerText(token.gapIndex) }}
+                    </v-chip>
+                    <span 
+                        v-else 
+                        :key="i" 
+                        class="d-inline-block px-1 rounded hover-bg-blue cursor-pointer transition-swing"
+                        @click="$emit('convert-to-gap', token)"
+                        title="Clic para convertir en hueco"
+                        style="border-bottom: 2px dashed #ccc; user-select: none;"
+                        @mouseover="$event.target.style.backgroundColor = '#e3f2fd'; $event.target.style.borderColor = '#2196f3'"
+                        @mouseleave="$event.target.style.backgroundColor = 'transparent'; $event.target.style.borderColor = '#ccc'"
+                    >
+                        {{ token.value }}
+                    </span>
+                </template>
+            </div>
+            <div class="d-flex justify-space-between align-center mt-2">
+                 <div class="caption grey--text">
+                    <v-icon x-small color="primary">mdi-cursor-default-click</v-icon> Haz clic en las palabras para convertirlas en huecos.
+                </div>
+                 <v-btn x-small text color="primary" @click="$emit('add-answer')">
+                    <v-icon left x-small>mdi-plus</v-icon> Añadir Opción Extra (Distractor)
+                </v-btn>
+            </div>
+           
+        </div>
+    `,
+    methods: {
+        getAnswerText(index) {
+            if (!this.answers || !this.answers[index - 1]) return '???';
+            return this.answers[index - 1].text;
+        }
+    }
+};
+
 const QuizEditor = {
     template: `
         <v-app style="background: transparent; min-height: auto;">
@@ -1330,6 +1382,7 @@ const QuizEditor = {
                     }
                 });
             });
+            return tokens;
         },
         tokens() { return this.tokenizedText; },
         previewHtml() { return ''; }
@@ -1480,6 +1533,50 @@ const QuizEditor = {
             } finally {
                 this.loading = false;
             }
+        },
+        // Gap Select / DDWTOS Methods
+        convertToGap(token) {
+            // 1. Add new answer
+            if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
+            this.newQuestion.answers.push({ text: token.value.trim(), fraction: 0.0, group: 1 });
+            const newIndex = this.newQuestion.answers.length;
+
+            // 2. Replace text in questiontext
+            // Use replace first occurrence
+            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(token.value, `[[${newIndex}]]`);
+        },
+        revertToText(token) {
+            const index = token.gapIndex;
+            const answer = this.newQuestion.answers[index - 1];
+            if (!answer) return;
+
+            // Restore text
+            const regex = new RegExp(`\\[\\[${index}\\]\\]`);
+            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(regex, answer.text);
+
+            // Remove answer and shift indices
+            this.newQuestion.answers.splice(index - 1, 1);
+
+            // Shift indices in text for all subsequent gaps
+            this.newQuestion.questiontext = this.newQuestion.questiontext.replace(/\[\[(\d+)\]\]/g, (match, p1) => {
+                const n = parseInt(p1);
+                if (n > index) return `[[${n - 1}]]`;
+                if (n === index) return match; // Should be gone, but just in case
+                return match;
+            });
+        },
+        insertGap(text) {
+            // Not strictly used by click interactions but good to have
+            this.addAnswerChoice();
+            const newIndex = this.newQuestion.answers.length;
+            this.newQuestion.answers[newIndex - 1].text = text || '';
+            this.newQuestion.questiontext += ` [[${newIndex}]]`;
+        },
+        addAnswer() {
+            this.addAnswerChoice();
+        },
+        removeAnswer(index) {
+            this.removeAnswerChoice(index);
         },
         addAnswerChoice() {
             if (!this.newQuestion.answers) this.$set(this.newQuestion, 'answers', []);
@@ -1934,7 +2031,7 @@ const QuizEditor = {
     components: {
         draggable: typeof vuedraggable !== 'undefined' ? (vuedraggable.default || vuedraggable) : null,
         'question-bank-dialog': window.QuestionBankDialog,
-        'drag-drop-text-editor': window.DragDropTextEditor,
+        'drag-drop-text-editor': DragDropTextEditor,
         'cloze-editor': window.ClozeEditor,
         'cloze-wizard': window.ClozeWizard
     },
