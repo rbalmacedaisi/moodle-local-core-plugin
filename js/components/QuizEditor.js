@@ -1,54 +1,56 @@
-const DragDropTextEditor = {
-    props: ['tokens', 'answers'],
-    template: `
-        <div class="mb-4">
-            <div class="d-flex flex-wrap pa-4 rounded-lg grey lighten-5 border" style="gap: 8px; line-height: 2.5; align-items: center;">
-                <template v-for="(token, i) in tokens">
-                    <v-chip
-                        v-if="token.type === 'gap'"
-                        :key="i"
-                        color="primary"
-                        text-color="white"
-                        label
-                        close
-                        @click:close="$emit('revert-to-text', token)"
-                        small
-                        class="ma-1 font-weight-bold"
-                    >
-                        [[{{ token.gapIndex }}]] {{ getAnswerText(token.gapIndex) }}
-                    </v-chip>
-                    <span 
-                        v-else 
-                        :key="i" 
-                        class="d-inline-block px-1 rounded hover-bg-blue cursor-pointer transition-swing"
-                        @click="$emit('convert-to-gap', token)"
-                        title="Clic para convertir en hueco"
-                        style="border-bottom: 2px dashed #ccc; user-select: none;"
-                        @mouseover="$event.target.style.backgroundColor = '#e3f2fd'; $event.target.style.borderColor = '#2196f3'"
-                        @mouseleave="$event.target.style.backgroundColor = 'transparent'; $event.target.style.borderColor = '#ccc'"
-                    >
-                        {{ token.value }}
-                    </span>
-                </template>
-            </div>
-            <div class="d-flex justify-space-between align-center mt-2">
-                 <div class="caption grey--text">
-                    <v-icon x-small color="primary">mdi-cursor-default-click</v-icon> Haz clic en las palabras para convertirlas en huecos.
+if (typeof window.DragDropTextEditor === 'undefined') {
+    window.DragDropTextEditor = {
+        props: ['tokens', 'answers'],
+        template: `
+            <div class="mb-4">
+                <div class="d-flex flex-wrap pa-4 rounded-lg grey lighten-5 border" style="gap: 8px; line-height: 2.5; align-items: center;">
+                    <template v-for="(token, i) in tokens">
+                        <v-chip
+                            v-if="token.type === 'gap'"
+                            :key="i"
+                            color="primary"
+                            text-color="white"
+                            label
+                            close
+                            @click:close="$emit('revert-to-text', token)"
+                            small
+                            class="ma-1 font-weight-bold"
+                        >
+                            [[{{ token.gapIndex }}]] {{ getAnswerText(token.gapIndex) }}
+                        </v-chip>
+                        <span 
+                            v-else 
+                            :key="i" 
+                            class="d-inline-block px-1 rounded hover-bg-blue cursor-pointer transition-swing"
+                            @click="$emit('convert-to-gap', token)"
+                            title="Clic para convertir en hueco"
+                            style="border-bottom: 2px dashed #ccc; user-select: none;"
+                            @mouseover="$event.target.style.backgroundColor = '#e3f2fd'; $event.target.style.borderColor = '#2196f3'"
+                            @mouseleave="$event.target.style.backgroundColor = 'transparent'; $event.target.style.borderColor = '#ccc'"
+                        >
+                            {{ token.value }}
+                        </span>
+                    </template>
                 </div>
-                 <v-btn x-small text color="primary" @click="$emit('add-answer')">
-                    <v-icon left x-small>mdi-plus</v-icon> Añadir Opción Extra (Distractor)
-                </v-btn>
+                <div class="d-flex justify-space-between align-center mt-2">
+                     <div class="caption grey--text">
+                        <v-icon x-small color="primary">mdi-cursor-default-click</v-icon> Haz clic en las palabras para convertirlas en huecos.
+                    </div>
+                     <v-btn x-small text color="primary" @click="$emit('add-answer')">
+                        <v-icon left x-small>mdi-plus</v-icon> Añadir Opción Extra (Distractor)
+                    </v-btn>
+                </div>
+               
             </div>
-           
-        </div>
-    `,
-    methods: {
-        getAnswerText(index) {
-            if (!this.answers || !this.answers[index - 1]) return '???';
-            return this.answers[index - 1].text;
+        `,
+        methods: {
+            getAnswerText(index) {
+                if (!this.answers || !this.answers[index - 1]) return '???';
+                return this.answers[index - 1].text;
+            }
         }
-    }
-};
+    };
+}
 
 const QuizEditor = {
     template: `
@@ -2031,7 +2033,7 @@ const QuizEditor = {
     components: {
         draggable: typeof vuedraggable !== 'undefined' ? (vuedraggable.default || vuedraggable) : null,
         'question-bank-dialog': window.QuestionBankDialog,
-        'drag-drop-text-editor': DragDropTextEditor,
+        'drag-drop-text-editor': window.DragDropTextEditor,
         'cloze-editor': window.ClozeEditor,
         'cloze-wizard': window.ClozeWizard
     },
