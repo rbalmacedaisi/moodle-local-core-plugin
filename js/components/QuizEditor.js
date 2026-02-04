@@ -1111,7 +1111,6 @@ const QuizEditor = {
                             v-if="newQuestion.type === 'gapselect' || newQuestion.type === 'ddwtos'"
                             :tokens="tokens"
                             :answers="newQuestion.answers"
-                            :preview-html="previewHtml"
                             @insert-gap="insertGap"
                             @convert-to-gap="convertToGap"
                             @revert-to-text="revertToText"
@@ -1337,25 +1336,7 @@ const QuizEditor = {
             return tokens;
         },
         tokens() { return this.tokenizedText; },
-        clozeTokens() { return this.tokenizedText; },
-        previewHtml() {
-            if (this.newQuestion.type === 'gapselect' || this.newQuestion.type === 'ddwtos') {
-                if (!this.newQuestion.questiontext) return '<span class="grey--text italic">Escribe algo en el enunciado para ver la previsualización...</span>';
-
-                return this.newQuestion.questiontext.replace(/\[\[(\d+)\]\]/g, (match, p1) => {
-                    const idx = parseInt(p1);
-                    const ans = this.newQuestion.answers[idx - 1];
-                    const text = (ans && ans.text) ? ans.text : `[[${idx}]]`;
-                    const group = (ans && ans.group) ? ans.group : 1;
-
-                    const colors = { 1: '#1976D2', 2: '#4CAF50', 3: '#FF5252', 4: '#FB8C00', 5: '#9C27B0' };
-                    const color = colors[group] || '#1976D2';
-
-                    return `<span class="px-2 py-0 mx-1 white--text rounded-lg d-inline-block" style="background-color: ${color}; font-weight: bold; font-size: 0.85em; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); line-height: 1.5;">${text}</span>`;
-                });
-            }
-            return '';
-        }
+        clozeTokens() { return this.tokenizedText; }
     },
     watch: {
         'newQuestion.type'(newType) {

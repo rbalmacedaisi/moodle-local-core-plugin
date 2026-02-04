@@ -940,6 +940,7 @@ try {
                     // Try standard fields first
                     if (isset($ans->draggroup)) $group = (int)$ans->draggroup;
                     elseif (isset($ans->choicegroup)) $group = (int)$ans->choicegroup;
+                    elseif (isset($ans->selectgroup)) $group = (int)$ans->selectgroup;
                     elseif (isset($ans->group)) $group = (int)$ans->group;
                     
                     // Fallback: Check for serialized data in feedback (Custom DDWTOS storage)
@@ -1263,7 +1264,8 @@ try {
                             $choice_record = [
                                 'answer' => $text,
                                 'choicegroup' => $group,
-                                'draggroup' => $group, // Use both for maximum compatibility
+                                'selectgroup' => $group,
+                                'draggroup' => $group, // Use all for maximum compatibility
                                 'infinite' => 0
                             ];
 
@@ -1279,6 +1281,7 @@ try {
                             $form_data->draglabel[$no] = $text;
                             $form_data->draggroup[$no] = $group;
                             $form_data->choicegroup[$no] = $group;
+                            $form_data->selectgroup[$no] = $group;
                             $form_data->infinite[$no] = 0;
 
                             // CRITICAL FIX: Separate handling for gapselect (Standard) vs ddwtos (Custom/Serialized)

@@ -23,7 +23,7 @@ const DragDropTextEditor = {
                     <span class="caption font-weight-bold grey--text">EDITOR VISUAL (CLIC EN PALABRAS)</span>
                 </div>
 
-                <div class="tokens-container d-flex flex-wrap gap-2 pa-3 bg-white rounded-lg border min-height-100">
+                <div class="tokens-container d-flex flex-wrap gap-1 pa-3 bg-white rounded-lg border min-height-100">
                     <v-chip 
                         v-for="(token, idx) in tokens" 
                         :key="idx"
@@ -37,22 +37,14 @@ const DragDropTextEditor = {
                             <span v-html="formatToken(token.value)"></span>
                         </span>
                         
-                        <v-btn v-if="token.type === 'gap'" x-small icon color="white" class="mr-1" @click="$emit('revert-to-text', idx)">
+                        <v-btn v-if="token.type === 'gap'" x-small icon color="white" class="mr-1" @click.stop="$emit('revert-to-text', idx)">
                             <v-icon x-small>mdi-close-circle</v-icon>
                         </v-btn>
-                        <strong v-if="token.type === 'gap'" @click="scrollToAnswer(token.gapIndex)" style="cursor: pointer;">
+                        <strong v-if="token.type === 'gap'" @click.stop="scrollToAnswer(token.gapIndex)" style="cursor: pointer;">
                             [[{{token.gapIndex}}]] {{ getGapShortText(token.gapIndex) }}
                         </strong>
                     </v-chip>
                 </div>
-            </v-card>
-
-            <v-card outlined class="rounded-xl pa-4 mb-4 border-indigo-light">
-                <div class="d-flex align-center mb-4">
-                    <v-icon color="indigo" class="mr-2">mdi-eye-outline</v-icon>
-                    <span class="subtitle-2 font-weight-bold">Previsualización Dinámica</span>
-                </div>
-                <div class="live-preview-box pa-4 rounded-lg border bg-white shadow-inner" v-html="previewHtml"></div>
             </v-card>
 
             <div class="mt-4 answers-grid">
@@ -76,7 +68,7 @@ const DragDropTextEditor = {
                                 class="rounded-lg custom-field"
                             ></v-text-field>
                         </v-col>
-                        <v-col cols="12" md="3">
+                        <v-col cols="12" md="4">
                             <v-select 
                                 label="Grupo Color" 
                                 v-model="ans.group" 
@@ -106,7 +98,7 @@ const DragDropTextEditor = {
             </div>
         </div>
     `,
-    props: ['tokens', 'answers', 'previewHtml'],
+    props: ['tokens', 'answers'],
     methods: {
         formatToken(val) { return val ? val.replace(/\n/g, '<br>') : ''; },
         getGapColor(idx) {
@@ -130,7 +122,7 @@ const DragDropTextEditor = {
             const el = document.getElementById('ans-idx-' + idx);
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.style.backgroundColor = '#FFFDE7';
+                el.style.backgroundColor = '#E8EAF6';
                 setTimeout(() => { el.style.backgroundColor = 'white'; }, 2000);
             }
         }
