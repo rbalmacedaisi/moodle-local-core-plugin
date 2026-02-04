@@ -1612,43 +1612,33 @@ try {
                 if ($newq && $is_calculated) {
                     error_log("GMK_QUIZ_DEBUG: Entering Calculated Self-Healing for QID " . $newq->id);
                     
-                    // RELOAD QUESTION to ensure we have the full Moodle object structure (with options->answers)
-                    // This fixes the bug where $newq->answers was undefined/empty after a save.
-                    try {
-                        $full_q_obj = question_bank::load_question($newq->id);
-                    } catch (Exception $e) {
-                         error_log("GMK_QUIZ_DEBUG: Error loading question for self-healing: " . $e->getMessage());
-                         $full_q_obj = $newq; // Fallback
-                    }
-                    
-                    // Re-detect wildcards from the FINAL question text/answers
+                    // DIRECT DB QUERY STRATEGY
+                    // Bypass object hydration/caching issues by going straight to the source tables.
                     $expected_wildcards = [];
                     
-                    // CHECK ANSWERS (Moodle stores them in options->answers for calculated types)
-                    if (isset($full_q_obj->options->answers) && is_array($full_q_obj->options->answers)) {
-                        foreach ($full_q_obj->options->answers as $ans) {
+                    // 1. Scan Answers directly from DB
+                    $db_answers = $DB->get_records('question_answers', ['question' => $newq->id]);
+                    if ($db_answers) {
+                        foreach ($db_answers as $ans) {
                              if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
                                  foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                              }
                         }
-                    } elseif (isset($full_q_obj->answers) && is_array($full_q_obj->answers)) {
-                         // Fallback for some structures
-                         foreach ($full_q_obj->answers as $ans) {
-                             if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $ans->answer, $matches)) {
-                                 foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
-                             }
-                         }
+                    } else {
+                         error_log("GMK_QUIZ_DEBUG: No answers found in DB for QID " . $newq->id);
                     }
                     
-                    // CHECK QUESTION TEXT
-                    if (isset($full_q_obj->questiontext)) {
-                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $full_q_obj->questiontext, $matches)) {
+                    // 2. Scan Question Text directly from DB
+                    // We can use $newq->questiontext if available, but let's be paranoid and fetch it.
+                    $db_q = $DB->get_record('question', ['id' => $newq->id], 'questiontext');
+                    if ($db_q && isset($db_q->questiontext)) {
+                         if (preg_match_all('~\{([a-zA-Z0-9_]+)\}~', $db_q->questiontext, $matches)) {
                              foreach ($matches[1] as $wc) $expected_wildcards[$wc] = true;
                          }
                     }
                     
                     // Log detection for debugging
-                    error_log("GMK_QUIZ_DEBUG: Self-Healing detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
+                    error_log("GMK_QUIZ_DEBUG: Self-Healing (DB-Mode) detected wildcards for QID {$newq->id}: " . implode(', ', array_keys($expected_wildcards)));
 
                     foreach (array_keys($expected_wildcards) as $name) {
                          // 1. Find Definition
