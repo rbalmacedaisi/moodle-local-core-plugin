@@ -951,6 +951,19 @@ try {
                     }
                 }
 
+                // Fallback for answers if empty (Standard for DDWTOS/GapSelect in some Moodle versions)
+                if (empty($details['answers']) && ($qdata->qtype === 'ddwtos' || $qdata->qtype === 'gapselect')) {
+                    $raw_answers = $DB->get_records('question_answers', ['question' => $qid], 'id ASC');
+                    foreach ($raw_answers as $ans) {
+                        $details['answers'][] = [
+                            'id' => $ans->id,
+                            'text' => (string)$ans->answer,
+                            'fraction' => (float)$ans->fraction,
+                            'group' => (int)($ans->feedback ? strip_tags((string)$ans->feedback) : 1)
+                        ];
+                    }
+                }
+
                 if ($qdata->qtype === 'ddimageortext' || $qdata->qtype === 'ddmarker') {
                     // Background Image URL
                     $fs = get_file_storage();
@@ -1205,13 +1218,25 @@ try {
                     // Create $form_data following Moodle's internal form structure
                     $form_data = clone $question;
                     $form_data->choices = [];
+                    // Flattened arrays for compatibility with internal save_question transformations
+                    $form_data->draglabel = [];
+                    $form_data->draggroup = [];
+                    $form_data->infinite = [];
 
                     if (isset($data->answers) && is_array($data->answers)) {
                         foreach ($data->answers as $idx => $ans) {
+                            $text = is_string($ans->text) ? $ans->text : ($ans->text->text ?? '');
+                            $group = isset($ans->group) ? (int)$ans->group : 1;
+
                             $form_data->choices[$idx] = [
-                                'answer' => ['text' => $ans->text, 'format' => FORMAT_HTML],
-                                'draggroup' => isset($ans->group) ? (int)$ans->group : 1
+                                'answer' => $text,
+                                'draggroup' => $group,
+                                'infinite' => 0
                             ];
+                            // Also provide flattened arrays as backup
+                            $form_data->draglabel[$idx] = $text;
+                            $form_data->draggroup[$idx] = $group;
+                            $form_data->infinite[$idx] = 0;
                         }
                     }
                     
