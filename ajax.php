@@ -900,7 +900,10 @@ try {
                  // Calculate sum of maxgrades of *non-overridden* items?
                  // Or just total max grade.
                  // Simple approximation for display:
-                 $course_total_max = $course_cat->get_grade_max();
+                 // Simple approximation for display:
+                 // $course_total_max = $course_cat->get_grade_max(); // Method not available directly
+                 // This might be 0 if not calculated.
+                 // Let's summing up items maxgrade
                  // This might be 0 if not calculated.
                  // Let's summing up items maxgrade
                  $sum_max = 0;
