@@ -868,7 +868,8 @@ try {
                 }
 
                 $weight = 0;
-                $is_natural = ($aggregation == 13);
+                $parent_cat = $gi->get_parent_category();
+                $is_natural = ($parent_cat && $parent_cat->aggregation == 13);
                 
                 if ($is_natural) {
                    $weight = (float)$gi->aggregationcoef2;
@@ -956,7 +957,10 @@ try {
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
-                        // Update Weight
+                        // Update Weight based on parent category aggregation
+                        $parent_cat = $gi->get_parent_category();
+                        $is_natural = ($parent_cat && $parent_cat->aggregation == 13);
+
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
                             $gi->weightoverride = 1; 
