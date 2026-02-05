@@ -93,7 +93,7 @@ Vue.component('grades-grid', {
 
             // Dynamic headers (Grade items)
             const dynamicHeaders = this.columns.map(col => ({
-                text: `${col.title} (${parseFloat(col.max_grade).toString()})${col.weight ? ' - ' + col.weight + '%' : ''}`,
+                text: `${col.title} (${parseFloat(col.max_grade).toString()})`,
                 value: `grades.${col.id}`,
                 align: 'center',
                 sortable: false

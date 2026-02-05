@@ -36,15 +36,12 @@ class create_express_activity extends external_api {
                 'timeclose' => new external_value(PARAM_INT, 'Quiz close time', VALUE_DEFAULT, 0),
                 'timelimit' => new external_value(PARAM_INT, 'Quiz time limit in seconds', VALUE_DEFAULT, 0),
                 'attempts' => new external_value(PARAM_INT, 'Number of attempts', VALUE_DEFAULT, 1),
-                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1),
-                'grade' => new external_value(PARAM_FLOAT, 'Max grade', VALUE_DEFAULT, 0),
-                'cutoffdate' => new external_value(PARAM_INT, 'Cutoff date', VALUE_DEFAULT, 0),
-                'allowsubmissionsfromdate' => new external_value(PARAM_INT, 'Allow submissions from date', VALUE_DEFAULT, 0)
+                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1)
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false, $timeopen = 0, $timeclose = 0, $timelimit = 0, $attempts = 1, $grademethod = 1, $grade = 0, $cutoffdate = 0, $allowsubmissionsfromdate = 0) {
+    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false, $timeopen = 0, $timeclose = 0, $timelimit = 0, $attempts = 1, $grademethod = 1) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -59,10 +56,7 @@ class create_express_activity extends external_api {
             'timeclose' => $timeclose,
             'timelimit' => $timelimit,
             'attempts' => $attempts,
-            'grademethod' => $grademethod,
-            'grade' => $grade,
-            'cutoffdate' => $cutoffdate,
-            'allowsubmissionsfromdate' => $allowsubmissionsfromdate
+            'grademethod' => $grademethod
         ));
 
         $context = \context_system::instance();
@@ -81,10 +75,7 @@ class create_express_activity extends external_api {
             'timeclose' => $params['timeclose'],
             'timelimit' => $params['timelimit'],
             'attempts' => $params['attempts'],
-            'grademethod' => $params['grademethod'],
-            'grade' => $params['grade'],
-            'cutoffdate' => $params['cutoffdate'],
-            'allowsubmissionsfromdate' => $params['allowsubmissionsfromdate']
+            'grademethod' => $params['grademethod']
         ];
 
         try {

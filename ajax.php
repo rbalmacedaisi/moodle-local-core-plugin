@@ -14,64 +14,6 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 use local_grupomakro_core\external\teacher\create_express_activity;
 use local_grupomakro_core\external\teacher\get_pending_grading;
 use local_grupomakro_core\external\teacher\save_grade;
-
-/**
- * Normalizes grade items weights to ensures they sum exactly to 100%.
- * @param array &$items Array of items with 'weight' and 'grademax' keys.
- * @return float The total sum (should be 100.00 unless empty).
- */
-function gmk_normalize_grade_weights(&$items, $aggregation = 13) {
-    if (empty($items)) return 0;
-
-    $is_natural = ($aggregation == 13);
-    $effective_sum = 0;
-
-    foreach ($items as &$it) {
-        $weight = 1.0;
-        
-        if ($is_natural) {
-            // In Natural weighting:
-            // - If NOT overridden, weight is grademax
-            // - If overridden, weight is aggregationcoef2 (passed as 'weight')
-            if (isset($it['weightoverride']) && $it['weightoverride']) {
-                $weight = (float)$it['weight'];
-            } else {
-                $weight = (float)$it['grademax'];
-            }
-        } else {
-            // In Weighted Mean (and others):
-            // - Weight is aggregationcoef (passed as 'weight')
-            // - Default in Moodle is 1.0 if not adjusted
-            $weight = (float)$it['weight'];
-            if ($weight <= 0 && (!isset($it['weightoverride']) || !$it['weightoverride'])) {
-                $weight = 1.0;
-            }
-        }
-        
-        $it['temp_weight'] = $weight;
-        $effective_sum += $weight;
-    }
-
-    if ($effective_sum > 0) {
-        $running_sum = 0;
-        $count = count($items);
-        $idx = 0;
-        foreach ($items as &$it) {
-            $idx++;
-            $val = ($it['temp_weight'] / $effective_sum) * 100;
-            if ($idx == $count) {
-                $it['weight'] = round(100 - $running_sum, 2);
-            } else {
-                $it['weight'] = round($val, 2);
-                $running_sum += $it['weight'];
-            }
-            unset($it['temp_weight']);
-        }
-        return 100.0;
-    }
-    
-    return 0;
-}
 use local_grupomakro_core\external\student\get_student_info;
 use local_grupomakro_core\external\student\update_status;
 use local_grupomakro_core\external\student\sync_progress;
@@ -853,24 +795,18 @@ try {
             $item_ids = [];
 
             foreach ($grade_items as $gi) {
+                // Filter out course total or unwanted items if necessary
+                // For now, we show all 'manual' or 'mod' items that are not course total
                 if ($gi->itemtype == 'course') continue; 
                 
-                // Determine weight based on aggregation
-                $is_natural = ($course_category->aggregation == 13);
-                $weight = $is_natural ? (float)$gi->aggregationcoef2 : (float)$gi->aggregationcoef;
-
                 $columns[] = [
                     'id' => $gi->id,
                     'title' => $gi->itemname ?: $gi->itemtype,
-                    'max_grade' => $gi->grademax, // For frontend
-                    'grademax' => $gi->grademax,  // For normalization helper
-                    'weight' => $weight
+                    'max_grade' => $gi->grademax,
+                    'weight' => $gi->aggregationcoef
                 ];
                 $item_ids[] = $gi->id;
             }
-            
-            // Normalize weights using helper
-            gmk_normalize_grade_weights($columns);
 
             // 3. Fetch Grades (Cells)
             $grades_data = [];
@@ -945,37 +881,65 @@ try {
                     'itemname' => $gi->itemname ?: ($gi->itemtype . ' ' . $gi->itemmodule),
                     'itemtype' => $gi->itemtype,
                     'itemmodule' => $gi->itemmodule,
-                    'weight' => $weight,             // Raw Moodle coefficient (Editable)
-                    'effective_percent' => $weight,   // Will be normalized below (Read-only)
+                    'weight' => $weight,
                     'grademax' => (float)$gi->grademax,
                     'locked' => $gi->locked,
                     'hidden' => (int)$gi->hidden,
                     'weightoverride' => (int)$gi->weightoverride,
-                    'aggregationcoef2' => (float)$gi->aggregationcoef2,
+                    'aggregationcoef2' => (float)$gi->aggregationcoef2, // For debugging/reference
                     'is_natural' => $is_natural
                 ];
             }
+
+            // Normalization and estimation logic
+            $sum_max = 0;
+            $sum_weights = 0;
+            $any_overridden = false;
             
-            // Normalize weights using helper for UI reference ONLY
-            // We pass a copy/proxy if we wanted to preserve 'weight', 
-            // but we can just use another key.
-            $temp_items = $items;
-            foreach ($temp_items as &$ti) {
-                // Ensure helper sees 'weight' as the value to normalize
-                $ti['weight'] = $ti['weight']; 
+            foreach ($items as $it) {
+                $sum_max += $it['grademax'];
+                $sum_weights += $it['weight'];
+                if ($it['weightoverride'] == 1 || $it['weight'] > 0) {
+                    $any_overridden = true;
+                }
             }
-            gmk_normalize_grade_weights($temp_items, $aggregation);
-            
-            // Map back the normalized values to effective_percent
-            foreach ($items as $idx => &$item) {
-                $item['effective_percent'] = $temp_items[$idx]['weight'];
+
+            // If some items have weight 0 but are NOT overridden, we assume they should count.
+            // We'll treat all non-overridden items as having weight 1.0 relative to others.
+            if ($sum_weights <= 0 && $sum_max > 0) {
+                // Case A: Everything is automatic. Distribute by max grade (fairest default)
+                foreach ($items as &$it) {
+                    $it['weight'] = ($it['grademax'] / $sum_max) * 100;
+                }
+                $total_weight = 100;
+            } else if ($sum_weights > 0) {
+                // Case B: Some items have manual weights.
+                // We'll treat ANY 0-weight item as part of the distribution IF it's not overridden.
+                $effective_sum = 0;
+                foreach ($items as &$it) {
+                    if ($it['weight'] <= 0 && $it['weightoverride'] == 0) {
+                        $it['temp_weight'] = 1.0; // Treat as 1 share
+                    } else {
+                        $it['temp_weight'] = $it['weight'];
+                    }
+                    $effective_sum += $it['temp_weight'];
+                }
+                
+                if ($effective_sum > 0) {
+                    foreach ($items as &$it) {
+                        $it['weight'] = ($it['temp_weight'] / $effective_sum) * 100;
+                        unset($it['temp_weight']);
+                    }
+                    $total_weight = 100;
+                } else {
+                    $total_weight = 0;
+                }
             }
 
             $response = [
                 'status' => 'success',
                 'items' => $items,
-                'total_weight' => 100,
-                'category_name' => $target_cat->name,
+                'total_weight' => $total_weight,
                 'aggregation' => $aggregation
             ];
             break;
@@ -1007,22 +971,16 @@ try {
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
-                        $override = isset($w['weightoverride']) ? (int)$w['weightoverride'] : 1;
-                        
+                        // Update Weight
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
-                            $gi->weightoverride = $override;
-                            // Set aggregationcoef to 0 for natural items if overridden? 
-                            // Normally Moodle handles this.
+                            $gi->weightoverride = 1; 
+                            $gi->update('aggregationcoef2');
+                            $gi->update('weightoverride');
                         } else {
                             $gi->aggregationcoef = (float)$w['weight'];
-                            // Some themes/plugins use weightoverride even in non-natural modes
-                            if (property_exists($gi, 'weightoverride')) {
-                                $gi->weightoverride = $override;
-                            }
+                            $gi->update('aggregationcoef');
                         }
-                        
-                        $gi->update(); // Commit all changes at once
 
                         // Update Visibility if provided
                         if (isset($w['hidden'])) {
@@ -1091,11 +1049,8 @@ try {
             $grade_item->grademin = 0;
             
             // Set default weight to 1.0 so it counts by default
-            $is_natural_cat = false;
             $parent_cat = \grade_category::fetch(['id' => $parent_category_id]);
-            if ($parent_cat) {
-                $is_natural_cat = ($parent_cat->aggregation == 13);
-            }
+            $is_natural_cat = ($parent_cat && $parent_cat->aggregation == 13);
             
             if ($is_natural_cat) {
                 $grade_item->aggregationcoef2 = 1.0;
@@ -2236,20 +2191,10 @@ try {
             $intro = optional_param('intro', '', PARAM_RAW);
             $duedate = optional_param('duedate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
-            $tags = optional_param('tags', '', PARAM_TEXT); 
+            $tags = optional_param('tags', '', PARAM_TEXT); // Receive tags as comma-separated string or array
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
             
-            // New Advanced Parameters
-            $grade = optional_param('grade', 0, PARAM_FLOAT);
-            $cutoffdate = optional_param('cutoffdate', 0, PARAM_INT);
-            $allowsubmissionsfromdate = optional_param('allowsubmissionsfromdate', 0, PARAM_INT);
-            $timeopen = optional_param('timeopen', 0, PARAM_INT);
-            $timeclose = optional_param('timeclose', 0, PARAM_INT);
-            $timelimit = optional_param('timelimit', 0, PARAM_INT);
-            $attempts = optional_param('attempts', 1, PARAM_INT);
-            $grademethod = optional_param('grademethod', 1, PARAM_INT);
-
             // Normalize tags if passed as string
             $tagList = [];
             if (!empty($tags)) {
@@ -2262,8 +2207,7 @@ try {
 
             try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest,
-                    $timeopen, $timeclose, $timelimit, $attempts, $grademethod, $grade, $cutoffdate, $allowsubmissionsfromdate
+                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
                 );
                 $response = ['status' => 'success', 'data' => $result];
             } catch (Exception $e) {

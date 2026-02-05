@@ -34,11 +34,6 @@ const GradebookManager = {
                             {{ totalWeight.toFixed(2) }}%
                         </span>
                      </div>
-                     <v-divider vertical class="mx-3"></v-divider>
-                     <v-btn text small color="secondary" @click="redistributeWeights">
-                        <v-icon left small>mdi-equalizer</v-icon>
-                        Redistribuir Pesos
-                     </v-btn>
                      <v-spacer></v-spacer>
                      <v-btn text color="primary" @click="saveWeights" :loading="saving">
                         <v-icon left>mdi-content-save</v-icon>
@@ -105,9 +100,9 @@ const GradebookManager = {
                                                 {{ getTypeLabel(item) }}
                                             </v-chip>
                                         </td>
-                                        <td class="text-center font-weight-bold grey--text">{{ item.grademax }}</td>
+                                        <td class="text-center">{{ item.grademax }}</td>
                                         <td>
-                                            <div class="d-flex align-center justify-center">
+                                            <div class="d-flex align-center justify-start">
                                                 <v-text-field
                                                     v-model.number="item.weight"
                                                     type="number"
@@ -115,39 +110,11 @@ const GradebookManager = {
                                                     dense
                                                     outlined
                                                     hide-details
-                                                    style="max-width: 90px;"
-                                                    class="text-center"
-                                                    :background-color="item.weightoverride ? 'orange lighten-5' : 'grey lighten-4'"
+                                                    style="max-width: 120px; font-size: 15px;"
+                                                    class="mr-2"
+                                                    @input="calculateTotal"
                                                 ></v-text-field>
-                                                
-                                                <v-tooltip bottom>
-                                                    <template v-slot:activator="{ on, attrs }">
-                                                        <v-btn icon x-small v-bind="attrs" v-on="on" @click="toggleOverride(item)" class="ml-1">
-                                                            <v-icon small :color="item.weightoverride ? 'orange' : 'grey lighten-1'">
-                                                                {{ item.weightoverride ? 'mdi-lock' : 'mdi-lock-open-variant-outline' }}
-                                                            </v-icon>
-                                                        </v-btn>
-                                                    </template>
-                                                    <div>
-                                                        <strong>{{ item.weightoverride ? 'Peso Manual (Ajustado)' : 'Peso Automático' }}</strong><br>
-                                                        {{ item.weightoverride ? 'Fijado por el profesor.' : 'Calculado por Moodle.' }}
-                                                    </div>
-                                                </v-tooltip>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="d-flex align-center">
-                                                <v-progress-linear
-                                                    :value="item.effective_percent"
-                                                    color="primary"
-                                                    height="18"
-                                                    rounded
-                                                    class="flex-grow-1"
-                                                >
-                                                    <template v-slot:default="{ value }">
-                                                        <span class="white--text text-caption font-weight-bold">{{ (item.effective_percent || 0).toFixed(2) }}%</span>
-                                                    </template>
-                                                </v-progress-linear>
+                                                <span class="grey--text subheading font-weight-bold">%</span>
                                             </div>
                                         </td>
                                         <td class="text-end">
@@ -209,9 +176,8 @@ const GradebookManager = {
             headers: [
                 { text: 'Actividad', value: 'itemname', sortable: false },
                 { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
-                { text: 'Nota Máx.', value: 'grademax', align: 'center', sortable: false, width: '100px' },
-                { text: 'Peso (Moodle)', value: 'weight', align: 'center', sortable: false, width: '130px' },
-                { text: 'Equivalencia %', value: 'effective_percent', align: 'start', sortable: false, width: '200px' },
+                { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '80px' },
+                { text: 'Ponderación', value: 'weight', align: 'start', sortable: false, width: '180px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
@@ -276,11 +242,10 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        weight: parseFloat(parseFloat(i.weight || 0).toFixed(2)),
-                        effective_percent: parseFloat(parseFloat(i.effective_percent || 0).toFixed(2)),
+                        weight: parseFloat(parseFloat(i.weight).toFixed(2)), // Round to 2 decimals
                         hidden: parseInt(i.hidden) || 0,
-                        weightoverride: parseInt(i.weightoverride) || 0,
-                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true),
+                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
+                        // "Nota Final Integrada" or specific critical items should not be deletable even if manual
                         is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
                     }));
                     this.calculateTotal();
@@ -304,8 +269,7 @@ const GradebookManager = {
                 const updates = this.items.map(i => ({
                     id: i.id,
                     weight: i.weight,
-                    hidden: i.hidden,
-                    weightoverride: i.weightoverride
+                    hidden: i.hidden
                 }));
 
                 const sortOrder = this.items.map(i => i.id);
@@ -324,7 +288,6 @@ const GradebookManager = {
 
                 if (response.data.status === 'success') {
                     this.showSnackbar('Cambios guardados y calificaciones recalculadas');
-                    this.fetchStructure(); // Refresh to confirm persistence
                 } else {
                     this.showSnackbar(response.data.message || 'Error guardando', 'error');
                 }
@@ -334,21 +297,6 @@ const GradebookManager = {
             } finally {
                 this.saving = false;
             }
-        },
-        toggleOverride(item) {
-            item.weightoverride = item.weightoverride ? 0 : 1;
-        },
-        redistributeWeights() {
-            if (!confirm('¿Deseas resetear los pesos para que Moodle los distribuya automáticamente?')) return;
-            this.items.forEach(it => {
-                it.weight = 1.0;
-                it.weightoverride = 0;
-            });
-            this.saveWeights(); // Immediate save to trigger Moodle redistribution
-        },
-        calculateTotal() {
-            // In this mode, we show the 100% normalized total from the server reference
-            this.totalWeight = 100;
         },
         async addManualItem() {
             try {

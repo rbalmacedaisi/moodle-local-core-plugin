@@ -38,49 +38,13 @@ const ActivityCreationWizard = {
                         ></v-textarea>
 
                         <v-row v-if="activityType === 'assignment'">
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="formData.allowsubmissionsfromdate"
-                                    label="Permitir entregas desde"
-                                    type="datetime-local"
-                                    outlined
-                                    dense
-                                    append-icon="mdi-help-circle"
-                                    @click:append="showHelp('allowsubmissionsfromdate')"
-                                ></v-text-field>
-                            </v-col>
-                            <v-col cols="12" md="6">
+                            <v-col cols="12">
                                 <v-text-field
                                     v-model="formData.duedate"
                                     label="Fecha de entrega"
                                     type="datetime-local"
                                     outlined
                                     dense
-                                    append-icon="mdi-help-circle"
-                                    @click:append="showHelp('duedate')"
-                                ></v-text-field>
-                            </v-col>
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model="formData.cutoffdate"
-                                    label="Fecha límite (Cierre)"
-                                    type="datetime-local"
-                                    outlined
-                                    dense
-                                    append-icon="mdi-help-circle"
-                                    @click:append="showHelp('cutoffdate')"
-                                ></v-text-field>
-                            </v-col>
-                            <v-col cols="12" md="6">
-                                <v-text-field
-                                    v-model.number="formData.grade"
-                                    label="Nota Máxima"
-                                    type="number"
-                                    outlined
-                                    dense
-                                    min="0"
-                                    append-icon="mdi-help-circle"
-                                    @click:append="showHelp('grade')"
                                 ></v-text-field>
                             </v-col>
                         </v-row>
@@ -165,26 +129,6 @@ const ActivityCreationWizard = {
                             label="Visible para estudiantes"
                             color="success"
                         ></v-switch>
-
-                        <!-- Legend / Help Dialog -->
-                        <v-dialog v-model="helpDialog" max-width="450px">
-                            <v-card class="rounded-xl">
-                                <v-card-title class="primary white--text">
-                                    <v-icon left color="white">mdi-information</v-icon>
-                                    {{ helpTitle }}
-                                </v-card-title>
-                                <v-card-text class="pa-4 pt-4 text-body-1">
-                                    {{ helpText }}
-                                    <v-alert v-if="helpExample" type="info" text class="mt-4 mb-0 rounded-lg" icon="mdi-lightbulb-on">
-                                        <strong>Ejemplo:</strong> {{ helpExample }}
-                                    </v-alert>
-                                </v-card-text>
-                                <v-card-actions>
-                                    <v-spacer></v-spacer>
-                                    <v-btn color="primary" text @click="helpDialog = false">Entendido</v-btn>
-                                </v-card-actions>
-                            </v-card>
-                        </v-dialog>
                     </v-form>
                 </v-card-text>
                 <v-card-actions class="pa-4 pt-0">
@@ -208,22 +152,15 @@ const ActivityCreationWizard = {
                 name: '',
                 intro: '',
                 duedate: '',
-                cutoffdate: '',
-                allowsubmissionsfromdate: '',
                 timeopen: '',
                 timeclose: '',
                 attempts: 1,
-                grade: 100,
                 gradecat: null,
                 tags: [],
                 visible: true,
                 guest: false
             },
-            gradeCategories: [],
-            helpDialog: false,
-            helpTitle: '',
-            helpText: '',
-            helpExample: ''
+            gradeCategories: []
         };
     },
     mounted() {
@@ -279,10 +216,7 @@ const ActivityCreationWizard = {
                     save_as_template: this.saveAsTemplate,
                     gradecat: this.formData.gradecat,
                     tags: this.formData.tags,
-                    guest: this.formData.guest,
-                    grade: this.formData.grade,
-                    cutoffdate: this.formData.cutoffdate ? Math.floor(new Date(this.formData.cutoffdate).getTime() / 1000) : 0,
-                    allowsubmissionsfromdate: this.formData.allowsubmissionsfromdate ? Math.floor(new Date(this.formData.allowsubmissionsfromdate).getTime() / 1000) : 0
+                    guest: this.formData.guest
                 };
 
                 const response = await axios.post(window.wsUrl, {
@@ -349,37 +283,6 @@ const ActivityCreationWizard = {
                 }
             } catch (error) {
                 console.error('Error fetching categories:', error);
-            }
-        },
-        showHelp(field) {
-            const legends = {
-                allowsubmissionsfromdate: {
-                    title: 'Permitir entregas desde',
-                    text: 'Define el momento exacto en que los estudiantes pueden empezar a subir sus trabajos. Antes de esta fecha, verán las instrucciones pero no el botón de entrega.',
-                    example: 'Si la clase es el lunes pero quieres que empiecen a trabajar el miércoles, pon la fecha del miércoles.'
-                },
-                duedate: {
-                    title: 'Fecha de entrega',
-                    text: 'Es el plazo esperado. Las entregas después de esta fecha se marcarán como "retrasadas", pero el sistema seguirá permitiéndolas a menos que pongas una Fecha Límite.',
-                    example: 'Si vence el viernes a las 11:59 PM, el estudiante que entregue el sábado aparecerá con un aviso en rojo.'
-                },
-                cutoffdate: {
-                    title: 'Fecha límite (Cierre)',
-                    text: 'A diferencia de la fecha de entrega, esta es estricta. Una vez alcanzada, el botón de entrega desaparecerá y nadie podrá subir archivos, ni siquiera con retraso.',
-                    example: 'Puedes dar 2 días de gracia después de la fecha de entrega original. Después de esos 2 días, ya no se acepta nada.'
-                },
-                grade: {
-                    title: 'Nota Máxima',
-                    text: 'Es el puntaje total que vale esta actividad. Por defecto es 100, pero puedes ajustarlo según tu escala de calificación.',
-                    example: 'Si es un taller corto, podrías calificarlo sobre 20 o 50 puntos.'
-                }
-            };
-            const help = legends[field];
-            if (help) {
-                this.helpTitle = help.title;
-                this.helpText = help.text;
-                this.helpExample = help.example;
-                this.helpDialog = true;
             }
         }
     }
