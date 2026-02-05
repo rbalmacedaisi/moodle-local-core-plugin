@@ -14,6 +14,9 @@ const GradebookManager = {
                 <v-toolbar color="primary" dark dense flat>
                     <v-toolbar-title>Gestor de Calificaciones</v-toolbar-title>
                     <v-spacer></v-spacer>
+                    <v-btn text dark small class="mr-2" @click="showHelp = true">
+                        <v-icon left small>mdi-help-circle</v-icon> Ayuda
+                    </v-btn>
                     <v-tooltip bottom>
                         <template v-slot:activator="{ on, attrs }">
                             <v-btn icon dark v-bind="attrs" v-on="on" @click="isFullscreen = !isFullscreen">
@@ -138,24 +141,6 @@ const GradebookManager = {
                             </template>
                         </v-data-table>
                     </v-card>
-
-                    <v-alert info color="blue lighten-5" class="mt-4 pa-4" border="left">
-                        <div class="subtitle-2 blue--text text--darken-3 mb-2">
-                            <v-icon small color="blue darken-3" class="mr-1">mdi-help-circle</v-icon>
-                            Guía Rápida de Cálculos
-                        </div>
-                        <v-row dense>
-                            <v-col cols="12" md="4">
-                                <span class="font-weight-bold">Max:</span> Es la escala de la actividad (ej. 0-100). Moodle normaliza la nota a una escala de 0 a 1 antes de aplicar los pesos.
-                            </v-col>
-                            <v-col cols="12" md="4">
-                                <span class="font-weight-bold">Peso (Valor):</span> Define la importancia relativa. Si todas tienen Peso=1, todas valen lo mismo sin importar su "Max".
-                            </v-col>
-                            <v-col cols="12" md="4">
-                                <span class="font-weight-bold">Ponderación (%):</span> Es el impacto real de la actividad sobre el 100% de la nota final calculada.
-                            </v-col>
-                        </v-row>
-                    </v-alert>
                 </v-card-text>
 
                 <!-- Add Manual Item Dialog -->
@@ -181,6 +166,38 @@ const GradebookManager = {
                         <v-btn text v-bind="attrs" @click="snackbar.show = false">X</v-btn>
                     </template>
                 </v-snackbar>
+
+                <!-- Help Dialog -->
+                <v-dialog v-model="showHelp" max-width="600px">
+                    <v-card>
+                        <v-toolbar color="blue darken-3" dark dense flat>
+                            <v-toolbar-title class="subtitle-1">
+                                <v-icon left>mdi-help-circle</v-icon> Guía de Conceptos
+                            </v-toolbar-title>
+                            <v-spacer></v-spacer>
+                            <v-btn icon @click="showHelp = false"><v-icon>mdi-close</v-icon></v-btn>
+                        </v-toolbar>
+                        <v-card-text class="pa-4">
+                            <div class="mb-4">
+                                <div class="font-weight-bold blue--text text--darken-4">Max:</div>
+                                <div class="grey--text text--darken-3">Es la escala de la actividad (ej. 0-100). Moodle normaliza la nota a un porcentaje antes de aplicar los pesos.</div>
+                            </div>
+                            <div class="mb-4">
+                                <div class="font-weight-bold blue--text text--darken-4">Peso (Valor):</div>
+                                <div class="grey--text text--darken-3">Define la importancia relativa entre actividades. Si tres actividades tienen Peso = 1, cada una vale un tercio del total independientemente de su nota máxima.</div>
+                            </div>
+                            <div class="mb-4">
+                                <div class="font-weight-bold blue--text text--darken-4">Ponderación (%):</div>
+                                <div class="grey--text text--darken-3">Es el impacto final real sobre los 100 puntos del curso. La suma de todas las actividades visibles debe ser 100%.</div>
+                            </div>
+                        </v-card-text>
+                        <v-divider></v-divider>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="blue darken-3" text @click="showHelp = false">Entendido</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
             </v-card>
         </v-dialog>
     `,
@@ -192,6 +209,7 @@ const GradebookManager = {
             items: [],
             totalWeight: 0,
             showAddDialog: false,
+            showHelp: false,
             draggedIndex: null,
             newItem: {
                 name: '',
