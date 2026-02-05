@@ -106,48 +106,49 @@ const GradebookManager = {
                                             </v-chip>
                                         </td>
                                         <td class="text-center font-weight-bold grey--text">{{ item.grademax }}</td>
-                                        <td style="width: 250px;">
-                                            <div class="d-flex align-center">
+                                        <td>
+                                            <div class="d-flex align-center justify-center">
                                                 <v-text-field
                                                     v-model.number="item.weight"
                                                     type="number"
-                                                    step="0.1"
+                                                    step="0.01"
                                                     dense
                                                     outlined
                                                     hide-details
-                                                    style="max-width: 100px;"
-                                                    class="text-center font-weight-bold"
-                                                    suffix="%"
+                                                    style="max-width: 90px;"
+                                                    class="text-center"
                                                     :background-color="item.weightoverride ? 'orange lighten-5' : 'grey lighten-4'"
-                                                    @input="onPercentageInput(item)"
                                                 ></v-text-field>
                                                 
                                                 <v-tooltip bottom>
                                                     <template v-slot:activator="{ on, attrs }">
-                                                        <v-btn icon x-small v-bind="attrs" v-on="on" @click="toggleOverride(item)" class="ml-2">
-                                                            <v-icon :color="item.weightoverride ? 'orange' : 'grey lighten-1'">
+                                                        <v-btn icon x-small v-bind="attrs" v-on="on" @click="toggleOverride(item)" class="ml-1">
+                                                            <v-icon small :color="item.weightoverride ? 'orange' : 'grey lighten-1'">
                                                                 {{ item.weightoverride ? 'mdi-lock' : 'mdi-lock-open-variant-outline' }}
                                                             </v-icon>
                                                         </v-btn>
                                                     </template>
                                                     <div>
-                                                        <strong>{{ item.weightoverride ? 'Peso Manual Fijado' : 'Cálculo Automático' }}</strong><br>
-                                                        {{ item.weightoverride ? 'Haga clic para liberar y volver al reparto automático.' : 'Haga clic para bloquear este porcentaje.' }}
+                                                        <strong>{{ item.weightoverride ? 'Peso Manual (Ajustado)' : 'Peso Automático' }}</strong><br>
+                                                        {{ item.weightoverride ? 'Fijado por el profesor.' : 'Calculado por Moodle.' }}
                                                     </div>
                                                 </v-tooltip>
-
-                                                <v-progress-linear
-                                                    :value="item.weight"
-                                                    color="primary"
-                                                    height="8"
-                                                    rounded
-                                                    class="flex-grow-1 ml-3"
-                                                    style="min-width: 50px"
-                                                ></v-progress-linear>
                                             </div>
                                         </td>
-                                        <td class="text-center font-weight-medium grey--text text--darken-2">
-                                            {{ (item.raw_weight || 0).toFixed(2) }}
+                                        <td>
+                                            <div class="d-flex align-center">
+                                                <v-progress-linear
+                                                    :value="item.effective_percent"
+                                                    color="primary"
+                                                    height="18"
+                                                    rounded
+                                                    class="flex-grow-1"
+                                                >
+                                                    <template v-slot:default="{ value }">
+                                                        <span class="white--text text-caption font-weight-bold">{{ (item.effective_percent || 0).toFixed(2) }}%</span>
+                                                    </template>
+                                                </v-progress-linear>
+                                            </div>
                                         </td>
                                         <td class="text-end">
                                             <v-btn v-if="item.itemtype === 'manual' && !item.is_protected" icon color="red" small @click="deleteItem(item)">
@@ -209,8 +210,8 @@ const GradebookManager = {
                 { text: 'Actividad', value: 'itemname', sortable: false },
                 { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
                 { text: 'Nota Máx.', value: 'grademax', align: 'center', sortable: false, width: '100px' },
-                { text: 'Ponderación (%)', value: 'weight', align: 'start', sortable: false, width: '280px' },
-                { text: 'Coeficiente', value: 'raw_weight', align: 'center', sortable: false, width: '100px' },
+                { text: 'Peso (Moodle)', value: 'weight', align: 'center', sortable: false, width: '130px' },
+                { text: 'Equivalencia %', value: 'effective_percent', align: 'start', sortable: false, width: '200px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
@@ -275,8 +276,8 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        raw_weight: parseFloat(parseFloat(i.raw_weight || 0).toFixed(2)),
                         weight: parseFloat(parseFloat(i.weight || 0).toFixed(2)),
+                        effective_percent: parseFloat(parseFloat(i.effective_percent || 0).toFixed(2)),
                         hidden: parseInt(i.hidden) || 0,
                         weightoverride: parseInt(i.weightoverride) || 0,
                         locked: (i.locked == 1 || i.locked === '1' || i.locked === true),
@@ -302,7 +303,7 @@ const GradebookManager = {
             try {
                 const updates = this.items.map(i => ({
                     id: i.id,
-                    weight: i.weight, // We now save the percentage directly as the weight
+                    weight: i.weight,
                     hidden: i.hidden,
                     weightoverride: i.weightoverride
                 }));
@@ -323,6 +324,7 @@ const GradebookManager = {
 
                 if (response.data.status === 'success') {
                     this.showSnackbar('Cambios guardados y calificaciones recalculadas');
+                    this.fetchStructure(); // Refresh to confirm persistence
                 } else {
                     this.showSnackbar(response.data.message || 'Error guardando', 'error');
                 }
@@ -333,52 +335,20 @@ const GradebookManager = {
                 this.saving = false;
             }
         },
-        onPercentageInput(item) {
-            item.weightoverride = 1;
-            this.redistributeRemaining();
-        },
         toggleOverride(item) {
             item.weightoverride = item.weightoverride ? 0 : 1;
-            this.redistributeRemaining();
         },
         redistributeWeights() {
-            if (!confirm('¿Deseas resetear los pesos para que todas las actividades valgan lo mismo?')) return;
+            if (!confirm('¿Deseas resetear los pesos para que Moodle los distribuya automáticamente?')) return;
             this.items.forEach(it => {
+                it.weight = 1.0;
                 it.weightoverride = 0;
             });
-            this.redistributeRemaining();
-        },
-        redistributeRemaining() {
-            const items = this.items;
-            if (items.length === 0) return;
-
-            const lockedItems = items.filter(it => it.weightoverride);
-            const autoItems = items.filter(it => !it.weightoverride);
-
-            let totalLocked = lockedItems.reduce((sum, it) => sum + (parseFloat(it.weight) || 0), 0);
-
-            // Limit check
-            if (totalLocked > 100) totalLocked = 100;
-
-            const remaining = 100 - totalLocked;
-
-            if (autoItems.length > 0) {
-                const share = remaining / autoItems.length;
-                let runningSum = totalLocked;
-                autoItems.forEach((it, idx) => {
-                    if (idx === autoItems.length - 1) {
-                        it.weight = 100 - runningSum;
-                    } else {
-                        it.weight = Math.round(share * 10) / 10;
-                        runningSum += it.weight;
-                    }
-                    if (it.weight < 0) it.weight = 0;
-                });
-            }
-            this.calculateTotal();
+            this.saveWeights(); // Immediate save to trigger Moodle redistribution
         },
         calculateTotal() {
-            this.totalWeight = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+            // In this mode, we show the 100% normalized total from the server reference
+            this.totalWeight = 100;
         },
         async addManualItem() {
             try {

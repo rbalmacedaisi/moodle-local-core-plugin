@@ -957,23 +957,36 @@ try {
                     'itemname' => $gi->itemname ?: ($gi->itemtype . ' ' . $gi->itemmodule),
                     'itemtype' => $gi->itemtype,
                     'itemmodule' => $gi->itemmodule,
-                    'raw_weight' => $weight, // Preserve the original Moodle value
-                    'weight' => $weight,     // This will be normalized to % by the helper
+                    'weight' => $weight,             // Raw Moodle coefficient (Editable)
+                    'effective_percent' => $weight,   // Will be normalized below (Read-only)
                     'grademax' => (float)$gi->grademax,
                     'locked' => $gi->locked,
                     'hidden' => (int)$gi->hidden,
                     'weightoverride' => (int)$gi->weightoverride,
-                    'aggregationcoef2' => (float)$gi->aggregationcoef2, // For debugging/reference
+                    'aggregationcoef2' => (float)$gi->aggregationcoef2,
                     'is_natural' => $is_natural
                 ];
             }
             
-            $total_weight = gmk_normalize_grade_weights($items);
+            // Normalize weights using helper for UI reference ONLY
+            // We pass a copy/proxy if we wanted to preserve 'weight', 
+            // but we can just use another key.
+            $temp_items = $items;
+            foreach ($temp_items as &$ti) {
+                // Ensure helper sees 'weight' as the value to normalize
+                $ti['weight'] = $ti['weight']; 
+            }
+            gmk_normalize_grade_weights($temp_items);
+            
+            // Map back the normalized values to effective_percent
+            foreach ($items as $idx => &$item) {
+                $item['effective_percent'] = $temp_items[$idx]['weight'];
+            }
 
             $response = [
                 'status' => 'success',
                 'items' => $items,
-                'total_weight' => $total_weight,
+                'total_weight' => 100,
                 'category_name' => $target_cat->name,
                 'aggregation' => $aggregation
             ];
