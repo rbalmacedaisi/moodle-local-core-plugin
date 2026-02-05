@@ -20,68 +20,56 @@ use local_grupomakro_core\external\teacher\save_grade;
  * @param array &$items Array of items with 'weight' and 'grademax' keys.
  * @return float The total sum (should be 100.00 unless empty).
  */
-function gmk_normalize_grade_weights(&$items) {
+function gmk_normalize_grade_weights(&$items, $aggregation = 13) {
     if (empty($items)) return 0;
 
-    $sum_max = 0;
-    $sum_weights = 0;
-    
-    foreach ($items as $it) {
-        $sum_max += isset($it['grademax']) ? (float)$it['grademax'] : 0;
-        $sum_weights += isset($it['weight']) ? (float)$it['weight'] : 0;
+    $is_natural = ($aggregation == 13);
+    $effective_sum = 0;
+
+    foreach ($items as &$it) {
+        $weight = 1.0;
+        
+        if ($is_natural) {
+            // In Natural weighting:
+            // - If NOT overridden, weight is grademax
+            // - If overridden, weight is aggregationcoef2 (passed as 'weight')
+            if (isset($it['weightoverride']) && $it['weightoverride']) {
+                $weight = (float)$it['weight'];
+            } else {
+                $weight = (float)$it['grademax'];
+            }
+        } else {
+            // In Weighted Mean (and others):
+            // - Weight is aggregationcoef (passed as 'weight')
+            // - Default in Moodle is 1.0 if not adjusted
+            $weight = (float)$it['weight'];
+            if ($weight <= 0 && (!isset($it['weightoverride']) || !$it['weightoverride'])) {
+                $weight = 1.0;
+            }
+        }
+        
+        $it['temp_weight'] = $weight;
+        $effective_sum += $weight;
     }
 
-    if ($sum_weights <= 0 && $sum_max > 0) {
-        // Case A: Everything is automatic. Distribute by max grade
+    if ($effective_sum > 0) {
         $running_sum = 0;
         $count = count($items);
         $idx = 0;
         foreach ($items as &$it) {
             $idx++;
-            $val = ($it['grademax'] / $sum_max) * 100;
+            $val = ($it['temp_weight'] / $effective_sum) * 100;
             if ($idx == $count) {
                 $it['weight'] = round(100 - $running_sum, 2);
             } else {
                 $it['weight'] = round($val, 2);
                 $running_sum += $it['weight'];
             }
+            unset($it['temp_weight']);
         }
         return 100.0;
-    } else if ($sum_weights > 0) {
-        // Case B: Some manual weights or partially initialized
-        $effective_sum = 0;
-        foreach ($items as &$it) {
-            // Respect 0 if explicitly provided, otherwise default to 1.0 for automatic items
-            // unless the item is overridden (in which case 0 is 0).
-            $weight = 1.0;
-            if (isset($it['weightoverride']) && $it['weightoverride']) {
-                $weight = (float)$it['weight'];
-            } else if (isset($it['weight']) && (float)$it['weight'] != 0) {
-                $weight = (float)$it['weight'];
-            }
-            
-            $it['temp_weight'] = $weight;
-            $effective_sum += $weight;
-        }
-        
-        if ($effective_sum > 0) {
-            $running_sum = 0;
-            $count = count($items);
-            $idx = 0;
-            foreach ($items as &$it) {
-                $idx++;
-                $val = ($it['temp_weight'] / $effective_sum) * 100;
-                if ($idx == $count) {
-                    $it['weight'] = round(100 - $running_sum, 2);
-                } else {
-                    $it['weight'] = round($val, 2);
-                    $running_sum += $it['weight'];
-                }
-                unset($it['temp_weight']);
-            }
-            return 100.0;
-        }
     }
+    
     return 0;
 }
 use local_grupomakro_core\external\student\get_student_info;
@@ -976,7 +964,7 @@ try {
                 // Ensure helper sees 'weight' as the value to normalize
                 $ti['weight'] = $ti['weight']; 
             }
-            gmk_normalize_grade_weights($temp_items);
+            gmk_normalize_grade_weights($temp_items, $aggregation);
             
             // Map back the normalized values to effective_percent
             foreach ($items as $idx => &$item) {
