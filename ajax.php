@@ -941,9 +941,13 @@ try {
 
             require_once($CFG->libdir . '/gradelib.php');
 
-            // Determine aggregation method first
-            $course_cat = \grade_category::fetch_course_category($class->corecourseid);
-            $aggregation = $course_cat->aggregation; 
+            // Determine aggregation method using same logic as fetch
+            $target_cat = \grade_category::fetch_course_category($class->corecourseid);
+            if (!empty($class->gradecategoryid)) {
+                $class_cat = \grade_category::fetch(['id' => $class->gradecategoryid]);
+                if ($class_cat) $target_cat = $class_cat;
+            }
+            $aggregation = $target_cat->aggregation; 
             $is_natural = ($aggregation == 13);
 
             $tx = $DB->start_delegated_transaction();
