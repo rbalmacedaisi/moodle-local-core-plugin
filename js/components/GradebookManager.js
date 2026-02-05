@@ -9,34 +9,38 @@ const GradebookManager = {
         value: { type: Boolean, default: false } // v-model for visibility
     },
     template: `
-        <v-dialog :value="value" @input="$emit('input', $event)" fullscreen hide-overlay transition="dialog-bottom-transition">
-            <v-card class="d-flex flex-column h-100 grey lighten-5">
-                <v-toolbar color="primary" dark>
+        <v-dialog :value="value" @input="$emit('input', $event)" max-width="900px" scrollable>
+            <v-card class="d-flex flex-column grey lighten-5" style="min-height: 600px;">
+                <v-toolbar color="primary" dark dense flat>
+                    <v-toolbar-title>Gestor de Calificaciones</v-toolbar-title>
+                    <v-spacer></v-spacer>
                     <v-btn icon dark @click="close">
                         <v-icon>mdi-close</v-icon>
                     </v-btn>
-                    <v-toolbar-title>Gestor de Calificaciones y Ponderaciones</v-toolbar-title>
-                    <v-spacer></v-spacer>
-                    <v-btn text @click="saveWeights" :loading="saving">
+                </v-toolbar>
+
+                <div class="d-flex align-center pa-2 white elevation-1">
+                     <v-spacer></v-spacer>
+                     <v-btn text color="primary" @click="saveWeights" :loading="saving">
                         <v-icon left>mdi-content-save</v-icon>
                         Guardar Cambios
                     </v-btn>
-                </v-toolbar>
+                </div>
 
-                <v-card-text class="pa-4">
-                    <v-alert v-if="totalWeight !== 100" type="error" text outlined class="mb-4">
-                        <strong>Atención:</strong> La suma de las ponderaciones es {{ totalWeight.toFixed(2) }}%. Debe ser exactamente 100%.
+                <v-card-text class="pa-4 flex-grow-1 overflow-y-auto" style="height: 500px;">
+                    <v-alert v-if="totalWeight !== 100" type="error" text outlined class="mb-4" dense>
+                        <strong>Atención:</strong> La suma de las ponderaciones es {{ totalWeight.toFixed(2) }}%. Debe ser 100%.
                     </v-alert>
-                    <v-alert v-else type="success" text outlined class="mb-4">
-                        La ponderación está cuadrada correctamente (100%).
+                    <v-alert v-else type="success" text outlined class="mb-4" dense>
+                        Ponderación correcta (100%).
                     </v-alert>
 
-                    <v-card class="mb-4">
-                        <v-card-title>
+                    <v-card outlined class="mb-4">
+                        <v-card-title class="subtitle-1">
                             Ítems de Calificación
                             <v-spacer></v-spacer>
                             <v-btn color="secondary" small @click="showAddDialog = true">
-                                <v-icon left>mdi-plus</v-icon> Adding Manual Item
+                                <v-icon left>mdi-plus</v-icon> Item Manual
                             </v-btn>
                         </v-card-title>
 
@@ -47,24 +51,29 @@ const GradebookManager = {
                             hide-default-footer
                             disable-pagination
                             class="elevation-0"
+                            dense
                         >
                             <!-- Weight Input Slot -->
                             <template v-slot:item.weight="{ item }">
-                                <v-text-field
-                                    v-model.number="item.weight"
-                                    type="number"
-                                    dense
-                                    outlined
-                                    hide-details
-                                    style="max-width: 100px"
-                                    @input="calculateTotal"
-                                    :disabled="item.locked"
-                                ></v-text-field>
+                                <div class="d-flex align-center">
+                                    <v-text-field
+                                        v-model.number="item.weight"
+                                        type="number"
+                                        dense
+                                        outlined
+                                        hide-details
+                                        style="max-width: 80px"
+                                        class="mr-1"
+                                        @input="calculateTotal"
+                                        :disabled="item.locked"
+                                    ></v-text-field>
+                                    <span class="grey--text">%</span>
+                                </div>
                             </template>
 
                             <!-- Type Badge Slot -->
                             <template v-slot:item.itemtype="{ item }">
-                                <v-chip small :color="getTypeColor(item)" dark label>
+                                <v-chip small :color="getTypeColor(item)" dark label class="font-weight-bold">
                                     {{ getTypeLabel(item) }}
                                 </v-chip>
                             </template>
@@ -72,7 +81,7 @@ const GradebookManager = {
                             <!-- Actions Slot (Delete Manual Items) -->
                             <template v-slot:item.actions="{ item }">
                                 <v-btn v-if="item.itemtype === 'manual'" icon color="red" small @click="deleteItem(item)">
-                                    <v-icon>mdi-delete</v-icon>
+                                    <v-icon small>mdi-delete</v-icon>
                                 </v-btn>
                             </template>
                         </v-data-table>
@@ -80,26 +89,26 @@ const GradebookManager = {
                 </v-card-text>
 
                 <!-- Add Manual Item Dialog -->
-                <v-dialog v-model="showAddDialog" max-width="500px">
+                <v-dialog v-model="showAddDialog" max-width="400px">
                     <v-card>
-                        <v-card-title>Crear ítem de calificación manual</v-card-title>
+                        <v-card-title class="subtitle-1">Nuevo ítem manual</v-card-title>
                         <v-card-text>
-                            <v-text-field v-model="newItem.name" label="Nombre (ej. Participación)" outlined autofocus></v-text-field>
-                            <v-text-field v-model.number="newItem.maxmark" label="Nota Máxima" type="number" outlined></v-text-field>
+                            <v-text-field v-model="newItem.name" label="Nombre (ej. Participación)" outlined dense autofocus></v-text-field>
+                            <v-text-field v-model.number="newItem.maxmark" label="Nota Máxima" type="number" outlined dense></v-text-field>
                         </v-card-text>
                         <v-card-actions>
                             <v-spacer></v-spacer>
-                            <v-btn text @click="showAddDialog = false">Cancelar</v-btn>
-                            <v-btn color="primary" @click="addManualItem" :disabled="!newItem.name">Crear</v-btn>
+                            <v-btn text small @click="showAddDialog = false">Cancelar</v-btn>
+                            <v-btn color="primary" small @click="addManualItem" :disabled="!newItem.name">Crear</v-btn>
                         </v-card-actions>
                     </v-card>
                 </v-dialog>
 
                 <!-- Snackbar for messages -->
-                <v-snackbar v-model="snackbar.show" :color="snackbar.color">
+                <v-snackbar v-model="snackbar.show" :color="snackbar.color" top right>
                     {{ snackbar.message }}
                     <template v-slot:action="{ attrs }">
-                        <v-btn text v-bind="attrs" @click="snackbar.show = false">Cerrar</v-btn>
+                        <v-btn text v-bind="attrs" @click="snackbar.show = false">X</v-btn>
                     </template>
                 </v-snackbar>
             </v-card>
@@ -122,13 +131,16 @@ const GradebookManager = {
                 color: 'success'
             },
             headers: [
-                { text: 'Nombre de la Actividad', value: 'itemname', sortable: false },
-                { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
-                { text: 'Nota Máxima', value: 'grademax', align: 'center', sortable: false, width: '100px' },
-                { text: 'Ponderación (%)', value: 'weight', align: 'center', sortable: false, width: '150px' },
-                { text: 'Acciones', value: 'actions', align: 'center', sortable: false, width: '100px' }
+                { text: 'Actividad', value: 'itemname', sortable: false },
+                { text: 'Tipo', value: 'itemtype', sortable: false, width: '100px' },
+                { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '70px' },
+                { text: 'Ponderación', value: 'weight', align: 'center', sortable: false, width: '120px' },
+                { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
+    },
+    mounted() {
+        this.fetchStructure();
     },
     watch: {
         value(val) {
