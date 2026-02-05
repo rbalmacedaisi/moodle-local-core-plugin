@@ -834,6 +834,126 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_gradebook_structure':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            $courseid = $class->corecourseid;
+            
+            require_once($CFG->libdir . '/gradelib.php');
+            
+            // Get all items in the course
+            $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
+            
+            $items = [];
+            $total_weight = 0;
+            
+            foreach ($grade_items as $gi) {
+                if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
+                
+                $items[] = [
+                    'id' => $gi->id,
+                    'itemname' => $gi->itemname ?: ($gi->itemtype . ' ' . $gi->itemmodule),
+                    'itemtype' => $gi->itemtype,
+                    'itemmodule' => $gi->itemmodule,
+                    'weight' => (float)$gi->aggregationcoef,
+                    'grademax' => (float)$gi->grademax,
+                    'locked' => $gi->locked
+                ];
+                $total_weight += (float)$gi->aggregationcoef;
+            }
+
+            $response = [
+                'status' => 'success',
+                'items' => $items,
+                'total_weight' => $total_weight
+            ];
+            break;
+
+        case 'local_grupomakro_update_grade_weights':
+            $classid = required_param('classid', PARAM_INT);
+            $weights_json = required_param('weights', PARAM_RAW);
+            $weights = json_decode($weights_json, true);
+            
+            if (!is_array($weights)) throw new Exception("Datos inválidos.");
+
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+
+            require_once($CFG->libdir . '/gradelib.php');
+
+            $tx = $DB->start_delegated_transaction();
+            try {
+                foreach ($weights as $w) {
+                    $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
+                    if ($gi) {
+                        $gi->aggregationcoef = (float)$w['weight'];
+                        $gi->update('aggregationcoef');
+                    }
+                }
+                $tx->allow_commit();
+                $response = ['status' => 'success', 'message' => 'Pesos actualizados.'];
+            } catch (Exception $e) {
+                $tx->rollback($e);
+                throw $e;
+            }
+            break;
+
+        case 'local_grupomakro_create_manual_grade_item':
+            $classid = required_param('classid', PARAM_INT);
+            $name = required_param('name', PARAM_TEXT);
+            $maxmark = required_param('maxmark', PARAM_INT); // Using int for simplicity, usually float
+
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+
+            require_once($CFG->libdir . '/gradelib.php');
+
+            // Find the class grade category to put this item in
+            // We usually put it in the main course category or a specific one?
+            // The logic in create_class creates a category for the class (gradecategoryid)
+            // Let's use that if available to keep things organized.
+            
+            $parent_category_id = null;
+            if (!empty($class->gradecategoryid)) {
+                $parent_category_id = $class->gradecategoryid;
+            } else {
+                // Fallback to course default
+                 $course_cat = \grade_category::fetch_course_category($class->corecourseid);
+                 $parent_category_id = $course_cat->id;
+            }
+
+            $grade_item = new \grade_item();
+            $grade_item->courseid = $class->corecourseid;
+            $grade_item->categoryid = $parent_category_id;
+            $grade_item->itemname = $name;
+            $grade_item->itemtype = 'manual';
+            $grade_item->grademax = $maxmark;
+            $grade_item->grademin = 0;
+            $grade_item->aggregationcoef = 0; // Default 0 weight
+            $grade_item->insert();
+
+            $response = ['status' => 'success', 'message' => 'Columna creada.', 'id' => $grade_item->id];
+            break;
+
+        case 'local_grupomakro_delete_grade_item':
+            $itemid = required_param('itemid', PARAM_INT);
+            require_once($CFG->libdir . '/gradelib.php');
+
+            $gi = \grade_item::fetch(['id' => $itemid]);
+            if (!$gi) throw new Exception("Ítem no encontrado.");
+            
+            // Security check: Only manual items? Or allow deleting activities?
+            // Safer to allow only manual for now, deleting activities deletes the module which is dangerous here.
+            if ($gi->itemtype !== 'manual') {
+                throw new Exception("Solo se pueden eliminar ítems manuales desde aquí.");
+            }
+
+            $gi->delete();
+            $response = ['status' => 'success', 'message' => 'Ítem eliminado.'];
+            break;
+
         case 'local_grupomakro_get_all_activities':
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid]);

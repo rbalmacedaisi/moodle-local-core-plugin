@@ -27,6 +27,14 @@ Vue.component('grades-grid', {
                             <v-btn icon @click="fetchGrades">
                                 <v-icon>mdi-refresh</v-icon>
                             </v-btn>
+                            <v-tooltip bottom>
+                                <template v-slot:activator="{ on, attrs }">
+                                    <v-btn icon color="primary" v-bind="attrs" v-on="on" @click="showGradebookManager = true">
+                                        <v-icon>mdi-cog</v-icon>
+                                    </v-btn>
+                                </template>
+                                <span>Gestionar Calificaciones</span>
+                            </v-tooltip>
                         </v-toolbar>
                     </template>
 
@@ -51,6 +59,14 @@ Vue.component('grades-grid', {
                     </template>
                 </v-data-table>
             </v-card-text>
+            
+            <!-- Gradebook Manager Modal -->
+            <gradebook-manager
+                v-if="showGradebookManager"
+                v-model="showGradebookManager"
+                :class-id="classId"
+                @closed="fetchGrades"
+            ></gradebook-manager>
         </v-card>
     `,
     props: {
@@ -64,7 +80,8 @@ Vue.component('grades-grid', {
             loading: false,
             error: null,
             students: [],
-            columns: []
+            columns: [],
+            showGradebookManager: false
         };
     },
     computed: {
