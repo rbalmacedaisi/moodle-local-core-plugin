@@ -342,27 +342,27 @@ const GradebookManager = {
         onPercentageInput(item) {
             const newPercentage = parseFloat(item.percentage) || 0;
             const others = this.items.filter(i => i.id !== item.id);
-            const sumOthersPercentage = others.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0);
-            const targetRemaining = 100 - newPercentage;
+            const currentOthersWeightSum = others.reduce((sum, i) => sum + (parseFloat(i.weight) || 0), 0);
+            const targetRemainingWeight = 100 - newPercentage;
 
-            if (sumOthersPercentage > 0 && targetRemaining >= 0) {
-                // Scale other items proportionally
-                const scale = targetRemaining / sumOthersPercentage;
+            if (currentOthersWeightSum > 0 && targetRemainingWeight >= 0) {
+                // Scale other weights proportionally to sum up to (100 - newPercentage)
+                const scale = targetRemainingWeight / currentOthersWeightSum;
                 others.forEach(o => {
-                    o.weight = parseFloat(((parseFloat(o.percentage) || 0) * scale).toFixed(2));
+                    o.weight = parseFloat(((parseFloat(o.weight) || 0) * scale).toFixed(2));
                 });
-            } else if (targetRemaining > 0 && others.length > 0) {
-                // If others were zero, distribute equally among them
-                const equalShare = targetRemaining / others.length;
+            } else if (targetRemainingWeight > 0 && others.length > 0) {
+                // If others were zero, distribute the remainder equally
+                const equalShare = targetRemainingWeight / others.length;
                 others.forEach(o => {
                     o.weight = parseFloat(equalShare.toFixed(2));
                 });
             }
 
-            // Set current item weight to its percentage to match 0-100 scale intent
+            // Force current item weight to match percentage for 0-100 consistency
             item.weight = newPercentage;
 
-            // Recalculate everything to ensure consistency and handle rounding
+            // Final total check and rounding adjustment
             this.calculateTotal();
         },
         async saveWeights() {
