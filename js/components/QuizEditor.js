@@ -23,9 +23,7 @@ const QuizEditor = {
                              <v-btn small text color="primary" class="mr-2" @click="showBankDialog = true">
                                 <v-icon left small>mdi-bank</v-icon> Banco
                             </v-btn>
-                            <v-btn small text color="orange darken-2" class="mr-2" @click="syncQuizGrades">
-                                <v-icon left small>mdi-sync</v-icon> Reparar Calificaciones
-                            </v-btn>
+
                             <v-btn color="primary" depressed @click="resetNewQuestion(); showAddQuestionDialog = true">
                                 <v-icon left>mdi-plus</v-icon> Nueva Pregunta
                             </v-btn>
@@ -476,117 +474,7 @@ const QuizEditor = {
                                 </div>
                             </v-alert>
 
-                            <!-- Help Modal -->
-                            <v-dialog v-model="showCalculatedHelp" max-width="600px" scrollable>
-                                <v-card class="rounded-xl">
-                                    <v-toolbar flat color="indigo" dark>
-                                        <v-icon left>mdi-calculator-variant</v-icon>
-                                        <v-toolbar-title>Mecánica de Preguntas Calculadas</v-toolbar-title>
-                                        <v-spacer></v-spacer>
-                                        <v-btn icon @click="showCalculatedHelp = false"><v-icon>mdi-close</v-icon></v-btn>
-                                    </v-toolbar>
-                                    
-                                    <v-card-text class="pa-6">
-                                        <div class="mb-6">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">1. La Lógica General</div>
-                                            <p class="body-2 grey--text text--darken-2">
-                                                En lugar de una respuesta fija, escribes una <strong>fórmula</strong> usando variables entre llaves como <code>{base}</code>.
-                                                Moodle las reemplaza por números reales aleatorios para cada estudiante.
-                                            </p>
-                                        </div>
 
-                                        <!-- Comparison Section -->
-                                        <div class="mb-6">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-3 text-uppercase">2. ¿Cuál tipo elegir?</div>
-                                            
-                                            <v-card outlined class="mb-3 pa-3 rounded-lg border-blue">
-                                                <div class="d-flex align-start">
-                                                    <v-icon color="blue" class="mr-3 mt-1">mdi-numeric</v-icon>
-                                                    <div>
-                                                        <div class="body-2 font-weight-bold">Calculada Normal / Simple</div>
-                                                        <div class="caption grey--text text--darken-1">
-                                                            El alumno debe <strong>escribir el número</strong>. Ideal para evaluar el cálculo final y procesos matemáticos abiertos.
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </v-card>
-
-                                        <v-card outlined class="pa-3 rounded-lg border-orange">
-                                                <div class="d-flex align-start">
-                                                    <v-icon color="orange darken-2" class="mr-3 mt-1">mdi-format-list-bulleted-type</v-icon>
-                                                    <div>
-                                                        <div class="body-2 font-weight-bold">Calculada de Opción Múltiple</div>
-                                                        <div class="caption grey--text text--darken-1">
-                                                            Tú escribes una fórmula para cada opción (A, B, C). **Moodle calcula los números de todas las opciones** y el estudiante elige el resultado correcto.
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </v-card>
-                                        </div>
-
-                                        <div class="mb-6 pa-4 amber lighten-5 rounded-lg border-amber">
-                                            <div class="subtitle-2 font-weight-bold amber--text text--darken-4 mb-1">
-                                                <v-icon small color="amber darken-4" class="mr-1">mdi-lightbulb-on</v-icon> ¿Por qué usar Opción Múltiple?
-                                            </div>
-                                            <p class="caption mb-0 grey--text text--darken-3">
-                                                Te permite poner <strong>"distractores inteligentes"</strong>. Por ejemplo, puedes poner una opción cuya fórmula sea un error común. Moodle calculará el número exacto de ese error para que el alumno deba razonar cuál es la fórmula correcta.
-                                            </p>
-                                        </div>
-
-                                        <div class="mb-2">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">3. Diferencia en la Vista del Alumno</div>
-                                            <v-simple-table dense class="grey lighten-5 rounded-lg border mb-2">
-                                                <template v-slot:default>
-                                                    <thead>
-                                                        <tr>
-                                                            <th class="caption font-weight-bold text-uppercase">Tipo</th>
-                                                            <th class="caption font-weight-bold text-uppercase">El Alumno Ve...</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <tr>
-                                                            <td class="caption font-weight-bold">Normal / Simple</td>
-                                                            <td class="caption italic">Un cuadro vacío para <strong>escribir</strong> el número.</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td class="caption font-weight-bold">Opción Múltiple</td>
-                                                            <td class="caption italic">Una lista (A, B, C) con los <strong>números ya calculados</strong>.</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </template>
-                                            </v-simple-table>
-                                            <div class="caption indigo--text font-weight-bold">
-                                                * En ambos casos se usan cálculos, la diferencia es cómo responde el alumno.
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-2">
-                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">4. Cómo escribir el enunciado</div>
-                                            <v-card outlined class="pa-3 rounded-lg border-indigo grey lighten-5">
-                                                <div class="d-flex align-start">
-                                                    <v-icon color="indigo" class="mr-2 mt-1" small>mdi-format-text</v-icon>
-                                                    <div>
-                                                        <p class="body-2 mb-2">Debes poner las variables entre llaves <code>{}</code> dentro del texto de la pregunta para que aparezcan los números.</p>
-                                                        <div class="caption font-weight-bold mb-1">Ejemplo Correcto:</div>
-                                                        <div class="white pa-2 rounded border mb-2 body-2 font-italic">
-                                                            "Calcula el área de un triángulo de base <strong>{b}</strong> m y altura <strong>{h}</strong> m."
-                                                        </div>
-                                                        <p class="caption mb-0 grey--text text--darken-3">
-                                                            Cuando el alumno entre, verá: "Calcula el área de un triángulo de base <strong>5.4</strong> m y altura <strong>8.2</strong> m." (los números cambian para cada uno).
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </v-card>
-                                        </div>
-                                    </v-card-text>
-
-                                    <v-divider></v-divider>
-                                    <v-card-actions class="pa-4">
-                                        <v-spacer></v-spacer>
-                                        <v-btn depressed color="indigo" dark class="rounded-lg px-6" @click="showCalculatedHelp = false">Entendido</v-btn>
-                                    </v-card-actions>
-                                </v-card>
-                            </v-dialog>
 
                             <!-- Formula Display & Controls -->
                             <template v-if="newQuestion.answers && newQuestion.answers.length > 0">
@@ -1128,6 +1016,119 @@ const QuizEditor = {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <!-- Help Modal (Moved to Root) -->
+            <v-dialog v-model="showCalculatedHelp" max-width="600px" scrollable>
+                                <v-card class="rounded-xl">
+                                    <v-toolbar flat color="indigo" dark>
+                                        <v-icon left>mdi-calculator-variant</v-icon>
+                                        <v-toolbar-title>Mecánica de Preguntas Calculadas</v-toolbar-title>
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon @click="showCalculatedHelp = false"><v-icon>mdi-close</v-icon></v-btn>
+                                    </v-toolbar>
+                                    
+                                    <v-card-text class="pa-6">
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">1. La Lógica General</div>
+                                            <p class="body-2 grey--text text--darken-2">
+                                                En lugar de una respuesta fija, escribes una <strong>fórmula</strong> usando variables entre llaves como <code>{base}</code>.
+                                                Moodle las reemplaza por números reales aleatorios para cada estudiante.
+                                            </p>
+                                        </div>
+
+                                        <!-- Comparison Section -->
+                                        <div class="mb-6">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-3 text-uppercase">2. ¿Cuál tipo elegir?</div>
+                                            
+                                            <v-card outlined class="mb-3 pa-3 rounded-lg border-blue">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="blue" class="mr-3 mt-1">mdi-numeric</v-icon>
+                                                    <div>
+                                                        <div class="body-2 font-weight-bold">Calculada Normal / Simple</div>
+                                                        <div class="caption grey--text text--darken-1">
+                                                            El alumno debe <strong>escribir el número</strong>. Ideal para evaluar el cálculo final y procesos matemáticos abiertos.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </v-card>
+
+                                        <v-card outlined class="pa-3 rounded-lg border-orange">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="orange darken-2" class="mr-3 mt-1">mdi-format-list-bulleted-type</v-icon>
+                                                    <div>
+                                                        <div class="body-2 font-weight-bold">Calculada de Opción Múltiple</div>
+                                                        <div class="caption grey--text text--darken-1">
+                                                            Tú escribes una fórmula para cada opción (A, B, C). **Moodle calcula los números de todas las opciones** y el estudiante elige el resultado correcto.
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </v-card>
+                                        </div>
+
+                                        <div class="mb-6 pa-4 amber lighten-5 rounded-lg border-amber">
+                                            <div class="subtitle-2 font-weight-bold amber--text text--darken-4 mb-1">
+                                                <v-icon small color="amber darken-4" class="mr-1">mdi-lightbulb-on</v-icon> ¿Por qué usar Opción Múltiple?
+                                            </div>
+                                            <p class="caption mb-0 grey--text text--darken-3">
+                                                Te permite poner <strong>"distractores inteligentes"</strong>. Por ejemplo, puedes poner una opción cuya fórmula sea un error común. Moodle calculará el número exacto de ese error para que el alumno deba razonar cuál es la fórmula correcta.
+                                            </p>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">3. Diferencia en la Vista del Alumno</div>
+                                            <v-simple-table dense class="grey lighten-5 rounded-lg border mb-2">
+                                                <template v-slot:default>
+                                                    <thead>
+                                                        <tr>
+                                                            <th class="caption font-weight-bold text-uppercase">Tipo</th>
+                                                            <th class="caption font-weight-bold text-uppercase">El Alumno Ve...</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr>
+                                                            <td class="caption font-weight-bold">Normal / Simple</td>
+                                                            <td class="caption italic">Un cuadro vacío para <strong>escribir</strong> el número.</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td class="caption font-weight-bold">Opción Múltiple</td>
+                                                            <td class="caption italic">Una lista (A, B, C) con los <strong>números ya calculados</strong>.</td>
+                                                        </tr>
+                                                    </tbody>
+                                                </template>
+                                            </v-simple-table>
+                                            <div class="caption indigo--text font-weight-bold">
+                                                * En ambos casos se usan cálculos, la diferencia es cómo responde el alumno.
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <div class="subtitle-2 font-weight-bold indigo--text mb-2 text-uppercase">4. Cómo escribir el enunciado</div>
+                                            <v-card outlined class="pa-3 rounded-lg border-indigo grey lighten-5">
+                                                <div class="d-flex align-start">
+                                                    <v-icon color="indigo" class="mr-2 mt-1" small>mdi-format-text</v-icon>
+                                                    <div>
+                                                        <p class="body-2 mb-2">Debes poner las variables entre llaves <code>{}</code> dentro del texto de la pregunta para que aparezcan los números.</p>
+                                                        <div class="caption font-weight-bold mb-1">Ejemplo Correcto:</div>
+                                                        <div class="white pa-2 rounded border mb-2 body-2 font-italic">
+                                                            "Calcula el área de un triángulo de base <strong>{b}</strong> m y altura <strong>{h}</strong> m."
+                                                        </div>
+                                                        <p class="caption mb-0 grey--text text--darken-3">
+                                                            Cuando el alumno entre, verá: "Calcula el área de un triángulo de base <strong>5.4</strong> m y altura <strong>8.2</strong> m." (los números cambian para cada uno).
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </v-card>
+                                        </div>
+                                    </v-card-text>
+
+                                    <v-divider></v-divider>
+                                    <v-card-actions class="pa-4">
+                                        <v-spacer></v-spacer>
+                                        <v-btn depressed color="indigo" dark class="rounded-lg px-6" @click="showCalculatedHelp = false">Entendido</v-btn>
+                                    </v-card-actions>
+                                </v-card>
+                            </v-dialog>
+
 
             <!-- Error Dialog -->
             <v-dialog v-model="errorDialog" max-width="600px">
