@@ -104,18 +104,7 @@ const GradebookManager = {
                                             </v-chip>
                                         </td>
                                         <td class="text-center">{{ item.grademax }}</td>
-                                        <td>
-                                            <v-text-field
-                                                v-model.number="item.weight"
-                                                type="number"
-                                                step="0.1"
-                                                dense
-                                                outlined
-                                                hide-details
-                                                style="max-width: 90px;"
-                                                @input="calculateTotal"
-                                            ></v-text-field>
-                                        </td>
+
                                         <td>
                                             <div class="d-flex align-center">
                                                 <v-text-field
@@ -179,16 +168,12 @@ const GradebookManager = {
                         </v-toolbar>
                         <v-card-text class="pa-4">
                             <div class="mb-4">
-                                <div class="font-weight-bold blue--text text--darken-4">Max:</div>
-                                <div class="grey--text text--darken-3">Es la escala de la actividad (ej. 0-100). Moodle normaliza la nota a un porcentaje antes de aplicar los pesos.</div>
-                            </div>
-                            <div class="mb-4">
-                                <div class="font-weight-bold blue--text text--darken-4">Peso (Valor):</div>
-                                <div class="grey--text text--darken-3">Define la importancia relativa entre actividades. Si tres actividades tienen Peso = 1, cada una vale un tercio del total independientemente de su nota máxima.</div>
+                                <div class="font-weight-bold blue--text text--darken-4">Calificación Máxima (Max):</div>
+                                <div class="grey--text text--darken-3">Es la escala de la actividad (unificada en 100). Indica el tope de puntos que un alumno puede obtener en esa tarea específica.</div>
                             </div>
                             <div class="mb-4">
                                 <div class="font-weight-bold blue--text text--darken-4">Ponderación (%):</div>
-                                <div class="grey--text text--darken-3">Es el impacto final real sobre los 100 puntos del curso. La suma de todas las actividades visibles debe ser 100%.</div>
+                                <div class="grey--text text--darken-3">Define cuánto vale la actividad sobre los 100 puntos totales del curso. Si cambias un porcentaje, las demás se ajustarán solas para que la suma sea siempre 100%.</div>
                             </div>
                         </v-card-text>
                         <v-divider></v-divider>
@@ -224,7 +209,6 @@ const GradebookManager = {
                 { text: 'Actividad', value: 'itemname', sortable: false },
                 { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
                 { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '80px' },
-                { text: 'Peso (Valor)', value: 'weight', align: 'start', sortable: false, width: '130px' },
                 { text: 'Ponderación (%)', value: 'percentage', align: 'start', sortable: false, width: '150px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
