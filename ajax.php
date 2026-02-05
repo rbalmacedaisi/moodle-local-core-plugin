@@ -934,11 +934,6 @@ try {
                 } else {
                     $total_weight = 0;
                 }
-            } else {
-                $total_weight = 0;
-            }
-                // Case 3: No grades, no weights.
-                $total_weight = 0;
             }
 
             $response = [
