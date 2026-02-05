@@ -862,8 +862,11 @@ try {
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
-                // NOTE: We no longer exclude "Nota Final Integrada" as it needs to be weighted
-                // for the course total to reflect migrated grades.
+                // HIDE "Nota Final Integrada" from the UI list as requested.
+                // It will be managed automatically in the backend.
+                if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
+                    continue;
+                }
 
                 $weight = 0;
                 $parent_cat = $gi->get_parent_category();
@@ -983,10 +986,33 @@ try {
                     }
                 }
 
-                // 2. Update Sort Order if provided
-                // This is complex as Moodle uses a global sequence.
-                // We'll move items one by one in the sequence provided.
-                if (is_array($sort_order)) {
+                // 2. AUTOMATIC AGGREGATION FOR MIGRATED GRADES
+                // If "Nota Final Integrada" exists, enforce "Highest Grade" (8) at the root
+                // so migrated grades act as a competitor/alternative to the current category.
+                $all_gi = \grade_item::fetch_all(['courseid' => $class->corecourseid]);
+                foreach ($all_gi as $gi) {
+                    if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
+                        // Ensure it has a weight so it's not and-ed out if we were in Weighted Mean
+                        if ($gi->aggregationcoef <= 0) {
+                            $gi->aggregationcoef = 1.0;
+                            $gi->update('aggregationcoef');
+                        }
+                        if ($gi->aggregationcoef2 <= 0) {
+                            $gi->aggregationcoef2 = 1.0;
+                            $gi->update('aggregationcoef2');
+                        }
+                        
+                        // Set Root to Highest Grade
+                        $root_cat = \grade_category::fetch_course_category($class->corecourseid);
+                        if ($root_cat && $root_cat->aggregation != 8) {
+                            $root_cat->aggregation = 8;
+                            $root_cat->update();
+                        }
+                        break;
+                    }
+                }
+
+                // 3. Update Sort Order if provided
                     $anchor_sortorder = 0; // Move to beginning of course sequence
                     foreach ($sort_order as $itemid) {
                         $gi = \grade_item::fetch(['id' => $itemid, 'courseid' => $class->corecourseid]);
