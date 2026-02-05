@@ -311,18 +311,33 @@ const GradebookManager = {
         calculateTotal() {
             const sumWeights = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
 
-            // Update percentages based on new weights
-            this.items.forEach(item => {
-                if (sumWeights > 0) {
-                    item.percentage = parseFloat(((item.weight / sumWeights) * 100).toFixed(2));
+            if (sumWeights <= 0) {
+                this.items.forEach(item => { item.percentage = 0; });
+                this.totalWeight = 0;
+                return;
+            }
+
+            let runningTotal = 0;
+            let lastWeightyIndex = -1;
+
+            this.items.forEach((item, index) => {
+                const weight = parseFloat(item.weight) || 0;
+                if (weight > 0) {
+                    item.percentage = parseFloat(((weight / sumWeights) * 100).toFixed(2));
+                    runningTotal += item.percentage;
+                    lastWeightyIndex = index;
                 } else {
                     item.percentage = 0;
                 }
             });
 
-            // The total is always the calculated percentage sum (should be 100 if sumWeights > 0)
-            // But we display it based on actual sum to warn user if they intended something else
-            this.totalWeight = this.items.reduce((sum, item) => sum + item.percentage, 0);
+            // Adjust rounding diff (e.g. 99.99 -> 100.00)
+            if (lastWeightyIndex !== -1 && runningTotal !== 100) {
+                const diff = parseFloat((100 - runningTotal).toFixed(2));
+                this.items[lastWeightyIndex].percentage = parseFloat((this.items[lastWeightyIndex].percentage + diff).toFixed(2));
+            }
+
+            this.totalWeight = 100;
         },
         onPercentageInput(item) {
             // If user modifies percentage directly, we set weight = percentage
