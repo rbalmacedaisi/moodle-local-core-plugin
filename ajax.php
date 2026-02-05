@@ -967,6 +967,12 @@ try {
                         if (isset($w['hidden'])) {
                             $gi->set_hidden($w['hidden'] ? 1 : 0);
                         }
+
+                        // ENFORCE Grademax = 100
+                        if ($gi->grademax != 100) {
+                            $gi->grademax = 100;
+                            $gi->update('grademax');
+                        }
                     }
                 }
 
@@ -1000,7 +1006,7 @@ try {
         case 'local_grupomakro_create_manual_grade_item':
             $classid = required_param('classid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
-            $maxmark = required_param('maxmark', PARAM_INT); // Using int for simplicity, usually float
+            $maxmark = optional_param('maxmark', 100, PARAM_INT); // Default to 100 as requested
 
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");

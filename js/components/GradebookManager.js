@@ -163,8 +163,8 @@ const GradebookManager = {
                     <v-card>
                         <v-card-title class="subtitle-1">Nuevo ítem manual</v-card-title>
                         <v-card-text>
-                            <v-text-field v-model="newItem.name" label="Nombre (ej. Participación)" outlined dense autofocus></v-text-field>
-                            <v-text-field v-model.number="newItem.maxmark" label="Nota Máxima" type="number" outlined dense></v-text-field>
+                            <v-text-field v-model="newItem.name" label="Nombre (ej. Participación)" outlined dense autofocus hide-details class="mb-2"></v-text-field>
+                            <div class="caption grey--text">La nota máxima se establecerá automáticamente en 100.</div>
                         </v-card-text>
                         <v-card-actions>
                             <v-spacer></v-spacer>
