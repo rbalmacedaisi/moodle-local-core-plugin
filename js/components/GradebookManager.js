@@ -78,8 +78,22 @@ const GradebookManager = {
                                         class="draggable-row"
                                     >
                                         <td>
-                                            <v-icon small class="cursor-drag mr-2">mdi-drag</v-icon>
-                                            {{ item.itemname }}
+                                            <div class="d-flex align-center">
+                                                <v-icon small class="cursor-drag mr-2">mdi-drag</v-icon>
+                                                <v-tooltip bottom>
+                                                    <template v-slot:activator="{ on, attrs }">
+                                                        <v-btn icon x-small v-bind="attrs" v-on="on" @click="item.hidden = item.hidden ? 0 : 1" class="mr-2">
+                                                            <v-icon small :color="item.hidden ? 'grey' : 'primary'">
+                                                                {{ item.hidden ? 'mdi-eye-off' : 'mdi-eye' }}
+                                                            </v-icon>
+                                                        </v-btn>
+                                                    </template>
+                                                    <span>{{ item.hidden ? 'Oculto para estudiantes' : 'Visible para estudiantes' }}</span>
+                                                </v-tooltip>
+                                                <span :class="item.hidden ? 'grey--text text--lighten-1 italic' : ''">
+                                                    {{ item.itemname }}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td>
                                             <v-chip small :color="getTypeColor(item)" dark label class="font-weight-bold">
@@ -145,6 +159,7 @@ const GradebookManager = {
                 .cursor-drag:active { cursor: grabbing !important; }
                 .draggable-row:hover { background-color: rgba(0,0,0,0.03); }
                 .centered-input input { text-align: center; }
+                .italic { font-style: italic; }
             </style>
         </v-dialog>
     `,
@@ -222,6 +237,7 @@ const GradebookManager = {
                     this.items = response.data.items.map(i => ({
                         ...i,
                         weight: parseFloat(i.weight), // Keep original
+                        hidden: parseInt(i.hidden) || 0,
                         locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
                         // "Nota Final Integrada" or specific critical items should not be deletable even if manual
                         is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
@@ -246,7 +262,8 @@ const GradebookManager = {
             try {
                 const updates = this.items.map(i => ({
                     id: i.id,
-                    weight: i.weight
+                    weight: i.weight,
+                    hidden: i.hidden
                 }));
 
                 const sortOrder = this.items.map(i => i.id);

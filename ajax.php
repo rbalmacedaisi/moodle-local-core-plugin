@@ -862,22 +862,10 @@ try {
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
-                // EXCLUDE specific items requested by user
-                if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
-                    continue;
-                }
-
                 $weight = 0;
                 $is_natural = ($aggregation == 13);
                 
                 if ($is_natural) {
-                   // In Natural, aggregationcoef2 is the weight IF overridden (weightoverride = 1)
-                   // If not overridden, it is calculated automatically.
-                   // Note: $gi->weightoverride might simpler in newer Moodle versions, 
-                   // but standard is checking if we have a set value.
-                   // Actually, for display purposes we often want the *effective* weight.
-                   
-                   // Let's use aggregationcoef2 as the source of truth for "User Set Weight"
                    $weight = (float)$gi->aggregationcoef2;
                 } else {
                    $weight = (float)$gi->aggregationcoef;
@@ -891,6 +879,7 @@ try {
                     'weight' => $weight,
                     'grademax' => (float)$gi->grademax,
                     'locked' => $gi->locked,
+                    'hidden' => (int)$gi->hidden,
                     'aggregationcoef2' => (float)$gi->aggregationcoef2, // For debugging/reference
                     'is_natural' => $is_natural
                 ];
@@ -976,10 +965,11 @@ try {
 
             $tx = $DB->start_delegated_transaction();
             try {
-                // 1. Update Weights
+                // 1. Update Weights and Visibility
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
+                        // Update Weight
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
                             $gi->weightoverride = 1; 
@@ -988,6 +978,11 @@ try {
                         } else {
                             $gi->aggregationcoef = (float)$w['weight'];
                             $gi->update('aggregationcoef');
+                        }
+
+                        // Update Visibility if provided
+                        if (isset($w['hidden'])) {
+                            $gi->set_hidden($w['hidden'] ? 1 : 0);
                         }
                     }
                 }
