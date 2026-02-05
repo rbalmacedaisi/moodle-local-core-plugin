@@ -105,7 +105,8 @@ const GradebookManager = {
                                                 {{ getTypeLabel(item) }}
                                             </v-chip>
                                         </td>
-                                        <td class="text-center">
+                                        <td class="text-center font-weight-bold grey--text">{{ item.grademax }}</td>
+                                        <td>
                                             <div class="d-flex align-center justify-center">
                                                 <v-text-field
                                                     v-model.number="item.raw_weight"
@@ -114,19 +115,23 @@ const GradebookManager = {
                                                     dense
                                                     outlined
                                                     hide-details
-                                                    style="max-width: 90px;"
+                                                    style="max-width: 85px;"
                                                     class="text-center"
+                                                    :background-color="item.weightoverride ? 'orange lighten-5' : 'grey lighten-4'"
                                                     @input="onWeightInput(item)"
                                                 ></v-text-field>
                                                 <v-tooltip bottom>
                                                     <template v-slot:activator="{ on, attrs }">
                                                         <v-btn icon x-small v-bind="attrs" v-on="on" @click="toggleOverride(item)" class="ml-1">
                                                             <v-icon small :color="item.weightoverride ? 'orange' : 'grey lighten-1'">
-                                                                {{ item.weightoverride ? 'mdi-lock' : 'mdi-lock-open-outline' }}
+                                                                {{ item.weightoverride ? 'mdi-lock' : 'mdi-lock-open-variant-outline' }}
                                                             </v-icon>
                                                         </v-btn>
                                                     </template>
-                                                    <span>{{ item.weightoverride ? 'Valor manual (Fijo)' : 'Valor automático (Moodle)' }}</span>
+                                                    <div>
+                                                        <strong>{{ item.weightoverride ? 'Peso Manual Fijado' : 'Peso Automático' }}</strong><br>
+                                                        {{ item.weightoverride ? 'Haga clic para volver al cálculo automático de Moodle.' : 'Haga clic para bloquear este valor.' }}
+                                                    </div>
                                                 </v-tooltip>
                                             </div>
                                         </td>
@@ -135,9 +140,9 @@ const GradebookManager = {
                                                 <v-progress-linear
                                                     :value="item.weight"
                                                     color="primary"
-                                                    height="15"
+                                                    height="20"
                                                     rounded
-                                                    class="flex-grow-1 mr-2"
+                                                    class="flex-grow-1"
                                                 >
                                                     <template v-slot:default="{ value }">
                                                         <span class="white--text text-caption font-weight-bold">{{ item.weight.toFixed(2) }}%</span>
