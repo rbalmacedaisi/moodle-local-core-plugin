@@ -908,8 +908,18 @@ try {
             // We'll treat all non-overridden items as having weight 1.0 relative to others.
             if ($sum_weights <= 0 && $sum_max > 0) {
                 // Case A: Everything is automatic. Distribute by max grade (fairest default)
+                $running_sum = 0;
+                $count = count($items);
+                $idx = 0;
                 foreach ($items as &$it) {
-                    $it['weight'] = ($it['grademax'] / $sum_max) * 100;
+                    $idx++;
+                    $val = ($it['grademax'] / $sum_max) * 100;
+                    if ($idx == $count) {
+                        $it['weight'] = round(100 - $running_sum, 2);
+                    } else {
+                        $it['weight'] = round($val, 2);
+                        $running_sum += $it['weight'];
+                    }
                 }
                 $total_weight = 100;
             } else if ($sum_weights > 0) {
@@ -917,17 +927,30 @@ try {
                 // We'll treat ANY 0-weight item as part of the distribution IF it's not overridden.
                 $effective_sum = 0;
                 foreach ($items as &$it) {
-                    if ($it['weight'] <= 0 && $it['weightoverride'] == 0) {
+                    $weight = isset($it['weight']) ? (float)$it['weight'] : 0;
+                    $override = isset($it['weightoverride']) ? (int)$it['weightoverride'] : 0;
+                    
+                    if ($weight <= 0 && $override == 0) {
                         $it['temp_weight'] = 1.0; // Treat as 1 share
                     } else {
-                        $it['temp_weight'] = $it['weight'];
+                        $it['temp_weight'] = $weight;
                     }
                     $effective_sum += $it['temp_weight'];
                 }
                 
                 if ($effective_sum > 0) {
+                    $running_sum = 0;
+                    $count = count($items);
+                    $idx = 0;
                     foreach ($items as &$it) {
-                        $it['weight'] = ($it['temp_weight'] / $effective_sum) * 100;
+                        $idx++;
+                        $val = ($it['temp_weight'] / $effective_sum) * 100;
+                        if ($idx == $count) {
+                            $it['weight'] = round(100 - $running_sum, 2);
+                        } else {
+                            $it['weight'] = round($val, 2);
+                            $running_sum += $it['weight'];
+                        }
                         unset($it['temp_weight']);
                     }
                     $total_weight = 100;
@@ -1049,8 +1072,11 @@ try {
             $grade_item->grademin = 0;
             
             // Set default weight to 1.0 so it counts by default
+            $is_natural_cat = false;
             $parent_cat = \grade_category::fetch(['id' => $parent_category_id]);
-            $is_natural_cat = ($parent_cat && $parent_cat->aggregation == 13);
+            if ($parent_cat) {
+                $is_natural_cat = ($parent_cat->aggregation == 13);
+            }
             
             if ($is_natural_cat) {
                 $grade_item->aggregationcoef2 = 1.0;
