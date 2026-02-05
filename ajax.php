@@ -51,7 +51,15 @@ function gmk_normalize_grade_weights(&$items) {
         // Case B: Some manual weights or partially initialized
         $effective_sum = 0;
         foreach ($items as &$it) {
-            $weight = (isset($it['weight']) && $it['weight'] > 0) ? (float)$it['weight'] : 1.0;
+            // Respect 0 if explicitly provided, otherwise default to 1.0 for automatic items
+            // unless the item is overridden (in which case 0 is 0).
+            $weight = 1.0;
+            if (isset($it['weightoverride']) && $it['weightoverride']) {
+                $weight = (float)$it['weight'];
+            } else if (isset($it['weight']) && (float)$it['weight'] != 0) {
+                $weight = (float)$it['weight'];
+            }
+            
             $it['temp_weight'] = $weight;
             $effective_sum += $weight;
         }
@@ -998,23 +1006,22 @@ try {
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
-                        // Update Weight
                         $override = isset($w['weightoverride']) ? (int)$w['weightoverride'] : 1;
+                        
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
-                            $gi->weightoverride = $override; 
-                            $gi->update('aggregationcoef2');
-                            $gi->update('weightoverride');
+                            $gi->weightoverride = $override;
+                            // Set aggregationcoef to 0 for natural items if overridden? 
+                            // Normally Moodle handles this.
                         } else {
                             $gi->aggregationcoef = (float)$w['weight'];
-                            // For weighted mean or similar, we might also want to track override
-                            // though Moodle's core UI uses it primarily for Natural.
+                            // Some themes/plugins use weightoverride even in non-natural modes
                             if (property_exists($gi, 'weightoverride')) {
                                 $gi->weightoverride = $override;
-                                $gi->update('weightoverride');
                             }
-                            $gi->update('aggregationcoef');
                         }
+                        
+                        $gi->update(); // Commit all changes at once
 
                         // Update Visibility if provided
                         if (isset($w['hidden'])) {
