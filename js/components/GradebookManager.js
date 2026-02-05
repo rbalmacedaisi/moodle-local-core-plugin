@@ -340,9 +340,29 @@ const GradebookManager = {
             this.totalWeight = 100;
         },
         onPercentageInput(item) {
-            // If user modifies percentage directly, we set weight = percentage
-            // This is a common shortcut: if they work in 0-100 scale, weights and % are same.
-            item.weight = item.percentage;
+            const newPercentage = parseFloat(item.percentage) || 0;
+            const others = this.items.filter(i => i.id !== item.id);
+            const sumOthersPercentage = others.reduce((sum, i) => sum + (parseFloat(i.percentage) || 0), 0);
+            const targetRemaining = 100 - newPercentage;
+
+            if (sumOthersPercentage > 0 && targetRemaining >= 0) {
+                // Scale other items proportionally
+                const scale = targetRemaining / sumOthersPercentage;
+                others.forEach(o => {
+                    o.weight = parseFloat(((parseFloat(o.percentage) || 0) * scale).toFixed(2));
+                });
+            } else if (targetRemaining > 0 && others.length > 0) {
+                // If others were zero, distribute equally among them
+                const equalShare = targetRemaining / others.length;
+                others.forEach(o => {
+                    o.weight = parseFloat(equalShare.toFixed(2));
+                });
+            }
+
+            // Set current item weight to its percentage to match 0-100 scale intent
+            item.weight = newPercentage;
+
+            // Recalculate everything to ensure consistency and handle rounding
             this.calculateTotal();
         },
         async saveWeights() {
