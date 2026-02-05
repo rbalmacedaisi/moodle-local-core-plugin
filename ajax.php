@@ -843,14 +843,25 @@ try {
             
             require_once($CFG->libdir . '/gradelib.php');
             
-            // Get course category to determine aggregation method
-            $course_cat = \grade_category::fetch_course_category($courseid);
-            $aggregation = $course_cat->aggregation; 
+            // 1. Get the specific category for this class
+            $class_category = null;
+            if (!empty($class->gradecategoryid)) {
+                $class_category = \grade_category::fetch(['id' => $class->gradecategoryid]);
+            }
+            
+            // 2. Fallback to course root category if not found
+            $target_cat = $class_category ?: \grade_category::fetch_course_category($courseid);
+            $aggregation = $target_cat->aggregation; 
+
             // 13 = Natural (Sum of grades), 10 = Weighted Mean, 11 = Simple Weighted Mean
             // 13 uses aggregationcoef2 for weight, and aggregationcoef for extra credit.
 
-            // Get all items in the course
-            $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
+            // 3. Fetch ONLY items belonging to this category
+            $item_filter = ['courseid' => $courseid];
+            if ($class_category) {
+                $item_filter['categoryid'] = $class_category->id;
+            }
+            $grade_items = \grade_item::fetch_all($item_filter);
             
             $items = [];
             $total_weight = 0;
