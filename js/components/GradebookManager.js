@@ -138,6 +138,24 @@ const GradebookManager = {
                             </template>
                         </v-data-table>
                     </v-card>
+
+                    <v-alert info color="blue lighten-5" class="mt-4 pa-4" border="left">
+                        <div class="subtitle-2 blue--text text--darken-3 mb-2">
+                            <v-icon small color="blue darken-3" class="mr-1">mdi-help-circle</v-icon>
+                            Guía Rápida de Cálculos
+                        </div>
+                        <v-row dense>
+                            <v-col cols="12" md="4">
+                                <span class="font-weight-bold">Max:</span> Es la escala de la actividad (ej. 0-100). Moodle normaliza la nota a una escala de 0 a 1 antes de aplicar los pesos.
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <span class="font-weight-bold">Peso (Valor):</span> Define la importancia relativa. Si todas tienen Peso=1, todas valen lo mismo sin importar su "Max".
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <span class="font-weight-bold">Ponderación (%):</span> Es el impacto real de la actividad sobre el 100% de la nota final calculada.
+                            </v-col>
+                        </v-row>
+                    </v-alert>
                 </v-card-text>
 
                 <!-- Add Manual Item Dialog -->
