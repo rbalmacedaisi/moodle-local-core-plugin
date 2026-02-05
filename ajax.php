@@ -843,31 +843,89 @@ try {
             
             require_once($CFG->libdir . '/gradelib.php');
             
+            // Get course category to determine aggregation method
+            $course_cat = \grade_category::fetch_course_category($courseid);
+            $aggregation = $course_cat->aggregation; 
+            // 13 = Natural (Sum of grades), 10 = Weighted Mean, 11 = Simple Weighted Mean
+            // 13 uses aggregationcoef2 for weight, and aggregationcoef for extra credit.
+
             // Get all items in the course
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
             
             $items = [];
             $total_weight = 0;
-            
+            $items_for_calc = [];
+
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
+                $weight = 0;
+                $is_natural = ($aggregation == 13);
+                
+                if ($is_natural) {
+                   // In Natural, aggregationcoef2 is the weight IF overridden (weightoverride = 1)
+                   // If not overridden, it is calculated automatically.
+                   // Note: $gi->weightoverride might simpler in newer Moodle versions, 
+                   // but standard is checking if we have a set value.
+                   // Actually, for display purposes we often want the *effective* weight.
+                   
+                   // Let's use aggregationcoef2 as the source of truth for "User Set Weight"
+                   $weight = (float)$gi->aggregationcoef2;
+                } else {
+                   $weight = (float)$gi->aggregationcoef;
+                }
+
                 $items[] = [
                     'id' => $gi->id,
                     'itemname' => $gi->itemname ?: ($gi->itemtype . ' ' . $gi->itemmodule),
                     'itemtype' => $gi->itemtype,
                     'itemmodule' => $gi->itemmodule,
-                    'weight' => (float)$gi->aggregationcoef,
+                    'weight' => $weight,
                     'grademax' => (float)$gi->grademax,
-                    'locked' => $gi->locked
+                    'locked' => $gi->locked,
+                    'aggregationcoef2' => (float)$gi->aggregationcoef2, // For debugging/reference
+                    'is_natural' => $is_natural
                 ];
-                $total_weight += (float)$gi->aggregationcoef;
+            }
+
+            // If Natural and total weight is 0 (all auto), or mixed, we might want to 
+            // return the calculated weights?
+            // Actually, frontend calculates total. If it returns 0s, frontend shows 0s.
+            // If the user wants to EDIT, they set a value.
+            // But user says "Moodle shows 19.231".
+            // That means Moodle is calculating it.
+            // We should try to provide that calculated value for reference or init.
+            
+            if ($is_natural) {
+                 // Calculate sum of maxgrades of *non-overridden* items?
+                 // Or just total max grade.
+                 // Simple approximation for display:
+                 $course_total_max = $course_cat->get_grade_max();
+                 // This might be 0 if not calculated.
+                 // Let's summing up items maxgrade
+                 $sum_max = 0;
+                 foreach ($items as $it) {
+                     $sum_max += $it['grademax'];
+                 }
+                 
+                 foreach ($items as &$it) {
+                     if (($it['weight'] <= 0.0001) && $sum_max > 0) {
+                        // Estimate natural weight
+                        $it['weight'] = ($it['grademax'] / $sum_max) * 100;
+                     }
+                     $total_weight += $it['weight'];
+                 }
+            } else {
+                 foreach ($items as $it) {
+                     $total_weight += $it['weight'];
+                 }
             }
 
             $response = [
                 'status' => 'success',
                 'items' => $items,
-                'total_weight' => $total_weight
+                'total_weight' => $total_weight,
+                'aggregation' => $aggregation
             ];
             break;
 
@@ -883,15 +941,33 @@ try {
 
             require_once($CFG->libdir . '/gradelib.php');
 
+            // Determine aggregation method first
+            $course_cat = \grade_category::fetch_course_category($class->corecourseid);
+            $aggregation = $course_cat->aggregation; 
+            $is_natural = ($aggregation == 13);
+
             $tx = $DB->start_delegated_transaction();
             try {
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
-                        $gi->aggregationcoef = (float)$w['weight'];
-                        $gi->update('aggregationcoef');
+                        if ($is_natural) {
+                            $gi->aggregationcoef2 = (float)$w['weight'];
+                            // If user sets a weight, we must strictly enable override
+                            // (Though usually setting coef2 implies it, setting the flag ensures it)
+                            $gi->weightoverride = 1; 
+                            $gi->update('aggregationcoef2');
+                            $gi->update('weightoverride');
+                        } else {
+                            $gi->aggregationcoef = (float)$w['weight'];
+                            $gi->update('aggregationcoef');
+                        }
                     }
                 }
+                // Force regrading if needed? 
+                // Usually updating grade item triggers regrade but sometimes needs explicitly.
+                // \grade_regrade_final_grades($class->corecourseid); // Heavy operation, maybe avoid unless needed.
+                
                 $tx->allow_commit();
                 $response = ['status' => 'success', 'message' => 'Pesos actualizados.'];
             } catch (Exception $e) {
