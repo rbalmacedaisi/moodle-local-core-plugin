@@ -80,7 +80,7 @@ const GradebookManager = {
 
                             <!-- Actions Slot (Delete Manual Items) -->
                             <template v-slot:item.actions="{ item }">
-                                <v-btn v-if="item.itemtype === 'manual'" icon color="red" small @click="deleteItem(item)">
+                                <v-btn v-if="item.itemtype === 'manual' && !item.is_protected" icon color="red" small @click="deleteItem(item)">
                                     <v-icon small>mdi-delete</v-icon>
                                 </v-btn>
                             </template>
@@ -174,7 +174,10 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        weight: parseFloat(i.weight) // Keep original
+                        weight: parseFloat(i.weight), // Keep original
+                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
+                        // "Nota Final Integrada" or specific critical items should not be deletable even if manual
+                        is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
                     }));
                     this.calculateTotal();
                 } else {
