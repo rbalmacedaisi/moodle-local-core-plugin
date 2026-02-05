@@ -157,162 +157,151 @@ const GradebookManager = {
         async fetchStructure() {
             this.loading = true;
             try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_get_gradebook_structure',
-                    classid: this.classId,
-                    sesskey: M.cfg.sesskey
-                });
+                const sesskey = this.getSesskey();
+                console.log('Fetching gradebook structure. Class:', this.classId, 'Sesskey:', sesskey);
+
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_get_gradebook_structure');
+                params.append('classid', this.classId);
+                params.append('sesskey', sesskey);
+
+                // Use M.cfg.wwwroot directly or fallback
+                const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
+                const url = baseUrl + '/local/grupomakro_core/ajax.php';
+
+                const response = await axios.post(url, params);
 
                 if (response.data.status === 'success') {
-                    // Convert weights to proper percentages (0.1 -> 10) if Moodle stores them as 0-1, 
-                    // BUT Moodle aggregationcoef usually depends on aggregation method.
-                    // Assuming "Weighted Mean" where 1.0 = 100% or 100.0 = 100%. 
-                    // Let's assume input comes as 0.25 (25%) based on common Moodle behavior, 
-                    const sesskey = this.getSesskey();
-                    console.log('Fetching gradebook structure. Class:', this.classId, 'Sesskey:', sesskey);
-
-                    const params = new URLSearchParams();
-                    params.append('action', 'local_grupomakro_get_gradebook_structure');
-                    params.append('classid', this.classId);
-                    params.append('sesskey', sesskey);
-
-                    // Use M.cfg.wwwroot directly or fallback
-                    const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
-                    const url = baseUrl + '/local/grupomakro_core/ajax.php';
-
-                    const response = await axios.post(url, params);
-
-                    if (response.data.status === 'success') {
-                        this.items = response.data.items.map(i => ({
-                            ...i,
-                            weight: parseFloat(i.weight) // Keep original
-                        }));
-                        this.calculateTotal();
-                    } else {
-                        console.error('Server error:', response.data);
-                        this.showSnackbar(response.data.message || 'Error cargando estructura', 'error');
-                    }
-                } catch (error) {
-                    console.error('AJAX Error:', error);
-                    this.showSnackbar('Error de conexión: ' + error.toString(), 'error');
-                } finally {
-                    this.loading = false;
-                }
-            },
-            calculateTotal() {
-                this.totalWeight = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
-            },
-        async saveWeights() {
-                this.saving = true;
-                try {
-                    const updates = this.items.map(i => ({
-                        id: i.id,
-                        weight: i.weight
+                    this.items = response.data.items.map(i => ({
+                        ...i,
+                        weight: parseFloat(i.weight) // Keep original
                     }));
-
-                    const params = new URLSearchParams();
-                    params.append('action', 'local_grupomakro_update_grade_weights');
-                    params.append('classid', this.classId);
-                    params.append('weights', JSON.stringify(updates));
-                    params.append('sesskey', this.getSesskey());
-
-                    const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
-                    const url = baseUrl + '/local/grupomakro_core/ajax.php';
-
-                    const response = await axios.post(url, params);
-
-                    if (response.data.status === 'success') {
-                        this.showSnackbar('Cambios guardados correctamente');
-                    } else {
-                        this.showSnackbar(response.data.message || 'Error guardando', 'error');
-                    }
-                } catch (error) {
-                    console.error(error);
-                    this.showSnackbar('Error de conexión', 'error');
-                } finally {
-                    this.saving = false;
+                    this.calculateTotal();
+                } else {
+                    console.error('Server error:', response.data);
+                    this.showSnackbar(response.data.message || 'Error cargando estructura', 'error');
                 }
-            },
-        async addManualItem() {
-                try {
-                    const params = new URLSearchParams();
-                    params.append('action', 'local_grupomakro_create_manual_grade_item');
-                    params.append('classid', this.classId);
-                    params.append('name', this.newItem.name);
-                    params.append('maxmark', this.newItem.maxmark);
-                    params.append('sesskey', this.getSesskey());
-
-                    const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
-                    const url = baseUrl + '/local/grupomakro_core/ajax.php';
-
-                    const response = await axios.post(url, params);
-
-                    if (response.data.status === 'success') {
-                        this.showAddDialog = false;
-                        this.newItem.name = '';
-                        this.newItem.maxmark = 100;
-                        this.showSnackbar('Ítem manual creado');
-                        this.fetchStructure();
-                    } else {
-                        this.showSnackbar(response.data.message || 'Error creando ítem', 'error');
-                    }
-                } catch (error) {
-                    console.error(error);
-                    this.showSnackbar('Error creando ítem', 'error');
-                }
-            },
-        async deleteItem(item) {
-                if (!confirm(`¿Estás seguro de eliminar la columna "${item.itemname}"? Se perderán las notas asociadas.`)) return;
-
-                try {
-                    const params = new URLSearchParams();
-                    params.append('action', 'local_grupomakro_delete_grade_item');
-                    params.append('itemid', item.id);
-                    params.append('sesskey', this.getSesskey());
-
-                    const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
-                    const url = baseUrl + '/local/grupomakro_core/ajax.php';
-
-                    const response = await axios.post(url, params);
-
-                    if (response.data.status === 'success') {
-                        this.showSnackbar('Ítem eliminado');
-                        this.fetchStructure();
-                    } else {
-                        this.showSnackbar(response.data.message || 'Error eliminando', 'error');
-                    }
-                } catch (error) {
-                    console.error(error);
-                    this.showSnackbar('Error eliminando', 'error');
-                }
-            },
-            getSesskey() {
-                if (window.Y && window.Y.config && window.Y.config.sesskey) return window.Y.config.sesskey;
-                if (M && M.cfg && M.cfg.sesskey) return M.cfg.sesskey;
-                if (window.userToken) return window.userToken;
-                return '';
-            },
-            getTypeColor(item) {
-                if (item.itemtype === 'manual') return 'purple';
-                if (item.itemmodule === 'quiz') return 'pink';
-                if (item.itemmodule === 'assign') return 'blue';
-                return 'grey';
-            },
-            getTypeLabel(item) {
-                if (item.itemtype === 'manual') return 'Manual';
-                if (item.itemmodule === 'quiz') return 'Cuestionario';
-                if (item.itemmodule === 'assign') return 'Tarea';
-                return item.itemmodule || item.itemtype;
-            },
-            showSnackbar(text, color = 'success') {
-                this.snackbar.message = text;
-                this.snackbar.color = color;
-                this.snackbar.show = true;
+            } catch (error) {
+                console.error('AJAX Error:', error);
+                this.showSnackbar('Error de conexión: ' + error.toString(), 'error');
+            } finally {
+                this.loading = false;
             }
-        }
-    };
+        },
+        calculateTotal() {
+            this.totalWeight = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+        },
+        async saveWeights() {
+            this.saving = true;
+            try {
+                const updates = this.items.map(i => ({
+                    id: i.id,
+                    weight: i.weight
+                }));
 
-    // Register component if needed, or Parent will register it locally
-    if(typeof Vue !== 'undefined') {
-        Vue.component('gradebook-manager', GradebookManager);
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_update_grade_weights');
+                params.append('classid', this.classId);
+                params.append('weights', JSON.stringify(updates));
+                params.append('sesskey', this.getSesskey());
+
+                const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
+                const url = baseUrl + '/local/grupomakro_core/ajax.php';
+
+                const response = await axios.post(url, params);
+
+                if (response.data.status === 'success') {
+                    this.showSnackbar('Cambios guardados correctamente');
+                } else {
+                    this.showSnackbar(response.data.message || 'Error guardando', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showSnackbar('Error de conexión', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+        async addManualItem() {
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_create_manual_grade_item');
+                params.append('classid', this.classId);
+                params.append('name', this.newItem.name);
+                params.append('maxmark', this.newItem.maxmark);
+                params.append('sesskey', this.getSesskey());
+
+                const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
+                const url = baseUrl + '/local/grupomakro_core/ajax.php';
+
+                const response = await axios.post(url, params);
+
+                if (response.data.status === 'success') {
+                    this.showAddDialog = false;
+                    this.newItem.name = '';
+                    this.newItem.maxmark = 100;
+                    this.showSnackbar('Ítem manual creado');
+                    this.fetchStructure();
+                } else {
+                    this.showSnackbar(response.data.message || 'Error creando ítem', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showSnackbar('Error creando ítem', 'error');
+            }
+        },
+        async deleteItem(item) {
+            if (!confirm(`¿Estás seguro de eliminar la columna "${item.itemname}"? Se perderán las notas asociadas.`)) return;
+
+            try {
+                const params = new URLSearchParams();
+                params.append('action', 'local_grupomakro_delete_grade_item');
+                params.append('itemid', item.id);
+                params.append('sesskey', this.getSesskey());
+
+                const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
+                const url = baseUrl + '/local/grupomakro_core/ajax.php';
+
+                const response = await axios.post(url, params);
+
+                if (response.data.status === 'success') {
+                    this.showSnackbar('Ítem eliminado');
+                    this.fetchStructure();
+                } else {
+                    this.showSnackbar(response.data.message || 'Error eliminando', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                this.showSnackbar('Error eliminando', 'error');
+            }
+        },
+        getSesskey() {
+            if (window.Y && window.Y.config && window.Y.config.sesskey) return window.Y.config.sesskey;
+            if (M && M.cfg && M.cfg.sesskey) return M.cfg.sesskey;
+            if (window.userToken) return window.userToken;
+            return '';
+        },
+        getTypeColor(item) {
+            if (item.itemtype === 'manual') return 'purple';
+            if (item.itemmodule === 'quiz') return 'pink';
+            if (item.itemmodule === 'assign') return 'blue';
+            return 'grey';
+        },
+        getTypeLabel(item) {
+            if (item.itemtype === 'manual') return 'Manual';
+            if (item.itemmodule === 'quiz') return 'Cuestionario';
+            if (item.itemmodule === 'assign') return 'Tarea';
+            return item.itemmodule || item.itemtype;
+        },
+        showSnackbar(text, color = 'success') {
+            this.snackbar.message = text;
+            this.snackbar.color = color;
+            this.snackbar.show = true;
+        }
+    }
+};
+
+// Register component if needed, or Parent will register it locally
+if (typeof Vue !== 'undefined') {
+    Vue.component('gradebook-manager', GradebookManager);
 }
