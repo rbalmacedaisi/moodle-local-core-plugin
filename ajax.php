@@ -928,10 +928,11 @@ try {
                 $effective_sum = 0;
                 foreach ($items as &$it) {
                     $weight = isset($it['weight']) ? (float)$it['weight'] : 0;
-                    $override = isset($it['weightoverride']) ? (int)$it['weightoverride'] : 0;
                     
-                    if ($weight <= 0 && $override == 0) {
-                        $it['temp_weight'] = 1.0; // Treat as 1 share
+                    // If weight is exactly 0, it's likely uninitialized or 
+                    // the user wants us to help set it. We treat it as 1.0 share.
+                    if ($weight <= 0) {
+                        $it['temp_weight'] = 1.0; 
                     } else {
                         $it['temp_weight'] = $weight;
                     }

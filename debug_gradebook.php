@@ -199,7 +199,8 @@ if ($courseid) {
             echo "<p class='info-box'><strong>Caso B:</strong> Mezcla o pesos manuales. Calculando distribución equitativa para no-bloqueados.</p>";
             $effective_sum = 0;
             foreach ($items as &$it) {
-                if ($it['weight'] <= 0 && $it['override'] == 0) {
+                // Simplified logic matching ajax.php fix
+                if ($it['weight'] <= 0) {
                     $it['temp_weight'] = 1.0; 
                 } else {
                     $it['temp_weight'] = $it['weight'];
