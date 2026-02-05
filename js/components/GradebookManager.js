@@ -55,19 +55,20 @@ const GradebookManager = {
                         >
                             <!-- Weight Input Slot -->
                             <template v-slot:item.weight="{ item }">
-                                <div class="d-flex align-center">
+                                <div class="d-flex align-center justify-center">
                                     <v-text-field
                                         v-model.number="item.weight"
                                         type="number"
+                                        step="0.01"
                                         dense
                                         outlined
                                         hide-details
-                                        style="max-width: 80px"
-                                        class="mr-1"
+                                        style="max-width: 100px; font-size: 14px;"
+                                        class="mr-2 centered-input"
                                         @input="calculateTotal"
                                         :disabled="item.locked"
                                     ></v-text-field>
-                                    <span class="grey--text">%</span>
+                                    <span class="grey--text subheading font-weight-bold">%</span>
                                 </div>
                             </template>
 

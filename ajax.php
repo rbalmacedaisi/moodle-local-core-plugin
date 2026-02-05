@@ -915,7 +915,20 @@ try {
                      if (($it['weight'] <= 0.0001) && $sum_max > 0) {
                         // Estimate natural weight
                         $it['weight'] = ($it['grademax'] / $sum_max) * 100;
+                     } 
+                     // Fix for mixed storage (decimals vs percentages)
+                     // If we have a weight like 0.19 (19%) but Moodle sometimes stores as 19.0
+                     // In Natural aggregation, weights are usually relative.
+                     // But if the detected weight is <= 1.0 (and it's not a tiny item), assume it's a decimal fraction.
+                     // Threshold: if weight <= 1.0 && grademax > 5 (arbitrary check to avoid scaling truly small items)
+                     // Actually, safer check: if the total weight so far is tiny, we might be in decimal land.
+                     // But we are iterating. 
+                     // Let's rely on the user's report: 0.19 was shown. That is 0.1923...
+                     // So specific existing items might be stored as decimal.
+                     elseif ($is_natural && $it['weight'] <= 1.0 && $it['weight'] > 0) {
+                        $it['weight'] = $it['weight'] * 100;
                      }
+
                      $total_weight += $it['weight'];
                  }
             } else {
