@@ -885,55 +885,50 @@ try {
                     'grademax' => (float)$gi->grademax,
                     'locked' => $gi->locked,
                     'hidden' => (int)$gi->hidden,
-                    'weightoverride' => (int)$gi->weightoverride,
                     'aggregationcoef2' => (float)$gi->aggregationcoef2, // For debugging/reference
                     'is_natural' => $is_natural
                 ];
             }
 
-            // Normalization and estimation logic
+            // If Natural and total weight is 0 (all auto), or mixed, we might want to 
+            // return the calculated weights?
+            // Actually, frontend calculates total. If it returns 0s, frontend shows 0s.
+            // If the user wants to EDIT, they set a value.
+            // But user says "Moodle shows 19.231".
+            // That means Moodle is calculating it.
+            // We should try to provide that calculated value for reference or init.
+            
+            // Calculate sum of maxgrades for estimation if needed
             $sum_max = 0;
             $sum_weights = 0;
-            $any_overridden = false;
-            
             foreach ($items as $it) {
                 $sum_max += $it['grademax'];
                 $sum_weights += $it['weight'];
-                if ($it['weightoverride'] == 1 || $it['weight'] > 0) {
-                    $any_overridden = true;
-                }
             }
 
-            // If some items have weight 0 but are NOT overridden, we assume they should count.
-            // We'll treat all non-overridden items as having weight 1.0 relative to others.
+            // Normalization and estimation logic
+            // Normalize weights based on Moodle's aggregation and current state
             if ($sum_weights <= 0 && $sum_max > 0) {
-                // Case A: Everything is automatic. Distribute by max grade (fairest default)
+                // Case 1: All weights are zero, distribute based on max mark
                 foreach ($items as &$it) {
                     $it['weight'] = ($it['grademax'] / $sum_max) * 100;
                 }
                 $total_weight = 100;
             } else if ($sum_weights > 0) {
-                // Case B: Some items have manual weights.
-                // We'll treat ANY 0-weight item as part of the distribution IF it's not overridden.
-                $effective_sum = 0;
-                foreach ($items as &$it) {
-                    if ($it['weight'] <= 0 && $it['weightoverride'] == 0) {
-                        $it['temp_weight'] = 1.0; // Treat as 1 share
-                    } else {
-                        $it['temp_weight'] = $it['weight'];
-                    }
-                    $effective_sum += $it['temp_weight'];
-                }
+                // Case 2: Some weights are set. 
+                // In your screenshot, 3 items had "1" and 2 items had "0".
+                // Sum was 3. Normalization (1/3)*100 = 33.33 for the three, 0/3 = 0 for the others.
+                // If the user wants ALL items to count, they should set them to 1.
+                // However, as a convenience, if some are 0 and we are normalizing, we'll keep them 0
+                // but let the user know they can edit them.
                 
-                if ($effective_sum > 0) {
-                    foreach ($items as &$it) {
-                        $it['weight'] = ($it['temp_weight'] / $effective_sum) * 100;
-                        unset($it['temp_weight']);
-                    }
-                    $total_weight = 100;
-                } else {
-                    $total_weight = 0;
+                foreach ($items as &$it) {
+                    $it['weight'] = ($it['weight'] / $sum_weights) * 100;
                 }
+                $total_weight = 100;
+            } else {
+                // Case 3: No grades, no weights.
+                $total_weight = 0;
             }
 
             $response = [
@@ -1047,17 +1042,7 @@ try {
             $grade_item->itemtype = 'manual';
             $grade_item->grademax = $maxmark;
             $grade_item->grademin = 0;
-            
-            // Set default weight to 1.0 so it counts by default
-            $parent_cat = \grade_category::fetch(['id' => $parent_category_id]);
-            $is_natural_cat = ($parent_cat && $parent_cat->aggregation == 13);
-            
-            if ($is_natural_cat) {
-                $grade_item->aggregationcoef2 = 1.0;
-                $grade_item->weightoverride = 1;
-            } else {
-                $grade_item->aggregationcoef = 1.0;
-            }
+            $grade_item->aggregationcoef = 0; // Default 0 weight
             $grade_item->insert();
 
             $response = ['status' => 'success', 'message' => 'Columna creada.', 'id' => $grade_item->id];
