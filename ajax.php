@@ -862,6 +862,11 @@ try {
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
+                // EXCLUDE specific items requested by user (hidden migration items)
+                if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
+                    continue;
+                }
+
                 $weight = 0;
                 $is_natural = ($aggregation == 13);
                 

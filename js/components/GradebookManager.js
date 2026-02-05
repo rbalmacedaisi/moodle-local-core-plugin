@@ -154,13 +154,6 @@ const GradebookManager = {
                     </template>
                 </v-snackbar>
             </v-card>
-            <style>
-                .cursor-drag { cursor: grab !important; }
-                .cursor-drag:active { cursor: grabbing !important; }
-                .draggable-row:hover { background-color: rgba(0,0,0,0.03); }
-                .centered-input input { text-align: center; }
-                .italic { font-style: italic; }
-            </style>
         </v-dialog>
     `,
     data() {
