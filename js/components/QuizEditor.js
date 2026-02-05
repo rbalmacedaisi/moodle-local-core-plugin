@@ -1262,7 +1262,8 @@ const QuizEditor = {
         newVarMax: 10,
         formulaConstant: '',
         showClozeHelp: false,
-        showBankDialog: false
+        showBankDialog: false,
+        showCalculatedHelp: false
     }),
     computed: {
         previewClozeCode() {
