@@ -184,6 +184,7 @@ const GradebookManager = {
         };
     },
     mounted() {
+        this.injectStyles();
         this.fetchStructure();
     },
     watch: {
@@ -194,6 +195,19 @@ const GradebookManager = {
         }
     },
     methods: {
+        injectStyles() {
+            const styleId = 'gradebook-manager-styles';
+            if (document.getElementById(styleId)) return;
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .cursor-drag { cursor: grab !important; }
+                .cursor-drag:active { cursor: grabbing !important; }
+                .draggable-row:hover { background-color: rgba(0,0,0,0.03); }
+                .italic { font-style: italic; }
+            `;
+            document.head.appendChild(style);
+        },
         close() {
             this.$emit('input', false);
             this.$emit('closed'); // Trigger refresh in parent

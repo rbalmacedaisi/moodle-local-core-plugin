@@ -898,45 +898,30 @@ try {
             // That means Moodle is calculating it.
             // We should try to provide that calculated value for reference or init.
             
-            if ($is_natural) {
-                 // Calculate sum of maxgrades of *non-overridden* items?
-                 // Or just total max grade.
-                 // Simple approximation for display:
-                 // Simple approximation for display:
-                 // $course_total_max = $course_cat->get_grade_max(); // Method not available directly
-                 // This might be 0 if not calculated.
-                 // Let's summing up items maxgrade
-                 // This might be 0 if not calculated.
-                 // Let's summing up items maxgrade
-                 $sum_max = 0;
-                 foreach ($items as $it) {
-                     $sum_max += $it['grademax'];
-                 }
-                 
-                 foreach ($items as &$it) {
-                     if (($it['weight'] <= 0.0001) && $sum_max > 0) {
-                        // Estimate natural weight
-                        $it['weight'] = ($it['grademax'] / $sum_max) * 100;
-                     } 
-                     // Fix for mixed storage (decimals vs percentages)
-                     // If we have a weight like 0.19 (19%) but Moodle sometimes stores as 19.0
-                     // In Natural aggregation, weights are usually relative.
-                     // But if the detected weight is <= 1.0 (and it's not a tiny item), assume it's a decimal fraction.
-                     // Threshold: if weight <= 1.0 && grademax > 5 (arbitrary check to avoid scaling truly small items)
-                     // Actually, safer check: if the total weight so far is tiny, we might be in decimal land.
-                     // But we are iterating. 
-                     // Let's rely on the user's report: 0.19 was shown. That is 0.1923...
-                     // So specific existing items might be stored as decimal.
-                     elseif ($is_natural && $it['weight'] <= 1.0 && $it['weight'] > 0) {
-                        $it['weight'] = $it['weight'] * 100;
-                     }
+            // Calculate sum of maxgrades for estimation if needed
+            $sum_max = 0;
+            $sum_weights = 0;
+            foreach ($items as $it) {
+                $sum_max += $it['grademax'];
+                $sum_weights += $it['weight'];
+            }
 
-                     $total_weight += $it['weight'];
-                 }
+            // Normalization and estimation logic
+            if ($sum_weights <= 0.0001 && $sum_max > 0) {
+                // If no weights are set, estimate based on max grades
+                foreach ($items as &$it) {
+                    $it['weight'] = ($it['grademax'] / $sum_max) * 100;
+                }
+                $total_weight = 100;
+            } else if ($sum_weights > 0) {
+                // If weights are set but don't sum to 100, normalize them
+                // This converts relative weights (1, 1, 1) or decimals (0.2, 0.3) to percentages
+                foreach ($items as &$it) {
+                    $it['weight'] = ($it['weight'] / $sum_weights) * 100;
+                }
+                $total_weight = 100;
             } else {
-                 foreach ($items as $it) {
-                     $total_weight += $it['weight'];
-                 }
+                $total_weight = 0;
             }
 
             $response = [
