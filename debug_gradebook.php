@@ -57,11 +57,17 @@ foreach ($active_classes as $ac) {
 echo "  </select>
         <button type='submit'>Cargar</button>
         <p><small>O ingresa el ID directamente: 
-            Class ID: <input type='number' name='classid' value='$classid' style='width: 60px;'> 
-            Course ID: <input type='number' name='courseid' value='$courseid' style='width: 60px;'>
+            ID Clase: <input type='number' name='m_classid' value='$classid' style='width: 60px;'> 
+            ID Curso: <input type='number' name='m_courseid' value='$courseid' style='width: 60px;'>
             <button type='submit'>Ir</button>
         </small></p>
       </form>";
+
+// Handle manual inputs if provided
+$m_classid = optional_param('m_classid', 0, PARAM_INT);
+$m_courseid = optional_param('m_courseid', 0, PARAM_INT);
+if ($m_classid) $classid = $m_classid;
+if ($m_courseid) $courseid = $m_courseid;
 
 if ($classid) {
     $class = $DB->get_record('gmk_class', ['id' => $classid]);
