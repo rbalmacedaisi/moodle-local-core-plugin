@@ -862,10 +862,8 @@ try {
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
-                // EXCLUDE specific items requested by user (hidden migration items)
-                if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
-                    continue;
-                }
+                // NOTE: We no longer exclude "Nota Final Integrada" as it needs to be weighted
+                // for the course total to reflect migrated grades.
 
                 $weight = 0;
                 $parent_cat = $gi->get_parent_category();
@@ -976,8 +974,9 @@ try {
                             $gi->set_hidden($w['hidden'] ? 1 : 0);
                         }
 
-                        // ENFORCE Grademax = 100
-                        if ($gi->grademax != 100) {
+                        // ENFORCE Grademax = 100 (Except for "Nota Final Integrada" which is migrated data)
+                        $is_migrated = ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false);
+                        if (!$is_migrated && $gi->grademax != 100) {
                             $gi->grademax = 100;
                             $gi->update('grademax');
                         }
