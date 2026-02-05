@@ -102,19 +102,30 @@ const GradebookManager = {
                                         </td>
                                         <td class="text-center">{{ item.grademax }}</td>
                                         <td>
-                                            <div class="d-flex align-center justify-start">
+                                            <v-text-field
+                                                v-model.number="item.weight"
+                                                type="number"
+                                                step="0.1"
+                                                dense
+                                                outlined
+                                                hide-details
+                                                style="max-width: 90px;"
+                                                @input="calculateTotal"
+                                            ></v-text-field>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-center">
                                                 <v-text-field
-                                                    v-model.number="item.weight"
+                                                    v-model.number="item.percentage"
                                                     type="number"
-                                                    step="0.01"
+                                                    step="0.1"
                                                     dense
                                                     outlined
                                                     hide-details
-                                                    style="max-width: 120px; font-size: 15px;"
-                                                    class="mr-2"
-                                                    @input="calculateTotal"
+                                                    style="max-width: 90px;"
+                                                    @input="onPercentageInput(item)"
                                                 ></v-text-field>
-                                                <span class="grey--text subheading font-weight-bold">%</span>
+                                                <span class="ml-1 grey--text">%</span>
                                             </div>
                                         </td>
                                         <td class="text-end">
@@ -177,7 +188,8 @@ const GradebookManager = {
                 { text: 'Actividad', value: 'itemname', sortable: false },
                 { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
                 { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '80px' },
-                { text: 'Ponderación', value: 'weight', align: 'start', sortable: false, width: '180px' },
+                { text: 'Peso (Valor)', value: 'weight', align: 'start', sortable: false, width: '130px' },
+                { text: 'Ponderación (%)', value: 'percentage', align: 'start', sortable: false, width: '150px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
@@ -242,10 +254,10 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        weight: parseFloat(parseFloat(i.weight).toFixed(2)), // Round to 2 decimals
+                        weight: parseFloat(i.weight) || 0,
+                        percentage: parseFloat(parseFloat(i.percentage || 0).toFixed(2)),
                         hidden: parseInt(i.hidden) || 0,
-                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
-                        // "Nota Final Integrada" or specific critical items should not be deletable even if manual
+                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true),
                         is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
                     }));
                     this.calculateTotal();
@@ -261,7 +273,26 @@ const GradebookManager = {
             }
         },
         calculateTotal() {
-            this.totalWeight = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+            const sumWeights = this.items.reduce((sum, item) => sum + (parseFloat(item.weight) || 0), 0);
+
+            // Update percentages based on new weights
+            this.items.forEach(item => {
+                if (sumWeights > 0) {
+                    item.percentage = parseFloat(((item.weight / sumWeights) * 100).toFixed(2));
+                } else {
+                    item.percentage = 0;
+                }
+            });
+
+            // The total is always the calculated percentage sum (should be 100 if sumWeights > 0)
+            // But we display it based on actual sum to warn user if they intended something else
+            this.totalWeight = this.items.reduce((sum, item) => sum + item.percentage, 0);
+        },
+        onPercentageInput(item) {
+            // If user modifies percentage directly, we set weight = percentage
+            // This is a common shortcut: if they work in 0-100 scale, weights and % are same.
+            item.weight = item.percentage;
+            this.calculateTotal();
         },
         async saveWeights() {
             this.saving = true;
