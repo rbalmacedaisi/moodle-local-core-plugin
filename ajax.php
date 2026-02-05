@@ -907,20 +907,27 @@ try {
             }
 
             // Normalization and estimation logic
-            if ($sum_weights <= 0.0001 && $sum_max > 0) {
-                // If no weights are set, estimate based on max grades
+            // Normalize weights based on Moodle's aggregation and current state
+            if ($sum_weights <= 0 && $sum_max > 0) {
+                // Case 1: All weights are zero, distribute based on max mark
                 foreach ($items as &$it) {
                     $it['weight'] = ($it['grademax'] / $sum_max) * 100;
                 }
                 $total_weight = 100;
             } else if ($sum_weights > 0) {
-                // If weights are set but don't sum to 100, normalize them
-                // This converts relative weights (1, 1, 1) or decimals (0.2, 0.3) to percentages
+                // Case 2: Some weights are set. 
+                // In your screenshot, 3 items had "1" and 2 items had "0".
+                // Sum was 3. Normalization (1/3)*100 = 33.33 for the three, 0/3 = 0 for the others.
+                // If the user wants ALL items to count, they should set them to 1.
+                // However, as a convenience, if some are 0 and we are normalizing, we'll keep them 0
+                // but let the user know they can edit them.
+                
                 foreach ($items as &$it) {
                     $it['weight'] = ($it['weight'] / $sum_weights) * 100;
                 }
                 $total_weight = 100;
             } else {
+                // Case 3: No grades, no weights.
                 $total_weight = 0;
             }
 

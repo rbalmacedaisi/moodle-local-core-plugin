@@ -113,7 +113,6 @@ const GradebookManager = {
                                                     style="max-width: 120px; font-size: 15px;"
                                                     class="mr-2"
                                                     @input="calculateTotal"
-                                                    :disabled="item.locked"
                                                 ></v-text-field>
                                                 <span class="grey--text subheading font-weight-bold">%</span>
                                             </div>
@@ -243,7 +242,7 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        weight: parseFloat(i.weight), // Keep original
+                        weight: parseFloat(parseFloat(i.weight).toFixed(2)), // Round to 2 decimals
                         hidden: parseInt(i.hidden) || 0,
                         locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
                         // "Nota Final Integrada" or specific critical items should not be deletable even if manual
