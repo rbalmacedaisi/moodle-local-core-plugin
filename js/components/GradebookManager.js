@@ -34,6 +34,11 @@ const GradebookManager = {
                             {{ totalWeight.toFixed(2) }}%
                         </span>
                      </div>
+                     <v-divider vertical class="mx-3"></v-divider>
+                     <v-btn text small color="secondary" @click="redistributeWeights">
+                        <v-icon left small>mdi-equalizer</v-icon>
+                        Redistribuir Pesos
+                     </v-btn>
                      <v-spacer></v-spacer>
                      <v-btn text color="primary" @click="saveWeights" :loading="saving">
                         <v-icon left>mdi-content-save</v-icon>
@@ -100,21 +105,44 @@ const GradebookManager = {
                                                 {{ getTypeLabel(item) }}
                                             </v-chip>
                                         </td>
-                                        <td class="text-center">{{ item.grademax }}</td>
-                                        <td>
-                                            <div class="d-flex align-center justify-start">
+                                        <td class="text-center">
+                                            <div class="d-flex align-center justify-center">
                                                 <v-text-field
-                                                    v-model.number="item.weight"
+                                                    v-model.number="item.raw_weight"
                                                     type="number"
                                                     step="0.01"
                                                     dense
                                                     outlined
                                                     hide-details
-                                                    style="max-width: 120px; font-size: 15px;"
-                                                    class="mr-2"
-                                                    @input="calculateTotal"
+                                                    style="max-width: 90px;"
+                                                    class="text-center"
+                                                    @input="onWeightInput(item)"
                                                 ></v-text-field>
-                                                <span class="grey--text subheading font-weight-bold">%</span>
+                                                <v-tooltip bottom>
+                                                    <template v-slot:activator="{ on, attrs }">
+                                                        <v-btn icon x-small v-bind="attrs" v-on="on" @click="toggleOverride(item)" class="ml-1">
+                                                            <v-icon small :color="item.weightoverride ? 'orange' : 'grey lighten-1'">
+                                                                {{ item.weightoverride ? 'mdi-lock' : 'mdi-lock-open-outline' }}
+                                                            </v-icon>
+                                                        </v-btn>
+                                                    </template>
+                                                    <span>{{ item.weightoverride ? 'Valor manual (Fijo)' : 'Valor automático (Moodle)' }}</span>
+                                                </v-tooltip>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-center">
+                                                <v-progress-linear
+                                                    :value="item.weight"
+                                                    color="primary"
+                                                    height="15"
+                                                    rounded
+                                                    class="flex-grow-1 mr-2"
+                                                >
+                                                    <template v-slot:default="{ value }">
+                                                        <span class="white--text text-caption font-weight-bold">{{ item.weight.toFixed(2) }}%</span>
+                                                    </template>
+                                                </v-progress-linear>
                                             </div>
                                         </td>
                                         <td class="text-end">
@@ -177,7 +205,8 @@ const GradebookManager = {
                 { text: 'Actividad', value: 'itemname', sortable: false },
                 { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
                 { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '80px' },
-                { text: 'Ponderación', value: 'weight', align: 'start', sortable: false, width: '180px' },
+                { text: 'Valor Pesado', value: 'raw_weight', align: 'center', sortable: false, width: '140px' },
+                { text: 'Equivalencia %', value: 'weight', align: 'start', sortable: false, width: '180px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
@@ -242,10 +271,11 @@ const GradebookManager = {
                 if (response.data.status === 'success') {
                     this.items = response.data.items.map(i => ({
                         ...i,
-                        weight: parseFloat(parseFloat(i.weight).toFixed(2)), // Round to 2 decimals
+                        raw_weight: parseFloat(parseFloat(i.raw_weight || 0).toFixed(2)),
+                        weight: parseFloat(parseFloat(i.weight || 0).toFixed(2)),
                         hidden: parseInt(i.hidden) || 0,
-                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true), // Strict boolean cast
-                        // "Nota Final Integrada" or specific critical items should not be deletable even if manual
+                        weightoverride: parseInt(i.weightoverride) || 0,
+                        locked: (i.locked == 1 || i.locked === '1' || i.locked === true),
                         is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
                     }));
                     this.calculateTotal();
@@ -268,8 +298,9 @@ const GradebookManager = {
             try {
                 const updates = this.items.map(i => ({
                     id: i.id,
-                    weight: i.weight,
-                    hidden: i.hidden
+                    weight: i.raw_weight, // Send back the raw value for Moodle
+                    hidden: i.hidden,
+                    weightoverride: i.weightoverride
                 }));
 
                 const sortOrder = this.items.map(i => i.id);
@@ -297,6 +328,73 @@ const GradebookManager = {
             } finally {
                 this.saving = false;
             }
+        },
+        onWeightInput(item) {
+            item.weightoverride = 1;
+            this.normalizeFrontend();
+        },
+        toggleOverride(item) {
+            item.weightoverride = item.weightoverride ? 0 : 1;
+            this.normalizeFrontend();
+        },
+        redistributeWeights() {
+            if (!confirm('¿Deseas resetear los pesos a una distribución automática equitativa?')) return;
+            this.items.forEach(it => {
+                it.raw_weight = 1.0;
+                it.weightoverride = 0;
+            });
+            this.normalizeFrontend();
+        },
+        normalizeFrontend() {
+            // Replicate gmk_normalize_grade_weights logic
+            const visibleItems = this.items; // Actually all items in this view count
+            if (visibleItems.length === 0) return;
+
+            let sumMax = 0;
+            let sumWeights = 0;
+            visibleItems.forEach(it => {
+                sumMax += parseFloat(it.grademax) || 0;
+                if (it.weightoverride) {
+                    sumWeights += parseFloat(it.raw_weight) || 0;
+                }
+            });
+
+            // Case A: Everything is automatic
+            if (sumWeights <= 0 && sumMax > 0) {
+                let runningSum = 0;
+                visibleItems.forEach((it, idx) => {
+                    const val = (it.grademax / sumMax) * 100;
+                    if (idx === visibleItems.length - 1) {
+                        it.weight = 100 - runningSum;
+                    } else {
+                        it.weight = Math.round(val * 100) / 100;
+                        runningSum += it.weight;
+                    }
+                });
+            } else {
+                // Case B: Some manual weights override
+                let effectiveSum = 0;
+                visibleItems.forEach(it => {
+                    const w = it.weightoverride ? (parseFloat(it.raw_weight) || 0) : 1.0;
+                    it._tempWeight = w;
+                    effectiveSum += w;
+                });
+
+                if (effectiveSum > 0) {
+                    let runningSum = 0;
+                    visibleItems.forEach((it, idx) => {
+                        const val = (it._tempWeight / effectiveSum) * 100;
+                        if (idx === visibleItems.length - 1) {
+                            it.weight = 100 - runningSum;
+                        } else {
+                            it.weight = Math.round(val * 100) / 100;
+                            runningSum += it.weight;
+                        }
+                        delete it._tempWeight;
+                    });
+                }
+            }
+            this.calculateTotal();
         },
         async addManualItem() {
             try {

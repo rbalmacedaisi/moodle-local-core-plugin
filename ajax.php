@@ -857,15 +857,18 @@ try {
             $item_ids = [];
 
             foreach ($grade_items as $gi) {
-                // Filter out course total or unwanted items if necessary
-                // For now, we show all 'manual' or 'mod' items that are not course total
                 if ($gi->itemtype == 'course') continue; 
                 
+                // Determine weight based on aggregation
+                $is_natural = ($course_category->aggregation == 13);
+                $weight = $is_natural ? (float)$gi->aggregationcoef2 : (float)$gi->aggregationcoef;
+
                 $columns[] = [
                     'id' => $gi->id,
                     'title' => $gi->itemname ?: $gi->itemtype,
-                    'max_grade' => $gi->grademax,
-                    'weight' => $gi->aggregationcoef
+                    'max_grade' => $gi->grademax, // For frontend
+                    'grademax' => $gi->grademax,  // For normalization helper
+                    'weight' => $weight
                 ];
                 $item_ids[] = $gi->id;
             }
@@ -946,7 +949,8 @@ try {
                     'itemname' => $gi->itemname ?: ($gi->itemtype . ' ' . $gi->itemmodule),
                     'itemtype' => $gi->itemtype,
                     'itemmodule' => $gi->itemmodule,
-                    'weight' => $weight,
+                    'raw_weight' => $weight, // Preserve the original Moodle value
+                    'weight' => $weight,     // This will be normalized to % by the helper
                     'grademax' => (float)$gi->grademax,
                     'locked' => $gi->locked,
                     'hidden' => (int)$gi->hidden,
@@ -956,14 +960,13 @@ try {
                 ];
             }
             
-            // Normalize weights using helper
             $total_weight = gmk_normalize_grade_weights($items);
 
             $response = [
                 'status' => 'success',
                 'items' => $items,
                 'total_weight' => $total_weight,
-                'category_name' => $course_category->name,
+                'category_name' => $target_cat->name,
                 'aggregation' => $aggregation
             ];
             break;
@@ -996,13 +999,20 @@ try {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
                         // Update Weight
+                        $override = isset($w['weightoverride']) ? (int)$w['weightoverride'] : 1;
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
-                            $gi->weightoverride = 1; 
+                            $gi->weightoverride = $override; 
                             $gi->update('aggregationcoef2');
                             $gi->update('weightoverride');
                         } else {
                             $gi->aggregationcoef = (float)$w['weight'];
+                            // For weighted mean or similar, we might also want to track override
+                            // though Moodle's core UI uses it primarily for Natural.
+                            if (property_exists($gi, 'weightoverride')) {
+                                $gi->weightoverride = $override;
+                                $gi->update('weightoverride');
+                            }
                             $gi->update('aggregationcoef');
                         }
 
