@@ -181,10 +181,13 @@ const GradebookManager = {
                         weight: parseFloat(i.weight) // Keep original from server
                     }));
                     this.calculateTotal();
+                } else {
+                    console.error('Server returned error:', response.data);
+                    this.showSnackbar(response.data.message || 'Error cargando estructura', 'error');
                 }
             } catch (error) {
-                console.error(error);
-                this.showSnackbar('Error cargando estructura', 'error');
+                console.error('AJAX Error:', error);
+                this.showSnackbar('Error de conexión: ' + error.toString(), 'error');
             } finally {
                 this.loading = false;
             }
