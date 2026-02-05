@@ -843,25 +843,17 @@ try {
             
             require_once($CFG->libdir . '/gradelib.php');
             
-            // 1. Get the specific category for this class
-            $class_category = null;
+            // Get course category to determine aggregation method
+            $target_cat = \grade_category::fetch_course_category($courseid);
+            // If class has a specific category, use it for aggregation context
             if (!empty($class->gradecategoryid)) {
-                $class_category = \grade_category::fetch(['id' => $class->gradecategoryid]);
+                $class_cat = \grade_category::fetch(['id' => $class->gradecategoryid]);
+                if ($class_cat) $target_cat = $class_cat;
             }
-            
-            // 2. Fallback to course root category if not found
-            $target_cat = $class_category ?: \grade_category::fetch_course_category($courseid);
             $aggregation = $target_cat->aggregation; 
 
-            // 13 = Natural (Sum of grades), 10 = Weighted Mean, 11 = Simple Weighted Mean
-            // 13 uses aggregationcoef2 for weight, and aggregationcoef for extra credit.
-
-            // 3. Fetch ONLY items belonging to this category
-            $item_filter = ['courseid' => $courseid];
-            if ($class_category) {
-                $item_filter['categoryid'] = $class_category->id;
-            }
-            $grade_items = \grade_item::fetch_all($item_filter);
+            // Fetch ALL items in course
+            $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
             
             $items = [];
             $total_weight = 0;
@@ -870,6 +862,11 @@ try {
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
                 
+                // EXCLUDE specific items requested by user
+                if ($gi->itemname && strpos($gi->itemname, 'Nota Final Integrada') !== false) {
+                    continue;
+                }
+
                 $weight = 0;
                 $is_natural = ($aggregation == 13);
                 
@@ -961,6 +958,10 @@ try {
             $weights_json = required_param('weights', PARAM_RAW);
             $weights = json_decode($weights_json, true);
             
+            // New: Optional sort order
+            $sort_order_json = optional_param('sortorder', '', PARAM_RAW);
+            $sort_order = !empty($sort_order_json) ? json_decode($sort_order_json, true) : null;
+
             if (!is_array($weights)) throw new Exception("Datos inválidos.");
 
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
@@ -975,13 +976,12 @@ try {
 
             $tx = $DB->start_delegated_transaction();
             try {
+                // 1. Update Weights
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
                         if ($is_natural) {
                             $gi->aggregationcoef2 = (float)$w['weight'];
-                            // If user sets a weight, we must strictly enable override
-                            // (Though usually setting coef2 implies it, setting the flag ensures it)
                             $gi->weightoverride = 1; 
                             $gi->update('aggregationcoef2');
                             $gi->update('weightoverride');
@@ -991,12 +991,28 @@ try {
                         }
                     }
                 }
-                // Force regrading if needed? 
-                // Usually updating grade item triggers regrade but sometimes needs explicitly.
-                // \grade_regrade_final_grades($class->corecourseid); // Heavy operation, maybe avoid unless needed.
-                
+
+                // 2. Update Sort Order if provided
+                // This is complex as Moodle uses a global sequence.
+                // We'll move items one by one in the sequence provided.
+                if (is_array($sort_order)) {
+                    $anchor_sortorder = 0; // Move to beginning of course sequence
+                    foreach ($sort_order as $itemid) {
+                        $gi = \grade_item::fetch(['id' => $itemid, 'courseid' => $class->corecourseid]);
+                        if ($gi) {
+                            $gi->move_after_sortorder($anchor_sortorder);
+                            // After move, the item's sortorder is updated. Use it as next anchor.
+                            $anchor_sortorder = $gi->sortorder;
+                        }
+                    }
+                }
+
                 $tx->allow_commit();
-                $response = ['status' => 'success', 'message' => 'Pesos actualizados.'];
+                
+                // FORCE REGRADE
+                \grade_regrade_final_grades($class->corecourseid);
+
+                $response = ['status' => 'success', 'message' => 'Configuración actualizada.'];
             } catch (Exception $e) {
                 $tx->rollback($e);
                 throw $e;

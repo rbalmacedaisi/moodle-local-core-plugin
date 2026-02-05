@@ -64,37 +64,53 @@ const GradebookManager = {
                             class="elevation-0"
                             dense
                         >
-                            <!-- Weight Input Slot -->
-                            <template v-slot:item.weight="{ item }">
-                                <div class="d-flex align-center justify-start">
-                                    <v-text-field
-                                        v-model.number="item.weight"
-                                        type="number"
-                                        step="0.01"
-                                        dense
-                                        outlined
-                                        hide-details
-                                        style="max-width: 120px; font-size: 15px;"
-                                        class="mr-2"
-                                        @input="calculateTotal"
-                                        :disabled="item.locked"
-                                    ></v-text-field>
-                                    <span class="grey--text subheading font-weight-bold">%</span>
-                                </div>
-                            </template>
-
-                            <!-- Type Badge Slot -->
-                            <template v-slot:item.itemtype="{ item }">
-                                <v-chip small :color="getTypeColor(item)" dark label class="font-weight-bold">
-                                    {{ getTypeLabel(item) }}
-                                </v-chip>
-                            </template>
-
-                            <!-- Actions Slot (Delete Manual Items) -->
-                            <template v-slot:item.actions="{ item }">
-                                <v-btn v-if="item.itemtype === 'manual' && !item.is_protected" icon color="red" small @click="deleteItem(item)">
-                                    <v-icon small>mdi-delete</v-icon>
-                                </v-btn>
+                            <!-- Body slot for drag and drop -->
+                            <template v-slot:body="{ items }">
+                                <tbody>
+                                    <tr 
+                                        v-for="(item, index) in items" 
+                                        :key="item.id"
+                                        draggable="true"
+                                        @dragstart="onDragStart($event, index)"
+                                        @dragover.prevent
+                                        @dragenter.prevent
+                                        @drop="onDrop($event, index)"
+                                        class="draggable-row"
+                                    >
+                                        <td>
+                                            <v-icon small class="cursor-drag mr-2">mdi-drag</v-icon>
+                                            {{ item.itemname }}
+                                        </td>
+                                        <td>
+                                            <v-chip small :color="getTypeColor(item)" dark label class="font-weight-bold">
+                                                {{ getTypeLabel(item) }}
+                                            </v-chip>
+                                        </td>
+                                        <td class="text-center">{{ item.grademax }}</td>
+                                        <td>
+                                            <div class="d-flex align-center justify-start">
+                                                <v-text-field
+                                                    v-model.number="item.weight"
+                                                    type="number"
+                                                    step="0.01"
+                                                    dense
+                                                    outlined
+                                                    hide-details
+                                                    style="max-width: 120px; font-size: 15px;"
+                                                    class="mr-2"
+                                                    @input="calculateTotal"
+                                                    :disabled="item.locked"
+                                                ></v-text-field>
+                                                <span class="grey--text subheading font-weight-bold">%</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-end">
+                                            <v-btn v-if="item.itemtype === 'manual' && !item.is_protected" icon color="red" small @click="deleteItem(item)">
+                                                <v-icon small>mdi-delete</v-icon>
+                                            </v-btn>
+                                        </td>
+                                    </tr>
+                                </tbody>
                             </template>
                         </v-data-table>
                     </v-card>
@@ -124,6 +140,12 @@ const GradebookManager = {
                     </template>
                 </v-snackbar>
             </v-card>
+            <style>
+                .cursor-drag { cursor: grab !important; }
+                .cursor-drag:active { cursor: grabbing !important; }
+                .draggable-row:hover { background-color: rgba(0,0,0,0.03); }
+                .centered-input input { text-align: center; }
+            </style>
         </v-dialog>
     `,
     data() {
@@ -134,6 +156,7 @@ const GradebookManager = {
             items: [],
             totalWeight: 0,
             showAddDialog: false,
+            draggedIndex: null,
             newItem: {
                 name: '',
                 maxmark: 100
@@ -166,6 +189,17 @@ const GradebookManager = {
         close() {
             this.$emit('input', false);
             this.$emit('closed'); // Trigger refresh in parent
+        },
+        onDragStart(event, index) {
+            this.draggedIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+        onDrop(event, index) {
+            if (this.draggedIndex === null || this.draggedIndex === index) return;
+
+            const movingItem = this.items.splice(this.draggedIndex, 1)[0];
+            this.items.splice(index, 0, movingItem);
+            this.draggedIndex = null;
         },
         async fetchStructure() {
             this.loading = true;
@@ -215,10 +249,13 @@ const GradebookManager = {
                     weight: i.weight
                 }));
 
+                const sortOrder = this.items.map(i => i.id);
+
                 const params = new URLSearchParams();
                 params.append('action', 'local_grupomakro_update_grade_weights');
                 params.append('classid', this.classId);
                 params.append('weights', JSON.stringify(updates));
+                params.append('sortorder', JSON.stringify(sortOrder));
                 params.append('sesskey', this.getSesskey());
 
                 const baseUrl = (M && M.cfg && M.cfg.wwwroot) ? M.cfg.wwwroot : '';
@@ -227,7 +264,7 @@ const GradebookManager = {
                 const response = await axios.post(url, params);
 
                 if (response.data.status === 'success') {
-                    this.showSnackbar('Cambios guardados correctamente');
+                    this.showSnackbar('Cambios guardados y calificaciones recalculadas');
                 } else {
                     this.showSnackbar(response.data.message || 'Error guardando', 'error');
                 }
