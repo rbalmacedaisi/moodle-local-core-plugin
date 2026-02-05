@@ -138,6 +138,8 @@ const QuizCreationWizard = {
                                 type="number"
                                 suffix="min"
                                 min="1"
+                                append-icon="mdi-help-circle"
+                                @click:append="showHelp('timelimit')"
                              ></v-text-field>
                         </v-col>
                      </v-row>
@@ -165,6 +167,8 @@ const QuizCreationWizard = {
                                 :items="attemptOptions"
                                 label="Intentos Permitidos"
                                 prepend-icon="mdi-counter"
+                                append-outer-icon="mdi-help-circle"
+                                @click:append-outer="showHelp('attempts')"
                              ></v-select>
                         </v-col>
                         <v-col cols="12" md="6">
@@ -173,7 +177,20 @@ const QuizCreationWizard = {
                                 :items="gradingMethods"
                                 label="Método de Calificación"
                                 prepend-icon="mdi-school"
+                                append-outer-icon="mdi-help-circle"
+                                @click:append-outer="showHelp('grademethod')"
                              ></v-select>
+                        </v-col>
+                        <v-col cols="12" md="6">
+                             <v-text-field
+                                v-model.number="quiz.grade"
+                                label="Nota Máxima"
+                                type="number"
+                                prepend-icon="mdi-star"
+                                min="0"
+                                append-outer-icon="mdi-help-circle"
+                                @click:append-outer="showHelp('grade')"
+                             ></v-text-field>
                         </v-col>
                     </v-row>
 
@@ -201,6 +218,26 @@ const QuizCreationWizard = {
                         <v-card-actions>
                             <v-spacer></v-spacer>
                             <v-btn color="primary" text @click="showErrorDialog = false">Cerrar</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Legend / Help Dialog -->
+                <v-dialog v-model="helpDialog" max-width="450px">
+                    <v-card class="rounded-xl">
+                        <v-card-title class="primary white--text">
+                            <v-icon left color="white">mdi-information</v-icon>
+                            {{ helpTitle }}
+                        </v-card-title>
+                        <v-card-text class="pa-4 pt-4 text-body-1">
+                            {{ helpText }}
+                            <v-alert v-if="helpExample" type="info" text class="mt-4 mb-0 rounded-lg" icon="mdi-lightbulb-on">
+                                <strong>Ejemplo:</strong> {{ helpExample }}
+                            </v-alert>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn color="primary" text @click="helpDialog = false">Entendido</v-btn>
                         </v-card-actions>
                     </v-card>
                 </v-dialog>
@@ -233,8 +270,13 @@ const QuizCreationWizard = {
                 enableTimeLimit: false,
                 timeLimitMinutes: 60,
                 attempts: 1,
-                grademethod: 1 // Highest grade
+                grademethod: 1, // Highest grade
+                grade: 10
             },
+            helpDialog: false,
+            helpTitle: '',
+            helpText: '',
+            helpExample: '',
             attemptOptions: [
                 { text: '1 Intento', value: 1 },
                 { text: '2 Intentos', value: 2 },
@@ -288,6 +330,7 @@ const QuizCreationWizard = {
                     timelimit: this.quiz.enableTimeLimit ? (this.quiz.timeLimitMinutes * 60) : 0,
                     attempts: this.quiz.attempts,
                     grademethod: this.quiz.grademethod,
+                    grade: this.quiz.grade,
                     save_as_template: false,
                     duedate: 0, // Not used for quiz directly usually, but can fail check if missing
                     gradecat: 0 // Optional
@@ -315,6 +358,37 @@ const QuizCreationWizard = {
                 this.showErrorDialog = true;
             } finally {
                 this.saving = false;
+            }
+        },
+        showHelp(field) {
+            const legends = {
+                timelimit: {
+                    title: 'Límite de Tiempo',
+                    text: 'Es el tiempo máximo que el estudiante tiene para completar el cuestionario una vez que lo inicia. Un cronómetro aparecerá en pantalla.',
+                    example: 'Si pones 60 minutos, el estudiante que empiece a las 10:00 AM deberá terminar antes de las 11:00 AM.'
+                },
+                attempts: {
+                    title: 'Intentos Permitidos',
+                    text: 'Define cuántas veces puede un estudiante realizar el cuestionario. Puedes poner un número fijo o dejarlo ilimitado.',
+                    example: 'Si pones 2 intentos, el estudiante puede usar el segundo para mejorar su nota si falló el primero.'
+                },
+                grademethod: {
+                    title: 'Método de Calificación',
+                    text: 'Cuando hay más de un intento, decide cuál de todos los puntajes se registrará en el libro de calificaciones.',
+                    example: '"Promedio" sumará todas las notas y las dividirá por el número de intentos. "Calificación más alta" tomará el mejor resultado.'
+                },
+                grade: {
+                    title: 'Nota Máxima',
+                    text: 'Es el puntaje total del cuestionario. Moodle por defecto usa 10, pero en muchos sistemas se usa 100.',
+                    example: 'Si quieres que este cuestionario valga lo mismo que una tarea normal, ponle 100.'
+                }
+            };
+            const help = legends[field];
+            if (help) {
+                this.helpTitle = help.title;
+                this.helpText = help.text;
+                this.helpExample = help.example;
+                this.helpDialog = true;
             }
         }
     }

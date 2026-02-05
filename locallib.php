@@ -3320,8 +3320,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
             // $moduleinfo->guest = 1; // Disabled: Column does not exist in this BBB version
         }
     } else if ($type === 'assign') {
-        $moduleinfo->grade = 100;
+        $moduleinfo->grade = !empty($extra['grade']) ? $extra['grade'] : 100;
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
+        $moduleinfo->cutoffdate = !empty($extra['cutoffdate']) ? $extra['cutoffdate'] : 0;
+        $moduleinfo->allowsubmissionsfromdate = !empty($extra['allowsubmissionsfromdate']) ? $extra['allowsubmissionsfromdate'] : 0;
         $moduleinfo->assignsubmission_file_enabled = 1;
         $moduleinfo->assignsubmission_onlinetext_enabled = 1;
         
@@ -3344,7 +3346,7 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->markingworkflow = 0;
         $moduleinfo->markingallocation = 0;
     } else if ($type === 'quiz') {
-        $moduleinfo->grade = 10; // Default max grade
+        $moduleinfo->grade = !empty($extra['grade']) ? $extra['grade'] : 10; // Default max grade
         $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
         $moduleinfo->timeclose = !empty($extra['timeclose']) ? $extra['timeclose'] : 0;
         $moduleinfo->timelimit = !empty($extra['timelimit']) ? intval($extra['timelimit']) : 0; // seconds

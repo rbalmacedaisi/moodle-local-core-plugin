@@ -14,6 +14,68 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 use local_grupomakro_core\external\teacher\create_express_activity;
 use local_grupomakro_core\external\teacher\get_pending_grading;
 use local_grupomakro_core\external\teacher\save_grade;
+
+/**
+ * Normalizes grade items weights to ensures they sum exactly to 100%.
+ * @param array &$items Array of items with 'weight' and 'grademax' keys.
+ * @return float The total sum (should be 100.00 unless empty).
+ */
+function gmk_normalize_grade_weights(&$items) {
+    if (empty($items)) return 0;
+
+    $sum_max = 0;
+    $sum_weights = 0;
+    
+    foreach ($items as $it) {
+        $sum_max += isset($it['grademax']) ? (float)$it['grademax'] : 0;
+        $sum_weights += isset($it['weight']) ? (float)$it['weight'] : 0;
+    }
+
+    if ($sum_weights <= 0 && $sum_max > 0) {
+        // Case A: Everything is automatic. Distribute by max grade
+        $running_sum = 0;
+        $count = count($items);
+        $idx = 0;
+        foreach ($items as &$it) {
+            $idx++;
+            $val = ($it['grademax'] / $sum_max) * 100;
+            if ($idx == $count) {
+                $it['weight'] = round(100 - $running_sum, 2);
+            } else {
+                $it['weight'] = round($val, 2);
+                $running_sum += $it['weight'];
+            }
+        }
+        return 100.0;
+    } else if ($sum_weights > 0) {
+        // Case B: Some manual weights or partially initialized
+        $effective_sum = 0;
+        foreach ($items as &$it) {
+            $weight = (isset($it['weight']) && $it['weight'] > 0) ? (float)$it['weight'] : 1.0;
+            $it['temp_weight'] = $weight;
+            $effective_sum += $weight;
+        }
+        
+        if ($effective_sum > 0) {
+            $running_sum = 0;
+            $count = count($items);
+            $idx = 0;
+            foreach ($items as &$it) {
+                $idx++;
+                $val = ($it['temp_weight'] / $effective_sum) * 100;
+                if ($idx == $count) {
+                    $it['weight'] = round(100 - $running_sum, 2);
+                } else {
+                    $it['weight'] = round($val, 2);
+                    $running_sum += $it['weight'];
+                }
+                unset($it['temp_weight']);
+            }
+            return 100.0;
+        }
+    }
+    return 0;
+}
 use local_grupomakro_core\external\student\get_student_info;
 use local_grupomakro_core\external\student\update_status;
 use local_grupomakro_core\external\student\sync_progress;
@@ -807,6 +869,9 @@ try {
                 ];
                 $item_ids[] = $gi->id;
             }
+            
+            // Normalize weights using helper
+            gmk_normalize_grade_weights($columns);
 
             // 3. Fetch Grades (Cells)
             $grades_data = [];
@@ -890,80 +955,15 @@ try {
                     'is_natural' => $is_natural
                 ];
             }
-
-            // Normalization and estimation logic
-            $sum_max = 0;
-            $sum_weights = 0;
-            $any_overridden = false;
             
-            foreach ($items as $it) {
-                $sum_max += $it['grademax'];
-                $sum_weights += $it['weight'];
-                if ($it['weightoverride'] == 1 || $it['weight'] > 0) {
-                    $any_overridden = true;
-                }
-            }
-
-            // If some items have weight 0 but are NOT overridden, we assume they should count.
-            // We'll treat all non-overridden items as having weight 1.0 relative to others.
-            if ($sum_weights <= 0 && $sum_max > 0) {
-                // Case A: Everything is automatic. Distribute by max grade (fairest default)
-                $running_sum = 0;
-                $count = count($items);
-                $idx = 0;
-                foreach ($items as &$it) {
-                    $idx++;
-                    $val = ($it['grademax'] / $sum_max) * 100;
-                    if ($idx == $count) {
-                        $it['weight'] = round(100 - $running_sum, 2);
-                    } else {
-                        $it['weight'] = round($val, 2);
-                        $running_sum += $it['weight'];
-                    }
-                }
-                $total_weight = 100;
-            } else if ($sum_weights > 0) {
-                // Case B: Some items have manual weights.
-                // We'll treat ANY 0-weight item as part of the distribution IF it's not overridden.
-                $effective_sum = 0;
-                foreach ($items as &$it) {
-                    $weight = isset($it['weight']) ? (float)$it['weight'] : 0;
-                    
-                    // If weight is exactly 0, it's likely uninitialized or 
-                    // the user wants us to help set it. We treat it as 1.0 share.
-                    if ($weight <= 0) {
-                        $it['temp_weight'] = 1.0; 
-                    } else {
-                        $it['temp_weight'] = $weight;
-                    }
-                    $effective_sum += $it['temp_weight'];
-                }
-                
-                if ($effective_sum > 0) {
-                    $running_sum = 0;
-                    $count = count($items);
-                    $idx = 0;
-                    foreach ($items as &$it) {
-                        $idx++;
-                        $val = ($it['temp_weight'] / $effective_sum) * 100;
-                        if ($idx == $count) {
-                            $it['weight'] = round(100 - $running_sum, 2);
-                        } else {
-                            $it['weight'] = round($val, 2);
-                            $running_sum += $it['weight'];
-                        }
-                        unset($it['temp_weight']);
-                    }
-                    $total_weight = 100;
-                } else {
-                    $total_weight = 0;
-                }
-            }
+            // Normalize weights using helper
+            $total_weight = gmk_normalize_grade_weights($items);
 
             $response = [
                 'status' => 'success',
                 'items' => $items,
                 'total_weight' => $total_weight,
+                'category_name' => $course_category->name,
                 'aggregation' => $aggregation
             ];
             break;
@@ -2218,10 +2218,20 @@ try {
             $intro = optional_param('intro', '', PARAM_RAW);
             $duedate = optional_param('duedate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
-            $tags = optional_param('tags', '', PARAM_TEXT); // Receive tags as comma-separated string or array
+            $tags = optional_param('tags', '', PARAM_TEXT); 
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
             
+            // New Advanced Parameters
+            $grade = optional_param('grade', 0, PARAM_FLOAT);
+            $cutoffdate = optional_param('cutoffdate', 0, PARAM_INT);
+            $allowsubmissionsfromdate = optional_param('allowsubmissionsfromdate', 0, PARAM_INT);
+            $timeopen = optional_param('timeopen', 0, PARAM_INT);
+            $timeclose = optional_param('timeclose', 0, PARAM_INT);
+            $timelimit = optional_param('timelimit', 0, PARAM_INT);
+            $attempts = optional_param('attempts', 1, PARAM_INT);
+            $grademethod = optional_param('grademethod', 1, PARAM_INT);
+
             // Normalize tags if passed as string
             $tagList = [];
             if (!empty($tags)) {
@@ -2234,7 +2244,8 @@ try {
 
             try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
+                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest,
+                    $timeopen, $timeclose, $timelimit, $attempts, $grademethod, $grade, $cutoffdate, $allowsubmissionsfromdate
                 );
                 $response = ['status' => 'success', 'data' => $result];
             } catch (Exception $e) {
