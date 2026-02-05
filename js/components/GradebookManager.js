@@ -9,17 +9,31 @@ const GradebookManager = {
         value: { type: Boolean, default: false } // v-model for visibility
     },
     template: `
-        <v-dialog :value="value" @input="$emit('input', $event)" max-width="900px" scrollable>
+        <v-dialog :value="value" @input="$emit('input', $event)" :max-width="isFullscreen ? '100%' : '1100px'" :fullscreen="isFullscreen" scrollable>
             <v-card class="d-flex flex-column grey lighten-5" style="min-height: 600px;">
                 <v-toolbar color="primary" dark dense flat>
                     <v-toolbar-title>Gestor de Calificaciones</v-toolbar-title>
                     <v-spacer></v-spacer>
+                    <v-tooltip bottom>
+                        <template v-slot:activator="{ on, attrs }">
+                            <v-btn icon dark v-bind="attrs" v-on="on" @click="isFullscreen = !isFullscreen">
+                                <v-icon>{{ isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
+                            </v-btn>
+                        </template>
+                        <span>{{ isFullscreen ? 'Pantalla Normal' : 'Pantalla Completa' }}</span>
+                    </v-tooltip>
                     <v-btn icon dark @click="close">
                         <v-icon>mdi-close</v-icon>
                     </v-btn>
                 </v-toolbar>
 
                 <div class="d-flex align-center pa-2 white elevation-1">
+                     <div class="subtitle-2 ml-2 grey--text">
+                        Total Ponderación: 
+                        <span :class="totalWeight === 100 ? 'success--text' : 'error--text'" class="font-weight-bold ml-1">
+                            {{ totalWeight.toFixed(2) }}%
+                        </span>
+                     </div>
                      <v-spacer></v-spacer>
                      <v-btn text color="primary" @click="saveWeights" :loading="saving">
                         <v-icon left>mdi-content-save</v-icon>
@@ -28,11 +42,8 @@ const GradebookManager = {
                 </div>
 
                 <v-card-text class="pa-4 flex-grow-1 overflow-y-auto" style="height: 500px;">
-                    <v-alert v-if="totalWeight !== 100" type="error" text outlined class="mb-4" dense>
+                    <v-alert v-if="Math.abs(totalWeight - 100) > 0.01" type="error" text outlined class="mb-4" dense>
                         <strong>Atención:</strong> La suma de las ponderaciones es {{ totalWeight.toFixed(2) }}%. Debe ser 100%.
-                    </v-alert>
-                    <v-alert v-else type="success" text outlined class="mb-4" dense>
-                        Ponderación correcta (100%).
                     </v-alert>
 
                     <v-card outlined class="mb-4">
@@ -55,7 +66,7 @@ const GradebookManager = {
                         >
                             <!-- Weight Input Slot -->
                             <template v-slot:item.weight="{ item }">
-                                <div class="d-flex align-center justify-center">
+                                <div class="d-flex align-center justify-start">
                                     <v-text-field
                                         v-model.number="item.weight"
                                         type="number"
@@ -63,8 +74,8 @@ const GradebookManager = {
                                         dense
                                         outlined
                                         hide-details
-                                        style="max-width: 100px; font-size: 14px;"
-                                        class="mr-2 centered-input"
+                                        style="max-width: 120px; font-size: 15px;"
+                                        class="mr-2"
                                         @input="calculateTotal"
                                         :disabled="item.locked"
                                     ></v-text-field>
@@ -117,6 +128,7 @@ const GradebookManager = {
     `,
     data() {
         return {
+            isFullscreen: false,
             loading: false,
             saving: false,
             items: [],
@@ -133,9 +145,9 @@ const GradebookManager = {
             },
             headers: [
                 { text: 'Actividad', value: 'itemname', sortable: false },
-                { text: 'Tipo', value: 'itemtype', sortable: false, width: '100px' },
-                { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '70px' },
-                { text: 'Ponderación', value: 'weight', align: 'center', sortable: false, width: '120px' },
+                { text: 'Tipo', value: 'itemtype', sortable: false, width: '120px' },
+                { text: 'Max', value: 'grademax', align: 'center', sortable: false, width: '80px' },
+                { text: 'Ponderación', value: 'weight', align: 'start', sortable: false, width: '180px' },
                 { text: '', value: 'actions', align: 'end', sortable: false, width: '50px' }
             ]
         };
