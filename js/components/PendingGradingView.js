@@ -173,6 +173,7 @@ Vue.component('pending-grading-view', {
                     sesskey: M.cfg.sesskey
                 });
 
+                console.log('[GMK] Pending Grading Response:', response.data);
                 if (response.data.status === 'success') {
                     this.tasks = response.data.tasks;
                 } else {

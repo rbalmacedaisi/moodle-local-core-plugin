@@ -102,7 +102,9 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);
             $status = optional_param('status', 'pending', PARAM_ALPHA);
+            error_log("[GMK] get_pending_grading: classid=$classid, status=$status");
             $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid, $status);
+            error_log("[GMK] get_pending_grading: found " . count($result) . " tasks");
             $response = ['status' => 'success', 'tasks' => $result];
             break;
 
