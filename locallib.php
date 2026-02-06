@@ -34,6 +34,19 @@ require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 require_once($CFG->dirroot . '/user/profile/lib.php');
 
+if (!function_exists('gmk_log')) {
+    /**
+     * Helper function to log debug messages to a local file.
+     * @param string $message
+     */
+    function gmk_log($message) {
+        $logfile = __DIR__ . '/gmk_debug.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $formatted = "[$timestamp] $message\n";
+        file_put_contents($logfile, $formatted, FILE_APPEND);
+    }
+}
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
