@@ -98,39 +98,6 @@ try {
             ];
             break;
 
-        case 'debug_student_pensum':
-            $userid = optional_param('userid', 0, PARAM_INT);
-            $search = optional_param('search', '', PARAM_RAW);
-            
-            ob_start();
-            echo "--- DEBUG STUDENT PENSUM ---\n";
-            if ($userid) {
-                $user = $DB->get_record('user', ['id' => $userid]);
-                echo "User: " . ($user ? $user->firstname . ' ' . $user->lastname : 'Not found') . "\n";
-                
-                $careers = $DB->get_records_sql("
-                    SELECT lp.id, lp.name as career 
-                    FROM {local_learning_plans} lp
-                    JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
-                    WHERE lpu.userid = ?", [$userid]);
-                
-                echo "Careers found: " . count($careers) . "\n";
-                foreach ($careers as $c) {
-                    echo "  - Plan ID: {$c->id}, Name: {$c->career}\n";
-                    $courses = $DB->get_records('local_learning_courses', ['learningplanid' => $c->id]);
-                    echo "    Courses in local_learning_courses: " . count($courses) . "\n";
-                }
-            } else if ($search) {
-                $users = $DB->get_records_sql("SELECT id, firstname, lastname FROM {user} WHERE firstname LIKE ? OR lastname LIKE ?", ["%$search%", "%$search%"]);
-                foreach ($users as $u) {
-                    echo "Match: ID {$u->id} - {$u->firstname} {$u->lastname}\n";
-                }
-            }
-            $debug_out = ob_get_clean();
-            gmk_log($debug_out);
-            $response = ['status' => 'success', 'message' => 'Logged to gmk_debug.log'];
-            break;
-
         case 'local_grupomakro_get_pending_grading':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);

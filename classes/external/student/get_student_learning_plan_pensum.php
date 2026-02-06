@@ -127,9 +127,9 @@ class get_student_learning_plan_pensum extends external_api
 
                 $periodName = $DB->get_record('local_learning_periods', ['id' => $userPensumCourse->periodid]);
 
-                $course = get_course($userPensumCourse->courseid);
-                $userPensumCourse->coursename = $course->fullname;
-                $userPensumCourse->periodname = $periodName->name;
+                $course = $DB->get_record('course', ['id' => $userPensumCourse->courseid]);
+                $userPensumCourse->coursename = $course ? $course->fullname : 'Unknown Course';
+                $userPensumCourse->periodname = $periodName ? $periodName->name : 'Periodo Desconocido';
                 $userPensumCourse->grade = '-';
                 $gradeObj = grade_get_course_grade($params['userId'], $userPensumCourse->courseid);
                 if ($gradeObj && isset($gradeObj->str_grade)) {

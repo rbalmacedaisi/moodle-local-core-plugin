@@ -39,6 +39,11 @@ Vue.component('grademodal', {
                                     <v-progress-linear indeterminate color="primary" class="mt-2"></v-progress-linear>
                                 </div>
 
+                                <div v-else-if="Object.keys(career.periods).length === 0" class="text-center py-6 grey--text">
+                                    <v-icon large color="grey lighten-2">mdi-database-off</v-icon>
+                                    <div class="mt-2 text-body-2 font-italic">No se encontraron asignaturas asociadas a este plan de estudios.</div>
+                                </div>
+
                                 <div v-else v-for="(courses, periodName) in career.periods" :key="periodName" class="period-group mb-4 ml-2">
                                     <div class="period-header d-flex align-center mb-2">
                                         <div class="period-line border-left pl-3" style="border-left: 3px solid #1976D2 !important;">
