@@ -3927,7 +3927,13 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    AND $quiz_needsgrading_condition (
                        SELECT 1 FROM {question_attempts} qa 
                        JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
-                       WHERE qa.questionusageid = quiza.uniqueid AND qas.state = 'needsgrading'
+                       WHERE qa.questionusageid = quiza.uniqueid 
+                         AND qas.sequencenumber = (
+                             SELECT MAX(inner_qas.sequencenumber) 
+                             FROM {question_attempt_steps} inner_qas 
+                             WHERE inner_qas.questionattemptid = qa.id
+                         )
+                         AND qas.state = 'needsgrading'
                    )
                    $quiz_course_filter $quiz_group_filter";
     
