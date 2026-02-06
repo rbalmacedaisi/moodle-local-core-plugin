@@ -102,6 +102,14 @@ if (empty($items)) {
         echo "</tr>";
     }
     echo "</table>";
+
+    // Simulate the JSON that the external API would return
+    echo "<h4>Simulated JSON response for local_grupomakro_get_pending_grading:</h4>";
+    require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
+    $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($userid, 0);
+    echo "<pre style='background:#eee; padding:10px; max-height:200px; overflow:auto;'>";
+    echo json_encode($result, JSON_PRETTY_PRINT);
+    echo "</pre>";
 }
 
 // 3. Reverse lookup: Who are the instructors for courses with pending quizzes?
@@ -124,6 +132,26 @@ if (empty($pending_quiz_courses)) {
 } else {
     foreach ($pending_quiz_courses as $pc) {
         echo "<h4>Course: " . s($pc->fullname) . " (ID: {$pc->course})</h4>";
+        
+        // Check Moodle Roles for the target user here
+        $user_roles = $DB->get_records_sql("
+            SELECT r.id, r.shortname, r.name 
+            FROM {role_assignments} ra
+            JOIN {context} ctx ON ctx.id = ra.contextid
+            JOIN {role} r ON r.id = ra.roleid
+            WHERE ra.userid = :userid AND ctx.contextlevel = 50 AND ctx.instanceid = :courseid
+        ", ['userid' => $userid, 'courseid' => $pc->course]);
+        
+        echo "<p><b>Moodle Roles for this User:</b> ";
+        if ($user_roles) {
+            foreach ($user_roles as $ur) {
+                echo "<span style='padding:2px 5px; background:#e1f5fe; border:1px solid #01579b; border-radius:4px; margin-right:5px;'>ID: {$ur->id} - {$ur->shortname} (" . s($ur->name) . ")</span>";
+            }
+        } else {
+            echo "<span style='color:red;'>NONE</span>";
+        }
+        echo "</p>";
+
         $instructors = $DB->get_records('gmk_class', ['courseid' => $pc->course]);
         if (empty($instructors)) {
             echo "<p style='color:red;'>No instructors assigned to this course in <b>gmk_class</b> table!</p>";

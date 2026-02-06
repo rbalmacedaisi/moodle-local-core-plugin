@@ -3849,7 +3849,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                 WHERE ra.userid = :instructorid_m 
                   AND ctx.contextlevel = 50 
                   AND ctx.instanceid = a.course
-                  AND r.shortname IN ('editingteacher', 'teacher')
+                  AND r.shortname IN ('editingteacher', 'teacher', 'manager')
             )
         )";
         $params['instructorid'] = $userid;
@@ -3900,7 +3900,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                 WHERE ra.userid = :instructorid_m 
                   AND ctx.contextlevel = 50 
                   AND ctx.instanceid = q.course
-                  AND r.shortname IN ('editingteacher', 'teacher')
+                  AND r.shortname IN ('editingteacher', 'teacher', 'manager')
             )
         )";
         $quiz_params['instructorid'] = $userid;
