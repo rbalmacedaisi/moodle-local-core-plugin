@@ -31,9 +31,9 @@ Vue.component('grades-grid', {
                 }
                 .gradebook-card table {
                     border-spacing: 0;
-                    width: max-content; /* Force table to expand based on content */
+                    width: max-content !important; /* Force expansion beyond viewport */
                     min-width: 100%;
-                    table-layout: auto;
+                    table-layout: fixed;
                     border-collapse: separate;
                 }
                 .gradebook-card th, .gradebook-card td {
@@ -47,7 +47,8 @@ Vue.component('grades-grid', {
                     left: 0;
                     z-index: 10;
                     background: white;
-                    min-width: 280px;
+                    width: 250px !important; /* Fixed width for student column */
+                    min-width: 250px !important;
                     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
                 }
                 .theme--dark.gradebook-card .sticky-col {
@@ -78,8 +79,8 @@ Vue.component('grades-grid', {
                 }
                 /* Column Specifics */
                 .grade-header {
-                    min-width: 140px;
-                    width: 140px; /* Force a consistent width */
+                    width: 140px !important; /* Fixed width for each grade column */
+                    min-width: 140px !important;
                     text-align: center;
                 }
                 .grade-cell {
