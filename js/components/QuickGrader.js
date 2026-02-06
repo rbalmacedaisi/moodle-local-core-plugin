@@ -49,6 +49,15 @@ const QuickGrader = {
                                             
                                             <!-- Word Preview (.docx) -->
                                             <div v-else-if="isWord(selectedFile)" class="pa-4 white docx-preview" v-html="docxContent || 'Cargando documento...'"></div>
+
+                                            <!-- Excel Preview (.xlsx, .xls) -->
+                                            <div v-else-if="isExcel(selectedFile)" class="pa-4 white excel-preview-container">
+                                                <div v-if="!docxContent" class="text-center pa-10">
+                                                    <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                                    <div class="mt-2">Procesando hoja de cálculo...</div>
+                                                </div>
+                                                <div v-else v-html="docxContent" class="excel-table-wrapper"></div>
+                                            </div>
                                             
                                             <!-- Generic / Not supported -->
                                             <div v-else class="pa-10 text-center grey lighten-4">
@@ -189,7 +198,8 @@ const QuickGrader = {
             // File Preview specifics
             selectedFile: null,
             docxContent: '',
-            mammothLoaded: false
+            mammothLoaded: false,
+            xlsxLoaded: false
         }
     },
     computed: {
@@ -290,6 +300,22 @@ const QuickGrader = {
                 .border-bottom {
                     border-bottom: 1px solid #eee;
                 }
+                .excel-preview-container {
+                    overflow: auto;
+                    max-width: 100%;
+                }
+                .excel-table-wrapper table {
+                    border-collapse: collapse;
+                    width: 100%;
+                    font-size: 0.8rem;
+                }
+                .excel-table-wrapper th, .excel-table-wrapper td {
+                    border: 1px solid #ddd;
+                    padding: 4px 8px;
+                    white-space: nowrap;
+                }
+                .excel-table-wrapper tr:nth-child(even) { background-color: #f9f9f9; }
+                .excel-table-wrapper th { background-color: #f2f2f2; font-weight: bold; }
             `;
             document.head.appendChild(style);
         },
@@ -350,10 +376,12 @@ const QuickGrader = {
             this.selectedFile = file;
             if (this.isWord(file)) {
                 this.renderDocx(file);
+            } else if (this.isExcel(file)) {
+                this.renderXlsx(file);
             }
         },
         isPreviewable(file) {
-            return this.isImage(file) || this.isPDF(file) || this.isWord(file);
+            return this.isImage(file) || this.isPDF(file) || this.isWord(file) || this.isExcel(file);
         },
         isImage(file) {
             return (file.mimetype && file.mimetype.includes('image')) ||
@@ -404,6 +432,34 @@ const QuickGrader = {
             } catch (e) {
                 console.error("Docx conversion failed", e);
                 this.docxContent = '<div class="pa-4 text-center red--text">No se pudo convertir el documento para la vista previa.</div>';
+            }
+        },
+        async renderXlsx(file) {
+            this.docxContent = '';
+            if (!this.xlsxLoaded) {
+                try {
+                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+                    this.xlsxLoaded = true;
+                } catch (e) {
+                    console.error("SheetJS load failed", e);
+                    this.docxContent = '<div class="pa-4 text-center red--text">Error al cargar visor de Excel.</div>';
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch(file.fileurl);
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                // Render first sheet as HTML
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                this.docxContent = XLSX.utils.sheet_to_html(worksheet);
+            } catch (e) {
+                console.error("Excel conversion failed", e);
+                this.docxContent = '<div class="pa-4 text-center red--text">No se pudo convertir la hoja de cálculo para la vista previa.</div>';
             }
         },
         loadScript(src) {
