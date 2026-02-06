@@ -4,8 +4,30 @@ require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 require_once($CFG->dirroot . '/question/engine/lib.php');
 
 require_login();
-$attemptid = required_param('attemptid', PARAM_INT);
-$slot = required_param('slot', PARAM_INT);
+
+$attemptid = optional_param('attemptid', 0, PARAM_INT);
+$slot = optional_param('slot', 0, PARAM_INT);
+
+echo "<h1>Quiz Grading Test Hub</h1>";
+
+if (!$attemptid || !$slot) {
+    echo "<p>Please provide <b>attemptid</b> and <b>slot</b> in the URL, or select a recent finished attempt below:</p>";
+    $recent = $DB->get_records_sql("SELECT qa.id, q.name, u.firstname, u.lastname, qa.state 
+                                    FROM {quiz_attempts} qa 
+                                    JOIN {quiz} q ON q.id = qa.quiz
+                                    JOIN {user} u ON u.id = qa.userid
+                                    WHERE qa.state = 'finished' 
+                                    ORDER BY qa.timemodified DESC", [], 0, 10);
+    echo "<ul>";
+    foreach ($recent as $r) {
+        echo "<li>Attempt #{$r->id} - {$r->name} (User: {$r->firstname} {$r->lastname}) ";
+        echo "[<a href='diag_quiz_grading.php?attemptid={$r->id}'>Inspect Slots</a>]</li>";
+    }
+    echo "</ul>";
+    echo "<p><i>Note: Once you find the slot ID in the Inspector, come back and use ?attemptid=X&slot=Y</i></p>";
+    die();
+}
+
 $mark = optional_param('mark', 1.0, PARAM_FLOAT);
 $mode = optional_param('mode', 'colon', PARAM_ALPHA); // 'colon' or 'hyphen'
 
