@@ -2,44 +2,32 @@ Vue.component('grades-grid', {
     template: `
         <v-card flat class="gradebook-card rounded-lg border">
             <style>
+            <style>
                 .gradebook-card .grade-container {
-                    overflow-x: auto;
+                    overflow-x: auto !important;
                     overflow-y: auto;
                     max-height: calc(100vh - 250px);
                     border-radius: 8px;
                     border: 1px solid rgba(0,0,0,0.12);
                     background: white;
+                    width: 100%;
+                    position: relative;
                 }
                 .theme--dark.gradebook-card .grade-container {
                     background: #1e1e1e;
                 }
-                /* Custom Scrollbar for better visibility */
-                .gradebook-card .grade-container::-webkit-scrollbar {
-                    width: 10px;
-                    height: 10px;
-                }
-                .gradebook-card .grade-container::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 5px;
-                }
-                .gradebook-card .grade-container::-webkit-scrollbar-thumb {
-                    background: #c1c1c1;
-                    border-radius: 5px;
-                }
-                .gradebook-card .grade-container::-webkit-scrollbar-thumb:hover {
-                    background: #a8a8a8;
-                }
                 .gradebook-card table {
                     border-spacing: 0;
-                    width: max-content !important; /* Force expansion beyond viewport */
-                    min-width: 100%;
-                    table-layout: fixed;
                     border-collapse: separate;
+                    table-layout: fixed;
+                    width: auto;
+                    min-width: 100%;
                 }
                 .gradebook-card th, .gradebook-card td {
                     padding: 12px 16px;
                     border-bottom: 1px solid rgba(0,0,0,0.08);
                     border-right: 1px solid rgba(0,0,0,0.08);
+                    box-sizing: border-box;
                 }
                 /* Sticky Column: Student Info */
                 .gradebook-card .sticky-col {
@@ -47,8 +35,9 @@ Vue.component('grades-grid', {
                     left: 0;
                     z-index: 10;
                     background: white;
-                    width: 250px !important; /* Fixed width for student column */
-                    min-width: 250px !important;
+                    width: 250px;
+                    min-width: 250px;
+                    max-width: 250px;
                     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
                 }
                 .theme--dark.gradebook-card .sticky-col {
@@ -63,12 +52,12 @@ Vue.component('grades-grid', {
                     top: 0;
                     z-index: 5;
                     background: #f8f9fa;
-                    font-size: 0.75rem;
+                    font-size: 0.72rem;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                     color: rgba(0,0,0,0.73);
                     vertical-align: top;
-                    padding-top: 15px;
+                    padding: 15px 10px;
                     white-space: normal; 
                     line-height: 1.3;
                     border-top: 1px solid rgba(0,0,0,0.05);
@@ -79,14 +68,15 @@ Vue.component('grades-grid', {
                 }
                 /* Column Specifics */
                 .grade-header {
-                    width: 140px !important; /* Fixed width for each grade column */
-                    min-width: 140px !important;
+                    width: 130px;
+                    min-width: 130px;
+                    max-width: 130px;
                     text-align: center;
                 }
                 .grade-cell {
                     text-align: center;
                     font-size: 0.95rem;
-                    white-space: nowrap; /* Keep grades on one line */
+                    white-space: nowrap;
                 }
                 .grade-total {
                     background: #f1f8ff !important;
@@ -100,7 +90,8 @@ Vue.component('grades-grid', {
                     font-weight: 900 !important;
                     color: #1976d2 !important;
                     border-left: 2px solid #1976d2;
-                    min-width: 140px;
+                    width: 150px;
+                    min-width: 150px;
                 }
                 .gradebook-card tbody tr:hover td {
                     background-color: rgba(0,0,0,0.02);
