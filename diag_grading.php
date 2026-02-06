@@ -112,9 +112,10 @@ if ($classid > 0) {
         echo "Items returned by gmk_get_pending_grading_items: " . count($items) . "<br>";
         if (!empty($items)) {
             echo "<table border='1' cellpadding='5'>";
-            echo "<tr><th>Type</th><th>Name</th><th>Student</th><th>Time</th></tr>";
+            echo "<tr><th>ID</th><th>Type</th><th>Name</th><th>Student</th><th>Time</th></tr>";
             foreach ($items as $item) {
                 echo "<tr>";
+                echo "<td>{$item->submissionid}</td>";
                 echo "<td>{$item->modname}</td>";
                 echo "<td>" . s($item->itemname) . "</td>";
                 echo "<td>" . s($item->firstname) . " " . s($item->lastname) . "</td>";
@@ -186,6 +187,7 @@ if ($attemptid) {
         
         echo "<pre>";
         print_r([
+            'attemptid' => $attempt->id,
             'userid' => $attempt->userid,
             'quizid' => $attempt->quiz,
             'uniqueid' => $attempt->uniqueid,
