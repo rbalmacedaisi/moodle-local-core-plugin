@@ -36,7 +36,7 @@ class save_quiz_grading extends external_api {
         ));
         
         $attemptobj = \quiz_attempt::create($params['attemptid']);
-        $context = $attemptobj->get_context();
+        $context = \context_module::instance($attemptobj->get_cm()->id);
         self::validate_context($context);
         
         require_capability('mod/quiz:grade', $context);
