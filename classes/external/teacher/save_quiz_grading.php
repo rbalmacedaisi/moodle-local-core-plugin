@@ -51,16 +51,17 @@ class save_quiz_grading extends external_api {
                 $PAGE->set_context($context);
             }
 
-            // Fetch the question attempt object.
-            $qa = $attemptobj->get_question_attempt($slot);
-
-            // Perform manual grading using the dedicated question engine method.
-            // This avoids issues with version-specific field prefixes in $data array.
+            // Perform manual grading.
+            // We use the question_engine API directly because quiz_attempt->get_question_usage()
+            // is restricted to unit tests in this Moodle version.
+            $quba = \question_engine::load_questions_usage_by_activity($attemptobj->get_uniqueid());
+            $qa = $quba->get_question_attempt($slot);
+            
             // Parameters: comment, mark, commentformat, timestamp, userid
             $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML, time(), $USER->id);
             
             // Persist the changes to the question engine database tables.
-            \question_engine::save_questions_usage_by_activity($attemptobj->get_question_usage(), $DB);
+            \question_engine::save_questions_usage_by_activity($quba, $DB);
 
             // Recalculate and update the attempt summarks (points).
             // This ensures the dashboard and gradebook show the updated total.
