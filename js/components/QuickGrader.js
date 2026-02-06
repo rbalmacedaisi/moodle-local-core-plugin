@@ -31,20 +31,53 @@ const QuickGrader = {
                             <v-card-subtitle>Enviado el: {{ formatDate(currentTask.submissiontime, true) }}</v-card-subtitle>
                             <v-divider></v-divider>
                             <v-card-text class="pa-4">
+                                <!-- PREVIEW AREA -->
+                                <v-fade-transition>
+                                    <div v-if="selectedFile" class="preview-panel mb-4">
+                                        <div class="d-flex justify-space-between align-center pa-2 grey lighten-3 border-bottom">
+                                            <span class="text-caption font-weight-bold text-truncate mr-2">{{ selectedFile.filename }}</span>
+                                            <v-btn icon x-small @click="selectedFile = null">
+                                                <v-icon>mdi-close</v-icon>
+                                            </v-btn>
+                                        </div>
+                                        <div class="preview-content-wrapper">
+                                            <!-- Image Preview -->
+                                            <v-img v-if="isImage(selectedFile)" :src="selectedFile.fileurl" contain max-height="600" class="grey lighten-4"></v-img>
+                                            
+                                            <!-- PDF Preview -->
+                                            <iframe v-else-if="isPDF(selectedFile)" :src="selectedFile.fileurl" class="preview-iframe"></iframe>
+                                            
+                                            <!-- Word Preview (.docx) -->
+                                            <div v-else-if="isWord(selectedFile)" class="pa-4 white docx-preview" v-html="docxContent || 'Cargando documento...'"></div>
+                                            
+                                            <!-- Generic / Not supported -->
+                                            <div v-else class="pa-10 text-center grey lighten-4">
+                                                <v-icon x-large color="grey lighten-1">mdi-file-eye-off</v-icon>
+                                                <div class="mt-2 grey--text">Vista previa no disponible para este formato</div>
+                                                <v-btn small color="primary" class="mt-4" @click="openFile(selectedFile.fileurl)">
+                                                    Descargar para ver
+                                                </v-btn>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </v-fade-transition>
+
                                 <div v-if="currentTask.files && currentTask.files.length > 0">
                                     <h3 class="text-subtitle-1 font-weight-bold mb-2">Archivos Adjuntos:</h3>
                                     <v-row>
                                         <v-col v-for="(file, i) in currentTask.files" :key="i" cols="12" sm="6" md="4">
-                                            <v-card outlined ripple @click="openFile(file.fileurl)">
-                                                <v-list-item>
-                                                    <v-list-item-avatar tile color="primary lighten-4">
-                                                        <v-icon color="primary">mdi-file-document-outline</v-icon>
+                                            <v-card outlined ripple @click="handleFileClick(file)" :color="selectedFile === file ? 'primary lighten-5' : ''" :class="selectedFile === file ? 'border-primary' : ''">
+                                                <v-list-item dense>
+                                                    <v-list-item-avatar tile size="32" :color="getFileIconColor(file)">
+                                                        <v-icon dark small>{{ getFileIcon(file) }}</v-icon>
                                                     </v-list-item-avatar>
                                                     <v-list-item-content>
                                                         <v-list-item-title class="text-caption font-weight-medium text-truncate">
                                                             {{ file.filename }}
                                                         </v-list-item-title>
-                                                        <v-list-item-subtitle class="text-caption blue--text">Descargar</v-list-item-subtitle>
+                                                        <v-list-item-subtitle class="text-overline blue--text" style="font-size: 0.6rem !important;">
+                                                            {{ isPreviewable(file) ? 'Ver' : 'Descargar' }}
+                                                        </v-list-item-subtitle>
                                                     </v-list-item-content>
                                                 </v-list-item>
                                             </v-card>
@@ -152,7 +185,11 @@ const QuickGrader = {
             loadingQuiz: false,
             selectedSlotIndex: 0,
             quizError: null,
-            saveError: null
+            saveError: null,
+            // File Preview specifics
+            selectedFile: null,
+            docxContent: '',
+            mammothLoaded: false
         }
     },
     computed: {
@@ -225,6 +262,34 @@ const QuickGrader = {
                 .v-dialog__content {
                     z-index: 99998 !important;
                 }
+                .preview-panel {
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    overflow: hidden;
+                    background: white;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+                .preview-content-wrapper {
+                    min-height: 200px;
+                    max-height: 70vh;
+                    overflow-y: auto;
+                    position: relative;
+                }
+                .preview-iframe {
+                    width: 100%;
+                    height: 70vh;
+                    border: none;
+                }
+                .docx-preview {
+                    font-family: 'Times New Roman', Times, serif;
+                    line-height: 1.5;
+                }
+                .border-primary {
+                    border: 1px solid var(--v-primary-base) !important;
+                }
+                .border-bottom {
+                    border-bottom: 1px solid #eee;
+                }
             `;
             document.head.appendChild(style);
         },
@@ -236,6 +301,8 @@ const QuickGrader = {
             this.grade = '';
             this.feedback = '';
             this.saveError = null;
+            this.selectedFile = null;
+            this.docxContent = '';
             if (this.$refs.form) this.$refs.form.resetValidation();
         },
         async fetchQuizData() {
@@ -274,6 +341,79 @@ const QuickGrader = {
         },
         openFile(url) {
             window.open(url, '_blank');
+        },
+        handleFileClick(file) {
+            if (this.selectedFile === file) {
+                this.selectedFile = null;
+                return;
+            }
+            this.selectedFile = file;
+            if (this.isWord(file)) {
+                this.renderDocx(file);
+            }
+        },
+        isPreviewable(file) {
+            return this.isImage(file) || this.isPDF(file) || this.isWord(file);
+        },
+        isImage(file) {
+            return (file.mimetype && file.mimetype.includes('image')) ||
+                /\.(jpg|jpeg|png|gif|webp)$/i.test(file.filename);
+        },
+        isPDF(file) {
+            return (file.mimetype === 'application/pdf') ||
+                /\.pdf$/i.test(file.filename);
+        },
+        isWord(file) {
+            return (file.mimetype && file.mimetype.includes('word')) ||
+                /\.docx$/i.test(file.filename);
+        },
+        getFileIcon(file) {
+            if (this.isImage(file)) return 'mdi-image-outline';
+            if (this.isPDF(file)) return 'mdi-file-pdf-box';
+            if (this.isWord(file)) return 'mdi-file-word-outline';
+            if (/\.(xls|xlsx)$/i.test(file.filename)) return 'mdi-file-excel-outline';
+            if (/\.(ppt|pptx)$/i.test(file.filename)) return 'mdi-file-powerpoint-outline';
+            return 'mdi-file-document-outline';
+        },
+        getFileIconColor(file) {
+            if (this.isImage(file)) return 'purple lighten-4';
+            if (this.isPDF(file)) return 'red lighten-4';
+            if (this.isWord(file)) return 'blue lighten-4';
+            if (/\.(xls|xlsx)$/i.test(file.filename)) return 'green lighten-4';
+            return 'primary lighten-4';
+        },
+        async renderDocx(file) {
+            this.docxContent = '';
+            if (!this.mammothLoaded) {
+                try {
+                    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js');
+                    this.mammothLoaded = true;
+                } catch (e) {
+                    console.error("Mammoth load failed", e);
+                    this.docxContent = '<div class="pa-4 text-center red--text">Error al cargar visor de Word.</div>';
+                    return;
+                }
+            }
+
+            try {
+                // Fetch file as blob
+                const response = await fetch(file.fileurl);
+                const arrayBuffer = await response.arrayBuffer();
+                const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+                this.docxContent = result.value;
+            } catch (e) {
+                console.error("Docx conversion failed", e);
+                this.docxContent = '<div class="pa-4 text-center red--text">No se pudo convertir el documento para la vista previa.</div>';
+            }
+        },
+        loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
         },
         skip() {
             if (this.currentTask.modname === 'quiz' && !this.isLastQuestion) {
