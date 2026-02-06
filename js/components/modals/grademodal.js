@@ -154,12 +154,6 @@ Vue.component('grademodal', {
 
                 const response = await window.axios.get(this.siteUrl, { params });
 
-                // [DEBUG] INTERCEPT RESPONSE
-                if (params.learningPlanId == 2) { // Target the specific plan if possible, or just alert once
-                    alert("DEBUG: response.data.pensum length: " + (response.data.pensum ? response.data.pensum.length : "NULL/EMPTY"));
-                    console.log("DEBUG Pensum Data:", response.data.pensum);
-                }
-
                 if (!response.data || !response.data.pensum || response.data.pensum === "undefined") {
                     // Check if it's already an object (sometimes axios/moodle does weird things)
                     if (response.data && typeof response.data === 'object' && !response.data.pensum) {
