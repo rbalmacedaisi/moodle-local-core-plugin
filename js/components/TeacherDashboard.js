@@ -5,7 +5,8 @@
 
 const TeacherDashboard = {
     template: `
-        <v-container fluid class="pa-4">
+        <v-app>
+        <v-container fluid class="pa-4" style="background-color: var(--gmk-bg); min-height: 100vh;">
             <v-row v-if="loading">
                 <v-col cols="12" class="text-center">
                     <v-progress-circular indeterminate color="primary"></v-progress-circular>
@@ -191,6 +192,7 @@ const TeacherDashboard = {
                 </v-card>
             </v-dialog>
         </v-container>
+        </v-app>
     `,
     data() {
         return {

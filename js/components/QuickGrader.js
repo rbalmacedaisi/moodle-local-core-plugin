@@ -128,6 +128,9 @@ const QuickGrader = {
                              </v-btn>
                              <v-btn block text class="mt-2" @click="skip">
                                  Saltar
+                              </v-btn>
+                              <v-btn block text color="grey darken-1" class="mt-1" @click="close">
+                                  Cerrar
                              </v-btn>
                          </div>
                     </div>
@@ -211,10 +214,16 @@ const QuickGrader = {
             style.id = styleId;
             style.textContent = `
                 .v-dialog--fullscreen {
-                    z-index: 2000 !important;
+                    z-index: 99999 !important;
+                    margin-top: 0px !important;
                 }
                 .quick-grader-toolbar {
-                    z-index: 2001 !important;
+                    z-index: 100000 !important;
+                    position: sticky !important;
+                    top: 0 !important;
+                }
+                .v-dialog__content {
+                    z-index: 99998 !important;
                 }
             `;
             document.head.appendChild(style);
