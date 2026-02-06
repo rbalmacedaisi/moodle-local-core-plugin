@@ -22,7 +22,8 @@ echo "<button type='submit'>Search</button>";
 echo "</form>";
 
 if ($searchuser) {
-    $found_users = $DB->get_records_sql("SELECT id, firstname, lastname, email FROM {user} WHERE (firstname LIKE :s OR lastname LIKE :s OR email LIKE :s) AND deleted = 0 LIMIT 10", ['s' => "%$searchuser%"]);
+    $found_users = $DB->get_records_sql("SELECT id, firstname, lastname, email FROM {user} WHERE (firstname LIKE :s1 OR lastname LIKE :s2 OR email LIKE :s3) AND deleted = 0 LIMIT 10", 
+        ['s1' => "%$searchuser%", 's2' => "%$searchuser%", 's3' => "%$searchuser%"]);
     if ($found_users) {
         echo "<ul>";
         foreach ($found_users as $u) {
