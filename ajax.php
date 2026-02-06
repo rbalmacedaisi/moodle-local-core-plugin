@@ -40,9 +40,10 @@ if (empty($action)) {
             $action = clean_param($jsonData['action'], PARAM_ALPHANUMEXT);
             
             // Extract core fields
-            foreach (['action', 'sesskey'] as $field) {
-                if (isset($jsonData[$field])) {
-                    $_POST[$field] = $_REQUEST[$field] = $jsonData[$field];
+            // Extract all root fields for compatibility with required_param/optional_param
+            foreach ($jsonData as $key => $value) {
+                if (!is_array($value)) {
+                    $_POST[$key] = $_REQUEST[$key] = $value;
                 }
             }
 
@@ -100,7 +101,8 @@ try {
         case 'local_grupomakro_get_pending_grading':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);
-            $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid);
+            $status = optional_param('status', 'pending', PARAM_ALPHA);
+            $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid, $status);
             $response = ['status' => 'success', 'tasks' => $result];
             break;
 
