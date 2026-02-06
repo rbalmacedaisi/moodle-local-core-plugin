@@ -133,19 +133,10 @@ if (empty($pending_quiz_courses)) {
     foreach ($pending_quiz_courses as $pc) {
         echo "<h4>Course: " . s($pc->fullname) . " (ID: {$pc->course})</h4>";
         
-        // Check Moodle Roles for the target user here
-        $user_roles = $DB->get_records_sql("
-            SELECT r.id, r.shortname, r.name 
-            FROM {role_assignments} ra
-            JOIN {context} ctx ON ctx.id = ra.contextid
-            JOIN {role} r ON r.id = ra.roleid
-            WHERE ra.userid = :userid AND ctx.contextlevel = 50 AND ctx.instanceid = :courseid
-        ", ['userid' => $userid, 'courseid' => $pc->course]);
-        
-        echo "<p><b>Moodle Roles for this User:</b> ";
+        echo "<p><b>Moodle Roles for this User (Shortnames):</b> ";
         if ($user_roles) {
             foreach ($user_roles as $ur) {
-                echo "<span style='padding:2px 5px; background:#e1f5fe; border:1px solid #01579b; border-radius:4px; margin-right:5px;'>ID: {$ur->id} - {$ur->shortname} (" . s($ur->name) . ")</span>";
+                echo "<span style='padding:2px 5px; background:#e1f5fe; border:1px solid #01579b; border-radius:4px; margin-right:5px; font-family:monospace;'>{$ur->shortname}</span>";
             }
         } else {
             echo "<span style='color:red;'>NONE</span>";

@@ -3846,10 +3846,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                 SELECT 1 FROM {role_assignments} ra 
                 JOIN {context} ctx ON ctx.id = ra.contextid
                 JOIN {role} r ON r.id = ra.roleid
-                WHERE ra.userid = :instructorid_m 
-                  AND ctx.contextlevel = 50 
-                  AND ctx.instanceid = a.course
-                  AND r.shortname IN ('editingteacher', 'teacher', 'manager')
+                  AND r.shortname IN ('editingteacher', 'teacher', 'manager', 'noneditingteacher')
             )
         )";
         $params['instructorid'] = $userid;
@@ -3860,7 +3857,9 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
     // A. Assignments
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
                           a.name as itemname, a.course as courseid, a.duedate,
-                          c.fullname as coursename, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+                          c.fullname as coursename, 
+                          u.firstname, u.lastname, u.email, u.picture, u.imagealt,
+                          u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename
                    FROM {assign_submission} s
                    JOIN {assign} a ON a.id = s.assignment
                    JOIN {course} c ON c.id = a.course
@@ -3909,7 +3908,9 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
 
     $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
                         q.name as itemname, q.course as courseid, q.timeclose as duedate,
-                        c.fullname as coursename, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+                        c.fullname as coursename, 
+                        u.firstname, u.lastname, u.email, u.picture, u.imagealt,
+                        u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename
                  FROM {quiz_attempts} quiza
                  JOIN {quiz} q ON q.id = quiza.quiz
                  JOIN {course} c ON c.id = q.course
