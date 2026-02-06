@@ -103,6 +103,7 @@ class get_student_learning_plan_pensum extends external_api
         ]);
 
         global $DB;
+        gmk_log("DEBUG get_student_learning_plan_pensum - UserID: {$params['userId']} - LPID: {$params['learningPlanId']}");
         try {
             $userPensumCourses = $DB->get_records_sql(
                 "
@@ -113,7 +114,9 @@ class get_student_learning_plan_pensum extends external_api
                 ORDER BY lpc.position ASC",
                 ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]
             );
-
+            
+            gmk_log("DEBUG get_student_learning_plan_pensum - Courses found: " . count($userPensumCourses));
+            
             $groupedUserPensumCourses = [];
             foreach ($userPensumCourses as $userPensumCourse) {
                 // If status is null (no progress record), default to 0 (No disponible) or suitable default

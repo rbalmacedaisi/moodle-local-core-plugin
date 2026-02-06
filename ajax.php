@@ -98,6 +98,24 @@ try {
             ];
             break;
 
+        case 'get_diag_grades':
+            $search = optional_param('search', '', PARAM_RAW);
+            ob_start();
+            include(__DIR__ . '/diag_grades.php');
+            $out = ob_get_clean();
+            echo json_encode(['status' => 'success', 'html' => $out]);
+            die();
+
+        case 'get_gmk_log':
+            $logfile = __DIR__ . '/gmk_debug.log';
+            if (file_exists($logfile)) {
+                $lines = array_slice(explode("\n", file_get_contents($logfile)), -100);
+                echo json_encode(['status' => 'success', 'log' => implode("\n", $lines)]);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Log file not found']);
+            }
+            die();
+
         case 'local_grupomakro_get_pending_grading':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);
