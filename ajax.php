@@ -784,31 +784,58 @@ try {
                 ORDER BY u.lastname, u.firstname
             ", ['groupid' => $groupid]);
 
-            // 2. Fetch Grade Categories (Columns/Rubrics)
-            // We want the direct children of the course category or manual items
+            if (empty($students)) {
+                $response = ['status' => 'success', 'data' => ['columns' => [], 'students' => []]];
+                break;
+            }
+
+            $userids = array_keys($students);
+
+            // 2. Fetch Grade Items (Columns)
             require_once($CFG->libdir . '/gradelib.php');
-            
-            $course_category = \grade_category::fetch_course_category($courseid);
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
             
             $columns = [];
             $item_ids = [];
 
+            // Sort items so total is at the end
+            usort($grade_items, function($a, $b) {
+                if ($a->itemtype === 'course') return 1;
+                if ($b->itemtype === 'course') return -1;
+                return $a->sortorder - $b->sortorder;
+            });
+
             foreach ($grade_items as $gi) {
-                // Filter out course total or unwanted items if necessary
-                // For now, we show all 'manual' or 'mod' items that are not course total
-                if ($gi->itemtype == 'course') continue; 
+                // Determine if it's a total
+                $is_total = ($gi->itemtype === 'course' || $gi->itemtype === 'category');
                 
                 $columns[] = [
                     'id' => $gi->id,
-                    'title' => $gi->itemname ?: $gi->itemtype,
+                    'title' => $gi->itemname ?: ($gi->itemtype === 'course' ? "Total del Curso" : $gi->itemtype),
                     'max_grade' => $gi->grademax,
-                    'weight' => $gi->aggregationcoef
+                    'weight' => $gi->aggregationcoef,
+                    'is_total' => $is_total,
+                    'itemtype' => $gi->itemtype
                 ];
-                $item_ids[] = $gi->id;
+                $item_ids[] = (int)$gi->id;
             }
 
-            // 3. Fetch Grades (Cells)
+            // 3. Fetch Grades (Cells) - BULK QUERY for performance
+            list($userinsql, $userparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u');
+            list($iteminsql, $itemparams) = $DB->get_in_or_equal($item_ids, SQL_PARAMS_NAMED, 'i');
+            
+            $sql = "SELECT id, itemid, userid, finalgrade 
+                    FROM {grade_grades} 
+                    WHERE userid $userinsql AND itemid $iteminsql";
+            
+            $all_grades = $DB->get_records_sql($sql, array_merge($userparams, $itemparams));
+            
+            // Map grades to [userid][itemid]
+            $grades_map = [];
+            foreach ($all_grades as $g) {
+                $grades_map[$g->userid][$g->itemid] = $g->finalgrade;
+            }
+
             $grades_data = [];
             foreach ($students as $student) {
                 $student_row = [
@@ -819,8 +846,8 @@ try {
                 ];
 
                 foreach ($item_ids as $iid) {
-                    $grade = \grade_grade::fetch(['itemid' => $iid, 'userid' => $student->id]);
-                    $student_row['grades'][$iid] = $grade ? $grade->finalgrade : '-';
+                    $val = isset($grades_map[$student->id][$iid]) ? $grades_map[$student->id][$iid] : '-';
+                    $student_row['grades'][$iid] = $val;
                 }
                 $grades_data[] = $student_row;
             }
