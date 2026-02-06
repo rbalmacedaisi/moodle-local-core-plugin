@@ -147,6 +147,19 @@ if ($classid > 0) {
         } else {
             echo "<p>No classes found in {gmk_class} with that name.</p>";
         }
+
+        // 7. Search for specific Quiz from screenshot
+        echo "<h3>7. Search for 'Cuestionario de prueba 1'</h3>";
+        $quizzes = $DB->get_records_sql("SELECT q.*, c.fullname as coursename FROM {quiz} q JOIN {course} c ON c.id = q.course WHERE q.name LIKE '%Cuestionario de prueba 1%'");
+        if ($quizzes) {
+            echo "<ul>";
+            foreach ($quizzes as $qz) {
+                echo "<li>Quiz ID: {$qz->id} - Name: " . s($qz->name) . " - <b>Actual Course ID: {$qz->course}</b> (" . s($qz->coursename) . ")</li>";
+            }
+            echo "</ul>";
+        } else {
+            echo "<p>Quiz not found.</p>";
+        }
     }
 } else {
     echo "<p>Please select a class from the list above to view its specific grading data.</p>";
