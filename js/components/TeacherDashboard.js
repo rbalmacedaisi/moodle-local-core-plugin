@@ -158,7 +158,7 @@ const TeacherDashboard = {
                             >
                                 <v-card color="grey lighten-4" min-width="300px" flat>
                                     <v-toolbar :color="selectedEvent.color" dark dense flat>
-                                        <v-toolbar-title class="subtitle-2 font-weight-bold pl-0">{{ selectedEvent.activityName }}</v-toolbar-title>
+                                        <v-toolbar-title class="subtitle-2 font-weight-bold pl-0">{{ selectedEvent.headerTitle }}</v-toolbar-title>
                                         <v-spacer></v-spacer>
                                         <v-btn icon small @click="showSelectedEvent = false"><v-icon>mdi-close</v-icon></v-btn>
                                     </v-toolbar>
@@ -236,9 +236,16 @@ const TeacherDashboard = {
                     displayName = `[${courseIden}] ${e.name}`;
                 }
 
+                // Determine header title for the popover
+                let headerTitle = e.name;
+                if (!e.is_grading_task && (e.name.toLowerCase().includes('asistencia') || e.name.toLowerCase().includes('programado'))) {
+                    headerTitle = e.classname;
+                }
+
                 return {
                     id: e.id,
                     name: displayName,
+                    headerTitle: headerTitle,
                     activityName: e.name, // Full activity name
                     courseFull: e.classname, // Full class/course name
                     courseShort: e.course_shortname,
