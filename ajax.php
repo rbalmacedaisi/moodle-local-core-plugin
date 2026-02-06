@@ -812,7 +812,7 @@ try {
                 $columns[] = [
                     'id' => $gi->id,
                     'title' => $gi->itemname ?: ($gi->itemtype === 'course' ? "Total del Curso" : $gi->itemtype),
-                    'max_grade' => $gi->grademax,
+                    'max_grade' => (float)$gi->grademax % 1 === 0 ? (int)$gi->grademax : round($gi->grademax, 1),
                     'weight' => $gi->aggregationcoef,
                     'is_total' => $is_total,
                     'itemtype' => $gi->itemtype

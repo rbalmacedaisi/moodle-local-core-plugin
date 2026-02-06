@@ -3,19 +3,41 @@ Vue.component('grades-grid', {
         <v-card flat class="gradebook-card rounded-lg border">
             <style>
                 .gradebook-card .grade-container {
-                    overflow: auto;
+                    overflow-x: auto;
+                    overflow-y: auto;
                     max-height: calc(100vh - 250px);
                     border-radius: 8px;
                     border: 1px solid rgba(0,0,0,0.12);
+                    background: white;
+                }
+                .theme--dark.gradebook-card .grade-container {
+                    background: #1e1e1e;
+                }
+                /* Custom Scrollbar for better visibility */
+                .gradebook-card .grade-container::-webkit-scrollbar {
+                    width: 10px;
+                    height: 10px;
+                }
+                .gradebook-card .grade-container::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 5px;
+                }
+                .gradebook-card .grade-container::-webkit-scrollbar-thumb {
+                    background: #c1c1c1;
+                    border-radius: 5px;
+                }
+                .gradebook-card .grade-container::-webkit-scrollbar-thumb:hover {
+                    background: #a8a8a8;
                 }
                 .gradebook-card table {
                     border-spacing: 0;
+                    width: max-content; /* Force table to expand based on content */
                     min-width: 100%;
                     table-layout: auto;
                     border-collapse: separate;
                 }
                 .gradebook-card th, .gradebook-card td {
-                    padding: 10px 14px;
+                    padding: 12px 16px;
                     border-bottom: 1px solid rgba(0,0,0,0.08);
                     border-right: 1px solid rgba(0,0,0,0.08);
                 }
@@ -40,23 +62,24 @@ Vue.component('grades-grid', {
                     top: 0;
                     z-index: 5;
                     background: #f8f9fa;
-                    font-size: 0.7rem;
+                    font-size: 0.75rem;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
-                    color: rgba(0,0,0,0.7);
-                    height: 70px;
-                    vertical-align: bottom;
-                    white-space: normal; /* Allow header text to wrap */
-                    line-height: 1.2;
+                    color: rgba(0,0,0,0.73);
+                    vertical-align: top;
+                    padding-top: 15px;
+                    white-space: normal; 
+                    line-height: 1.3;
+                    border-top: 1px solid rgba(0,0,0,0.05);
                 }
                 .theme--dark.gradebook-card thead th {
                     background: #2c2c2c;
-                    color: rgba(255,255,255,0.8);
+                    color: rgba(255,255,255,0.85);
                 }
                 /* Column Specifics */
                 .grade-header {
-                    min-width: 150px;
-                    max-width: 220px;
+                    min-width: 140px;
+                    width: 140px; /* Force a consistent width */
                     text-align: center;
                 }
                 .grade-cell {
@@ -126,11 +149,13 @@ Vue.component('grades-grid', {
                                 <th v-for="col in columns" :key="col.id" 
                                     class="grade-header"
                                     :class="{'grade-total': col.is_total, 'grade-course-total': col.itemtype === 'course'}">
-                                    <div class="font-weight-bold" :title="col.title">
-                                        {{ col.title }}
-                                    </div>
-                                    <div class="caption font-weight-regular opacity-70 mt-1">
-                                        Max: {{ col.max_grade }}
+                                    <div style="min-width: 120px;">
+                                        <div class="font-weight-bold" :title="col.title">
+                                            {{ col.title }}
+                                        </div>
+                                        <div class="caption font-weight-regular opacity-70 mt-1">
+                                            ({{ col.max_grade }})
+                                        </div>
                                     </div>
                                 </th>
                             </tr>
