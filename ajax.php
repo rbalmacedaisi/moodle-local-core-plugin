@@ -122,6 +122,28 @@ try {
             $response = ['status' => 'success', 'data' => $result];
             break;
 
+        case 'local_grupomakro_get_quiz_attempt_data':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_quiz_attempt_data.php');
+            $attemptid = required_param('attemptid', PARAM_INT);
+            $result = \local_grupomakro_core\external\teacher\get_quiz_attempt_data::execute($attemptid);
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
+        case 'local_grupomakro_save_quiz_grading':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/save_quiz_grading.php');
+            $args = required_param('args', PARAM_RAW);
+            $data = json_decode($args, true);
+            if (!$data) throw new moodle_exception('invalidjson');
+
+            $result = \local_grupomakro_core\external\teacher\save_quiz_grading::execute(
+                $data['attemptid'],
+                $data['slot'],
+                $data['mark'],
+                isset($data['comment']) ? $data['comment'] : ''
+            );
+            $response = ['status' => 'success', 'data' => $result];
+            break;
+
         case 'local_grupomakro_update_period':
             $userid = required_param('userid', PARAM_INT);
             $planid = required_param('planid', PARAM_INT);

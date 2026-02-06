@@ -18,21 +18,26 @@ class get_pending_grading extends external_api {
         return new external_function_parameters(
             array(
                 'userid' => new external_value(PARAM_INT, 'The ID of the teacher', VALUE_REQUIRED),
-                'classid' => new external_value(PARAM_INT, 'Optional Class ID to filter', VALUE_DEFAULT, 0)
+                'classid' => new external_value(PARAM_INT, 'Optional Class ID to filter', VALUE_DEFAULT, 0),
+                'status' => new external_value(PARAM_ALPHA, 'Status (pending/history)', VALUE_DEFAULT, 'pending')
             )
         );
     }
 
-    public static function execute($userid, $classid = 0) {
+    public static function execute($userid, $classid = 0, $status = 'pending') {
         global $DB, $PAGE;
 
-        $params = self::validate_parameters(self::execute_parameters(), array('userid' => $userid, 'classid' => $classid));
+        $params = self::validate_parameters(self::execute_parameters(), array(
+            'userid' => $userid, 
+            'classid' => $classid,
+            'status' => $status
+        ));
         
         $context = \context_system::instance();
         self::validate_context($context);
 
         // Use helper from locallib.php
-        $submissions = gmk_get_pending_grading_items($params['userid'], $params['classid']);
+        $submissions = gmk_get_pending_grading_items($params['userid'], $params['classid'], $params['status']);
         
         $result = [];
         $fs = get_file_storage();

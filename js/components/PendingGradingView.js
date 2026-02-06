@@ -13,13 +13,18 @@ Vue.component('pending-grading-view', {
         <v-card flat class="h-100 pending-grading-view">
             <v-card-title class="headline" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-4'">
                 <v-icon large left color="orange">mdi-clipboard-check-outline</v-icon>
-                Actividades Pendientes de Calificar 
+                Gestión de Calificaciones
                 <span v-if="className" class="ml-2 subtitle-1 grey--text"> - {{ className }}</span>
                 <v-spacer></v-spacer>
-                <v-btn icon @click="fetchPendingTasks" :loading="loading">
+                <v-btn icon @click="fetchTasks" :loading="loading">
                     <v-icon>mdi-refresh</v-icon>
                 </v-btn>
             </v-card-title>
+
+            <v-tabs v-model="activeTab" color="primary" grow @change="fetchTasks">
+                <v-tab> Pendientes </v-tab>
+                <v-tab> Histórico </v-tab>
+            </v-tabs>
             
             <v-card-text class="pa-4">
                 <!-- Summary Stats -->
@@ -28,9 +33,9 @@ Vue.component('pending-grading-view', {
                         <v-card outlined class="d-flex align-center pa-3" :color="$vuetify.theme.dark ? 'grey darken-4' : 'orange lighten-5'">
                             <v-icon color="orange" size="36" class="mr-3">mdi-file-document-edit-outline</v-icon>
                             <div>
-                                <div class="caption grey--text">Total Pendientes</div>
+                                <div class="caption grey--text">{{ activeTab === 0 ? 'Total Pendientes' : 'Total Calificados' }}</div>
                                 <div class="text-h5 font-weight-bold" :class="$vuetify.theme.dark ? 'white--text' : 'orange--text text--darken-3'">
-                                    {{ totalPending }}
+                                    {{ activeTab === 0 ? totalPending : tasks.length }}
                                 </div>
                             </div>
                         </v-card>
@@ -102,25 +107,24 @@ Vue.component('pending-grading-view', {
                     </template>
 
                     <template v-slot:item.actions="{ item }">
-                        <v-btn small color="primary" depressed @click="openQuickGrader(item)">
-                            <v-icon left small>mdi-check-circle-outline</v-icon>
-                            Calificar
+                        <v-btn small :color="activeTab === 0 ? 'primary' : 'secondary'" depressed @click="openQuickGrader(item)">
+                            <v-icon left small>{{ activeTab === 0 ? 'mdi-check-circle-outline' : 'mdi-eye' }}</v-icon>
+                            {{ activeTab === 0 ? 'Calificar' : 'Revisar' }}
                         </v-btn>
                     </template>
                     
                     <template v-slot:no-data>
                          <div class="pa-4 text-center grey--text">
                              <v-icon size="48" color="grey lighten-1">mdi-check-all</v-icon>
-                             <div class="mt-2">¡Todo al día! No tienes actividades pendientes por calificar.</div>
+                             <div class="mt-2">{{ activeTab === 0 ? '¡Todo al día! No tienes actividades pendientes por calificar.' : 'No se encontraron actividades en el historial.' }}</div>
                          </div>
                     </template>
                 </v-data-table>
             </v-card-text>
 
-            <!-- Quick Grader Component -->
             <quick-grader 
                 v-if="showGrader" 
-                :task="selectedTask" 
+                :task.sync="selectedTask" 
                 :all-tasks="tasks"
                 @close="closeGrader"
                 @grade-saved="onGradeSaved"
@@ -133,7 +137,8 @@ Vue.component('pending-grading-view', {
             tasks: [],
             search: '',
             showGrader: false,
-            selectedTask: null
+            selectedTask: null,
+            activeTab: 0
         };
     },
     computed: {
@@ -150,20 +155,21 @@ Vue.component('pending-grading-view', {
         }
     },
     mounted() {
-        this.fetchPendingTasks();
+        this.fetchTasks();
     },
     watch: {
         classId() {
-            this.fetchPendingTasks();
+            this.fetchTasks();
         }
     },
     methods: {
-        async fetchPendingTasks() {
+        async fetchTasks() {
             this.loading = true;
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_pending_grading',
                     classid: this.classId,
+                    status: this.activeTab === 0 ? 'pending' : 'history',
                     sesskey: M.cfg.sesskey
                 });
 

@@ -3816,7 +3816,7 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
  * @param int $classid Optional class ID to filter.
  * @return array List of pending items.
  */
-function gmk_get_pending_grading_items($userid, $classid = 0) {
+function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending') {
     global $DB;
     
     $results = [];
@@ -3855,6 +3855,8 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
     // If admin, we don't apply course_filter_sql, showing everything.
 
     // A. Assignments
+    $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
+
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
                           a.name as itemname, a.course as courseid, a.duedate,
                           c.fullname as coursename, 
@@ -3865,7 +3867,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                    JOIN {course} c ON c.id = a.course
                    JOIN {user} u ON u.id = s.userid
                    LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid
-                   WHERE s.status = 'submitted' AND s.latest = 1 AND (g.grade IS NULL OR g.grade < 0)
+                   WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
                    $course_filter_sql $group_filter_sql";
     
     $assigns = $DB->get_records_sql($sql_assign, $params);
@@ -3905,6 +3907,8 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
         $quiz_params['instructorid'] = $userid;
         $quiz_params['instructorid_m'] = $userid;
     }
+    // B. Quizzes (Manual Grading)
+    $quiz_needsgrading_condition = ($status === 'history') ? "NOT EXISTS" : "EXISTS";
 
     $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
                         q.name as itemname, q.course as courseid, q.timeclose as duedate,
@@ -3916,7 +3920,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                  JOIN {course} c ON c.id = q.course
                  JOIN {user} u ON u.id = quiza.userid
                  WHERE quiza.state = 'finished'
-                   AND EXISTS (
+                   AND $quiz_needsgrading_condition (
                        SELECT 1 FROM {question_attempts} qa 
                        JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
                        WHERE qa.questionusageid = quiza.uniqueid AND qas.state = 'needsgrading'
