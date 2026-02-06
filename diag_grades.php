@@ -141,6 +141,23 @@ foreach ($users as $user) {
                 }
                 echo "</tbody></table>";
             }
+
+            // 4. Test Webservice Directly
+            echo "<h3>4. Webservice Response Test</h3>";
+            try {
+                require_once(__DIR__ . '/classes/external/student/get_student_learning_plan_pensum.php');
+                $wsResponse = \local_grupomakro_core\external\student\get_student_learning_plan_pensum::execute($user->id, $lp->planid);
+                echo "<p>Status: " . ($wsResponse['status'] == 1 ? "<span class='success'>SUCCESS</span>" : "<span class='error'>FAIL ({$wsResponse['message']})</span>") . "</p>";
+                if ($wsResponse['status'] == 1) {
+                    echo "<p>Pensum JSON length: " . strlen($wsResponse['pensum']) . "</p>";
+                    $decodedPensum = json_decode($wsResponse['pensum'], true);
+                    echo "<p>Periods in pensum: " . count($decodedPensum) . "</p>";
+                    echo "<details><summary>View Raw JSON</summary><pre>" . s($wsResponse['pensum']) . "</pre></details>";
+                }
+            } catch (Exception $e) {
+                echo "<p class='error'>CRASH: " . s($e->getMessage()) . "</p>";
+                echo "<pre>" . s($e->getTraceAsString()) . "</pre>";
+            }
         }
     }
     echo "</div>";
