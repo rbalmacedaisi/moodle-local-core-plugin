@@ -75,7 +75,7 @@ const QuickGrader = {
                                         <h3 class="text-h6">{{ currentQuestion.name }}</h3>
                                         <v-chip small :color="currentQuestion.needsgrading ? 'orange' : 'success'" dark>
                                             {{ currentQuestion.needsgrading ? 'Requiere Calificación' : 'Calificada' }}
-                                        </chip>
+                                        </v-chip>
                                     </div>
                                     <v-divider class="mb-4"></v-divider>
                                     <div class="rendered-question" v-html="currentQuestion.html"></div>
@@ -131,11 +131,6 @@ const QuickGrader = {
                 </div>
             </v-card>
             
-            <style>
-                .q-container .rendered-question { font-family: sans-serif; }
-                .q-container .outcome { display: none; } /* Hide default outcome if present */
-                .q-container img { max-width: 100%; height: auto; }
-            </style>
         </v-dialog>
     `,
     data() {

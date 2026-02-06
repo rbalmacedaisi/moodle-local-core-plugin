@@ -832,3 +832,17 @@ span.badge.text-white {
 .min-height-60 {
     min-height: 60px;
 }
+
+/* Quiz Quick Grader Styles */
+.q-container .rendered-question {
+    font-family: sans-serif;
+}
+
+.q-container .outcome {
+    display: none !important;
+}
+
+.q-container img {
+    max-width: 100%;
+    height: auto;
+}
