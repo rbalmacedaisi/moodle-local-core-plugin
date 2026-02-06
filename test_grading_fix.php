@@ -45,8 +45,12 @@ if ($mode === 'colon') {
 } else {
     $separator = '';
 }
+
+$fieldname = $prefix . $separator . 'mark';
+echo "Target Field Name: <b>$fieldname</b><br>";
+
 $data = array(
-    $prefix . $separator . 'mark' => $mark,
+    $fieldname => $mark,
     $prefix . $separator . 'comment' => "Test grading with $mode at " . date('Y-m-d H:i:s'),
     $prefix . $separator . 'commentformat' => FORMAT_HTML
 );

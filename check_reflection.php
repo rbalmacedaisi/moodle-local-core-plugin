@@ -1,24 +1,33 @@
 <?php
-require(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/../../config.php');
+require_once($CFG->dirroot . '/question/engine/lib.php');
 
-echo "<h1>mod_quiz\structure Reflection</h1>";
+echo "<h1>question_attempt Reflection</h1>";
 
-if (class_exists('\mod_quiz\structure')) {
-    $ref = new ReflectionClass('\mod_quiz\structure');
-    $method = $ref->getMethod('create_for_quiz');
+if (class_exists('question_attempt')) {
+    $ref = new ReflectionClass('question_attempt');
     
-    echo "<h3>Method: create_for_quiz</h3>";
-    echo "Parameters:<br><ul>";
-    foreach ($method->getParameters() as $p) {
-        $type = $p->hasType() ? $p->getType()->getName() : 'No Type';
-        echo "<li>Name: {$p->getName()}, Type: $type</li>";
+    echo "<h3>Constants:</h3><pre>";
+    print_r($ref->getConstants());
+    echo "</pre>";
+
+    echo "<h3>Static Properties:</h3><pre>";
+    print_r($ref->getStaticProperties());
+    echo "</pre>";
+
+    echo "<h3>Methods:</h3><ul>";
+    foreach ($ref->getMethods() as $method) {
+        if ($method->isPublic()) {
+            echo "<li>" . $method->getName();
+            if ($method->getName() === 'process_submitted_actions') {
+                echo " (";
+                foreach ($method->getParameters() as $p) {
+                    echo " $" . $p->getName() . ",";
+                }
+                echo ")";
+            }
+            echo "</li>";
+        }
     }
     echo "</ul>";
-
-    // Also look at populate_structure where the error happened
-    if ($ref->hasMethod('populate_structure')) {
-        $pop = $ref->getMethod('populate_structure');
-        echo "<h3>Method: populate_structure</h3>";
-        // This is usually protected, but we can see it in traceback
-    }
 }
