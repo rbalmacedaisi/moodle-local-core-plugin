@@ -205,17 +205,10 @@ class get_dashboard_data extends external_api {
         // 3. Pending Tasks (Count submissions to grade)
         $pending_tasks = [];
         foreach ($active_classes as $class) {
-            $assigns = $DB->get_records('assign', ['course' => $class->courseid]);
-            $count = 0;
-            foreach ($assigns as $assign) {
-                $count += $DB->count_records_sql("SELECT COUNT(s.id) FROM {assign_submission} s 
-                    JOIN {assign_grades} g ON g.assignment = s.assignment AND g.userid = s.userid
-                    WHERE s.assignment = :assignid AND s.status = 'submitted' AND g.grade IS NULL", 
-                    ['assignid' => $assign->id]);
-            }
+            $tasks = gmk_get_pending_grading_items($params['userid'], $class->id);
             $task = new stdClass();
             $task->classid = $class->id;
-            $task->count = $count;
+            $task->count = count($tasks);
             $pending_tasks[] = $task;
         }
 

@@ -3808,3 +3808,103 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
 
     return $event;
 }
+
+/**
+ * Fetches all items pending for grading (Assignments and Quizzes).
+ * 
+ * @param int $userid The teacher ID.
+ * @param int $classid Optional class ID to filter.
+ * @return array List of pending items.
+ */
+function gmk_get_pending_grading_items($userid, $classid = 0) {
+    global $DB;
+    
+    $results = [];
+    
+    // 1. Get Course/Group filters
+    $course_filter_sql = "";
+    $group_filter_sql = "";
+    $params = ['userid' => $userid];
+    
+    if ($classid > 0) {
+        $class = $DB->get_record('gmk_class', ['id' => $classid]);
+        if ($class) {
+            $course_filter_sql = " AND a.course = :courseid";
+            $params['courseid'] = $class->courseid;
+            if (!empty($class->groupid)) {
+                $group_filter_sql = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
+                $params['groupid'] = $class->groupid;
+            }
+        }
+    } else {
+        $course_filter_sql = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)";
+        $params['instructorid'] = $userid;
+    }
+
+    // A. Assignments
+    $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
+                          a.name as itemname, a.course as courseid, a.duedate,
+                          c.fullname as coursename, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+                   FROM {assign_submission} s
+                   JOIN {assign} a ON a.id = s.assignment
+                   JOIN {course} c ON c.id = a.course
+                   JOIN {user} u ON u.id = s.userid
+                   LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid
+                   WHERE s.status = 'submitted' AND s.latest = 1 AND (g.grade IS NULL OR g.grade < 0)
+                   $course_filter_sql $group_filter_sql";
+    
+    $assigns = $DB->get_records_sql($sql_assign, $params);
+    foreach ($assigns as $asgn) {
+        $it = clone $asgn;
+        $it->modname = 'assign';
+        $results[] = $it;
+    }
+
+    // B. Quizzes (Manual Grading)
+    $quiz_params = ['userid' => $userid];
+    $quiz_course_filter = "";
+    $quiz_group_filter = "";
+    if ($classid > 0) {
+        $class = $DB->get_record('gmk_class', ['id' => $classid]);
+        if ($class) {
+            $quiz_course_filter = " AND q.course = :courseid";
+            $quiz_params['courseid'] = $class->courseid;
+            if (!empty($class->groupid)) {
+                $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)";
+                $quiz_params['groupid'] = $class->groupid;
+            }
+        }
+    } else {
+        $quiz_course_filter = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = q.course AND cls.instructorid = :instructorid)";
+        $quiz_params['instructorid'] = $userid;
+    }
+
+    $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
+                        q.name as itemname, q.course as courseid, q.timeclose as duedate,
+                        c.fullname as coursename, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+                 FROM {quiz_attempts} quiza
+                 JOIN {quiz} q ON q.id = quiza.quiz
+                 JOIN {course} c ON c.id = q.course
+                 JOIN {user} u ON u.id = quiza.userid
+                 WHERE quiza.state = 'finished'
+                   AND EXISTS (
+                       SELECT 1 FROM {question_attempts} qa 
+                       JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
+                       WHERE qa.questionusageid = quiza.uniqueid AND qas.state = 'needsgrading'
+                   )
+                   $quiz_course_filter $quiz_group_filter";
+    
+    $quizzes = $DB->get_records_sql($sql_quiz, $quiz_params);
+    foreach ($quizzes as $qz) {
+        $it = clone $qz;
+        $it->modname = 'quiz';
+        $results[] = $it;
+    }
+
+    // Sort by submission time
+    usort($results, function($a, $b) {
+        return $a->submissiontime - $b->submissiontime;
+    });
+
+    return $results;
+}

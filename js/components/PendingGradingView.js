@@ -75,7 +75,12 @@ Vue.component('pending-grading-view', {
 
                     <template v-slot:item.assignmentname="{ item }">
                         <div class="py-2">
-                            <div class="font-weight-bold text-subtitle-2">{{ item.assignmentname }}</div>
+                            <div class="font-weight-bold text-subtitle-2">
+                                <v-icon small class="mr-1" :color="item.modname === 'quiz' ? 'deep-purple' : 'primary'">
+                                    {{ item.modname === 'quiz' ? 'mdi-help-box' : 'mdi-file-document' }}
+                                </v-icon>
+                                {{ item.assignmentname }}
+                            </div>
                             <div class="caption grey--text" v-if="!classId">
                                 <v-icon x-small class="mr-1">mdi-school</v-icon>
                                 {{ item.coursename }}
@@ -183,8 +188,14 @@ Vue.component('pending-grading-view', {
             return (Date.now() / 1000) > duedate;
         },
         openQuickGrader(item) {
-            this.selectedTask = item;
-            this.showGrader = true;
+            if (item.modname === 'quiz') {
+                // Redirect to Moodle Quiz Grading manual report
+                const url = `${M.cfg.wwwroot}/mod/quiz/report.php?id=${item.cmid}&mode=grading`;
+                window.open(url, '_blank');
+            } else {
+                this.selectedTask = item;
+                this.showGrader = true;
+            }
         },
         closeGrader() {
             this.showGrader = false;

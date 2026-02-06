@@ -24,85 +24,28 @@ class get_pending_grading extends external_api {
     }
 
     public static function execute($userid, $classid = 0) {
-        global $DB;
+        global $DB, $PAGE;
 
         $params = self::validate_parameters(self::execute_parameters(), array('userid' => $userid, 'classid' => $classid));
         
         $context = \context_system::instance();
         self::validate_context($context);
 
-        // Logic to fetch pending submissions
-        // We need to find submissions where:
-        // 1. Status is 'submitted'
-        // 2. No grade exists or grade is -1 (not graded)
-        // 3. User is enrolled in the course/class
-
-        $sql = "SELECT s.id as submissionid, 
-                       s.userid, 
-                       s.assignment, 
-                       s.timecreated as submissiontime,
-                       a.name as assignmentname,
-                       a.course as courseid,
-                       a.duedate,
-                       c.fullname as coursename,
-                       u.firstname,
-                       u.lastname,
-                       u.email,
-                       u.picture,
-                       u.imagealt
-                FROM {assign_submission} s
-                JOIN {assign} a ON a.id = s.assignment
-                JOIN {course} c ON c.id = a.course
-                JOIN {user} u ON u.id = s.userid
-                LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid
-                WHERE s.status = 'submitted' 
-                  AND s.latest = 1
-                  AND (g.grade IS NULL OR g.grade < 0)
-                ";
-        
-        $query_params = [];
-        
-        // If class filter is applied (assuming class maps to a course or group)
-        if ($classid > 0) {
-            // Fetch class to get course/group info
-            $class = $DB->get_record('gmk_class', ['id' => $classid]);
-            if ($class) {
-                // If the class is bound to a specific group, we must filter students by that group
-                // But for now, let's just filter by course ID which is safer
-                $sql .= " AND a.course = :courseid";
-                $query_params['courseid'] = $class->courseid;
-                
-                // If we need group filtering:
-                if (!empty($class->groupid)) {
-                     $sql .= " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
-                     $query_params['groupid'] = $class->groupid;
-                }
-            }
-        } else {
-             // If no class filter, we should ideally restrict to courses where $userid is a teacher
-             // For simplicity/performance in this MVP, we assume the frontend sends requests for valid contexts.
-             // OR improve query to join with context/role_assignments if needed.
-             // For now, let's filter by the courses the instructor is assigned to in gmk_class
-             $sql .= " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)";
-             $query_params['instructorid'] = $userid;
-        }
-        
-        $sql .= " ORDER BY s.timecreated ASC";
-
-        $submissions = $DB->get_records_sql($sql, $query_params);
+        // Use helper from locallib.php
+        $submissions = gmk_get_pending_grading_items($params['userid'], $params['classid']);
         
         $result = [];
         $fs = get_file_storage();
 
         foreach ($submissions as $sub) {
             $item = new stdClass();
-            $item->id = $sub->submissionid; // Submission ID
-            $item->assignmentid = $sub->assignment;
-            $item->assignmentname = $sub->assignmentname;
+            $item->id = $sub->submissionid; 
+            $item->assignmentid = $sub->itemid;
+            $item->modname = $sub->modname;
+            $item->assignmentname = $sub->itemname;
             $item->studentid = $sub->userid;
             $item->studentname = fullname($sub);
             $item->studentemail = $sub->email;
-            $item->studentavatar = ''; // Could generate URL
             
             // Avatar logic
             $userobj = new stdClass();
@@ -112,7 +55,6 @@ class get_pending_grading extends external_api {
             $userobj->lastname = $sub->lastname;
             $userobj->imagealt = $sub->imagealt;
             $userobj->email = $sub->email;
-            global $PAGE;
             $user_picture = new \user_picture($userobj);
             $user_picture->size = 1; // f1 size
             $item->studentavatar = $user_picture->get_url($PAGE)->out(false);
@@ -122,32 +64,36 @@ class get_pending_grading extends external_api {
             $item->courseid = $sub->courseid;
             $item->coursename = $sub->coursename;
             
-            // Files
+            // Files logic (only for assign for now)
             $item->files = [];
             
-            // Get files from the submission
-            // We need the context of the module to get the files
-            $cm = get_coursemodule_from_instance('assign', $sub->assignment);
-            if ($cm) {
-                $context = \context_module::instance($cm->id);
-                $files = $fs->get_area_files($context->id, 'assignsubmission_file', 'submission_files', $sub->submissionid, 'sortorder', false);
-                
-                foreach ($files as $file) {
-                     $f = new stdClass();
-                     $f->filename = $file->get_filename();
-                     // Generate a URL to download
-                     // moodle/pluginfile.php/CONTEXTID/COMPONENT/FILEAREA/ITEMID/FILENAME
-                     $url = \moodle_url::make_pluginfile_url(
-                        $file->get_contextid(),
-                        $file->get_component(),
-                        $file->get_filearea(),
-                        $file->get_itemid(),
-                        $file->get_filepath(),
-                        $file->get_filename()
-                     );
-                     $f->fileurl = $url->out(false);
-                     $f->mimetype = $file->get_mimetype();
-                     $item->files[] = $f;
+            if ($sub->modname === 'assign') {
+                $cm = get_coursemodule_from_instance('assign', $sub->itemid);
+                if ($cm) {
+                    $item->cmid = $cm->id;
+                    $context_mod = \context_module::instance($cm->id);
+                    $files = $fs->get_area_files($context_mod->id, 'assignsubmission_file', 'submission_files', $sub->submissionid, 'sortorder', false);
+                    
+                    foreach ($files as $file) {
+                         $f = new stdClass();
+                         $f->filename = $file->get_filename();
+                         $url = \moodle_url::make_pluginfile_url(
+                            $file->get_contextid(),
+                            $file->get_component(),
+                            $file->get_filearea(),
+                            $file->get_itemid(),
+                            $file->get_filepath(),
+                            $file->get_filename()
+                         );
+                         $f->fileurl = $url->out(false);
+                         $f->mimetype = $file->get_mimetype();
+                         $item->files[] = $f;
+                    }
+                }
+            } else if ($sub->modname === 'quiz') {
+                $cm = get_coursemodule_from_instance('quiz', $sub->itemid);
+                if ($cm) {
+                    $item->cmid = $cm->id;
                 }
             }
 
@@ -162,8 +108,10 @@ class get_pending_grading extends external_api {
             new external_single_structure(
                 array(
                     'id' => new external_value(PARAM_INT, 'Submission ID'),
-                    'assignmentid' => new external_value(PARAM_INT, 'Assignment ID'),
-                    'assignmentname' => new external_value(PARAM_TEXT, 'Assignment Name'),
+                    'assignmentid' => new external_value(PARAM_INT, 'Item (Assignment/Quiz) ID'),
+                    'cmid' => new external_value(PARAM_INT, 'Course Module ID', VALUE_OPTIONAL),
+                    'modname' => new external_value(PARAM_TEXT, 'Module name (assign/quiz)', VALUE_OPTIONAL),
+                    'assignmentname' => new external_value(PARAM_TEXT, 'Item Name'),
                     'studentid' => new external_value(PARAM_INT, 'Student User ID'),
                     'studentname' => new external_value(PARAM_TEXT, 'Student Fullname'),
                     'studentemail' => new external_value(PARAM_TEXT, 'Student Email'),
