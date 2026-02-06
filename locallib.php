@@ -3820,41 +3820,40 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     global $DB;
     
     $results = [];
-    
-    // 1. Get Course/Group filters
-    $course_filter_sql = "";
-    $group_filter_sql = "";
-    $params = ['userid' => $userid, 'userid2' => $userid];
-    
     $is_admin = is_siteadmin($userid);
+    
+    // A. Assignments
+    $assign_params = [];
+    $assign_course_filter = "";
+    $assign_group_filter = "";
 
     if ($classid > 0) {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         if ($class) {
-            $course_filter_sql = " AND a.course = :courseid";
-            $params['courseid'] = $class->courseid;
+            $assign_course_filter = " AND a.course = :courseid";
+            $assign_params['courseid'] = $class->courseid;
             if (!empty($class->groupid)) {
-                $group_filter_sql = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
-                $params['groupid'] = $class->groupid;
+                $assign_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
+                $assign_params['groupid'] = $class->groupid;
             }
         }
     } else if (!$is_admin) {
-        // Fallback: If not admin, show courses where user is instructor in gmk_class OR has teacher roles in Moodle
-        $course_filter_sql = " AND (
+        $assign_course_filter = " AND (
             EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)
             OR EXISTS (
                 SELECT 1 FROM {role_assignments} ra 
                 JOIN {context} ctx ON ctx.id = ra.contextid
                 JOIN {role} r ON r.id = ra.roleid
+                WHERE ra.userid = :instructorid_m 
+                  AND ctx.contextlevel = 50 
+                  AND ctx.instanceid = a.course
                   AND r.shortname IN ('editingteacher', 'teacher', 'manager', 'noneditingteacher')
             )
         )";
-        $params['instructorid'] = $userid;
-        $params['instructorid_m'] = $userid;
+        $assign_params['instructorid'] = $userid;
+        $assign_params['instructorid_m'] = $userid;
     }
-    // If admin, we don't apply course_filter_sql, showing everything.
 
-    // A. Assignments
     $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
 
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
@@ -3868,19 +3867,22 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    JOIN {user} u ON u.id = s.userid
                    LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid
                    WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
-                   $course_filter_sql $group_filter_sql";
+                   $assign_course_filter $assign_group_filter";
     
-    $assigns = $DB->get_records_sql($sql_assign, $params);
-    foreach ($assigns as $asgn) {
-        $it = clone $asgn;
-        $it->modname = 'assign';
-        $results[] = $it;
+    $assigns = $DB->get_records_sql($sql_assign, $assign_params);
+    if ($assigns) {
+        foreach ($assigns as $asgn) {
+            $it = clone $asgn;
+            $it->modname = 'assign';
+            $results[] = $it;
+        }
     }
 
-    // B. Quizzes (Manual Grading)
-    $quiz_params = ['userid' => $userid];
+    // B. Quizzes
+    $quiz_params = [];
     $quiz_course_filter = "";
     $quiz_group_filter = "";
+
     if ($classid > 0) {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         if ($class) {
@@ -3901,13 +3903,13 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                 WHERE ra.userid = :instructorid_m 
                   AND ctx.contextlevel = 50 
                   AND ctx.instanceid = q.course
-                  AND r.shortname IN ('editingteacher', 'teacher', 'manager')
+                  AND r.shortname IN ('editingteacher', 'teacher', 'manager', 'noneditingteacher')
             )
         )";
         $quiz_params['instructorid'] = $userid;
         $quiz_params['instructorid_m'] = $userid;
     }
-    // B. Quizzes (Manual Grading)
+
     $quiz_needsgrading_condition = ($status === 'history') ? "NOT EXISTS" : "EXISTS";
 
     $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
@@ -3928,10 +3930,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    $quiz_course_filter $quiz_group_filter";
     
     $quizzes = $DB->get_records_sql($sql_quiz, $quiz_params);
-    foreach ($quizzes as $qz) {
-        $it = clone $qz;
-        $it->modname = 'quiz';
-        $results[] = $it;
+    if ($quizzes) {
+        foreach ($quizzes as $qz) {
+            $it = clone $qz;
+            $it->modname = 'quiz';
+            $results[] = $it;
+        }
     }
 
     // Sort by submission time
