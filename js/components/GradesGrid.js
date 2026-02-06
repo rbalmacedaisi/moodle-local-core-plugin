@@ -133,7 +133,7 @@ Vue.component('grades-grid', {
                     <v-btn depressed color="primary" @click="fetchGrades">Reintentar</v-btn>
                 </div>
 
-                <div v-else class="grade-container">
+                <div v-else class="grade-container" style="overflow-x: auto !important; overflow-y: auto !important; width: 100% !important; display: block !important;">
                     <table :style="tableStyles">
                         <thead>
                             <tr>
