@@ -43,7 +43,7 @@ class save_quiz_grading extends external_api {
 
         // Prepare the action data for the question engine
         // Moodle expects data in a specific format for manual grading
-        $prefix = $attemptobj->get_question_usage()->get_question_attempt($slot)->get_field_prefix();
+        $prefix = $attemptobj->get_question_attempt($slot)->get_field_prefix();
         
         $data = array(
             $prefix . '-mark' => $params['mark'],
