@@ -51,6 +51,9 @@ class save_quiz_grading extends external_api {
                 $PAGE->set_context($context);
             }
 
+            // Fetch the question attempt object.
+            $qa = $attemptobj->get_question_attempt($slot);
+
             // Perform manual grading using the dedicated question engine method.
             // This avoids issues with version-specific field prefixes in $data array.
             // Parameters: comment, mark, commentformat, timestamp, userid
