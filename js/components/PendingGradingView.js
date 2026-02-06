@@ -194,14 +194,8 @@ Vue.component('pending-grading-view', {
             return (Date.now() / 1000) > duedate;
         },
         openQuickGrader(item) {
-            if (item.modname === 'quiz') {
-                // Redirect to Moodle Quiz Grading manual report
-                const url = `${M.cfg.wwwroot}/mod/quiz/report.php?id=${item.cmid}&mode=grading`;
-                window.open(url, '_blank');
-            } else {
-                this.selectedTask = item;
-                this.showGrader = true;
-            }
+            this.selectedTask = item;
+            this.showGrader = true;
         },
         closeGrader() {
             this.showGrader = false;
