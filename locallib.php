@@ -3865,12 +3865,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    JOIN {assign} a ON a.id = s.assignment
                    JOIN {course} c ON c.id = a.course
                    JOIN {user} u ON u.id = s.userid
-                   LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid
+                   LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid AND g.attemptnumber = s.attemptnumber
                    WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
                    $assign_course_filter $assign_group_filter";
     
-    error_log("[GMK] SQL ASSIGN: $sql_assign");
-    error_log("[GMK] PARAMS ASSIGN: " . json_encode($assign_params));
+    $GLOBALS['GMK_DEBUG']['sql_assign'] = $sql_assign;
+    $GLOBALS['GMK_DEBUG']['params_assign'] = $assign_params;
     
     $assigns = $DB->get_records_sql($sql_assign, $assign_params);
     if ($assigns) {
@@ -3932,8 +3932,8 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    )
                    $quiz_course_filter $quiz_group_filter";
     
-    error_log("[GMK] SQL QUIZ: $sql_quiz");
-    error_log("[GMK] PARAMS QUIZ: " . json_encode($quiz_params));
+    $GLOBALS['GMK_DEBUG']['sql_quiz'] = $sql_quiz;
+    $GLOBALS['GMK_DEBUG']['params_quiz'] = $quiz_params;
 
     $quizzes = $DB->get_records_sql($sql_quiz, $quiz_params);
     if ($quizzes) {

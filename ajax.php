@@ -60,6 +60,7 @@ if (empty($action)) {
 require_login();
 $context = context_system::instance();
 
+$GLOBALS['GMK_DEBUG'] = [];
 $response = [
     'status' => 'error',
     'message' => 'Invalid action.'
@@ -102,10 +103,9 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);
             $status = optional_param('status', 'pending', PARAM_ALPHA);
-            error_log("[GMK] get_pending_grading: classid=$classid, status=$status");
+            $GLOBALS['GMK_DEBUG']['is_admin'] = is_siteadmin($USER->id);
             $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid, $status);
-            error_log("[GMK] get_pending_grading: found " . count($result) . " tasks");
-            $response = ['status' => 'success', 'tasks' => $result];
+            $response = ['status' => 'success', 'tasks' => $result, '_debug' => $GLOBALS['GMK_DEBUG']];
             break;
 
         case 'local_grupomakro_save_grade':
