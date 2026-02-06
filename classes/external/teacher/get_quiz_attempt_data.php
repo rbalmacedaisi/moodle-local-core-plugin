@@ -80,7 +80,8 @@ class get_quiz_attempt_data extends external_api {
                 // Render question HTML
                 // We wrap it in a try-catch because question rendering can be fragile
                 try {
-                    $qitem->html = $attemptobj->render_question($slot, false);
+                    $quizrenderer = $PAGE->get_renderer('mod_quiz');
+                    $qitem->html = $attemptobj->render_question($slot, false, $quizrenderer);
                 } catch (\Exception $renex) {
                     $qitem->html = "<p class='error'>Error rendering question: " . $renex->getMessage() . "</p>";
                 }
