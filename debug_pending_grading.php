@@ -11,26 +11,55 @@ $PAGE->set_context($systemcontext);
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/debug_pending_grading.php'));
 
 echo $OUTPUT->header();
-echo "<h1>Diagnostic: Pending Grading Items</h1>";
+$userid = optional_param('userid', 0, PARAM_INT);
+$searchuser = optional_param('searchuser', '', PARAM_TEXT);
 
-$userid = optional_param('userid', $USER->id, PARAM_INT);
-$is_admin = is_siteadmin($USER->id);
-
-echo "<form method='GET' style='margin-bottom: 20px; padding: 10px; background: #f0f0f0;'>";
-echo "Test for User ID: <input type='number' name='userid' value='$userid'> ";
-echo "<button type='submit'>Check User</button>";
+echo "<div style='background:#f9f9f9; padding:15px; border:1px solid #ddd; border-radius:8px; margin-bottom:20px;'>";
+echo "<h3>Simulate Instructor</h3>";
+echo "<form method='GET' style='margin-bottom: 10px;'>";
+echo "Search Instructor Name/Email: <input type='text' name='searchuser' value='".s($searchuser)."' placeholder='Name...'> ";
+echo "<button type='submit'>Search</button>";
 echo "</form>";
 
-$target_user = $DB->get_record('user', ['id' => $userid]);
-if (!$target_user) {
-    echo "<p style='color:red;'>User $userid not found.</p>";
-    echo $OUTPUT->footer();
-    die();
+if ($searchuser) {
+    $found_users = $DB->get_records_sql("SELECT id, firstname, lastname, email FROM {user} WHERE (firstname LIKE :s OR lastname LIKE :s OR email LIKE :s) AND deleted = 0 LIMIT 10", ['s' => "%$searchuser%"]);
+    if ($found_users) {
+        echo "<ul>";
+        foreach ($found_users as $u) {
+            echo "<li><a href='?userid={$u->id}'><b>Select:</b> " . fullname($u) . " ({$u->email}) [ID: {$u->id}]</a></li>";
+        }
+        echo "</ul>";
+    } else {
+        echo "<p>No users found matching '$searchuser'.</p>";
+    }
 }
 
-echo "<h3>Checking for User: " . fullname($target_user) . " (ID: $userid)</h3>";
-$is_target_admin = is_siteadmin($userid);
-echo "<p>Site Admin: " . ($is_target_admin ? 'YES' : 'NO') . "</p>";
+// Automatically pick common instructors if none selected
+if (!$userid) {
+    $top_instructors = $DB->get_records_sql("SELECT DISTINCT instructorid FROM {gmk_class} LIMIT 5");
+    if ($top_instructors) {
+        echo "<p>Quick select (Instructors in gmk_class): ";
+        foreach ($top_instructors as $ti) {
+            $u = $DB->get_record('user', ['id' => $ti->instructorid]);
+            if ($u) echo " <a href='?userid={$u->id}'>[" . fullname($u) . "]</a> ";
+        }
+        echo "</p>";
+    }
+}
+echo "</div>";
+
+if (!$userid) {
+    echo "<p style='padding:20px; background:#fff3cd; color:#856404; border:1px solid #ffeeba;'>Please select an instructor above to start the diagnostic.</p>";
+} else {
+    $target_user = $DB->get_record('user', ['id' => $userid]);
+    if (!$target_user) {
+        echo "<p style='color:red;'>User $userid not found.</p>";
+    } else {
+        echo "<h3>Checking for User: " . fullname($target_user) . " (ID: $userid)</h3>";
+        $is_target_admin = is_siteadmin($userid);
+        echo "<p>Site Admin: " . ($is_target_admin ? '<b style="color:blue;">YES</b> (Will see everything)' : 'NO (Restricted to assigned classes)') . "</p>";
+    }
+}
 
 // 1. Check Classes for this instructor
 $classes = $DB->get_records('gmk_class', ['instructorid' => $userid]);
