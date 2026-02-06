@@ -15,6 +15,10 @@ require_capability('moodle/site:config', $systemcontext); // Admin only for safe
 $classid = optional_param('classid', 0, PARAM_INT);
 $status = optional_param('status', 'pending', PARAM_ALPHA);
 
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/diag_grading.php', ['classid' => $classid, 'status' => $status]));
+$PAGE->set_context($systemcontext);
+$PAGE->set_title("Grading Diagnostic");
+
 echo $OUTPUT->header();
 
 echo "<h2>Grading Interface Diagnostic</h2>";
@@ -91,17 +95,17 @@ if ($classid > 0) {
         $items = gmk_get_pending_grading_items($USER->id, $classid, $status);
         
         echo "<h4>Assignment Query:</h4>";
-        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_assign']) . "</pre>";
-        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_assign']) . "</pre>";
+        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_assign'] ?? 'No SQL Trace Available') . "</pre>";
+        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_assign'] ?? []) . "</pre>";
         
-        $assign_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_assign'], $GLOBALS['GMK_DEBUG']['params_assign']);
+        $assign_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_assign'] ?? '', $GLOBALS['GMK_DEBUG']['params_assign'] ?? []);
         echo "Raw results found: " . count($assign_raw) . "<br>";
 
         echo "<h4>Quiz Query:</h4>";
-        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_quiz']) . "</pre>";
-        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_quiz']) . "</pre>";
+        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_quiz'] ?? 'No SQL Trace Available') . "</pre>";
+        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_quiz'] ?? []) . "</pre>";
         
-        $quiz_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_quiz'], $GLOBALS['GMK_DEBUG']['params_quiz']);
+        $quiz_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_quiz'] ?? '', $GLOBALS['GMK_DEBUG']['params_quiz'] ?? []);
         echo "Raw results found: " . count($quiz_raw) . "<br>";
 
         echo "<h3>5. Final Helper Result</h3>";

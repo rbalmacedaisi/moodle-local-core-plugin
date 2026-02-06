@@ -3870,6 +3870,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
                    $assign_course_filter $assign_group_filter";
     
+    // Store for debug if requested
+    if (isset($GLOBALS['GMK_DEBUG'])) {
+        $GLOBALS['GMK_DEBUG']['sql_assign'] = $sql_assign;
+        $GLOBALS['GMK_DEBUG']['params_assign'] = $assign_params;
+    }
+
     $assigns = $DB->get_records_sql($sql_assign, $assign_params);
     if ($assigns) {
         foreach ($assigns as $asgn) {
@@ -3937,6 +3943,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    )
                    $quiz_course_filter $quiz_group_filter";
     
+    // Store for debug if requested
+    if (isset($GLOBALS['GMK_DEBUG'])) {
+        $GLOBALS['GMK_DEBUG']['sql_quiz'] = $sql_quiz;
+        $GLOBALS['GMK_DEBUG']['params_quiz'] = $quiz_params;
+    }
+
     $quizzes = $DB->get_records_sql($sql_quiz, $quiz_params);
     if ($quizzes) {
         foreach ($quizzes as $qz) {
