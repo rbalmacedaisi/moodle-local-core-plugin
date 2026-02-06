@@ -53,7 +53,8 @@ class save_quiz_grading extends external_api {
 
             // Perform manual grading using the dedicated question engine method.
             // This avoids issues with version-specific field prefixes in $data array.
-            $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML);
+            // Parameters: comment, mark, commentformat, timestamp, userid
+            $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML, time(), $USER->id);
             
             // Persist the changes to the question engine database tables.
             $attemptobj->save_questions();

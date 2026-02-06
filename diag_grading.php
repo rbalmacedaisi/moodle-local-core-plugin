@@ -162,7 +162,58 @@ if ($classid > 0) {
         }
     }
 } else {
-    echo "<p>Please select a class from the list above to view its specific grading data.</p>";
+    echo "<p>Please select a class from the list above or enter a Quiz Attempt ID below:</p>";
+}
+
+// 8. Quiz Attempt Inspector (Consolidated from diag_quiz_grading)
+echo "<hr><h3>8. Specific Quiz Attempt Inspector</h3>";
+$attemptid = optional_param('attemptid', 0, PARAM_INT);
+echo "<form method='GET'>";
+echo "Attempt ID: <input type='number' name='attemptid' value='$attemptid'> ";
+echo "<button type='submit'>Inspect Attempt</button>";
+echo "</form>";
+
+if ($attemptid) {
+    echo "<h4>Analyzing Attempt #$attemptid</h4>";
+    try {
+        require_once($CFG->dirroot . '/mod/quiz/locallib.php');
+        $attemptobj = quiz_attempt::create($attemptid);
+        $attempt = $attemptobj->get_attempt();
+        
+        echo "<pre>";
+        print_r([
+            'userid' => $attempt->userid,
+            'quizid' => $attempt->quiz,
+            'uniqueid' => $attempt->uniqueid,
+            'state' => $attempt->state,
+            'sumgrades' => $attempt->sumgrades
+        ]);
+        echo "</pre>";
+
+        echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
+        echo "<tr><th>Slot</th><th>Question ID</th><th>Name</th><th>State</th><th>Mark</th><th>Max Mark</th><th>Needs Grading?</th><th>Steps (Last 3)</th></tr>";
+
+        foreach ($attemptobj->get_slots() as $slot) {
+            $qa = $attemptobj->get_question_attempt($slot);
+            $question = $qa->get_question();
+            $state = $qa->get_state();
+            
+            echo "<tr>";
+            echo "<td>$slot</td><td>{$question->id}</td><td>" . s($question->name) . "</td>";
+            echo "<td>$state</td><td>" . ($qa->get_mark() ?? 'NULL') . "</td><td>" . $qa->get_max_mark() . "</td>";
+            echo "<td>" . ($state->is_finished() && !$state->is_graded() ? 'YES' : 'NO') . "</td>";
+            
+            echo "<td><ul style='font-size: 0.8em;'>";
+            $steps = $DB->get_records('question_attempt_steps', ['questionattemptid' => $qa->get_database_id()], 'sequencenumber DESC', '*', 0, 3);
+            foreach ($steps as $step) {
+                echo "<li>Seq: {$step->sequencenumber}, State: {$step->state}, User: {$step->userid}, Time: " . date('Y-m-d H:i:s', $step->timecreated) . "</li>";
+            }
+            echo "</ul></td></tr>";
+        }
+        echo "</table>";
+    } catch (Exception $e) {
+        echo "<p style='color:red;'>Error: " . $e->getMessage() . "</p>";
+    }
 }
 
 echo $OUTPUT->footer();
