@@ -51,27 +51,21 @@ class save_quiz_grading extends external_api {
                 $PAGE->set_context($context);
             }
 
-            // Prepare the action data for the question engine
-            // Moodle expects data in a specific format for manual grading
-            $qa = $attemptobj->get_question_attempt($slot);
-            $prefix = $qa->get_field_prefix();
+            // Perform manual grading using the dedicated question engine method.
+            // This avoids issues with version-specific field prefixes in $data array.
+            $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML);
             
-            $data = array(
-                $prefix . ':mark' => $params['mark'],
-                $prefix . ':comment' => $params['comment'],
-                $prefix . ':commentformat' => FORMAT_HTML
-            );
+            // Persist the changes to the question engine database tables.
+            $attemptobj->save_questions();
 
-            // Process the action
-            $attemptobj->process_submitted_actions(time(), false, $data);
-            
-            // Recalculate and update the attempt summarks (points)
+            // Recalculate and update the attempt summarks (points).
             // This ensures the dashboard and gradebook show the updated total.
             $newsum = $attemptobj->get_sum_marks();
             $DB->set_field('quiz_attempts', 'sumgrades', $newsum, array('id' => $params['attemptid']));
             
-            // Also trigger a re-assessment of the overall quiz grade for the student
-            quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid());
+            // Also trigger a re-assessment of the overall quiz grade for the student.
+            // Documentation shows 3 params: quiz, userid, attempts.
+            quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid(), (array)$attemptobj->get_attempt());
             
             return array(
                 'status' => 'success',
