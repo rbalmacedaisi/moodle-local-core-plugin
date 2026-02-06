@@ -147,12 +147,20 @@ foreach ($users as $user) {
             try {
                 require_once(__DIR__ . '/classes/external/student/get_student_learning_plan_pensum.php');
                 $wsResponse = \local_grupomakro_core\external\student\get_student_learning_plan_pensum::execute($user->id, $lp->planid);
-                echo "<p>Status: " . ($wsResponse['status'] == 1 ? "<span class='success'>SUCCESS</span>" : "<span class='error'>FAIL ({$wsResponse['message']})</span>") . "</p>";
-                if ($wsResponse['status'] == 1) {
-                    echo "<p>Pensum JSON length: " . strlen($wsResponse['pensum']) . "</p>";
-                    $decodedPensum = json_decode($wsResponse['pensum'], true);
+                
+                $status = isset($wsResponse['status']) ? $wsResponse['status'] : 1; // Default to 1 if missing in direct call
+                $message = isset($wsResponse['message']) ? $wsResponse['message'] : 'ok';
+                $pensumJson = isset($wsResponse['pensum']) ? $wsResponse['pensum'] : '';
+
+                echo "<p>Status: " . ($status == 1 ? "<span class='success'>SUCCESS</span>" : "<span class='error'>FAIL ($message)</span>") . "</p>";
+                
+                if ($pensumJson) {
+                    echo "<p>Pensum JSON length: " . strlen($pensumJson) . "</p>";
+                    $decodedPensum = json_decode($pensumJson, true);
                     echo "<p>Periods in pensum: " . count($decodedPensum) . "</p>";
-                    echo "<details><summary>View Raw JSON</summary><pre>" . s($wsResponse['pensum']) . "</pre></details>";
+                    echo "<details><summary>View Raw JSON</summary><pre>" . s($pensumJson) . "</pre></details>";
+                } else {
+                    echo "<p class='warning'>No pensum data returned.</p>";
                 }
             } catch (Exception $e) {
                 echo "<p class='error'>CRASH: " . s($e->getMessage()) . "</p>";
@@ -160,7 +168,17 @@ foreach ($users as $user) {
             }
         }
     }
-    echo "</div>";
 }
+
+echo "<div class='card'>";
+echo "<h2>System Logs (gmk_debug.log)</h2>";
+$logfile = __DIR__ . '/gmk_debug.log';
+if (file_exists($logfile)) {
+    $lines = array_slice(explode("\n", file_get_contents($logfile)), -50);
+    echo "<pre>" . s(implode("\n", $lines)) . "</pre>";
+} else {
+    echo "<p>Log file not found at $logfile</p>";
+}
+echo "</div>";
 
 echo "</body></html>";

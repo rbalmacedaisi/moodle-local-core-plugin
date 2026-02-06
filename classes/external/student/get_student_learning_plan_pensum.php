@@ -167,10 +167,18 @@ class get_student_learning_plan_pensum extends external_api
             // Original code implied an object of objects keyed by periodId.
             // If empty, return empty object.
             if (empty($groupedUserPensumCourses)) {
-                return ['pensum' => json_encode(new \stdClass())];
+                return [
+                    'status' => 1,
+                    'pensum' => json_encode(new \stdClass()),
+                    'message' => 'ok'
+                ];
             }
 
-            return ['pensum' => json_encode($groupedUserPensumCourses)];
+            return [
+                'status' => 1,
+                'pensum' => json_encode($groupedUserPensumCourses),
+                'message' => 'ok'
+            ];
         } catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
