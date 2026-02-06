@@ -195,6 +195,9 @@ class get_dashboard_data extends external_api {
             if (!empty($event->is_grading_task)) {
                  $e->is_grading_task = true;
             }
+            if (!empty($event->courseShortName)) {
+                 $e->course_shortname = $event->courseShortName;
+            }
 
             $calendar_events[] = $e;
         }
@@ -289,6 +292,7 @@ class get_dashboard_data extends external_api {
                             'courseid' => new external_value(PARAM_INT, 'Course ID'),
                             'classid' => new external_value(PARAM_INT, 'Class ID', VALUE_OPTIONAL),
                             'classname' => new external_value(PARAM_TEXT, 'Class Name from DB', VALUE_OPTIONAL),
+                            'course_shortname' => new external_value(PARAM_TEXT, 'Course Shortname from DB', VALUE_OPTIONAL),
                             'is_grading_task' => new external_value(PARAM_BOOL, 'Is a grading task', VALUE_OPTIONAL),
                             'color' => new external_value(PARAM_TEXT, 'Event Color', VALUE_OPTIONAL)
                         )

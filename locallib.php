@@ -2265,6 +2265,7 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->instructorid = $gmkClass->instructorid;
     $event->groupid = $gmkClass->groupid;
     $event->coursename = $gmkClass->course->fullname;
+    $event->courseShortName = $gmkClass->course->shortname;
     $event->timeduration = $gmkClass->classduration;
     $event->color = $eventColors[$event->classType];
 
@@ -3776,6 +3777,7 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
         $event->instructorid = $gmkClass->instructorid ?? 0;
         $event->className = $gmkClass->name ?? '';
         $event->coursename = $gmkClass->course->fullname ?? $event->className;
+        $event->courseShortName = $gmkClass->course->shortname ?? '';
         $event->classId = $gmkClass->id;
         $event->groupid = $gmkClass->groupid;
     }

@@ -138,9 +138,14 @@ const TeacherDashboard = {
                                 locale="es"
                             >
                                 <template v-slot:event="{ event }">
-                                    <div class="pl-1 white--text" style="font-size: 0.75rem; line-height: 1.1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
-                                        <strong>{{ event.name }}</strong><br>
-                                        {{ formatEventTime(event.start) }} - {{ formatEventTime(event.end) }}
+                                    <div class="px-1 white--text" style="font-size: 0.72rem; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-radius: 4px;">
+                                        <div class="font-weight-bold truncate">
+                                            <span v-if="event.courseIcon">{{ event.courseIcon }}</span>
+                                            {{ event.name }}
+                                        </div>
+                                        <div v-if="calendarView !== 'month'" class="caption">
+                                            {{ formatEventTime(event.start) }} - {{ formatEventTime(event.end) }}
+                                        </div>
                                     </div>
                                 </template>
                             </v-calendar>
@@ -153,20 +158,28 @@ const TeacherDashboard = {
                             >
                                 <v-card color="grey lighten-4" min-width="300px" flat>
                                     <v-toolbar :color="selectedEvent.color" dark dense flat>
-                                        <v-toolbar-title class="subtitle-2 font-weight-bold pl-0">{{ selectedEvent.name }}</v-toolbar-title>
+                                        <v-toolbar-title class="subtitle-2 font-weight-bold pl-0">{{ selectedEvent.activityName }}</v-toolbar-title>
                                         <v-spacer></v-spacer>
                                         <v-btn icon small @click="showSelectedEvent = false"><v-icon>mdi-close</v-icon></v-btn>
                                     </v-toolbar>
                                     <v-card-text class="pa-3">
+                                        <div v-if="selectedEvent.courseFull" class="mb-2">
+                                            <div class="caption grey--text font-weight-bold">CURSO:</div>
+                                            <div class="body-2">{{ selectedEvent.courseFull }}</div>
+                                        </div>
+                                        <div v-if="selectedEvent.activityName" class="mb-2">
+                                            <div class="caption grey--text font-weight-bold">ACTIVIDAD:</div>
+                                            <div class="body-2">{{ selectedEvent.activityName }}</div>
+                                        </div>
                                         <div class="d-flex align-center mb-2">
                                             <v-icon small class="mr-2">mdi-clock-outline</v-icon>
-                                            <span class="caption font-weight-bold">
-                                                {{ selectedEvent.start ? formatEventTime(selectedEvent.start) : '' }} - 
-                                                {{ selectedEvent.end ? formatEventTime(selectedEvent.end) : '' }}
+                                            <span class="caption font-weight-medium">
+                                                {{ selectedEvent.start ? formatEventTime(selectedEvent.start) : '' }} 
+                                                <span v-if="selectedEvent.timed">- {{ selectedEvent.end ? formatEventTime(selectedEvent.end) : '' }}</span>
                                             </span>
                                         </div>
                                         <div v-if="selectedEvent.classid" class="mt-3">
-                                            <v-btn block small color="primary" @click="goToClass(selectedEvent.classid)">
+                                            <v-btn block small color="primary" class="rounded-lg" @click="goToClass(selectedEvent.classid)">
                                                 Gestionar Clase
                                             </v-btn>
                                         </div>
@@ -213,18 +226,22 @@ const TeacherDashboard = {
                 const tStart = parseInt(e.timestart);
                 const tDur = parseInt(e.timeduration) || 0;
 
-                // For sessions, show class name as primary. 
-                // For deadlines, the backend already prefixed e.name with an icon/label.
+                // Use course identifier (shortname if available, otherwise truncated longname)
+                const courseIden = e.course_shortname || e.classname;
                 let displayName = e.name;
-                if (!e.is_grading_task && e.classname && e.classname !== e.name) {
-                    displayName = `[${e.classname}] ${e.name}`;
+
+                // If it's a month view, we want to see the activity clearly. 
+                // We'll prefix with course code only if it's a session or specifically relevant.
+                if (!e.is_grading_task && courseIden && !e.name.includes(courseIden)) {
+                    displayName = `[${courseIden}] ${e.name}`;
                 }
 
                 return {
                     id: e.id,
                     name: displayName,
-                    activityName: e.name,
-                    className: e.classname,
+                    activityName: e.name, // Full activity name
+                    courseFull: e.classname, // Full class/course name
+                    courseShort: e.course_shortname,
                     start: new Date(tStart * 1000),
                     end: new Date((tStart + tDur) * 1000),
                     classid: e.classid || 0,
