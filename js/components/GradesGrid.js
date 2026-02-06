@@ -2,7 +2,6 @@ Vue.component('grades-grid', {
     template: `
         <v-card flat class="gradebook-card rounded-lg border">
             <style>
-            <style>
                 .gradebook-card .grade-container {
                     overflow-x: auto !important;
                     overflow-y: auto;
@@ -10,7 +9,8 @@ Vue.component('grades-grid', {
                     border-radius: 8px;
                     border: 1px solid rgba(0,0,0,0.12);
                     background: white;
-                    width: 100%;
+                    width: 100% !important;
+                    display: block !important;
                     position: relative;
                 }
                 .theme--dark.gradebook-card .grade-container {
@@ -20,14 +20,14 @@ Vue.component('grades-grid', {
                     border-spacing: 0;
                     border-collapse: separate;
                     table-layout: fixed;
-                    width: auto;
-                    min-width: 100%;
                 }
                 .gradebook-card th, .gradebook-card td {
                     padding: 12px 16px;
                     border-bottom: 1px solid rgba(0,0,0,0.08);
                     border-right: 1px solid rgba(0,0,0,0.08);
                     box-sizing: border-box;
+                    word-wrap: break-word;
+                    overflow: hidden;
                 }
                 /* Sticky Column: Student Info */
                 .gradebook-card .sticky-col {
@@ -68,9 +68,9 @@ Vue.component('grades-grid', {
                 }
                 /* Column Specifics */
                 .grade-header {
-                    width: 130px;
-                    min-width: 130px;
-                    max-width: 130px;
+                    width: 140px;
+                    min-width: 140px;
+                    max-width: 140px;
                     text-align: center;
                 }
                 .grade-cell {
@@ -90,8 +90,8 @@ Vue.component('grades-grid', {
                     font-weight: 900 !important;
                     color: #1976d2 !important;
                     border-left: 2px solid #1976d2;
-                    width: 150px;
-                    min-width: 150px;
+                    width: 160px;
+                    min-width: 160px;
                 }
                 .gradebook-card tbody tr:hover td {
                     background-color: rgba(0,0,0,0.02);
@@ -134,14 +134,15 @@ Vue.component('grades-grid', {
                 </div>
 
                 <div v-else class="grade-container">
-                    <table>
+                    <table :style="tableStyles">
                         <thead>
                             <tr>
                                 <th class="sticky-col text-left">Estudiante</th>
                                 <th v-for="col in columns" :key="col.id" 
                                     class="grade-header"
-                                    :class="{'grade-total': col.is_total, 'grade-course-total': col.itemtype === 'course'}">
-                                    <div style="min-width: 120px;">
+                                    :class="{'grade-total': col.is_total, 'grade-course-total': col.itemtype === 'course'}"
+                                    :style="{ width: col.itemtype === 'course' ? '160px' : '140px' }">
+                                    <div style="width: 100%;">
                                         <div class="font-weight-bold" :title="col.title">
                                             {{ col.title }}
                                         </div>
@@ -203,6 +204,19 @@ Vue.component('grades-grid', {
             columns: [],
             showGradebookManager: false
         };
+    },
+    computed: {
+        tableStyles() {
+            // Calculated width to force horizontal scroll
+            let totalWidth = 250; // Student column
+            this.columns.forEach(col => {
+                totalWidth += (col.itemtype === 'course' ? 160 : 140);
+            });
+            return {
+                width: totalWidth + 'px',
+                minWidth: '100%'
+            };
+        }
     },
     watch: {
         classId: {
