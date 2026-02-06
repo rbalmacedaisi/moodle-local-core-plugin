@@ -60,7 +60,7 @@ class save_quiz_grading extends external_api {
             $qa->manual_grade($params['comment'], (float)$params['mark'], FORMAT_HTML, time(), $USER->id);
             
             // Persist the changes to the question engine database tables.
-            $attemptobj->save_questions();
+            \question_engine::save_questions_usage_by_activity($attemptobj->get_question_usage(), $DB);
 
             // Recalculate and update the attempt summarks (points).
             // This ensures the dashboard and gradebook show the updated total.
