@@ -55,11 +55,14 @@ const QuickGrader = {
                             </v-card-text>
                         </v-card>
 
-                        <!-- QUIZ VIEW -->
                         <div v-if="currentTask.modname === 'quiz'" class="h-100 d-flex flex-column">
                             <v-skeleton-loader v-if="loadingQuiz" type="article, actions"></v-skeleton-loader>
                             
-                            <template v-else>
+                            <v-alert v-else-if="quizError" type="error" outlined class="ma-4">
+                                {{ quizError }}
+                            </v-alert>
+
+                            <template v-else-if="quizData && quizData.questions && quizData.questions.length > 0">
                                 <div class="mb-4 d-flex align-center">
                                     <v-btn-toggle v-model="selectedSlotIndex" mandatory color="primary" class="flex-wrap">
                                         <v-btn v-for="(q, i) in quizData.questions" :key="i" small 
@@ -144,7 +147,8 @@ const QuickGrader = {
             // Quiz specifics
             quizData: { questions: [] },
             loadingQuiz: false,
-            selectedSlotIndex: 0
+            selectedSlotIndex: 0,
+            quizError: null
         }
     },
     computed: {
@@ -207,6 +211,7 @@ const QuickGrader = {
         },
         async fetchQuizData() {
             this.loadingQuiz = true;
+            this.quizError = null;
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_quiz_attempt_data',
@@ -216,12 +221,19 @@ const QuickGrader = {
 
                 if (response.data.status === 'success') {
                     this.quizData = response.data.data;
-                    // Find first question that needs grading
-                    const firstNeeds = this.quizData.questions.findIndex(q => q.needsgrading);
-                    this.selectedSlotIndex = firstNeeds !== -1 ? firstNeeds : 0;
+                    if (!this.quizData.questions || this.quizData.questions.length === 0) {
+                        this.quizError = "No se encontraron preguntas en este intento.";
+                    } else {
+                        const firstNeeds = this.quizData.questions.findIndex(q => q.needsgrading);
+                        this.selectedSlotIndex = firstNeeds !== -1 ? firstNeeds : 0;
+                    }
+                } else {
+                    this.quizError = response.data.message || "Error al cargar datos del cuestionario.";
+                    console.error("Quiz API Error:", response.data);
                 }
             } catch (e) {
-                console.error(e);
+                this.quizError = "Error de conexión al servidor.";
+                console.error("Quiz Connection Error:", e);
             } finally {
                 this.loadingQuiz = false;
             }

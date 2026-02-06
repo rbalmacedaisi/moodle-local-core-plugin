@@ -24,70 +24,77 @@ class get_quiz_attempt_data extends external_api {
     }
 
     public static function execute($attemptid) {
-        global $DB, $PAGE, $OUTPUT;
+        global $DB, $PAGE, $OUTPUT, $CFG;
 
-        $params = self::validate_parameters(self::execute_parameters(), array(
-            'attemptid' => $attemptid
-        ));
-        
-        $attemptobj = \quiz_attempt::create($params['attemptid']);
-        $context = $attemptobj->get_context();
-        self::validate_context($context);
-        
-        require_capability('mod/quiz:grade', $context);
+        try {
+            // Ensure question engine is loaded
+            require_once($CFG->dirroot . '/question/engine/lib.php');
+            require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 
-        $attempt = $attemptobj->get_attempt();
-        $user = $DB->get_record('user', array('id' => $attempt->userid), '*', MUST_EXIST);
-        
-        $result = new stdClass();
-        $result->attemptid = $attempt->id;
-        $result->userid = $attempt->userid;
-        $result->username = fullname($user);
-        $result->quizname = $attemptobj->get_quiz_name();
-        $result->timestart = $attempt->timestart;
-        $result->timefinish = $attempt->timefinish;
-        
-        $result->questions = [];
-        
-        // Load all questions for the attempt
-        $attemptobj->preload_all_attempt_step_users();
-        
-        foreach ($attemptobj->get_slots() as $slot) {
-            $qa = $attemptobj->get_question_attempt($slot);
+            $params = self::validate_parameters(self::execute_parameters(), array(
+                'attemptid' => $attemptid
+            ));
             
-            // Only include questions that are manually gradeable or specifically need grading
-            // But for a review-like UI, we might want all finished ones.
-            // For now, let's focus on those that NEED grading or are already graded.
+            $attemptobj = \quiz_attempt::create($params['attemptid']);
+            $context = $attemptobj->get_context();
+            self::validate_context($context);
             
-            $question = $qa->get_question();
-            $state = $qa->get_state();
+            require_capability('mod/quiz:grade', $context);
+
+            // Initialize PAGE/OUTPUT if not done (for AJAX)
+            if (!$PAGE->headerprinted) {
+                $PAGE->set_context($context);
+                $PAGE->set_url('/local/grupomakro_core/ajax.php');
+            }
+
+            $attempt = $attemptobj->get_attempt();
+            $user = $DB->get_record('user', array('id' => $attempt->userid), '*', MUST_EXIST);
             
-            $qitem = new stdClass();
-            $qitem->slot = $slot;
-            $qitem->questionid = $question->id;
-            $qitem->name = $question->name;
-            $qitem->maxgrade = $qa->get_max_mark();
-            $qitem->currentgrade = $qa->get_mark();
-            $qitem->state = (string)$state;
-            $qitem->needsgrading = $state->is_finished() && !$state->is_graded();
+            $result = new stdClass();
+            $result->attemptid = (int)$attempt->id;
+            $result->userid = (int)$attempt->userid;
+            $result->username = fullname($user);
+            $result->quizname = $attemptobj->get_quiz_name();
+            $result->timestart = (int)$attempt->timestart;
+            $result->timefinish = (int)$attempt->timefinish;
             
-            // Question text (rendered)
-            $options = new \question_display_options();
-            $options->hide_all_hints();
-            $options->flags = \question_display_options::HIDDEN;
-            $options->marks = \question_display_options::MARK_AND_MAX;
+            $result->questions = [];
             
-            // We want to show the student's response clearly
-            $qitem->html = $attemptobj->render_question($slot, false); // This might return a huge HTML
+            // Load all questions for the attempt
+            $attemptobj->preload_all_attempt_step_users();
             
-            // Extract just the response for simplicity in a custom UI? 
-            // Or use the full rendered question which Moodle provides.
-            // Using full rendered question is safer for complex types.
-            
-            $result->questions[] = $qitem;
+            foreach ($attemptobj->get_slots() as $slot) {
+                $qa = $attemptobj->get_question_attempt($slot);
+                $question = $qa->get_question();
+                $state = $qa->get_state();
+                
+                $qitem = new stdClass();
+                $qitem->slot = (int)$slot;
+                $qitem->questionid = (int)$question->id;
+                $qitem->name = $question->name;
+                $qitem->maxgrade = (float)$qa->get_max_mark();
+                $qitem->currentgrade = $qa->get_mark() !== null ? (float)$qa->get_mark() : 0.0;
+                $qitem->state = (string)$state;
+                $qitem->needsgrading = $state->is_finished() && !$state->is_graded();
+                
+                // Render question HTML
+                // We wrap it in a try-catch because question rendering can be fragile
+                try {
+                    $qitem->html = $attemptobj->render_question($slot, false);
+                } catch (\Exception $renex) {
+                    $qitem->html = "<p class='error'>Error rendering question: " . $renex->getMessage() . "</p>";
+                }
+                
+                $result->questions[] = $qitem;
+            }
+
+            return $result;
+
+        } catch (\Exception $e) {
+            // Log for debugging
+            error_log("[GMK] Error in get_quiz_attempt_data: " . $e->getMessage());
+            throw $e;
         }
-
-        return $result;
     }
 
     public static function execute_returns() {
