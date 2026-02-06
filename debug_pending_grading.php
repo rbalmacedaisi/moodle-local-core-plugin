@@ -157,44 +157,6 @@ if (empty($pending_quiz_courses)) {
     }
 }
 
-// 3. Deep Dive into Quiz Logic
-echo "<h3>Raw Quiz Query Deep Dive</h3>";
-// Get all finished quiz attempts in the system to see if ANY match
-$raw_quizzes = $DB->get_records_sql("
-    SELECT quiza.id, quiza.userid, quiza.uniqueid, quiza.quiz, quiza.state, q.name as quizname, q.course
-    FROM {quiz_attempts} quiza
-    JOIN {quiz} q ON q.id = quiza.quiz
-    WHERE quiza.state = 'finished'
-    ORDER BY quiza.timefinish DESC
-    LIMIT 20
-");
-
-if (empty($raw_quizzes)) {
-    echo "<p>No finished quiz attempts found in the system.</p>";
-} else {
-    echo "<h4>Recent Finished Quiz Attempts (System-wide):</h4>";
-    echo "<table border='1'>";
-    echo "<tr><th>ID</th><th>Course ID</th><th>User</th><th>Quiz</th><th>State</th><th>Needs Grading?</th><th>Instructor Match?</th></tr>";
-    foreach ($raw_quizzes as $qa) {
-        $needs_grading = $DB->record_exists_sql("
-            SELECT 1 FROM {question_attempts} qa 
-            JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
-            WHERE qa.questionusageid = :uniqueid 
-              AND qas.state = 'needsgrading'
-        ", ['uniqueid' => $qa->uniqueid]);
-        
-        $instructor_match = $DB->record_exists('gmk_class', ['courseid' => $qa->course, 'instructorid' => $userid]);
-        
-        echo "<tr>";
-        echo "<td>{$qa->id}</td>";
-        echo "<td>{$qa->course}</td>";
-        echo "<td>{$qa->userid}</td>";
-        echo "<td>" . s($qa->quizname) . "</td>";
-        echo "<td>{$qa->state}</td>";
-        echo "<td>" . ($needs_grading ? '<b style="color:green;">YES</b>' : 'NO') . "</td>";
-        echo "<td>" . ($instructor_match ? '<b style="color:green;">YES</b>' : 'NO') . "</td>";
-        echo "</tr>";
-        
         if ($needs_grading) {
             // Let's show the steps for this needsgrading attempt
             $steps = $DB->get_records_sql("
@@ -204,10 +166,37 @@ if (empty($raw_quizzes)) {
                 WHERE qa.questionusageid = :uniqueid
                 ORDER BY qa.id, qas.sequencenumber ASC
             ", ['uniqueid' => $qa->uniqueid]);
-            // (Optional: filter only needsgrading for brevity if many)
         }
     }
     echo "</table>";
+}
+
+// 6. Global Search for English II
+echo "<h3>6. Global Search for 'INGLÉS II'</h3>";
+$matching_courses = $DB->get_records_sql("SELECT id, fullname, shortname FROM {course} WHERE fullname LIKE '%INGLÉS II%' OR shortname LIKE '%INGLÉS II%'");
+echo "<h4>Courses matching 'INGLÉS II':</h4>";
+if ($matching_courses) {
+    echo "<ul>";
+    foreach ($matching_courses as $mc) {
+        $count_sub = $DB->count_records_sql("SELECT COUNT(*) FROM {assign_submission} s JOIN {assign} a ON a.id = s.assignment WHERE a.course = ?", [$mc->id]);
+        $count_quiz = $DB->count_records_sql("SELECT COUNT(*) FROM {quiz_attempts} quiza JOIN {quiz} q ON q.id = quiza.quiz WHERE q.course = ?", [$mc->id]);
+        echo "<li>ID: {$mc->id} - " . s($mc->fullname) . " (Submissions: $count_sub, Quizzes: $count_quiz)</li>";
+    }
+    echo "</ul>";
+} else {
+    echo "<p>No courses found with that name.</p>";
+}
+
+$matching_classes = $DB->get_records_sql("SELECT id, name, courseid, groupid FROM {gmk_class} WHERE name LIKE '%INGLÉS II%'");
+echo "<h4>Classes matching 'INGLÉS II' in {gmk_class}:</h4>";
+if ($matching_classes) {
+    echo "<ul>";
+    foreach ($matching_classes as $mcl) {
+        echo "<li>ID: {$mcl->id} - " . s($mcl->name) . " (Mapped to Course: {$mcl->courseid}, Group: {$mcl->groupid})</li>";
+    }
+    echo "</ul>";
+} else {
+    echo "<p>No classes found in {gmk_class} with that name.</p>";
 }
 
 echo $OUTPUT->footer();

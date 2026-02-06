@@ -119,6 +119,34 @@ if ($classid > 0) {
             }
             echo "</table>";
         }
+
+        // 6. Global Search for English II
+        echo "<h3>6. Global Search for 'INGLÉS II'</h3>";
+        $matching_courses = $DB->get_records_sql("SELECT id, fullname, shortname FROM {course} WHERE fullname LIKE '%INGLÉS II%' OR shortname LIKE '%INGLÉS II%'");
+        echo "<h4>Courses matching 'INGLÉS II':</h4>";
+        if ($matching_courses) {
+            echo "<ul>";
+            foreach ($matching_courses as $mc) {
+                $count_sub = $DB->count_records_sql("SELECT COUNT(*) FROM {assign_submission} s JOIN {assign} a ON a.id = s.assignment WHERE a.course = ?", [$mc->id]);
+                $count_quiz = $DB->count_records_sql("SELECT COUNT(*) FROM {quiz_attempts} quiza JOIN {quiz} q ON q.id = quiza.quiz WHERE q.course = ?", [$mc->id]);
+                echo "<li>ID: {$mc->id} - " . s($mc->fullname) . " (Submissions: $count_sub, Quizzes: $count_quiz)</li>";
+            }
+            echo "</ul>";
+        } else {
+            echo "<p>No courses found with that name.</p>";
+        }
+
+        $matching_classes = $DB->get_records_sql("SELECT id, name, courseid, groupid FROM {gmk_class} WHERE name LIKE '%INGLÉS II%'");
+        echo "<h4>Classes matching 'INGLÉS II' in {gmk_class}:</h4>";
+        if ($matching_classes) {
+            echo "<ul>";
+            foreach ($matching_classes as $mcl) {
+                echo "<li>ID: {$mcl->id} - " . s($mcl->name) . " (Mapped to Course: {$mcl->courseid}, Group: {$mcl->groupid})</li>";
+            }
+            echo "</ul>";
+        } else {
+            echo "<p>No classes found in {gmk_class} with that name.</p>";
+        }
     }
 } else {
     echo "<p>Please select a class from the list above to view its specific grading data.</p>";
