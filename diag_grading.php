@@ -1,0 +1,127 @@
+<?php
+/**
+ * diag_grading.php
+ * Advanced diagnostic tool to troubleshoot the grading interface.
+ */
+
+require_once(__DIR__ . '/../../config.php');
+require_once($CFG->libdir . '/datalib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+
+require_login();
+$systemcontext = context_system::instance();
+require_capability('moodle/site:config', $systemcontext); // Admin only for safety
+
+$classid = optional_param('classid', 0, PARAM_INT);
+$status = optional_param('status', 'pending', PARAM_ALPHA);
+
+echo $OUTPUT->header();
+
+echo "<h2>Grading Interface Diagnostic</h2>";
+
+// 1. User Info
+echo "<h3>1. Current User Context</h3>";
+echo "<ul>";
+echo "<li>Name: " . fullname($USER) . "</li>";
+echo "<li>ID: " . $USER->id . "</li>";
+echo "<li>Is Admin: " . (is_siteadmin() ? 'YES' : 'NO') . "</li>";
+echo "</ul>";
+
+// 2. Class Selection
+$classes = $DB->get_records('gmk_class', ['instructorid' => $USER->id]);
+if (is_siteadmin()) {
+    $classes = $DB->get_records('gmk_class', [], 'id DESC', '*', 0, 20);
+}
+
+echo "<h3>2. Select Class to Analyze</h3>";
+echo "<form method='GET'>";
+echo "<select name='classid'>";
+echo "<option value='0'>-- Global (No filter) --</option>";
+foreach ($classes as $c) {
+    $sel = ($c->id == $classid) ? 'selected' : '';
+    echo "<option value='{$c->id}' $sel>{$c->id} - " . s($c->name) . "</option>";
+}
+echo "</select> ";
+echo "Status: <select name='status'>";
+echo "<option value='pending' " . ($status == 'pending' ? 'selected' : '') . ">Pending</option>";
+echo "<option value='history' " . ($status == 'history' ? 'selected' : '') . ">History</option>";
+echo "</select> ";
+echo "<button type='submit'>Analyze</button>";
+echo "</form>";
+
+if ($classid > 0) {
+    $class = $DB->get_record('gmk_class', ['id' => $classid]);
+    if (!$class) {
+        echo "<p style='color:red;'>Class $classid not found.</p>";
+    } else {
+        echo "<h4>Analyzing Class: " . s($class->name) . "</h4>";
+        echo "<ul>";
+        echo "<li>Course ID: {$class->courseid}</li>";
+        echo "<li>Group ID: {$class->groupid}</li>";
+        echo "</ul>";
+
+        // 3. Database Integrity Checks
+        echo "<h3>3. Data Integrity Checks</h3>";
+        
+        // Course check
+        $course = $DB->get_record('course', ['id' => $class->courseid]);
+        echo "Course: " . ($course ? "<span style='color:green;'>OK (" . s($course->fullname) . ")</span>" : "<span style='color:red;'>MISSING</span>") . "<br>";
+
+        // Group check
+        $group = $DB->get_record('groups', ['id' => $class->groupid]);
+        echo "Group: " . ($group ? "<span style='color:green;'>OK (" . s($group->name) . ")</span>" : "<span style='color:red;'>MISSING</span>") . "<br>";
+
+        // Group members
+        $member_count = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+        echo "Group Members: <span style='color:".($member_count > 0 ? 'green' : 'orange')."'>$member_count</span><br>";
+
+        // Submissions in course
+        $sub_count = $DB->count_records_sql("SELECT COUNT(*) FROM {assign_submission} s JOIN {assign} a ON a.id = s.assignment WHERE a.course = ?", [$class->courseid]);
+        echo "Total Assignment Submissions in Course: $sub_count<br>";
+
+        // Quiz attempts in course
+        $quiz_count = $DB->count_records_sql("SELECT COUNT(*) FROM {quiz_attempts} quiza JOIN {quiz} q ON q.id = quiza.quiz WHERE q.course = ?", [$class->courseid]);
+        echo "Total Quiz Attempts in Course: $quiz_count<br>";
+
+        // 4. Trace the SQL Execution
+        echo "<h3>4. SQL Trace (Pending Grading Items)</h3>";
+        
+        // Reset debug global
+        $GLOBALS['GMK_DEBUG'] = [];
+        $items = gmk_get_pending_grading_items($USER->id, $classid, $status);
+        
+        echo "<h4>Assignment Query:</h4>";
+        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_assign']) . "</pre>";
+        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_assign']) . "</pre>";
+        
+        $assign_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_assign'], $GLOBALS['GMK_DEBUG']['params_assign']);
+        echo "Raw results found: " . count($assign_raw) . "<br>";
+
+        echo "<h4>Quiz Query:</h4>";
+        echo "<pre style='background:#f4f4f4; padding:10px; border:1px solid #ccc; white-space: pre-wrap;'>" . s($GLOBALS['GMK_DEBUG']['sql_quiz']) . "</pre>";
+        echo "Params: <pre>" . json_encode($GLOBALS['GMK_DEBUG']['params_quiz']) . "</pre>";
+        
+        $quiz_raw = $DB->get_records_sql($GLOBALS['GMK_DEBUG']['sql_quiz'], $GLOBALS['GMK_DEBUG']['params_quiz']);
+        echo "Raw results found: " . count($quiz_raw) . "<br>";
+
+        echo "<h3>5. Final Helper Result</h3>";
+        echo "Items returned by gmk_get_pending_grading_items: " . count($items) . "<br>";
+        if (!empty($items)) {
+            echo "<table border='1' cellpadding='5'>";
+            echo "<tr><th>Type</th><th>Name</th><th>Student</th><th>Time</th></tr>";
+            foreach ($items as $item) {
+                echo "<tr>";
+                echo "<td>{$item->modname}</td>";
+                echo "<td>" . s($item->itemname) . "</td>";
+                echo "<td>" . s($item->firstname) . " " . s($item->lastname) . "</td>";
+                echo "<td>" . date('Y-m-d H:i', $item->submissiontime) . "</td>";
+                echo "</tr>";
+            }
+            echo "</table>";
+        }
+    }
+} else {
+    echo "<p>Please select a class from the list above to view its specific grading data.</p>";
+}
+
+echo $OUTPUT->footer();
