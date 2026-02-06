@@ -69,7 +69,7 @@ foreach ($users as $user) {
     // 1. Careers (Learning Plans)
     echo "<h3>1. Careers (from {local_learning_users})</h3>";
     $careers = $DB->get_records_sql("
-        SELECT lp.id as planid, lp.name as planname, lpu.id as relation_id, lpu.periodid as current_period_id
+        SELECT lp.id as planid, lp.name as planname, lpu.id as relation_id, lpu.currentperiodid as current_period_id
         FROM {local_learning_plans} lp
         JOIN {local_learning_users} lpu ON lpu.learningplanid = lp.id
         WHERE lpu.userid = ?
