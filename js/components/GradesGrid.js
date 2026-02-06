@@ -6,16 +6,18 @@ Vue.component('grades-grid', {
                     overflow: auto;
                     max-height: calc(100vh - 250px);
                     border-radius: 8px;
+                    border: 1px solid rgba(0,0,0,0.12);
                 }
                 .gradebook-card table {
                     border-spacing: 0;
-                    width: 100%;
+                    min-width: 100%;
+                    table-layout: auto;
+                    border-collapse: separate;
                 }
                 .gradebook-card th, .gradebook-card td {
-                    padding: 8px 12px;
+                    padding: 10px 14px;
                     border-bottom: 1px solid rgba(0,0,0,0.08);
-                    border-right: 1px solid rgba(0,0,0,0.05);
-                    white-space: nowrap;
+                    border-right: 1px solid rgba(0,0,0,0.08);
                 }
                 /* Sticky Column: Student Info */
                 .gradebook-card .sticky-col {
@@ -23,7 +25,7 @@ Vue.component('grades-grid', {
                     left: 0;
                     z-index: 10;
                     background: white;
-                    min-width: 250px;
+                    min-width: 280px;
                     box-shadow: 2px 0 5px rgba(0,0,0,0.05);
                 }
                 .theme--dark.gradebook-card .sticky-col {
@@ -38,24 +40,29 @@ Vue.component('grades-grid', {
                     top: 0;
                     z-index: 5;
                     background: #f8f9fa;
-                    font-size: 0.75rem;
+                    font-size: 0.7rem;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
-                    color: rgba(0,0,0,0.6);
-                    height: 60px;
+                    color: rgba(0,0,0,0.7);
+                    height: 70px;
+                    vertical-align: bottom;
+                    white-space: normal; /* Allow header text to wrap */
+                    line-height: 1.2;
                 }
                 .theme--dark.gradebook-card thead th {
                     background: #2c2c2c;
-                    color: rgba(255,255,255,0.7);
+                    color: rgba(255,255,255,0.8);
                 }
                 /* Column Specifics */
                 .grade-header {
-                    min-width: 110px;
+                    min-width: 150px;
+                    max-width: 220px;
                     text-align: center;
                 }
                 .grade-cell {
                     text-align: center;
-                    font-size: 0.9rem;
+                    font-size: 0.95rem;
+                    white-space: nowrap; /* Keep grades on one line */
                 }
                 .grade-total {
                     background: #f1f8ff !important;
@@ -69,6 +76,7 @@ Vue.component('grades-grid', {
                     font-weight: 900 !important;
                     color: #1976d2 !important;
                     border-left: 2px solid #1976d2;
+                    min-width: 140px;
                 }
                 .gradebook-card tbody tr:hover td {
                     background-color: rgba(0,0,0,0.02);
@@ -118,10 +126,10 @@ Vue.component('grades-grid', {
                                 <th v-for="col in columns" :key="col.id" 
                                     class="grade-header"
                                     :class="{'grade-total': col.is_total, 'grade-course-total': col.itemtype === 'course'}">
-                                    <div class="truncate" style="max-width: 150px;" :title="col.title">
+                                    <div class="font-weight-bold" :title="col.title">
                                         {{ col.title }}
                                     </div>
-                                    <div class="caption font-weight-regular opacity-70">
+                                    <div class="caption font-weight-regular opacity-70 mt-1">
                                         Max: {{ col.max_grade }}
                                     </div>
                                 </th>
