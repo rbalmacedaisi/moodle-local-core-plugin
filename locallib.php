@@ -3830,8 +3830,9 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     if ($classid > 0) {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         if ($class) {
+            $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
             $assign_course_filter = " AND a.course = :courseid";
-            $assign_params['courseid'] = $class->courseid;
+            $assign_params['courseid'] = $cid;
             if (!empty($class->groupid)) {
                 $assign_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
                 $assign_params['groupid'] = $class->groupid;
@@ -3869,9 +3870,6 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
                    $assign_course_filter $assign_group_filter";
     
-    $GLOBALS['GMK_DEBUG']['sql_assign'] = $sql_assign;
-    $GLOBALS['GMK_DEBUG']['params_assign'] = $assign_params;
-    
     $assigns = $DB->get_records_sql($sql_assign, $assign_params);
     if ($assigns) {
         foreach ($assigns as $asgn) {
@@ -3889,8 +3887,9 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     if ($classid > 0) {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         if ($class) {
+            $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
             $quiz_course_filter = " AND q.course = :courseid";
-            $quiz_params['courseid'] = $class->courseid;
+            $quiz_params['courseid'] = $cid;
             if (!empty($class->groupid)) {
                 $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)";
                 $quiz_params['groupid'] = $class->groupid;
@@ -3932,9 +3931,6 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    )
                    $quiz_course_filter $quiz_group_filter";
     
-    $GLOBALS['GMK_DEBUG']['sql_quiz'] = $sql_quiz;
-    $GLOBALS['GMK_DEBUG']['params_quiz'] = $quiz_params;
-
     $quizzes = $DB->get_records_sql($sql_quiz, $quiz_params);
     if ($quizzes) {
         foreach ($quizzes as $qz) {

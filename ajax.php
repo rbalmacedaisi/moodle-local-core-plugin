@@ -60,7 +60,6 @@ if (empty($action)) {
 require_login();
 $context = context_system::instance();
 
-$GLOBALS['GMK_DEBUG'] = [];
 $response = [
     'status' => 'error',
     'message' => 'Invalid action.'
@@ -103,21 +102,8 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_pending_grading.php');
             $classid = optional_param('classid', 0, PARAM_INT);
             $status = optional_param('status', 'pending', PARAM_ALPHA);
-            $GLOBALS['GMK_DEBUG']['is_admin'] = is_siteadmin($USER->id);
-            if ($classid > 0) {
-                $class = $DB->get_record('gmk_class', ['id' => $classid]);
-                if ($class) {
-                    $GLOBALS['GMK_DEBUG']['class_info'] = [
-                        'courseid' => $class->courseid,
-                        'groupid' => $class->groupid,
-                        'total_submissions_in_course' => $DB->count_records_sql("SELECT COUNT(*) FROM {assign_submission} s JOIN {assign} a ON a.id = s.assignment WHERE a.course = ?", [$class->courseid]),
-                        'total_quiz_attempts_in_course' => $DB->count_records_sql("SELECT COUNT(*) FROM {quiz_attempts} quiza JOIN {quiz} q ON q.id = quiza.quiz WHERE q.course = ?", [$class->courseid]),
-                        'students_in_group' => $DB->count_records('groups_members', ['groupid' => $class->groupid]),
-                    ];
-                }
-            }
             $result = \local_grupomakro_core\external\teacher\get_pending_grading::execute($USER->id, $classid, $status);
-            $response = ['status' => 'success', 'tasks' => $result, '_debug' => $GLOBALS['GMK_DEBUG']];
+            $response = ['status' => 'success', 'tasks' => $result];
             break;
 
         case 'local_grupomakro_save_grade':
