@@ -156,6 +156,7 @@ const TeacherDashboard = {
                                 :activator="selectedElement"
                                 offset-y
                                 max-width="350px"
+                                content-class="event-details-menu"
                             >
                                 <v-card color="grey lighten-4" min-width="300px" flat>
                                     <v-toolbar :color="selectedEvent.color" dark dense flat>
@@ -262,6 +263,7 @@ const TeacherDashboard = {
         }
     },
     mounted() {
+        this.injectStyles();
         this.fetchDashboardData();
     },
     methods: {
@@ -384,6 +386,17 @@ const TeacherDashboard = {
         goToClass(classId) {
             // Logic to navigate to ManageClass.js
             this.$emit('change-page', { page: 'manage-class', id: classId });
+        },
+        injectStyles() {
+            if (document.getElementById('teacher-dashboard-styles')) return;
+            const style = document.createElement('style');
+            style.id = 'teacher-dashboard-styles';
+            style.textContent = `
+                .event-details-menu {
+                    z-index: 10000 !important;
+                }
+            `;
+            document.head.appendChild(style);
         }
     }
 };
