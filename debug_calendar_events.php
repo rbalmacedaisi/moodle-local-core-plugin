@@ -6,6 +6,9 @@ require_login();
 $systemcontext = context_system::instance();
 require_capability('moodle/site:config', $systemcontext);
 
+$PAGE->set_context($systemcontext);
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/debug_calendar_events.php'));
+
 echo $OUTPUT->header();
 echo "<h1>Diagnostic: Calendar Events & Deadlines</h1>";
 
@@ -19,10 +22,27 @@ foreach ($types as $t) {
 echo "</ul>";
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
+$search = optional_param('search', '', PARAM_TEXT);
 
 if (!$courseid) {
     echo "<h3>Select a Course to inspect events</h3>";
-    $courses = $DB->get_records('course', [], 'id DESC', 'id, fullname, shortname', 0, 20);
+    
+    echo "<form method='GET' style='margin-bottom: 20px;'>";
+    echo "<input type='text' name='search' value='".s($search)."' placeholder='Search course...'> ";
+    echo "<button type='submit'>Search</button>";
+    if ($search) echo " <a href='debug_calendar_events.php'>Clear</a>";
+    echo "</form>";
+
+    $params = [];
+    $where = "";
+    if ($search) {
+        $where = "WHERE fullname LIKE :search OR shortname LIKE :search2";
+        $params['search'] = "%$search%";
+        $params['search2'] = "%$search%";
+    }
+
+    $courses = $DB->get_records_sql("SELECT id, fullname, shortname FROM {course} $where ORDER BY id DESC", $params, 0, 50);
+    
     echo "<ul>";
     foreach ($courses as $c) {
         echo "<li><a href='?courseid={$c->id}'>[ID: {$c->id}] {$c->fullname} ({$c->shortname})</a></li>";
