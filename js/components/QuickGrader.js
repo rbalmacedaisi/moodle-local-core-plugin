@@ -7,7 +7,7 @@ const QuickGrader = {
         <v-dialog v-model="visible" fullscreen hide-overlay transition="dialog-bottom-transition">
             <v-card class="d-flex flex-column h-100 grey lighten-5">
                 <!-- Toolbar -->
-                <v-toolbar dark color="primary" dense>
+                <v-toolbar dark color="primary" dense class="quick-grader-toolbar">
                     <v-btn icon dark @click="close">
                         <v-icon>mdi-close</v-icon>
                     </v-btn>
@@ -200,7 +200,25 @@ const QuickGrader = {
             }
         }
     },
+    created() {
+        this.injectStyles();
+    },
     methods: {
+        injectStyles() {
+            const styleId = 'quick-grader-styles';
+            if (document.getElementById(styleId)) return;
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .v-dialog--fullscreen {
+                    z-index: 2000 !important;
+                }
+                .quick-grader-toolbar {
+                    z-index: 2001 !important;
+                }
+            `;
+            document.head.appendChild(style);
+        },
         close() {
             this.visible = false;
             this.$emit('close');
@@ -208,6 +226,7 @@ const QuickGrader = {
         resetForm() {
             this.grade = '';
             this.feedback = '';
+            this.saveError = null;
             if (this.$refs.form) this.$refs.form.resetValidation();
         },
         async fetchQuizData() {

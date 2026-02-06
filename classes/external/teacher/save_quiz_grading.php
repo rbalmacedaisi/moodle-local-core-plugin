@@ -63,7 +63,7 @@ class save_quiz_grading extends external_api {
             );
 
             // Process the action
-            $attemptobj->process_all_actions(time(), $data);
+            $attemptobj->process_submitted_actions(time(), false, $data);
             
             return array(
                 'status' => 'success',
