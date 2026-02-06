@@ -57,26 +57,26 @@ class save_quiz_grading extends external_api {
             $prefix = $qa->get_field_prefix();
             
             $data = array(
-                $prefix . '-mark' => $params['mark'],
-                $prefix . '-comment' => $params['comment'],
-                $prefix . '-commentformat' => FORMAT_HTML
+                $prefix . ':mark' => $params['mark'],
+                $prefix . ':comment' => $params['comment'],
+                $prefix . ':commentformat' => FORMAT_HTML
             );
 
-             // Process the action
-             $attemptobj->process_submitted_actions(time(), false, $data);
-             
-             // Recalculate and update the attempt summarks (points)
-             // This ensures the dashboard and gradebook show the updated total.
-             $newsum = $attemptobj->get_sum_marks();
-             $DB->set_field('quiz_attempts', 'sumgrades', $newsum, array('id' => $params['attemptid']));
-             
-             // Also trigger a re-assessment of the overall quiz grade for the student
-             quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid());
-             
-             return array(
-                 'status' => 'success',
-                 'message' => 'Calificación guardada correctamente'
-             );
+            // Process the action
+            $attemptobj->process_submitted_actions(time(), false, $data);
+            
+            // Recalculate and update the attempt summarks (points)
+            // This ensures the dashboard and gradebook show the updated total.
+            $newsum = $attemptobj->get_sum_marks();
+            $DB->set_field('quiz_attempts', 'sumgrades', $newsum, array('id' => $params['attemptid']));
+            
+            // Also trigger a re-assessment of the overall quiz grade for the student
+            quiz_save_best_grade($attemptobj->get_quiz(), $attemptobj->get_userid());
+            
+            return array(
+                'status' => 'success',
+                'message' => 'Calificación guardada correctamente'
+            );
 
         } catch (\Exception $e) {
             error_log("[GMK] Error saving quiz grading: " . $e->getMessage());
