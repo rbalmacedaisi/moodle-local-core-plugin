@@ -1013,6 +1013,7 @@ try {
                 }
 
                 // 3. Update Sort Order if provided
+                if (is_array($sort_order)) {
                     $anchor_sortorder = 0; // Move to beginning of course sequence
                     foreach ($sort_order as $itemid) {
                         $gi = \grade_item::fetch(['id' => $itemid, 'courseid' => $class->corecourseid]);
