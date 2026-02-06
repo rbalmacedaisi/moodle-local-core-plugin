@@ -395,6 +395,10 @@ const QuickGrader = {
             return (file.mimetype && file.mimetype.includes('word')) ||
                 /\.docx$/i.test(file.filename);
         },
+        isExcel(file) {
+            return (file.mimetype && (file.mimetype.includes('spreadsheet') || file.mimetype.includes('excel'))) ||
+                /\.(xlsx|xls|csv)$/i.test(file.filename);
+        },
         getFileIcon(file) {
             if (this.isImage(file)) return 'mdi-image-outline';
             if (this.isPDF(file)) return 'mdi-file-pdf-box';
