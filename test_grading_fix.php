@@ -29,7 +29,7 @@ if (!$attemptid || !$slot) {
 }
 
 $mark = optional_param('mark', 1.0, PARAM_FLOAT);
-$mode = optional_param('mode', 'colon', PARAM_ALPHA); // 'colon' or 'hyphen'
+$mode = optional_param('mode', 'colon', PARAM_ALPHA); // 'colon', 'hyphen', or 'none'
 
 $attemptobj = quiz_attempt::create($attemptid);
 $qa = $attemptobj->get_question_attempt($slot);
@@ -38,7 +38,13 @@ $prefix = $qa->get_field_prefix();
 echo "<h1>Grading Test (Mode: $mode)</h1>";
 echo "Attempt: $attemptid, Slot: $slot, Prefix: $prefix<br>";
 
-$separator = ($mode === 'colon') ? ':' : '-';
+if ($mode === 'colon') {
+    $separator = ':';
+} else if ($mode === 'hyphen') {
+    $separator = '-';
+} else {
+    $separator = '';
+}
 $data = array(
     $prefix . $separator . 'mark' => $mark,
     $prefix . $separator . 'comment' => "Test grading with $mode at " . date('Y-m-d H:i:s'),
@@ -56,15 +62,27 @@ try {
     // Check if it saved by reloading
     $attemptobj_reloaded = quiz_attempt::create($attemptid);
     $qa_reloaded = $attemptobj_reloaded->get_question_attempt($slot);
-    echo "Reloaded Mark: " . $qa_reloaded->get_mark() . "<br>";
+echo "Reloaded Mark: " . $qa_reloaded->get_mark() . "<br>";
+    echo "Reloaded State: " . (string)$qa_reloaded->get_state() . "<br>";
+    
+    // Debug: show the last step details
+    $laststep = $qa_reloaded->get_last_step();
+    echo "Last Step State: " . $laststep->get_state() . "<br>";
+    echo "Last Step Fraction: " . $laststep->get_fraction() . "<br>";
+    echo "Last Step Data: <pre>";
+    print_r($laststep->get_all_data());
+    echo "</pre>";
+
     if ($qa_reloaded->get_mark() == $mark) {
         echo "<h2 style='color:green;'>VERIFIED: $mode works!</h2>";
     } else {
         echo "<h2 style='color:red;'>FAILED: $mode did NOT save.</h2>";
+        echo "<p>Try the other mode using the links below.</p>";
     }
 } catch (Exception $e) {
     echo "<p style='color:red;'>Error: " . $e->getMessage() . "</p>";
 }
 
 echo "<hr><a href='?attemptid=$attemptid&slot=$slot&mark=$mark&mode=colon'>Try Colon (:)</a> | ";
-echo "<a href='?attemptid=$attemptid&slot=$slot&mark=$mark&mode=hyphen'>Try Hyphen (-)</a>";
+echo "<a href='?attemptid=$attemptid&slot=$slot&mark=$mark&mode=hyphen'>Try Hyphen (-)</a> | ";
+echo "<a href='?attemptid=$attemptid&slot=$slot&mark=$mark&mode=none'>Try None (Direct)</a>";
