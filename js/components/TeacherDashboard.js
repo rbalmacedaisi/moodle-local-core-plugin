@@ -211,16 +211,26 @@ const TeacherDashboard = {
         calendarEvents() {
             return this.dashboardData.calendar_events.map(e => {
                 const tStart = parseInt(e.timestart);
-                const tDur = parseInt(e.timeduration) || 3600;
+                const tDur = parseInt(e.timeduration) || 0;
+
+                // For sessions, show class name as primary. 
+                // For deadlines, the backend already prefixed e.name with an icon/label.
+                let displayName = e.name;
+                if (!e.is_grading_task && e.classname && e.classname !== e.name) {
+                    displayName = `[${e.classname}] ${e.name}`;
+                }
 
                 return {
-                    name: e.classname || e.name, // Use backend provided class name
+                    id: e.id,
+                    name: displayName,
                     activityName: e.name,
+                    className: e.classname,
                     start: new Date(tStart * 1000),
                     end: new Date((tStart + tDur) * 1000),
                     classid: e.classid || 0,
-                    color: 'primary',
-                    timed: true
+                    color: e.color || 'primary',
+                    timed: tDur > 0,
+                    is_grading_task: !!e.is_grading_task
                 };
             });
         }

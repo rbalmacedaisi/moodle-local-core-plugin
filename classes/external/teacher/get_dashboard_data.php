@@ -122,37 +122,6 @@ class get_dashboard_data extends external_api {
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
         
-        // [NEW] Fetch Assignment Due Dates as events
-        $due_sql = "SELECT e.* 
-                    FROM {event} e 
-                    JOIN {modules} m ON e.modulename = m.name
-                    WHERE e.eventtype = 'due' 
-                      AND e.modulename = 'assign'
-                      AND e.userid = 0 
-                      AND e.timestart >= :start AND e.timestart <= :end
-                      AND EXISTS (
-                          SELECT 1 FROM {gmk_class} c 
-                          WHERE c.courseid = e.courseid AND c.instructorid = :instructorid
-                      )";
-        
-        $due_events = $DB->get_records_sql($due_sql, [
-            'start' => $min_start, 
-            'end' => $max_end, 
-            'instructorid' => $params['userid']
-        ]);
-        
-        // Merge due events
-        foreach ($due_events as $de) {
-            // Check if not already in events (unlikely for 'due' type but safe check)
-            if (!isset($events[$de->id])) {
-                 // Add custom property to distinguish
-                 $de->is_grading_task = true;
-                 $de->color = '#FF9800'; // Orange for tasks
-                 // Manually append to events array (which might be keyed by ID or indexed)
-                 $events[] = $de; 
-            }
-        }
-        
         // Build maps for Course Info and Group Info
         $event_course_ids = [];
         $event_group_ids = [];
@@ -193,15 +162,15 @@ class get_dashboard_data extends external_api {
             $e->id = $event->id;
             $e->name = $event->name;
             $e->timestart = $event->timestart;
-            $e->timeduration = isset($event->timeduration) ? (int)$event->timeduration : 3600;
-            if ($e->timeduration == 0) $e->timeduration = 3600; // Enforce minimum duration
+            $e->timeduration = isset($event->timeduration) ? (int)$event->timeduration : 0;
+            if ($e->timeduration < 0) $e->timeduration = 0;
             
             $e->courseid = $event->courseid;
             
             // Map to class ID: Prefer existing enriched data, fallback to map
             $e->classid = !empty($event->classId) ? $event->classId : (isset($courseToClassId[$event->courseid]) ? $courseToClassId[$event->courseid] : 0);
             
-            // Determine best label
+            // Determine best label (Coursename/Classname)
             if (!empty($event->className)) {
                 $label = $event->className;
             } else {
@@ -216,17 +185,15 @@ class get_dashboard_data extends external_api {
  
             $e->classname = $label;
             
-            // Also ensure we pass other useful fields if the frontend eventually uses them
+            // Pass metadata for frontend
             if (isset($event->bigBlueButtonActivityUrl)) {
                  $e->activityUrl = $event->bigBlueButtonActivityUrl;
             } 
             if (isset($event->color)) {
                  $e->color = $event->color;
             }
-            if (isset($event->is_grading_task)) {
+            if (!empty($event->is_grading_task)) {
                  $e->is_grading_task = true;
-                 // Maybe prefix name
-                 $e->name = "📝 " . $event->name;
             }
 
             $calendar_events[] = $e;

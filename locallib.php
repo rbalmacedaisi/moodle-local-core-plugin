@@ -2154,6 +2154,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             $eventComplete = complete_class_event_information($event, $fetchedClasses);
         } elseif ($event->modulename === 'bigbluebuttonbn') {
              $eventComplete = complete_class_event_information_bbb($event, $fetchedClasses);
+        } elseif (in_array($event->eventtype, ['due', 'gradingdue', 'close', 'open'])) {
+             // Handle deadlines and other activity events
+             $eventComplete = complete_generic_module_event_information($event, $fetchedClasses);
         } else {
              // Other modules ignored for now, or add generic handler if needed
              continue;
@@ -3715,6 +3718,91 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
 
     $event->start = date('Y-m-d H:i:s', $event->timestart);
     $event->end = date('Y-m-d H:i:s', $event->timestart + $event->timeduration);
+
+    return $event;
+}
+
+/**
+ * Completes event information for generic modules (assign, quiz, etc.) 
+ * to show deadlines in the teacher calendar.
+ */
+function complete_generic_module_event_information($event, &$fetchedClasses) {
+    global $DB, $CFG;
+
+    // Try to link this activity to a Class
+    $gmkClass = null;
+
+    // 1. Heuristic: Find class by Group ID if event has one
+    if (!empty($event->groupid)) {
+        if (array_key_exists('group_' . $event->groupid, $fetchedClasses)) {
+             $gmkClass = $fetchedClasses['group_' . $event->groupid];
+        } else {
+             $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0]);
+             if ($gmkClass) $fetchedClasses['group_' . $event->groupid] = $gmkClass;
+        }
+    }
+    
+    // 2. Fallback: Find class by Course ID (if only one active class exists for this course)
+    if (!$gmkClass) {
+         if (array_key_exists('course_' . $event->courseid, $fetchedClasses)) {
+             $gmkClass = $fetchedClasses['course_' . $event->courseid];
+         } else {
+             $classes = $DB->get_records('gmk_class', ['corecourseid' => $event->courseid, 'closed' => 0]);
+             if (count($classes) == 1) {
+                 $gmkClass = reset($classes);
+                 $fetchedClasses['course_' . $event->courseid] = $gmkClass;
+             }
+         }
+    }
+
+    if (!$gmkClass) {
+        // If we can't link it to a specific Class, just provide basic course info
+        $course = $DB->get_record('course', ['id' => $event->courseid], 'id, fullname');
+        $event->className = $course ? $course->fullname : 'Actividad';
+        $event->coursename = $event->className;
+        $event->classId = 0;
+    } else {
+        // Populate from Class
+        // Ensure class has helper fields
+        if (!isset($gmkClass->selectedDaysES) && !empty($gmkClass->id)) {
+             $enrichedClasses = list_classes(['id' => $gmkClass->id]);
+             if (!empty($enrichedClasses)) {
+                  $gmkClass = $enrichedClasses[$gmkClass->id];
+                  $fetchedClasses['group_' . $gmkClass->groupid] = $gmkClass;
+             }
+        }
+
+        $event->instructorName = $gmkClass->instructorName ?? '';
+        $event->instructorid = $gmkClass->instructorid ?? 0;
+        $event->className = $gmkClass->name ?? '';
+        $event->coursename = $gmkClass->course->fullname ?? $event->className;
+        $event->classId = $gmkClass->id;
+        $event->groupid = $gmkClass->groupid;
+    }
+
+    // Set specialized colors and prefixes based on event type
+    switch ($event->eventtype) {
+        case 'due':
+            $event->color = '#FF9800'; // Orange
+            $event->name = "⏳ Vencimiento: " . $event->name;
+            break;
+        case 'gradingdue':
+            $event->color = '#E91E63'; // Pink/Red
+            $event->name = "📝 Calificar: " . $event->name;
+            $event->is_grading_task = true;
+            break;
+        case 'close':
+            $event->color = '#F44336'; // Red
+            $event->name = "🚫 Cierre: " . $event->name;
+            break;
+        default:
+            $event->color = '#9E9E9E'; // Grey
+            break;
+    }
+
+    $event->timeduration = 0; // Deadlines are usually points in time
+    $event->start = date('Y-m-d H:i:s', $event->timestart);
+    $event->end = $event->start;
 
     return $event;
 }
