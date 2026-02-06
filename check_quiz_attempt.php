@@ -10,14 +10,19 @@ foreach (['quiz_attempt', 'question_engine'] as $class) {
     }
     if (class_exists($class)) {
         $ref = new ReflectionClass($class);
-        echo "<h2>$class Methods:</h2><ul>";
+        echo "<h2>$class Methods Details:</h2><ul>";
         foreach ($ref->getMethods() as $method) {
             if ($method->isPublic()) {
-                echo "<li>" . ($method->isStatic() ? 'static ' : '') . $method->getName() . "</li>";
+                if ($method->getName() === 'save_questions_usage_by_activity' || $method->getName() === 'get_question_usage') {
+                    echo "<li><b>" . ($method->isStatic() ? 'static ' : '') . $method->getName() . "</b>(";
+                    $params = [];
+                    foreach ($method->getParameters() as $p) {
+                        $params[] = '$' . $p->getName();
+                    }
+                    echo implode(', ', $params) . ")</li>";
+                }
             }
         }
         echo "</ul>";
-    } else {
-        echo "<h2>$class NOT FOUND</h2>";
     }
 }
