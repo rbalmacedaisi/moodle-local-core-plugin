@@ -57,6 +57,16 @@ if (!$attemptid) {
         }
         echo "</ul>";
         echo "</div>";
+
+        echo "<h3>Method Signature: render_question</h3>";
+        $reflection = new ReflectionMethod($attemptobj, 'render_question');
+        echo "<pre>";
+        echo "Parameters: " . $reflection->getNumberOfParameters() . "\n";
+        echo "Required Parameters: " . $reflection->getNumberOfRequiredParameters() . "\n";
+        foreach ($reflection->getParameters() as $param) {
+            echo "- " . $param->getName() . ($param->isOptional() ? " (optional)" : " (REQUIRED)") . "\n";
+        }
+        echo "</pre>";
         
         echo "<h3>Attempt Raw Data:</h3>";
         echo "<pre style='background: #f4f4f4; padding: 10px; border: 1px solid #ddd;'>";
