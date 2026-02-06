@@ -3824,7 +3824,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
     // 1. Get Course/Group filters
     $course_filter_sql = "";
     $group_filter_sql = "";
-    $params = ['userid' => $userid];
+    $params = ['userid' => $userid, 'userid2' => $userid];
     
     $is_admin = is_siteadmin($userid);
 
@@ -3839,9 +3839,21 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
             }
         }
     } else if (!$is_admin) {
-        // If not admin, only show courses where they are the instructor in gmk_class
-        $course_filter_sql = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)";
+        // Fallback: If not admin, show courses where user is instructor in gmk_class OR has teacher roles in Moodle
+        $course_filter_sql = " AND (
+            EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)
+            OR EXISTS (
+                SELECT 1 FROM {role_assignments} ra 
+                JOIN {context} ctx ON ctx.id = ra.contextid
+                JOIN {role} r ON r.id = ra.roleid
+                WHERE ra.userid = :instructorid_m 
+                  AND ctx.contextlevel = 50 
+                  AND ctx.instanceid = a.course
+                  AND r.shortname IN ('editingteacher', 'teacher')
+            )
+        )";
         $params['instructorid'] = $userid;
+        $params['instructorid_m'] = $userid;
     }
     // If admin, we don't apply course_filter_sql, showing everything.
 
@@ -3879,8 +3891,20 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
             }
         }
     } else if (!$is_admin) {
-        $quiz_course_filter = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = q.course AND cls.instructorid = :instructorid)";
+        $quiz_course_filter = " AND (
+            EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = q.course AND cls.instructorid = :instructorid)
+            OR EXISTS (
+                SELECT 1 FROM {role_assignments} ra 
+                JOIN {context} ctx ON ctx.id = ra.contextid
+                JOIN {role} r ON r.id = ra.roleid
+                WHERE ra.userid = :instructorid_m 
+                  AND ctx.contextlevel = 50 
+                  AND ctx.instanceid = q.course
+                  AND r.shortname IN ('editingteacher', 'teacher')
+            )
+        )";
         $quiz_params['instructorid'] = $userid;
+        $quiz_params['instructorid_m'] = $userid;
     }
 
     $sql_quiz = "SELECT quiza.id as submissionid, quiza.userid, quiza.quiz as itemid, quiza.timefinish as submissiontime,
