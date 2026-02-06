@@ -1,109 +1,6 @@
 Vue.component('grades-grid', {
     template: `
         <v-card flat class="gradebook-card rounded-lg border">
-            <style>
-                .gradebook-card .grade-container {
-                    overflow-x: auto !important;
-                    overflow-y: auto;
-                    max-height: calc(100vh - 250px);
-                    border-radius: 8px;
-                    border: 1px solid rgba(0,0,0,0.12);
-                    background: white;
-                    width: 100% !important;
-                    display: block !important;
-                    position: relative;
-                }
-                .theme--dark.gradebook-card .grade-container {
-                    background: #1e1e1e;
-                }
-                .gradebook-card table {
-                    border-spacing: 0;
-                    border-collapse: separate;
-                    table-layout: fixed;
-                }
-                .gradebook-card th, .gradebook-card td {
-                    padding: 12px 16px;
-                    border-bottom: 1px solid rgba(0,0,0,0.08);
-                    border-right: 1px solid rgba(0,0,0,0.08);
-                    box-sizing: border-box;
-                    word-wrap: break-word;
-                    overflow: hidden;
-                }
-                /* Sticky Column: Student Info */
-                .gradebook-card .sticky-col {
-                    position: sticky;
-                    left: 0;
-                    z-index: 10;
-                    background: white;
-                    width: 250px;
-                    min-width: 250px;
-                    max-width: 250px;
-                    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-                }
-                .theme--dark.gradebook-card .sticky-col {
-                    background: #1e1e1e;
-                }
-                .gradebook-card thead th.sticky-col {
-                    z-index: 20;
-                }
-                /* Sticky Headers */
-                .gradebook-card thead th {
-                    position: sticky;
-                    top: 0;
-                    z-index: 5;
-                    background: #f8f9fa;
-                    font-size: 0.72rem;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    color: rgba(0,0,0,0.73);
-                    vertical-align: top;
-                    padding: 15px 10px;
-                    white-space: normal; 
-                    line-height: 1.3;
-                    border-top: 1px solid rgba(0,0,0,0.05);
-                }
-                .theme--dark.gradebook-card thead th {
-                    background: #2c2c2c;
-                    color: rgba(255,255,255,0.85);
-                }
-                /* Column Specifics */
-                .grade-header {
-                    width: 140px;
-                    min-width: 140px;
-                    max-width: 140px;
-                    text-align: center;
-                }
-                .grade-cell {
-                    text-align: center;
-                    font-size: 0.95rem;
-                    white-space: nowrap;
-                }
-                .grade-total {
-                    background: #f1f8ff !important;
-                    font-weight: bold;
-                }
-                .theme--dark.gradebook-card .grade-total {
-                    background: rgba(255,255,255,0.05) !important;
-                }
-                .grade-course-total {
-                    background: #e7f3ff !important;
-                    font-weight: 900 !important;
-                    color: #1976d2 !important;
-                    border-left: 2px solid #1976d2;
-                    width: 160px;
-                    min-width: 160px;
-                }
-                .gradebook-card tbody tr:hover td {
-                    background-color: rgba(0,0,0,0.02);
-                }
-                .gradebook-card tbody tr:hover td.sticky-col {
-                    background-color: #fcfcfc;
-                }
-                .theme--dark.gradebook-card tbody tr:hover td.sticky-col {
-                    background-color: #252525;
-                }
-            </style>
-
             <v-card-title class="d-flex align-center py-2 px-4">
                 <div class="text-h6 font-weight-bold">
                     <v-icon left>mdi-table-edit</v-icon>
@@ -218,6 +115,9 @@ Vue.component('grades-grid', {
             };
         }
     },
+    created() {
+        this.injectStyles();
+    },
     watch: {
         classId: {
             immediate: true,
@@ -229,6 +129,113 @@ Vue.component('grades-grid', {
         }
     },
     methods: {
+        injectStyles() {
+            const styleId = 'grades-grid-styles';
+            if (document.getElementById(styleId)) return;
+
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .gradebook-card .grade-container {
+                    overflow-x: auto !important;
+                    overflow-y: auto;
+                    max-height: calc(100vh - 250px);
+                    border-radius: 8px;
+                    border: 1px solid rgba(0,0,0,0.12);
+                    background: white;
+                    width: 100% !important;
+                    display: block !important;
+                    position: relative;
+                }
+                .theme--dark.gradebook-card .grade-container {
+                    background: #1e1e1e;
+                }
+                .gradebook-card table {
+                    border-spacing: 0;
+                    border-collapse: separate;
+                    table-layout: fixed;
+                }
+                .gradebook-card th, .gradebook-card td {
+                    padding: 12px 16px;
+                    border-bottom: 1px solid rgba(0,0,0,0.08);
+                    border-right: 1px solid rgba(0,0,0,0.08);
+                    box-sizing: border-box;
+                    word-wrap: break-word;
+                    overflow: hidden;
+                }
+                .gradebook-card .sticky-col {
+                    position: sticky;
+                    left: 0;
+                    z-index: 10;
+                    background: white;
+                    width: 250px;
+                    min-width: 250px;
+                    max-width: 250px;
+                    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+                }
+                .theme--dark.gradebook-card .sticky-col {
+                    background: #1e1e1e;
+                }
+                .gradebook-card thead th.sticky-col {
+                    z-index: 20;
+                }
+                .gradebook-card thead th {
+                    position: sticky;
+                    top: 0;
+                    z-index: 5;
+                    background: #f8f9fa;
+                    font-size: 0.72rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: rgba(0,0,0,0.73);
+                    vertical-align: top;
+                    padding: 15px 10px;
+                    white-space: normal; 
+                    line-height: 1.3;
+                    border-top: 1px solid rgba(0,0,0,0.05);
+                }
+                .theme--dark.gradebook-card thead th {
+                    background: #2c2c2c;
+                    color: rgba(255,255,255,0.85);
+                }
+                .grade-header {
+                    width: 140px;
+                    min-width: 140px;
+                    max-width: 140px;
+                    text-align: center;
+                }
+                .grade-cell {
+                    text-align: center;
+                    font-size: 0.95rem;
+                    white-space: nowrap;
+                }
+                .grade-total {
+                    background: #f1f8ff !important;
+                    font-weight: bold;
+                }
+                .theme--dark.gradebook-card .grade-total {
+                    background: rgba(255,255,255,0.05) !important;
+                }
+                .grade-course-total {
+                    background: #e7f3ff !important;
+                    font-weight: 900 !important;
+                    color: #1976d2 !important;
+                    border-left: 2px solid #1976d2;
+                    width: 160px;
+                    min-width: 160px;
+                }
+                .gradebook-card tbody tr:hover td {
+                    background-color: rgba(0,0,0,0.02);
+                }
+                .gradebook-card tbody tr:hover td.sticky-col {
+                    background-color: #fcfcfc;
+                }
+                .theme--dark.gradebook-card tbody tr:hover td.sticky-col {
+                    background-color: #252525;
+                }
+            `;
+            document.head.appendChild(style);
+        },
         async fetchGrades() {
             this.loading = true;
             this.error = null;

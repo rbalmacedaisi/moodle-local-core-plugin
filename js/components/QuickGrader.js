@@ -148,7 +148,8 @@ const QuickGrader = {
             quizData: { questions: [] },
             loadingQuiz: false,
             selectedSlotIndex: 0,
-            quizError: null
+            quizError: null,
+            saveError: null
         }
     },
     computed: {
@@ -257,6 +258,7 @@ const QuickGrader = {
             if (!this.$refs.form.validate()) return;
 
             this.saving = true;
+            this.saveError = null;
             try {
                 let action = 'local_grupomakro_save_grade';
                 let args = {};
@@ -304,11 +306,12 @@ const QuickGrader = {
                         this.loadNext();
                     }
                 } else {
-                    alert('Error guardando: ' + (response.data.message || 'Desconocido'));
+                    this.saveError = response.data.message || 'Error desconocido del servidor.';
+                    console.error("Save Error Response:", response.data);
                 }
             } catch (error) {
                 console.error(error);
-                alert('Error de conexión');
+                this.saveError = error.message || 'Error de conexión con el servidor.';
             } finally {
                 this.saving = false;
             }
