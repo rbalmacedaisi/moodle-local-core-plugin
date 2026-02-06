@@ -26,41 +26,57 @@ class save_quiz_grading extends external_api {
     }
 
     public static function execute($attemptid, $slot, $mark, $comment = '') {
-        global $DB, $USER;
+        global $DB, $USER, $CFG, $PAGE;
 
-        $params = self::validate_parameters(self::execute_parameters(), array(
-            'attemptid' => $attemptid,
-            'slot' => $slot,
-            'mark' => $mark,
-            'comment' => $comment
-        ));
-        
-        $attemptobj = \quiz_attempt::create($params['attemptid']);
-        $context = \context_module::instance($attemptobj->get_cm()->id);
-        self::validate_context($context);
-        
-        require_capability('mod/quiz:grade', $context);
+        try {
+            // Ensure question engine is loaded
+            require_once($CFG->dirroot . '/question/engine/lib.php');
+            require_once($CFG->dirroot . '/mod/quiz/locallib.php');
 
-        // Prepare the action data for the question engine
-        // Moodle expects data in a specific format for manual grading
-        $prefix = $attemptobj->get_question_attempt($slot)->get_field_prefix();
-        
-        $data = array(
-            $prefix . '-mark' => $params['mark'],
-            $prefix . '-comment' => $params['comment'],
-            $prefix . '-commentformat' => FORMAT_HTML
-        );
+            $params = self::validate_parameters(self::execute_parameters(), array(
+                'attemptid' => $attemptid,
+                'slot' => $slot,
+                'mark' => $mark,
+                'comment' => $comment
+            ));
+            
+            $attemptobj = \quiz_attempt::create($params['attemptid']);
+            $context = \context_module::instance($attemptobj->get_cm()->id);
+            self::validate_context($context);
+            
+            require_capability('mod/quiz:grade', $context);
 
-        // Process the action
-        $attemptobj->process_all_actions(time(), $data);
-        
-        // After processing, if the attempt is finished, we might need to trigger graduation/regrading?
-        // Usually, process_all_actions handles the necessary updates to the attempt's sumgrades.
-        
-        return array(
-            'status' => 'success',
-            'message' => 'Calificación guardada correctamente'
-        );
+            // Initialize PAGE if needed
+            if (!$PAGE->headerprinted) {
+                $PAGE->set_context($context);
+            }
+
+            // Prepare the action data for the question engine
+            // Moodle expects data in a specific format for manual grading
+            $qa = $attemptobj->get_question_attempt($slot);
+            $prefix = $qa->get_field_prefix();
+            
+            $data = array(
+                $prefix . '-mark' => $params['mark'],
+                $prefix . '-comment' => $params['comment'],
+                $prefix . '-commentformat' => FORMAT_HTML
+            );
+
+            // Process the action
+            $attemptobj->process_all_actions(time(), $data);
+            
+            return array(
+                'status' => 'success',
+                'message' => 'Calificación guardada correctamente'
+            );
+
+        } catch (\Exception $e) {
+            error_log("[GMK] Error saving quiz grading: " . $e->getMessage());
+            return array(
+                'status' => 'error',
+                'message' => $e->getMessage()
+            );
+        }
     }
 
     public static function execute_returns() {

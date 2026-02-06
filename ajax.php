@@ -121,7 +121,11 @@ try {
                 $data['grade'], 
                 isset($data['feedback']) ? $data['feedback'] : ''
             );
-            $response = ['status' => 'success', 'data' => $result];
+            $response = [
+                'status' => (isset($result['status']) && $result['status'] === 'error') ? 'error' : 'success',
+                'message' => isset($result['message']) ? $result['message'] : '',
+                'data' => $result
+            ];
             break;
 
         case 'local_grupomakro_get_quiz_attempt_data':
@@ -143,7 +147,11 @@ try {
                 $data['mark'],
                 isset($data['comment']) ? $data['comment'] : ''
             );
-            $response = ['status' => 'success', 'data' => $result];
+            $response = [
+                'status' => (isset($result['status']) && $result['status'] === 'error') ? 'error' : 'success',
+                'message' => isset($result['message']) ? $result['message'] : '',
+                'data' => $result
+            ];
             break;
 
         case 'local_grupomakro_update_period':
