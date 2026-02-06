@@ -14,22 +14,40 @@ echo $OUTPUT->header();
 echo "<h1>Diagnostic: Pending Grading Items</h1>";
 
 $userid = optional_param('userid', $USER->id, PARAM_INT);
-$is_admin = is_siteadmin($userid);
-echo "<h3>Checking for User ID: $userid (" . ($is_admin ? '<b style="color:blue;">ADMIN</b>' : 'NORMAL') . ")</h3>";
+$is_admin = is_siteadmin($USER->id);
+
+echo "<form method='GET' style='margin-bottom: 20px; padding: 10px; background: #f0f0f0;'>";
+echo "Test for User ID: <input type='number' name='userid' value='$userid'> ";
+echo "<button type='submit'>Check User</button>";
+echo "</form>";
+
+$target_user = $DB->get_record('user', ['id' => $userid]);
+if (!$target_user) {
+    echo "<p style='color:red;'>User $userid not found.</p>";
+    echo $OUTPUT->footer();
+    die();
+}
+
+echo "<h3>Checking for User: " . fullname($target_user) . " (ID: $userid)</h3>";
+$is_target_admin = is_siteadmin($userid);
+echo "<p>Site Admin: " . ($is_target_admin ? 'YES' : 'NO') . "</p>";
 
 // 1. Check Classes for this instructor
 $classes = $DB->get_records('gmk_class', ['instructorid' => $userid]);
 echo "<h4>Active Classes for this Instructor in {gmk_class}:</h4>";
 if (empty($classes)) {
-    echo "<p style='color:red;'>No classes found for this instructor in gmk_class table.</p>";
+    echo "<p style='color:red;'>No entries found in <b>gmk_class</b> where instructorid = $userid.</p>";
 } else {
-    echo "<table border='1'><tr><th>ID</th><th>Name</th><th>Course ID</th><th>Group ID</th></tr>";
+    echo "<table border='1' cellpadding='5'><tr><th>ID</th><th>Name</th><th>Course ID</th><th>Group ID</th><th>Closed</th><th>End Date</th></tr>";
     foreach ($classes as $class) {
+        $past = $class->enddate < time() ? ' (EXPIRED)' : '';
         echo "<tr>";
         echo "<td>{$class->id}</td>";
         echo "<td>" . s($class->name) . "</td>";
         echo "<td>{$class->courseid}</td>";
         echo "<td>{$class->groupid}</td>";
+        echo "<td>{$class->closed}</td>";
+        echo "<td>" . date('Y-m-d', $class->enddate) . $past . "</td>";
         echo "</tr>";
     }
     echo "</table>";
@@ -39,20 +57,55 @@ if (empty($classes)) {
 echo "<h3>Result of gmk_get_pending_grading_items($userid):</h3>";
 $items = gmk_get_pending_grading_items($userid);
 if (empty($items)) {
-    echo "<p style='color:orange;'>The helper returned 0 items.</p>";
+    echo "<p style='color:orange;'>The helper returned 0 items for this user.</p>";
 } else {
-    echo "<h4>Items Found:</h4>";
-    echo "<table border='1'>";
-    echo "<tr><th>Type</th><th>Name</th><th>Student</th><th>Submission Time</th></tr>";
+    echo "<h4>Items Found (" . count($items) . "):</h4>";
+    echo "<table border='1' cellpadding='5'>";
+    echo "<tr><th>Type</th><th>Name</th><th>Course ID</th><th>Student</th><th>Submission Time</th></tr>";
     foreach ($items as $item) {
         echo "<tr>";
         echo "<td>{$item->modname}</td>";
         echo "<td>" . s($item->itemname) . "</td>";
+        echo "<td>{$item->courseid}</td>";
         echo "<td>" . s($item->firstname) . " " . s($item->lastname) . "</td>";
         echo "<td>" . date('Y-m-d H:i:s', $item->submissiontime) . "</td>";
         echo "</tr>";
     }
     echo "</table>";
+}
+
+// 3. Reverse lookup: Who are the instructors for courses with pending quizzes?
+echo "<h3>Reverse Lookup: Instructors for Pending Quiz Courses</h3>";
+$pending_quiz_courses = $DB->get_records_sql("
+    SELECT DISTINCT q.course, c.fullname
+    FROM {quiz_attempts} quiza
+    JOIN {quiz} q ON q.id = quiza.quiz
+    JOIN {course} c ON c.id = q.course
+    WHERE quiza.state = 'finished'
+      AND EXISTS (
+          SELECT 1 FROM {question_attempts} qa 
+          JOIN {question_attempt_steps} qas ON qas.questionattemptid = qa.id
+          WHERE qa.questionusageid = quiza.uniqueid AND qas.state = 'needsgrading'
+      )
+");
+
+if (empty($pending_quiz_courses)) {
+    echo "<p>No courses found with pending quizzes in the entire system.</p>";
+} else {
+    foreach ($pending_quiz_courses as $pc) {
+        echo "<h4>Course: " . s($pc->fullname) . " (ID: {$pc->course})</h4>";
+        $instructors = $DB->get_records('gmk_class', ['courseid' => $pc->course]);
+        if (empty($instructors)) {
+            echo "<p style='color:red;'>No instructors assigned to this course in <b>gmk_class</b> table!</p>";
+        } else {
+            echo "Instructors in gmk_class for this course:<ul>";
+            foreach ($instructors as $inst) {
+                $u = $DB->get_record('user', ['id' => $inst->instructorid]);
+                echo "<li>" . fullname($u) . " (ID: {$inst->instructorid}) - Class ID: {$inst->id}</li>";
+            }
+            echo "</ul>";
+        }
+    }
 }
 
 // 3. Deep Dive into Quiz Logic

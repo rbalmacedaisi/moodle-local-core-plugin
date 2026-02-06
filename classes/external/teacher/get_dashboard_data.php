@@ -33,16 +33,25 @@ class get_dashboard_data extends external_api {
 
         // 1. Get Active Classes
         $now = time();
+        $is_admin = is_siteadmin($params['userid']);
+        
+        $where_instructor = $is_admin ? "" : " AND c.instructorid = :instructorid";
         $sql = "SELECT c.* 
                 FROM {gmk_class} c
-                WHERE c.instructorid = :instructorid 
-                  AND c.closed = 0 
+                WHERE c.closed = 0 
                   AND c.enddate >= :now
+                  $where_instructor
                   AND EXISTS (
                       SELECT 1 FROM {gmk_bbb_attendance_relation} r 
                       WHERE r.classid = c.id
                   )";
-        $classes = $DB->get_records_sql($sql, ['instructorid' => $params['userid'], 'now' => $now]);
+        
+        $query_params = ['now' => $now];
+        if (!$is_admin) {
+            $query_params['instructorid'] = $params['userid'];
+        }
+        
+        $classes = $DB->get_records_sql($sql, $query_params);
         
         $active_classes = [];
         foreach ($classes as $class) {
