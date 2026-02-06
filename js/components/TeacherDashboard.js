@@ -37,7 +37,7 @@ const TeacherDashboard = {
                         </v-btn>
                     </div>
                     <v-row>
-                        <v-col cols="12" sm="6" lg="4" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
+                        <v-col cols="12" sm="6" lg="4" xl="3" v-for="classItem in dashboardData.active_classes" :key="classItem.id">
                             <v-card class="rounded-xl hover-card overflow-hidden" elevation="2" @click="goToClass(classItem.id)">
                                 <v-img :src="getClassImage(classItem)" height="140" class="align-start">
                                     <v-chip dark small :color="classItem.type === 1 ? 'blue darken-2' : 'green darken-2'" class="ma-3 font-weight-bold">

@@ -88,11 +88,14 @@ body.gmk-full-frame #page {
     margin-top: 0 !important;
     padding-top: 0 !important;
     background: white !important;
+    max-width: 100% !important;
+    /* Allow expansion on panoramic screens */
 }
 
 body.gmk-full-frame #page-content {
     padding: 0 !important;
     margin: 0 !important;
+    max-width: 100% !important;
 }
 
 body.gmk-full-frame #region-main {
