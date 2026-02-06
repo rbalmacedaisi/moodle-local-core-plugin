@@ -14,7 +14,8 @@ echo $OUTPUT->header();
 echo "<h1>Diagnostic: Pending Grading Items</h1>";
 
 $userid = optional_param('userid', $USER->id, PARAM_INT);
-echo "<h3>Checking for User ID: $userid</h3>";
+$is_admin = is_siteadmin($userid);
+echo "<h3>Checking for User ID: $userid (" . ($is_admin ? '<b style="color:blue;">ADMIN</b>' : 'NORMAL') . ")</h3>";
 
 // 1. Check Classes for this instructor
 $classes = $DB->get_records('gmk_class', ['instructorid' => $userid]);

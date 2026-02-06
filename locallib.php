@@ -3826,6 +3826,8 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
     $group_filter_sql = "";
     $params = ['userid' => $userid];
     
+    $is_admin = is_siteadmin($userid);
+
     if ($classid > 0) {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         if ($class) {
@@ -3836,10 +3838,12 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                 $params['groupid'] = $class->groupid;
             }
         }
-    } else {
+    } else if (!$is_admin) {
+        // If not admin, only show courses where they are the instructor in gmk_class
         $course_filter_sql = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)";
         $params['instructorid'] = $userid;
     }
+    // If admin, we don't apply course_filter_sql, showing everything.
 
     // A. Assignments
     $sql_assign = "SELECT s.id as submissionid, s.userid, s.assignment as itemid, s.timecreated as submissiontime,
@@ -3874,7 +3878,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0) {
                 $quiz_params['groupid'] = $class->groupid;
             }
         }
-    } else {
+    } else if (!$is_admin) {
         $quiz_course_filter = " AND EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = q.course AND cls.instructorid = :instructorid)";
         $quiz_params['instructorid'] = $userid;
     }
