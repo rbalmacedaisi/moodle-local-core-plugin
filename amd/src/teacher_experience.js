@@ -77,7 +77,7 @@ window.TeacherExperience = {
                                         <v-avatar size="32" color="blue darken-1" class="mr-2">
                                             <v-icon dark small>mdi-account</v-icon>
                                         </v-avatar>
-                                        <span class="d-none d-sm-inline">Mi Cuenta</span>
+                                        <span class="d-none d-sm-inline">{{ config.firstName || 'Mi Cuenta' }}</span>
                                         <v-icon right small>mdi-chevron-down</v-icon>
                                     </v-btn>
                                 </template>

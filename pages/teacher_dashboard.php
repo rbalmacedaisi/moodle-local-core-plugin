@@ -69,6 +69,7 @@ if (!$logoUrl) {
 $config = [
     'wwwroot' => $CFG->wwwroot,
     'userId' => $USER->id,
+    'firstName' => $USER->firstname,
     'userToken' => $USER->sesskey,
     'logoutUrl' => (new moodle_url('/login/logout.php', ['sesskey' => sesskey()]))->out(false),
     'logoUrl' => ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=200', // Placeholder if no theme logo
