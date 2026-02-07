@@ -652,6 +652,54 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_attendance_details':
+            $userid = required_param('userId', PARAM_INT);
+            $classid = required_param('classId', PARAM_INT);
+            
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            
+            // Find attendance instance
+            $all_atts = $DB->get_records('attendance', ['course' => $class->courseid], '', 'id');
+            if (empty($all_atts) && !empty($class->corecourseid)) {
+                $all_atts = $DB->get_records('attendance', ['course' => $class->corecourseid], '', 'id');
+            }
+            
+            if (empty($all_atts)) {
+                 $response = ['status' => 'error', 'message' => 'No se encontró actividad de asistencia.'];
+                 break;
+            }
+            
+            $att = reset($all_atts);
+            
+            // Get all sessions for this group
+            $sessions = $DB->get_records('attendance_sessions', ['attendanceid' => $att->id, 'groupid' => $class->groupid], 'sessdate ASC');
+            
+            // Get all statuses for this attendance
+            $statuses = $DB->get_records('attendance_statuses', ['attendanceid' => $att->id], '', 'id, acronym, description, grade');
+            
+            // Get all logs for this user in these sessions
+            $logs = $DB->get_records('attendance_log', ['userid' => $userid], '', 'sessionid, statusid');
+            
+            $details = [];
+            foreach ($sessions as $s) {
+                $statusid = isset($logs[$s->id]) ? $logs[$s->id]->statusid : null;
+                $statusObj = $statusid && isset($statuses[$statusid]) ? $statuses[$statusid] : null;
+                
+                $details[] = [
+                    'id' => $s->id,
+                    'date' => userdate($s->sessdate, get_string('strftimedatefullshort', 'langconfig')),
+                    'time' => userdate($s->sessdate, '%H:%M'),
+                    'description' => $s->description,
+                    'status' => $statusObj ? $statusObj->description : 'Sin registrar',
+                    'acronym' => $statusObj ? $statusObj->acronym : '-',
+                    'grade' => $statusObj ? $statusObj->grade : null,
+                    'is_absence' => $statusObj ? ($statusObj->grade <= 0) : ($s->sessdate < time())
+                ];
+            }
+            
+            $response = ['status' => 'success', 'details' => $details];
+            break;
+
         case 'local_grupomakro_get_student_info':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
             

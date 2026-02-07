@@ -258,6 +258,7 @@ class get_student_info extends external_api {
                     'subperiods' => $subperiodname,
                     'revalidate' => $revalidate,
                     'phone' => $user->phone1 ?: '--',
+                    'absences' => !empty($params['classid']) ? gmk_get_student_attendance_summary($user->userid, $params['classid'])['absences'] : 0,
                     'grade' => isset($user->currentgrade) ? round((float)$user->currentgrade, 2) : '--',
                     'financial_status' => $DB->get_field('gmk_financial_status', 'status', ['userid' => $user->userid]) ?: 'unknown',
                     'financial_reason' => $DB->get_field('gmk_financial_status', 'reason', ['userid' => $user->userid]) ?: '',

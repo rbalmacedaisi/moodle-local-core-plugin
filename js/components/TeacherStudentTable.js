@@ -210,6 +210,13 @@ Vue.component('teacher-student-table', {
                          </div>
                     </template>
 
+                    <template v-slot:item.absences="{ item }">
+                         <v-btn small color="error" text class="font-weight-bold" @click="openAttendanceModal(item)">
+                             <v-icon small left>mdi-calendar-remove</v-icon>
+                             {{ item.absences }}
+                         </v-btn>
+                    </template>
+
                     <template v-slot:item.grade="{ item }">
                         <v-btn small color="primary" class="elevation-0 text-capitalize font-weight-bold" @click="gradeDialog(item)">
                              notas
@@ -222,6 +229,14 @@ Vue.component('teacher-student-table', {
                 </v-data-table>
             </v-col>
             <grademodal v-if="studentsGrades" :class-id="classId" :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
+            
+            <attendancemodal 
+                v-if="showAttendanceModal" 
+                :userid="selectedStudent.id" 
+                :classid="classId" 
+                :studentname="selectedStudent.name"
+                @close="showAttendanceModal = false"
+            ></attendancemodal>
             
         </v-row>
     `,
@@ -249,6 +264,7 @@ Vue.component('teacher-student-table', {
             { text: lang.period || 'Periodo', value: 'periods', sortable: false, width: '200px' },
             { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
             { text: 'Teléfono', value: 'phone', sortable: false, width: '150px' },
+            { text: 'Inasistencias', value: 'absences', sortable: false, width: '120px' },
             { text: lang.status || 'Estado', value: 'status', sortable: false, },
         ];
 
@@ -292,7 +308,8 @@ Vue.component('teacher-student-table', {
             filterDialog: false,
             studentsGrades: false,
             studentGradeSelected: {},
-            // Removed duplicates (siteUrl, token) as they are in computed
+            showAttendanceModal: false,
+            selectedStudent: null
         };
     },
     computed: {
@@ -329,6 +346,10 @@ Vue.component('teacher-student-table', {
         }
     },
     methods: {
+        openAttendanceModal(item) {
+            this.selectedStudent = item;
+            this.showAttendanceModal = true;
+        },
         async getDataFromApi() {
             this.loading = true;
             try {
@@ -393,6 +414,7 @@ Vue.component('teacher-student-table', {
                                 status: element.status,
                                 img: element.profileimage,
                                 phone: element.phone,
+                                absences: element.absences || 0,
                                 currentgrade: element.currentgrade || '--'
                             });
                         });

@@ -3978,3 +3978,62 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
 
     return $results;
 }
+
+/**
+ * Get student attendance summary (absence count).
+ * @param int $userid
+ * @param int $classid
+ * @return array
+ */
+function gmk_get_student_attendance_summary($userid, $classid) {
+    global $DB;
+    
+    try {
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+        
+        // Find attendance instances
+        $all_atts = $DB->get_records('attendance', ['course' => $class->courseid], '', 'id');
+        if (empty($all_atts) && !empty($class->corecourseid)) {
+            $all_atts = $DB->get_records('attendance', ['course' => $class->corecourseid], '', 'id');
+        }
+        
+        if (empty($all_atts)) {
+            return ['absences' => 0];
+        }
+        
+        $att = reset($all_atts);
+        
+        // Get statuses that count as absence (grade 0 and not marked as 'Excused' if possible, but grade 0 is a good proxy)
+        $statuses = $DB->get_records('attendance_statuses', ['attendanceid' => $att->id]);
+        $absence_status_ids = [];
+        foreach ($statuses as $s) {
+            if ($s->grade <= 0) { // Absences typically have 0 grade
+                $absence_status_ids[] = $s->id;
+            }
+        }
+        
+        if (empty($absence_status_ids)) {
+            return ['absences' => 0];
+        }
+        
+        list($insql, $inparams) = $DB->get_in_or_equal($absence_status_ids, SQL_PARAMS_NAMED, 'abs');
+        $sql = "SELECT COUNT(l.id) 
+                FROM {attendance_log} l
+                JOIN {attendance_sessions} s ON s.id = l.sessionid
+                WHERE l.userid = :userid
+                  AND s.attendanceid = :attid
+                  AND s.groupid = :groupid
+                  AND l.statusid $insql";
+                  
+        $inparams['userid'] = $userid;
+        $inparams['attid'] = $att->id;
+        $inparams['groupid'] = $class->groupid;
+        
+        $absences = $DB->count_records_sql($sql, $inparams);
+        
+        return ['absences' => $absences];
+    } catch (Exception $e) {
+        \gmk_log("Error in gmk_get_student_attendance_summary: " . $e->getMessage());
+        return ['absences' => 0];
+    }
+}
