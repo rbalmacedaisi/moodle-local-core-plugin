@@ -37,7 +37,7 @@ const ActivityCreationWizard = {
                             rows="3"
                         ></v-textarea>
 
-                        <v-row v-if="activityType === 'assignment'">
+                        <v-row v-if="isAssignment">
                             <v-col cols="12">
                                 <v-text-field
                                     v-model="formData.duedate"
@@ -49,7 +49,7 @@ const ActivityCreationWizard = {
                             </v-col>
                         </v-row>
 
-                        <v-row v-if="activityType === 'quiz'">
+                        <v-row v-if="isQuiz">
                             <v-col cols="12" sm="6">
                                 <v-text-field
                                     v-model="formData.timeopen"
@@ -70,7 +70,7 @@ const ActivityCreationWizard = {
                             </v-col>
                         </v-row>
 
-                        <v-row v-if="activityType === 'assignment'">
+                        <v-row v-if="isAssignment">
                              <v-col cols="12">
                                 <v-select
                                     v-model="formData.gradecat"
@@ -98,14 +98,14 @@ const ActivityCreationWizard = {
                             clearable
                         ></v-combobox>
 
-                        <div v-if="activityType === 'bbb'" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'blue-grey darken-4' : 'blue lighten-5'">
+                        <div v-if="isBBB" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'blue-grey darken-4' : 'blue lighten-5'">
                             <v-icon small color="blue" class="mr-2">mdi-information-outline</v-icon>
                             <span class="text-caption blue--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
                                 Se configurará automáticamente con los parámetros de este grupo y horario.
                             </span>
                         </div>
 
-                        <div v-if="activityType === 'forum'" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'deep-purple darken-4' : 'deep-purple lighten-5'">
+                        <div v-if="isForum" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'deep-purple darken-4' : 'deep-purple lighten-5'">
                             <v-icon small color="deep-purple" class="mr-2">mdi-forum-outline</v-icon>
                             <span class="text-caption deep-purple--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
                                 Se creará un foro de uso general donde todos pueden iniciar discusiones.
@@ -167,7 +167,7 @@ const ActivityCreationWizard = {
             this.fetchActivityDetails(this.editData.id);
         }
         this.fetchCourseTags();
-        if (this.activityType === 'assignment') {
+        if (this.isAssignment) {
             this.fetchGradeCategories();
         }
     },
@@ -176,12 +176,26 @@ const ActivityCreationWizard = {
             if (this.customLabel) return this.customLabel;
             const labels = {
                 bbb: 'Sesión Virtual',
+                bigbluebuttonbn: 'Sesión Virtual',
                 assignment: 'Tarea',
+                assign: 'Tarea',
                 resource: 'Material',
                 quiz: 'Cuestionario',
                 forum: 'Foro'
             };
             return labels[this.activityType] || 'Actividad';
+        },
+        isAssignment() {
+            return this.activityType === 'assignment' || this.activityType === 'assign';
+        },
+        isQuiz() {
+            return this.activityType === 'quiz';
+        },
+        isForum() {
+            return this.activityType === 'forum';
+        },
+        isBBB() {
+            return this.activityType === 'bbb' || this.activityType === 'bigbluebuttonbn';
         }
     },
     methods: {
@@ -252,7 +266,7 @@ const ActivityCreationWizard = {
                 if (response.data.status === 'success') {
                     const act = response.data.activity;
                     this.formData.name = act.name;
-                    this.formData.intro = act.intro;
+                    this.formData.intro = this.stripHtml(act.intro);
                     this.formData.tags = (act.tags && act.tags.length > 0) ? act.tags[0] : '';
                     this.formData.visible = act.visible;
 
@@ -266,6 +280,11 @@ const ActivityCreationWizard = {
                         this.formData.timeclose = new Date(act.timeclose * 1000).toISOString().slice(0, 16);
                     }
                     this.formData.attempts = act.attempts || 1;
+
+                    // Fallback refresh for grade categories if it was assign but labeled assignment etc
+                    if (this.isAssignment && this.gradeCategories.length === 0) {
+                        this.fetchGradeCategories();
+                    }
                 }
             } catch (e) {
                 console.error("Error loading details", e);
@@ -298,6 +317,12 @@ const ActivityCreationWizard = {
             } catch (error) {
                 console.error('Error fetching tags:', error);
             }
+        },
+        stripHtml(html) {
+            if (!html) return '';
+            const tmp = document.createElement("DIV");
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || "";
         }
     }
 };
