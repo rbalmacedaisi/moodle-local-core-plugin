@@ -89,6 +89,7 @@ const ActivityCreationWizard = {
                         <!-- Tags Input -->
                         <v-combobox
                             v-model="formData.tags"
+                            :items="courseTags"
                             label="Etiquetas / Agrupación"
                             multiple
                             chips
@@ -160,6 +161,7 @@ const ActivityCreationWizard = {
                 visible: true,
                 guest: false
             },
+            courseTags: [],
             gradeCategories: []
         };
     },
@@ -167,6 +169,7 @@ const ActivityCreationWizard = {
         if (this.editMode && this.editData) {
             this.fetchActivityDetails(this.editData.id);
         }
+        this.fetchCourseTags();
         if (this.activityType === 'assignment') {
             this.fetchGradeCategories();
         }
@@ -283,6 +286,20 @@ const ActivityCreationWizard = {
                 }
             } catch (error) {
                 console.error('Error fetching categories:', error);
+            }
+        },
+        async fetchCourseTags() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_course_tags',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.courseTags = response.data.tags;
+                }
+            } catch (error) {
+                console.error('Error fetching tags:', error);
             }
         }
     }

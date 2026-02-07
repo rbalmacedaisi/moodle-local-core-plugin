@@ -4037,3 +4037,30 @@ function gmk_get_student_attendance_summary($userid, $classid) {
         return ['absences' => 0];
     }
 }
+/**
+ * Retrieves all unique tags assigned to course modules within a specific course.
+ * Used for lesson/label autocomplete in activity creation.
+ * 
+ * @param int $courseid
+ * @return array List of tag names
+ */
+function gmk_get_course_tags($courseid) {
+    global $DB;
+    
+    $sql = "SELECT DISTINCT t.name
+            FROM {tag} t
+            JOIN {tag_instance} ti ON ti.tagid = t.id
+            JOIN {course_modules} cm ON cm.id = ti.itemid
+            WHERE ti.component = 'core'
+              AND ti.itemtype = 'course_modules'
+              AND cm.course = :courseid";
+              
+    $records = $DB->get_records_sql($sql, ['courseid' => $courseid]);
+    
+    $tags = [];
+    foreach ($records as $r) {
+        $tags[] = $r->name;
+    }
+    
+    return $tags;
+}

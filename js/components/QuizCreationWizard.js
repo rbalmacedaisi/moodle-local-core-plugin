@@ -36,6 +36,7 @@ const QuizCreationWizard = {
 
                         <v-combobox
                             v-model="quiz.tags"
+                            :items="courseTags"
                             label="Etiquetas (opcional)"
                             multiple
                             chips
@@ -235,6 +236,7 @@ const QuizCreationWizard = {
                 attempts: 1,
                 grademethod: 1 // Highest grade
             },
+            courseTags: [],
             attemptOptions: [
                 { text: '1 Intento', value: 1 },
                 { text: '2 Intentos', value: 2 },
@@ -257,6 +259,9 @@ const QuizCreationWizard = {
         dialog(val) {
             if (!val) this.$emit('close');
         }
+    },
+    created() {
+        this.fetchCourseTags();
     },
     methods: {
         closeDialog() {
@@ -315,6 +320,20 @@ const QuizCreationWizard = {
                 this.showErrorDialog = true;
             } finally {
                 this.saving = false;
+            }
+        },
+        async fetchCourseTags() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_course_tags',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.courseTags = response.data.tags;
+                }
+            } catch (error) {
+                console.error('Error fetching tags:', error);
             }
         }
     }

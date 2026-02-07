@@ -2421,9 +2421,17 @@ try {
                 'status' => 'success',
                 'categories' => $formatted_cats
             ];
+            break;
+
+        case 'local_grupomakro_get_course_tags':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+            
+            $tags = gmk_get_course_tags($class->corecourseid);
             $response = [
                 'status' => 'success',
-                'categories' => $formatted_cats
+                'tags' => $tags
             ];
             break;
 
