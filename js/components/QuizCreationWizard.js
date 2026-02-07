@@ -37,11 +37,11 @@ const QuizCreationWizard = {
                         <v-combobox
                             v-model="quiz.tags"
                             :items="courseTags"
-                            label="Etiquetas (opcional)"
-                            multiple
-                            chips
-                            small-chips
+                            label="Etiqueta / Lección"
                             variant="outlined"
+                            hint="Seleccione o escriba el nombre de la lección"
+                            persistent-hint
+                            clearable
                         ></v-combobox>
 
                         <div class="d-flex justify-end mt-4">
@@ -226,7 +226,7 @@ const QuizCreationWizard = {
             quiz: {
                 name: '',
                 intro: '',
-                tags: [],
+                tags: '',
                 dateOpen: new Date().toISOString().substr(0, 10),
                 timeOpen: '00:00',
                 dateClose: new Date(Date.now() + 7 * 86400000).toISOString().substr(0, 10), // +7 days

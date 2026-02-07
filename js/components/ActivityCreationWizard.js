@@ -90,15 +90,12 @@ const ActivityCreationWizard = {
                         <v-combobox
                             v-model="formData.tags"
                             :items="courseTags"
-                            label="Etiquetas / Agrupación"
-                            multiple
-                            chips
-                            small-chips
-                            deletable-chips
+                            label="Etiqueta / Lección"
                             outlined
                             dense
-                            hint="Escriba y presione enter para crear una nueva etiqueta"
+                            hint="Seleccione o escriba el nombre de la lección"
                             persistent-hint
+                            clearable
                         ></v-combobox>
 
                         <div v-if="activityType === 'bbb'" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'blue-grey darken-4' : 'blue lighten-5'">
@@ -157,7 +154,7 @@ const ActivityCreationWizard = {
                 timeclose: '',
                 attempts: 1,
                 gradecat: null,
-                tags: [],
+                tags: '',
                 visible: true,
                 guest: false
             },
@@ -256,7 +253,7 @@ const ActivityCreationWizard = {
                     const act = response.data.activity;
                     this.formData.name = act.name;
                     this.formData.intro = act.intro;
-                    this.formData.tags = act.tags;
+                    this.formData.tags = (act.tags && act.tags.length > 0) ? act.tags[0] : '';
                     this.formData.visible = act.visible;
 
                     if (act.duedate) {
