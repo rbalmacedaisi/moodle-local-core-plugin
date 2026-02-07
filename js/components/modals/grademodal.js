@@ -26,7 +26,52 @@ Vue.component('grademodal', {
                             </div>
                         </div>
 
+                        <!-- NEW: Detailed Course Activities (Contextual) -->
+                        <div v-if="classId && (loadingActivities || courseActivities.length > 0)" class="mb-6">
+                            <div class="d-flex align-center mb-2 px-2 py-1 blue darken-4 rounded white--text">
+                                <v-icon small color="white" class="mr-2">mdi-book-open-variant</v-icon>
+                                <span class="font-weight-bold text-subtitle-1">
+                                    Detalle del Curso Actual
+                                </span>
+                            </div>
+                            
+                            <div v-if="loadingActivities" class="text-center py-4">
+                                <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                <div class="caption grey--text mt-2">Cargando actividades...</div>
+                            </div>
+
+                            <v-simple-table v-else dense class="elevation-1 rounded mb-4">
+                                <template v-slot:default>
+                                    <thead>
+                                        <tr class="blue-grey lighten-5">
+                                            <th class="text-left py-2" style="width: 70%">Actividad</th>
+                                            <th class="text-center py-2">Estado</th>
+                                            <th class="text-right py-2">Calificación</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(act, idx) in courseActivities" :key="idx">
+                                            <td class="text-body-2 py-2">{{ act.name }}</td>
+                                            <td class="text-center py-2">
+                                                <v-chip x-small :color="act.completed ? 'success' : 'grey'" dark label>
+                                                    {{ act.completed ? 'Completado' : 'Pendiente' }}
+                                                </v-chip>
+                                            </td>
+                                            <td class="text-right font-weight-bold py-2" :class="getGradeColor(act.grade)">
+                                                {{ act.grade }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </template>
+                            </v-simple-table>
+                        </div>
+
                         <div class="grade-content">
+                            <div class="d-flex align-center mb-4 px-2 py-1 grey darken-3 rounded white--text" v-if="classId">
+                                <v-icon small color="white" class="mr-2">mdi-history</v-icon>
+                                <span class="font-weight-bold text-subtitle-2">Historial Académico General</span>
+                            </div>
+
                             <div v-for="(career, careerIndex) in (dataStudent.carrers || dataStudent.careers)" :key="careerIndex" class="mb-6">
                                 <div class="d-flex align-center mb-2 px-2 py-1 grey lighten-4 rounded">
                                     <v-icon small color="primary" class="mr-2">mdi-school</v-icon>
@@ -103,13 +148,19 @@ Vue.component('grademodal', {
     data() {
         return {
             dialog: false,
+            courseActivities: [],
+            loadingActivities: false
         };
     },
     props: {
-        dataStudent: Object
+        dataStudent: Object,
+        classId: [Number, String]
     },
     created() {
-        this.getpensum()
+        this.getpensum();
+        if (this.classId) {
+            this.fetchCourseActivities();
+        }
     },
     methods: {
         getGradeColor(grade) {
@@ -125,18 +176,41 @@ Vue.component('grademodal', {
             this.dialog = false
             this.$emit('close-dialog')
         },
+        async fetchCourseActivities() {
+            this.loadingActivities = true;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const params = {
+                    action: 'local_grupomakro_get_student_course_pensum_activities',
+                    sesskey: M.cfg.sesskey,
+                    userId: this.dataStudent.id,
+                    classId: this.classId
+                };
+
+                const response = await window.axios.get(url, { params });
+                if (response.data && response.data.status === 'success' && response.data.data) {
+                    const activitiesJson = response.data.data.activities;
+                    this.courseActivities = typeof activitiesJson === 'string'
+                        ? JSON.parse(activitiesJson)
+                        : (activitiesJson || []);
+                }
+            } catch (error) {
+                console.error('Error fetching course activities:', error);
+            } finally {
+                this.loadingActivities = false;
+            }
+        },
         async getpensum() {
             const careersList = this.dataStudent.carrers || this.dataStudent.careers || [];
             for (const element of careersList) {
                 const data = await this.getcarrers(element.planid);
-                // Data comes back grouped by period id in JSON string from PHP
-                // But getcarrers (below) parses it. Let's make sure it groups by NAME for display.
                 const groupedByPeriodName = {};
 
-                // data is an object where keys are periodids
-                Object.values(data).forEach(periodInfo => {
-                    groupedByPeriodName[periodInfo.periodName] = periodInfo.courses;
-                });
+                if (data && typeof data === 'object') {
+                    Object.values(data).forEach(periodInfo => {
+                        groupedByPeriodName[periodInfo.periodName] = periodInfo.courses;
+                    });
+                }
 
                 this.$set(element, 'periods', groupedByPeriodName);
             }
@@ -144,7 +218,6 @@ Vue.component('grademodal', {
         },
         async getcarrers(id) {
             try {
-                // Using AJAX service instead of REST for better stability in this environment
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
 
                 const params = {
@@ -175,7 +248,7 @@ Vue.component('grademodal', {
         }
     },
     computed: {
-        lang() { return window.strings },
+        lang() { return window.strings || {} },
         token() { return window.userToken; },
         siteUrl() { return window.location.origin + '/local/grupomakro_core/ajax.php' }
     },

@@ -631,6 +631,27 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_course_pensum_activities':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
+            $userid = required_param('userId', PARAM_INT);
+            $classid = required_param('classId', PARAM_INT);
+            
+            // We need courseId from classId
+            $courseid = $DB->get_field('gmk_class', 'courseid', ['id' => $classid]);
+            
+            if (!$courseid) {
+                $response = ['status' => 'error', 'message' => 'Class not found'];
+                break;
+            }
+
+            $result = \local_grupomakro_core\external\student\get_student_course_pensum_activities::execute($userid, $courseid);
+            
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_get_student_info':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
             

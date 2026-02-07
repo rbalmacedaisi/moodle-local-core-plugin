@@ -215,7 +215,7 @@ Vue.component('teacher-student-table', {
                     </template>
                 </v-data-table>
             </v-col>
-            <grademodal v-if="studentsGrades"  :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
+            <grademodal v-if="studentsGrades" :class-id="classId" :dataStudent="studentGradeSelected" @close-dialog="closeDialog"></grademodal>
             
         </v-row>
     `,

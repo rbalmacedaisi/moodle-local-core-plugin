@@ -81,9 +81,12 @@ class get_student_course_pensum_activities extends external_api
 
         try {
             global $DB;
+            \gmk_log("DEBUG get_student_course_pensum_activities - UserID: $userId, CourseID: $courseId");
+            
             $coursemod = get_fast_modinfo($params['courseId'], $params['userId']);
 
             $userGroups = $coursemod->get_groups();
+            \gmk_log("DEBUG get_student_course_pensum_activities - Groups found: " . count($userGroups));
 
             $completion = new \completion_info($coursemod->get_course());
             $gradableActivities = grade_get_gradable_activities($params['courseId']);
@@ -91,32 +94,61 @@ class get_student_course_pensum_activities extends external_api
             $activities = [];
 
             foreach ($userGroups as $userGroup) {
-
                 $groupClassSection = $DB->get_field('gmk_class', 'coursesectionid', ['groupid' => $userGroup]);
 
                 if (!$groupClassSection) {
                     continue;
                 }
-                $classSectionNumber = $coursemod->get_section_info_by_id($groupClassSection)->__get('section');
+                
+                try {
+                    $section = $coursemod->get_section_info_by_id($groupClassSection);
+                    if (!$section) {
+                        \gmk_log("DEBUG get_student_course_pensum_activities - Section $groupClassSection not found in course info");
+                        continue;
+                    }
+                    $classSectionNumber = $section->__get('section');
+                } catch (Exception $secEx) {
+                    \gmk_log("DEBUG get_student_course_pensum_activities - Error getting section info: " . $secEx->getMessage());
+                    continue;
+                }
+
+                if (!isset($coursemod->get_sections()[$classSectionNumber])) {
+                    continue;
+                }
 
                 foreach ($coursemod->get_sections()[$classSectionNumber] as $sectionModule) {
                     $module = $coursemod->get_cm($sectionModule);
                     $moduleRecord = $module->get_course_module_record(true);
                     $moduleType = $moduleRecord->modname;
+                    
                     if ($moduleType === 'bigbluebuttonbn' || !array_key_exists($moduleRecord->id, $gradableActivities)) {
                         continue;
                     }
+
                     $activityInfo = new \stdClass();
                     $activityInfo->name = $moduleRecord->name;
                     $activityInfo->completed = $completion->get_grade_completion($module, $userId);
-                    $activityGrade = grade_get_grades($courseId, 'mod', $moduleType, $moduleRecord->instance, $userId)->items[0]->grades[$userId]->str_grade;
+                    
+                    $gradeItems = grade_get_grades($courseId, 'mod', $moduleType, $moduleRecord->instance, $userId);
+                    $activityGrade = '-';
+                    if (!empty($gradeItems->items[0]->grades[$userId])) {
+                        $activityGrade = $gradeItems->items[0]->grades[$userId]->str_grade;
+                    }
+                    
                     $activityInfo->grade = $activityGrade === '-' ? 'Sin calificar' : $activityGrade;
                     $activities[] = $activityInfo;
                 }
             }
 
-            return ['activities' => json_encode($activities)];
+            \gmk_log("DEBUG get_student_course_pensum_activities - Activities returned: " . count($activities));
+
+            return [
+                'status' => 1,
+                'message' => 'ok',
+                'activities' => json_encode($activities)
+            ];
         } catch (Exception $e) {
+            \gmk_log("DEBUG get_student_course_pensum_activities - CRASH: " . $e->getMessage());
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
