@@ -4020,7 +4020,7 @@ function gmk_get_student_attendance_summary($userid, $classid) {
         $sql = "SELECT COUNT(l.id) 
                 FROM {attendance_log} l
                 JOIN {attendance_sessions} s ON s.id = l.sessionid
-                WHERE l.userid = :userid
+                WHERE l.studentid = :userid
                   AND s.attendanceid = :attid
                   AND s.groupid = :groupid
                   AND l.statusid $insql";

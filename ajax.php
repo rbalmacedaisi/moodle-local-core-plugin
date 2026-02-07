@@ -678,7 +678,7 @@ try {
             $statuses = $DB->get_records('attendance_statuses', ['attendanceid' => $att->id], '', 'id, acronym, description, grade');
             
             // Get all logs for this user in these sessions
-            $logs = $DB->get_records('attendance_log', ['userid' => $userid], '', 'sessionid, statusid');
+            $logs = $DB->get_records('attendance_log', ['studentid' => $userid], '', 'sessionid, statusid');
             
             $details = [];
             foreach ($sessions as $s) {
