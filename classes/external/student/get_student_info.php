@@ -136,7 +136,7 @@ class get_student_info extends external_api {
 
         $query = "
             SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
-            lp.name as career, u.id as userid, u.email as email, u.idnumber,
+            lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
             u.firstname as firstname, u.lastname as lastname $gradeSelect
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
@@ -157,7 +157,7 @@ class get_student_info extends external_api {
             // Fallback for subperiodid if column missing (structural fix for older schemas)
                 $query = "
                     SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
-                    lp.name as career, u.id as userid, u.email as email, u.idnumber,
+                    lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
                     u.firstname as firstname, u.lastname as lastname $gradeSelect
                     FROM {local_learning_plans} lp
                     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
@@ -212,7 +212,8 @@ class get_student_info extends external_api {
                     stripos($user->email, $params['search']) !== false ||
                     stripos($userStatus, $params['search']) !== false ||
                     stripos($finalID, $params['search']) !== false ||
-                    stripos($user->career, $params['search']) !== false
+                    stripos($user->career, $params['search']) !== false ||
+                    stripos($user->phone1, $params['search']) !== false
                 );
                 if (!$match) continue;
             }
@@ -256,6 +257,7 @@ class get_student_info extends external_api {
                     'periods' => [],
                     'subperiods' => $subperiodname,
                     'revalidate' => $revalidate,
+                    'phone' => $user->phone1 ?: '--',
                     'grade' => isset($user->currentgrade) ? round((float)$user->currentgrade, 2) : '--',
                     'financial_status' => $DB->get_field('gmk_financial_status', 'status', ['userid' => $user->userid]) ?: 'unknown',
                     'financial_reason' => $DB->get_field('gmk_financial_status', 'reason', ['userid' => $user->userid]) ?: '',

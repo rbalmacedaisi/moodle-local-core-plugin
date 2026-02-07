@@ -192,7 +192,6 @@ Vue.component('teacher-student-table', {
                         </v-chip>
                     </template>
                     
-                    <!-- NEW: Custom slot for ID Only -->
                     <template v-slot:item.documentnumber="{ item }">
                         <div v-if="item.documentnumber" class="text-body-2 font-weight-medium">
                             <v-icon small left class="mr-1">mdi-card-account-details</v-icon>
@@ -202,6 +201,13 @@ Vue.component('teacher-student-table', {
                             <v-icon small left class="mr-1">mdi-alert-circle-outline</v-icon>
                            (Sin ID)
                         </div>
+                    </template>
+                    
+                    <template v-slot:item.phone="{ item }">
+                         <div class="text-no-wrap text-body-2">
+                             <v-icon small left color="primary" class="mr-1">mdi-phone</v-icon>
+                             {{ item.phone }}
+                         </div>
                     </template>
 
                     <template v-slot:item.grade="{ item }">
@@ -242,6 +248,7 @@ Vue.component('teacher-student-table', {
             },
             { text: lang.period || 'Periodo', value: 'periods', sortable: false, width: '200px' },
             { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
+            { text: 'Teléfono', value: 'phone', sortable: false, width: '150px' },
             { text: lang.status || 'Estado', value: 'status', sortable: false, },
         ];
 
@@ -385,6 +392,7 @@ Vue.component('teacher-student-table', {
                                 revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
                                 status: element.status,
                                 img: element.profileimage,
+                                phone: element.phone,
                                 currentgrade: element.currentgrade || '--'
                             });
                         });
