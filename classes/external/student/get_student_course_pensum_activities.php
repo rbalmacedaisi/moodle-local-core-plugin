@@ -131,11 +131,18 @@ class get_student_course_pensum_activities extends external_api
                     
                     $gradeItems = grade_get_grades($courseId, 'mod', $moduleType, $moduleRecord->instance, $userId);
                     $activityGrade = '-';
+                    $hasGrade = false;
                     if (!empty($gradeItems->items[0]->grades[$userId])) {
-                        $activityGrade = $gradeItems->items[0]->grades[$userId]->str_grade;
+                        $gradeObj = $gradeItems->items[0]->grades[$userId];
+                        $activityGrade = $gradeObj->str_grade;
+                        // Consider completed if it has a numerical grade value
+                        if (isset($gradeObj->grade) && !is_null($gradeObj->grade)) {
+                            $hasGrade = true;
+                        }
                     }
                     
                     $activityInfo->grade = $activityGrade === '-' ? 'Sin calificar' : $activityGrade;
+                    $activityInfo->completed = ($activityInfo->completed || $hasGrade);
                     $activities[] = $activityInfo;
                 }
             }

@@ -66,12 +66,7 @@ Vue.component('grademodal', {
                             </v-simple-table>
                         </div>
 
-                        <div class="grade-content">
-                            <div class="d-flex align-center mb-4 px-2 py-1 grey darken-3 rounded white--text" v-if="classId">
-                                <v-icon small color="white" class="mr-2">mdi-history</v-icon>
-                                <span class="font-weight-bold text-subtitle-2">Historial Académico General</span>
-                            </div>
-
+                        <div class="grade-content" v-if="!classId">
                             <div v-for="(career, careerIndex) in (dataStudent.carrers || dataStudent.careers)" :key="careerIndex" class="mb-6">
                                 <div class="d-flex align-center mb-2 px-2 py-1 grey lighten-4 rounded">
                                     <v-icon small color="primary" class="mr-2">mdi-school</v-icon>
@@ -157,9 +152,11 @@ Vue.component('grademodal', {
         classId: [Number, String]
     },
     created() {
-        this.getpensum();
         if (this.classId) {
             this.fetchCourseActivities();
+            this.dialog = true;
+        } else {
+            this.getpensum();
         }
     },
     methods: {
