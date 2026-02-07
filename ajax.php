@@ -618,6 +618,19 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_learning_plan_pensum':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_learning_plan_pensum.php');
+            $userid = required_param('userId', PARAM_INT);
+            $learningplanid = required_param('learningPlanId', PARAM_INT);
+            
+            $result = \local_grupomakro_core\external\student\get_student_learning_plan_pensum::execute($userid, $learningplanid);
+            
+            $response = [
+                'status' => 'success',
+                'data' => $result
+            ];
+            break;
+
         case 'local_grupomakro_get_student_info':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
             

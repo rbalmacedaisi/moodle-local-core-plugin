@@ -144,33 +144,32 @@ Vue.component('grademodal', {
         },
         async getcarrers(id) {
             try {
+                // Using AJAX service instead of REST for better stability in this environment
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+
                 const params = {
-                    wstoken: this.token,
-                    moodlewsrestformat: 'json',
-                    wsfunction: 'local_grupomakro_get_student_learning_plan_pensum',
+                    action: 'local_grupomakro_get_student_learning_plan_pensum',
+                    sesskey: M.cfg.sesskey,
                     userId: this.dataStudent.id,
                     learningPlanId: id
                 };
 
-                const response = await window.axios.get(this.siteUrl, { params });
+                const response = await window.axios.get(url, { params });
 
-                if (!response.data || !response.data.pensum || response.data.pensum === "undefined") {
-                    // Check if it's already an object (sometimes axios/moodle does weird things)
-                    if (response.data && typeof response.data === 'object' && !response.data.pensum) {
-                        // Fallback: maybe the response itself is the data? Unlikely for this structure.
-                        // Just safely return empty
-                        return {};
-                    }
+                if (!response.data || response.data.status !== 'success' || !response.data.data) {
                     return {};
                 }
 
-                const data = typeof response.data.pensum === 'string'
-                    ? JSON.parse(response.data.pensum)
-                    : response.data.pensum;
+                const result = response.data.data;
+                const pensumStr = result.pensum;
 
-                return data; // Returns the grouped object
+                const data = typeof pensumStr === 'string'
+                    ? JSON.parse(pensumStr)
+                    : pensumStr;
+
+                return data || {};
             } catch (error) {
-                console.error(error);
+                console.error('Error fetching pensum:', error);
                 return {};
             }
         }
@@ -178,6 +177,6 @@ Vue.component('grademodal', {
     computed: {
         lang() { return window.strings },
         token() { return window.userToken; },
-        siteUrl() { return window.location.origin + '/webservice/rest/server.php' }
+        siteUrl() { return window.location.origin + '/local/grupomakro_core/ajax.php' }
     },
 })
