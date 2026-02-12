@@ -485,7 +485,7 @@ echo $OUTPUT->header();
      </div>
 
      <!-- PERIOD FORM MODAL -->
-     <div v-if="showPeriodForm" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" @click.self="showPeriodForm = false">
+     <div v-if="showPeriodForm" style="display: none;" :style="{ display: showPeriodForm ? 'flex' : 'none' }" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" @click.self="showPeriodForm = false">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
              <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                  <h4 class="font-bold text-slate-800">{{ editingPeriod.id ? 'Editar' : 'Crear' }} Periodo Académico</h4>
@@ -665,18 +665,24 @@ echo $OUTPUT->header();
 
 </div>
 
+</script>
+
 <script>
 window.onerror = function(msg, url, line, col, error) {
-    console.error("VUE_CRITICAL_ERROR:", msg, "at line", line);
-    // Don't alert in production, but here it helps debugging
+    console.error("VUE_CRITICAL_ERROR (Global):", msg, "at line", line);
     return false;
 };
-console.log("Vue Planning App: Loading script...");
+</script>
+
+<script>
+console.log("Vue Planning App: Starting main script...");
 const { createApp, ref, computed, onMounted, nextTick, watch, reactive } = Vue;
 
 const app = createApp({
     setup() {
-        const loading = ref(true);
+        try {
+            console.log("Vue Planning App: setup() starting...");
+            const loading = ref(true);
         const rawData = ref([]); 
         const selectedPeriodId = ref(0);
         const periods = ref([]);
@@ -1345,28 +1351,32 @@ const app = createApp({
              nextTick(() => lucide.createIcons());
         });
 
-        return {
-            loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis,
-            // Filters
-            selectedCareer, selectedShift, careers, shifts,
-            activeTab,
-            // Tables
-            manualProjections, filteredStudents, studentStatusFilter, searchTerm,
-            // UI Helpers
-            toRoman, getPeriodLabel, getSuggestionBadgeClass, 
-            getSubjectsForCohortPeriod, getSubjectCount,
-            // Drag
-            handleDragStart, handleDrop, deferredGroups,
-            // Popover
-            openPopover, activePopover,
-            // Calendar
-            calendarYear, monthsLabels, calendarRows,
-            getPeriodsForMonth, getPeriodStyle, 
-            formatDate, formatDateShort, isStartOfMonth,
-            // Configuration / CRUD
-            academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
-            openPeriodModal, savePeriod, getPlanName
-        };
+            return {
+                loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis,
+                // Filters
+                selectedCareer, selectedShift, careers, shifts,
+                activeTab,
+                // Tables
+                manualProjections, filteredStudents, studentStatusFilter, searchTerm,
+                // UI Helpers
+                toRoman, getPeriodLabel, getSuggestionBadgeClass, 
+                getSubjectsForCohortPeriod, getSubjectCount,
+                // Drag
+                handleDragStart, handleDrop, deferredGroups,
+                // Popover
+                openPopover, activePopover,
+                // Calendar
+                calendarYear, monthsLabels, calendarRows,
+                getPeriodsForMonth, getPeriodStyle, 
+                formatDate, formatDateShort, isStartOfMonth,
+                // Configuration / CRUD
+                academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
+                openPeriodModal, savePeriod, getPlanName
+            };
+        } catch (setupError) {
+            console.error("Vue Planning App: CRITICAL ERROR IN setup()", setupError);
+            throw setupError;
+        }
     }
 });
 
