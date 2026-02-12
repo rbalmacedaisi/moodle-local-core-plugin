@@ -679,6 +679,10 @@ const app = createApp({
         const selectedCareer = ref('Todas');
         const selectedShift = ref('Todas');
         
+        // Configuration State
+        const allLearningPlans = ref([]);
+        const saving = ref(false);
+        
         // Manual Adjustments
         const manualProjections = reactive({}); // { SubjectName: Count }
         const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
@@ -693,6 +697,27 @@ const app = createApp({
         // Calendar State
         const calendarYear = ref(new Date().getFullYear());
         const monthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const calendarRows = ref([]); // [[0,1,2,3], [4,5,6,7], [8,9,10,11]]
+
+        const loadCalendarData = () => {
+             // Simple 3x4 grid for months
+             calendarRows.value = [
+                 [0, 1, 2, 3],
+                 [4, 5, 6, 7],
+                 [8, 9, 10, 11]
+             ];
+        };
+
+        const getPeriodsForMonth = (monthIndex) => {
+             const y = calendarYear.value;
+             const startM = new Date(y, monthIndex, 1).getTime() / 1000;
+             const endM = new Date(y, monthIndex + 1, 0).getTime() / 1000;
+             
+             return periods.value.filter(p => {
+                 // Check overlap
+                 return (p.startdate <= endM && p.enddate >= startM);
+             });
+        };
         
         // Moodle Call
         const callMoodle = async (method, args) => {
@@ -760,6 +785,16 @@ const app = createApp({
              rawData.value = res || [];
              loading.value = false;
              nextTick(() => lucide.createIcons());
+        };
+
+        const loadAllPlans = async () => {
+             const res = await callMoodle('local_grupomakro_get_learning_plan_list');
+             allLearningPlans.value = Array.isArray(res) ? res : (res.plans || []);
+        };
+
+        const getPlanName = (id) => {
+             const p = allLearningPlans.value.find(x => x.id === id);
+             return p ? p.name : 'Desconocido';
         };
 
         // --- CORE LOGIC (Ported from React) ---
@@ -1352,7 +1387,7 @@ const app = createApp({
             getPeriodsForMonth, getPeriodStyle, 
             formatDate, formatDateShort, isStartOfMonth,
             // Configuration / CRUD
-            academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
+            periods, allLearningPlans, showPeriodForm, editingPeriod, saving,
             openPeriodModal, savePeriod, getPlanName
         };
     }
