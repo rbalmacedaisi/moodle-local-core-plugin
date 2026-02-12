@@ -24,6 +24,20 @@ echo $OUTPUT->header();
 <!-- Lucide Icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
+<!-- PDF Export Libs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<!-- Scheduler Module Scripts -->
+<script src="../js/utils/scheduler_algorithm.js"></script>
+<script src="../js/utils/pdfExport.js"></script>
+<script src="../js/stores/schedulerStore.js"></script>
+
+<script src="../js/components/scheduler/projections_modal.js"></script>
+<script src="../js/components/scheduler/demand_view.js"></script>
+<script src="../js/components/scheduler/planning_board.js"></script>
+<script src="../js/components/scheduler/scheduler_view.js"></script>
+
 <style>
     .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
     .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -114,6 +128,9 @@ echo $OUTPUT->header();
             </button>
             <button @click="activeTab = 'config'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'config' ? 'border-slate-800 text-slate-900 font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="settings" class="w-4 h-4"></i> Configuración de Periodos
+            </button>
+            <button @click="activeTab = 'scheduler'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'scheduler' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="calendar-clock" class="w-4 h-4"></i> Horarios
             </button>
         </div>
 
@@ -458,6 +475,12 @@ echo $OUTPUT->header();
           </div>
      </div>
 
+          <!-- TAB 6: SCHEDULER MODULE -->
+          <div v-if="activeTab === 'scheduler'" class="space-y-6">
+              <scheduler-view></scheduler-view>
+          </div>
+     </div>
+
      <!-- PERIOD FORM MODAL -->
      <div v-if="showPeriodForm" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" @click.self="showPeriodForm = false">
          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
@@ -642,7 +665,7 @@ echo $OUTPUT->header();
 <script>
 const { createApp, ref, computed, onMounted, nextTick, watch, reactive } = Vue;
 
-createApp({
+const app = createApp({
     setup() {
         const loading = ref(true);
         const rawData = ref([]); 
@@ -1333,7 +1356,15 @@ createApp({
             openPeriodModal, savePeriod, getPlanName
         };
     }
-}).mount('#app');
+// Register Scheduler Components
+if (window.SchedulerComponents) {
+    app.component('scheduler-view', window.SchedulerComponents.SchedulerView);
+    app.component('demand-view', window.SchedulerComponents.DemandView);
+    app.component('planning-board', window.SchedulerComponents.PlanningBoard);
+    app.component('projections-modal', window.SchedulerComponents.ProjectionsModal);
+}
+
+app.mount('#app');
 </script>
 
 <?php
