@@ -78,6 +78,7 @@ echo $OUTPUT->header();
     <div v-if="loading" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-slate-600 font-medium">Procesando Motor de Proyección...</p>
+        <button @click="loading = false" class="mt-4 text-xs text-slate-400 underline uppercase tracking-widest">Forzar Salida (Debug)</button>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -771,11 +772,19 @@ const app = createApp({
         const reloadData = () => fetchData();
 
         const fetchData = async () => {
+             console.log("Vue Planning App: fetchData() starting for period", selectedPeriodId.value);
              loading.value = true;
-             // Call new Backend Logic
-             let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
-             rawData.value = res || [];
-             loading.value = false;
+             try {
+                 // Call new Backend Logic
+                 let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
+                 console.log("Vue Planning App: fetchData() received data:", res ? "SUCCESS" : "EMPTY");
+                 rawData.value = res || [];
+             } catch (e) {
+                 console.error("Vue Planning App: fetchData() FAILED", e);
+             } finally {
+                 loading.value = false;
+                 console.log("Vue Planning App: fetchData() complete, loading=false");
+             }
              nextTick(() => lucide.createIcons());
         };
 
