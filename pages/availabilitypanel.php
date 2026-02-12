@@ -35,7 +35,7 @@ $context = context_system::instance();
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('availability_panel', $plugin_name));
 $PAGE->set_heading(get_string('availability_panel', $plugin_name));
-$PAGE->set_pagelayout('base');
+$PAGE->set_pagelayout('admin');
 
 
 $token = get_logged_user_token();

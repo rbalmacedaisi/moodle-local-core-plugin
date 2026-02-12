@@ -35,7 +35,7 @@ $context = context_system::instance();
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('academic_panel', $plugin_name));
 $PAGE->set_heading(get_string('academic_panel', $plugin_name));
-$PAGE->set_pagelayout('base');
+$PAGE->set_pagelayout('admin');
 
 $strings = new stdClass();
 $strings->delete_available = get_string('delete_available',$plugin_name);
