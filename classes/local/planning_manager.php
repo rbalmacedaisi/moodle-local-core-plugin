@@ -140,7 +140,7 @@ class planning_manager {
                 // Pass raw Current Period/Subperiod from DB Config
                 'currentSemConfig' => $stu->periodname, 
                 'currentSubperiodConfig' => $stu->subperiodname,
-                'pendingSubjects' => $pendingSubjects
+                'pendingSubjects' => $pending
             ];
         }
 

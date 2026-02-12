@@ -786,9 +786,14 @@ const app = createApp({
         };
 
         const loadInitial = async () => {
-             let p = await callMoodle('local_grupomakro_get_periods', {});
+             console.log("Vue Planning App: loadInitial() fetching institutional periods...");
+             let p = await callMoodle('local_grupomakro_get_academic_periods', {});
              periods.value = Array.isArray(p) ? p : [];
-             if(periods.value.length > 0 && selectedPeriodId.value === 0) selectedPeriodId.value = periods.value[0].id;
+             console.log("Vue Planning App: loadInitial() periods loaded:", periods.value.length);
+             
+             if(periods.value.length > 0 && selectedPeriodId.value === 0) {
+                 selectedPeriodId.value = periods.value[0].id;
+             }
              fetchData();
         };
 
