@@ -633,8 +633,8 @@ createApp({
 
         const loadInitial = async () => {
              let p = await callMoodle('local_grupomakro_get_periods', {});
-             periods.value = p || [];
-             if(p.length > 0 && selectedPeriodId.value === 0) selectedPeriodId.value = p[0].id;
+             periods.value = Array.isArray(p) ? p : [];
+             if(periods.value.length > 0 && selectedPeriodId.value === 0) selectedPeriodId.value = periods.value[0].id;
              fetchData();
         };
 
@@ -643,16 +643,19 @@ createApp({
         const fetchData = async () => {
              loading.value = true;
              // Call new Backend Logic
-             rawData.value = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
+             let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
+             rawData.value = res || [];
              loading.value = false;
              nextTick(() => lucide.createIcons());
         };
 
         // --- CORE LOGIC (Ported from React) ---
         const analysis = computed(() => {
-            if (rawData.value.length === 0) return { subjectList: [], cohortViewList: [], studentList: [] };
+            if (!rawData.value || (Array.isArray(rawData.value) && rawData.value.length === 0)) return { subjectList: [], cohortViewList: [], studentList: [] };
 
             let filtered = Array.isArray(rawData.value) ? rawData.value : (rawData.value.students || []);
+            if (!Array.isArray(filtered)) filtered = [];
+
             // Filter Source Data
             if (selectedCareer.value !== 'Todas') filtered = filtered.filter(s => s.career === selectedCareer.value);
             if (selectedShift.value !== 'Todas') filtered = filtered.filter(s => s.shift === selectedShift.value);
@@ -779,7 +782,7 @@ createApp({
                 // So applied filters logic IS correct here.
                 // if (selectedShift.value !== 'Todas' && stu.shift !== selectedShift.value) return;
                 
-                stu.pendingSubjects.forEach(subj => {
+                (stu.pendingSubjects || []).forEach(subj => {
                     // Only count if Priority (Prereqs Met)?
                     // "La Ola" usually counts next immediate need.
                      // "La Ola" usually counts next immediate need.
@@ -887,7 +890,7 @@ createApp({
             const openSubjectsSet = new Set(subjectsArray.filter(s => s.isOpen).map(s => s.name));
             
             const studentAnalysisList = Object.values(students).map(stu => {
-                const priority = stu.pendingSubjects.filter(s => s.isPriority);
+                const priority = (stu.pendingSubjects || []).filter(s => s.isPriority);
                 
                 // Check if projected to open in P-I (Index 0)
                 const projected = priority.filter(s => {
@@ -926,8 +929,14 @@ createApp({
             });
         });
 
-        const careers = computed(() => ['Todas', ...new Set(rawData.value.map(s => s.career))].sort());
-        const shifts = computed(() => ['Todas', ...new Set(rawData.value.map(s => s.shift))].sort());
+        const careers = computed(() => {
+            const raw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
+            return ['Todas', ...new Set(raw.map(s => s.career))].sort();
+        });
+        const shifts = computed(() => {
+            const raw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
+            return ['Todas', ...new Set(raw.map(s => s.shift))].sort();
+        });
         
         const filteredStudents = computed(() => {
              return analysis.value.studentList.filter(s => {
@@ -1091,10 +1100,14 @@ createApp({
             ];
 
             // Get unique plans from periods
-            academicPeriods.value.forEach(p => {
-                const lpids = p.learningplans || [];
+            const pList = Array.isArray(academicPeriods.value) ? academicPeriods.value : [];
+            const masterPeriods = Array.isArray(periods.value) ? periods.value : [];
+
+            pList.forEach(p => {
+                if (!p) return;
+                const lpids = Array.isArray(p.learningplans) ? p.learningplans : [];
                 lpids.forEach(lpid => {
-                    const lpInfo = periods.value.find(lp => lp.id == lpid);
+                    const lpInfo = masterPeriods.find(lp => lp.id == lpid);
                     const lpName = lpInfo ? lpInfo.name : `Plan ${lpid}`;
 
                     // Filter by career if selected
