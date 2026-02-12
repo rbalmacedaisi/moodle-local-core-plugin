@@ -83,7 +83,10 @@ Vue.component('academicpanel', {
                 },
             ],
             tab: null,
-            tabs: ['Estudiantes', 'oferta académica'],
+            tabs: ['Estudiantes', 'oferta académica'], // Original value
+            // - [x] Verificar edición de Periodo Académico (Persistencia de Bloques y Fechas)
+            // - [x] Corrección de error de montaje Vue y redundancia de etiquetas `</div>` en `academic_planning.php`
+            // - [ ] Documentación: Manual de Usuario para administradores
             dialogCalendario: false
         }
     },

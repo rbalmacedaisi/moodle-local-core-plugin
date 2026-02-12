@@ -78,11 +78,13 @@ echo $OUTPUT->header();
     <div v-if="loading" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
         <p class="text-slate-600 font-medium">Procesando Motor de Proyección...</p>
-        <button @click="loading = false" class="mt-4 text-xs text-slate-400 underline uppercase tracking-widest">Forzar Salida (Debug)</button>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div v-else-if="analysis">
+    <!-- APP CONTENT -->
+    <div v-else>
+        
+        <!-- MAIN VIEW (Requires Analysis) -->
+        <div v-if="analysis">
         
         <!-- GLOBAL CONTEXT -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6 sticky top-2 z-20 border-t-4 border-t-blue-500">
@@ -477,13 +479,15 @@ echo $OUTPUT->header();
                   </table>
               </div>
           </div>
-     </div>
 
           <!-- TAB 6: SCHEDULER MODULE -->
           <div v-if="activeTab === 'scheduler'" class="space-y-6">
               <scheduler-view></scheduler-view>
           </div>
-     </div>
+        </div> <!-- End of analysis wrapper -->
+    </div> <!-- End of loading=false wrapper -->
+
+    <!-- MODALS (Stay inside root, outside layout containers) -->
 
      <!-- PERIOD FORM MODAL -->
      <div v-if="showPeriodForm" style="display: none;" :style="{ display: showPeriodForm ? 'flex' : 'none' }" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" @click.self="showPeriodForm = false">
