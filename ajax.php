@@ -438,11 +438,13 @@ try {
             $enddate = required_param('enddate', PARAM_INT);
             $status = optional_param('status', 1, PARAM_INT);
             $learningplans = optional_param('learningplans', '', PARAM_RAW); // Expecting JSON array string
+            $detailsParam = optional_param('details', '', PARAM_RAW); // Expecting JSON object
             
             $lpArray = json_decode($learningplans, true) ?: [];
+            $detailsArray = json_decode($detailsParam, true) ?: [];
             
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
-            $resId = \local_grupomakro_core\external\admin\planning::save_period($id, $name, $startdate, $enddate, $status, $lpArray);
+            $resId = \local_grupomakro_core\external\admin\planning::save_period($id, $name, $startdate, $enddate, $status, $lpArray, $detailsArray);
             $response = ['status' => 'success', 'data' => ['id' => $resId]];
             break;
 
