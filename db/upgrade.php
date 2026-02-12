@@ -1358,7 +1358,6 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         $table->add_key('class_fk', XMLDB_KEY_FOREIGN, ['classid'], 'gmk_class', ['id']);
         $table->add_key('classroom_fk', XMLDB_KEY_FOREIGN, ['classroomid'], 'gmk_classrooms', ['id']);
         $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
-        $table->add_index('class_idx', XMLDB_INDEX_NOTUNIQUE, ['classid']);
 
         if (!$dbman->table_exists($table)) {
             $dbman->create_table($table);

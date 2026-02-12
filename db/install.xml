@@ -609,9 +609,6 @@
         <KEY NAME="classroom_fk" TYPE="foreign" FIELDS="classroomid" REFTABLE="gmk_classrooms" REFFIELDS="id"/>
         <KEY NAME="usermodified" TYPE="foreign" FIELDS="usermodified" REFTABLE="user" REFFIELDS="id"/>
       </KEYS>
-      <INDEXES>
-        <INDEX NAME="class_idx" UNIQUE="false" FIELDS="classid"/>
-      </INDEXES>
     </TABLE>
     <TABLE NAME="gmk_academic_projections" COMMENT="Manual student projections for scheduler">
       <FIELDS>
