@@ -1,4 +1,4 @@
-Vue.component('academicpanel',{
+Vue.component('academicpanel', {
     template: `
         <v-container fluid style="max-width: 100% !important;" class="w-100">
             <v-row justify="center" class="my-2 mx-0 ">
@@ -50,9 +50,9 @@ Vue.component('academicpanel',{
             </v-row>  
         </v-container>
     `,
-    data(){
-        return{
-            items:[
+    data() {
+        return {
+            items: [
                 {
                     name: 'Calendario',
                     icon: 'mdi-calendar-text',
@@ -75,6 +75,13 @@ Vue.component('academicpanel',{
                     url: '/local/grupomakro_core/pages/schedulepanel.php'
                 },
                 {
+                    name: 'Planificador',
+                    icon: 'mdi-layers-triple',
+                    iconColor: '#C0D9F9',
+                    iconText: '#1E40AF',
+                    url: '/local/grupomakro_core/pages/academic_planning.php'
+                },
+                {
                     name: 'Instructores',
                     icon: 'mdi-clipboard-account',
                     iconColor: '#B5E8B8',
@@ -87,10 +94,10 @@ Vue.component('academicpanel',{
             dialogCalendario: false
         }
     },
-    created(){
-    },  
-    methods:{
-        
+    created() {
+    },
+    methods: {
+
     },
     computed: {
         /**
@@ -99,7 +106,7 @@ Vue.component('academicpanel',{
          *
          * @returns '{string}' - The constructed site URL.
          */
-        siteUrl(){
+        siteUrl() {
             return window.location.origin + '/webservice/rest/server.php'
         },
         /**
@@ -108,7 +115,7 @@ Vue.component('academicpanel',{
          *
          * @returns '{object}' - Language-related data.
          */
-        lang(){
+        lang() {
             return window.strings
         },
         /**
@@ -116,7 +123,7 @@ Vue.component('academicpanel',{
          *
          * @returns '{string}' - The user token.
          */
-        token(){
+        token() {
             return window.userToken;
         },
     },
