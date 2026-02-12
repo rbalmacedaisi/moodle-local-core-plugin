@@ -466,42 +466,132 @@ echo $OUTPUT->header();
                  <button @click="showPeriodForm = false" class="p-1 hover:bg-slate-200 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
              </div>
              
-             <div class="p-6 space-y-4">
-                 <div>
-                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre del Periodo</label>
-                     <input type="text" v-model="editingPeriod.name" placeholder="Ej: 2026-I" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-                 </div>
-                 
-                 <div class="grid grid-cols-2 gap-4">
+             <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                 <div class="space-y-4">
+                     <h5 class="text-sm font-bold text-blue-600 border-b pb-1 uppercase tracking-wider">Información Básica</h5>
                      <div>
-                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
-                         <input type="date" v-model="editingPeriod.startdate_raw" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                         <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre del Periodo</label>
+                         <input type="text" v-model="editingPeriod.name" placeholder="Ej: 2026-I" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                      </div>
-                     <div>
-                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de Fin</label>
-                         <input type="date" v-model="editingPeriod.enddate_raw" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
+                             <input type="date" v-model="editingPeriod.startdate_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Fin</label>
+                             <input type="date" v-model="editingPeriod.enddate_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                         </div>
+                     </div>
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Hito: Inducción</label>
+                             <input type="date" v-model="editingPeriod.induction_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Hito: Graduación</label>
+                             <input type="date" v-model="editingPeriod.graduation_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                         </div>
                      </div>
                  </div>
 
-                 <div>
-                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Estado</label>
-                     <div class="flex items-center gap-2 mt-2">
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" v-model="editingPeriod.status" :true-value="1" :false-value="0" class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                            <span class="ml-3 text-sm font-medium" :class="editingPeriod.status ? 'text-green-700' : 'text-slate-500'">{{ editingPeriod.status ? 'Abierto' : 'Cerrado' }}</span>
-                        </label>
+                 <div class="space-y-4">
+                     <h5 class="text-sm font-bold text-indigo-600 border-b pb-1 uppercase tracking-wider">Bloques Académicos (P-I & P-II)</h5>
+                     <div class="grid grid-cols-2 gap-4 bg-indigo-50/50 p-2 rounded">
+                         <div>
+                             <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1">P-I (Inicio)</label>
+                             <input type="date" v-model="editingPeriod.block1start_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1">P-I (Fin)</label>
+                             <input type="date" v-model="editingPeriod.block1end_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                         </div>
                      </div>
-                     <p class="text-[10px] text-slate-400 mt-1 italic">* Si se marca como cerrado, ya no aparecerá como opción base en los filtros.</p>
+                     <div class="grid grid-cols-2 gap-4 bg-indigo-50/50 p-2 rounded">
+                         <div>
+                             <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1">P-II (Inicio)</label>
+                             <input type="date" v-model="editingPeriod.block2start_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-indigo-500 uppercase mb-1">P-II (Fin)</label>
+                             <input type="date" v-model="editingPeriod.block2end_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm" />
+                         </div>
+                     </div>
                  </div>
 
-                 <div>
-                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Planes de Aprendizaje (Carreras)</label>
-                     <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 max-h-40 overflow-y-auto space-y-2 text-slate-900 font-bold">
-                         <label v-for="plan in allLearningPlans" :key="plan.id" class="flex items-center gap-2 cursor-pointer hover:bg-slate-200 p-1 rounded transition-colors">
-                             <input type="checkbox" :value="plan.id" v-model="editingPeriod.learningplans" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 shrink-0" />
-                             <span class="text-xs text-slate-800 leading-tight uppercase">{{ plan.name }}</span>
-                         </label>
+                 <div class="space-y-4">
+                     <h5 class="text-sm font-bold text-orange-600 border-b pb-1 uppercase tracking-wider">Exámenes & Matrículas</h5>
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block text-[10px] font-bold text-orange-500 uppercase mb-1">Exámen Final (Desde)</label>
+                             <input type="date" v-model="editingPeriod.finalexamfrom_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-orange-500 uppercase mb-1">Exámen Final (Hasta)</label>
+                             <input type="date" v-model="editingPeriod.finalexamuntil_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                         </div>
+                     </div>
+                     <div class="grid grid-cols-2 gap-4 bg-orange-50/30 p-2 rounded">
+                         <div>
+                             <label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">Matrículas (Desde)</label>
+                             <input type="date" v-model="editingPeriod.registrationsfrom_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-orange-400 outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-orange-600 uppercase mb-1">Matrículas (Hasta)</label>
+                             <input type="date" v-model="editingPeriod.registrationsuntil_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-orange-400 outline-none text-sm" />
+                         </div>
+                     </div>
+                     <div>
+                         <label class="block text-[10px] font-bold text-orange-500 uppercase mb-1">Carga de Notas y Cierre</label>
+                         <input type="date" v-model="editingPeriod.loadnotes_raw" class="w-full px-3 py-1.5 border rounded focus:ring-2 focus:ring-orange-500 outline-none text-sm" />
+                     </div>
+                 </div>
+
+                 <div class="space-y-4">
+                     <h5 class="text-sm font-bold text-emerald-600 border-b pb-1 uppercase tracking-wider">Procesos de Reválidas</h5>
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Entrega Listas Rev.</label>
+                             <input type="date" v-model="editingPeriod.delivlist_raw" class="w-full px-3 py-1.5 border rounded outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Notif. Estudiantes</label>
+                             <input type="date" v-model="editingPeriod.notifreval_raw" class="w-full px-3 py-1.5 border rounded outline-none text-sm" />
+                         </div>
+                     </div>
+                     <div class="grid grid-cols-2 gap-4">
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Plazo de Pago</label>
+                             <input type="date" v-model="editingPeriod.deadlinereval_raw" class="w-full px-3 py-1.5 border rounded outline-none text-sm" />
+                         </div>
+                         <div>
+                             <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Proceso / Ejecución</label>
+                             <input type="date" v-model="editingPeriod.revalprocess_raw" class="w-full px-3 py-1.5 border rounded outline-none text-sm" />
+                         </div>
+                     </div>
+                 </div>
+
+                 <div class="flex flex-col gap-4">
+                     <h5 class="text-sm font-bold text-slate-700 border-b pb-1 uppercase tracking-wider">Configuración General</h5>
+                     <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Estado del Periodo</label>
+                         <div class="flex items-center gap-2 mt-2">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="editingPeriod.status" :true-value="1" :false-value="0" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                <span class="ml-3 text-sm font-medium" :class="editingPeriod.status ? 'text-green-700' : 'text-slate-500'">{{ editingPeriod.status ? 'Abierto' : 'Cerrado' }}</span>
+                            </label>
+                         </div>
+                     </div>
+
+                     <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Planes de Aprendizaje (Carreras)</label>
+                         <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 max-h-40 overflow-y-auto space-y-2 text-slate-900 font-bold">
+                             <label v-for="plan in allLearningPlans" :key="plan.id" class="flex items-center gap-2 cursor-pointer hover:bg-slate-200 p-1 rounded transition-colors">
+                                 <input type="checkbox" :value="plan.id" v-model="editingPeriod.learningplans" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 shrink-0" />
+                                 <span class="text-xs text-slate-800 leading-tight uppercase">{{ plan.name }}</span>
+                             </label>
+                         </div>
                      </div>
                  </div>
              </div>
@@ -1003,7 +1093,23 @@ createApp({
                      startdate_raw: d1.toISOString().split('T')[0],
                      enddate_raw: d2.toISOString().split('T')[0],
                      status: parseInt(period.status),
-                     learningplans: [...(period.learningplans || [])]
+                     learningplans: [...(period.learningplans || [])],
+                     // Detailed fields
+                     induction_raw: period.induction ? new Date(period.induction * 1000).toISOString().split('T')[0] : '',
+                     block1start_raw: period.block1start ? new Date(period.block1start * 1000).toISOString().split('T')[0] : '',
+                     block1end_raw: period.block1end ? new Date(period.block1end * 1000).toISOString().split('T')[0] : '',
+                     block2start_raw: period.block2start ? new Date(period.block2start * 1000).toISOString().split('T')[0] : '',
+                     block2end_raw: period.block2end ? new Date(period.block2end * 1000).toISOString().split('T')[0] : '',
+                     finalexamfrom_raw: period.finalexamfrom ? new Date(period.finalexamfrom * 1000).toISOString().split('T')[0] : '',
+                     finalexamuntil_raw: period.finalexamuntil ? new Date(period.finalexamuntil * 1000).toISOString().split('T')[0] : '',
+                     loadnotes_raw: period.loadnotesandclosesubjects ? new Date(period.loadnotesandclosesubjects * 1000).toISOString().split('T')[0] : '',
+                     delivlist_raw: period.delivoflistforrevalbyteach ? new Date(period.delivoflistforrevalbyteach * 1000).toISOString().split('T')[0] : '',
+                     notifreval_raw: period.notiftostudforrevalidations ? new Date(period.notiftostudforrevalidations * 1000).toISOString().split('T')[0] : '',
+                     deadlinereval_raw: period.deadlforpayofrevalidations ? new Date(period.deadlforpayofrevalidations * 1000).toISOString().split('T')[0] : '',
+                     revalprocess_raw: period.revalidationprocess ? new Date(period.revalidationprocess * 1000).toISOString().split('T')[0] : '',
+                     registrationsfrom_raw: period.registrationsfrom ? new Date(period.registrationsfrom * 1000).toISOString().split('T')[0] : '',
+                     registrationsuntil_raw: period.registrationsuntil ? new Date(period.registrationsuntil * 1000).toISOString().split('T')[0] : '',
+                     graduation_raw: period.graduationdate ? new Date(period.graduationdate * 1000).toISOString().split('T')[0] : ''
                  };
              } else {
                  editingPeriod.value = {
@@ -1012,7 +1118,12 @@ createApp({
                      startdate_raw: '',
                      enddate_raw: '',
                      status: 1,
-                     learningplans: []
+                     learningplans: [],
+                     induction_raw: '', block1start_raw: '', block1end_raw: '', 
+                     block2start_raw: '', block2end_raw: '', finalexamfrom_raw: '',
+                     finalexamuntil_raw: '', loadnotes_raw: '', delivlist_raw: '',
+                     notifreval_raw: '', deadlinereval_raw: '', revalprocess_raw: '',
+                     registrationsfrom_raw: '', registrationsuntil_raw: '', graduation_raw: ''
                  };
              }
              showPeriodForm.value = true;
@@ -1027,8 +1138,13 @@ createApp({
              
              saving.value = true;
              
-             const startTs = Math.floor(new Date(editingPeriod.value.startdate_raw + 'T00:00:00').getTime() / 1000);
-             const endTs = Math.floor(new Date(editingPeriod.value.enddate_raw + 'T23:59:59').getTime() / 1000);
+             const toTs = (d, end = false) => {
+                 if (!d) return 0;
+                 return Math.floor(new Date(d + (end ? 'T23:59:59' : 'T00:00:00')).getTime() / 1000);
+             };
+             
+             const startTs = toTs(editingPeriod.value.startdate_raw);
+             const endTs = toTs(editingPeriod.value.enddate_raw, true);
              
              try {
                 const res = await callMoodle('local_grupomakro_save_academic_period', {
@@ -1037,7 +1153,24 @@ createApp({
                     startdate: startTs,
                     enddate: endTs,
                     status: editingPeriod.value.status,
-                    learningplans: JSON.stringify(editingPeriod.value.learningplans)
+                    learningplans: JSON.stringify(editingPeriod.value.learningplans),
+                    details: {
+                        induction: toTs(editingPeriod.value.induction_raw),
+                        block1start: toTs(editingPeriod.value.block1start_raw),
+                        block1end: toTs(editingPeriod.value.block1end_raw, true),
+                        block2start: toTs(editingPeriod.value.block2start_raw),
+                        block2end: toTs(editingPeriod.value.block2end_raw, true),
+                        finalexamfrom: toTs(editingPeriod.value.finalexamfrom_raw),
+                        finalexamuntil: toTs(editingPeriod.value.finalexamuntil_raw, true),
+                        loadnotesandclosesubjects: toTs(editingPeriod.value.loadnotes_raw),
+                        delivoflistforrevalbyteach: toTs(editingPeriod.value.delivlist_raw),
+                        notiftostudforrevalidations: toTs(editingPeriod.value.notifreval_raw),
+                        deadlforpayofrevalidations: toTs(editingPeriod.value.deadlinereval_raw),
+                        revalidationprocess: toTs(editingPeriod.value.revalprocess_raw),
+                        registrationsfrom: toTs(editingPeriod.value.registrationsfrom_raw),
+                        registrationsuntil: toTs(editingPeriod.value.registrationsuntil_raw, true),
+                        graduationdate: toTs(editingPeriod.value.graduation_raw)
+                    }
                 });
                 
                 if (res) {
@@ -1071,7 +1204,12 @@ createApp({
             startdate_raw: '',
             enddate_raw: '',
             status: 1,
-            learningplans: []
+            learningplans: [],
+            induction_raw: '', block1start_raw: '', block1end_raw: '', 
+            block2start_raw: '', block2end_raw: '', finalexamfrom_raw: '',
+            finalexamuntil_raw: '', loadnotes_raw: '', delivlist_raw: '',
+            notifreval_raw: '', deadlinereval_raw: '', revalprocess_raw: '',
+            registrationsfrom_raw: '', registrationsuntil_raw: '', graduation_raw: ''
         });
 
         const loadCalendarData = async () => {
