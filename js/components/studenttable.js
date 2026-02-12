@@ -541,7 +541,13 @@ Vue.component('studenttable', {
                                 updatingFinancial: false,
                                 academicperiodid: element.academicperiodid,
                                 academicperiodname: element.academicperiodname || '--',
-                                updatingAcademicPeriod: false
+                                updatingAcademicPeriod: false,
+                                updatingPeriod: null,
+                                revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
+                                status: element.status,
+                                img: element.profileimage,
+                                currentgrade: element.currentgrade || '--',
+                                financial_status: element.financial_status || 'none',
                             });
                         });
                     }
