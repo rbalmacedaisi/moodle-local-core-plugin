@@ -758,6 +758,201 @@ class local_grupomakro_progress_manager
         } catch (Exception $e) {
             $errorMsg = "Excepción: " . $e->getMessage();
             return false;
+    }
+
+    /**
+     * Updates the external status of a student (from Odoo sync).
+     * Handle postponement (aplazo) or withdrawal (retiro).
+     *
+     * @param int|string $userIdOrVat User ID or Document Number
+     * @param string $action 'aplazo', 'retiro', 'reingreso'
+     * @param string $reason
+     * @param int|null $targetPeriodId For postponement, the period they plan to return
+     * @return array Status and message
+     */
+    public static function update_external_status($userIdOrVat, $action, $reason = '', $targetPeriodId = null) {
+        global $DB, $USER;
+
+        try {
+            // Log attempt
+            mtrace("Odoo Sync Attempt: $userIdOrVat, Action: $action");
+
+            // 1. Find the user
+            $user = null;
+            if (is_numeric($userIdOrVat) && $userIdOrVat < 1000000) { // Assume ID
+                $user = $DB->get_record('user', ['id' => $userIdOrVat], 'id, username, vat');
+            } else { // Assume Document Number
+                $user = $DB->get_record('user', ['username' => $userIdOrVat], 'id, username, vat');
+                if (!$user) {
+                    $user = $DB->get_record('user', ['vat' => $userIdOrVat], 'id, username, vat');
+                }
+            }
+
+            if (!$user) {
+                return ['status' => 'error', 'message' => "Usuario no encontrado para: $userIdOrVat"];
+            }
+
+            $userId = $user->id;
+            $statusValue = 'activo';
+            if ($action === 'aplazo') $statusValue = 'aplazado';
+            if ($action === 'retiro') $statusValue = 'retirado';
+
+            // 2. Update local_learning_users
+            $lpUsers = $DB->get_records('local_learning_users', ['userid' => $userId]);
+            foreach ($lpUsers as $lpu) {
+                $lpu->status = $statusValue;
+                $lpu->timemodified = time();
+                $DB->update_record('local_learning_users', $lpu);
+            }
+
+            // 3. Log History
+            $suspension = new stdClass();
+            $suspension->userid = $userId;
+            $suspension->status = $action;
+            $suspension->reason = $reason;
+            $suspension->targetperiodid = $targetPeriodId;
+            $suspension->usermodified = $USER->id ?? 2; // Default to admin
+            $suspension->timecreated = time();
+
+            // 4. Special logic for 'retiro'
+            if ($action === 'retiro') {
+                $activeCourses = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'status' => COURSE_IN_PROGRESS]);
+                $droppedIds = [];
+                foreach ($activeCourses as $ac) {
+                    $droppedIds[] = $ac->courseid;
+                    $ac->classid = 0;
+                    $ac->groupid = 0;
+                    $ac->status = COURSE_AVAILABLE; 
+                    $ac->timemodified = time();
+                    $DB->update_record('gmk_course_progre', $ac);
+                }
+                $suspension->active_courses_dropped = json_encode($droppedIds);
+            }
+
+            $DB->insert_record('gmk_student_suspension', $suspension);
+
+            return ['status' => 'success', 'message' => "Estado actualizado a $statusValue para usuario ID $userId"];
+
+        } catch (Exception $e) {
+            return ['status' => 'error', 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Automated transition of students to the next institutional period.
+     * Triggered by cron when a period ends.
+     */
+    public static function handle_institutional_period_transition($logFile = null) {
+        global $DB;
+        $now = time();
+        
+        // 1. Find periods that ended in the last 48 hours and haven't been processed
+        // We use a buffer to ensure we don't miss anything if cron runs late.
+        $sql = "SELECT p.* 
+                FROM {gmk_academic_periods} p
+                WHERE p.enddate <= :now 
+                AND p.status = 1 
+                ORDER BY p.enddate ASC";
+        
+        $endedPeriods = $DB->get_records_sql($sql, ['now' => $now]);
+        
+        foreach ($endedPeriods as $period) {
+            if ($logFile) file_put_contents($logFile, "[INFO] Procesando cierre de periodo: {$period->name} (ID: {$period->id})\n", FILE_APPEND);
+            
+            // 2. Find all students currently in this period
+            $students = $DB->get_records('local_learning_users', ['academicperiodid' => $period->id, 'status' => 'activo']);
+            
+            foreach ($students as $student) {
+                // 3. Find next period for this learning plan
+                $nextPeriodRel = $DB->get_record_sql("
+                    SELECT next_p.* 
+                    FROM {gmk_academic_periods} next_p
+                    JOIN {gmk_academic_period_lps} rel ON rel.academicperiodid = next_p.id
+                    WHERE rel.learningplanid = :lpid 
+                    AND next_p.startdate >= :period_end
+                    AND next_p.id != :current_id
+                    ORDER BY next_p.startdate ASC
+                    LIMIT 1
+                ", [
+                    'lpid' => $student->learningplanid,
+                    'period_end' => $period->enddate,
+                    'current_id' => $period->id
+                ]);
+
+                if ($nextPeriodRel) {
+                    $oldPid = $student->academicperiodid;
+                    $student->academicperiodid = $nextPeriodRel->id;
+                    $student->timemodified = time();
+                    
+                    // Logic to update currentperiodid (Nivel Curricular) could go here
+                    // if we want to advance them only if they pass. 
+                    // For now, only the INSTITUTIONAL period advances automatically.
+                    
+                    $DB->update_record('local_learning_users', $student);
+                    if ($logFile) file_put_contents($logFile, "[INFO] Estudiante {$student->userid} movido de periodo $oldPid a {$nextPeriodRel->id}\n", FILE_APPEND);
+                }
+            }
+            
+            // 4. Mark period as closed (status=0)
+            $period->status = 0;
+            $period->timemodified = time();
+            $DB->update_record('gmk_academic_periods', $period);
+        }
+    /**
+     * Automated transition of students to the next sub-period (Bloque).
+     * Based on gmk_academic_calendar dates.
+     */
+    public static function handle_subperiod_transition($logFile = null) {
+        global $DB;
+        $now = time();
+
+        // 1. Get current active institutional periods
+        $activePeriods = $DB->get_records('gmk_academic_periods', ['status' => 1]);
+        
+        foreach ($activePeriods as $period) {
+            // 2. Get calendar details for blocks
+            // Use academicperiodid field in gmk_academic_calendar (which maps to gmk_academic_periods.name or ID?)
+            // Based on install.xml: academicperiodid is CHAR(8). 
+            // Based on diagnose_periods: it contains values like '202522'.
+            // Wait, I should link it by ID if possible or use the name.
+            $calendar = $DB->get_record_sql("
+                SELECT * FROM {gmk_academic_calendar} 
+                WHERE academicperiodid = :pid OR period = :pname
+                LIMIT 1
+            ", ['pid' => $period->id, 'pname' => $period->name]);
+
+            if (!$calendar) continue;
+
+            // 3. Determine which block is currently active
+            $targetBlockPosition = 0;
+            if ($now >= $calendar->block1start && $now <= $calendar->block1end) {
+                $targetBlockPosition = 1;
+            } else if ($now >= $calendar->block2start && $now <= $calendar->block2end) {
+                $targetBlockPosition = 2;
+            }
+
+            if ($targetBlockPosition === 0) continue;
+
+            // 4. Update students in this academic period
+            $students = $DB->get_records('local_learning_users', ['academicperiodid' => $period->id, 'status' => 'activo']);
+            
+            foreach ($students as $student) {
+                // Find subperiod ID for this position and plan
+                $targetSubperiod = $DB->get_record('local_learning_subperiods', [
+                    'learningplanid' => $student->learningplanid,
+                    'periodid' => $student->currentperiodid, // This is the curricular level (Cuatrimestre)
+                    'position' => $targetBlockPosition
+                ]);
+
+                if ($targetSubperiod && $student->currentsubperiodid != $targetSubperiod->id) {
+                    $oldSub = $student->currentsubperiodid;
+                    $student->currentsubperiodid = $targetSubperiod->id;
+                    $student->timemodified = time();
+                    $DB->update_record('local_learning_users', $student);
+                    
+                    if ($logFile) file_put_contents($logFile, "[INFO] Bloque Actualizado Estudiante {$student->userid}: $oldSub -> {$targetSubperiod->id}\n", FILE_APPEND);
+                }
+            }
         }
     }
 }

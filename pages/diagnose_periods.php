@@ -6,6 +6,11 @@ $context = context_system::instance();
 require_login();
 require_capability('moodle/site:config', $context);
 
+$PAGE->set_url('/local/grupomakro_core/pages/diagnose_periods.php');
+$PAGE->set_context($context);
+$PAGE->set_title('Diagnóstico de Periodos');
+$PAGE->set_heading('Diagnóstico de Periodos Académicos');
+
 echo $OUTPUT->header();
 echo "<h1>Diagnóstico de Periodos Académicos</h1>";
 

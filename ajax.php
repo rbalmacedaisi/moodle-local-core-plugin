@@ -425,6 +425,12 @@ try {
             }
             break;
 
+        case 'local_grupomakro_get_academic_periods':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $periods = \local_grupomakro_core\external\admin\planning::get_periods();
+            $response = ['status' => 'success', 'data' => $periods];
+            break;
+
         case 'local_grupomakro_get_periods':
             $planid = optional_param('planid', 0, PARAM_INT);
             if ($planid > 0) {
@@ -435,10 +441,18 @@ try {
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
 
-        case 'local_grupomakro_get_academic_periods':
-            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
-            $periods = \local_grupomakro_core\external\admin\planning::get_periods();
-            $response = ['status' => 'success', 'data' => $periods];
+        case 'local_grupomakro_odoo_status_sync':
+            $userIdOrVat = optional_param('userid', null, PARAM_INT);
+            if (!$userIdOrVat) {
+                $userIdOrVat = required_param('document_number', PARAM_RAW);
+            }
+            $action = required_param('action', PARAM_ALPHA);
+            $reason = optional_param('reason', '', PARAM_TEXT);
+            $targetPeriodId = optional_param('target_period_id', null, PARAM_INT);
+
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+            $res = \local_grupomakro_progress_manager::update_external_status($userIdOrVat, $action, $reason, $targetPeriodId);
+            $response = $res;
             break;
 
         case 'local_grupomakro_get_plan_subperiods':
