@@ -294,19 +294,51 @@ class get_student_info extends external_api {
                         'academicperiodid' => $user->academicperiodid,
                         'academicperiodname' => $user->academicperiodname
                     ];
+                } else {
+                     // Check if this specific plan/period combination already exists to prevent duplicates
+                     // This can happen if the SQL returns multiple rows for the same user/plan due to other joins
+                     $exists = false;
+                     foreach ($userData[$user->userid]['careers'] as $existingCareer) {
+                        if ($existingCareer['planid'] == $user->planid && $existingCareer['periodid'] == $user->periodid) {
+                            $exists = true;
+                            break;
+                        }
+                     }
+                     if (!$exists) {
+                        $userData[$user->userid]['careers'][] = [
+                            'planid' => $user->planid,
+                            'career' => $user->career,
+                            'periodname' => $periodname,
+                            'periodid' => $user->periodid,
+                            'subperiodname' => $subperiodname,
+                            'subperiodid' => $user->subperiodid,
+                            'academicperiodid' => $user->academicperiodid,
+                            'academicperiodname' => $user->academicperiodname
+                        ];
+                     }
                 }
             } else {
-                 // No class context or class has no plan, just append (avoiding full duplicates if any)
-                $userData[$user->userid]['careers'][] = [
-                    'planid' => $user->planid,
-                    'career' => $user->career,
-                    'periodname' => $periodname,
-                    'periodid' => $user->periodid,
-                    'subperiodname' => $subperiodname,
-                    'subperiodid' => $user->subperiodid,
-                    'academicperiodid' => $user->academicperiodid,
-                    'academicperiodname' => $user->academicperiodname
-                ];
+                 // No class context or class has no plan
+                 // Check for duplicates before adding
+                 $exists = false;
+                 foreach ($userData[$user->userid]['careers'] as $existingCareer) {
+                    if ($existingCareer['planid'] == $user->planid && $existingCareer['periodid'] == $user->periodid) {
+                        $exists = true;
+                        break;
+                    }
+                 }
+                 if (!$exists) {
+                    $userData[$user->userid]['careers'][] = [
+                        'planid' => $user->planid,
+                        'career' => $user->career,
+                        'periodname' => $periodname,
+                        'periodid' => $user->periodid,
+                        'subperiodname' => $subperiodname,
+                        'subperiodid' => $user->subperiodid,
+                        'academicperiodid' => $user->academicperiodid,
+                        'academicperiodname' => $user->academicperiodname
+                    ];
+                 }
             }
             
             // Deduplicate careers array just in case (e.g. SQL returned multiple rows for same plan/period)
