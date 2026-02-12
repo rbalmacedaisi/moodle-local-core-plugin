@@ -1154,7 +1154,7 @@ createApp({
                     enddate: endTs,
                     status: editingPeriod.value.status,
                     learningplans: JSON.stringify(editingPeriod.value.learningplans),
-                    details: {
+                    details: JSON.stringify({
                         induction: toTs(editingPeriod.value.induction_raw),
                         block1start: toTs(editingPeriod.value.block1start_raw),
                         block1end: toTs(editingPeriod.value.block1end_raw, true),
@@ -1170,7 +1170,7 @@ createApp({
                         registrationsfrom: toTs(editingPeriod.value.registrationsfrom_raw),
                         registrationsuntil: toTs(editingPeriod.value.registrationsuntil_raw, true),
                         graduationdate: toTs(editingPeriod.value.graduation_raw)
-                    }
+                    })
                 });
                 
                 if (res) {
