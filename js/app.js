@@ -46,7 +46,7 @@ window.axios.get(wsUrl, { params: getThemeSettingsParams })
 
     // Create a Vue instance for the application.
     const app = new window.Vue({
-      el: '#app',
+      el: '#gmk-app',
       vuetify: new window.Vuetify({
         treeShake: true,
         theme: {
