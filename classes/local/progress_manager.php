@@ -758,6 +758,7 @@ class local_grupomakro_progress_manager
         } catch (Exception $e) {
             $errorMsg = "Excepción: " . $e->getMessage();
             return false;
+        }
     }
 
     /**
@@ -898,6 +899,8 @@ class local_grupomakro_progress_manager
             $period->timemodified = time();
             $DB->update_record('gmk_academic_periods', $period);
         }
+    }
+
     /**
      * Automated transition of students to the next sub-period (Bloque).
      * Based on gmk_academic_calendar dates.
