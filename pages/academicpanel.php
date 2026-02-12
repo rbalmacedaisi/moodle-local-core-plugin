@@ -61,6 +61,8 @@ $strings->quarters = get_string('quarters', $plugin_name);
 $strings->state = get_string('state', $plugin_name);
 $strings->close = get_string('close', $plugin_name);
 $strings->grades = get_string('grades', $plugin_name);
+$strings->grades = get_string('grades', $plugin_name);
+$strings->period = get_string('academic_level', $plugin_name);
 $strings->pensum = get_string('pensum', $plugin_name);
 
 $strings = json_encode($strings);
