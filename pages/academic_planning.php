@@ -54,7 +54,7 @@ echo $OUTPUT->header();
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
 
-<div id="app" v-cloak class="bg-slate-50 min-h-screen p-4 font-sans text-slate-800">
+<div id="academic-planning-root" v-cloak class="bg-slate-50 min-h-screen p-4 font-sans text-slate-800">
     
     <!-- HEADER -->
     <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -64,7 +64,7 @@ echo $OUTPUT->header();
                 Planificador de Oferta Académica
             </h1>
             <p class="text-slate-500 text-sm">
-                 Proyección de Olas & Análisis de Impacto (Regla &ge; 12)
+                 Proyección de Olas & Análisis de Impacto (Regla &ge; 12) <span class="text-[10px] bg-slate-200 px-1 rounded ml-2">v1.2-Safe</span>
             </p>
         </div>
         <div class="flex gap-2">
@@ -238,7 +238,7 @@ echo $OUTPUT->header();
                          </div>
                          <div class="text-center bg-white px-3 py-1 rounded border border-slate-200">
                              <span class="block text-xl font-bold text-slate-700">{{ cohort.studentCount }}</span>
-                             <span className="text-[10px] text-slate-400 uppercase">Est.</span>
+                             <span class="text-[10px] text-slate-400 uppercase">Est.</span>
                          </div>
                      </div>
                      
@@ -684,9 +684,28 @@ const app = createApp({
         try {
             console.log("Vue Planning App: setup() starting...");
             const loading = ref(true);
-        const rawData = ref([]); 
-        const selectedPeriodId = ref(0);
-        const periods = ref([]);
+            const rawData = ref([]); 
+            const selectedPeriodId = ref(0);
+            const periods = ref([]);
+            
+            // CRUD & Config State
+            const academicPeriods = ref([]);
+            const allLearningPlans = ref([]);
+            const showPeriodForm = ref(false);
+            const saving = ref(false);
+            const editingPeriod = ref({
+                id: 0,
+                name: '',
+                startdate_raw: '',
+                enddate_raw: '',
+                status: 1,
+                learningplans: [],
+                induction_raw: '', block1start_raw: '', block1end_raw: '', 
+                block2start_raw: '', block2end_raw: '', finalexamfrom_raw: '',
+                finalexamuntil_raw: '', loadnotes_raw: '', delivlist_raw: '',
+                notifreval_raw: '', deadlinereval_raw: '', revalprocess_raw: '',
+                registrationsfrom_raw: '', registrationsuntil_raw: '', graduation_raw: ''
+            });
         
         const urlParams = new URLSearchParams(window.location.search);
         const activeTab = ref(urlParams.get('tab') || 'planning');
@@ -1051,11 +1070,16 @@ const app = createApp({
                 return { ...stu, projectedSubjects: projected, missingSubjects: missing, status, loadCount: projected.length };
             });
 
-            return {
-                subjectList: subjectsArray.sort((a,b) => b.totalP1 - a.totalP1),
-                cohortViewList: Object.values(cohorts).sort((a,b) => b.studentCount - a.studentCount),
-                studentList: studentAnalysisList
-            };
+            try {
+                return {
+                    subjectList: subjectsArray.sort((a,b) => b.totalP1 - a.totalP1),
+                    cohortViewList: Object.values(cohorts).sort((a,b) => b.studentCount - a.studentCount),
+                    studentList: studentAnalysisList
+                };
+            } catch (err) {
+                console.error("Vue Planning App: ERROR in analysis engine", err);
+                return { subjectList: [], cohortViewList: [], studentList: [] };
+            }
         });
 
         // -- Computed Properties based on Analysis --
@@ -1105,15 +1129,12 @@ const app = createApp({
         };
         
         const getSubjectCount = (subjName, pIdx, cohortKey) => {
-            // Find count in analysis structure logic... tricky to verify without full map exposure.
-            // But we have analysis computed.
-            // Simplified:
-            // We need to access 'analysis.value.subjectList' find subject -> find groupP(X) -> count.
-            // Ideally we shouldn't scan loops in render.
-            // BUT for cohort view we already have the list.
-            // Let's pass 'count' via data attribute? No.
-            // We can infer it if we had the Subject Map exposed.
-            // For now, return 0 or implement optimization if slow.
+            const subj = analysis.value.subjectList.find(s => s.name === subjName);
+            if (!subj) return 0;
+            const groupKey = 'groupsP' + (pIdx + 1);
+            if (subj[groupKey] && subj[groupKey][cohortKey]) {
+                return subj[groupKey][cohortKey].count;
+            }
             return 0; 
         };
 
@@ -1133,6 +1154,7 @@ const app = createApp({
         // -- Popover --
         // -- Popover --
         const openPeriodModal = (period = null) => {
+             console.log("Vue Planning App: openPeriodModal() called", period ? "editing" : "creating");
              if (period) {
                  const d1 = new Date(period.startdate * 1000);
                  const d2 = new Date(period.enddate * 1000);
@@ -1244,24 +1266,6 @@ const app = createApp({
         };
 
         // --- CALENDAR LOGIC ---
-        const academicPeriods = ref([]);
-        const allLearningPlans = ref([]);
-        const showPeriodForm = ref(false);
-        const saving = ref(false);
-        const editingPeriod = ref({
-            id: 0,
-            name: '',
-            startdate_raw: '',
-            enddate_raw: '',
-            status: 1,
-            learningplans: [],
-            induction_raw: '', block1start_raw: '', block1end_raw: '', 
-            block2start_raw: '', block2end_raw: '', finalexamfrom_raw: '',
-            finalexamuntil_raw: '', loadnotes_raw: '', delivlist_raw: '',
-            notifreval_raw: '', deadlinereval_raw: '', revalprocess_raw: '',
-            registrationsfrom_raw: '', registrationsuntil_raw: '', graduation_raw: ''
-        });
-
         const loadCalendarData = async () => {
              // We need to fetch from gmk_academic_periods
              let res = await callMoodle('local_grupomakro_get_academic_periods', {});
@@ -1399,7 +1403,7 @@ if (window.SchedulerComponents) {
 
 console.log("Vue Planning App: Attempting to mount...");
 try {
-    app.mount('#app');
+    app.mount('#academic-planning-root');
     console.log("Vue Planning App: Mount successful");
 } catch (e) {
     console.error("Vue Planning App: Mount failed!", e);
