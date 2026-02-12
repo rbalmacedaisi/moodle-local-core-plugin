@@ -1095,21 +1095,21 @@ createApp({
                      status: parseInt(period.status),
                      learningplans: [...(period.learningplans || [])],
                      // Detailed fields
-                     induction_raw: period.induction ? new Date(period.induction * 1000).toISOString().split('T')[0] : '',
-                     block1start_raw: period.block1start ? new Date(period.block1start * 1000).toISOString().split('T')[0] : '',
-                     block1end_raw: period.block1end ? new Date(period.block1end * 1000).toISOString().split('T')[0] : '',
-                     block2start_raw: period.block2start ? new Date(period.block2start * 1000).toISOString().split('T')[0] : '',
-                     block2end_raw: period.block2end ? new Date(period.block2end * 1000).toISOString().split('T')[0] : '',
-                     finalexamfrom_raw: period.finalexamfrom ? new Date(period.finalexamfrom * 1000).toISOString().split('T')[0] : '',
-                     finalexamuntil_raw: period.finalexamuntil ? new Date(period.finalexamuntil * 1000).toISOString().split('T')[0] : '',
-                     loadnotes_raw: period.loadnotesandclosesubjects ? new Date(period.loadnotesandclosesubjects * 1000).toISOString().split('T')[0] : '',
-                     delivlist_raw: period.delivoflistforrevalbyteach ? new Date(period.delivoflistforrevalbyteach * 1000).toISOString().split('T')[0] : '',
-                     notifreval_raw: period.notiftostudforrevalidations ? new Date(period.notiftostudforrevalidations * 1000).toISOString().split('T')[0] : '',
-                     deadlinereval_raw: period.deadlforpayofrevalidations ? new Date(period.deadlforpayofrevalidations * 1000).toISOString().split('T')[0] : '',
-                     revalprocess_raw: period.revalidationprocess ? new Date(period.revalidationprocess * 1000).toISOString().split('T')[0] : '',
-                     registrationsfrom_raw: period.registrationsfrom ? new Date(period.registrationsfrom * 1000).toISOString().split('T')[0] : '',
-                     registrationsuntil_raw: period.registrationsuntil ? new Date(period.registrationsuntil * 1000).toISOString().split('T')[0] : '',
-                     graduation_raw: period.graduationdate ? new Date(period.graduationdate * 1000).toISOString().split('T')[0] : ''
+                     induction_raw: (period.induction && period.induction > 0) ? new Date(period.induction * 1000).toISOString().split('T')[0] : '',
+                     block1start_raw: (period.block1start && period.block1start > 0) ? new Date(period.block1start * 1000).toISOString().split('T')[0] : '',
+                     block1end_raw: (period.block1end && period.block1end > 0) ? new Date(period.block1end * 1000).toISOString().split('T')[0] : '',
+                     block2start_raw: (period.block2start && period.block2start > 0) ? new Date(period.block2start * 1000).toISOString().split('T')[0] : '',
+                     block2end_raw: (period.block2end && period.block2end > 0) ? new Date(period.block2end * 1000).toISOString().split('T')[0] : '',
+                     finalexamfrom_raw: (period.finalexamfrom && period.finalexamfrom > 0) ? new Date(period.finalexamfrom * 1000).toISOString().split('T')[0] : '',
+                     finalexamuntil_raw: (period.finalexamuntil && period.finalexamuntil > 0) ? new Date(period.finalexamuntil * 1000).toISOString().split('T')[0] : '',
+                     loadnotes_raw: (period.loadnotesandclosesubjects && period.loadnotesandclosesubjects > 0) ? new Date(period.loadnotesandclosesubjects * 1000).toISOString().split('T')[0] : '',
+                     delivlist_raw: (period.delivoflistforrevalbyteach && period.delivoflistforrevalbyteach > 0) ? new Date(period.delivoflistforrevalbyteach * 1000).toISOString().split('T')[0] : '',
+                     notifreval_raw: (period.notiftostudforrevalidations && period.notiftostudforrevalidations > 0) ? new Date(period.notiftostudforrevalidations * 1000).toISOString().split('T')[0] : '',
+                     deadlinereval_raw: (period.deadlforpayofrevalidations && period.deadlforpayofrevalidations > 0) ? new Date(period.deadlforpayofrevalidations * 1000).toISOString().split('T')[0] : '',
+                     revalprocess_raw: (period.revalidationprocess && period.revalidationprocess > 0) ? new Date(period.revalidationprocess * 1000).toISOString().split('T')[0] : '',
+                     registrationsfrom_raw: (period.registrationsfrom && period.registrationsfrom > 0) ? new Date(period.registrationsfrom * 1000).toISOString().split('T')[0] : '',
+                     registrationsuntil_raw: (period.registrationsuntil && period.registrationsuntil > 0) ? new Date(period.registrationsuntil * 1000).toISOString().split('T')[0] : '',
+                     graduation_raw: (period.graduationdate && period.graduationdate > 0) ? new Date(period.graduationdate * 1000).toISOString().split('T')[0] : ''
                  };
              } else {
                  editingPeriod.value = {
