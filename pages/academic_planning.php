@@ -1355,7 +1355,7 @@ const app = createApp({
             getPeriodsForMonth, getPeriodStyle, 
             formatDate, formatDateShort, isStartOfMonth,
             // Configuration / CRUD
-            periods, allLearningPlans, showPeriodForm, editingPeriod, saving,
+            periods, academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
             openPeriodModal, savePeriod, getPlanName
         };
     }
