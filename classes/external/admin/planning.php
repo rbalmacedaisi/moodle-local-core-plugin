@@ -240,7 +240,22 @@ class planning extends external_api {
                 'startdate' => new external_value(PARAM_INT, 'Start Date'),
                 'enddate' => new external_value(PARAM_INT, 'End Date'),
                 'status' => new external_value(PARAM_INT, 'Status'),
-                'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL)
+                'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL),
+                'induction' => new external_value(PARAM_INT, 'Induction', VALUE_OPTIONAL),
+                'block1start' => new external_value(PARAM_INT, 'Block 1 Start', VALUE_OPTIONAL),
+                'block1end' => new external_value(PARAM_INT, 'Block 1 End', VALUE_OPTIONAL),
+                'block2start' => new external_value(PARAM_INT, 'Block 2 Start', VALUE_OPTIONAL),
+                'block2end' => new external_value(PARAM_INT, 'Block 2 End', VALUE_OPTIONAL),
+                'finalexamfrom' => new external_value(PARAM_INT, 'Final Exam From', VALUE_OPTIONAL),
+                'finalexamuntil' => new external_value(PARAM_INT, 'Final Exam Until', VALUE_OPTIONAL),
+                'loadnotesandclosesubjects' => new external_value(PARAM_INT, 'Load Notes', VALUE_OPTIONAL),
+                'delivoflistforrevalbyteach' => new external_value(PARAM_INT, 'Delivery lists', VALUE_OPTIONAL),
+                'notiftostudforrevalidations' => new external_value(PARAM_INT, 'Notification', VALUE_OPTIONAL),
+                'deadlforpayofrevalidations' => new external_value(PARAM_INT, 'Deadline pay', VALUE_OPTIONAL),
+                'revalidationprocess' => new external_value(PARAM_INT, 'Revalidation', VALUE_OPTIONAL),
+                'registrationsfrom' => new external_value(PARAM_INT, 'Registrations From', VALUE_OPTIONAL),
+                'registrationsuntil' => new external_value(PARAM_INT, 'Registrations Until', VALUE_OPTIONAL),
+                'graduationdate' => new external_value(PARAM_INT, 'Graduation', VALUE_OPTIONAL)
             ])
         );
     }
@@ -252,13 +267,30 @@ class planning extends external_api {
             'startdate' => new external_value(PARAM_INT, 'Start Timestamp'),
             'enddate' => new external_value(PARAM_INT, 'End Timestamp'),
             'status' => new external_value(PARAM_INT, 'Status', VALUE_DEFAULT, 1),
-            'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_DEFAULT, [])
+            'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_DEFAULT, []),
+            'details' => new external_single_structure([
+                'induction' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block1start' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block1end' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block2start' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'block2end' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'finalexamfrom' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'finalexamuntil' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'loadnotesandclosesubjects' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'delivoflistforrevalbyteach' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'notiftostudforrevalidations' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'deadlforpayofrevalidations' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'revalidationprocess' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'registrationsfrom' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'registrationsuntil' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+                'graduationdate' => new external_value(PARAM_INT, '', VALUE_DEFAULT, 0),
+            ], 'Detailed calendar hitos', VALUE_DEFAULT, [])
         ]);
     }
     
-    public static function save_period($id, $name, $startdate, $enddate, $status, $learningplans = []) {
+    public static function save_period($id, $name, $startdate, $enddate, $status, $learningplans = [], $details = []) {
         global $DB;
-         $context = \context_system::instance();
+        $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
         
@@ -288,6 +320,50 @@ class planning extends external_api {
             $rel->usermodified = $GLOBALS['USER']->id;
             $rel->timecreated = time();
             $DB->insert_record('gmk_academic_period_lps', $rel);
+        }
+        
+        // Sync Calendar Details
+        $cal = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => (string)$periodid]);
+        if (!$cal) {
+            $cal = $DB->get_record('gmk_academic_calendar', ['period' => $name]);
+        }
+        
+        $newCal = new stdClass();
+        if ($cal) $newCal->id = $cal->id;
+        
+        $newCal->academicperiodid = (string)$periodid;
+        $newCal->period = $name;
+        $newCal->year = date('Y', $startdate);
+        $newCal->yearquarter = '0'; // default
+        $newCal->bimester = '';
+        $newCal->bimesternumber = '0';
+        $newCal->periodstart = $startdate;
+        $newCal->periodend = $enddate;
+        
+        // Detailed fields
+        $fields = [
+            'induction', 'block1start', 'block1end', 'block2start', 'block2end',
+            'finalexamfrom', 'finalexamuntil', 'loadnotesandclosesubjects',
+            'delivoflistforrevalbyteach', 'notiftostudforrevalidations',
+            'deadlforpayofrevalidations', 'revalidationprocess',
+            'registrationsfrom', 'registrationsuntil', 'graduationdate'
+        ];
+        
+        foreach ($fields as $f) {
+            $newCal->$f = isset($details[$f]) ? $details[$f] : 0;
+        }
+        
+        // Special case: hassubperiods
+        $newCal->hassubperiods = ($newCal->block1start > 0 || $newCal->block2start > 0) ? 1 : 0;
+        
+        $newCal->timemodified = time();
+        $newCal->usermodified = $GLOBALS['USER']->id;
+        
+        if (isset($newCal->id)) {
+            $DB->update_record('gmk_academic_calendar', $newCal);
+        } else {
+            $newCal->timecreated = time();
+            $DB->insert_record('gmk_academic_calendar', $newCal);
         }
 
         return $periodid;
