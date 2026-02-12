@@ -135,7 +135,7 @@ class get_student_info extends external_api {
         }
 
         $query = "
-            lpu.currentsubperiodid as subperiodid, lpu.academicperiodid, gap.name as academicperiodname, lp.id as planid, 
+            SELECT lpu.id, lpu.currentsubperiodid as subperiodid, lpu.academicperiodid, gap.name as academicperiodname, lp.id as planid, 
             lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
             u.firstname as firstname, u.lastname as lastname $gradeSelect
             FROM {local_learning_plans} lp
