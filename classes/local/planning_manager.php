@@ -3,6 +3,7 @@ namespace local_grupomakro_core\local;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 class planning_manager {
@@ -83,7 +84,7 @@ class planning_manager {
                         'id' => $c->id,
                         'name' => $c->fullname,
                         'semester_num' => $c->semester_num,
-                        'semester_name' => $c->semester_name ?? '' // Use $c->semester_name instead of $r->semester_name
+                        'semester_name' => $c->semester_name ?? ''
                     ];
                 }
             }
@@ -132,19 +133,26 @@ class planning_manager {
             // We'll pass the explicit "Current Period" from DB ($stu->periodname) but also let Frontend calculate.
             
             $studentList[] = [
-                'id' => $stu->idnumber ? $stu->idnumber : $stu->id, // Prefer ID Number for display
-                'dbId' => $stu->id,
-                'name' => $stu->firstname . ' ' . $stu->lastname,
-                'career' => $stu->planname,
-                'shift' => $stu->shift,
+                'id' => $u->idnumber ? $u->idnumber : $u->id, // Prefer ID Number for display
+                'dbId' => $u->id,
+                'name' => $u->firstname . ' ' . $u->lastname,
+                'career' => $u->planname,
+                'shift' => $u->shift,
                 // Pass raw Current Period/Subperiod from DB Config
-                'currentSemConfig' => $stu->periodname, 
-                'currentSubperiodConfig' => $stu->subperiodname,
+                'currentSemConfig' => $u->periodname, 
+                'currentSubperiodConfig' => $u->subperiodname,
                 'pendingSubjects' => $pending
             ];
         }
 
-        return $studentList;
+        return [
+            'students' => $studentList,
+            'debug' => [
+                'rawCount' => count($studentsRaw),
+                'structureCount' => count($structures),
+                'selectedPeriod' => $periodId
+            ]
+        ];
     }
 
     /**

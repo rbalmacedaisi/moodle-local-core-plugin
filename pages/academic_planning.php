@@ -64,7 +64,7 @@ echo $OUTPUT->header();
                 Planificador de Oferta Académica
             </h1>
             <p class="text-slate-500 text-sm">
-                 Proyección de Olas & Análisis de Impacto (Regla &ge; 12) <span class="text-[10px] bg-slate-200 px-1 rounded ml-2">v1.2-Safe</span>
+                 Proyección de Olas & Análisis de Impacto (Regla &ge; 12) <span class="text-[10px] bg-slate-200 px-1 rounded ml-2">v1.3-Debug</span>
             </p>
         </div>
         <div class="flex gap-2">
