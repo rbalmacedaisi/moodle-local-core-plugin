@@ -44,6 +44,9 @@ echo $OUTPUT->header();
     .slide-enter-active, .slide-leave-active { transition: transform 0.3s ease; }
     .slide-enter-from, .slide-leave-to { transform: translateY(10px); opacity: 0; }
     
+    /* v-cloak to hide uncompiled template */
+    [v-cloak] { display: none !important; }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -51,7 +54,7 @@ echo $OUTPUT->header();
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>
 
-<div id="app" class="bg-slate-50 min-h-screen p-4 font-sans text-slate-800">
+<div id="app" v-cloak class="bg-slate-50 min-h-screen p-4 font-sans text-slate-800">
     
     <!-- HEADER -->
     <header class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -663,6 +666,12 @@ echo $OUTPUT->header();
 </div>
 
 <script>
+window.onerror = function(msg, url, line, col, error) {
+    console.error("VUE_CRITICAL_ERROR:", msg, "at line", line);
+    // Don't alert in production, but here it helps debugging
+    return false;
+};
+console.log("Vue Planning App: Loading script...");
 const { createApp, ref, computed, onMounted, nextTick, watch, reactive } = Vue;
 
 const app = createApp({
@@ -1355,7 +1364,7 @@ const app = createApp({
             getPeriodsForMonth, getPeriodStyle, 
             formatDate, formatDateShort, isStartOfMonth,
             // Configuration / CRUD
-            periods, academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
+            academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
             openPeriodModal, savePeriod, getPlanName
         };
     }
@@ -1369,7 +1378,13 @@ if (window.SchedulerComponents) {
     app.component('projections-modal', window.SchedulerComponents.ProjectionsModal);
 }
 
-app.mount('#app');
+console.log("Vue Planning App: Attempting to mount...");
+try {
+    app.mount('#app');
+    console.log("Vue Planning App: Mount successful");
+} catch (e) {
+    console.error("Vue Planning App: Mount failed!", e);
+}
 </script>
 
 <?php
