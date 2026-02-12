@@ -227,6 +227,24 @@ class planning extends external_api {
         $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC');
         foreach ($periods as $p) {
             $p->learningplans = array_values($DB->get_records_menu('gmk_academic_period_lps', ['academicperiodid' => $p->id], '', 'id, learningplanid'));
+            
+            // Fetch Calendar Details
+            $cal = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $p->id]);
+            if ($cal) {
+                // Merge calendar fields
+                $fields = [
+                    'induction', 'block1start', 'block1end', 'block2start', 'block2end',
+                    'finalexamfrom', 'finalexamuntil', 'loadnotesandclosesubjects',
+                    'delivoflistforrevalbyteach', 'notiftostudforrevalidations',
+                    'deadlforpayofrevalidations', 'revalidationprocess',
+                    'registrationsfrom', 'registrationsuntil', 'graduationdate'
+                ];
+                foreach ($fields as $f) {
+                    if (isset($cal->$f)) {
+                        $p->$f = $cal->$f;
+                    }
+                }
+            }
         }
         
         return array_values($periods);
