@@ -1356,6 +1356,8 @@ const app = createApp({
             openPeriodModal, savePeriod, getPlanName
         };
     }
+});
+
 // Register Scheduler Components
 if (window.SchedulerComponents) {
     app.component('scheduler-view', window.SchedulerComponents.SchedulerView);
