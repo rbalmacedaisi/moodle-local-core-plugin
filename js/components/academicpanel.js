@@ -58,7 +58,7 @@ Vue.component('academicpanel', {
                     icon: 'mdi-calendar-text',
                     iconColor: '#F4B4DB',
                     iconText: '#492053',
-                    url: '/local/grupomakro_core/pages/academiccalendar.php'
+                    url: '/local/grupomakro_core/pages/academic_planning.php?tab=config'
                 },
                 {
                     name: 'Clases',
@@ -73,13 +73,6 @@ Vue.component('academicpanel', {
                     iconColor: '#FABFA2',
                     iconText: '#59402e',
                     url: '/local/grupomakro_core/pages/schedulepanel.php'
-                },
-                {
-                    name: 'Planificador',
-                    icon: 'mdi-layers-triple',
-                    iconColor: '#C0D9F9',
-                    iconText: '#1E40AF',
-                    url: '/local/grupomakro_core/pages/academic_planning.php'
                 },
                 {
                     name: 'Instructores',

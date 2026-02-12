@@ -431,6 +431,21 @@ try {
             $response = ['status' => 'success', 'data' => $periods];
             break;
 
+        case 'local_grupomakro_save_academic_period':
+            $id = optional_param('id', 0, PARAM_INT);
+            $name = required_param('name', PARAM_TEXT);
+            $startdate = required_param('startdate', PARAM_INT);
+            $enddate = required_param('enddate', PARAM_INT);
+            $status = optional_param('status', 1, PARAM_INT);
+            $learningplans = optional_param('learningplans', '', PARAM_RAW); // Expecting JSON array string
+            
+            $lpArray = json_decode($learningplans, true) ?: [];
+            
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $resId = \local_grupomakro_core\external\admin\planning::save_period($id, $name, $startdate, $enddate, $status, $lpArray);
+            $response = ['status' => 'success', 'data' => ['id' => $resId]];
+            break;
+
         case 'local_grupomakro_get_periods':
             $planid = optional_param('planid', 0, PARAM_INT);
             if ($planid > 0) {
@@ -453,6 +468,11 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
             $res = \local_grupomakro_progress_manager::update_external_status($userIdOrVat, $action, $reason, $targetPeriodId);
             $response = $res;
+            break;
+
+        case 'local_grupomakro_get_all_learning_plans':
+            $plans = $DB->get_records('local_learning_plans', [], 'name ASC', 'id, name');
+            $response = ['status' => 'success', 'data' => array_values($plans)];
             break;
 
         case 'local_grupomakro_get_plan_subperiods':

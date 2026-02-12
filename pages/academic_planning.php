@@ -112,6 +112,9 @@ echo $OUTPUT->header();
             <button @click="activeTab = 'calendar'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'calendar' ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="calendar-days" class="w-4 h-4"></i> Calendario Anual
             </button>
+            <button @click="activeTab = 'config'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'config' ? 'border-slate-800 text-slate-900 font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="settings" class="w-4 h-4"></i> Configuración de Periodos
+            </button>
         </div>
 
          <!-- TAB 1: PLANNING -->
@@ -404,7 +407,114 @@ echo $OUTPUT->header();
                 </div>
             </div>
          </div>
-    </div>
+
+          <!-- TAB 5: CONFIGURATION (CRUD) -->
+          <div v-show="activeTab === 'config'" class="space-y-6">
+              <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-xl font-bold text-slate-800">Administración de Periodos Institucionales</h3>
+                  <button @click="openPeriodModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-bold shadow-md">
+                      <i data-lucide="plus" class="w-4 h-4"></i> Nuevo Periodo
+                  </button>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <table class="w-full text-left border-collapse">
+                      <thead>
+                          <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                              <th class="p-4 border-b">Nombre del Periodo</th>
+                              <th class="p-4 border-b">Fecha Inicio</th>
+                              <th class="p-4 border-b">Fecha Fin</th>
+                              <th class="p-4 border-b">Planes Vinculados</th>
+                              <th class="p-4 border-b text-center">Estado</th>
+                              <th class="p-4 border-b text-right">Acciones</th>
+                          </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-sm">
+                          <tr v-for="p in academicPeriods" :key="p.id" class="hover:bg-slate-50 transition-colors">
+                              <td class="p-4 font-bold text-slate-700">{{ p.name }}</td>
+                              <td class="p-4">{{ formatDate(p.startdate) }}</td>
+                              <td class="p-4">{{ formatDate(p.enddate) }}</td>
+                              <td class="p-4">
+                                  <div class="flex flex-wrap gap-1">
+                                      <span v-for="lpid in p.learningplans" :key="lpid" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">
+                                          {{ getPlanName(lpid) }}
+                                      </span>
+                                      <span v-if="!p.learningplans || p.learningplans.length === 0" class="text-slate-400 italic text-xs">Sin planes vinculados</span>
+                                  </div>
+                              </td>
+                              <td class="p-4 text-center">
+                                  <span v-if="p.status == 1" class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">Activo</span>
+                                  <span v-else class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-xs font-bold">Cerrado</span>
+                              </td>
+                              <td class="p-4 text-right">
+                                  <button @click="openPeriodModal(p)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
+                                      <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                  </button>
+                              </td>
+                          </tr>
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+     </div>
+
+     <!-- PERIOD FORM MODAL -->
+     <div v-if="showPeriodForm" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" @click.self="showPeriodForm = false">
+         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+             <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                 <h4 class="font-bold text-slate-800">{{ editingPeriod.id ? 'Editar' : 'Crear' }} Periodo Académico</h4>
+                 <button @click="showPeriodForm = false" class="p-1 hover:bg-slate-200 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+             </div>
+             
+             <div class="p-6 space-y-4">
+                 <div>
+                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre del Periodo</label>
+                     <input type="text" v-model="editingPeriod.name" placeholder="Ej: 2026-I" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                 </div>
+                 
+                 <div class="grid grid-cols-2 gap-4">
+                     <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
+                         <input type="date" v-model="editingPeriod.startdate_raw" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                     </div>
+                     <div>
+                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha de Fin</label>
+                         <input type="date" v-model="editingPeriod.enddate_raw" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                     </div>
+                 </div>
+
+                 <div>
+                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Estado</label>
+                     <div class="flex items-center gap-2 mt-2">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" v-model="editingPeriod.status" :true-value="1" :false-value="0" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            <span class="ml-3 text-sm font-medium" :class="editingPeriod.status ? 'text-green-700' : 'text-slate-500'">{{ editingPeriod.status ? 'Abierto' : 'Cerrado' }}</span>
+                        </label>
+                     </div>
+                     <p class="text-[10px] text-slate-400 mt-1 italic">* Si se marca como cerrado, ya no aparecerá como opción base en los filtros.</p>
+                 </div>
+
+                 <div>
+                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Planes de Aprendizaje (Carreras)</label>
+                     <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 max-h-40 overflow-y-auto space-y-2 text-slate-900 font-bold">
+                         <label v-for="plan in allLearningPlans" :key="plan.id" class="flex items-center gap-2 cursor-pointer hover:bg-slate-200 p-1 rounded transition-colors">
+                             <input type="checkbox" :value="plan.id" v-model="editingPeriod.learningplans" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 shrink-0" />
+                             <span class="text-xs text-slate-800 leading-tight uppercase">{{ plan.name }}</span>
+                         </label>
+                     </div>
+                 </div>
+             </div>
+             
+             <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3">
+                 <button @click="showPeriodForm = false" class="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-200 rounded-lg transition-colors">Cancelar</button>
+                 <button @click="savePeriod" :disabled="saving" class="px-6 py-2 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-lg flex items-center gap-2">
+                     <span v-if="saving" class="animate-spin border-2 border-white/20 border-t-white rounded-full w-3 h-3"></span>
+                     {{ editingPeriod.id ? 'Actualizar' : 'Crear' }} Periodo
+                 </button>
+             </div>
+         </div>
+     </div>
 
     <!-- POPOVER MODAL (Simplification of Popover) -->
     <div v-if="activePopover" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="activePopover = null">
@@ -448,7 +558,9 @@ createApp({
         const rawData = ref([]); 
         const selectedPeriodId = ref(0);
         const periods = ref([]);
-        const activeTab = ref('planning');
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = ref(urlParams.get('tab') || 'planning');
         
         // State for filters
         const selectedCareer = ref('Todas');
@@ -871,6 +983,64 @@ createApp({
 
         // -- Popover --
         // -- Popover --
+        const openPeriodModal = (period = null) => {
+             if (period) {
+                 const d1 = new Date(period.startdate * 1000);
+                 const d2 = new Date(period.enddate * 1000);
+                 
+                 editingPeriod.value = {
+                     id: period.id,
+                     name: period.name,
+                     startdate_raw: d1.toISOString().split('T')[0],
+                     enddate_raw: d2.toISOString().split('T')[0],
+                     status: parseInt(period.status),
+                     learningplans: [...(period.learningplans || [])]
+                 };
+             } else {
+                 editingPeriod.value = {
+                     id: 0,
+                     name: '',
+                     startdate_raw: '',
+                     enddate_raw: '',
+                     status: 1,
+                     learningplans: []
+                 };
+             }
+             showPeriodForm.value = true;
+             nextTick(() => lucide.createIcons());
+        };
+
+        const savePeriod = async () => {
+             if (!editingPeriod.value.name || !editingPeriod.value.startdate_raw || !editingPeriod.value.enddate_raw) {
+                 alert("Por favor complete los campos obligatorios.");
+                 return;
+             }
+             
+             saving.value = true;
+             
+             const startTs = Math.floor(new Date(editingPeriod.value.startdate_raw + 'T00:00:00').getTime() / 1000);
+             const endTs = Math.floor(new Date(editingPeriod.value.enddate_raw + 'T23:59:59').getTime() / 1000);
+             
+             try {
+                const res = await callMoodle('local_grupomakro_save_academic_period', {
+                    id: editingPeriod.value.id,
+                    name: editingPeriod.value.name,
+                    startdate: startTs,
+                    enddate: endTs,
+                    status: editingPeriod.value.status,
+                    learningplans: JSON.stringify(editingPeriod.value.learningplans)
+                });
+                
+                if (res) {
+                    showPeriodForm.value = false;
+                    await loadCalendarData();
+                    await loadInitial();
+                }
+             } finally {
+                saving.value = false;
+             }
+        };
+
         const openPopover = (subj, idx, e) => {
             // Build data slice
             let pKey = 'groupsP' + (idx+1);
@@ -883,12 +1053,33 @@ createApp({
 
         // --- CALENDAR LOGIC ---
         const academicPeriods = ref([]);
+        const allLearningPlans = ref([]);
+        const showPeriodForm = ref(false);
+        const saving = ref(false);
+        const editingPeriod = ref({
+            id: 0,
+            name: '',
+            startdate_raw: '',
+            enddate_raw: '',
+            status: 1,
+            learningplans: []
+        });
 
         const loadCalendarData = async () => {
              // We need to fetch from gmk_academic_periods
              let res = await callMoodle('local_grupomakro_get_academic_periods', {});
              academicPeriods.value = res || [];
              nextTick(() => lucide.createIcons());
+        };
+
+        const loadAllPlans = async () => {
+             let res = await callMoodle('local_grupomakro_get_all_learning_plans', {});
+             allLearningPlans.value = res || [];
+        };
+
+        const getPlanName = (lpid) => {
+             const p = allLearningPlans.value.find(x => x.id == lpid);
+             return p ? p.name : `Plan ${lpid}`;
         };
 
         const calendarRows = computed(() => {
@@ -960,6 +1151,12 @@ createApp({
         onMounted(() => {
             loadInitial();
             loadCalendarData();
+            loadAllPlans();
+        });
+
+        // Watch activeTab for icons
+        watch(activeTab, () => {
+             nextTick(() => lucide.createIcons());
         });
 
         return {
@@ -979,7 +1176,10 @@ createApp({
             // Calendar
             calendarYear, monthsLabels, calendarRows,
             getPeriodsForMonth, getPeriodStyle, 
-            formatDate, formatDateShort, isStartOfMonth
+            formatDate, formatDateShort, isStartOfMonth,
+            // Configuration / CRUD
+            academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
+            openPeriodModal, savePeriod, getPlanName
         };
     }
 }).mount('#app');
