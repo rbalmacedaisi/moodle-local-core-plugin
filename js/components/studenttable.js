@@ -278,6 +278,33 @@ Vue.component('studenttable', {
                              </div>
                         </div>
                     </template>
+
+                    <template v-slot:item.academic_period="{ item }">
+                        <div class="py-1">
+                             <div v-for="(carrer, index) in item.carrers" :key="index" class="mb-1">
+                                <v-menu offset-y v-if="isAdmin" @input="(val) => val && loadAcademicPeriods()">
+                                    <template v-slot:activator="{ on, attrs }">
+                                        <v-btn text x-small class="px-0 text-none" v-bind="attrs" v-on="on" :loading="item.updatingAcademicPeriod">
+                                            {{ item.academicperiodname }}
+                                            <v-icon small right>mdi-chevron-down</v-icon>
+                                        </v-btn>
+                                    </template>
+                                    <v-list dense max-height="300" class="overflow-y-auto">
+                                        <v-list-item v-if="loadingAcademicPeriods">
+                                            <v-list-item-title class="caption text-center gray--text">Cargando...</v-list-item-title>
+                                        </v-list-item>
+                                        <v-list-item v-for="ap in allAcademicPeriods" :key="ap.id" @click="updateStudentAcademicPeriod(item, carrer, ap)">
+                                            <v-list-item-title :class="{'primary--text font-weight-bold': ap.id == item.academicperiodid}">
+                                                {{ ap.name }}   
+                                                <small v-if="ap.status == 1" class="success--text ml-1">(Activo)</small>
+                                            </v-list-item-title>
+                                        </v-list-item>
+                                    </v-list>
+                                </v-menu>
+                                <span v-else class="text-body-2">{{ item.academicperiodname }}</span>
+                             </div>
+                        </div>
+                    </template>
                     
                     <template v-slot:item.revalidate="{ item }">
                         <revalidatestudents :studentsData="item"></revalidatestudents>
@@ -376,6 +403,8 @@ Vue.component('studenttable', {
             periodModal: false,
             periodImportFile: null,
             periodImportLog: '',
+            allAcademicPeriods: [], // Global list
+            loadingAcademicPeriods: false,
         };
     },
     computed: {
@@ -405,8 +434,9 @@ Vue.component('studenttable', {
                     sortable: false,
                     value: 'carrers',
                 },
-                { text: lang.period || 'Periodo', value: 'periods', sortable: false, width: '200px' },
-                { text: 'Bloque', value: 'subperiods', sortable: false, width: '200px' },
+                { text: lang.period || 'Nivel', value: 'periods', sortable: false, width: '150px' },
+                { text: 'Bloque', value: 'subperiods', sortable: false, width: '150px' },
+                { text: 'Periodo Lectivo', value: 'academic_period', sortable: false, width: '200px' },
                 { text: lang.status || 'Estado', value: 'status', sortable: false, },
             ];
 
@@ -507,14 +537,11 @@ Vue.component('studenttable', {
                                 documentnumber: element.documentnumber,
                                 carrers: element.careers,
                                 subperiods: element.subperiods,
-                                updatingPeriod: null,
-                                revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
-                                status: element.status,
-                                img: element.profileimage,
-                                currentgrade: element.currentgrade || '--',
-                                financial_status: element.financial_status || 'none',
                                 financial_reason: element.financial_reason || '',
-                                updatingFinancial: false
+                                updatingFinancial: false,
+                                academicperiodid: element.academicperiodid,
+                                academicperiodname: element.academicperiodname || '--',
+                                updatingAcademicPeriod: false
                             });
                         });
                     }
@@ -754,6 +781,64 @@ Vue.component('studenttable', {
                 console.error(error);
             } finally {
                 this.$set(item, 'updatingSubperiod', false);
+            }
+        },
+        async updateStudentPeriod(student, carrer, period) {
+            if (carrer.periodid == period.id) return;
+            if (!confirm(`¿Cambiar al estudiante al periodo: ${period.name}?`)) return;
+
+            student.updatingPeriod = carrer.planid;
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_update_period&userid=${student.id}&planid=${carrer.planid}&periodid=${period.id}`);
+                if (response.data.status === 'success') {
+                    carrer.periodid = period.id;
+                    carrer.periodname = period.name;
+                } else {
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('No se pudo actualizar el periodo.');
+            } finally {
+                student.updatingPeriod = false;
+            }
+        },
+        async loadAcademicPeriods() {
+            if (this.allAcademicPeriods.length > 0) return;
+            this.loadingAcademicPeriods = true;
+            try {
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_get_all_academic_periods`);
+                if (response.data.status === 'success') {
+                    this.allAcademicPeriods = response.data.data;
+                }
+            } catch (error) {
+                console.error("Error loading academic periods", error);
+            } finally {
+                this.loadingAcademicPeriods = false;
+            }
+        },
+        async updateStudentAcademicPeriod(student, carrer, academicPeriod) {
+            if (student.academicperiodid == academicPeriod.id) return;
+            if (!confirm(`¿Cambiar periodo lectivo a: ${academicPeriod.name}?`)) return;
+
+            this.$set(student, 'updatingAcademicPeriod', true);
+            try {
+                // We use carrer.planid to ensure we target the right enrollment if multiple exist, 
+                // though usually a student has one active plan.
+                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_update_academic_period&userid=${student.id}&planid=${carrer.planid}&academicperiodid=${academicPeriod.id}`);
+
+                if (response.data.status === 'success') {
+                    student.academicperiodid = academicPeriod.id;
+                    student.academicperiodname = academicPeriod.name;
+                    this.$toast ? this.$toast.success(response.data.message) : alert(response.data.message);
+                } else {
+                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Error de conexión');
+            } finally {
+                this.$set(student, 'updatingAcademicPeriod', false);
             }
         },
         async loadSubperiodsForPlan(item, carrer) {

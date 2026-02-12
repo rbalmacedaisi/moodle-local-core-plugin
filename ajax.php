@@ -163,6 +163,37 @@ try {
             }
             break;
 
+        case 'local_grupomakro_update_academic_period':
+            $userid = required_param('userid', PARAM_INT);
+            $planid = required_param('planid', PARAM_INT);
+            $academicperiodid = required_param('academicperiodid', PARAM_INT);
+            
+            $lpUser = $DB->get_record('local_learning_users', ['userid' => $userid, 'learningplanid' => $planid]);
+            if ($lpUser) {
+                $lpUser->academicperiodid = $academicperiodid;
+                $lpUser->timemodified = time();
+                if ($DB->update_record('local_learning_users', $lpUser)) {
+                    $response = ['status' => 'success', 'message' => 'Periodo Lectivo actualizado correctamente.'];
+                } else {
+                    $response = ['status' => 'error', 'message' => 'Error al actualizar base de datos.'];
+                }
+            } else {
+                $response = ['status' => 'error', 'message' => 'Inscripción no encontrada.'];
+            }
+            break;
+
+        case 'local_grupomakro_get_all_academic_periods':
+            $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC', 'id, name, status, startdate, enddate');
+            // Format dates for UI
+            $data = [];
+            foreach ($periods as $p) {
+                $p->formatted_start = userdate($p->startdate, get_string('strftimedate', 'langconfig'));
+                $p->formatted_end = userdate($p->enddate, get_string('strftimedate', 'langconfig'));
+                $data[] = $p;
+            }
+            $response = ['status' => 'success', 'data' => array_values($data)];
+            break;
+
         case 'local_grupomakro_sync_migrated_periods':
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(300); // 5 minutes per batch

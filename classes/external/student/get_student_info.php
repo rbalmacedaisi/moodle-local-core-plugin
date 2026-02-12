@@ -135,11 +135,12 @@ class get_student_info extends external_api {
         }
 
         $query = "
-            SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
+            lpu.currentsubperiodid as subperiodid, lpu.academicperiodid, gap.name as academicperiodname, lp.id as planid, 
             lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
             u.firstname as firstname, u.lastname as lastname $gradeSelect
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
+            LEFT JOIN {gmk_academic_periods} gap ON (gap.id = lpu.academicperiodid)
             JOIN {user} u ON (u.id = lpu.userid)
             LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
             $gradeJoin
@@ -254,8 +255,11 @@ class get_student_info extends external_api {
                     'status' => $userStatus,
                     'profileimage' => $profileimage,
                     'careers' => [],
+                    'careers' => [],
                     'periods' => [],
                     'subperiods' => $subperiodname,
+                    'academicperiodid' => $user->academicperiodid,
+                    'academicperiodname' => $user->academicperiodname,
                     'revalidate' => $revalidate,
                     'phone' => $user->phone1 ?: '--',
                     'absences' => !empty($params['classid']) ? gmk_get_student_attendance_summary($user->userid, $params['classid'])['absences'] : 0,
@@ -286,7 +290,9 @@ class get_student_info extends external_api {
                         'periodname' => $periodname,
                         'periodid' => $user->periodid,
                         'subperiodname' => $subperiodname,
-                        'subperiodid' => $user->subperiodid
+                        'subperiodid' => $user->subperiodid,
+                        'academicperiodid' => $user->academicperiodid,
+                        'academicperiodname' => $user->academicperiodname
                     ];
                 }
             } else {
@@ -297,7 +303,9 @@ class get_student_info extends external_api {
                     'periodname' => $periodname,
                     'periodid' => $user->periodid,
                     'subperiodname' => $subperiodname,
-                    'subperiodid' => $user->subperiodid
+                    'subperiodid' => $user->subperiodid,
+                    'academicperiodid' => $user->academicperiodid,
+                    'academicperiodname' => $user->academicperiodname
                 ];
             }
             
