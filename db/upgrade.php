@@ -1222,5 +1222,66 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260105001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260212000) {
+
+        // Define field block1start to be added to gmk_academic_calendar.
+        $table = new xmldb_table('gmk_academic_calendar');
+        $field1 = new xmldb_field('block1start', XMLDB_TYPE_INTEGER, '16', null, null, null, '0', 'graduationdate');
+        $field2 = new xmldb_field('block1end', XMLDB_TYPE_INTEGER, '16', null, null, null, '0', 'block1start');
+        $field3 = new xmldb_field('block2start', XMLDB_TYPE_INTEGER, '16', null, null, null, '0', 'block1end');
+        $field4 = new xmldb_field('block2end', XMLDB_TYPE_INTEGER, '16', null, null, null, '0', 'block2start');
+        $field5 = new xmldb_field('hassubperiods', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'block2end');
+
+        if (!$dbman->field_exists($table, $field1)) {
+            $dbman->add_field($table, $field1);
+        }
+        if (!$dbman->field_exists($table, $field2)) {
+            $dbman->add_field($table, $field2);
+        }
+        if (!$dbman->field_exists($table, $field3)) {
+            $dbman->add_field($table, $field3);
+        }
+        if (!$dbman->field_exists($table, $field4)) {
+            $dbman->add_field($table, $field4);
+        }
+        if (!$dbman->field_exists($table, $field5)) {
+            $dbman->add_field($table, $field5);
+        }
+
+        // Define table gmk_academic_period_lps to be created.
+        $tableLp = new xmldb_table('gmk_academic_period_lps');
+        $tableLp->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $tableLp->add_field('academicperiodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $tableLp->add_field('learningplanid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $tableLp->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $tableLp->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $tableLp->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $tableLp->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        if (!$dbman->table_exists($tableLp)) {
+            $dbman->create_table($tableLp);
+        }
+
+        // Define table gmk_student_suspension to be created.
+        $tableSusp = new xmldb_table('gmk_student_suspension');
+        $tableSusp->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $tableSusp->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $tableSusp->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, null);
+        $tableSusp->add_field('reason', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $tableSusp->add_field('targetperiodid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $tableSusp->add_field('active_courses_dropped', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $tableSusp->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $tableSusp->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $tableSusp->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $tableSusp->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+
+        if (!$dbman->table_exists($tableSusp)) {
+            $dbman->create_table($tableSusp);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260212000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

@@ -109,6 +109,9 @@ echo $OUTPUT->header();
             <button @click="activeTab = 'students'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'students' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="graduation-cap" class="w-4 h-4"></i> Impacto & Graduandos
             </button>
+            <button @click="activeTab = 'calendar'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'calendar' ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="calendar-days" class="w-4 h-4"></i> Calendario Anual
+            </button>
         </div>
 
          <!-- TAB 1: PLANNING -->
@@ -330,6 +333,77 @@ echo $OUTPUT->header();
                 </div>
              </div>
          </div>
+         <!-- TAB 4: CALENDAR -->
+         <div v-if="activeTab === 'calendar'" class="space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-800">Calendario Institucional Anual</h3>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 bg-white rounded-lg border p-1 border-slate-200">
+                        <button @click="calendarYear--" class="p-1 hover:bg-slate-100 rounded text-slate-500"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <span class="px-2 font-bold text-slate-700">{{ calendarYear }}</span>
+                        <button @click="calendarYear++" class="p-1 hover:bg-slate-100 rounded text-slate-500"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse border-spacing-0 min-w-[1000px]">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200">
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-left sticky left-0 z-10 bg-slate-50 border-r border-slate-100 w-64">Plan de Aprendizaje</th>
+                                <th v-for="(m, midx) in monthsLabels" :key="midx" class="p-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter text-center border-r border-slate-100 last:border-0" :class="{'bg-blue-50/30': (midx + 1) === new Date().getMonth() + 1}">
+                                    {{ m }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr v-for="row in calendarRows" :key="row.planId" class="hover:bg-slate-50 transition-colors">
+                                <td class="p-4 font-bold text-slate-700 text-sm sticky left-0 z-10 bg-white border-r border-slate-100">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2 h-8 rounded-full" :style="{ backgroundColor: row.color }"></div>
+                                        <div>
+                                            <p class="leading-tight">{{ row.planName }}</p>
+                                            <span class="text-[10px] text-slate-400 font-normal">{{ row.periods.length }} periodos</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                
+                                <!-- Monthly Cells -->
+                                <td v-for="(m, midx) in 12" :key="midx" class="p-1 min-w-[80px] h-20 border-r border-slate-50 last:border-0 relative align-top">
+                                    <div class="h-full w-full flex flex-col gap-1">
+                                        <div v-for="p in getPeriodsForMonth(row.periods, midx + 1)" :key="p.id"
+                                             class="text-[9px] p-1.5 rounded-md shadow-sm font-bold truncate transition-all hover:scale-105 select-none text-white overflow-hidden relative"
+                                             :style="getPeriodStyle(p, row.color)"
+                                             :title="p.name + ': ' + formatDate(p.startdate) + ' - ' + formatDate(p.enddate)">
+                                            
+                                            <div v-if="isStartOfMonth(p, midx + 1)" class="flex flex-col">
+                                                <span class="truncate block">{{ p.name }}</span>
+                                                <span class="text-[7px] opacity-80 font-normal leading-none">{{ formatDateShort(p.startdate) }}</span>
+                                            </div>
+                                            <div v-else class="h-1"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap gap-4 p-4 bg-slate-100 rounded-lg">
+                <div class="flex items-center gap-2 text-xs text-slate-500 font-bold uppercase">
+                    <i data-lucide="info" class="w-4 h-4"></i> Leyenda:
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <div class="w-3 h-3 rounded bg-blue-500"></div> <span>Periodos Planificados</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <div class="w-3 h-3 rounded border border-dashed border-slate-400"></div> <span>Bloque 1 / Bloque 2</span>
+                </div>
+            </div>
+         </div>
     </div>
 
     <!-- POPOVER MODAL (Simplification of Popover) -->
@@ -390,6 +464,10 @@ createApp({
         // Student Filter
         const studentStatusFilter = ref('Todos');
         const searchTerm = ref('');
+        
+        // Calendar State
+        const calendarYear = ref(new Date().getFullYear());
+        const monthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         
         // Moodle Call
         const callMoodle = async (method, args) => {
@@ -792,6 +870,7 @@ createApp({
         };
 
         // -- Popover --
+        // -- Popover --
         const openPopover = (subj, idx, e) => {
             // Build data slice
             let pKey = 'groupsP' + (idx+1);
@@ -802,8 +881,85 @@ createApp({
             };
         };
 
+        // --- CALENDAR LOGIC ---
+        const academicPeriods = ref([]);
+
+        const loadCalendarData = async () => {
+             // We need to fetch from gmk_academic_periods
+             let res = await callMoodle('local_grupomakro_get_academic_periods', {});
+             academicPeriods.value = res || [];
+             nextTick(() => lucide.createIcons());
+        };
+
+        const calendarRows = computed(() => {
+            // Group periods by Plan
+            const map = {};
+            const colors = [
+                '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#10b981', 
+                '#f43f5e', '#6366f1', '#14b8a6', '#f59e0b', '#06b6d4'
+            ];
+
+            // Get unique plans from periods
+            academicPeriods.value.forEach(p => {
+                const lpids = p.learningplans || [];
+                lpids.forEach(lpid => {
+                    const lpInfo = periods.value.find(lp => lp.id == lpid);
+                    const lpName = lpInfo ? lpInfo.name : `Plan ${lpid}`;
+
+                    // Filter by career if selected
+                    if (selectedCareer.value !== 'Todas' && lpName !== selectedCareer.value) {
+                        return;
+                    }
+
+                    if (!map[lpid]) {
+                        map[lpid] = {
+                            planId: lpid,
+                            planName: lpName,
+                            periods: [],
+                            color: colors[Object.keys(map).length % colors.length]
+                        };
+                    }
+                    map[lpid].periods.push(p);
+                });
+            });
+
+            return Object.values(map);
+        });
+
+        const getPeriodsForMonth = (rowPeriods, month) => {
+            const yearStart = new Date(calendarYear.value, month - 1, 1).getTime() / 1000;
+            const yearEnd = new Date(calendarYear.value, month, 0, 23, 59, 59).getTime() / 1000;
+
+            return rowPeriods.filter(p => {
+                return (p.startdate <= yearEnd && p.enddate >= yearStart);
+            });
+        };
+
+        const getPeriodStyle = (p, baseColor) => {
+            return {
+                backgroundColor: baseColor,
+                borderLeft: '4px solid rgba(0,0,0,0.1)'
+            };
+        };
+
+        const formatDate = (ts) => {
+            const d = new Date(ts * 1000);
+            return d.toLocaleDateString();
+        };
+
+        const formatDateShort = (ts) => {
+            const d = new Date(ts * 1000);
+            return `${d.getDate()} ${monthsLabels[d.getMonth()]}`;
+        };
+
+        const isStartOfMonth = (p, month) => {
+            const d = new Date(p.startdate * 1000);
+            return (d.getMonth() + 1) === month && d.getFullYear() === calendarYear.value;
+        };
+
         onMounted(() => {
             loadInitial();
+            loadCalendarData();
         });
 
         return {
@@ -819,7 +975,11 @@ createApp({
             // Drag
             handleDragStart, handleDrop, deferredGroups,
             // Popover
-            openPopover, activePopover
+            openPopover, activePopover,
+            // Calendar
+            calendarYear, monthsLabels, calendarRows,
+            getPeriodsForMonth, getPeriodStyle, 
+            formatDate, formatDateShort, isStartOfMonth
         };
     }
 }).mount('#app');

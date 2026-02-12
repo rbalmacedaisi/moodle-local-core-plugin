@@ -224,7 +224,12 @@ class planning extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
         
-        return array_values($DB->get_records('gmk_academic_periods', [], 'startdate DESC'));
+        $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC');
+        foreach ($periods as $p) {
+            $p->learningplans = array_values($DB->get_records_menu('gmk_academic_period_lps', ['academicperiodid' => $p->id], '', 'id, learningplanid'));
+        }
+        
+        return array_values($periods);
     }
     
     public static function get_periods_returns() {
@@ -234,7 +239,8 @@ class planning extends external_api {
                 'name' => new external_value(PARAM_TEXT, 'Name'),
                 'startdate' => new external_value(PARAM_INT, 'Start Date'),
                 'enddate' => new external_value(PARAM_INT, 'End Date'),
-                'status' => new external_value(PARAM_INT, 'Status')
+                'status' => new external_value(PARAM_INT, 'Status'),
+                'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_OPTIONAL)
             ])
         );
     }
@@ -245,11 +251,12 @@ class planning extends external_api {
             'name' => new external_value(PARAM_TEXT, 'Name'),
             'startdate' => new external_value(PARAM_INT, 'Start Timestamp'),
             'enddate' => new external_value(PARAM_INT, 'End Timestamp'),
-            'status' => new external_value(PARAM_INT, 'Status', VALUE_DEFAULT, 1)
+            'status' => new external_value(PARAM_INT, 'Status', VALUE_DEFAULT, 1),
+            'learningplans' => new external_multiple_structure(new external_value(PARAM_INT), 'List of Learning Plan IDs', VALUE_DEFAULT, [])
         ]);
     }
     
-    public static function save_period($id, $name, $startdate, $enddate, $status) {
+    public static function save_period($id, $name, $startdate, $enddate, $status, $learningplans = []) {
         global $DB;
          $context = \context_system::instance();
         self::validate_context($context);
@@ -266,11 +273,24 @@ class planning extends external_api {
         if ($id > 0) {
             $rec->id = $id;
             $DB->update_record('gmk_academic_periods', $rec);
-            return $id;
+            $periodid = $id;
         } else {
             $rec->timecreated = time();
-            return $DB->insert_record('gmk_academic_periods', $rec);
+            $periodid = $DB->insert_record('gmk_academic_periods', $rec);
         }
+
+        // Sync Learning Plan Relations
+        $DB->delete_records('gmk_academic_period_lps', ['academicperiodid' => $periodid]);
+        foreach ($learningplans as $lpid) {
+            $rel = new stdClass();
+            $rel->academicperiodid = $periodid;
+            $rel->learningplanid = $lpid;
+            $rel->usermodified = $GLOBALS['USER']->id;
+            $rel->timecreated = time();
+            $DB->insert_record('gmk_academic_period_lps', $rel);
+        }
+
+        return $periodid;
     }
     
     public static function save_period_returns() {
@@ -353,6 +373,57 @@ class planning extends external_api {
     
     public static function save_planning_returns() {
          return new external_value(PARAM_BOOL, 'Success');
+    }
+
+    // --- Manual Student Management ---
+
+    public static function manually_update_student_period_parameters() {
+        return new external_function_parameters([
+            'userid' => new external_value(PARAM_INT, 'User ID'),
+            'learningplanid' => new external_value(PARAM_INT, 'Learning Plan ID'),
+            'currentperiodid' => new external_value(PARAM_INT, 'Curricular Period ID (Level)', VALUE_DEFAULT, null),
+            'academicperiodid' => new external_value(PARAM_INT, 'Academic Period ID (Calendar)', VALUE_DEFAULT, null),
+            'status' => new external_value(PARAM_ALPHA, 'Status (activo, aplazado, retirado)', VALUE_DEFAULT, 'activo')
+        ]);
+    }
+
+    public static function manually_update_student_period($userid, $learningplanid, $currentperiodid = null, $academicperiodid = null, $status = 'activo') {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $llu = $DB->get_record('local_learning_users', ['userid' => $userid, 'learningplanid' => $learningplanid]);
+        if (!$llu) {
+            throw new \moodle_exception('error_user_not_in_plan', 'local_grupomakro_core');
+        }
+
+        $rec = new stdClass();
+        $rec->id = $llu->id;
+        if ($currentperiodid !== null) $rec->currentperiodid = $currentperiodid;
+        if ($academicperiodid !== null) $rec->academicperiodid = $academicperiodid;
+        $rec->status = $status;
+        $rec->timemodified = time();
+        $rec->usermodified = $GLOBALS['USER']->id;
+
+        $DB->update_record('local_learning_users', $rec);
+
+        // If status changed to something other than 'activo', we might want to log it in gmk_student_suspension
+        if ($status != 'activo') {
+            $susp = new stdClass();
+            $susp->userid = $userid;
+            $susp->status = $status;
+            $susp->timecreated = time();
+            $susp->usermodified = $GLOBALS['USER']->id;
+            $susp->reason = 'Manual override by administrator';
+            $DB->insert_record('gmk_student_suspension', $susp);
+        }
+
+        return true;
+    }
+
+    public static function manually_update_student_period_returns() {
+        return new external_value(PARAM_BOOL, 'Success');
     }
 
 }

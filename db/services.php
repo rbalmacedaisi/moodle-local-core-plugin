@@ -724,4 +724,12 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_manually_update_student_period' => [
+        'classname' => 'local_grupomakro_core\external\admin\planning',
+        'methodname' => 'manually_update_student_period',
+        'description' => 'Manually update student period and status',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

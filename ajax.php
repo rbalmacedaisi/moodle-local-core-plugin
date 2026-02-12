@@ -435,6 +435,12 @@ try {
             $response = ['status' => 'success', 'periods' => array_values($periods)];
             break;
 
+        case 'local_grupomakro_get_academic_periods':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $periods = \local_grupomakro_core\external\admin\planning::get_periods();
+            $response = ['status' => 'success', 'data' => $periods];
+            break;
+
         case 'local_grupomakro_get_plan_subperiods':
             $planid = required_param('planid', PARAM_INT);
             $sql = "SELECT sp.id, sp.name, sp.periodid, p.name as periodname
