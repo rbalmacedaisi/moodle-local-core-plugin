@@ -370,7 +370,7 @@ class planning_manager {
                      ];
                 }
                 $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['dbId']; // Using dbId from studentList loop above
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id']; // Use 'id' which matches the student_list key
             }
         }
         
