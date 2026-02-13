@@ -32,20 +32,19 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
                                 <span>{{ cls.shift }}</span>
-                                <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
+                                 <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
                                     <i data-lucide="users" class="w-3 h-3"></i>
                                 </button>
+                                <!-- Assign Badge -->
+                                <div class="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span class="bg-blue-600 text-white rounded-full p-1"><i data-lucide="grip-vertical" class="w-3 h-3"></i></span>
+                                </div>
                             </div>
-                            <!-- Assign Badge -->
-                            <div class="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span class="bg-blue-600 text-white rounded-full p-1"><i data-lucide="grip-vertical" class="w-3 h-3"></i></span>
-                            </div>
-                        </div>
-                        <div v-if="filteredUnassigned.length === 0" class="text-center text-slate-400 text-xs py-4 italic">
+                            <div v-if="filteredUnassigned.length === 0" class="text-center text-slate-400 text-xs py-4 italic">
                             No hay clases pendientes.
                         </div>
+                        </div>
                     </div>
-                </div>
 
                 <!-- Calendar Grid (Right) -->
                 <div class="flex-1 h-full flex flex-col relative">
@@ -168,7 +167,7 @@ window.SchedulerComponents.PlanningBoard = {
                     <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button @click="editDialog = false" class="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">Listo</button>
                     </div>
-                </div>
+                    </div>
                 </div>
              </div>
 
