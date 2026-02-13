@@ -93,13 +93,6 @@ window.SchedulerComponents.DemandView = {
                 v-model="showProjections"
                 :period-id="periodId"
             ></projections-modal>
-        </div>
-            
-            <!-- Projections Modal -->
-            <projections-modal
-                v-model="showProjections"
-                :period-id="periodId"
-            ></projections-modal>
 
             <!-- Students List Modal -->
             <div v-if="showStudentsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -180,9 +173,16 @@ window.SchedulerComponents.DemandView = {
             const studentIds = val.students;
             const allStudents = this.storeState.students || [];
 
+            console.log("GMK Debug: Opening Modal. IDs:", studentIds);
+            // console.log("GMK Debug: All Students Sample:", allStudents.slice(0, 3));
+
             // Map IDs to student objects
             this.selectedStudentList = studentIds.map(id => {
+                // Loose comparison because ID coming from tree might be int/string and allStudents might have the other
                 const found = allStudents.find(s => s.id == id);
+                if (!found) {
+                    console.warn("GMK Debug: Student not found for ID:", id);
+                }
                 return found || { id: id, fullname: 'Estudiante Desconocido (' + id + ')', email: '', documentnumber: '' };
             });
 
