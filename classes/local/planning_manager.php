@@ -136,6 +136,11 @@ class planning_manager {
                         }
                     }
 
+                    // For "Demand Analysis", we generally only want what is OPEN for the student to take.
+                    // i.e., Prereqs MUST be met.
+                    // We store 'isPreRequisiteMet' status.
+                    // However, we also need to store 'isPriority' for the "Wave" logic (scheduling engine).
+                    
                     $pending[] = [
                         'id' => $course->id,
                         'name' => $course->fullname,
@@ -182,17 +187,24 @@ class planning_manager {
     private static function get_all_plans_structure() {
         global $DB;
         
-        // Fetch all Plans
-        // Fetch all Periods (Semesters) in Plans
-        // Fetch all Link Courses (Subject in Period)
-        // Fetch Prereqs
+        // 0. Get Prerequisite Custom Field ID
+        $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+
+        // 1. Get Courses linked to Plans WITH Prereq Shortnames
+        // Left Join customfield_data
         
-        // 1. Get Courses linked to Plans
-        // Table: {local_learning_courses} (verified in progress_manager.php)
+        $joinCustom = "";
+        $selectCustom = "";
         
+        if ($preFieldId) {
+            $joinCustom = "LEFT JOIN {customfield_data} cfd ON cfd.instanceid = c.id AND cfd.fieldid = $preFieldId";
+            $selectCustom = ", cfd.value as prereq_shortnames";
+        }
+
         $sql = "SELECT p.learningplanid, p.id as period_id, p.name as period_name,
-                       c.id as courseid, c.fullname, 
+                       c.id as courseid, c.fullname, c.shortname,
                        lpc.id as linkid
+                       $selectCustom
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
                 JOIN {course} c ON c.id = lpc.courseid
@@ -200,25 +212,15 @@ class planning_manager {
 
         $records = $DB->get_records_sql($sql);
         
-        $structure = [];
-        $planCounters = []; // To track semester index per plan
-        
-        foreach ($records as $r) {
-            if (!isset($structure[$r->learningplanid])) {
-                $structure[$r->learningplanid] = [];
-                $planCounters[$r->learningplanid] = 1;
-            }
-            
-            // NOTE: Since we order by p.id, we can't guarantee sequential semester numbers (1, 2, 3...)
-            // unless we deduce it. For the "Wave" logic, we need strict 1, 2, 3 levels.
-            // Assumption: Periods are created in order.
-            // We need to map period_id to a sequence number.
-            
-            // Helper to get cached semester num for this period in this plan
-            // This logic is slightly flawed inside a flat loop of courses.
-            // Better: Group by period first?
-            // Actually, let's keep it simple: Use a map of PeriodID -> Index per Plan.
+        // 2. Build Shortname -> ID Map for resolution
+        $allCourses = $DB->get_records('course', [], '', 'shortname, id');
+        $shortnameToId = [];
+        foreach ($allCourses as $c) {
+            $shortnameToId[$c->shortname] = $c->id;
         }
+
+        $structure = [];
+        $planCounters = []; // Reuse logic if needed, but we use map below
         
         // Re-process for structure:
         $planPeriodMap = []; // planId => [ periodId => index ]
@@ -233,12 +235,24 @@ class planning_manager {
              
              $semesterNum = $planPeriodMap[$r->learningplanid][$r->period_id];
              
+             // Resolve Prereqs
+             $prereqs = [];
+             if (!empty($r->prereq_shortnames)) {
+                 $shorts = explode(',', $r->prereq_shortnames);
+                 foreach ($shorts as $s) {
+                     $s = trim($s);
+                     if (isset($shortnameToId[$s])) {
+                         $prereqs[] = $shortnameToId[$s];
+                     }
+                 }
+             }
+
              $structure[$r->learningplanid][] = (object) [
                 'id' => $r->courseid,
                 'fullname' => $r->fullname,
                 'semester_num' => $semesterNum, 
                 'semester_name' => $r->period_name,
-                'prereqs' => [] // TODO: Implement Prereq fetch if table known
+                'prereqs' => $prereqs
             ];
         }
         return $structure;
@@ -322,10 +336,14 @@ class planning_manager {
             $shift = $stu['shift'] ?: 'Sin Jornada'; // Should come from user_info_data
             
             // Iterate Pending Subjects to build demand
-            foreach ($stu['pendingSubjects'] as $subj) {
                 // If subject is NOT Priority (e.g. unmet prerequisites), maybe we shouldn't schedule it automatically?
                 // For now, "Wave" logic usually schedules everything pending.
                 // Let's stick to including it.
+                
+                // UPDATE: For demand analysis, we ONLY want to show subjects the student CAN take.
+                if (empty($subj['isPreRequisiteMet'])) {
+                    continue; 
+                }
                 
                 // Normalized Level Key for sorting
                 $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
