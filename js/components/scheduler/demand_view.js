@@ -222,7 +222,8 @@ window.SchedulerComponents.DemandView = {
         },
         getSubjectName(courseId) {
             if (!this.storeState.subjects) return 'Curso ' + courseId;
-            const subject = this.storeState.subjects.find(s => s.id == courseId);
+            // subjects is a Map (object), not an array
+            const subject = this.storeState.subjects[courseId];
             return subject ? subject.name : 'Curso ' + courseId;
         },
         async generate() {

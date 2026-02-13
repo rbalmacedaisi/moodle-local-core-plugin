@@ -391,7 +391,8 @@ class planning_manager {
              $levelsSeen = [];
              
              foreach ($stu['pendingSubjects'] as $subj) {
-                 $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+                 // Match the grouping logic used above
+                 $levelKey = $stu['currentSemConfig'] ?: 'Sin Asignar';
                  
                  // Initialize tree path if not exists (handling edge case where student has no subjects but we want to count them? No, only demand matters)
                  // But wait, if tree node created above, it exists.
