@@ -165,7 +165,7 @@
                                     schedules.push({
                                         id: `gen-${idCounter++}`,
                                         courseid: courseId,
-                                        subjectName: (this.state.subjects && this.state.subjects[courseId] ? this.state.subjects[courseId].fullname : `Materia ${courseId}`),
+                                        subjectName: (this.state.subjects[courseId] ? this.state.subjects[courseId].name : `Materia: ${courseId}`),
                                         teacherName: null,
                                         day: 'N/A',
                                         start: '00:00',
