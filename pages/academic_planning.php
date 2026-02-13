@@ -1209,13 +1209,14 @@ const app = createApp({
                     if (subj.isPriority) {
                          if (!subjectsMap[subj.name]) {
                              // Initialize if not in master list
-                             subjectsMap[subj.name] = {
-                                 id: subj.id,
-                                 name: subj.name,
-                                 semesterNum: parseInt(subj.semester) || 0,
-                                 countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
-                                 groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {}
-                             };
+                              subjectsMap[subj.name] = {
+                                  id: subj.id,
+                                  name: subj.name,
+                                  semesterNum: parseInt(subj.semester) || 0,
+                                  countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
+                                  groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
+                                  entryPeriodCounts: {}
+                              };
                          }
                          
                          // Check Deferral of Cohort
