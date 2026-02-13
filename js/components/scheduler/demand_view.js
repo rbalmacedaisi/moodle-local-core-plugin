@@ -70,7 +70,7 @@ window.SchedulerComponents.DemandView = {
                                          </div>
                                          <div class="space-y-1 max-h-40 overflow-y-auto pr-1 small-scroll">
                                              <div v-for="(val, courseId) in semData.course_counts" :key="courseId" class="flex justify-between items-center text-xs group">
-                                                  <span class="text-slate-600 truncate flex-1 mr-2" :title="courseId">ID: {{ courseId }}</span>
+                                                   <span class="text-slate-600 truncate flex-1 mr-2" :title="courseId">{{ getSubjectName(courseId) }}</span>
                                                   <button 
                                                     @click="openStudentList(val)" 
                                                     :class="{'hover:bg-blue-200 hover:text-blue-800 cursor-pointer': typeof val === 'object' && val.students && val.students.length > 0}"
@@ -219,6 +219,11 @@ window.SchedulerComponents.DemandView = {
                 .slice(0, 2)
                 .join('')
                 .toUpperCase();
+        },
+        getSubjectName(courseId) {
+            if (!this.storeState.subjects) return 'Curso ' + courseId;
+            const subject = this.storeState.subjects.find(s => s.id == courseId);
+            return subject ? subject.name : 'Curso ' + courseId;
         },
         async generate() {
             if (confirm("¿Está seguro de generar los horarios? Esto reemplazará la planificación actual no guardada.")) {
