@@ -142,13 +142,25 @@
                 const schedules = [];
                 let idCounter = 1;
 
-                const demand = this.state.demand;
+                const demand = this.state.demand || {};
+
+                if (!demand || Object.keys(demand).length === 0) {
+                    console.warn("SchedulerStore: No demand data available.");
+                    this.state.generatedSchedules = [];
+                    this.state.students = [];
+                    this.state.loading = false;
+                    return;
+                }
                 // const academicPeriodId = this.state.activePeriod;
 
                 const MAX_CAPACITY = 40; // Default max
 
                 for (const career of Object.keys(demand)) {
+                    if (!demand[career]) continue;
+
                     for (const shift of Object.keys(demand[career])) {
+                        if (!demand[career][shift]) continue;
+
                         for (const sem of Object.keys(demand[career][shift])) {
                             const semData = demand[career][shift][sem];
                             // course_counts: { courseId: studentCount }
