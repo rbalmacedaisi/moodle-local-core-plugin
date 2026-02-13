@@ -280,6 +280,110 @@ class planning_manager {
     }
 
     /**
+     * Fetch Context for Scheduler (Classrooms, Holidays).
+     */
+    public static function get_scheduler_context($periodId) {
+        global $DB;
+        
+        $classrooms = $DB->get_records('gmk_classrooms', [], 'name ASC');
+        $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodId], 'date ASC');
+        
+        // Format holidays
+        $formattedHolidays = [];
+        foreach ($holidays as $h) {
+            $h->formatted_date = date('Y-m-d', $h->date);
+            $formattedHolidays[] = $h;
+        }
+
+        return [
+            'classrooms' => array_values($classrooms),
+            'holidays' => $formattedHolidays,
+            'loads' => [] // Future: Teacher loads
+        ];
+    }
+
+    /**
+     * Process Planning Data into Demand Tree for Scheduler.
+     * Returns:
+     * - demand_tree: Nested structure [Career][Shift][Level] -> { students, courses }
+     * - student_list: Flat list (same as planning data)
+     * - projections: Manual projections
+     * - subjects: Catalog of subjects
+     */
+    public static function get_demand_data($periodId) {
+        // Reuse the Planning Engine to get the raw projection of students/subjects
+        $planningData = self::get_planning_data($periodId);
+        
+        $students = $planningData['students'];
+        $tree = [];
+
+        foreach ($students as $stu) {
+            $career = $stu['career'] ?: 'General';
+            $shift = $stu['shift'] ?: 'Sin Jornada'; // Should come from user_info_data
+            
+            // Iterate Pending Subjects to build demand
+            foreach ($stu['pendingSubjects'] as $subj) {
+                // If subject is NOT Priority (e.g. unmet prerequisites), maybe we shouldn't schedule it automatically?
+                // For now, "Wave" logic usually schedules everything pending.
+                // Let's stick to including it.
+                
+                // Normalized Level Key for sorting
+                $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+
+                // Init Path
+                if (!isset($tree[$career][$shift][$levelKey])) {
+                    $tree[$career][$shift][$levelKey] = [
+                        'semester_name' => $levelKey,
+                        'student_count' => 0, // Unique students in this bucket? Or total seats?
+                        // 'student_ids' => [],
+                        'course_counts' => []
+                    ];
+                }
+
+                // Increment Course
+                $courseId = $subj['id'];
+                if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
+                     $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = 0;
+                }
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]++;
+            }
+        }
+        
+        // Post-processing: Calculate student_count per bucket (approximate or exact?)
+        // In the loop above, we can't easily count unique students per level unless we track IDs.
+        // Let's do a second pass or use a set.
+        
+        // Re-loop for student counts
+        foreach ($students as $stu) {
+             $career = $stu['career'] ?: 'General';
+             $shift = $stu['shift'] ?: 'Sin Jornada';
+             
+             // Track which levels this student hits
+             $levelsSeen = [];
+             
+             foreach ($stu['pendingSubjects'] as $subj) {
+                 $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+                 
+                 // Initialize tree path if not exists (handling edge case where student has no subjects but we want to count them? No, only demand matters)
+                 // But wait, if tree node created above, it exists.
+                 if (isset($tree[$career][$shift][$levelKey])) {
+                     if (!isset($levelsSeen[$levelKey])) {
+                         $levelsSeen[$levelKey] = true;
+                         $tree[$career][$shift][$levelKey]['student_count']++;
+                     }
+                 }
+             }
+        }
+
+        return [
+            'demand_tree' => $tree,
+            'student_list' => $planningData['students'],
+            'projections' => $planningData['planning_projections'], // Use the planning projections (manual overrides)
+            'subjects' => $planningData['subjects']
+        ];
+    }
+
+    /**
      * Helper to extract numeric level from names like "Periodo IV" or "Nivel 2"
      */
     private static function parse_semester_number($name) {

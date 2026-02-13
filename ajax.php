@@ -2651,6 +2651,20 @@ try {
             $response = ['data' => $data, 'error' => false];
             break;
 
+        case 'local_grupomakro_get_scheduler_context':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_scheduler_context($periodid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_get_demand_data':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
         case 'local_grupomakro_get_classrooms':
             $classrooms = $DB->get_records('gmk_classrooms', [], 'name ASC');
             $response = ['status' => 'success', 'data' => array_values($classrooms)];
