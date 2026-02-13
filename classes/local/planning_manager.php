@@ -85,22 +85,30 @@ class planning_manager {
 
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
-        foreach ($structures as $planId => $courses) {
-            foreach ($courses as $c) {
-                // Key by name to avoid duplicates across plans if desired, or keep specific to plan
-                // Frontend groups by subject name generally.
-                // Let's send a flat list of unique subject names + semester info
-                $key = $c->fullname; // Assuming subject names are consistent
-                if (!isset($allSubjects[$key])) {
-                    $allSubjects[$key] = [
-                        'id' => $c->id,
-                        'name' => $c->fullname,
-                        'semester_num' => $c->semester_num,
-                        'semester_name' => $c->semester_name ?? ''
-                    ];
-                }
+        
+        // Fetch all courses linked to learning plans to build a master list
+        $plan_courses_sql = "SELECT lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname
+                             FROM {local_learning_courses} lpc
+                             JOIN {course} c ON c.id = lpc.courseid
+                             JOIN {local_learning_periods} p ON p.id = lpc.periodid";
+        $plan_courses_records = $DB->get_records_sql($plan_courses_sql);
+
+        foreach ($plan_courses_records as $pc) {
+            if (!isset($allSubjects[$pc->courseid])) {
+                $allSubjects[$pc->courseid] = [
+                    'id' => $pc->courseid,
+                    'name' => $pc->coursename,
+                    'semester_num' => self::parse_semester_number($pc->periodname),
+                    'semester_name' => $pc->periodname
+                ];
             }
         }
+
+        // B. Fetch Subject-Specific Projections (from Matrix)
+        $planningProjections = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $periodId]);
+        
+        // C. Fetch General Projections (New Entrants)
+        $projections = $DB->get_records('gmk_academic_projections', ['academicperiodid' => $periodId]);
 
         foreach ($studentsRaw as $u) {
             $planId = $u->planid;
@@ -161,11 +169,9 @@ class planning_manager {
 
         return [
             'students' => $studentList,
-            'debug' => [
-                'rawCount' => count($studentsRaw),
-                'structureCount' => count($structures),
-                'selectedPeriod' => $periodId
-            ]
+            'subjects' => array_values($allSubjects), // New: Master list of courses
+            'projections' => array_values($projections),
+            'planning_projections' => array_values($planningProjections)
         ];
     }
 
@@ -271,5 +277,25 @@ class planning_manager {
         }
 
         return $map;
+    }
+
+    /**
+     * Helper to extract numeric level from names like "Periodo IV" or "Nivel 2"
+     */
+    private static function parse_semester_number($name) {
+        if (empty($name)) return 1;
+        
+        // Check for Romans
+        $romans = ['X' => 10, 'IX' => 9, 'VIII' => 8, 'VII' => 7, 'VI' => 6, 'V' => 5, 'IV' => 4, 'III' => 3, 'II' => 2, 'I' => 1];
+        foreach ($romans as $r => $v) {
+            if (stripos($name, $r) !== false) return $v;
+        }
+        
+        // Fallback to digits
+        if (preg_match('/\d+/', $name, $matches)) {
+            return (int)$matches[0];
+        }
+        
+        return 1;
     }
 }

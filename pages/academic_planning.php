@@ -178,8 +178,13 @@ echo $OUTPUT->header();
                     <h3 class="font-bold text-slate-700 flex items-center gap-2">
                         <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i> Matriz de Proyección
                     </h3>
-                     <div class="flex items-center gap-2 text-xs">
-                        <span class="px-2 py-1 bg-yellow-50 text-yellow-700 rounded border border-yellow-200">Editable: Nuevos Ingresos</span>
+                    <div class="flex items-center gap-3">
+                         <span class="px-2 py-1 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 text-xs">Editable: Nuevos Ingresos</span>
+                         <button @click="savePlanning" :disabled="saving" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-md">
+                            <i v-if="saving" data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                            <i v-else data-lucide="save" class="w-3.5 h-3.5"></i>
+                            Guardar Proyecciones
+                        </button>
                     </div>
                 </div>
                 <!-- TABLE SCROLL -->
@@ -1022,6 +1027,47 @@ const app = createApp({
 
         const reloadData = () => fetchData();
 
+        const savePlanning = async () => {
+             if (selectedPeriodId.value === 0) return;
+             saving.value = true;
+             try {
+                 // Prepare selections for the backend
+                 // Subjects from the analysis matrix
+                 const items = [];
+                 
+                 // manualProjections contains { SubjectName: Count }
+                 // We need to map it back to { planid, courseid, periodid, count }
+                 // This requires looking at the current analysis
+                 analysis.value.subjectList.forEach(s => {
+                     const count = manualProjections[s.name] || 0;
+                     if (count > 0 || (rawData.value.selections && rawData.value.selections[s.careerId + '_' + s.id])) {
+                         items.push({
+                             planid: s.careerId,
+                             courseid: s.id,
+                             periodid: s.periodId, // relative level ID
+                             count: count,
+                             checked: true // Selection if in matrix
+                         });
+                     }
+                 });
+
+                 console.log("Vue Planning App: savePlanning() items:", items);
+                 let res = await callMoodle('local_grupomakro_save_planning', {
+                     academicperiodid: selectedPeriodId.value,
+                     selections: JSON.stringify(items)
+                 });
+                 
+                 if (res) {
+                     alert("Planificación guardada con éxito.");
+                     fetchData();
+                 }
+             } catch (e) {
+                 console.error("Vue Planning App: savePlanning() FAILED", e);
+                 alert("Error al guardar: " + e.message);
+             } finally {
+                 saving.value = false;
+             }
+        };
         const fetchData = async () => {
              console.log("Vue Planning App: fetchData() starting for period", selectedPeriodId.value);
              loading.value = true;
@@ -1030,7 +1076,20 @@ const app = createApp({
                  let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
                  console.log("Vue Planning App: fetchData() received data:", res ? "SUCCESS" : "EMPTY");
                  rawData.value = res || [];
-             } catch (e) {
+
+                  // Initialize Manual Projections from saved data
+                  if (res && res.planning_projections) {
+                      // Clear existing
+                      Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
+                      
+                      res.planning_projections.forEach(pp => {
+                          const subject = res.subjects ? res.subjects.find(s => s.id == pp.courseid) : null;
+                          if (subject) {
+                              manualProjections[subject.name] = pp.projected_students;
+                          }
+                      });
+                  }
+              } catch (e) {
                  console.error("Vue Planning App: fetchData() FAILED", e);
              } finally {
                  loading.value = false;
@@ -1674,7 +1733,7 @@ const app = createApp({
         });
 
             return {
-                loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis,
+                loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
                 // Filters
                 selectedCareer, selectedShift, careers, shifts,
                 activeTab,

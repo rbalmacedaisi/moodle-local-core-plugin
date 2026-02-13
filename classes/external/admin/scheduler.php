@@ -171,17 +171,16 @@ class scheduler extends external_api {
         $jornadaSelect = $jornadaField ? ", uid_j.data AS jornada" : "";
 
         $sql = "SELECT u.id, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
-                       llu.currentperiodid, p.name as currentperiodname $jornadaSelect
+                       llu.currentperiodid, p.name as currentperiodname,
+                       llu.currentsubperiodid, sp.name as currentsubperiodname $jornadaSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id
                 LEFT JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
                 LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
+                LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
                 WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student' 
                   AND llu.status = 'activo'"; 
-                  // Filter by academic period if relevant? 
-                  // Maybe we only want students active in this 'academicperiodid' if we enforced migration.
-                  // For now, get all active students.
 
         $students = $DB->get_records_sql($sql);
 
@@ -193,14 +192,14 @@ class scheduler extends external_api {
         }
 
         // 3. Pre-fetch Passed Courses
-        $progress_sql = "SELECT CONCAT(userid, '_', courseid) as id, 1 FROM {gmk_course_progre} WHERE grade >= 71";
+        $progress_sql = "SELECT DISTINCT CONCAT(userid, '_', courseid) as id, 1 FROM {gmk_course_progre} WHERE status >= 3";
         $passed_map = $DB->get_records_sql_menu($progress_sql);
 
-        // 4. Pre-fetch Period Names (for mapping numbers)
+        // 4. Pre-fetch Period Names
         $period_names = $DB->get_records_menu('local_learning_periods', [], '', 'id, name');
         
         // 5. Build Demand
-        $demand = []; // [Career][Jornada][Semester] -> { students: [], courses: [] }
+        $demand = []; 
         $student_list = [];
 
         foreach ($students as $stu) {
@@ -209,23 +208,33 @@ class scheduler extends external_api {
             $career = $stu->planname;
             $jornada = $stu->jornada ?? 'Sin Jornada';
             
-            // Determine Student's "Semester" (Mode of pending subjects or currentperiodid)
-            // Let's use currentperiodid as base, but check pending in that period.
+            // WAVE LOGIC: If student is in Bimestre II, they project to Next Level Bimestre I
+            $levelId = $stu->currentperiodid;
+            $subName = $stu->currentsubperiodname ?? '';
+            $isBimestre2 = (stripos($subName, 'II') !== false || stripos($subName, '2') !== false);
             
-            $pending_in_current = 0;
-            $current_period_level = $stu->currentperiodid; 
+            $planningLevelId = $levelId;
+            if ($isBimestre2) {
+                // Find next period in the same plan
+                $nextPeriod = $DB->get_record_sql("SELECT id FROM {local_learning_periods} 
+                                                  WHERE learningplanid = :planid AND id > :curid 
+                                                  ORDER BY id ASC", 
+                                                  ['planid' => $stu->planid, 'curid' => $levelId], 
+                                                  IGNORE_MULTIPLE);
+                if ($nextPeriod) {
+                    $planningLevelId = $nextPeriod->id;
+                }
+            }
             
-            // Check courses in current period level
-            if (isset($curricula[$stu->planid][$current_period_level])) {
-                foreach ($curricula[$stu->planid][$current_period_level] as $cid) {
+            $pending_count = 0;
+            if (isset($curricula[$stu->planid][$planningLevelId])) {
+                foreach ($curricula[$stu->planid][$planningLevelId] as $cid) {
                      if (!isset($passed_map[$stu->id . '_' . $cid])) {
-                         $pending_in_current++;
+                         $pending_count++;
                          
-                         // Add to global demand
-                         $semName = $period_names[$current_period_level] ?? 'Nivel ' . $current_period_level;
-                         $semNum = self::parse_semester_number($semName); // Helper
+                         $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
+                         $semNum = self::parse_semester_number($semName);
                          
-                         // Init
                          if (!isset($demand[$career])) $demand[$career] = [];
                          if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
                          if (!isset($demand[$career][$jornada][$semNum])) {
@@ -236,7 +245,6 @@ class scheduler extends external_api {
                              ];
                          }
                          
-                         // Increment Course Count
                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
                              $demand[$career][$jornada][$semNum]['course_counts'][$cid] = 0;
                          }
@@ -245,12 +253,8 @@ class scheduler extends external_api {
                 }
             }
             
-            // Logic: If student has pending subjects in current level, they count for that level.
-            // We simplify: One student counts for One level (their current one).
-            // But they demand specific subjects.
-            
-            if ($pending_in_current > 0) {
-                 $semName = $period_names[$current_period_level] ?? 'Nivel ' . $current_period_level;
+            if ($pending_count > 0) {
+                 $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
                  $semNum = self::parse_semester_number($semName);
                  $demand[$career][$jornada][$semNum]['student_count']++;
                  
@@ -264,30 +268,64 @@ class scheduler extends external_api {
             }
         }
 
-        // B. Fetch Manual Projections
+        // B. Fetch Manual Projections (New Entrants)
         $projections = $DB->get_records('gmk_academic_projections', ['academicperiodid' => $periodid]);
         
-        // Merge Projections into Demand
         foreach ($projections as $proj) {
             $career = $proj->career;
-            $jornada = $proj->shift; // Ensure naming consistency (shift/jornada)
-            
-            // Projections usually are for "Semester 1" (New Entrants)
+            $jornada = $proj->shift;
             $semNum = 1; 
             
             if (!isset($demand[$career])) $demand[$career] = [];
             if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
              if (!isset($demand[$career][$jornada][$semNum])) {
                  $demand[$career][$jornada][$semNum] = [
-                     'semester_name' => 'Cuatrimestre I',
+                     'semester_name' => 'Nivel I',
                      'student_count' => 0,
-                     'course_counts' => [] // Need to fill with Semester 1 courses?
+                     'course_counts' => []
                  ];
              }
              
              $demand[$career][$jornada][$semNum]['student_count'] += $proj->count;
-             // Note: Course counts for projections need to be inferred by Frontend or added here.
-             // We'll leave it to frontend to multiply Projection Count * Semester 1 Courses.
+        }
+
+        // C. Fetch Planning Selections (from Planning Tab Matrix)
+        $planning = $DB->get_records('gmk_academic_planning', ['academicperiodid' => $periodid]);
+        $plan_names = $DB->get_records_menu('local_learning_plans', [], '', 'id, name');
+
+        foreach ($planning as $pp) {
+            $career = $plan_names[$pp->learningplanid] ?? 'Plan ' . $pp->learningplanid;
+            $cid = $pp->courseid;
+            $count = $pp->projected_students;
+            
+            // Note: gmk_academic_planning currently lacks 'shift'. 
+            // We append to all shifts found for this career/level, or a default one (Matutina).
+            if (isset($demand[$career])) {
+                $semName = $period_names[$pp->periodid] ?? '';
+                $semNum = self::parse_semester_number($semName);
+                
+                $shiftsToUpdate = array_keys($demand[$career]);
+                if (empty($shiftsToUpdate)) $shiftsToUpdate = ['Matutina']; // Default if no real students found
+
+                foreach ($shiftsToUpdate as $jornada) {
+                    if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
+                    if (!isset($demand[$career][$jornada][$semNum])) {
+                        $demand[$career][$jornada][$semNum] = [
+                            'semester_name' => $semName ?: ('Nivel ' . $semNum),
+                            'student_count' => 0,
+                            'course_counts' => []
+                        ];
+                    }
+                    if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
+                        $demand[$career][$jornada][$semNum]['course_counts'][$cid] = 0;
+                    }
+                    $demand[$career][$jornada][$semNum]['course_counts'][$cid] += $count;
+                    // If this is a manual projection with no students, we add to student_count too
+                    if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
+                        $demand[$career][$jornada][$semNum]['student_count'] = $count;
+                    }
+                }
+            }
         }
 
         return [
