@@ -430,6 +430,12 @@ Vue.component('studenttable', {
                     width: '150px'
                 },
                 {
+                    text: 'Jornada',
+                    value: 'journey',
+                    sortable: true,
+                    width: '120px'
+                },
+                {
                     text: lang.career || 'Carrera',
                     sortable: false,
                     value: 'carrers',
@@ -535,6 +541,7 @@ Vue.component('studenttable', {
                                 email: element.email,
                                 id: element.userid,
                                 documentnumber: element.documentnumber,
+                                journey: element.journey || '--',
                                 carrers: element.careers,
                                 subperiods: element.subperiods,
                                 financial_reason: element.financial_reason || '',
