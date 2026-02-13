@@ -187,14 +187,21 @@ window.SchedulerComponents.DemandView = {
                 });
 
                 if (!found) {
-                    console.warn(`GMK Debug: Student not found. Target: '${targetId}'`);
+                    // console.warn(`GMK Debug: Student not found. Target: '${targetId}'`);
+                    return {
+                        id: targetId,
+                        fullname: 'Estudiante Desconocido',
+                        email: '',
+                        documentnumber: targetId
+                    };
                 }
 
-                return found || {
-                    id: targetId,
-                    fullname: 'Estudiante Desconocido',
-                    email: '',
-                    documentnumber: targetId
+                // Return normalized object
+                return {
+                    id: found.id || targetId,
+                    fullname: found.name || found.fullname || 'Sin Nombre',
+                    email: found.email || '',
+                    documentnumber: found.id || found.idnumber || ''
                 };
             });
 
