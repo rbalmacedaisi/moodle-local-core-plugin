@@ -24,6 +24,7 @@
             students: [], // Flat list of pending students
             projections: [], // Manual projections
             generatedSchedules: [], // The algorithms output
+            subperiodFilter: 0, // 0: Todos, 1: P-I, 2: P-II
             loading: false,
             error: null,
             successMessage: null
@@ -167,7 +168,8 @@
                                         career: career,
                                         shift: shift,
                                         levelDisplay: semData.semester_name,
-                                        subGroup: i + 1
+                                        subGroup: i + 1,
+                                        subperiod: 0 // Default: Unassigned/Both
                                     });
                                 }
                             }
@@ -214,6 +216,17 @@
                 this.state.error = e.message;
             } finally {
                 this.state.loading = false;
+            }
+        },
+
+        setSubperiodFilter(val) {
+            this.state.subperiodFilter = val;
+        },
+
+        updateClassSubperiod(classId, subperiod) {
+            const cls = this.state.generatedSchedules.find(c => c.id === classId);
+            if (cls) {
+                cls.subperiod = subperiod;
             }
         },
 

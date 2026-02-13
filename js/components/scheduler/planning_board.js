@@ -141,6 +141,14 @@ window.SchedulerComponents.PlanningBoard = {
                                 <input type="time" v-model="selectedClass.end" class="w-full px-2 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
                         </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Bloque / Sub-Periodo</label>
+                            <select v-model="selectedClass.subperiod" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                                <option :value="0">Ambos / Todo el periodo</option>
+                                <option :value="1">P-I (Bloque 1)</option>
+                                <option :value="2">P-II (Bloque 2)</option>
+                            </select>
+                        </div>
                         <div class="pt-2">
                              <button @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
                                 Desasignar (Mover a Lista)
@@ -174,7 +182,13 @@ window.SchedulerComponents.PlanningBoard = {
             return this.storeState.generatedSchedules || [];
         },
         unassignedClasses() {
-            return this.allClasses.filter(c => c.day === 'N/A' || !c.day);
+            const filter = this.storeState.subperiodFilter;
+            return this.allClasses.filter(c => {
+                const isUnassigned = c.day === 'N/A' || !c.day;
+                if (!isUnassigned) return false;
+                if (filter === 0) return true;
+                return c.subperiod === 0 || c.subperiod === filter;
+            });
         },
         filteredUnassigned() {
             if (!this.search) return this.unassignedClasses;
@@ -197,7 +211,12 @@ window.SchedulerComponents.PlanningBoard = {
     },
     methods: {
         getClassesForDay(day) {
-            return this.allClasses.filter(c => c.day === day && c.start && c.end);
+            const filter = this.storeState.subperiodFilter;
+            return this.allClasses.filter(c => {
+                if (c.day !== day || !c.start || !c.end) return false;
+                if (filter === 0) return true;
+                return c.subperiod === 0 || c.subperiod === filter;
+            });
         },
         getEventStyle(cls) {
             const startMins = this.toMins(cls.start);
@@ -223,7 +242,17 @@ window.SchedulerComponents.PlanningBoard = {
         },
         hasConflict(cls) {
             if (!cls.teacherName) return false;
-            const others = this.getClassesForDay(cls.day).filter(c => c.id !== cls.id && c.teacherName === cls.teacherName);
+            // A conflict only exists if classes are in the same sub-period (or one is 'Both')
+            const others = this.allClasses.filter(c => {
+                if (c.id === cls.id || c.day !== cls.day || c.teacherName !== cls.teacherName) return false;
+                if (!c.start || !c.end) return false;
+
+                // Sub-period overlap check:
+                // Conflict if: same sub-period OR either is 0 (Both)
+                const subperiodOverlap = (c.subperiod === cls.subperiod) || (c.subperiod === 0) || (cls.subperiod === 0);
+                return subperiodOverlap;
+            });
+
             const s1 = this.toMins(cls.start);
             const e1 = this.toMins(cls.end);
 

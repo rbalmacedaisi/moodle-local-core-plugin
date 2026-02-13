@@ -24,6 +24,15 @@ window.SchedulerComponents.SchedulerView = {
                          </select>
                     </div>
                     
+                    <div class="flex flex-col flex-1 md:w-48">
+                         <label class="text-xs text-slate-500 font-bold mb-1">Visualización</label>
+                         <select v-model="storeState.subperiodFilter" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option :value="0">Todo el Periodo</option>
+                            <option :value="1">P-I (Bloque 1)</option>
+                            <option :value="2">P-II (Bloque 2)</option>
+                         </select>
+                    </div>
+
                     <button @click="refreshData" :disabled="storeState.loading" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors mt-4">
                         <i data-lucide="refresh-cw" class="w-5 h-5" :class="{'animate-spin': storeState.loading}"></i>
                     </button>
@@ -167,6 +176,7 @@ window.SchedulerComponents.SchedulerView = {
             if (!window.SchedulerPDF || !window.schedulerStore) return;
             const state = window.schedulerStore.state;
             const schedules = state.generatedSchedules;
+            const subperiod = state.subperiodFilter;
             const period = this.periods.find(p => p.id === this.selectedPeriod);
 
             const cohortsMap = {};
@@ -183,13 +193,14 @@ window.SchedulerComponents.SchedulerView = {
                 cohortsMap[key].schedules.push(sch);
             });
 
-            window.SchedulerPDF.generateGroupSchedulesPDF(Object.values(cohortsMap), period ? period.name : '');
+            window.SchedulerPDF.generateGroupSchedulesPDF(Object.values(cohortsMap), period ? period.name : '', new Set(), subperiod);
         },
         exportTeacherPDF() {
             if (!window.SchedulerPDF || !window.schedulerStore) return;
             const state = window.schedulerStore.state;
             const period = this.periods.find(p => p.id === this.selectedPeriod);
-            window.SchedulerPDF.generateTeacherSchedulesPDF(state.generatedSchedules, period ? period.name : '');
+            const subperiod = state.subperiodFilter;
+            window.SchedulerPDF.generateTeacherSchedulesPDF(state.generatedSchedules, period ? period.name : '', subperiod);
         },
         showToast(text, color = 'success') {
             this.snackbar = { show: true, text, color };

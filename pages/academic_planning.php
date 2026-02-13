@@ -123,11 +123,20 @@ echo $OUTPUT->header();
             <button @click="activeTab = 'planning'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'planning' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="trending-up" class="w-4 h-4"></i> Proyección de Apertura
             </button>
+            <button @click="activeTab = 'analysis'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'analysis' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="activity" class="w-4 h-4"></i> Análisis Detallado
+            </button>
+            <button @click="activeTab = 'population'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'population' ? 'border-pink-600 text-pink-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="users" class="w-4 h-4"></i> Población
+            </button>
             <button @click="activeTab = 'groups'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'groups' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
-                <i data-lucide="group" class="w-4 h-4"></i> Visual por Grupos
+                <i data-lucide="layers" class="w-4 h-4"></i> Visual por Grupos
             </button>
             <button @click="activeTab = 'students'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'students' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="graduation-cap" class="w-4 h-4"></i> Impacto & Graduandos
+            </button>
+            <button @click="activeTab = 'search'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'search' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
+                <i data-lucide="search" class="w-4 h-4"></i> Búsqueda Global
             </button>
             <button @click="activeTab = 'calendar'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'calendar' ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="calendar-days" class="w-4 h-4"></i> Calendario Anual
@@ -139,6 +148,7 @@ echo $OUTPUT->header();
                 <i data-lucide="calendar-clock" class="w-4 h-4"></i> Horarios
             </button>
         </div>
+
 
          <!-- TAB 1: PLANNING -->
          <div v-if="activeTab === 'planning'" class="space-y-6">
@@ -222,6 +232,212 @@ echo $OUTPUT->header();
                 </div>
             </div>
          </div>
+
+          <!-- TAB 1.1: ANALYSIS -->
+          <div v-show="activeTab === 'analysis'" class="space-y-6">
+              <!-- KPI ROW -->
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-red-500">
+                      <p class="text-slate-500 text-xs font-bold uppercase">Cuellos de Botella</p>
+                      <h3 class="text-2xl font-bold text-slate-800">
+                          {{ analysis.subjectList.filter(s => s.totalP1 > 30 && !s.isOpen).length }}
+                      </h3>
+                      <p class="text-xs text-red-600">Asignaturas con alta demanda sin abrir</p>
+                  </div>
+                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-green-500">
+                      <p class="text-slate-500 text-xs font-bold uppercase">Aperturas Críticas</p>
+                      <h3 class="text-2xl font-bold text-slate-800">
+                          {{ analysis.subjectList.filter(s => s.isOpen && s.suggestion.includes('ABRIR AHORA')).length }}
+                      </h3>
+                      <p class="text-xs text-green-600">Deben abrirse inmediatamente</p>
+                  </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <i data-lucide="activity" class="text-teal-600"></i>
+                      Análisis de Aperturas por Generación
+                  </h3>
+                  <p class="text-sm text-slate-500 mb-6">
+                      Este análisis muestra qué asignaturas son más críticas para cada generación de ingreso.
+                  </p>
+
+                  <div class="space-y-8">
+                      <div v-for="period in analysis.sortedEntryPeriods" :key="period" class="border-b border-slate-100 last:border-0 pb-6 last:pb-0">
+                          <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                              <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">{{ period }}</span>
+                          </h4>
+                          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              <div v-for="s in analysis.subjectList.filter(subj => subj.entryPeriodCounts[period] > 0).sort((a, b) => b.entryPeriodCounts[period] - a.entryPeriodCounts[period]).slice(0, 5)" 
+                                   :key="s.name" class="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-200">
+                                  <span class="text-xs font-medium text-slate-700 truncate pr-2" :title="s.name">{{ s.name }}</span>
+                                  <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', s.isOpen ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600']">
+                                      {{ s.entryPeriodCounts[period] }}
+                                  </span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          <!-- TAB 1.2: POPULATION -->
+          <div v-show="activeTab === 'population'" class="space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-pink-500">
+                      <p class="text-slate-500 text-xs font-bold uppercase">Población Total</p>
+                      <h3 class="text-2xl font-bold text-slate-800">{{ analysis.totalStudents }}</h3>
+                      <p class="text-xs text-pink-600">Estudiantes Activos</p>
+                  </div>
+                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-indigo-500">
+                      <p class="text-slate-500 text-xs font-bold uppercase">Carreras Activas</p>
+                      <h3 class="text-2xl font-bold text-slate-800">{{ Object.keys(analysis.populationTree).length }}</h3>
+                  </div>
+                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-purple-500">
+                      <p class="text-slate-500 text-xs font-bold uppercase">Generaciones (Ingresos)</p>
+                      <h3 class="text-2xl font-bold text-slate-800">{{ analysis.sortedEntryPeriods.length }}</h3>
+                  </div>
+              </div>
+
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div class="p-4 border-b border-slate-100 bg-slate-50">
+                      <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                          <i data-lucide="layers" class="text-pink-500"></i>
+                          Desglose Jerárquico de Población
+                      </h4>
+                  </div>
+                  <div class="overflow-x-auto">
+                      <table class="w-full text-left text-sm">
+                          <thead class="bg-white text-slate-500 border-b border-slate-100">
+                              <tr>
+                                  <th class="p-3">Nivel / Detalle</th>
+                                  <th class="p-3 text-right">Cantidad</th>
+                                  <th class="p-3 text-right text-xs">% Total</th>
+                              </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-50">
+                              <template v-for="(data, career) in analysis.populationTree">
+                                  <tr class="cursor-pointer hover:bg-pink-50/30 transition-colors" :class="{'bg-pink-50/50': expandedCareer === career}" @click="toggleCareer(career)">
+                                      <td class="p-3 font-bold text-slate-700 flex items-center gap-2">
+                                          <i v-if="expandedCareer === career" data-lucide="chevron-down" class="w-4 h-4 text-pink-500"></i>
+                                          <i v-else data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                                          {{ career }}
+                                      </td>
+                                      <td class="p-3 text-right font-bold text-pink-700">{{ data.count }}</td>
+                                      <td class="p-3 text-right text-xs text-slate-400">
+                                          {{ ((data.count / analysis.totalStudents) * 100).toFixed(1) }}%
+                                      </td>
+                                  </tr>
+                                  
+                                  <template v-if="expandedCareer === career">
+                                      <template v-for="(pData, period) in data.periods">
+                                          <tr class="bg-slate-50/50 cursor-pointer hover:bg-slate-100 transition-colors" @click.stop="togglePeriod(period)">
+                                              <td class="p-2 pl-8 text-slate-600 text-xs font-medium flex items-center gap-2">
+                                                  <i v-if="expandedPeriod === period" data-lucide="chevron-down" class="w-3 h-3 text-indigo-500"></i>
+                                                  <i v-else data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i>
+                                                  {{ period }}
+                                              </td>
+                                              <td class="p-2 text-right text-xs font-medium text-slate-600">{{ pData.count }}</td>
+                                              <td class="p-2 text-right text-[10px] text-slate-400">
+                                                  {{ ((pData.count / data.count) * 100).toFixed(1) }}% (Car)
+                                              </td>
+                                          </tr>
+                                          
+                                          <tr v-if="expandedPeriod === period" v-for="grp in pData.groups" :key="grp.key" class="bg-slate-100/50 hover:bg-slate-100">
+                                              <td class="p-2 pl-14 text-slate-500 text-[11px] flex items-center gap-2">
+                                                  <span class="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase">Grupo</span>
+                                                  {{ grp.key }}
+                                              </td>
+                                              <td class="p-2 text-right text-[11px] font-mono text-slate-500">{{ grp.count }}</td>
+                                              <td class="p-2 text-right text-[10px] text-slate-300">-</td>
+                                          </tr>
+                                      </template>
+                                  </template>
+                              </template>
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+
+          <!-- TAB 2: SEARCH -->
+          <div v-show="activeTab === 'search'" class="space-y-6">
+              <div class="flex flex-col items-center justify-center py-10 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div class="bg-sky-50 p-4 rounded-full mb-4"><i data-lucide="search" class="w-8 h-8 text-sky-500"></i></div>
+                  <h3 class="text-lg font-bold text-slate-800 mb-2">Buscador de Estudiantes</h3>
+                  <div class="flex gap-2 w-full max-w-md px-4">
+                      <input
+                          type="text"
+                          placeholder="Ingrese Nombre o Cédula..."
+                          class="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm"
+                          v-model="studentSearchQuery"
+                          @keydown.enter="handleStudentSearch"
+                      />
+                      <button @click="handleStudentSearch" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-sm">Buscar</button>
+                  </div>
+              </div>
+
+              <div v-if="searchedStudent" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 border-t-4 border-t-sky-500 animate-in fade-in duration-300">
+                  <div class="flex flex-col md:flex-row justify-between items-start mb-6 border-b border-slate-100 pb-4 gap-4">
+                      <div>
+                          <h2 class="text-2xl font-bold text-slate-800">{{ searchedStudent.name }}</h2>
+                          <p class="text-slate-500 font-mono text-sm">{{ searchedStudent.id || searchedStudent.dbId }}</p>
+                          <div class="flex flex-wrap gap-2 mt-2">
+                              <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.career }}</span>
+                              <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.shift }}</span>
+                              <span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">Nivel {{ searchedStudent.currentSemConfig }}</span>
+                              <span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full text-xs font-bold">Ingreso: {{ searchedStudent.entry_period || 'Sin Definir' }}</span>
+                          </div>
+                      </div>
+                      <button @click="handleExportStudentSchedule" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors text-sm">
+                          <i data-lucide="download" class="w-4 h-4"></i> Exportar Info
+                      </button>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <!-- PENDING SUBJECTS -->
+                      <div>
+                          <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                              <i data-lucide="book-open" class="text-sky-500 w-4 h-4"></i>
+                              Materias Pendientes (Prioridad)
+                          </h4>
+                          <div class="space-y-2">
+                              <div v-for="subj in searchedStudent.pendingSubjects.filter(s => s.isPriority)" :key="subj.name" class="p-3 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
+                                  <span class="text-sm text-slate-700 font-medium">{{ subj.name }}</span>
+                                  <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Nivel {{ subj.semester }}</span>
+                              </div>
+                              <p v-if="searchedStudent.pendingSubjects.length === 0" class="text-sm text-slate-400 italic">No hay materias pendientes.</p>
+                          </div>
+                      </div>
+
+                      <!-- CONTEXT INFO -->
+                      <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                          <h4 class="font-bold text-slate-700 text-sm mb-3">Información Académica</h4>
+                          <div class="space-y-3">
+                              <div class="flex justify-between border-b border-slate-200 pb-2">
+                                  <span class="text-xs text-slate-500">Plan de Estudios</span>
+                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.career }}</span>
+                              </div>
+                              <div class="flex justify-between border-b border-slate-200 pb-2">
+                                  <span class="text-xs text-slate-500">Periodo Actual</span>
+                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.currentSemConfig }}</span>
+                              </div>
+                              <div class="flex justify-between border-b border-slate-200 pb-2">
+                                  <span class="text-xs text-slate-500">Bimestre Actual</span>
+                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.currentSubperiodConfig }}</span>
+                              </div>
+                              <div class="flex justify-between">
+                                  <span class="text-xs text-slate-500">Estado de Carga (P-I)</span>
+                                  <span :class="['text-xs font-bold', searchedStudent.loadCount > 0 ? 'text-green-600' : 'text-red-500']">
+                                      {{ searchedStudent.loadCount }} Materias Asignadas
+                                  </span>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
 
          <!-- TAB 2: COHORTS -->
          <div v-if="activeTab === 'groups'" class="space-y-6">
@@ -730,6 +946,13 @@ const app = createApp({
         // Student Filter
         const studentStatusFilter = ref('Todos');
         const searchTerm = ref('');
+
+        // New UI State for Tabs
+        const expandedCareer = ref(null);
+        const expandedPeriod = ref(null);
+        const studentSearchQuery = ref('');
+        const searchedStudent = ref(null);
+
         
         // Calendar State
         const calendarYear = ref(new Date().getFullYear());
@@ -833,6 +1056,11 @@ const app = createApp({
             const cohorts = {};
             const studentsInSem = {}; // Map Level -> Cohort -> Data
             
+            // New data structures for Population and Analysis
+            const populationTree = {};
+            const entryPeriodsSet = new Set();
+
+            
             // 1. Initialize Cohorts & Students
             filtered.forEach(stu => {
                  // Determine Level/Bimestre from Config or Props
@@ -898,16 +1126,39 @@ const app = createApp({
                  if (!studentsInSem[planningLevel]) studentsInSem[planningLevel] = {};
                  if (!studentsInSem[planningLevel][cohortKey]) studentsInSem[planningLevel][cohortKey] = { count: 0, students: [] };
                  
-                 studentsMap[stu.id].cohortKey = cohortKey;
-                 // studentsMap already set above
-                 cohorts[cohortKey].studentCount++;
-                 studentsInSem[planningLevel][cohortKey].count++;
-                 // Use name/ID string for aggregation? Or object?
-                 // Wait, in Step 5311 I changed this to `${stu.name} (${stu.id})` but in wave process logic.
-                 // Here (Line 543) it pushes `studentsMap[stu.id]`.
-                 // Let's keep object here for Wave Logic which reads properties from it.
-                 studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
-            });
+                  studentsMap[stu.id].cohortKey = cohortKey;
+                  // studentsMap already set above
+                  cohorts[cohortKey].studentCount++;
+                  studentsInSem[planningLevel][cohortKey].count++;
+                  // Use name/ID string for aggregation? Or object?
+                  // Wait, in Step 5311 I changed this to `${stu.name} (${stu.id})` but in wave process logic.
+                  // Here (Line 543) it pushes `studentsMap[stu.id]`.
+                  // Let's keep object here for Wave Logic which reads properties from it.
+                  studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
+
+                  // Population Tree Logic
+                  const entryP = stu.entry_period || 'Sin Definir';
+                  entryPeriodsSet.add(entryP);
+                  
+                  if (!populationTree[stu.career]) {
+                      populationTree[stu.career] = { count: 0, periods: {} };
+                  }
+                  populationTree[stu.career].count++;
+                  
+                  if (!populationTree[stu.career].periods[entryP]) {
+                      populationTree[stu.career].periods[entryP] = { count: 0, groups: {} };
+                  }
+                  populationTree[stu.career].periods[entryP].count++;
+                  
+                  if (!populationTree[stu.career].periods[entryP].groups[cohortKey]) {
+                      populationTree[stu.career].periods[entryP].groups[cohortKey] = {
+                          key: cohortKey,
+                          count: 0
+                      };
+                  }
+                  populationTree[stu.career].periods[entryP].groups[cohortKey].count++;
+             });
+
 
             // 1. Initialize Subjects from Backend Master List (to show 0 demand items)
             // Backend now returns { students: [], all_subjects: [] }
@@ -928,14 +1179,15 @@ const app = createApp({
             // Initialize Subjects Map
             // subjectsMap already declared above
             allSubjectsList.forEach(subj => {
-                 subjectsMap[subj.name] = {
-                     id: subj.id,
-                     name: subj.name,
-                     semesterNum: parseInt(subj.semester_num) || 0,
-                     countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
-                     groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {}
-                 };
-            });
+                  subjectsMap[subj.name] = {
+                      id: subj.id,
+                      name: subj.name,
+                      semesterNum: parseInt(subj.semester_num) || 0,
+                      countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
+                      groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
+                      entryPeriodCounts: {} // New track for analysis
+                  };
+             });
             
             // If allSubjectsList was empty (fallback), we build subjects dynamically from pending (like before)
             // But usually we prefer to have the list.
@@ -980,9 +1232,16 @@ const app = createApp({
                          if (!subjectsMap[subj.name][gKey][stu.cohortKey]) subjectsMap[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
                          subjectsMap[subj.name][gKey][stu.cohortKey].count++;
                          // Store Name and ID for display
-                         subjectsMap[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
-                         
-                         // Add to Cohort View
+                          subjectsMap[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
+                          
+                          // Track counts by Entry Period for Analysis
+                          const entryP = stu.entry_period || 'Sin Definir';
+                          if (!subjectsMap[subj.name].entryPeriodCounts[entryP]) {
+                              subjectsMap[subj.name].entryPeriodCounts[entryP] = 0;
+                          }
+                          subjectsMap[subj.name].entryPeriodCounts[entryP]++;
+
+                          // Add to Cohort View
                          if (cohorts[stu.cohortKey] && !cohorts[stu.cohortKey].subjectsByPeriod[deferral].includes(subj.name)) {
                              cohorts[stu.cohortKey].subjectsByPeriod[deferral].push(subj.name);
                          }
@@ -1083,8 +1342,12 @@ const app = createApp({
                 return {
                     subjectList: subjectsArray.sort((a,b) => b.totalP1 - a.totalP1),
                     cohortViewList: Object.values(cohorts).sort((a,b) => b.studentCount - a.studentCount),
-                    studentList: studentAnalysisList
+                    studentList: studentAnalysisList,
+                    populationTree,
+                    totalStudents: filtered.length,
+                    sortedEntryPeriods: Array.from(entryPeriodsSet).sort()
                 };
+
             } catch (err) {
                 console.error("Vue Planning App: ERROR in analysis engine", err);
                 return { subjectList: [], cohortViewList: [], studentList: [] };
@@ -1362,6 +1625,42 @@ const app = createApp({
             return (d.getMonth() + 1) === month && d.getFullYear() === calendarYear.value;
         };
 
+        const toggleCareer = (career) => {
+            expandedCareer.value = expandedCareer.value === career ? null : career;
+            expandedPeriod.value = null;
+        };
+
+        const togglePeriod = (period) => {
+            expandedPeriod.value = expandedPeriod.value === period ? null : period;
+        };
+
+        const handleStudentSearch = () => {
+            if (!analysis.value || !studentSearchQuery.value) return;
+            const term = studentSearchQuery.value.toLowerCase();
+            const student = analysis.value.studentList.find(s =>
+                String(s.name).toLowerCase().includes(term) || String(s.dbId).toLowerCase().includes(term) || (s.id && String(s.id).toLowerCase().includes(term))
+            );
+
+            if (student) {
+                // For now, we don't have generatedSchedules here in the main view readily linked,
+                // but we can show basic info. If schedulerView generates them, they are in the store.
+                searchedStudent.value = student;
+            } else {
+                alert("Estudiante no encontrado.");
+                searchedStudent.value = null;
+            }
+        };
+
+        const handleExportStudentSchedule = () => {
+            if (!searchedStudent.value || !window.XLSX) {
+                alert("XLSX library not loaded or student not selected.");
+                return;
+            }
+            // Implementation depends on availability of schedules in searchedStudent
+            alert("Exportar a Excel no implementado en esta vista. Use la pestaña de Horarios para reportes avanzados.");
+        };
+
+
         onMounted(() => {
             loadInitial();
             loadCalendarData();
@@ -1393,8 +1692,12 @@ const app = createApp({
                 formatDate, formatDateShort, isStartOfMonth,
                 // Configuration / CRUD
                 academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
-                openPeriodModal, savePeriod, getPlanName
+                openPeriodModal, savePeriod, getPlanName,
+                // New Tabs Logic
+                expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
+                studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule
             };
+
         } catch (setupError) {
             console.error("Vue Planning App: CRITICAL ERROR IN setup()", setupError);
             throw setupError;

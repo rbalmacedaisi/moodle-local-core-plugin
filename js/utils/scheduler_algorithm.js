@@ -80,7 +80,8 @@
                 teacherBusy[s.teacherName].push({
                     day: s.day,
                     start: s.start,
-                    end: s.end
+                    end: s.end,
+                    subperiod: s.subperiod || 0
                 });
             }
         });
@@ -112,7 +113,8 @@
                 const isBusy = (teacherBusy[auth.teacherName] || []).some(busy => {
                     const bStart = toMins(busy.start);
                     const bEnd = toMins(busy.end);
-                    return busy.day === s.day && Math.max(sStart, bStart) < Math.min(sEnd, bEnd);
+                    const subOverlap = (busy.subperiod === s.subperiod) || (busy.subperiod === 0) || (s.subperiod === 0);
+                    return busy.day === s.day && subOverlap && Math.max(sStart, bStart) < Math.min(sEnd, bEnd);
                 });
 
                 if (!isBusy) {
@@ -124,7 +126,8 @@
                     teacherBusy[auth.teacherName].push({
                         day: s.day,
                         start: s.start,
-                        end: s.end
+                        end: s.end,
+                        subperiod: s.subperiod || 0
                     });
                     break; // Move to next schedule
                 }
@@ -148,7 +151,8 @@
                 teacherBusy[s.teacherName].push({
                     day: s.day,
                     start: s.start,
-                    end: s.end
+                    end: s.end,
+                    subperiod: s.subperiod || 0
                 });
             }
         });
@@ -176,7 +180,8 @@
                 const isBusy = (teacherBusy[auth.teacherName] || []).some(busy => {
                     const bStart = toMins(busy.start);
                     const bEnd = toMins(busy.end);
-                    return busy.day === tDay && Math.max(tStartMins, bStart) < Math.min(tStartMins + durationMins, bEnd);
+                    const subOverlap = (busy.subperiod === s.subperiod) || (busy.subperiod === 0) || (s.subperiod === 0);
+                    return busy.day === tDay && subOverlap && Math.max(tStartMins, bStart) < Math.min(tStartMins + durationMins, bEnd);
                 });
 
                 if (!isBusy) {

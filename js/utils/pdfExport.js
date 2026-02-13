@@ -26,9 +26,11 @@
         });
     };
 
-    const generateGroupSchedulesPDF = (cohorts, academicPeriod, hiddenSchedules = new Set()) => {
+    const generateGroupSchedulesPDF = (cohorts, academicPeriod, hiddenSchedules = new Set(), subperiod = 0) => {
         const doc = getJsPDF();
         if (!doc) return;
+
+        const subperiodLabel = subperiod === 1 ? ' (P-I)' : (subperiod === 2 ? ' (P-II)' : '');
 
         const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
 
@@ -47,7 +49,7 @@
 
             doc.line(20, 18, doc.internal.pageSize.getWidth() - 20, 18);
             doc.setFontSize(12);
-            doc.text('HORARIO', doc.internal.pageSize.getWidth() / 2, 23, { align: 'center' });
+            doc.text('HORARIO' + subperiodLabel, doc.internal.pageSize.getWidth() / 2, 23, { align: 'center' });
             doc.line(20, 25, doc.internal.pageSize.getWidth() - 20, 25);
 
             // --- METADATA BAR ---
@@ -91,8 +93,11 @@
             // --- SCHEDULE MATRIX ---
             const matrixStartY = doc.lastAutoTable.finalY + 3; // Reduced spacing
 
-            // Filter classes: remove hidden ones
+            // Filter classes: remove hidden ones AND filter by subperiod
             const visibleClasses = (cohort.schedules || []).filter(s => {
+                // Filter by subperiod
+                if (subperiod !== 0 && s.subperiod !== 0 && s.subperiod !== subperiod) return false;
+
                 const isHiddenByCohort = hiddenSchedules.has && hiddenSchedules.has(`${cohort.key}|${s.id}`);
                 // Simple check if hiddenSchedules is Set
                 if (hiddenSchedules instanceof Set) {
@@ -173,9 +178,15 @@
         doc.save(`Horarios_Grupos_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
-    const generateTeacherSchedulesPDF = (schedules, academicPeriod) => {
+    const generateTeacherSchedulesPDF = (schedules, academicPeriod, subperiod = 0) => {
         const doc = getJsPDF();
         if (!doc) return;
+
+        const subperiodLabel = subperiod === 1 ? ' (P-I)' : (subperiod === 2 ? ' (P-II)' : '');
+
+        // Filter schedules by subperiod before grouping
+        const filteredSchedules = subperiod === 0 ? schedules : schedules.filter(s => s.subperiod === 0 || s.subperiod === subperiod);
+
 
         const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
         const periodLabel = typeof academicPeriod === 'object' && academicPeriod !== null
@@ -183,7 +194,7 @@
             : (academicPeriod || '');
 
         // 1. Filter and Group by Teacher
-        const byTeacher = schedules.reduce((acc, s) => {
+        const byTeacher = filteredSchedules.reduce((acc, s) => {
             if (!s.teacherName || s.day === 'N/A' || s.teacherName.toLowerCase().includes('por asignar')) return acc;
             if (!acc[s.teacherName]) acc[s.teacherName] = [];
             acc[s.teacherName].push(s);
@@ -207,7 +218,7 @@
 
             doc.line(20, 18, doc.internal.pageSize.getWidth() - 20, 18);
             doc.setFontSize(12);
-            doc.text('HORARIO DOCENTE', doc.internal.pageSize.getWidth() / 2, 23, { align: 'center' });
+            doc.text('HORARIO DOCENTE' + subperiodLabel, doc.internal.pageSize.getWidth() / 2, 23, { align: 'center' });
             doc.line(20, 25, doc.internal.pageSize.getWidth() - 20, 25);
 
             // --- METADATA BAR ---

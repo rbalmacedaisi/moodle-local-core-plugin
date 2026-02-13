@@ -32,18 +32,30 @@ class planning_manager {
             $jornadaSelect = ", uid_j.data AS shift";
         }
 
+        // Fetch Periodo de Ingreso custom field
+        $periodoIngresoField = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+        $piJoin = "";
+        $piSelect = ", '' as entry_period";
+        if ($periodoIngresoField) {
+            $piJoin = "LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . $periodoIngresoField->id;
+            $piSelect = ", uid_pi.data AS entry_period";
+        }
+
         $sql = "SELECT u.id, u.firstname, u.lastname, u.idnumber, u.email,
                        lp.id as planid, lp.name as planname,
                        p.id as periodid, p.name as periodname,
                        sp.id as subperiodid, sp.name as subperiodname
                        $jornadaSelect
+                       $piSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
                 JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
                 LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
+                $piJoin
                 WHERE u.deleted = 0 AND u.suspended = 0";
+
 
         $studentsRaw = $DB->get_records_sql($sql);
         $studentList = [];
@@ -141,8 +153,10 @@ class planning_manager {
                 // Pass raw Current Period/Subperiod from DB Config
                 'currentSemConfig' => $u->periodname, 
                 'currentSubperiodConfig' => $u->subperiodname,
+                'entry_period' => $u->entry_period,
                 'pendingSubjects' => $pending
             ];
+
         }
 
         return [
