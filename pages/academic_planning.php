@@ -29,17 +29,17 @@ echo $OUTPUT->header();
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 <!-- Scheduler Module Scripts -->
-<script src="../js/utils/scheduler_algorithm.js"></script>
-<script src="../js/utils/pdfExport.js"></script>
-<script src="../js/stores/schedulerStore.js"></script>
+<script src="../js/utils/scheduler_algorithm.js?v=<?= time() ?>"></script>
+<script src="../js/utils/pdfExport.js?v=<?= time() ?>"></script>
+<script src="../js/stores/schedulerStore.js?v=<?= time() ?>"></script>
 
-<script src="../js/components/scheduler/projections_modal.js"></script>
-<script src="../js/components/scheduler/demand_view.js"></script>
-<script src="../js/components/scheduler/planning_board.js"></script>
-<script src="../js/components/scheduler/period_grouped_view.js"></script>
-<script src="../js/components/scheduler/scheduler_view.js"></script>
-<script src="../js/components/scheduler/classroom_manager.js"></script>
-<script src="../js/components/scheduler/holiday_manager.js"></script>
+<script src="../js/components/scheduler/projections_modal.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/demand_view.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/planning_board.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/period_grouped_view.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/scheduler_view.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/classroom_manager.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/holiday_manager.js?v=<?= time() ?>"></script>
 
 <style>
     .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
