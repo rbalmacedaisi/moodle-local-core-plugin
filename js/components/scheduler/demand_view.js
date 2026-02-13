@@ -171,19 +171,39 @@ window.SchedulerComponents.DemandView = {
             }
 
             const studentIds = val.students;
-            const allStudents = this.storeState.students || [];
+            // Prefer window store if available for most up-to-date data, fallback to prop
+            const allStudents = (window.schedulerStore && window.schedulerStore.state.students) || this.storeState.students || [];
 
             console.log("GMK Debug: Opening Modal. IDs:", studentIds);
-            // console.log("GMK Debug: All Students Sample:", allStudents.slice(0, 3));
 
-            // Map IDs to student objects
-            this.selectedStudentList = studentIds.map(id => {
-                // Loose comparison because ID coming from tree might be int/string and allStudents might have the other
-                const found = allStudents.find(s => s.id == id);
+            if (allStudents.length > 0) {
+                console.log("GMK Debug: First Student in Store:", JSON.stringify(allStudents[0]));
+            } else {
+                console.error("GMK Debug: allStudents is empty! Scheduler store might not be loaded correctly.");
+            }
+
+            // Map IDs to student objects with robust matching
+            this.selectedStudentList = studentIds.map(targetId => {
+                const targetStr = String(targetId).trim().toLowerCase();
+
+                const found = allStudents.find(s => {
+                    // Check against 'id' (idnumber or id)
+                    if (s.id && String(s.id).trim().toLowerCase() === targetStr) return true;
+                    // Check against 'dbId' (internal id) just in case
+                    if (s.dbId && String(s.dbId).trim().toLowerCase() === targetStr) return true;
+                    return false;
+                });
+
                 if (!found) {
-                    console.warn("GMK Debug: Student not found for ID:", id);
+                    console.warn(`GMK Debug: Student not found. Target: '${targetId}'`);
                 }
-                return found || { id: id, fullname: 'Estudiante Desconocido (' + id + ')', email: '', documentnumber: '' };
+
+                return found || {
+                    id: targetId,
+                    fullname: 'Estudiante Desconocido',
+                    email: '',
+                    documentnumber: targetId
+                };
             });
 
             this.showStudentsModal = true;
