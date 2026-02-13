@@ -69,9 +69,15 @@ window.SchedulerComponents.DemandView = {
                                              <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">{{ semData.student_count }} Est.</span>
                                          </div>
                                          <div class="space-y-1 max-h-40 overflow-y-auto pr-1 small-scroll">
-                                             <div v-for="(count, courseId) in semData.course_counts" :key="courseId" class="flex justify-between items-center text-xs">
+                                             <div v-for="(val, courseId) in semData.course_counts" :key="courseId" class="flex justify-between items-center text-xs group">
                                                   <span class="text-slate-600 truncate flex-1 mr-2" :title="courseId">ID: {{ courseId }}</span>
-                                                  <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold">{{ count }}</span>
+                                                  <button 
+                                                    @click="openStudentList(val)" 
+                                                    :class="{'hover:bg-blue-200 hover:text-blue-800 cursor-pointer': typeof val === 'object' && val.students && val.students.length > 0}"
+                                                    class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono font-bold transition-colors"
+                                                  >
+                                                    {{ getStudentCount(val) }}
+                                                  </button>
                                              </div>
                                          </div>
                                      </div>
@@ -88,10 +94,54 @@ window.SchedulerComponents.DemandView = {
                 :period-id="periodId"
             ></projections-modal>
         </div>
+            
+            <!-- Projections Modal -->
+            <projections-modal
+                v-model="showProjections"
+                :period-id="periodId"
+            ></projections-modal>
+
+            <!-- Students List Modal -->
+            <div v-if="showStudentsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                         <h3 class="font-bold text-slate-800">Estudiantes ({{ selectedStudentList.length }})</h3>
+                         <button @click="closeStudentModal" class="text-slate-400 hover:text-slate-600 transition-colors">
+                             <i data-lucide="x" class="w-5 h-5"></i>
+                         </button>
+                    </div>
+                    <div class="p-0 overflow-y-auto flex-1 small-scroll">
+                         <div v-if="selectedStudentList.length === 0" class="p-8 text-center text-slate-500">
+                             <i data-lucide="users" class="w-8 h-8 mx-auto mb-2 text-slate-300"></i>
+                             No se encontraron detalles de estudiantes.
+                         </div>
+                         <ul v-else class="divide-y divide-slate-100">
+                             <li v-for="student in selectedStudentList" :key="student.id" class="p-3 hover:bg-slate-50 flex items-center gap-3 transition-colors">
+                                 <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                                     {{ getInitials(student.fullname) }}
+                                 </div>
+                                 <div class="min-w-0">
+                                     <p class="text-sm font-bold text-slate-700 truncate">{{ student.fullname }}</p>
+                                     <p class="text-xs text-slate-500 truncate">{{ student.email || 'Sin email' }}</p>
+                                     <p v-if="student.documentnumber" class="text-[10px] text-slate-400 font-mono">ID: {{ student.documentnumber }}</p>
+                                 </div>
+                             </li>
+                         </ul>
+                    </div>
+                    <div class="p-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+                        <button @click="closeStudentModal" class="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     `,
     data() {
         return {
             showProjections: false,
+            showStudentsModal: false,
+            selectedStudentList: [],
             expandedItems: {} // careerName: boolean
         };
     },
@@ -111,12 +161,45 @@ window.SchedulerComponents.DemandView = {
             this.expandedItems[name] = !this.expandedItems[name];
         },
         isExpanded(name) {
-            // Default expanded if few items?
             if (this.expandedItems[name] === undefined) {
-                // return true; // Auto expand all?
                 this.expandedItems[name] = false;
             }
             return this.expandedItems[name];
+        },
+        getStudentCount(val) {
+            if (val && typeof val === 'object') {
+                return val.count || 0;
+            }
+            return val || 0;
+        },
+        openStudentList(val) {
+            if (!val || typeof val !== 'object' || !val.students || val.students.length === 0) {
+                return;
+            }
+
+            const studentIds = val.students;
+            const allStudents = this.storeState.students || [];
+
+            // Map IDs to student objects
+            this.selectedStudentList = studentIds.map(id => {
+                const found = allStudents.find(s => s.id == id);
+                return found || { id: id, fullname: 'Estudiante Desconocido (' + id + ')', email: '', documentnumber: '' };
+            });
+
+            this.showStudentsModal = true;
+        },
+        closeStudentModal() {
+            this.showStudentsModal = false;
+            this.selectedStudentList = [];
+        },
+        getInitials(name) {
+            if (!name) return '?';
+            return name
+                .split(' ')
+                .map(n => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
         },
         async generate() {
             if (confirm("¿Está seguro de generar los horarios? Esto reemplazará la planificación actual no guardada.")) {
