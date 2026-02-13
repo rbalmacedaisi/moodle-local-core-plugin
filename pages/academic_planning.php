@@ -36,6 +36,7 @@ echo $OUTPUT->header();
 <script src="../js/components/scheduler/projections_modal.js"></script>
 <script src="../js/components/scheduler/demand_view.js"></script>
 <script src="../js/components/scheduler/planning_board.js"></script>
+<script src="../js/components/scheduler/period_grouped_view.js"></script>
 <script src="../js/components/scheduler/scheduler_view.js"></script>
 <script src="../js/components/scheduler/classroom_manager.js"></script>
 <script src="../js/components/scheduler/holiday_manager.js"></script>
@@ -1606,6 +1607,7 @@ if (window.SchedulerComponents) {
     app.component('scheduler-view', window.SchedulerComponents.SchedulerView);
     app.component('demand-view', window.SchedulerComponents.DemandView);
     app.component('planning-board', window.SchedulerComponents.PlanningBoard);
+    app.component('period-grouped-view', window.SchedulerComponents.PeriodGroupedView);
     app.component('projections-modal', window.SchedulerComponents.ProjectionsModal);
     app.component('classroom-manager', window.SchedulerComponents.ClassroomManager);
     app.component('holiday-manager', window.SchedulerComponents.HolidayManager);

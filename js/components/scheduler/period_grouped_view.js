@@ -1,0 +1,147 @@
+/**
+ * Period Grouped View Component
+ * Visualizes schedules grouped by Academic Level (Cohorts) to detect gaps and overlaps.
+ */
+
+window.SchedulerComponents = window.SchedulerComponents || {};
+
+window.SchedulerComponents.PeriodGroupedView = {
+    props: ['periodId'],
+    template: `
+        <div class="flex flex-col h-[calc(100vh-200px)] bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <!-- Header Controls -->
+            <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center gap-4">
+                     <h3 class="font-bold text-slate-700 text-sm">Vista por Niveles (Cohortes)</h3>
+                     <div class="flex gap-2">
+                        <span class="flex items-center gap-1 text-xs text-slate-500">
+                            <span class="w-2 h-2 rounded-full bg-blue-500"></span> Mañana
+                        </span>
+                        <span class="flex items-center gap-1 text-xs text-slate-500">
+                            <span class="w-2 h-2 rounded-full bg-indigo-500"></span> Noche
+                        </span>
+                     </div>
+                </div>
+            </div>
+
+            <!-- Matrix -->
+            <div class="flex-1 overflow-auto p-4">
+                <div v-for="(group, levelName) in groupedSchedules" :key="levelName" class="mb-8 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                    <!-- Level Header -->
+                    <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                        <h4 class="font-bold text-slate-800 text-sm">{{ levelName }}</h4>
+                        <span class="text-xs text-slate-500 font-mono">{{ group.totalHours }} horas asignadas</span>
+                    </div>
+
+                    <!-- Days Grid -->
+                    <div class="grid grid-cols-6 divide-x divide-slate-200 bg-white">
+                        <div v-for="day in days" :key="day" class="min-h-[150px]">
+                            <div class="bg-slate-50 px-2 py-1 text-[10px] font-bold text-center text-slate-500 border-b border-slate-100 uppercase">
+                                {{ day }}
+                            </div>
+                            <div class="p-2 space-y-2">
+                                <div v-for="cls in getClasses(group.classes, day)" :key="cls.id" 
+                                    class="p-2 rounded border text-xs relative group hover:shadow-md transition-all"
+                                    :class="getCardClass(cls)"
+                                >
+                                    <div class="font-bold leading-tight mb-1">{{ cls.subjectName }}</div>
+                                    <div class="flex justify-between items-center text-[10px] opacity-80">
+                                        <span>{{ cls.start }} - {{ cls.end }}</span>
+                                    </div>
+                                    <div class="text-[10px] opacity-70 truncate mt-0.5">
+                                        {{ cls.teacherName || 'Sin docente' }}
+                                    </div>
+                                    
+                                     <!-- Tooltip on Hover -->
+                                    <div class="absolute inset-0 bg-white/95 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-center items-center text-center border-2 border-blue-500 rounded z-10 pointer-events-none">
+                                        <span class="font-bold text-blue-700">{{ cls.room || 'Sin aula' }}</span>
+                                        <span class="text-[10px] text-slate-600">{{ cls.subperiod === 0 ? 'Semestral' : (cls.subperiod === 1 ? 'Bloque 1' : 'Bloque 2') }}</span>
+                                    </div>
+                                </div>
+                                <div v-if="getClasses(group.classes, day).length === 0" class="h-full flex items-center justify-center">
+                                    <span class="text-slate-300 text-[10px]">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="Object.keys(groupedSchedules).length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
+                     <i data-lucide="layout-list" class="w-12 h-12 mb-2 opacity-50"></i>
+                     <p>No hay horarios asignados visibles con los filtros actuales.</p>
+                </div>
+            </div>
+        </div>
+    `,
+    data() {
+        return {
+            days: ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado']
+        };
+    },
+    computed: {
+        storeState() {
+            return window.schedulerStore ? window.schedulerStore.state : {};
+        },
+        allClasses() {
+            return this.storeState.generatedSchedules || [];
+        },
+        groupedSchedules() {
+            const filter = this.storeState.subperiodFilter;
+            const groups = {};
+
+            this.allClasses.forEach(c => {
+                if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) return;
+                if (!c.day || c.day === 'N/A') return;
+
+                // Group Key: Career + Level + Shift
+                // Actually, viewing by Level across careers might be messy if levels don't align.
+                // Better: Group by Career, then Level.
+                // Or "Career - Level - Shift" as the Header.
+                const key = `${c.career || 'General'} - ${c.levelDisplay} (${c.shift})`;
+
+                if (!groups[key]) {
+                    groups[key] = {
+                        classes: [],
+                        totalHours: 0
+                    };
+                }
+                groups[key].classes.push(c);
+
+                // Approx duration
+                const start = this.toMins(c.start);
+                const end = this.toMins(c.end);
+                groups[key].totalHours += (end - start) / 60;
+            });
+
+            // Sort keys?
+            return Object.keys(groups).sort().reduce((acc, key) => {
+                acc[key] = groups[key];
+                return acc;
+            }, {});
+        }
+    },
+    updated() {
+        if (window.lucide) window.lucide.createIcons();
+    },
+    methods: {
+        getClasses(classes, day) {
+            return classes.filter(c => c.day === day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
+        },
+        toMins(t) {
+            if (!t) return 0;
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + m;
+        },
+        getCardClass(cls) {
+            // Color by Shift or just generic?
+            // Shift isn't on the class directly in some models, but 'shift' property exists in my store.
+            if (cls.shift && cls.shift.toLowerCase().includes('noche')) {
+                return 'bg-indigo-50 border-indigo-200 text-indigo-900';
+            }
+            if (cls.shift && cls.shift.toLowerCase().includes('mañana')) {
+                return 'bg-blue-50 border-blue-200 text-blue-900';
+            }
+            return 'bg-slate-50 border-slate-200 text-slate-700';
+        }
+    }
+};

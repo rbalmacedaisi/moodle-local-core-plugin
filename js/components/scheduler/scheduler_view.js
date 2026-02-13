@@ -76,10 +76,32 @@ window.SchedulerComponents.SchedulerView = {
                 </div>
 
                 <!-- Tab 1: Planning Board -->
-                <div v-if="activeTab === 1 && isPeriodSelected">
+                <div v-if="activeTab === 1 && isPeriodSelected" class="flex flex-col h-full">
+                    <div class="flex justify-end mb-2">
+                        <div class="bg-white border border-slate-200 rounded-lg p-1 flex gap-1 shadow-sm">
+                            <button 
+                                @click="boardView = 'calendar'"
+                                :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'calendar' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50']"
+                            >
+                                <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> Calendario
+                            </button>
+                            <button 
+                                @click="boardView = 'grouped'" 
+                                :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'grouped' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50']"
+                            >
+                                <i data-lucide="layers" class="w-3 h-3 inline mr-1"></i> Por Niveles
+                            </button>
+                        </div>
+                    </div>
+
                     <planning-board 
+                        v-if="boardView === 'calendar'"
                         :period-id="selectedPeriod"
                     ></planning-board>
+                    <period-grouped-view 
+                        v-else
+                        :period-id="selectedPeriod"
+                    ></period-grouped-view>
                 </div>
                 
                 <!-- Tab 2: Reports -->
@@ -115,6 +137,7 @@ window.SchedulerComponents.SchedulerView = {
     data() {
         return {
             activeTab: 0,
+            boardView: 'calendar',
             selectedPeriod: null,
             periods: [],
             snackbar: { show: false, text: '', color: 'success' }

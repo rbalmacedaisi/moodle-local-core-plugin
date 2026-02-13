@@ -81,6 +81,13 @@
             this.state.demand = typeof res.demand_tree === 'string' ? JSON.parse(res.demand_tree) : res.demand_tree;
             this.state.students = res.student_list;
             this.state.projections = res.projections;
+
+            // Index subjects by ID
+            const subjMap = {};
+            if (res.subjects && Array.isArray(res.subjects)) {
+                res.subjects.forEach(s => subjMap[s.id] = s);
+            }
+            this.state.subjects = subjMap;
         },
 
         async saveProjections(periodId, projections) {
@@ -158,7 +165,7 @@
                                     schedules.push({
                                         id: `gen-${idCounter++}`,
                                         courseid: courseId,
-                                        subjectName: `Materia ${courseId}`, // Placeholder
+                                        subjectName: (this.state.subjects && this.state.subjects[courseId] ? this.state.subjects[courseId].fullname : `Materia ${courseId}`),
                                         teacherName: null,
                                         day: 'N/A',
                                         start: '00:00',
