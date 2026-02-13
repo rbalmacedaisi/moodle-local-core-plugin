@@ -27,24 +27,41 @@ foreach ($fields as $f) {
 }
 echo "</tbody></table>";
 
-echo "<h2>Sample User Data (Limit 10)</h2>";
-$sql = "SELECT u.id, u.firstname, u.lastname, uid.fieldid, f.shortname, uid.data
-        FROM {user} u
-        JOIN {user_info_data} uid ON uid.userid = u.id
-        JOIN {user_info_field} f ON f.id = uid.fieldid
-        LIMIT 20";
-$data = $DB->get_records_sql($sql);
+echo "<h2>Specific Debug for 'gmkjourney' (Field ID: 10)</h2>";
+
+// 1. Check raw data distribution for field 10
+$sqlCounts = "SELECT data, count(id) as c FROM {user_info_data} WHERE fieldid = 10 GROUP BY data";
+$counts = $DB->get_records_sql($sqlCounts);
+echo "<h3>Raw Data Distribution in user_info_data (fieldid=10)</h3>";
+echo "<ul>";
+foreach ($counts as $c) {
+    echo "<li>Value: '" . $c->data . "' - Count: " . $c->c . "</li>";
+}
+echo "</ul>";
+
+// 2. Simulate Planning Manager Query
+echo "<h3>Planning Manager Query Simulation (First 50 students)</h3>";
+$sqlSim = "SELECT u.id, u.firstname, u.lastname, llu.userrolename, uid_j.data AS shift_value
+           FROM {user} u
+           JOIN {local_learning_users} llu ON llu.userid = u.id 
+           LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = 10
+           WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student'
+           LIMIT 50";
+
+$simData = $DB->get_records_sql($sqlSim);
 
 echo "<table class='table table-bordered'>";
-echo "<thead><tr><th>User</th><th>Field (Shortname)</th><th>Value</th></tr></thead>";
+echo "<thead><tr><th>User ID</th><th>Name</th><th>Role</th><th>Shift (Jornada) Value</th></tr></thead>";
 echo "<tbody>";
-foreach ($data as $d) {
+foreach ($simData as $d) {
     echo "<tr>";
+    echo "<td>" . $d->id . "</td>";
     echo "<td>" . $d->firstname . " " . $d->lastname . "</td>";
-    echo "<td>" . $d->shortname . "</td>";
-    echo "<td>" . $d->data . "</td>";
+    echo "<td>" . $d->userrolename . "</td>";
+    echo "<td>[" . $d->shift_value . "]</td>";
     echo "</tr>";
 }
 echo "</tbody></table>";
+
 
 echo $OUTPUT->footer();
