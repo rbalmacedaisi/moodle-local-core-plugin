@@ -238,6 +238,45 @@ function create_custom_user_fields() {
 
     $sortorderfield++;
 
+    $periodoingreso = new stdClass();
+    $periodoingreso->shortname = 'periodo_ingreso';
+    $periodoingreso->name = 'Periodo de Ingreso';
+    $periodoingreso->datatype = 'text';
+    $periodoingreso->description = '';
+    $periodoingreso->descriptionformat = FORMAT_HTML;
+    $periodoingreso->categoryid = $category->id;
+    $periodoingreso->sortorder = $sortorderfield;
+    $periodoingreso->required = 0;
+    $periodoingreso->locked = 0;
+    $periodoingreso->visible = 3;
+    $periodoingreso->forceunique = 0;
+    $periodoingreso->signup = 0;
+    $periodoingreso->defaultdata = '';
+    $periodoingreso->defaultdataformat = FORMAT_PLAIN;
+    $periodoingreso->param1 = 30; // Display size
+    $periodoingreso->param2 = 100; // Max length
+
+    $sortorderfield++;
+
+    $gmkjourney = new stdClass();
+    $gmkjourney->shortname = 'gmkjourney';
+    $gmkjourney->name = 'Jornada';
+    $gmkjourney->datatype = 'text';
+    $gmkjourney->description = '';
+    $gmkjourney->descriptionformat = FORMAT_HTML;
+    $gmkjourney->categoryid = $category->id;
+    $gmkjourney->sortorder = $sortorderfield;
+    $gmkjourney->required = 0;
+    $gmkjourney->locked = 0;
+    $gmkjourney->visible = 3;
+    $gmkjourney->forceunique = 0;
+    $gmkjourney->signup = 0;
+    $gmkjourney->defaultdata = '';
+    $gmkjourney->defaultdataformat = FORMAT_PLAIN;
+    $gmkjourney->param1 = 30; 
+
+    $sortorderfield++;
+
     try {
         // Verify if the field already exists.
         $record = $DB->get_record('user_info_field', array('shortname' => $usertype->shortname));
@@ -302,6 +341,24 @@ function create_custom_user_fields() {
 
         if (!isset($record->id)) {
             $DB->insert_record('user_info_field', $personalemail);
+        }
+    } catch (Exception $e) {
+    }
+
+    try {// Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $periodoingreso->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $periodoingreso);
+        }
+    } catch (Exception $e) {
+    }
+
+    try {// Verify if the field already exists.
+        $record = $DB->get_record('user_info_field', array('shortname' => $gmkjourney->shortname));
+
+        if (!isset($record->id)) {
+            $DB->insert_record('user_info_field', $gmkjourney);
         }
     } catch (Exception $e) {
     }
