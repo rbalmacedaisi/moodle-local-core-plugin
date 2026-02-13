@@ -2645,13 +2645,81 @@ try {
             break;
         
         case 'local_grupomakro_get_planning_data':
-        $periodid = required_param('periodid', PARAM_INT);
-        require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
-        $data = \local_grupomakro_core\local\planning_manager::get_planning_data($periodid);
-        $response = ['data' => $data, 'error' => false];
-        break;
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_planning_data($periodid);
+            $response = ['data' => $data, 'error' => false];
+            break;
 
-    default:
+        case 'local_grupomakro_get_classrooms':
+            $classrooms = $DB->get_records('gmk_classrooms', [], 'name ASC');
+            $response = ['status' => 'success', 'data' => array_values($classrooms)];
+            break;
+
+        case 'local_grupomakro_save_classroom':
+            $id = optional_param('id', 0, PARAM_INT);
+            $record = new stdClass();
+            $record->name = required_param('name', PARAM_TEXT);
+            $record->capacity = required_param('capacity', PARAM_INT);
+            $record->type = optional_param('type', 'general', PARAM_TEXT);
+            $record->active = optional_param('active', 1, PARAM_INT);
+            $record->usermodified = $USER->id;
+            $record->timemodified = time();
+
+            if ($id > 0) {
+                $record->id = $id;
+                $DB->update_record('gmk_classrooms', $record);
+            } else {
+                $record->timecreated = time();
+                $id = $DB->insert_record('gmk_classrooms', $record);
+            }
+            $response = ['status' => 'success', 'data' => ['id' => $id]];
+            break;
+
+        case 'local_grupomakro_delete_classroom':
+            $id = required_param('id', PARAM_INT);
+            $DB->delete_records('gmk_classrooms', ['id' => $id]);
+            $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_get_holidays':
+            $periodid = required_param('academicperiodid', PARAM_INT);
+            $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodid], 'date ASC');
+            $data = [];
+            foreach ($holidays as $h) {
+                $h->formatted_date = date('Y-m-d', $h->date);
+                $data[] = $h;
+            }
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_save_holiday':
+            $id = optional_param('id', 0, PARAM_INT);
+            $record = new stdClass();
+            $record->academicperiodid = required_param('academicperiodid', PARAM_INT);
+            $record->date = required_param('date', PARAM_INT); // Expecting timestamp
+            $record->name = optional_param('name', '', PARAM_TEXT);
+            $record->type = optional_param('type', 'feriado', PARAM_TEXT);
+            $record->usermodified = $USER->id;
+            $record->timemodified = time();
+
+            if ($id > 0) {
+                $record->id = $id;
+                $DB->update_record('gmk_holidays', $record);
+            } else {
+                $record->timecreated = time();
+                $id = $DB->insert_record('gmk_holidays', $record);
+            }
+            $response = ['status' => 'success', 'data' => ['id' => $id]];
+            break;
+
+        case 'local_grupomakro_delete_holiday':
+            $id = required_param('id', PARAM_INT);
+            $DB->delete_records('gmk_holidays', ['id' => $id]);
+            $response = ['status' => 'success'];
+            break;
+
+        default:
             $response['message'] = 'Action not found: ' . $action;
             break;
     }

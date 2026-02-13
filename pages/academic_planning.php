@@ -37,6 +37,8 @@ echo $OUTPUT->header();
 <script src="../js/components/scheduler/demand_view.js"></script>
 <script src="../js/components/scheduler/planning_board.js"></script>
 <script src="../js/components/scheduler/scheduler_view.js"></script>
+<script src="../js/components/scheduler/classroom_manager.js"></script>
+<script src="../js/components/scheduler/holiday_manager.js"></script>
 
 <style>
     .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
@@ -468,50 +470,68 @@ echo $OUTPUT->header();
 
           <!-- TAB 5: CONFIGURATION (CRUD) -->
           <div v-show="activeTab === 'config'" class="space-y-6">
-              <div class="flex justify-between items-center mb-4">
-                  <h3 class="text-xl font-bold text-slate-800">Administración de Periodos Institucionales</h3>
-                  <button @click="openPeriodModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-bold shadow-md">
-                      <i data-lucide="plus" class="w-4 h-4"></i> Nuevo Periodo
-                  </button>
+              <!-- Sub-tabs for Config -->
+              <div class="flex gap-4 border-b border-slate-200 mb-6">
+                  <button @click="configSubTab = 'periods'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'periods' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Periodos Académicos</button>
+                  <button @click="configSubTab = 'classrooms'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'classrooms' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Gestión de Aulas</button>
+                  <button @click="configSubTab = 'holidays'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'holidays' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Calendario de Festivos</button>
               </div>
 
-              <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <table class="w-full text-left border-collapse">
-                      <thead>
-                          <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-bold">
-                              <th class="p-4 border-b">Nombre del Periodo</th>
-                              <th class="p-4 border-b">Fecha Inicio</th>
-                              <th class="p-4 border-b">Fecha Fin</th>
-                              <th class="p-4 border-b">Planes Vinculados</th>
-                              <th class="p-4 border-b text-center">Estado</th>
-                              <th class="p-4 border-b text-right">Acciones</th>
-                          </tr>
-                      </thead>
-                      <tbody class="divide-y divide-slate-100 text-sm">
-                          <tr v-for="p in academicPeriods" :key="p.id" class="hover:bg-slate-50 transition-colors">
-                              <td class="p-4 font-bold text-slate-700">{{ p.name }}</td>
-                              <td class="p-4">{{ formatDate(p.startdate) }}</td>
-                              <td class="p-4">{{ formatDate(p.enddate) }}</td>
-                              <td class="p-4">
-                                  <div class="flex flex-wrap gap-1">
-                                      <span v-for="lpid in p.learningplans" :key="lpid" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">
-                                          {{ getPlanName(lpid) }}
-                                      </span>
-                                      <span v-if="!p.learningplans || p.learningplans.length === 0" class="text-slate-400 italic text-xs">Sin planes vinculados</span>
-                                  </div>
-                              </td>
-                              <td class="p-4 text-center">
-                                  <span v-if="p.status == 1" class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">Activo</span>
-                                  <span v-else class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-xs font-bold">Cerrado</span>
-                              </td>
-                              <td class="p-4 text-right">
-                                  <button @click="openPeriodModal(p)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
-                                      <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                  </button>
-                              </td>
-                          </tr>
-                      </tbody>
-                  </table>
+              <!-- Content for Config Sub-tabs -->
+              <div v-if="configSubTab === 'periods'">
+                  <div class="flex justify-between items-center mb-4">
+                      <h3 class="text-xl font-bold text-slate-800">Administración de Periodos Institucionales</h3>
+                      <button @click="openPeriodModal()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-bold shadow-md">
+                          <i data-lucide="plus" class="w-4 h-4"></i> Nuevo Periodo
+                      </button>
+                  </div>
+
+                  <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <table class="w-full text-left border-collapse">
+                          <thead>
+                              <tr class="bg-slate-50 text-slate-600 text-xs uppercase tracking-wider font-bold">
+                                  <th class="p-4 border-b">Nombre del Periodo</th>
+                                  <th class="p-4 border-b">Fecha Inicio</th>
+                                  <th class="p-4 border-b">Fecha Fin</th>
+                                  <th class="p-4 border-b">Planes Vinculados</th>
+                                  <th class="p-4 border-b text-center">Estado</th>
+                                  <th class="p-4 border-b text-right">Acciones</th>
+                              </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-100 text-sm">
+                              <tr v-for="p in academicPeriods" :key="p.id" class="hover:bg-slate-50 transition-colors">
+                                  <td class="p-4 font-bold text-slate-700">{{ p.name }}</td>
+                                  <td class="p-4">{{ formatDate(p.startdate) }}</td>
+                                  <td class="p-4">{{ formatDate(p.enddate) }}</td>
+                                  <td class="p-4">
+                                      <div class="flex flex-wrap gap-1">
+                                          <span v-for="lpid in p.learningplans" :key="lpid" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">
+                                              {{ getPlanName(lpid) }}
+                                          </span>
+                                          <span v-if="!p.learningplans || p.learningplans.length === 0" class="text-slate-400 italic text-xs">Sin planes vinculados</span>
+                                      </div>
+                                  </td>
+                                  <td class="p-4 text-center">
+                                      <span v-if="p.status == 1" class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">Activo</span>
+                                      <span v-else class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-xs font-bold">Cerrado</span>
+                                  </td>
+                                  <td class="p-4 text-right">
+                                      <button @click="openPeriodModal(p)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
+                                          <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                      </button>
+                                  </td>
+                              </tr>
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+
+              <div v-if="configSubTab === 'classrooms'">
+                  <classroom-manager></classroom-manager>
+              </div>
+
+              <div v-if="configSubTab === 'holidays'">
+                  <holiday-manager :period-id="selectedPeriodId"></holiday-manager>
               </div>
           </div>
 
@@ -1569,7 +1589,8 @@ const app = createApp({
                 openPeriodModal, savePeriod, getPlanName,
                 // New Tabs Logic
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
-                studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule
+                studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule,
+                configSubTab
             };
 
         } catch (setupError) {
@@ -1585,6 +1606,8 @@ if (window.SchedulerComponents) {
     app.component('demand-view', window.SchedulerComponents.DemandView);
     app.component('planning-board', window.SchedulerComponents.PlanningBoard);
     app.component('projections-modal', window.SchedulerComponents.ProjectionsModal);
+    app.component('classroom-manager', window.SchedulerComponents.ClassroomManager);
+    app.component('holiday-manager', window.SchedulerComponents.HolidayManager);
 }
 
 console.log("Vue Planning App: Attempting to mount...");
