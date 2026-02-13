@@ -53,9 +53,12 @@ window.SchedulerComponents.PeriodGroupedView = {
                                     </div>
                                     
                                      <!-- Tooltip on Hover -->
-                                    <div class="absolute inset-0 bg-white/95 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-center items-center text-center border-2 border-blue-500 rounded z-10 pointer-events-none">
+                                    <div class="absolute inset-0 bg-white/95 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-center items-center text-center border-2 border-blue-500 rounded z-10">
                                         <span class="font-bold text-blue-700">{{ cls.room || 'Sin aula' }}</span>
-                                        <span class="text-[10px] text-slate-600">{{ cls.subperiod === 0 ? 'Semestral' : (cls.subperiod === 1 ? 'Bloque 1' : 'Bloque 2') }}</span>
+                                        <span class="text-[10px] text-slate-600 block mb-2">{{ cls.subperiod === 0 ? 'Semestral' : (cls.subperiod === 1 ? 'Bloque 1' : 'Bloque 2') }}</span>
+                                        <button @click.stop="viewStudents(cls)" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold hover:bg-blue-200 pointer-events-auto">
+                                            <i data-lucide="users" class="w-3 h-3 inline mr-1"></i> Ver Estudiantes
+                                        </button>
                                     </div>
                                 </div>
                                 <div v-if="getClasses(group.classes, day).length === 0" class="h-full flex items-center justify-center">
@@ -71,11 +74,49 @@ window.SchedulerComponents.PeriodGroupedView = {
                      <p>No hay horarios asignados visibles con los filtros actuales.</p>
                 </div>
             </div>
+
+             <!-- View Students Modal -->
+             <div v-if="studentsDialog" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="studentsDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                         <h4 class="font-bold text-slate-800">Estudiantes Asignados ({{ currentStudents.length }})</h4>
+                         <button @click="studentsDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                    </div>
+                    <div class="p-0 max-h-[60vh] overflow-y-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-xs text-slate-500 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2 border-b">ID</th>
+                                    <th class="px-4 py-2 border-b">Nombre</th>
+                                    <th class="px-4 py-2 border-b">Carrera</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="stu in currentStudents" :key="stu.id" class="hover:bg-slate-50">
+                                    <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
+                                    <td class="px-4 py-2 font-medium text-slate-800">{{ stu.name }}</td>
+                                    <td class="px-4 py-2 text-xs text-slate-500">{{ stu.career }}</td>
+                                </tr>
+                                <tr v-if="currentStudents.length === 0">
+                                    <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">
+                                        No hay información de estudiantes disponible.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                        <button @click="studentsDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Cerrar</button>
+                    </div>
+                </div>
+             </div>
         </div>
     `,
     data() {
         return {
-            days: ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado']
+            days: ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'],
+            studentsDialog: false,
+            currentStudents: []
         };
     },
     computed: {
@@ -148,6 +189,17 @@ window.SchedulerComponents.PeriodGroupedView = {
                 return 'bg-blue-50 border-blue-200 text-blue-900';
             }
             return 'bg-slate-50 border-slate-200 text-slate-700';
+        },
+        viewStudents(cls) {
+            if (!window.schedulerStore || !cls.studentIds) {
+                this.currentStudents = [];
+                this.studentsDialog = true;
+                return;
+            }
+
+            const allStudents = window.schedulerStore.state.students || [];
+            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.dbId));
+            this.studentsDialog = true;
         }
     }
 };
