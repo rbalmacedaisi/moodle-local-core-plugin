@@ -123,23 +123,14 @@ echo $OUTPUT->header();
             <button @click="activeTab = 'planning'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'planning' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="trending-up" class="w-4 h-4"></i> Proyección de Apertura
             </button>
-            <button @click="activeTab = 'analysis'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'analysis' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
-                <i data-lucide="activity" class="w-4 h-4"></i> Análisis Detallado
-            </button>
             <button @click="activeTab = 'population'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'population' ? 'border-pink-600 text-pink-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="users" class="w-4 h-4"></i> Población
-            </button>
-            <button @click="activeTab = 'groups'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'groups' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
-                <i data-lucide="layers" class="w-4 h-4"></i> Visual por Grupos
             </button>
             <button @click="activeTab = 'students'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'students' ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="graduation-cap" class="w-4 h-4"></i> Impacto & Graduandos
             </button>
             <button @click="activeTab = 'search'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'search' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="search" class="w-4 h-4"></i> Búsqueda Global
-            </button>
-            <button @click="activeTab = 'calendar'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'calendar' ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700']">
-                <i data-lucide="calendar-days" class="w-4 h-4"></i> Calendario Anual
             </button>
             <button @click="activeTab = 'config'" :class="['px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors', activeTab === 'config' ? 'border-slate-800 text-slate-900 font-extrabold' : 'border-transparent text-slate-500 hover:text-slate-700']">
                 <i data-lucide="settings" class="w-4 h-4"></i> Configuración de Periodos
@@ -237,54 +228,6 @@ echo $OUTPUT->header();
                 </div>
             </div>
          </div>
-
-          <!-- TAB 1.1: ANALYSIS -->
-          <div v-show="activeTab === 'analysis'" class="space-y-6">
-              <!-- KPI ROW -->
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-red-500">
-                      <p class="text-slate-500 text-xs font-bold uppercase">Cuellos de Botella</p>
-                      <h3 class="text-2xl font-bold text-slate-800">
-                          {{ analysis.subjectList.filter(s => s.totalP1 > 30 && !s.isOpen).length }}
-                      </h3>
-                      <p class="text-xs text-red-600">Asignaturas con alta demanda sin abrir</p>
-                  </div>
-                  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 border-l-4 border-l-green-500">
-                      <p class="text-slate-500 text-xs font-bold uppercase">Aperturas Críticas</p>
-                      <h3 class="text-2xl font-bold text-slate-800">
-                          {{ analysis.subjectList.filter(s => s.isOpen && s.suggestion.includes('ABRIR AHORA')).length }}
-                      </h3>
-                      <p class="text-xs text-green-600">Deben abrirse inmediatamente</p>
-                  </div>
-              </div>
-
-              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <i data-lucide="activity" class="text-teal-600"></i>
-                      Análisis de Aperturas por Generación
-                  </h3>
-                  <p class="text-sm text-slate-500 mb-6">
-                      Este análisis muestra qué asignaturas son más críticas para cada generación de ingreso.
-                  </p>
-
-                  <div class="space-y-8">
-                      <div v-for="period in analysis.sortedEntryPeriods" :key="period" class="border-b border-slate-100 last:border-0 pb-6 last:pb-0">
-                          <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                              <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">{{ period }}</span>
-                          </h4>
-                          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                              <div v-for="s in analysis.subjectList.filter(subj => subj.entryPeriodCounts[period] > 0).sort((a, b) => b.entryPeriodCounts[period] - a.entryPeriodCounts[period]).slice(0, 5)" 
-                                   :key="s.name" class="flex justify-between items-center p-2 bg-slate-50 rounded border border-slate-200">
-                                  <span class="text-xs font-medium text-slate-700 truncate pr-2" :title="s.name">{{ s.name }}</span>
-                                  <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', s.isOpen ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600']">
-                                      {{ s.entryPeriodCounts[period] }}
-                                  </span>
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
 
           <!-- TAB 1.2: POPULATION -->
           <div v-show="activeTab === 'population'" class="space-y-6">
@@ -444,66 +387,7 @@ echo $OUTPUT->header();
           </div>
 
 
-         <!-- TAB 2: COHORTS -->
-         <div v-if="activeTab === 'groups'" class="space-y-6">
-             <div class="flex justify-between items-center mb-4">
-                  <h3 class="text-xl font-bold text-slate-800">Visual por Grupos (Cohortes)</h3>
-                  <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">{{ analysis.cohortViewList.length }} Grupos</span>
-             </div>
-             
-             <div class="space-y-8">
-                 <div v-for="cohort in analysis.cohortViewList" :key="cohort.key" class="bg-white rounded-xl shadow-sm border border-t-4 border-t-indigo-500 overflow-hidden">
-                     <div class="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-start">
-                         <div>
-                             <h4 class="font-bold text-slate-800 text-sm uppercase tracking-wide">{{ cohort.semester }}</h4>
-                             <p class="text-xs text-slate-500 font-medium mt-1">{{ cohort.career }}</p>
-                             <p class="text-xs text-slate-400">{{ cohort.shift }} - {{ cohort.bimestreLabel }}</p>
-                         </div>
-                         <div class="text-center bg-white px-3 py-1 rounded border border-slate-200">
-                             <span class="block text-xl font-bold text-slate-700">{{ cohort.studentCount }}</span>
-                             <span class="text-[10px] text-slate-400 uppercase">Est.</span>
-                         </div>
-                     </div>
-                     
-                     <!-- Timeline -->
-                     <div class="p-4 grid grid-cols-1 md:grid-cols-6 gap-4 bg-white overflow-x-auto">
-                        <div v-for="(periodIdx, idx) in [0,1,2,3,4,5]" :key="idx" 
-                             class="bg-slate-50 rounded p-2 border border-slate-100 flex flex-col min-h-[100px] min-w-[120px]"
-                             @dragover.prevent @drop="handleDrop($event, cohort.key, periodIdx)">
-                            
-                             <h6 :class="['text-[10px] font-bold uppercase mb-2 pb-1 border-b', idx===0 ? 'text-green-700 border-green-200' : 'text-slate-400 border-slate-200']">
-                                 {{ getPeriodLabel(idx) }}
-                             </h6>
-                             
-                             <div class="space-y-2 flex-1">
-                                 <div v-for="subj in getSubjectsForCohortPeriod(cohort, periodIdx)" :key="subj" 
-                                      draggable="true" @dragstart="handleDragStart($event, subj, cohort.key, periodIdx)"
-                                      class="bg-white border border-slate-200 rounded p-1.5 shadow-sm hover:border-blue-300 cursor-grab active:cursor-grabbing group relative">
-                                      
-                                      <div class="flex justify-between items-start mb-1">
-                                          <p class="text-[10px] font-medium text-slate-700 leading-tight truncate" :title="subj">{{ subj }}</p>
-                                          <!-- Count Badge -->
-                                          <span v-if="getSubjectCount(subj, periodIdx, cohort.key) > 0" class="bg-blue-100 text-blue-800 text-[9px] px-1 rounded font-bold shrink-0 ml-1">
-                                            {{ getSubjectCount(subj, periodIdx, cohort.key) }}
-                                          </span>
-                                      </div>
-                                      
-                                      <!-- Move Select -->
-                                      <select v-model="deferredGroups[subj + '_' + cohort.key]" 
-                                             class="w-full text-[9px] border rounded p-0.5 bg-slate-50 text-slate-500 focus:ring-1 focus:ring-blue-200 outline-none mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <option :value="undefined">Default</option>
-                                          <option :value="0">P-I</option>
-                                          <option :value="1">P-II</option>
-                                          <option :value="2">P-III</option>
-                                          <option :value="3">P-IV</option>
-                                      </select>
-                                 </div>
-                             </div>
-                        </div>
-                     </div>
-                 </div>
-             </div>
-         </div>
+
 
          <!-- TAB 3: STUDENTS -->
          <div v-if="activeTab === 'students'" class="space-y-6">
@@ -580,77 +464,7 @@ echo $OUTPUT->header();
                 </div>
              </div>
          </div>
-         <!-- TAB 4: CALENDAR -->
-         <div v-if="activeTab === 'calendar'" class="space-y-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-slate-800">Calendario Institucional Anual</h3>
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2 bg-white rounded-lg border p-1 border-slate-200">
-                        <button @click="calendarYear--" class="p-1 hover:bg-slate-100 rounded text-slate-500"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                        <span class="px-2 font-bold text-slate-700">{{ calendarYear }}</span>
-                        <button @click="calendarYear++" class="p-1 hover:bg-slate-100 rounded text-slate-500"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-                    </div>
-                </div>
-            </div>
 
-            <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full border-collapse border-spacing-0 min-w-[1000px]">
-                        <thead>
-                            <tr class="bg-slate-50 border-b border-slate-200">
-                                <th class="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-left sticky left-0 z-10 bg-slate-50 border-r border-slate-100 w-64">Plan de Aprendizaje</th>
-                                <th v-for="(m, midx) in monthsLabels" :key="midx" class="p-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter text-center border-r border-slate-100 last:border-0" :class="{'bg-blue-50/30': (midx + 1) === new Date().getMonth() + 1}">
-                                    {{ m }}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr v-for="row in calendarRows" :key="row.planId" class="hover:bg-slate-50 transition-colors">
-                                <td class="p-4 font-bold text-slate-700 text-sm sticky left-0 z-10 bg-white border-r border-slate-100">
-                                    <div class="flex items-center gap-2">
-                                        <div class="w-2 h-8 rounded-full" :style="{ backgroundColor: row.color }"></div>
-                                        <div>
-                                            <p class="leading-tight">{{ row.planName }}</p>
-                                            <span class="text-[10px] text-slate-400 font-normal">{{ row.periods.length }} periodos</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                
-                                <!-- Monthly Cells -->
-                                <td v-for="(m, midx) in 12" :key="midx" class="p-1 min-w-[80px] h-20 border-r border-slate-50 last:border-0 relative align-top">
-                                    <div class="h-full w-full flex flex-col gap-1">
-                                        <div v-for="p in getPeriodsForMonth(row.periods, midx + 1)" :key="p.id"
-                                             class="text-[9px] p-1.5 rounded-md shadow-sm font-bold truncate transition-all hover:scale-105 select-none text-white overflow-hidden relative"
-                                             :style="getPeriodStyle(p, row.color)"
-                                             :title="p.name + ': ' + formatDate(p.startdate) + ' - ' + formatDate(p.enddate)">
-                                            
-                                            <div v-if="isStartOfMonth(p, midx + 1)" class="flex flex-col">
-                                                <span class="truncate block">{{ p.name }}</span>
-                                                <span class="text-[7px] opacity-80 font-normal leading-none">{{ formatDateShort(p.startdate) }}</span>
-                                            </div>
-                                            <div v-else class="h-1"></div>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Legend -->
-            <div class="flex flex-wrap gap-4 p-4 bg-slate-100 rounded-lg">
-                <div class="flex items-center gap-2 text-xs text-slate-500 font-bold uppercase">
-                    <i data-lucide="info" class="w-4 h-4"></i> Leyenda:
-                </div>
-                <div class="flex items-center gap-2 text-xs">
-                    <div class="w-3 h-3 rounded bg-blue-500"></div> <span>Periodos Planificados</span>
-                </div>
-                <div class="flex items-center gap-2 text-xs">
-                    <div class="w-3 h-3 rounded border border-dashed border-slate-400"></div> <span>Bloque 1 / Bloque 2</span>
-                </div>
-            </div>
-         </div>
 
           <!-- TAB 5: CONFIGURATION (CRUD) -->
           <div v-show="activeTab === 'config'" class="space-y-6">
