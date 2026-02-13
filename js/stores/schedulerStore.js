@@ -165,7 +165,17 @@
                             const semData = demand[career][shift][sem];
                             // course_counts: { courseId: studentCount }
 
-                            for (const [courseId, count] of Object.entries(semData.course_counts)) {
+                            for (const [courseId, val] of Object.entries(semData.course_counts)) {
+                                let count = 0;
+                                let studentIds = [];
+
+                                if (typeof val === 'number') {
+                                    count = val;
+                                } else if (val && typeof val === 'object') {
+                                    count = val.count || 0;
+                                    studentIds = val.students || [];
+                                }
+
                                 if (count <= 0) continue;
 
                                 // TODO: Map courseId to Subject Name properly using a map from backend
@@ -175,6 +185,9 @@
 
                                 const numGroups = Math.ceil(count / MAX_CAPACITY);
                                 for (let i = 0; i < numGroups; i++) {
+                                    // Slice students for this group
+                                    const groupStudents = studentIds.slice(i * MAX_CAPACITY, (i + 1) * MAX_CAPACITY);
+
                                     schedules.push({
                                         id: `gen-${idCounter++}`,
                                         courseid: courseId,
@@ -189,7 +202,9 @@
                                         shift: shift,
                                         levelDisplay: semData.semester_name,
                                         subGroup: i + 1,
-                                        subperiod: 0 // Default: Unassigned/Both
+                                        subGroup: i + 1,
+                                        subperiod: 0, // Default: Unassigned/Both
+                                        studentIds: groupStudents // Attach specific students to this group
                                     });
                                 }
                             }

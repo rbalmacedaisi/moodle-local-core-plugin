@@ -30,9 +30,11 @@ window.SchedulerComponents.PlanningBoard = {
                                 <span class="font-bold text-slate-800 text-sm leading-tight line-clamp-2" :title="cls.subjectName">{{ cls.subjectName }}</span>
                                 <span class="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ cls.studentCount }}</span>
                             </div>
-                            <div class="flex items-center gap-2 text-xs text-slate-500">
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
                                 <span>{{ cls.shift }}</span>
+                                <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
+                                    <i data-lucide="users" class="w-3 h-3"></i>
+                                </button>
                             </div>
                             <!-- Assign Badge -->
                             <div class="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -104,6 +106,13 @@ window.SchedulerComponents.PlanningBoard = {
                                             <span class="block truncate">{{ cls.room || 'Sin aula' }}</span>
                                         </div>
                                         
+                                        <!-- Actions -->
+                                        <div class="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                            <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
+                                                <i data-lucide="users" class="w-3 h-3"></i>
+                                            </button>
+                                        </div>
+                                        
                                         <!-- Conflict Indicator -->
                                         <div v-if="getConflicts(cls).length > 0" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
                                             <i data-lucide="alert-triangle" class="w-3 h-3"></i>
@@ -160,6 +169,43 @@ window.SchedulerComponents.PlanningBoard = {
                         <button @click="editDialog = false" class="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">Listo</button>
                     </div>
                 </div>
+                </div>
+             </div>
+
+             <!-- View Students Modal -->
+             <div v-if="studentsDialog" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="studentsDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                         <h4 class="font-bold text-slate-800">Estudiantes Asignados ({{ currentStudents.length }})</h4>
+                         <button @click="studentsDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                    </div>
+                    <div class="p-0 max-h-[60vh] overflow-y-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-xs text-slate-500 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2 border-b">ID</th>
+                                    <th class="px-4 py-2 border-b">Nombre</th>
+                                    <th class="px-4 py-2 border-b">Carrera</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="stu in currentStudents" :key="stu.id" class="hover:bg-slate-50">
+                                    <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
+                                    <td class="px-4 py-2 font-medium text-slate-800">{{ stu.name }}</td>
+                                    <td class="px-4 py-2 text-xs text-slate-500">{{ stu.career }}</td>
+                                </tr>
+                                <tr v-if="currentStudents.length === 0">
+                                    <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">
+                                        No hay información de estudiantes disponible.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                        <button @click="studentsDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Cerrar</button>
+                    </div>
+                </div>
              </div>
         </div>
     `,
@@ -172,7 +218,9 @@ window.SchedulerComponents.PlanningBoard = {
             draggedClass: null,
             editDialog: false,
             selectedClass: null,
-            saving: false
+            saving: false,
+            studentsDialog: false,
+            currentStudents: []
         };
     },
     computed: {
@@ -307,6 +355,18 @@ window.SchedulerComponents.PlanningBoard = {
             } finally {
                 this.saving = false;
             }
+        },
+        viewStudents(cls) {
+            if (!window.schedulerStore || !cls.studentIds) {
+                this.currentStudents = [];
+                this.studentsDialog = true;
+                return;
+            }
+
+            const allStudents = window.schedulerStore.state.students || [];
+            // Filter students whose dbId is in cls.studentIds
+            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.dbId));
+            this.studentsDialog = true;
         }
     }
 };

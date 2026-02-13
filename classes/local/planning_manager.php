@@ -364,9 +364,13 @@ class planning_manager {
                 // Increment Course
                 $courseId = $subj['id'];
                 if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
-                     $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = 0;
+                     $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
+                         'count' => 0,
+                         'students' => []
+                     ];
                 }
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]++;
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['dbId']; // Using dbId from studentList loop above
             }
         }
         
