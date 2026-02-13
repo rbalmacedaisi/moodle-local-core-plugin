@@ -222,10 +222,104 @@
         return uniqueSuggestions.slice(0, 20);
     };
 
+    /**
+     * granular Conflict Detection
+     * @param {Object} schedule - The schedule being validated/moved
+     * @param {Array} allSchedules - Current state of all schedules
+     * @param {Object} context - { classrooms, holidays }
+     */
+    const detectConflicts = (schedule, allSchedules, context) => {
+        const issues = [];
+        if (!schedule || schedule.day === 'N/A') return issues;
+
+        const sStart = toMins(schedule.start);
+        const sEnd = toMins(schedule.end);
+
+        // Helper overlap check
+        const checkOverlap = (other) => {
+            if (other.id === schedule.id) return false; // Don't check against self
+            if (other.day !== schedule.day) return false;
+
+            // Subperiod logic: 
+            // 0 = Full Semester (overlaps everything)
+            // 1 = P-I (overlaps 0 and 1)
+            // 2 = P-II (overlaps 0 and 2)
+            const subOverlap = (other.subperiod === 0) || (schedule.subperiod === 0) || (other.subperiod === schedule.subperiod);
+            if (!subOverlap) return false;
+
+            const oStart = toMins(other.start);
+            const oEnd = toMins(other.end);
+            return Math.max(sStart, oStart) < Math.min(sEnd, oEnd);
+        };
+
+        // 1. Teacher Conflict
+        if (schedule.teacherName) {
+            const teacherConflict = allSchedules.find(s =>
+                s.teacherName === schedule.teacherName && checkOverlap(s)
+            );
+            if (teacherConflict) {
+                issues.push({
+                    type: 'teacher',
+                    message: `Docente ${schedule.teacherName} ocupado en ${teacherConflict.day} ${teacherConflict.start}`,
+                    relatedId: teacherConflict.id
+                });
+            }
+        }
+
+        // 2. Room Conflict (and Capacity)
+        if (schedule.room && schedule.room !== 'Sin aula') {
+            const roomConflict = allSchedules.find(s =>
+                s.room === schedule.room && checkOverlap(s)
+            );
+            if (roomConflict) {
+                issues.push({
+                    type: 'room',
+                    message: `Aula ${schedule.room} ocupada por ${roomConflict.subjectName}`,
+                    relatedId: roomConflict.id
+                });
+            }
+
+            // Capacity Check
+            if (context && context.classrooms) {
+                const roomData = context.classrooms.find(r => r.name === schedule.room);
+                if (roomData && schedule.studentCount > roomData.capacity) {
+                    issues.push({
+                        type: 'capacity',
+                        message: `Sobrecapacidad: ${schedule.studentCount} alumnos vs ${roomData.capacity} cupos`
+                    });
+                }
+            }
+        }
+
+        // 3. Group/Student Conflict
+        // Assumption: "Group" is defined by Career + Level + Shift
+        // If a group has two classes at the same time, it's a conflict.
+        if (schedule.career && schedule.levelDisplay && schedule.shift) {
+            const groupConflict = allSchedules.find(s =>
+                s.career === schedule.career &&
+                s.levelDisplay === schedule.levelDisplay &&
+                s.shift === schedule.shift &&
+                checkOverlap(s)
+            );
+
+            if (groupConflict) {
+                issues.push({
+                    type: 'group',
+                    message: `Choque de horario para el grupo ${schedule.career} - ${schedule.levelDisplay}`,
+                    relatedId: groupConflict.id
+                });
+            }
+        }
+
+        return issues;
+    };
+
     // Export to window
     window.SchedulerAlgorithm = {
         autoAssign,
         getSuggestions,
+        detectConflicts,
+        toMins,
         toMins,
         formatTime,
         parseTimeRange

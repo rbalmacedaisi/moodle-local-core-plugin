@@ -88,13 +88,14 @@ window.SchedulerComponents.PlanningBoard = {
                                     <!-- Placed Events -->
                                     <div v-for="cls in getClassesForDay(day)" :key="cls.id"
                                         class="absolute left-1 right-1 rounded border overflow-hidden p-1 shadow-sm cursor-pointer hover:shadow-md transition-all z-10 group"
-                                        :class="hasConflict(cls) ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'"
+                                        :class="getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'"
                                         :style="getEventStyle(cls)"
+                                        :title="getConflictTooltip(cls)"
                                         draggable="true"
                                         @dragstart="onDragStart($event, cls)"
                                         @click="editClass(cls)"
                                     >
-                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="hasConflict(cls) ? 'text-red-800' : 'text-blue-800'">
+                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800'">
                                             {{ cls.subjectName }}
                                         </div>
                                         <div class="text-[9px] leading-tight text-slate-500 mt-0.5">
@@ -104,7 +105,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         </div>
                                         
                                         <!-- Conflict Indicator -->
-                                        <div v-if="hasConflict(cls)" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
+                                        <div v-if="getConflicts(cls).length > 0" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
                                             <i data-lucide="alert-triangle" class="w-3 h-3"></i>
                                         </div>
                                     </div>
@@ -240,27 +241,14 @@ window.SchedulerComponents.PlanningBoard = {
             const [h, m] = t.split(':').map(Number);
             return h * 60 + m;
         },
-        hasConflict(cls) {
-            if (!cls.teacherName) return false;
-            // A conflict only exists if classes are in the same sub-period (or one is 'Both')
-            const others = this.allClasses.filter(c => {
-                if (c.id === cls.id || c.day !== cls.day || c.teacherName !== cls.teacherName) return false;
-                if (!c.start || !c.end) return false;
-
-                // Sub-period overlap check:
-                // Conflict if: same sub-period OR either is 0 (Both)
-                const subperiodOverlap = (c.subperiod === cls.subperiod) || (c.subperiod === 0) || (cls.subperiod === 0);
-                return subperiodOverlap;
-            });
-
-            const s1 = this.toMins(cls.start);
-            const e1 = this.toMins(cls.end);
-
-            return others.some(o => {
-                const s2 = this.toMins(o.start);
-                const e2 = this.toMins(o.end);
-                return Math.max(s1, s2) < Math.min(e1, e2);
-            });
+        getConflicts(cls) {
+            if (!window.SchedulerAlgorithm || !window.SchedulerAlgorithm.detectConflicts) return [];
+            return window.SchedulerAlgorithm.detectConflicts(cls, this.allClasses, this.storeState.context);
+        },
+        getConflictTooltip(cls) {
+            const issues = this.getConflicts(cls);
+            if (issues.length === 0) return cls.subjectName;
+            return issues.map(i => `[${i.type.toUpperCase()}] ${i.message}`).join('\n');
         },
         onDragStart(e, cls) {
             this.draggedClass = cls;
