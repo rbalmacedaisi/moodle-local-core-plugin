@@ -174,14 +174,6 @@ window.SchedulerComponents.DemandView = {
             // Prefer window store if available for most up-to-date data, fallback to prop
             const allStudents = (window.schedulerStore && window.schedulerStore.state.students) || this.storeState.students || [];
 
-            console.log("GMK Debug: Opening Modal. IDs:", studentIds);
-
-            if (allStudents.length > 0) {
-                console.log("GMK Debug: First Student in Store:", JSON.stringify(allStudents[0]));
-            } else {
-                console.error("GMK Debug: allStudents is empty! Scheduler store might not be loaded correctly.");
-            }
-
             // Map IDs to student objects with robust matching
             this.selectedStudentList = studentIds.map(targetId => {
                 const targetStr = String(targetId).trim().toLowerCase();
