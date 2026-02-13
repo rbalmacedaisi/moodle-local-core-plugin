@@ -21,6 +21,7 @@
             plans: [], // [ {id, name, ...} ]
             instructors: [], // [ { id, teacherName, ... } ]
             demand: {}, // Tree: [Career][Jornada][Semester] -> { semester_name, student_count, course_counts }
+            subjects: {}, // Map: id -> subject object
             students: [], // Flat list of pending students
             projections: [], // Manual projections
             generatedSchedules: [], // The algorithms output
