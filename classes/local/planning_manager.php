@@ -352,8 +352,10 @@ class planning_manager {
                 // OLD LOGIC: Group by SUBJECT SEMESTER
                 // $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
 
-                // NEW LOGIC (Requested Refactor): Group by STUDENT CURRENT LEVEL
-                $levelKey = $stu['currentSemConfig'] ?: 'Sin Asignar';
+                // NEW LOGIC (Requested Refactor): Group by STUDENT CURRENT LEVEL AND BLOCK
+                $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+                $subLabel = $stu['currentSubperiodConfig'] ?: '';
+                $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
@@ -392,7 +394,9 @@ class planning_manager {
              
              foreach ($stu['pendingSubjects'] as $subj) {
                  // Match the grouping logic used above
-                 $levelKey = $stu['currentSemConfig'] ?: 'Sin Asignar';
+                 $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+                 $subLabel = $stu['currentSubperiodConfig'] ?: '';
+                 $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
                  
                  // Initialize tree path if not exists (handling edge case where student has no subjects but we want to count them? No, only demand matters)
                  // But wait, if tree node created above, it exists.
