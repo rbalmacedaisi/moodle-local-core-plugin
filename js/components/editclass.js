@@ -1,5 +1,5 @@
 const classData = window.templatedata;
-const classTeacherId = classData.classTeachers.find(teacher => teacher.selected).id
+const classTeacherId = (classData.classTeachers.find(teacher => teacher.selected) || {}).id
 const wstoken = window.userToken;
 const wsurl = window.location.origin + '/webservice/rest/server.php';
 const wsDefaultParams = {

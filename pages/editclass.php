@@ -229,7 +229,7 @@ echo <<<EOT
     var themeToken = $themeToken || null;
 </script>
 
-<div id="app">
+<div id="gmk-app">
     <v-app class="transparent" style="background: transparent;">
         <v-main>
             <div>
