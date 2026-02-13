@@ -349,7 +349,11 @@ class planning_manager {
                 }
                 
                 // Normalized Level Key for sorting
-                $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+                // OLD LOGIC: Group by SUBJECT SEMESTER
+                // $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+
+                // NEW LOGIC (Requested Refactor): Group by STUDENT CURRENT LEVEL
+                $levelKey = $stu['currentSemConfig'] ?: 'Sin Asignar';
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
