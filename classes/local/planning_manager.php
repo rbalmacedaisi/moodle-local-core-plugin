@@ -251,6 +251,7 @@ class planning_manager {
              $structure[$r->learningplanid][] = (object) [
                 'id' => $r->courseid,
                 'fullname' => $r->fullname,
+                'name' => $r->fullname, // Alias for frontend compatibility
                 'semester_num' => $semesterNum, 
                 'semester_name' => $r->period_name,
                 'prereqs' => $prereqs
