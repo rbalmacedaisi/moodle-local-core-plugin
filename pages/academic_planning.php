@@ -768,6 +768,7 @@ const app = createApp({
         
         const urlParams = new URLSearchParams(window.location.search);
         const activeTab = ref(urlParams.get('tab') || 'planning');
+        const configSubTab = ref('periods');
         
         // State for filters
         const selectedCareer = ref('Todas');
