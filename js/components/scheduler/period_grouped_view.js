@@ -66,7 +66,7 @@ window.SchedulerComponents.PeriodGroupedView = {
                     </div>
                 </div>
                 
-                <div v-if="Object.keys(groupedSchedules).length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
+                <div v-if="!groupedSchedules || Object.keys(groupedSchedules).length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
                      <i data-lucide="layout-list" class="w-12 h-12 mb-2 opacity-50"></i>
                      <p>No hay horarios asignados visibles con los filtros actuales.</p>
                 </div>
@@ -83,7 +83,7 @@ window.SchedulerComponents.PeriodGroupedView = {
             return window.schedulerStore ? window.schedulerStore.state : {};
         },
         allClasses() {
-            return this.storeState.generatedSchedules || [];
+            return (this.storeState && this.storeState.generatedSchedules) ? this.storeState.generatedSchedules : [];
         },
         groupedSchedules() {
             const filter = this.storeState.subperiodFilter;
@@ -114,10 +114,13 @@ window.SchedulerComponents.PeriodGroupedView = {
             });
 
             // Sort keys?
-            return Object.keys(groups).sort().reduce((acc, key) => {
-                acc[key] = groups[key];
-                return acc;
-            }, {});
+            // Sort keys
+            const sortedKeys = Object.keys(groups).sort();
+            const result = {};
+            sortedKeys.forEach(key => {
+                result[key] = groups[key];
+            });
+            return result;
         }
     },
     updated() {
@@ -128,17 +131,20 @@ window.SchedulerComponents.PeriodGroupedView = {
             return classes.filter(c => c.day === day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
         },
         toMins(t) {
-            if (!t) return 0;
-            const [h, m] = t.split(':').map(Number);
+            if (!t || typeof t !== 'string') return 0;
+            const parts = t.split(':');
+            if (parts.length < 2) return 0;
+            const [h, m] = parts.map(Number);
             return h * 60 + m;
         },
         getCardClass(cls) {
-            // Color by Shift or just generic?
-            // Shift isn't on the class directly in some models, but 'shift' property exists in my store.
-            if (cls.shift && cls.shift.toLowerCase().includes('noche')) {
+            if (!cls) return 'bg-slate-50 border-slate-200 text-slate-700';
+
+            const shift = cls.shift || '';
+            if (shift.toLowerCase().includes('noche')) {
                 return 'bg-indigo-50 border-indigo-200 text-indigo-900';
             }
-            if (cls.shift && cls.shift.toLowerCase().includes('mañana')) {
+            if (shift.toLowerCase().includes('mañana')) {
                 return 'bg-blue-50 border-blue-200 text-blue-900';
             }
             return 'bg-slate-50 border-slate-200 text-slate-700';
