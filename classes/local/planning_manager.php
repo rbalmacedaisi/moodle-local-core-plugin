@@ -208,6 +208,7 @@ class planning_manager {
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
                 JOIN {course} c ON c.id = lpc.courseid
+                $joinCustom
                 ORDER BY p.learningplanid, p.id";
 
         $records = $DB->get_records_sql($sql);
