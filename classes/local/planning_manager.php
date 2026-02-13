@@ -336,6 +336,7 @@ class planning_manager {
             $shift = $stu['shift'] ?: 'Sin Jornada'; // Should come from user_info_data
             
             // Iterate Pending Subjects to build demand
+            foreach ($stu['pendingSubjects'] as $subj) {
                 // If subject is NOT Priority (e.g. unmet prerequisites), maybe we shouldn't schedule it automatically?
                 // For now, "Wave" logic usually schedules everything pending.
                 // Let's stick to including it.
