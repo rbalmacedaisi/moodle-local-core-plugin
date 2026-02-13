@@ -316,7 +316,7 @@ echo $OUTPUT->header();
                               </tr>
                           </thead>
                           <tbody class="divide-y divide-slate-50">
-                              <template v-for="(data, career) in analysis.populationTree">
+                              <template v-for="(data, career) in analysis.populationTree" :key="career">
                                   <tr class="cursor-pointer hover:bg-pink-50/30 transition-colors" :class="{'bg-pink-50/50': expandedCareer === career}" @click="toggleCareer(career)">
                                       <td class="p-3 font-bold text-slate-700 flex items-center gap-2">
                                           <i v-if="expandedCareer === career" data-lucide="chevron-down" class="w-4 h-4 text-pink-500"></i>
@@ -330,7 +330,7 @@ echo $OUTPUT->header();
                                   </tr>
                                   
                                   <template v-if="expandedCareer === career">
-                                      <template v-for="(pData, period) in data.periods">
+                                      <template v-for="(pData, period) in data.periods" :key="period">
                                           <tr class="bg-slate-50/50 cursor-pointer hover:bg-slate-100 transition-colors" @click.stop="togglePeriod(period)">
                                               <td class="p-2 pl-8 text-slate-600 text-xs font-medium flex items-center gap-2">
                                                   <i v-if="expandedPeriod === period" data-lucide="chevron-down" class="w-3 h-3 text-indigo-500"></i>
@@ -402,7 +402,7 @@ echo $OUTPUT->header();
                               Materias Pendientes (Prioridad)
                           </h4>
                           <div class="space-y-2">
-                              <div v-for="subj in searchedStudent.pendingSubjects.filter(s => s.isPriority)" :key="subj.name" class="p-3 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
+                               <div v-for="(subj, sIdx) in searchedStudent.pendingSubjects.filter(s => s.isPriority)" :key="sIdx" class="p-3 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
                                   <span class="text-sm text-slate-700 font-medium">{{ subj.name }}</span>
                                   <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Nivel {{ subj.semester }}</span>
                               </div>
@@ -854,7 +854,7 @@ echo $OUTPUT->header();
      </div>
 
     <!-- POPOVER MODAL (Simplification of Popover) -->
-    <div v-if="activePopover" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="activePopover = null">
+    <div v-if="activePopover" :key="activePopover.subject.id + '-' + activePopover.periodIndex" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="activePopover = null">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
              <div class="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                  <h4 class="font-bold text-slate-800">{{ activePopover.subject.name }}</h4>
@@ -871,7 +871,7 @@ echo $OUTPUT->header();
                              </summary>
                              <div class="mt-2 pl-2 border-l-2 border-slate-200">
                                  <ul class="list-disc list-inside text-xs text-slate-500">
-                                     <li v-for="stuName in groupData.students" :key="stuName">{{ stuName }}</li>
+                                      <li v-for="(stuName, sIdx) in groupData.students" :key="sIdx">{{ stuName }}</li>
                                  </ul>
                              </div>
                          </details>

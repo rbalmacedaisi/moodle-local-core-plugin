@@ -138,7 +138,7 @@ window.SchedulerComponents.SchedulerView = {
     methods: {
         async loadPeriods() {
             try {
-                const response = await this._fetch('local_grupomakro_get_periods');
+                const response = await this._fetch('local_grupomakro_get_academic_periods');
                 if (response) {
                     this.periods = response;
                 }
