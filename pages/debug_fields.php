@@ -39,29 +39,27 @@ foreach ($counts as $c) {
 }
 echo "</ul>";
 
-// 2. Simulate Planning Manager Query
-echo "<h3>Planning Manager Query Simulation (First 50 students)</h3>";
-$sqlSim = "SELECT u.id, u.firstname, u.lastname, llu.userrolename, uid_j.data AS shift_value
-           FROM {user} u
-           JOIN {local_learning_users} llu ON llu.userid = u.id 
-           LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = 10
-           WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student'
-           LIMIT 50";
-
-$simData = $DB->get_records_sql($sqlSim);
+// 3. Deep Dive for User 2227 (Meybis)
+echo "<h3>Deep Dive for User 2227 (Meybis)</h3>";
+$sqlUser = "SELECT f.id, f.shortname, f.name, uid.data
+            FROM {user_info_data} uid
+            JOIN {user_info_field} f ON f.id = uid.fieldid
+            WHERE uid.userid = 2227";
+$userData = $DB->get_records_sql($sqlUser);
 
 echo "<table class='table table-bordered'>";
-echo "<thead><tr><th>User ID</th><th>Name</th><th>Role</th><th>Shift (Jornada) Value</th></tr></thead>";
+echo "<thead><tr><th>Field ID</th><th>Shortname</th><th>Name</th><th>Stored Value</th></tr></thead>";
 echo "<tbody>";
-foreach ($simData as $d) {
+foreach ($userData as $d) {
     echo "<tr>";
     echo "<td>" . $d->id . "</td>";
-    echo "<td>" . $d->firstname . " " . $d->lastname . "</td>";
-    echo "<td>" . $d->userrolename . "</td>";
-    echo "<td>[" . $d->shift_value . "]</td>";
+    echo "<td>" . $d->shortname . "</td>";
+    echo "<td>" . $d->name . "</td>";
+    echo "<td>[" . $d->data . "]</td>";
     echo "</tr>";
 }
 echo "</tbody></table>";
+
 
 
 echo $OUTPUT->footer();

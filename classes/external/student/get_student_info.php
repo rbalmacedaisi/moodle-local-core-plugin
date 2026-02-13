@@ -175,6 +175,7 @@ class get_student_info extends external_api {
         
         $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
         $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
+        $fieldJourney = $DB->get_record('user_info_field', array('shortname' => 'gmkjourney'));
 
         foreach ($infoUsers as $user) {
             // Get Status
@@ -200,6 +201,15 @@ class get_student_info extends external_api {
                 $doc_data = $DB->get_record('user_info_data', ['fieldid' => $fieldDoc->id, 'userid' => $user->userid]);
                 if ($doc_data && !empty($doc_data->data)) {
                     $docNumber = $doc_data->data;
+                }
+            }
+
+            // Get Journey
+            $journey = '';
+            if ($fieldJourney) {
+                $journey_data = $DB->get_record('user_info_data', ['fieldid' => $fieldJourney->id, 'userid' => $user->userid]);
+                if ($journey_data && !empty($journey_data->data)) {
+                    $journey = $journey_data->data;
                 }
             }
             
@@ -254,6 +264,7 @@ class get_student_info extends external_api {
                     'documentnumber' => $finalID,
                     'status' => $userStatus,
                     'profileimage' => $profileimage,
+                    'journey' => $journey,
                     'careers' => [],
                     'careers' => [],
                     'periods' => [],
