@@ -206,7 +206,6 @@
                                         shift: shift,
                                         levelDisplay: semData.semester_name,
                                         subGroup: i + 1,
-                                        subGroup: i + 1,
                                         subperiod: 0, // Default: Unassigned/Both
                                         studentIds: groupStudents // Attach specific students to this group
                                     });

@@ -172,7 +172,6 @@ window.SchedulerComponents.PlanningBoard = {
                     <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button @click="editDialog = false" class="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700">Listo</button>
                     </div>
-                    </div>
                 </div>
              </div>
 
@@ -384,8 +383,8 @@ window.SchedulerComponents.PlanningBoard = {
             }
 
             const allStudents = window.schedulerStore.state.students || [];
-            // Filter students whose dbId is in cls.studentIds
-            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.dbId));
+            // Filter students whose id is in cls.studentIds
+            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id));
             this.studentsDialog = true;
         }
     }
