@@ -811,37 +811,36 @@ const app = createApp({
                 registrationsfrom_raw: '', registrationsuntil_raw: '', graduation_raw: ''
             });
         
-        const urlParams = new URLSearchParams(window.location.search);
-        const activeTab = ref(urlParams.get('tab') || 'planning');
-        const configSubTab = ref('periods');
+            const urlParams = new URLSearchParams(window.location.search);
+            const activeTab = ref(urlParams.get('tab') || 'planning');
         
-        // State for filters
-        const selectedCareer = ref('Todas');
-        const selectedShift = ref('Todas');
-        
-        // Configuration State
-        
-        // Manual Adjustments
-        const manualProjections = reactive({}); // { SubjectName: Count }
-        const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
-        
-        // Popover
-        const activePopover = ref(null);
-        
-        // Student Filter
-        const studentStatusFilter = ref('Todos');
-        const searchTerm = ref('');
-
-        // New UI State for Tabs
-        const expandedCareer = ref(null);
-        const expandedPeriod = ref(null);
-        const studentSearchQuery = ref('');
-        const searchedStudent = ref(null);
-
-        
-        // Calendar State
-        const calendarYear = ref(new Date().getFullYear());
-        const monthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+            // State for filters
+            const selectedCareer = ref('Todas');
+            const selectedShift = ref('Todas');
+            
+            // Configuration State
+            
+            // Manual Adjustments
+            const manualProjections = reactive({}); // { SubjectName: Count }
+            const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
+            
+            // Popover
+            const activePopover = ref(null);
+            
+            // Student Filter
+            const studentStatusFilter = ref('Todos');
+            const searchTerm = ref('');
+    
+            // New UI State for Tabs
+            const expandedCareer = ref(null);
+            const expandedPeriod = ref(null);
+            const studentSearchQuery = ref('');
+            const searchedStudent = ref(null);
+    
+            
+            // Calendar State
+            const calendarYear = ref(new Date().getFullYear());
+            const monthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
         
         // Moodle Call
         const callMoodle = async (method, args) => {
