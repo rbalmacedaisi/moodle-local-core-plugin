@@ -59,6 +59,10 @@
         async loadContext(periodId) {
             const res = await this._fetch('local_grupomakro_get_scheduler_context', { periodid: periodId });
             this.state.context = res;
+            // Ensure period dates are available for duration calculation
+            if (res.period) {
+                this.state.activePeriodDates = res.period;
+            }
         },
 
         async loadPlans() {
@@ -221,15 +225,21 @@
                     timeRange: `${inst.starttime}-${inst.endtime}`
                 }));
 
-                // Note: schedules have dummy subjectName "Materia X". Availability needs to match that.
-                // This will result in 0 assignments unless we fix the subject names.
-                // For MVP Verification, we might need a way to get subject names in demand.
-                // I should update get_demand_data to return names too.
+                // Note: schedules have dummy subjectName if not mapped.
+                // We ensure subject names are correct using this.state.subjects[courseId].name
 
                 const result = window.SchedulerAlgorithm.autoAssign(schedules, availability);
 
-                this.state.generatedSchedules = result;
-                this.state.successMessage = "Horarios generados (preliminar)";
+                // 3. AUTO-PLACEMENT
+                const finalResult = window.SchedulerAlgorithm.autoPlace(result, {
+                    classrooms: this.state.context.classrooms || [],
+                    loads: this.state.context.loads || [],
+                    period: this.state.activePeriodDates || {},
+                    configSettings: this.state.context.config || {}
+                });
+
+                this.state.generatedSchedules = finalResult;
+                this.state.successMessage = "Horarios generados y ubicados automáticamente";
 
             } catch (e) {
                 console.error("Generation Error", e);
@@ -249,6 +259,48 @@
                 this.state.successMessage = "Horarios guardados correctamente";
             } catch (e) {
                 this.state.error = e.message;
+            } finally {
+                this.state.loading = false;
+            }
+        },
+
+        async uploadSubjectLoads(file) {
+            if (!window.XLSX) {
+                this.state.error = "Librería XLSX no cargada";
+                return;
+            }
+
+            this.state.loading = true;
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = window.XLSX.read(data);
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = window.XLSX.utils.sheet_to_json(worksheet);
+
+                const loads = jsonData.map(row => {
+                    const subjectName = row['Asignatura'] || row['ASIGNATURA'] || row['Materia'];
+                    const totalHours = row['Horas'] || row['HORAS'] || row['Total'];
+                    const intensity = row['Intensidad'] || row['INTENSIDAD'] || row['Sesión'];
+
+                    if (subjectName && totalHours) {
+                        return {
+                            subjectName: String(subjectName).trim(),
+                            totalHours: parseFloat(totalHours),
+                            intensity: intensity ? parseFloat(intensity) : null
+                        };
+                    }
+                    return null;
+                }).filter(l => l !== null);
+
+                // Save to local context for immediate use
+                this.state.context.loads = loads;
+
+                // Persist via AJAX if possible (Need to implement backend endpoint save_scheduler_loads)
+                // For now, we keep it in state context.
+                this.state.successMessage = `Cargadas ${loads.length} asignaturas`;
+            } catch (e) {
+                console.error("Excel Load Error", e);
+                this.state.error = "Error procesando el archivo de cargas";
             } finally {
                 this.state.loading = false;
             }

@@ -476,6 +476,7 @@ echo $OUTPUT->header();
                   <button @click="configSubTab = 'periods'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'periods' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Periodos Académicos</button>
                   <button @click="configSubTab = 'classrooms'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'classrooms' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Gestión de Aulas</button>
                   <button @click="configSubTab = 'holidays'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'holidays' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Calendario de Festivos</button>
+                  <button @click="configSubTab = 'loads'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'loads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Cargas Horarias (Excel)</button>
               </div>
 
               <!-- Content for Config Sub-tabs -->
@@ -533,6 +534,47 @@ echo $OUTPUT->header();
 
               <div v-if="configSubTab === 'holidays'">
                   <holiday-manager :period-id="selectedPeriodId"></holiday-manager>
+              </div>
+
+              <div v-if="configSubTab === 'loads'">
+                  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                      <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                          <i data-lucide="upload-cloud" class="text-blue-500"></i>
+                          Carga Masiva de Horas (Excel)
+                      </h3>
+                      <p class="text-sm text-slate-500 mb-6 font-bold">
+                          Suba un archivo Excel con las columnas: <span class="bg-slate-100 px-1 rounded">Asignatura</span>, <span class="bg-slate-100 px-1 rounded">Horas</span> e <span class="bg-slate-100 px-1 rounded">Intensidad</span>.
+                      </p>
+                      
+                      <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-10 hover:bg-slate-50 transition-colors cursor-pointer" @click="$refs.loadExcelInput.click()">
+                          <i data-lucide="file-spreadsheet" class="w-12 h-12 text-slate-400 mb-4"></i>
+                          <p class="text-slate-600 font-bold">Haga clic o arrastre su archivo Excel aquí</p>
+                          <p class="text-xs text-slate-400 mt-2">Formatos aceptados: .xlsx, .xls</p>
+                          <input type="file" ref="loadExcelInput" class="hidden" accept=".xlsx, .xls" @change="handleLoadUpload">
+                      </div>
+
+                      <div v-if="store.state.context.loads && store.state.context.loads.length > 0" class="mt-8">
+                          <h4 class="font-bold text-slate-700 mb-2">Cargas Cargadas ({{ store.state.context.loads.length }})</h4>
+                          <div class="max-h-60 overflow-y-auto border border-slate-100 rounded">
+                              <table class="w-full text-xs text-left">
+                                  <thead class="bg-slate-50 sticky top-0 font-bold uppercase text-slate-500">
+                                      <tr>
+                                          <th class="p-2 border-b">Asignatura</th>
+                                          <th class="p-2 border-b text-center">Total Horas</th>
+                                          <th class="p-2 border-b text-center">Intensidad</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody class="divide-y divide-slate-100">
+                                      <tr v-for="l in store.state.context.loads" :key="l.subjectName" class="hover:bg-slate-50">
+                                          <td class="p-2">{{ l.subjectName }}</td>
+                                          <td class="p-2 text-center">{{ l.totalHours || l.total }}</td>
+                                          <td class="p-2 text-center">{{ l.intensity || '-' }}</td>
+                                      </tr>
+                                  </tbody>
+                              </table>
+                          </div>
+                      </div>
+                  </div>
               </div>
           </div>
 
@@ -744,6 +786,7 @@ const app = createApp({
         try {
             console.log("Vue Planning App: setup() starting...");
             const loading = ref(true);
+            const store = window.schedulerStore;
             const rawData = ref([]); 
             const selectedPeriodId = ref(0);
             const periods = ref([]);
@@ -753,6 +796,7 @@ const app = createApp({
             const allLearningPlans = ref([]);
             const showPeriodForm = ref(false);
             const saving = ref(false);
+            const configSubTab = ref('periods');
             const editingPeriod = ref({
                 id: 0,
                 name: '',
@@ -1547,6 +1591,13 @@ const app = createApp({
             }
         };
 
+        const handleLoadUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            store.uploadSubjectLoads(file);
+            e.target.value = '';
+        };
+
         const handleExportStudentSchedule = () => {
             if (!searchedStudent.value || !window.XLSX) {
                 alert("XLSX library not loaded or student not selected.");
@@ -1592,7 +1643,8 @@ const app = createApp({
                 // New Tabs Logic
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
                 studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule,
-                configSubTab
+                handleLoadUpload,
+                configSubTab, store
             };
 
         } catch (setupError) {

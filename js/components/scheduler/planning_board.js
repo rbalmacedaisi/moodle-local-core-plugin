@@ -102,7 +102,12 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div class="text-[9px] leading-tight text-slate-500 mt-0.5">
                                             <span v-if="cls.teacherName" class="block font-medium text-slate-700 truncate">{{ cls.teacherName }}</span>
                                             <span v-else class="block text-orange-500 italic">Por asignar</span>
-                                            <span class="block truncate">{{ cls.room || 'Sin aula' }}</span>
+                                            <div class="flex items-center justify-between">
+                                                <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
+                                                <span v-if="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
+                                                    <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
+                                                </span>
+                                            </div>
                                         </div>
                                         
                                         <!-- Actions -->
@@ -268,19 +273,35 @@ window.SchedulerComponents.PlanningBoard = {
         },
         getEventStyle(cls) {
             const startMins = this.toMins(cls.start);
-            // const endMins = this.toMins(cls.end);
             const duration = (this.toMins(cls.end) - startMins);
             const dayStartMins = this.startHour * 60;
-
-            // 56px (h-14) per hour
             const pixelsPerHour = 56;
 
             const top = ((startMins - dayStartMins) / 60) * pixelsPerHour;
             const height = (duration / 60) * pixelsPerHour;
 
+            // Cascading/Overlap Logic
+            const dayClasses = this.getClassesForDay(cls.day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
+            const overlaps = dayClasses.filter(c => {
+                const s1 = this.toMins(c.start);
+                const e1 = this.toMins(c.end);
+                const s2 = this.toMins(cls.start);
+                const e2 = this.toMins(cls.end);
+                return Math.max(s1, s2) < Math.min(e1, e2);
+            });
+
+            const index = overlaps.findIndex(c => c.id === cls.id);
+            const count = overlaps.length;
+
+            const left = (index / count) * 95;
+            const width = 100 / count;
+
             return {
                 top: `${top}px`,
-                height: `${height}px`
+                height: `${height}px`,
+                left: `${left + 2}%`,
+                width: `${width - 4}%`,
+                zIndex: 10 + index
             };
         },
         toMins(t) {

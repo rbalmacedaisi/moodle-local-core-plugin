@@ -53,7 +53,22 @@
         const end1 = toMins(s1.end);
         const start2 = toMins(s2.start);
         const end2 = toMins(s2.end);
+
+        // Subperiod overlap logic
+        const subOverlap = (s1.subperiod === 0) || (s2.subperiod === 0) || (s1.subperiod === s2.subperiod);
+        if (!subOverlap) return false;
+
         return Math.max(start1, start2) < Math.min(end1, end2);
+    };
+
+    const getEffectiveWeeks = (period) => {
+        if (!period || !period.start || !period.end) return 16;
+        const start = new Date(period.start);
+        const end = new Date(period.end);
+        const diffDays = (end - start) / (1000 * 60 * 60 * 24);
+        const weeks = Math.floor(diffDays / 7);
+        // Reserve 1 week for reválidas/final exams as per logic
+        return Math.max(1, weeks - 1);
     };
 
     // --- Main Functions ---
@@ -131,6 +146,138 @@
                     });
                     break; // Move to next schedule
                 }
+            }
+        });
+
+        return nextSchedules;
+    };
+
+    /**
+     * Automatic Placement Algorithm
+     * Finds Day, Time, and Room for unassigned schedules.
+     */
+    const autoPlace = (schedules, context) => {
+        const nextSchedules = JSON.parse(JSON.stringify(schedules));
+        const intervalMins = context.configSettings?.intervalMinutes || 10;
+        const effectiveWeeks = getEffectiveWeeks(context.period);
+        const shiftWindows = context.configSettings?.shiftWindows || {
+            'Diurna': { start: '07:00', end: '18:00' },
+            'Nocturna': { start: '18:00', end: '22:00' },
+            'Sabatina': { start: '07:00', end: '17:00' }
+        };
+
+        const lunchStart = toMins(context.configSettings?.lunchStart || '12:00');
+        const lunchEnd = toMins(context.configSettings?.lunchEnd || '13:00');
+
+        // Track usage to avoid conflicts during autoPlace
+        const roomUsage = {}; // roomName -> [ {day, subperiod, start, end} ]
+        const teacherUsage = {}; // teacherName -> [ {day, subperiod, start, end} ]
+        const groupUsage = {}; // career|level|shift -> [ {day, subperiod, start, end} ]
+
+        const markBusy = (pool, key, s) => {
+            if (!key) return;
+            if (!pool[key]) pool[key] = [];
+            pool[key].push({
+                day: s.day,
+                subperiod: s.subperiod || 0,
+                start: toMins(s.start),
+                end: toMins(s.end)
+            });
+        };
+
+        const checkBusy = (pool, key, day, subperiod, start, end) => {
+            if (!key || !pool[key]) return false;
+            return pool[key].some(busy => {
+                const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
+                return busy.day === day && subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+            });
+        };
+
+        // 1. Initial occupancy from assigned schedules
+        nextSchedules.forEach(s => {
+            if (s.day !== 'N/A') {
+                markBusy(roomUsage, s.room, s);
+                markBusy(teacherUsage, s.teacherName, s);
+                const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
+                markBusy(groupUsage, groupKey, s);
+            }
+        });
+
+        // 2. Sort unassigned tasks (Larger student counts first)
+        const unassigned = nextSchedules.filter(s => s.day === 'N/A');
+        unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
+
+        // 3. Process unassigned
+        unassigned.forEach(s => {
+            // Skip if low quorum (unless exception)
+            if (s.studentCount < 12 && !s.isQuorumException) {
+                s.warning = "Quórum Insuficiente (<12)";
+                return;
+            }
+
+            // Calculate Duration
+            let durationMins = 120; // Fallback
+            const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
+            if (loadData) {
+                if (loadData.intensity) {
+                    durationMins = Math.round(loadData.intensity * 60);
+                } else if (loadData.totalHours) {
+                    durationMins = Math.round((loadData.totalHours / effectiveWeeks) * 60);
+                }
+            }
+            s.durationMins = durationMins;
+
+            const win = shiftWindows[s.shift] || shiftWindows['Diurna'];
+            const winStart = toMins(win.start);
+            const winEnd = toMins(win.end);
+            const winDays = (s.shift === 'Sabatina') ? ['Sabado'] : ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+
+            const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
+            const validRooms = (context.classrooms || [])
+                .filter(r => r.capacity >= s.studentCount)
+                .sort((a, b) => a.capacity - b.capacity);
+
+            let placed = false;
+            for (const room of validRooms) {
+                if (placed) break;
+                for (const day of winDays) {
+                    if (placed) break;
+
+                    // Iterate time slots
+                    for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
+                        const tEnd = t + durationMins;
+
+                        // Lunch check
+                        if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
+
+                        // Room busy?
+                        if (checkBusy(roomUsage, room.name, day, s.subperiod, t, tEnd)) continue;
+
+                        // Teacher busy?
+                        if (s.teacherName && checkBusy(teacherUsage, s.teacherName, day, s.subperiod, t, tEnd)) continue;
+
+                        // Group busy?
+                        if (checkBusy(groupUsage, groupKey, day, s.subperiod, t, tEnd)) continue;
+
+                        // PLACE!
+                        s.day = day;
+                        s.start = formatTime(t);
+                        s.end = formatTime(tEnd);
+                        s.room = room.name;
+
+                        // Mark as busy for next items
+                        markBusy(roomUsage, room.name, s);
+                        if (s.teacherName) markBusy(teacherUsage, s.teacherName, s);
+                        markBusy(groupUsage, groupKey, s);
+
+                        placed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!placed) {
+                s.warning = "No se encontró espacio disponible";
             }
         });
 
@@ -317,12 +464,13 @@
     // Export to window
     window.SchedulerAlgorithm = {
         autoAssign,
+        autoPlace,
         getSuggestions,
         detectConflicts,
         toMins,
-        toMins,
         formatTime,
-        parseTimeRange
+        parseTimeRange,
+        getEffectiveWeeks
     };
 
 })();
