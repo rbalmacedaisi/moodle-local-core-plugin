@@ -174,7 +174,7 @@ class planning_manager {
 
         return [
             'students' => $studentList,
-            'subjects' => array_values($allSubjects), // New: Master list of courses
+            'all_subjects' => array_values($allSubjects), // New: Master list of courses
             'projections' => array_values($projections),
             'planning_projections' => array_values($planningProjections)
         ];
