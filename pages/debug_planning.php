@@ -312,7 +312,18 @@ if ($studentId) {
               }
          }
          
+         // Fetch Shift (Jornada)
+         $startJ = microtime(true);
+         // We need to fetch the shift from user_info_data
+         $jornadaFieldId = $DB->get_field('user_info_field', 'id', ['shortname' => 'gmkjourney']);
+         $shiftVal = $DB->get_field('user_info_data', 'data', ['userid' => $studentId, 'fieldid' => $jornadaFieldId ?: 0]);
+         $shiftDisplay = $shiftVal ?: 'Sin Jornada';
+         // Career
+         $careerDisplay = $mainSub->learningplanid ? $DB->get_field('local_learning_plans', 'name', ['id' => $mainSub->learningplanid]) : 'General';
+         
          echo "<ul>";
+         echo "<li><strong>Career Group:</strong> $careerDisplay</li>";
+         echo "<li><strong>Shift Group (Jornada):</strong> $shiftDisplay</li>";
          echo "<li><strong>Raw Period Name (DB):</strong> " . ($currentPeriodName ?: 'NULL') . "</li>";
          echo "<li><strong>Raw Subperiod Name (DB):</strong> " . ($currentSubPeriodName ?: 'NULL') . "</li>";
          echo "<li><strong>Calculated Level Key (Column):</strong> <span style='background:#e2e3e5; padding:2px 5px; border-radius:3px;'>$levelKey</span> " . ($usedFallback ? "(Derived via Fallback)" : "") . "</li>";
