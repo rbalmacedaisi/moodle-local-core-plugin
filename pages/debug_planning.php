@@ -61,8 +61,9 @@ echo "<div class='debug-nav'>
 // --- SECTION 1: Curricula ---
 echo "<div id='sec-all' class='debug-section'>";
 echo "<h3>1. Curricula Structure & Prerequisites</h3>";
-$preField = $DB->get_record('customfield_field', ['shortname' => 'pre']);
-if (!$preField) {
+$preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+$preField = (object)['id' => $preFieldId]; // For legacy compatibility if any
+if (!$preFieldId) {
     echo "<p style='color:red'>WARNING: Course custom field 'pre' NOT FOUND!</p>";
 } else {
     echo "<p>Found course custom field 'pre' (ID: $preField->id)</p>";
@@ -113,10 +114,10 @@ echo "</div>"; // End Section 1
 // --- SECTION 2: Student Analysis ---
 echo "<div id='sec-student' class='debug-section'>";
 // Variables Initialization
-$studentId = optional_param('student_search', 0, PARAM_INT); // Changed from 'userid' to 'student_search'
-$studentSearchTerm = optional_param('search', '', PARAM_TEXT); // This is the actual search box input
-$view = optional_param('view', 0, PARAM_INT); // Added for refresh logic
-$action = optional_param('action', '', PARAM_ALPHA); // Added for actions
+$studentId = optional_param('student_search', 0, PARAM_INT);
+$studentSearchTerm = optional_param('search', '', PARAM_TEXT);
+$view = optional_param('view', 0, PARAM_INT);
+$action = optional_param('action', '', PARAM_TEXT);
 
 echo "<h3>2. Student Analysis (Status & Approved)</h3>";
 
@@ -181,9 +182,6 @@ if ($studentId) {
     // Get Study Plan ID
     $planId = $DB->get_field('local_learning_users', 'learningplanid', ['userid' => $studentId]);
     
-    // Get Pre Field ID for Prereq display
-    $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
-
     if ($planId) {  
         $subs = $DB->get_records('local_learning_users', ['userid' => $studentId]);
         echo "<h5>Subscription Records (local_learning_users)</h5>";
@@ -394,14 +392,18 @@ if ($studentId) {
         echo "<div class='btn-group'>";
         if ($rawProgress) {
              echo "<form method='post' action='debug_planning.php' style='display:inline'>
-                    <input type='hidden' name='student_search' value='" . s($studentSearchTerm) . "'>
+                    <input type='hidden' name='mode' value='student'>
+                    <input type='hidden' name='student_search' value='" . s($studentId) . "'>
+                    <input type='hidden' name='search' value='" . s($studentSearchTerm) . "'>
                     <input type='hidden' name='view' value='1'>
                     <input type='hidden' name='action' value='correct_grades'>
                     <button type='submit' class='btn btn-danger'>🔴 Fix Inconsistent Grades (Set Status 5/4)</button>
                    </form> ";
         }
         echo "<form method='post' action='debug_planning.php' style='display:inline'>
-                <input type='hidden' name='student_search' value='" . s($studentSearchTerm) . "'>
+                <input type='hidden' name='mode' value='student'>
+                <input type='hidden' name='student_search' value='" . s($studentId) . "'>
+                <input type='hidden' name='search' value='" . s($studentSearchTerm) . "'>
                 <input type='hidden' name='view' value='1'>
                 <input type='hidden' name='action' value='sync_missing'>
                 <button type='submit' class='btn btn-warning'>🟡 Create Missing Progress Records</button>
@@ -558,6 +560,7 @@ if ($studentId) {
          }
     }
 }
+}
 echo "</div>"; // End Section 2
 
 // --- SECTION 3: Subject Analysis ---
@@ -585,7 +588,7 @@ if ($subjId) {
         
         // 1. Get Shortname & Prereqs
         $courseObj = $DB->get_record('course', ['id' => $subjId]);
-        $preVal = $DB->get_field('customfield_data', 'value', ['instanceid' => $subjId, 'fieldid' => $preField->id ?? 0]);
+        $preVal = $DB->get_field('customfield_data', 'value', ['instanceid' => $subjId, 'fieldid' => $preFieldId ?: 0]);
         
         echo "<p><strong>Shortname:</strong> $courseObj->shortname</p>";
         echo "<p><strong>Prereqs (Raw):</strong> " . ($preVal ?: 'None') . "</p>";
@@ -677,10 +680,10 @@ if ($missingUsers) {
           </tr>";
     foreach ($missingUsers as $u) {
         echo "<tr>
-                <td><a href='?mode=student&userid=$u->id'>$u->firstname $u->lastname ($u->username)</a></td>
+                <td><a href='?mode=student&student_search=$u->id'>$u->firstname $u->lastname ($u->username)</a></td>
                 <td>$u->planname</td>
                 <td>$u->subid</td>
-                <td><a href='?mode=student&userid=$u->id'>Analyze</a></td>
+                <td><a href='?mode=student&student_search=$u->id'>Analyze</a></td>
               </tr>";
     }
     echo "</table>";
