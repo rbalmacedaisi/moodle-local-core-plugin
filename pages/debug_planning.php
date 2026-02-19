@@ -197,6 +197,36 @@ if ($studentId) {
         
         // 2. Fetch Plan Courses & Prereqs
         echo "<h5>Plan Analysis (Plan ID: $planId)</h5>";
+
+        // --- NEW: Raw Progress Analysis Logic ---
+        echo "<h5>Raw Progress Records (gmk_course_progre) - Status Analysis</h5>";
+        $rawProgress = $DB->get_records('gmk_course_progre', ['userid' => $studentId]);
+        
+        if ($rawProgress) {
+            echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%; margin-bottom:15px'>";
+            echo "<tr style='background:#f0f0f0'><th>ID</th><th>Course ID</th><th>Course Name</th><th>Status (Raw)</th><th>Grade</th><th>Interpretation</th></tr>";
+            foreach ($rawProgress as $rp) {
+                $cName = $DB->get_field('course', 'fullname', ['id' => $rp->courseid]);
+                $interp = "Unknown";
+                if ($rp->status >= 3) $interp = "<span style='color:green'>Approved/Completed</span>";
+                elseif ($rp->status == 1) $interp = "<span style='color:orange'>In Progress? (1)</span>";
+                elseif ($rp->status == 2) $interp = "<span style='color:red'>Failed/Reprobada? (2)</span>";
+                else $interp = "<span style='color:gray'>Other ($rp->status)</span>";
+                
+                echo "<tr>
+                        <td>$rp->id</td>
+                        <td>$rp->courseid</td>
+                        <td>$cName</td>
+                        <td><strong>$rp->status</strong></td>
+                        <td>" . ($rp->grade ?? '-') . "</td>
+                        <td>$interp</td>
+                      </tr>";
+            }
+            echo "</table>";
+        } else {
+            echo "<p>No records found in gmk_course_progre.</p>";
+        }
+        // --- END NEW ---
         
         // Get Pre Field ID
         $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
