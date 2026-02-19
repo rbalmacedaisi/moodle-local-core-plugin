@@ -197,7 +197,7 @@ echo $OUTPUT->header();
                      </div>
                      <div v-if="resultsLog.length" class="bg-slate-800 text-slate-300 p-6 rounded-xl text-xs font-mono max-h-60 overflow-y-auto leading-relaxed border border-slate-900 shadow-inner">
                          <div v-for="log in resultsLog" :key="log" class="mb-1">
-                            <span class="text-slate-500">[{ (new Date()).toLocaleTimeString() }]</span> { log }
+                            <span class="text-slate-500">[{{ (new Date()).toLocaleTimeString() }}]</span> {{ log }}
                          </div>
                      </div>
                  </div>
@@ -207,7 +207,7 @@ echo $OUTPUT->header();
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                 <h2 class="font-bold text-slate-700">Listado de Gaps Detectados (Muestra)</h2>
-                <span class="text-[10px] text-slate-400 font-mono" v-if="debugInfo">Total Student Subs: { debugInfo.total_students_found }</span>
+                <span class="text-[10px] text-slate-400 font-mono" v-if="debugInfo">Total Student Subs: {{ debugInfo.total_students_found }}</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
@@ -221,15 +221,15 @@ echo $OUTPUT->header();
                     </thead>
                     <tbody class="divide-y divide-slate-50">
                         <tr v-for="stu in gapStudents" :key="stu.id" class="hover:bg-slate-50/50 transition-colors">
-                            <td class="px-6 py-4 font-semibold text-slate-700">{ stu.firstname } { stu.lastname }</td>
-                            <td class="px-6 py-4 text-slate-500 font-mono tracking-tighter">{ stu.idnumber }</td>
+                            <td class="px-6 py-4 font-semibold text-slate-700">{{ stu.firstname }} {{ stu.lastname }}</td>
+                            <td class="px-6 py-4 text-slate-500 font-mono tracking-tighter">{{ stu.idnumber }}</td>
                             <td class="px-6 py-4 text-center">
                                 <span v-if="!stu.entry_period" class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-[10px] font-bold">VACÍO</span>
-                                <span v-else class="text-slate-600">{ stu.entry_period }</span>
+                                <span v-else class="text-slate-600">{{ stu.entry_period }}</span>
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <span v-if="!stu.academic_period_name" class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold">SIN ASIGNAR</span>
-                                <span v-else class="text-slate-600">{ stu.academic_period_name }</span>
+                                <span v-else class="text-slate-600">{{ stu.academic_period_name }}</span>
                             </td>
                         </tr>
                         <tr v-if="!gapStudents.length && !loading">
@@ -247,7 +247,6 @@ echo $OUTPUT->header();
 <script>
 const { createApp } = Vue;
 createApp({
-    delimiters: ['{', '}'],
     data() {
         return {
             loading: false,
