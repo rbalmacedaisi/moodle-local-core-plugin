@@ -56,6 +56,7 @@ echo "<div class='debug-nav'>
     <a href='#' id='nav-sec-student' onclick='showSection(\"sec-student\"); return false;'>2. Student Analysis</a>
     <a href='#' id='nav-sec-subject' onclick='showSection(\"sec-subject\"); return false;'>3. Subject Analysis</a>
     <a href='#' id='nav-sec-missing' onclick='showSection(\"sec-missing\"); return false;'>4. Missing Period Report</a>
+    <a href='#' id='nav-sec-massive' onclick='showSection(\"sec-massive\"); return false;'>5. Massive Sync & Fix</a>
 </div>";
 
 // --- SECTION 1: Curricula ---
@@ -692,5 +693,103 @@ if ($missingUsers) {
 }
 
 echo "</div>"; // End Section 4
+
+// --- SECTION 5: Massive Student Sync & Fix ---
+echo "<div id='sec-massive' class='debug-section'>";
+echo "<h3>5. Massive Student Sync & Fix</h3>";
+echo "<p>This tool will iterate through <strong>ALL</strong> students in the learning system and apply the two synchronization rules:</p>";
+echo "<ul>
+        <li><strong>Sync Missing:</strong> Ensures every subject in the student's Plan has a record in the progress table.</li>
+        <li><strong>Fix Grades/Status:</strong> Imports missing grades from Moodle and sets Status 5 (Failed) or 4 (Approved) correctly.</li>
+      </ul>";
+
+$massiveAction = optional_param('massive_action', '', PARAM_TEXT);
+
+if ($massiveAction === 'execute_massive') {
+    $students = $DB->get_records('local_learning_users', ['userrolename' => 'student']);
+    $totalStudents = count($students);
+    echo "<div style='background:#fff5f5; padding:15px; border:2px solid #ff4d4f; border-radius:5px; margin-bottom:20px'>
+            <strong>EXECUTION LOG: Processing $totalStudents students...</strong><hr>";
+    
+    $totalRecordsAdded = 0;
+    $totalRecordsFixed = 0;
+    $startTime = microtime(true);
+
+    // Increase execution limits
+    core_php_time_limit::raise(300); // 5 minutes
+    
+    foreach ($students as $sub) {
+        $sid = $sub->userid;
+        $pid = $sub->learningplanid;
+        
+        // --- Logic A: Sync Missing ---
+        $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $pid]);
+        $existing = $DB->get_records_menu('gmk_course_progre', ['userid' => $sid], '', 'courseid, id');
+        foreach ($planCourses as $pc) {
+            if (!isset($existing[$pc->courseid])) {
+                $new = new stdClass();
+                $new->userid = $sid; $new->learningplanid = $pid; $new->periodid = $pc->periodid;
+                $new->courseid = $pc->courseid; $new->status = 0; $new->grade = null; $new->progress = 0;
+                $new->timecreated = time(); $new->timemodified = time();
+                $DB->insert_record('gmk_course_progre', $new);
+                $totalRecordsAdded++;
+            }
+        }
+
+        // --- Logic B: Fix Status/Grades ---
+        $progRecs = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
+        foreach ($progRecs as $rp) {
+            $dbGrade = $rp->grade !== null ? (float)$rp->grade : null;
+            $moodleGradeObj = grade_get_course_grade($sid, $rp->courseid);
+            $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+            
+            $effectiveGrade = ($moodleGrade !== null) ? $moodleGrade : (($dbGrade !== null && $dbGrade > 0) ? $dbGrade : null);
+            $changed = false;
+
+            if ($dbGrade === null && $moodleGrade !== null) {
+                $rp->grade = $moodleGrade; $changed = true;
+            }
+
+            if ($effectiveGrade !== null) {
+                if ($effectiveGrade >= 71 && $rp->status < 3) {
+                    $rp->status = 4; $changed = true;
+                } elseif ($effectiveGrade < 71 && $rp->status != 5 && $rp->status != 3 && $rp->status != 4) {
+                    $rp->status = 5; $changed = true;
+                }
+            }
+
+            if ($changed) {
+                $rp->timemodified = time();
+                $DB->update_record('gmk_course_progre', $rp);
+                $totalRecordsFixed++;
+            }
+        }
+    }
+    $endTime = microtime(true);
+    $duration = round($endTime - $startTime, 2);
+    
+    echo "<p style='color:green; font-weight:bold'>SUCCESS!</p>";
+    echo "<ul>
+            <li>Total Students Processed: $totalStudents</li>
+            <li>Records Missing Added: $totalRecordsAdded</li>
+            <li>Statuses/Grades Corrected: $totalRecordsFixed</li>
+            <li>Time Taken: $duration seconds</li>
+          </ul>";
+    echo "</div>";
+}
+
+echo "<div style='background:#fef0f0; padding:20px; border:1px solid #ffccc7; border-radius:10px; text-align:center'>
+        <h4 style='color:#cf1322'>⚠️ DANGER ZONE ⚠️</h4>
+        <p>This action will modify data for all students in the system.</p>
+        <form method='post' action='debug_planning.php'>
+            <input type='hidden' name='mode' value='massive'>
+            <input type='hidden' name='massive_action' value='execute_massive'>
+            <button type='submit' class='btn btn-danger' style='font-size:1.5em; padding:15px 30px' onclick='return confirm(\"Are you absolutely sure? This will update all student records!\")'>
+                🚀 EXECUTE MASSIVE SYNC & FIX
+            </button>
+        </form>
+      </div>";
+
+echo "</div>"; // End Section 5
 
 echo $OUTPUT->footer();
