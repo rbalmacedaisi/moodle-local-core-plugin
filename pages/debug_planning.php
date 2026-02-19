@@ -33,93 +33,23 @@ $sql = "SELECT c.id, c.fullname, c.shortname, c.idnumber, cfd.value as prereq_ra
 $courseData = $DB->get_records_sql($sql);
 
 echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%'>";
-echo "<tr><th>ID</th><th>Fullname</th><th>Shortname</th><th>ID Number</th><th>Prereq (Raw)</th><th>Resolved IDs</th></tr>";
-
-// Resolved map for display
-$allCourses = $DB->get_records('course', [], '', 'shortname, id');
-$shortnameToId = [];
-foreach ($allCourses as $c) {
-    $shortnameToId[trim($c->shortname)] = $c->id;
-}
-
-foreach ($courseData as $c) {
-    $resolved = [];
-    if (!empty($c->prereq_raw)) {
-        $shorts = explode(',', $c->prereq_raw);
-        foreach ($shorts as $s) {
-            $s = trim($s);
-            if (isset($shortnameToId[$s])) {
-                $resolved[] = "$s (ID: " . $shortnameToId[$s] . ")";
-            } else {
-                $resolved[] = "<span style='color:red'>$s (NOT FOUND)</span>";
-            }
-        }
-    }
-    echo "<tr>
-            <td>$c->id</td>
-            <td>$c->fullname</td>
-            <td>$c->shortname</td>
-            <td>$c->idnumber</td>
-            <td>" . ($c->prereq_raw ?: '<i>None</i>') . "</td>
-            <td>" . (implode(', ', $resolved) ?: '<i>None</i>') . "</td>
-          </tr>";
-}
-echo "</table>";
-
-// 2. Sample Student Analysis
-$studentId = optional_param('userid', 0, PARAM_INT);
-$search = optional_param('search', '', PARAM_TEXT);
-
-echo "<h3>2. Student Analysis (Status & Approved)</h3>";
-
-// Search Form
-echo "<form method='GET' style='margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px;'>";
-echo "  <strong>Search Student:</strong> ";
-echo "  <input type='text' name='search' value='" . s($search) . "' placeholder='Name or Username...'> ";
-echo "  <input type='submit' value='Search'>";
-echo "  <a href='?' style='margin-left:10px'>Clear</a>";
-echo "</form>";
-
-// Search Results
-if ($search) {
-    $foundUsers = $DB->get_records_sql(
-        "SELECT id, firstname, lastname, username, email FROM {user} 
-         WHERE deleted = 0 AND (firstname LIKE :q1 OR lastname LIKE :q2 OR username LIKE :q3)
-         LIMIT 20",
-        ['q1' => "%$search%", 'q2' => "%$search%", 'q3' => "%$search%"]
-    );
-    
-    if ($foundUsers) {
-        echo "<ul>";
-        foreach ($foundUsers as $u) {
-            echo "<li><a href='?userid=$u->id&search=".urlencode($search)."'>$u->firstname $u->lastname ($u->username)</a></li>";
-        }
-        echo "</ul>";
-    } else {
-        echo "<p>No users found matching '$search'.</p>";
-    }
-}
-
 // Sample List (if no search and no selection)
 if (!$studentId && !$search) {
-    echo "<h4>Sample Active Students (from Planning Data)</h4>";
-    $periodId = $DB->get_field_sql("SELECT MAX(id) FROM {gmk_academic_periods}");
-    if ($periodId) {
-        $data = planning_manager::get_planning_data($periodId);
-        echo "<ul>";
-        $count = 0;
-        foreach ($data['students'] as $s) {
-            $uName = $s['name'] ?? 'Unknown';
-            $uId = $s['dbId'] ?? 0;
-            // Only show students with pending subjects for interest
-            if (!empty($s['pendingSubjects'])) {
-                 echo "<li><a href='?userid=$uId'>$uName</a> (" . count($s['pendingSubjects']) . " pending subjects) - " . $s['career'] . "</li>";
-                 $count++;
-            }
-            if ($count >= 15) break;
-        }
-        echo "</ul>";
+    echo "<h4>Sample Active Students (Direct Query)</h4>";
+    // Direct query to avoid duplicate key crash in manager
+    $sql = "SELECT DISTINCT u.id, u.firstname, u.lastname, lp.name as planname
+            FROM {user} u
+            JOIN {local_learning_users} llu ON llu.userid = u.id
+            JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
+            WHERE u.deleted = 0 AND u.suspended = 0
+            LIMIT 15";
+    $samples = $DB->get_records_sql($sql);
+    
+    echo "<ul>";
+    foreach ($samples as $s) {
+        echo "<li><a href='?userid=$s->id'>$s->firstname $s->lastname</a> - $s->planname</li>";
     }
+    echo "</ul>";
 }
 
 echo "<hr>";
@@ -130,73 +60,116 @@ if ($studentId) {
         echo "<p style='color:red'>User $studentId not found.</p>";
     } else {
         echo "<h4>Analyzing: $user->firstname $user->lastname ($user->username)</h4>";
-        
-        // Approved courses
-        $approved_sql = "SELECT cp.courseid, c.fullname, cp.status, cp.timemodified
-                         FROM {gmk_course_progre} cp
-                         JOIN {course} c ON c.id = cp.courseid
-                         WHERE cp.userid = :uid AND cp.status >= 3";
-        $approved = $DB->get_records_sql($approved_sql, ['uid' => $studentId]);
-        
-        echo "<h5>Approved Courses (gmk_course_progre):</h5>";
-        if (empty($approved)) {
-            echo "<p>No approved courses found in custom table.</p>";
-        } else {
-            echo "<ul>";
-            foreach ($approved as $a) {
-                echo "<li>[ID $a->courseid] $a->fullname (Status: $a->status)</li>";
-            }
-            echo "</ul>";
+
+        // 1. Check for Duplicate Subscriptions (The cause of the crash)
+        $subs = $DB->get_records('local_learning_users', ['userid' => $studentId]);
+        echo "<h5>Subscription Records (local_learning_users)</h5>";
+        if (count($subs) > 1) {
+            echo "<p style='color:red; font-weight:bold'>WARNING: User has " . count($subs) . " subscription records! This causes the 'Duplicate value' error in the system.</p>";
         }
-        
-        // Standard completion
-        $comp_sql = "SELECT cc.course, c.fullname, cc.timecompleted
-                      FROM {course_completions} cc
-                      JOIN {course} c ON c.id = cc.course
-                      WHERE cc.userid = :uid AND cc.timecompleted > 0";
-        $completions = $DB->get_records_sql($comp_sql, ['uid' => $studentId]);
-        echo "<h5>Standard Moodle Completions:</h5>";
-        if (empty($completions)) {
-            echo "<p>No standard completions found.</p>";
-        } else {
-            echo "<ul>";
-            foreach ($completions as $c) {
-                echo "<li>[ID $c->course] $c->fullname (Completed: " . date('Y-m-d', $c->timecompleted) . ")</li>";
-            }
-            echo "</ul>";
+        echo "<ul>";
+        foreach ($subs as $sub) {
+            echo "<li>ID: $sub->id | PlanID: $sub->learningplanid | PeriodID: $sub->currentperiodid</li>";
         }
+        echo "</ul>";
         
-        // Planning Demand for this student
-        $periodId = $DB->get_field_sql("SELECT MAX(id) FROM {gmk_academic_periods}");
-        echo "<h5>Calculated Demand (Period $periodId):</h5>";
+        // Use the first valid plan for analysis
+        $mainSub = reset($subs);
+        $planId = $mainSub->learningplanid;
         
-        $data = planning_manager::get_planning_data($periodId);
-        $stuData = null;
-        foreach ($data['students'] as $s) {
-            if ($s['dbId'] == $studentId) {
-                $stuData = $s;
-                break;
-            }
-        }
+        // 2. Fetch Plan Courses & Prereqs (Replicating logic to verify)
+        echo "<h5>Plan Analysis (Plan ID: $planId)</h5>";
         
-        if (!$stuData) {
-            echo "<p style='color:red'>Student not found in active planning data (maybe not active or not in plan).</p>";
-        } else {
-            echo "<p>Career: " . $stuData['career'] . " | Shift: " . $stuData['shift'] . "</p>";
-            echo "<h6>Pending Subjects:</h6>";
-            echo "<table border='1' cellpadding='5' style='border-collapse:collapse'>";
-            echo "<tr><th>ID</th><th>Name</th><th>Prereq Met?</th><th>Priority?</th></tr>";
-            foreach ($stuData['pendingSubjects'] as $subj) {
-                echo "<tr>
-                        <td>" . $subj['id'] . "</td>
-                        <td>" . $subj['name'] . "</td>
-                        <td style='background:" . ($subj['isPreRequisiteMet'] ? '#dfd' : '#fdd') . "'>" . ($subj['isPreRequisiteMet'] ? 'YES' : 'NO') . "</td>
-                        <td style='background:" . ($subj['isPriority'] ? '#dfd' : '#fdd') . "'>" . ($subj['isPriority'] ? 'YES' : 'NO') . "</td>
-                      </tr>";
-            }
-            echo "</table>";
-        }
+        // Get Pre Field ID
+        $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+        
+        $sqlPlan = "SELECT c.id, c.fullname, c.shortname, cfd.value as prereq_shortnames, 
+                           p.name as semester_name, p.id as semester_id
+                    FROM {local_learning_courses} lpc
+                    JOIN {course} c ON c.id = lpc.courseid
+                    JOIN {local_learning_periods} p ON p.id = lpc.periodid
+                    LEFT JOIN {customfield_data} cfd ON cfd.instanceid = c.id AND cfd.fieldid = :preid
+                    WHERE lpc.learningplanid = :planid
+                    ORDER BY p.id, c.fullname";
+                    
+        $planCourses = $DB->get_records_sql($sqlPlan, ['planid' => $planId, 'preid' => $preFieldId ?: 0]);
+        
+        // Shortname Map
+        $allShorts = $DB->get_records_sql_menu("SELECT shortname, id FROM {course}");
+        
+        // 3. Fetch Approved
+         $approved = [];
+         
+         // A. Custom Table
+         $progRecs = $DB->get_records_sql("SELECT courseid FROM {gmk_course_progre} WHERE userid = ? AND status >= 3", [$studentId]);
+         foreach ($progRecs as $r) $approved[] = $r->courseid;
+         
+         // B. Moodle Completion
+         $compRecs = $DB->get_records_sql("SELECT course FROM {course_completions} WHERE userid = ? AND timecompleted > 0", [$studentId]);
+         foreach ($compRecs as $r) $approved[] = $r->course;
+         
+         $approved = array_unique($approved);
+         echo "<p>Total Approved Courses found: " . count($approved) . "</p>";
+
+         // 4. Calculate Pending & Prereqs
+         echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%'>";
+         echo "<tr style='background:#eee'>
+                <th>Sem</th>
+                <th>Course (ID)</th>
+                <th>Shortname</th>
+                <th>Status</th>
+                <th>Prereqs (Raw -> Resolved)</th>
+                <th>Prereq Met?</th>
+               </tr>";
+
+         foreach ($planCourses as $c) {
+             $isApproved = in_array($c->id, $approved);
+             $status = $isApproved ? "<span style='color:green'>Approved</span>" : "<span style='color:orange'>Pending</span>";
+             
+             $prereqHtml = "None";
+             $isPrereqMet = true;
+             $metHtml = "-";
+             
+             if (!$isApproved) {
+                 // Check Prereqs
+                 if (!empty($c->prereq_shortnames)) {
+                     $raws = explode(',', $c->prereq_shortnames);
+                     $resolvedList = [];
+                     $isPrereqMet = true; 
+                     
+                     foreach ($raws as $r) {
+                         $r = trim($r);
+                         $rid = $allShorts[$r] ?? null;
+                         
+                         if ($rid) {
+                             $isMet = in_array($rid, $approved);
+                             if (!$isMet) $isPrereqMet = false;
+                             $resolvedList[] = "$r ($rid) [" . ($isMet ? "OK" : "MISSING") . "]";
+                         } else {
+                             // Config Error: Prereq shortname does not exist in Moodle
+                             $isPrereqMet = false; // Can't meet a non-existent course
+                             $resolvedList[] = "$r (<b style='color:red'>NOT FOUND in Moodle</b>)";
+                         }
+                     }
+                     $prereqHtml = implode("<br>", $resolvedList);
+                     $metHtml = $isPrereqMet ? "<b style='color:green'>YES</b>" : "<b style='color:red'>NO</b>";
+                 } else {
+                     $metHtml = "<b style='color:green'>YES (None)</b>";
+                 }
+                 
+                 echo "<tr>
+                        <td>$c->semester_name</td>
+                        <td>$c->fullname ($c->id)</td>
+                        <td>$c->shortname</td>
+                        <td>$status</td>
+                        <td>$prereqHtml</td>
+                        <td>$metHtml</td>
+                       </tr>";
+             }
+         }
+         echo "</table>";
     }
 }
+
 
 echo $OUTPUT->footer();
