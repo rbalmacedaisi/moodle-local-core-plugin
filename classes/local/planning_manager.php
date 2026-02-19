@@ -162,7 +162,7 @@ class planning_manager {
                         'name' => $course->fullname,
                         'semester' => $course->semester_num, // Normalized numeric level
                         'semesterName' => $course->semester_name,
-                        'isPriority' => ($isPreRequisiteMet && !$isReprobada), 
+                        'isPriority' => $isPreRequisiteMet, 
                         'isPreRequisiteMet' => $isPreRequisiteMet,
                         'isReprobada' => $isReprobada
                     ];
@@ -426,8 +426,8 @@ class planning_manager {
                 // Let's stick to including it.
                 
                 // UPDATE: For demand analysis, we ONLY want to show subjects the student CAN take.
-                // ALSO: Per user request, we EXCLUDE failed subjects (Reprobadas) from the opening projection counts.
-                if (empty($subj['isPreRequisiteMet']) || !empty($subj['isReprobada'])) {
+                // Include both Status 0 (Pending) and Status 5 (Failed/Reprobada) as per user's latest request.
+                if (empty($subj['isPreRequisiteMet'])) {
                     continue; 
                 }
                 
