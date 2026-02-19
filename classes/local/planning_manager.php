@@ -158,7 +158,7 @@ class planning_manager {
                     }
 
                     // A course is "Pending" if it's not approved.
-                    // However, for "Demand", we might want to flag if it's "Reprobada" (Grade < 71 but not null)
+                    // However, we flag if it's "Reprobada" (Grade < 71 but not null)
                     $isReprobada = ($grade !== null && $grade < 71);
                     
                     $pending[] = [
@@ -166,8 +166,9 @@ class planning_manager {
                         'name' => $course->fullname,
                         'semester' => $course->semester_num, // Normalized numeric level
                         'semesterName' => $course->semester_name,
-                        'isPriority' => $isPreRequisiteMet, 
-                        'isPreRequisiteMet' => $isPreRequisiteMet 
+                        'isPriority' => ($isPreRequisiteMet && !$isReprobada), 
+                        'isPreRequisiteMet' => $isPreRequisiteMet,
+                        'isReprobada' => $isReprobada
                     ];
                 }
             }
@@ -412,7 +413,8 @@ class planning_manager {
                 // Let's stick to including it.
                 
                 // UPDATE: For demand analysis, we ONLY want to show subjects the student CAN take.
-                if (empty($subj['isPreRequisiteMet'])) {
+                // ALSO: Per user request, we EXCLUDE failed subjects (Reprobadas) from the opening projection counts.
+                if (empty($subj['isPreRequisiteMet']) || !empty($subj['isReprobada'])) {
                     continue; 
                 }
                 
