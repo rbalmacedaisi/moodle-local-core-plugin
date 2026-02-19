@@ -230,50 +230,120 @@ if ($studentId) {
         
         // --- END NEW ---
         
-        // --- NEW: State Correction Simulator ---
-        echo "<h5>State Correction Simulator (Rule: Grade < 71 -> Failed/Reprobada)</h5>";
+        // --- NEW: Sync Missing Records Handler ---
+        if ($action === 'sync_missing' && $planId) {
+             echo "<div style='background:#f0fbff; padding:10px; border:1px solid #bae7ff; margin-bottom:15px'><strong>Syncing Missing Records...</strong><br><ul>";
+             $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $planId]);
+             $existing = $DB->get_records_menu('gmk_course_progre', ['userid' => $studentId], '', 'courseid, id');
+             $syncedCount = 0;
+             foreach ($planCourses as $pc) {
+                 if (!isset($existing[$pc->courseid])) {
+                     $new = new stdClass();
+                     $new->userid = $studentId;
+                     $new->learningplanid = $planId;
+                     $new->periodid = $pc->periodid;
+                     $new->courseid = $pc->courseid;
+                     $new->status = 0; // No disponible default
+                     $new->grade = null;
+                     $new->progress = 0;
+                     $new->timecreated = time();
+                     $new->timemodified = time();
+                     $DB->insert_record('gmk_course_progre', $new);
+                     echo "<li>Missing Course {$pc->courseid} added to gmk_course_progre.</li>";
+                     $syncedCount++;
+                 }
+             }
+             echo "</ul><strong>Total Synced: $syncedCount</strong><br><a href='debug_planning.php?student_search=" . urlencode($studentSearchTerm) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
+             $rawProgress = $DB->get_records('gmk_course_progre', ['userid' => $studentId]); 
+        }
+
+        // --- NEW: Correction Execution Handler ---
+        if ($action === 'correct_grades' && $rawProgress) {
+            $countFixed = 0;
+            echo "<div style='background:#e6fffa; padding:10px; border:1px solid #4fd1c5; margin-bottom:15px'><strong>Executing Grade & Status Corrections...</strong><br><ul>";
+            
+            foreach ($rawProgress as $rp) {
+                 $currentStatus = $rp->status;
+                 $dbGrade = $rp->grade !== null ? (float)$rp->grade : null;
+                 
+                 $moodleGradeObj = grade_get_course_grade($studentId, $rp->courseid);
+                 $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+                 
+                 $effectiveGrade = ($dbGrade !== null) ? $dbGrade : $moodleGrade;
+                 $newStatus = $currentStatus;
+                 $changed = false;
+
+                 // Logic 1: Sync Grade from Moodle if missing
+                 if ($dbGrade === null && $moodleGrade !== null) {
+                     $rp->grade = $moodleGrade;
+                     $changed = true;
+                     echo "<li>Course {$rp->courseid}: Imported Grade $moodleGrade from Moodle.</li>";
+                 }
+
+                 // Logic 2: Fix Status based on effective grade
+                 if ($effectiveGrade !== null) {
+                      if ($effectiveGrade >= 71 && $currentStatus < 3) {
+                          $newStatus = 4;
+                      } elseif ($effectiveGrade < 71 && $currentStatus != 5 && $currentStatus != 3 && $currentStatus != 4) {
+                          $newStatus = 5;
+                      }
+                 }
+                 
+                 if ($newStatus != $currentStatus) {
+                     $rp->status = $newStatus;
+                     $changed = true;
+                     echo "<li>Course {$rp->courseid}: Status $currentStatus -> $newStatus (Effective Grade: $effectiveGrade) [STATUS FIXED]</li>";
+                 }
+
+                 if ($changed) {
+                     $rp->timemodified = time();
+                     $DB->update_record('gmk_course_progre', $rp);
+                     $countFixed++;
+                 }
+            }
+            echo "</ul><strong>Total Records Updated/Synced: $countFixed</strong><br><a href='debug_planning.php?student_search=" . urlencode($studentSearchTerm) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
+            // Refresh raw data
+            $rawProgress = $DB->get_records('gmk_course_progre', ['userid' => $studentId]); 
+        }
+
+        // --- Simulator Upgrade ---
+        echo "<h5>State Correction Simulator (Detection: Grade < 71 -> Failed/Reprobada)</h5>";
         if ($rawProgress) {
              echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%; margin-bottom:15px'>";
-             echo "<tr style='background:#fff0e0'><th>Course</th><th>Current Status</th><th>Grade</th><th>Progress (hrs/%)</th><th>Proposed Status Correction</th><th>Action Logic</th></tr>";
+             echo "<tr style='background:#fff0e0'><th>Course</th><th>Current Status</th><th>Grade (DB)</th><th>Moodle Grade</th><th>Proposed Correction</th><th>Reason</th></tr>";
              
              foreach ($rawProgress as $rp) {
                  $cName = $DB->get_field('course', 'fullname', ['id' => $rp->courseid]);
-                 
-                 // Logic Simulation based on progress_manager::close_class_grades_and_open_revalids
-                 // simplified constants
-                 // 0=NoAv, 1=Av, 2=InProg, 3=Comp, 4=Appr, 5=Fail
+                 $moodleGradeObj = grade_get_course_grade($studentId, $rp->courseid);
+                 $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
                  
                  $currentStatus = $rp->status;
-                 $grade = (float)$rp->grade;
-                 $progress = (float)$rp->progress; 
-                 // Assuming practicalhours logic is secondary or we can infer default
+                 $dbGrade = $rp->grade !== null ? (float)$rp->grade : null;
+                 
+                 // Effective Grade for logic
+                 $effectiveGrade = ($dbGrade !== null) ? $dbGrade : $moodleGrade;
                  
                  $newStatus = $currentStatus;
-                 $action = "No Change";
+                 $action = "OK";
                  $color = "black";
 
                  // Rule 1: Approval
-                 if ($grade >= 71) {
+                 if ($effectiveGrade !== null && $effectiveGrade >= 71) {
                      if ($currentStatus < 3) {
-                         $newStatus = 4; // Approved
-                         $action = "Mark as Approved (Grade >= 71)";
+                         $newStatus = 4;
+                         $action = "Change to 4 (Approved)";
                          $color = "green";
                      }
                  }
-                 // Rule 2: Failure (Grade < 71)
-                 // Note: Official logic uses 70.4 and 60 for Revalid. Simplified here to user's "71".
-                 elseif ($grade > 0 && $grade < 71) {
-                     // Check Revalid range (60-70) vs Fail (<60)
-                     // User said "inferior a 71 deberían aparecer como reprobadas".
-                     // Let's strictly check if status is currently 0 or 1
-                     if ($currentStatus == 0 || $currentStatus == 1 || $currentStatus == 2) {
-                         $newStatus = 5; // Failed
-                         $action = "Mark as Failed (Grade < 71)";
+                 // Rule 2: Failure (Detect Real 0)
+                 elseif ($effectiveGrade !== null && $effectiveGrade < 71) {
+                     if ($currentStatus != 5) {
+                         $newStatus = 5;
+                         $action = "Change to 5 (Failed)";
                          $color = "red";
                      }
                  }
                  
-                 // Display
                  $statusLabel = "($currentStatus)";
                  if ($currentStatus == 0) $statusLabel .= " No Disp";
                  if ($currentStatus == 1) $statusLabel .= " Disp";
@@ -282,26 +352,48 @@ if ($studentId) {
                  echo "<tr>
                         <td>$cName</td>
                         <td>$statusLabel</td>
-                        <td>$grade</td>
-                        <td>$progress</td>
-                        <td style='color:$color; font-weight:bold'>" . ($newStatus != $currentStatus ? "Change to $newStatus" : "OK") . "</td>
-                        <td>$action</td>
+                        <td>" . ($dbGrade === null ? '-' : $dbGrade) . "</td>
+                        <td>" . ($moodleGrade === null ? '-' : $moodleGrade) . "</td>
+                        <td style='color:$color; font-weight:bold'>$action</td>
+                        <td>" . ($effectiveGrade === null ? "Missing Grade" : "Effective: $effectiveGrade") . "</td>
                       </tr>";
              }
              echo "</table>";
         }
-        // --- END SIMULATOR ---
         
-        $sqlPlan = "SELECT c.id, c.fullname, c.shortname, cfd.value as prereq_shortnames, 
-                           p.name as semester_name, p.id as semester_id
-                    FROM {local_learning_courses} lpc
-                    JOIN {course} c ON c.id = lpc.courseid
-                    JOIN {local_learning_periods} p ON p.id = lpc.periodid
-                    LEFT JOIN {customfield_data} cfd ON cfd.instanceid = c.id AND cfd.fieldid = :preid
-                    WHERE lpc.learningplanid = :planid
-                    ORDER BY p.id, c.fullname";
-                    
-        $planCourses = $DB->get_records_sql($sqlPlan, ['planid' => $planId, 'preid' => $preFieldId ?: 0]);
+        // --- Buttons ---
+        echo "<div class='btn-group'>";
+        if ($rawProgress) {
+             echo "<form method='post' action='debug_planning.php' style='display:inline'>
+                    <input type='hidden' name='student_search' value='" . s($studentSearchTerm) . "'>
+                    <input type='hidden' name='view' value='1'>
+                    <input type='hidden' name='action' value='correct_grades'>
+                    <button type='submit' class='btn btn-danger'>🔴 Fix Inconsistent Grades (Set Status 5/4)</button>
+                   </form> ";
+        }
+        echo "<form method='post' action='debug_planning.php' style='display:inline'>
+                <input type='hidden' name='student_search' value='" . s($studentSearchTerm) . "'>
+                <input type='hidden' name='view' value='1'>
+                <input type='hidden' name='action' value='sync_missing'>
+                <button type='submit' class='btn btn-warning'>🟡 Create Missing Progress Records</button>
+               </form>";
+        echo "</div><br><br>";
+
+        // Fetch Plan Courses
+        if ($planId) {
+            $sqlPlan = "SELECT c.id, c.fullname, c.shortname, cfd.value as prereq_shortnames, 
+                               p.name as semester_name, p.id as semester_id
+                         FROM {local_learning_courses} lpc
+                         JOIN {course} c ON c.id = lpc.courseid
+                         JOIN {local_learning_periods} p ON p.id = lpc.periodid
+                         LEFT JOIN {customfield_data} cfd ON cfd.instanceid = c.id AND cfd.fieldid = :preid
+                         WHERE lpc.learningplanid = :planid
+                         ORDER BY p.id, c.fullname";
+                         
+            $planCourses = $DB->get_records_sql($sqlPlan, ['planid' => $planId, 'preid' => $preFieldId ?: 0]);
+        } else {
+            $planCourses = [];
+        }
         
         // Shortname Map
         $allShorts = $DB->get_records_sql_menu("SELECT shortname, id FROM {course}");

@@ -87,8 +87,19 @@ class planning_manager {
         // Optimize: Fetch all structures once
         $structures = self::get_all_plans_structure();
         
-        // 2b. Get All Approved Courses per Student (Bulk)
-        $approvedCourses = self::get_all_approved_courses(); 
+        // 2b. Get All Course Grades per Student (Bulk)
+        $allUserGrades = self::get_all_user_grades(); 
+
+        // 2c. Get All Approved Courses per Student (for Prereq check)
+        // A course is approved if Grade >= 71 in gmk_course_progre OR if it's in course_completions
+        $approvedCourses = [];
+        foreach ($allUserGrades as $userId => $grades) {
+            foreach ($grades as $courseId => $grade) {
+                if ($grade >= 71) {
+                    $approvedCourses[$userId][$courseId] = true;
+                }
+            }
+        }
 
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
@@ -125,30 +136,30 @@ class planning_manager {
 
             $planStructure = $structures[$planId];
             
-            // Get student Progress
-            $approved = $approvedCourses[$u->id] ?? [];
-            
-            // Calculate Pending (Simple Prereq Check: Is not approved)
-            // Ideally check Prereqs here. For MVP: Pending = In Plan AND Not Approved.
+            // Get student Grades
+            $studentGrades = $allUserGrades[$u->id] ?? [];
+            $studentApproved = $approvedCourses[$u->id] ?? [];
             
             $pending = [];
             foreach ($planStructure as $course) {
-                if (!in_array($course->id, $approved)) {
+                $grade = isset($studentGrades[$course->id]) ? $studentGrades[$course->id] : null;
+                $isApproved = isset($studentApproved[$course->id]);
+                
+                if (!$isApproved) {
                     // Check Prerequisites
                     $isPreRequisiteMet = true;
                     if (!empty($course->prereqs)) {
                         foreach ($course->prereqs as $prereqId) {
-                            if (!in_array($prereqId, $approved)) {
+                            if (!isset($studentApproved[$prereqId])) {
                                 $isPreRequisiteMet = false;
                                 break;
                             }
                         }
                     }
 
-                    // For "Demand Analysis", we generally only want what is OPEN for the student to take.
-                    // i.e., Prereqs MUST be met.
-                    // We store 'isPreRequisiteMet' status.
-                    // However, we also need to store 'isPriority' for the "Wave" logic (scheduling engine).
+                    // A course is "Pending" if it's not approved.
+                    // However, for "Demand", we might want to flag if it's "Reprobada" (Grade < 71 but not null)
+                    $isReprobada = ($grade !== null && $grade < 71);
                     
                     $pending[] = [
                         'id' => $course->id,
@@ -273,6 +284,41 @@ class planning_manager {
             ];
         }
         return $structure;
+    }
+
+    /**
+     * Helper: Get All Course Grades for All Students.
+     * returns [ userid => [ courseId1 => grade, courseId2 => grade ... ] ]
+     */
+    private static function get_all_user_grades() {
+        global $DB;
+        
+        $map = [];
+
+        // 1. Get from Custom Table (gmk_course_progre)
+        $sqlProgre = "SELECT id, userid, courseid, grade FROM {gmk_course_progre}";
+        $recordsProgre = $DB->get_records_sql($sqlProgre);
+        
+        foreach ($recordsProgre as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            // Only set if not null, to allow falling back to Moodle Gradebook
+            if ($r->grade !== null) {
+                $map[$r->userid][$r->courseid] = (float)$r->grade;
+            }
+        }
+
+        // 2. Get from Moodle Gradebook (course_completions or directly from grades)
+        // This is expensive at scale, but let's try to get completion-linked grades
+        $sqlMoodle = "SELECT id, userid, course, aggregategrade FROM {course_completions} WHERE timecompleted > 0";
+        $recordsMoodle = $DB->get_records_sql($sqlMoodle);
+
+        foreach ($recordsMoodle as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            // Only overwrite if better grade or not set? For now, just set.
+            $map[$r->userid][$r->course] = (float)$r->aggregategrade;
+        }
+
+        return $map;
     }
 
     /**
