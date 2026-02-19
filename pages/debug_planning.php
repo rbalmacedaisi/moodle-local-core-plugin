@@ -55,6 +55,7 @@ echo "<div class='debug-nav'>
     <a href='#' id='nav-sec-all' onclick='showSection(\"sec-all\"); return false;'>1. Curricula & Prereqs</a>
     <a href='#' id='nav-sec-student' onclick='showSection(\"sec-student\"); return false;'>2. Student Analysis</a>
     <a href='#' id='nav-sec-subject' onclick='showSection(\"sec-subject\"); return false;'>3. Subject Analysis</a>
+    <a href='#' id='nav-sec-missing' onclick='showSection(\"sec-missing\"); return false;'>4. Missing Period Report</a>
 </div>";
 
 // --- SECTION 1: Curricula ---
@@ -369,5 +370,44 @@ if ($subjId) {
     }
 }
 echo "</div>"; // End Section 3
+
+// --- SECTION 4: Missing Period Report ---
+echo "<div id='sec-missing' class='debug-section'>";
+echo "<h3>4. Students with Missing Period (Fallback Active)</h3>";
+echo "<p>The following students have <strong>no assigned period</strong> in their subscription. The system is now auto-calculating their level based on their first pending subject.</p>";
+
+$sqlMissing = "SELECT u.id, u.firstname, u.lastname, u.username, lp.name as planname, llu.id as subid
+               FROM {local_learning_users} llu
+               JOIN {user} u ON u.id = llu.userid
+               JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
+               WHERE (llu.currentperiodid IS NULL OR llu.currentperiodid = 0)
+               AND u.deleted = 0 AND u.suspended = 0
+               ORDER BY u.lastname, u.firstname";
+$missingUsers = $DB->get_records_sql($sqlMissing);
+
+echo "<p><strong>Total students found:</strong> " . count($missingUsers) . "</p>";
+
+if ($missingUsers) {
+    echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%'>";
+    echo "<tr style='background:#eee'>
+            <th>Student</th>
+            <th>Plan</th>
+            <th>Subscription ID</th>
+            <th>Action</th>
+          </tr>";
+    foreach ($missingUsers as $u) {
+        echo "<tr>
+                <td><a href='?mode=student&userid=$u->id'>$u->firstname $u->lastname ($u->username)</a></td>
+                <td>$u->planname</td>
+                <td>$u->subid</td>
+                <td><a href='?mode=student&userid=$u->id'>Analyze</a></td>
+              </tr>";
+    }
+    echo "</table>";
+} else {
+    echo "<p style='color:green'>No students found with missing period configuration.</p>";
+}
+
+echo "</div>"; // End Section 4
 
 echo $OUTPUT->footer();

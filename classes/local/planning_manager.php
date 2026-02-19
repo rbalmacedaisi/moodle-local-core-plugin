@@ -160,9 +160,14 @@ class planning_manager {
             }
 
             // Determine Student's Theoretical Level 
-            // (Max level of Approved + 1? Or Current Period?)
-            // React logic calculates "Current Sem" based on progress.
-            // We'll pass the explicit "Current Period" from DB ($stu->periodname) but also let Frontend calculate.
+            // If DB config is missing (common issue), fallback to the first Pending Subject's semester
+            $dbPeriodName = $u->periodname;
+            if (empty($dbPeriodName) && !empty($pending)) {
+                // Pending is sorted by Plan Structure (Semester Order)
+                // Use the first pending subject's semester as the current level
+                $firstPending = reset($pending);
+                $dbPeriodName = $firstPending['semesterName']; 
+            }
             
             $studentList[] = [
                 'id' => $u->idnumber ? $u->idnumber : $u->id, // Prefer ID Number for display
@@ -170,8 +175,8 @@ class planning_manager {
                 'name' => $u->firstname . ' ' . $u->lastname,
                 'career' => $u->planname,
                 'shift' => $u->shift,
-                // Pass raw Current Period/Subperiod from DB Config
-                'currentSemConfig' => $u->periodname, 
+                // Pass raw Current Period/Subperiod from DB Config, or Fallback
+                'currentSemConfig' => $dbPeriodName, 
                 'currentSubperiodConfig' => $u->subperiodname,
                 'entry_period' => $u->entry_period,
                 'pendingSubjects' => $pending
