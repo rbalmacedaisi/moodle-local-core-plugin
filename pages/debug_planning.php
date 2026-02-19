@@ -14,6 +14,73 @@ $PAGE->set_heading('Debug Academic Planning Data');
 
 echo $OUTPUT->header();
 
+// --- AJAX Handler ---
+$ajaxAction = optional_param('ajax_action', '', PARAM_TEXT);
+if ($ajaxAction === 'massive_step') {
+    require_sesskey();
+    header('Content-Type: application/json');
+    $subid = required_param('subid', PARAM_INT); // Subscription ID
+    $sub = $DB->get_record('local_learning_users', ['id' => $subid]);
+    
+    $res = ['status' => 'ok', 'added' => 0, 'fixed' => 0, 'details' => ''];
+    if ($sub && $sub->userrolename === 'student') {
+        $sid = $sub->userid;
+        $pid = $sub->learningplanid;
+        
+        // A. Sync Missing
+        $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $pid]);
+        $progRaw = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
+        $existing = [];
+        foreach ($progRaw as $pr) {
+            $existing[$pr->courseid] = $pr->id;
+        }
+        
+        foreach ($planCourses as $pc) {
+            if (!isset($existing[$pc->courseid])) {
+                $new = new stdClass();
+                $new->userid = $sid; $new->learningplanid = $pid; $new->periodid = $pc->periodid;
+                $new->courseid = $pc->courseid; $new->status = 0; $new->grade = 0; $new->progress = 0;
+                $new->timecreated = time(); $new->timemodified = time();
+                $DB->insert_record('gmk_course_progre', $new);
+                $res['added']++;
+            }
+        }
+
+        // B. Fix Status/Grades
+        $progRecs = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
+        foreach ($progRecs as $rp) {
+            $dbGrade = $rp->grade !== null ? (float)$rp->grade : 0;
+            $moodleGradeObj = grade_get_course_grade($sid, $rp->courseid);
+            $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+            
+            $effectiveGrade = ($moodleGrade !== null) ? $moodleGrade : (($dbGrade > 0) ? $dbGrade : null);
+            $changed = false;
+
+            if ($dbGrade == 0 && $moodleGrade !== null) {
+                $rp->grade = $moodleGrade; $changed = true;
+            }
+
+            if ($effectiveGrade !== null) {
+                if ($effectiveGrade >= 71 && $rp->status < 3) {
+                    $rp->status = 4; $changed = true;
+                } elseif ($effectiveGrade < 71 && $rp->status != 5 && $rp->status != 3 && $rp->status != 4) {
+                    $rp->status = 5; $changed = true;
+                }
+            }
+
+            if ($changed) {
+                $rp->timemodified = time();
+                $DB->update_record('gmk_course_progre', $rp);
+                $res['fixed']++;
+            }
+        }
+        $userObj = $DB->get_record('user', ['id' => $sid], 'firstname, lastname');
+        $res['details'] = "{$userObj->firstname} {$userObj->lastname}";
+    }
+    echo json_encode($res);
+    die();
+}
+
 echo "
 <style>
     .debug-nav { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
@@ -696,99 +763,103 @@ echo "</div>"; // End Section 4
 
 // --- SECTION 5: Massive Student Sync & Fix ---
 echo "<div id='sec-massive' class='debug-section'>";
-echo "<h3>5. Massive Student Sync & Fix</h3>";
-echo "<p>This tool will iterate through <strong>ALL</strong> students in the learning system and apply the two synchronization rules:</p>";
-echo "<ul>
-        <li><strong>Sync Missing:</strong> Ensures every subject in the student's Plan has a record in the progress table.</li>
-        <li><strong>Fix Grades/Status:</strong> Imports missing grades from Moodle and sets Status 5 (Failed) or 4 (Approved) correctly.</li>
-      </ul>";
+echo "<h3>5. Massive Student Sync & Fix (Batch Process)</h3>";
+echo "<p>This tool will iterate through students one by one using AJAX to avoid timeouts.</p>";
 
-$massiveAction = optional_param('massive_action', '', PARAM_TEXT);
+$allStudents = $DB->get_records('local_learning_users', ['userrolename' => 'student'], 'id', 'id, userid');
+$jsonSubs = json_encode(array_values(array_map(function($s){ return $s->id; }, $allStudents)));
 
-if ($massiveAction === 'execute_massive') {
-    $students = $DB->get_records('local_learning_users', ['userrolename' => 'student']);
-    $totalStudents = count($students);
-    echo "<div style='background:#fff5f5; padding:15px; border:2px solid #ff4d4f; border-radius:5px; margin-bottom:20px'>
-            <strong>EXECUTION LOG: Processing $totalStudents students...</strong><hr>";
+echo "
+<div id='massive-controls' style='background:#f5f5f5; padding:20px; border-radius:10px; border:1px solid #ddd'>
+    <button id='btn-start-massive' class='btn btn-primary' style='font-size:1.2em'>Start Batch Process (" . count($allStudents) . " students)</button>
+    <button id='btn-stop-massive' class='btn btn-danger' style='display:none'>Stop Process</button>
     
-    $totalRecordsAdded = 0;
-    $totalRecordsFixed = 0;
-    $startTime = microtime(true);
+    <div id='massive-progress-container' style='margin-top:20px; display:none'>
+        <div class='progress' style='height:30px; margin-bottom:10px'>
+            <div id='massive-bar' class='progress-bar progress-bar-striped progress-bar-animated' role='progressbar' style='width: 0%'>0%</div>
+        </div>
+        <p id='massive-status'>Waiting to start...</p>
+        <div id='massive-log' style='max-height:200px; overflow-y:auto; background:white; border:1px solid #ccc; padding:10px; font-family:monospace; font-size:0.9em'></div>
+    </div>
+</div>
 
-    // Increase execution limits
-    core_php_time_limit::raise(300); // 5 minutes
-    
-    foreach ($students as $sub) {
-        $sid = $sub->userid;
-        $pid = $sub->learningplanid;
-        
-        // --- Logic A: Sync Missing ---
-        $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $pid]);
-        $existing = $DB->get_records_menu('gmk_course_progre', ['userid' => $sid], '', 'courseid, id');
-        foreach ($planCourses as $pc) {
-            if (!isset($existing[$pc->courseid])) {
-                $new = new stdClass();
-                $new->userid = $sid; $new->learningplanid = $pid; $new->periodid = $pc->periodid;
-                $new->courseid = $pc->courseid; $new->status = 0; $new->grade = null; $new->progress = 0;
-                $new->timecreated = time(); $new->timemodified = time();
-                $DB->insert_record('gmk_course_progre', $new);
-                $totalRecordsAdded++;
-            }
+<script>
+(function() {
+    const subs = $jsonSubs;
+    let index = 0;
+    let running = false;
+    let totalAdded = 0;
+    let totalFixed = 0;
+
+    const btnStart = document.getElementById('btn-start-massive');
+    const btnStop = document.getElementById('btn-stop-massive');
+    const bar = document.getElementById('massive-bar');
+    const status = document.getElementById('massive-status');
+    const log = document.getElementById('massive-log');
+    const container = document.getElementById('massive-progress-container');
+
+    btnStart.onclick = () => {
+        if(!confirm('This will process ' + subs.length + ' students. Continue?')) return;
+        running = true;
+        btnStart.style.display = 'none';
+        btnStop.style.display = 'inline-block';
+        container.style.display = 'block';
+        processNext();
+    };
+
+    btnStop.onclick = () => {
+        running = false;
+        status.innerText = 'Stopping... (Will stop after current student)';
+        btnStop.disabled = true;
+    };
+
+    async function processNext() {
+        if(!running || index >= subs.length) {
+            finish();
+            return;
         }
 
-        // --- Logic B: Fix Status/Grades ---
-        $progRecs = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
-        foreach ($progRecs as $rp) {
-            $dbGrade = $rp->grade !== null ? (float)$rp->grade : null;
-            $moodleGradeObj = grade_get_course_grade($sid, $rp->courseid);
-            $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+        const subid = subs[index];
+        status.innerText = 'Processing student ' + (index + 1) + ' of ' + subs.length + '...';
+        
+        try {
+            const resp = await fetch('debug_planning.php?ajax_action=massive_step&subid=' + subid + '&sesskey=' + M.cfg.sesskey);
+            const data = await resp.json();
             
-            $effectiveGrade = ($moodleGrade !== null) ? $moodleGrade : (($dbGrade !== null && $dbGrade > 0) ? $dbGrade : null);
-            $changed = false;
-
-            if ($dbGrade === null && $moodleGrade !== null) {
-                $rp->grade = $moodleGrade; $changed = true;
-            }
-
-            if ($effectiveGrade !== null) {
-                if ($effectiveGrade >= 71 && $rp->status < 3) {
-                    $rp->status = 4; $changed = true;
-                } elseif ($effectiveGrade < 71 && $rp->status != 5 && $rp->status != 3 && $rp->status != 4) {
-                    $rp->status = 5; $changed = true;
-                }
-            }
-
-            if ($changed) {
-                $rp->timemodified = time();
-                $DB->update_record('gmk_course_progre', $rp);
-                $totalRecordsFixed++;
-            }
+            totalAdded += data.added;
+            totalFixed += data.fixed;
+            
+            const p = Math.round(((index + 1) / subs.length) * 100);
+            bar.style.width = p + '%';
+            bar.innerText = p + '%';
+            
+            const line = document.createElement('div');
+            line.innerText = '[' + (index + 1) + '] ' + data.details + ': +' + data.added + ' added, ' + data.fixed + ' fixed';
+            log.prepend(line);
+            
+            index++;
+            processNext();
+        } catch(e) {
+            const line = document.createElement('div');
+            line.style.color = 'red';
+            line.innerText = 'ERROR at index ' + index + ': ' + e.message;
+            log.prepend(line);
+            index++;
+            processNext();
         }
     }
-    $endTime = microtime(true);
-    $duration = round($endTime - $startTime, 2);
-    
-    echo "<p style='color:green; font-weight:bold'>SUCCESS!</p>";
-    echo "<ul>
-            <li>Total Students Processed: $totalStudents</li>
-            <li>Records Missing Added: $totalRecordsAdded</li>
-            <li>Statuses/Grades Corrected: $totalRecordsFixed</li>
-            <li>Time Taken: $duration seconds</li>
-          </ul>";
-    echo "</div>";
-}
 
-echo "<div style='background:#fef0f0; padding:20px; border:1px solid #ffccc7; border-radius:10px; text-align:center'>
-        <h4 style='color:#cf1322'>⚠️ DANGER ZONE ⚠️</h4>
-        <p>This action will modify data for all students in the system.</p>
-        <form method='post' action='debug_planning.php'>
-            <input type='hidden' name='mode' value='massive'>
-            <input type='hidden' name='massive_action' value='execute_massive'>
-            <button type='submit' class='btn btn-danger' style='font-size:1.5em; padding:15px 30px' onclick='return confirm(\"Are you absolutely sure? This will update all student records!\")'>
-                🚀 EXECUTE MASSIVE SYNC & FIX
-            </button>
-        </form>
-      </div>";
+    function finish() {
+        running = false;
+        btnStop.style.display = 'none';
+        btnStart.style.display = 'inline-block';
+        btnStart.innerText = 'Restart Process';
+        status.innerHTML = '<strong style=\"color:green\">FINISHED!</strong> Total: ' + totalAdded + ' added, ' + totalFixed + ' fixed.';
+        alert('Massive process complete!');
+    }
+})();
+</script>
+";
 
 echo "</div>"; // End Section 5
 
