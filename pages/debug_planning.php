@@ -183,12 +183,16 @@ if ($studentId) {
         }
         echo "<ul>";
         foreach ($subs as $sub) {
-            echo "<li>ID: $sub->id | PlanID: $sub->learningplanid | PeriodID: $sub->currentperiodid | Role: <strong>$sub->userrolename</strong></li>";
+            $pName = $DB->get_field('local_learning_periods', 'name', ['id' => $sub->currentperiodid]) ?: 'Unknown/Null';
+            echo "<li>ID: $sub->id | PlanID: $sub->learningplanid | PeriodID: $sub->currentperiodid (Name: <strong>$pName</strong>) | Role: <strong>$sub->userrolename</strong></li>";
         }
         echo "</ul>";
         
         // Use the LAST valid plan (highest ID) as per planning_manager fix
-        $mainSub = end($subs); // Get last element
+        $mainSub = end($subs); 
+        $currentPeriodName = $DB->get_field('local_learning_periods', 'name', ['id' => $mainSub->currentperiodid]);
+        $currentSubPeriodName = $mainSub->currentsubperiodid ? $DB->get_field('local_learning_subperiods', 'name', ['id' => $mainSub->currentsubperiodid]) : '';
+
         $planId = $mainSub->learningplanid;
         
         // 2. Fetch Plan Courses & Prereqs
@@ -282,6 +286,71 @@ if ($studentId) {
              }
          }
          echo "</table>";
+         
+         // 5. Demand Logic Simulation
+         echo "<h5>Demand Logic Simulation</h5>";
+         echo "<p>This shows exactly how this student is categorized in the Demand Tree (Backend Logic).</p>";
+         
+         // Replicate Logic from planning_manager::get_demand_data
+         // Level Key Logic
+         $levelLabel = $currentPeriodName ?: 'Sin Nivel';
+         $subLabel = $currentSubPeriodName ?: '';
+         $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
+         
+         // Fallback Check
+         $usedFallback = false;
+         if (empty($currentPeriodName) && !empty($planCourses)) {
+              // Find first pending subject
+              foreach ($planCourses as $c) {
+                  $isApproved = in_array($c->id, $approved);
+                  if (!$isApproved) {
+                      $levelLabel = $c->semester_name; // Fallback
+                      $levelKey = $levelLabel; 
+                      $usedFallback = true;
+                      break;
+                  }
+              }
+         }
+         
+         echo "<ul>";
+         echo "<li><strong>Raw Period Name (DB):</strong> " . ($currentPeriodName ?: 'NULL') . "</li>";
+         echo "<li><strong>Raw Subperiod Name (DB):</strong> " . ($currentSubPeriodName ?: 'NULL') . "</li>";
+         echo "<li><strong>Calculated Level Key (Column):</strong> <span style='background:#e2e3e5; padding:2px 5px; border-radius:3px;'>$levelKey</span> " . ($usedFallback ? "(Derived via Fallback)" : "") . "</li>";
+         echo "</ul>";
+         
+         echo "<p><strong>Contributing Demand To:</strong></p>";
+         echo "<ul>";
+         $contributed = 0;
+         foreach ($planCourses as $c) {
+             $isApproved = in_array($c->id, $approved);
+             if (!$isApproved) {
+                 // Check Prereqs again (simplified for display) (Actually we calculated it above in loop)
+                 // But wait, the loop above printed rows. We need to re-evaluate IS MET logic.
+                 $isPrereqMet = true;
+                 if (!empty($c->prereq_shortnames)) {
+                     $raws = explode(',', $c->prereq_shortnames);
+                     foreach ($raws as $r) {
+                         $r = trim($r);
+                         $rid = $allShorts[$r] ?? null;
+                         if ($rid) {
+                             if (!in_array($rid, $approved)) { $isPrereqMet = false; break; }
+                         } else {
+                             $isPrereqMet = false; 
+                         }
+                     }
+                 }
+                 
+                 if ($isPrereqMet) {
+                     echo "<li>{$c->fullname} ({$c->shortname}) -> <strong>Counted</strong></li>";
+                     $contributed++;
+                 } else {
+                     echo "<li style='color:#999'>{$c->fullname} -> Skipped (Prereq not met)</li>";
+                 }
+             }
+         }
+         if ($contributed == 0) echo "<li>None</li>";
+         echo "</ul>";
+
     }
 }
 echo "</div>"; // End Section 2
