@@ -33,11 +33,16 @@ $sql = "SELECT c.id, c.fullname, c.shortname, c.idnumber, cfd.value as prereq_ra
 $courseData = $DB->get_records_sql($sql);
 
 echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%'>";
+
+// Variables Initialization
+$studentId = optional_param('userid', 0, PARAM_INT);
+$search = optional_param('search', '', PARAM_TEXT);
+
 // Sample List (if no search and no selection)
 if (!$studentId && !$search) {
     echo "<h4>Sample Active Students (Direct Query)</h4>";
-    // Direct query to avoid duplicate key crash in manager
-    $sql = "SELECT DISTINCT u.id, u.firstname, u.lastname, lp.name as planname
+    // Direct query using local_learning_users ID as key to avoid duplicates
+    $sql = "SELECT llu.id, u.id as userid, u.firstname, u.lastname, lp.name as planname
             FROM {user} u
             JOIN {local_learning_users} llu ON llu.userid = u.id
             JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
@@ -47,10 +52,12 @@ if (!$studentId && !$search) {
     
     echo "<ul>";
     foreach ($samples as $s) {
-        echo "<li><a href='?userid=$s->id'>$s->firstname $s->lastname</a> - $s->planname</li>";
+        echo "<li><a href='?userid=$s->userid'>$s->firstname $s->lastname</a> - $s->planname</li>";
     }
     echo "</ul>";
 }
+    
+
 
 echo "<hr>";
 
