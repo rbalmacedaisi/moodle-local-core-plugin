@@ -307,15 +307,18 @@ class planning_manager {
             }
         }
 
-        // 2. Get from Moodle Gradebook (course_completions or directly from grades)
-        // This is expensive at scale, but let's try to get completion-linked grades
-        $sqlMoodle = "SELECT id, userid, course, aggregategrade FROM {course_completions} WHERE timecompleted > 0";
+        // 2. Get from Moodle Gradebook (via course_completions as a proxy for 'has a grade somewhere')
+        // We only care if they are completed here. Actual grades should be in gmk_course_progre.
+        $sqlMoodle = "SELECT id, userid, course FROM {course_completions} WHERE timecompleted > 0";
         $recordsMoodle = $DB->get_records_sql($sqlMoodle);
 
         foreach ($recordsMoodle as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
-            // Only overwrite if better grade or not set? For now, just set.
-            $map[$r->userid][$r->course] = (float)$r->aggregategrade;
+            // If not already in the map (from gmk_course_progre), we'll mark it as 'Approved' (approx 100)
+            // if it exists in completions, to satisfy the Prereq logic.
+            if (!isset($map[$r->userid][$r->course])) {
+                $map[$r->userid][$r->course] = 100.0; // Assume completion = pass
+            }
         }
 
         return $map;
