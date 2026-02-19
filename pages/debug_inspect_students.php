@@ -48,13 +48,22 @@ try {
     echo "<p style='color:red'>ERROR: La tabla gmk_academic_periods no existe o tiene otro nombre. (" . $e->getMessage() . ")</p>";
 }
 
-// 4. Sample Raw Match
-echo "<h2>4. Muestra de 10 Alumnos y sus valores actuales</h2>";
-$sql = "SELECT u.id, u.firstname, u.lastname, u.idnumber, 
+// 4. Role Analysis
+echo "<h2>4. Conteo de Alumnos por Rol (Tabla local_learning_users)</h2>";
+$roles = $DB->get_records_sql("SELECT userrolename, COUNT(*) as count FROM {local_learning_users} GROUP BY userrolename");
+echo "<ul>";
+foreach ($roles as $r) {
+    echo "<li>Rol: <b>$r->userrolename</b> | Conteo: $r->count</li>";
+}
+echo "</ul>";
+
+// 5. Sample Raw Match
+echo "<h2>5. Muestra de 10 Subscripciones y sus valores actuales</h2>";
+$sql = "SELECT llu.id, u.id as userid, u.firstname, u.lastname, u.idnumber, 
                llu.academicperiodid,
                llu.userrolename
-        FROM {user} u
-        JOIN {local_learning_users} llu ON llu.userid = u.id
+        FROM {local_learning_users} llu
+        JOIN {user} u ON u.id = llu.userid
         WHERE u.deleted = 0 
         LIMIT 10";
 $sample = $DB->get_records_sql($sql);

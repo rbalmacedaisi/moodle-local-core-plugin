@@ -310,45 +310,58 @@ if (optional_param('action', '', PARAM_ALPHANUMEXT) === 'get_gaps') {
     ob_clean();
     header('Content-Type: application/json');
     
-    // 1. Students missing Periodo de Ingreso
-    $piField = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
-    
-    // Query to find students without Entry Period OR without Academic Period in their subscription
-    $sql = "SELECT DISTINCT u.id, u.firstname, u.lastname, u.idnumber, 
-                   uid_pi.data as entry_period,
-                   ap.name as academic_period_name
+    try {
+        // 1. Students missing Periodo de Ingreso
+        $piField = $DB->get_record('user_info_field', ['shortname' => 'periodo_ingreso']);
+        
+        // Diagnostic: Check if we have any students at all
+        $totalStudents = $DB->count_records('local_learning_users', ['userrolename' => 'student']);
+        $totalActiveUsers = $DB->count_records('user', ['deleted' => 0, 'suspended' => 0]);
+
+        // Query to find students without Entry Period OR without Academic Period in their subscription
+        $sql = "SELECT DISTINCT u.id, u.firstname, u.lastname, u.idnumber, 
+                       uid_pi.data as entry_period,
+                       ap.name as academic_period_name
+                FROM {user} u
+                JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
+                LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . ($piField ? $piField->id : 0) . "
+                LEFT JOIN {gmk_academic_periods} ap ON ap.id = llu.academicperiodid
+                WHERE u.deleted = 0 AND u.suspended = 0
+                AND (uid_pi.data IS NULL OR uid_pi.data = '' OR llu.academicperiodid IS NULL OR llu.academicperiodid = 0)
+                LIMIT 100";
+                
+        $students = $DB->get_records_sql($sql);
+
+        // Get counts
+        $piCount = $DB->count_records_sql("
+            SELECT COUNT(DISTINCT u.id)
             FROM {user} u
             JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
             LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . ($piField ? $piField->id : 0) . "
-            LEFT JOIN {gmk_academic_periods} ap ON ap.id = llu.academicperiodid
-            WHERE u.deleted = 0 AND u.suspended = 0
-            AND (uid_pi.data IS NULL OR uid_pi.data = '' OR llu.academicperiodid IS NULL OR llu.academicperiodid = 0)
-            LIMIT 100";
-            
-    $students = $DB->get_records_sql($sql);
+            WHERE u.deleted = 0 AND u.suspended = 0 AND (uid_pi.data IS NULL OR uid_pi.data = '')
+        ");
 
-    // Get counts
-    $piCount = $DB->count_records_sql("
-        SELECT COUNT(DISTINCT u.id)
-        FROM {user} u
-        JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
-        LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . ($piField ? $piField->id : 0) . "
-        WHERE u.deleted = 0 AND u.suspended = 0 AND (uid_pi.data IS NULL OR uid_pi.data = '')
-    ");
+        $apCount = $DB->count_records_sql("
+            SELECT COUNT(DISTINCT u.id)
+            FROM {user} u
+            JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
+            WHERE u.deleted = 0 AND u.suspended = 0 AND (llu.academicperiodid IS NULL OR llu.academicperiodid = 0)
+        ");
 
-    $apCount = $DB->count_records_sql("
-        SELECT COUNT(DISTINCT u.id)
-        FROM {user} u
-        JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
-        WHERE u.deleted = 0 AND u.suspended = 0 AND (llu.academicperiodid IS NULL OR llu.academicperiodid = 0)
-    ");
-
-    echo json_encode([
-        'status' => 'success',
-        'students' => array_values($students),
-        'piCount' => $piCount,
-        'apCount' => $apCount
-    ]);
+        echo json_encode([
+            'status' => 'success',
+            'students' => array_values($students),
+            'piCount' => $piCount,
+            'apCount' => $apCount,
+            'debug' => [
+                'piField_found' => ($piField ? true : false),
+                'total_student_subscriptions' => $totalStudents,
+                'total_active_users' => $totalActiveUsers
+            ]
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
     exit;
 }
 
