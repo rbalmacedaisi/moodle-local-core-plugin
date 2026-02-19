@@ -155,7 +155,7 @@ if (!$studentId && !$search) {
             FROM {user} u
             JOIN {local_learning_users} llu ON llu.userid = u.id
             JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
-            WHERE u.deleted = 0 AND u.suspended = 0
+            WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student'
             LIMIT 15";
     $samples = $DB->get_records_sql($sql);
     
@@ -181,6 +181,11 @@ if ($studentId) {
         if (count($subs) > 1) {
             echo "<p style='color:red; font-weight:bold'>WARNING: User has " . count($subs) . " subscription records! This caused previous crashes.</p>";
         }
+        echo "<ul>";
+        foreach ($subs as $sub) {
+            echo "<li>ID: $sub->id | PlanID: $sub->learningplanid | PeriodID: $sub->currentperiodid | Role: <strong>$sub->userrolename</strong></li>";
+        }
+        echo "</ul>";
         
         // Use the LAST valid plan (highest ID) as per planning_manager fix
         $mainSub = end($subs); // Get last element
@@ -381,6 +386,7 @@ $sqlMissing = "SELECT u.id, u.firstname, u.lastname, u.username, lp.name as plan
                JOIN {user} u ON u.id = llu.userid
                JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
                WHERE (llu.currentperiodid IS NULL OR llu.currentperiodid = 0)
+               AND llu.userrolename = 'student'
                AND u.deleted = 0 AND u.suspended = 0
                ORDER BY u.lastname, u.firstname";
 $missingUsers = $DB->get_records_sql($sqlMissing);
