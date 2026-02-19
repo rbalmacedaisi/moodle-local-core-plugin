@@ -113,8 +113,10 @@ echo "</div>"; // End Section 1
 // --- SECTION 2: Student Analysis ---
 echo "<div id='sec-student' class='debug-section'>";
 // Variables Initialization
-$studentId = optional_param('userid', 0, PARAM_INT);
-$search = optional_param('search', '', PARAM_TEXT);
+$studentId = optional_param('student_search', 0, PARAM_INT); // Changed from 'userid' to 'student_search'
+$studentSearchTerm = optional_param('search', '', PARAM_TEXT); // This is the actual search box input
+$view = optional_param('view', 0, PARAM_INT); // Added for refresh logic
+$action = optional_param('action', '', PARAM_ALPHA); // Added for actions
 
 echo "<h3>2. Student Analysis (Status & Approved)</h3>";
 
@@ -122,33 +124,33 @@ echo "<h3>2. Student Analysis (Status & Approved)</h3>";
 echo "<form method='GET' style='margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px;'>";
 echo "  <input type='hidden' name='mode' value='student'>";
 echo "  <strong>Search Student:</strong> ";
-echo "  <input type='text' name='search' value='" . s($search) . "' placeholder='Name or Username...'> ";
+echo "  <input type='text' name='search' value='" . s($studentSearchTerm) . "' placeholder='Name or Username...'> ";
 echo "  <input type='submit' value='Search'>";
 echo "  <a href='?mode=student' style='margin-left:10px'>Clear</a>";
 echo "</form>";
 
 // Search Results
-if ($search) {
+if ($studentSearchTerm) {
     $foundUsers = $DB->get_records_sql(
         "SELECT id, firstname, lastname, username, email FROM {user} 
          WHERE deleted = 0 AND (firstname LIKE :q1 OR lastname LIKE :q2 OR username LIKE :q3)
          LIMIT 20",
-        ['q1' => "%$search%", 'q2' => "%$search%", 'q3' => "%$search%"]
+        ['q1' => "%$studentSearchTerm%", 'q2' => "%$studentSearchTerm%", 'q3' => "%$studentSearchTerm%"]
     );
     
     if ($foundUsers) {
         echo "<ul>";
         foreach ($foundUsers as $u) {
-            echo "<li><a href='?mode=student&userid=$u->id&search=".urlencode($search)."'>$u->firstname $u->lastname ($u->username)</a></li>";
+            echo "<li><a href='?mode=student&student_search=$u->id&search=".urlencode($studentSearchTerm)."'>$u->firstname $u->lastname ($u->username)</a></li>"; // Changed userid to student_search
         }
         echo "</ul>";
     } else {
-        echo "<p>No users found matching '$search'.</p>";
+        echo "<p>No users found matching '$studentSearchTerm'.</p>";
     }
 }
 
 // Sample List (if no search and no selection)
-if (!$studentId && !$search) {
+if (!$studentId && !$studentSearchTerm) {
     echo "<h4>Sample Active Students (Direct Query)</h4>";
     // Direct query using local_learning_users ID as key to avoid duplicates
     $sql = "SELECT llu.id, u.id as userid, u.firstname, u.lastname, lp.name as planname
@@ -161,7 +163,7 @@ if (!$studentId && !$search) {
     
     echo "<ul>";
     foreach ($samples as $s) {
-        echo "<li><a href='?mode=student&userid=$s->userid'>$s->firstname $s->lastname</a> - $s->planname</li>";
+        echo "<li><a href='?mode=student&student_search=$s->userid'>$s->firstname $s->lastname</a> - $s->planname</li>"; // Changed userid to student_search
     }
     echo "</ul>";
 }
@@ -253,7 +255,7 @@ if ($studentId) {
                      $syncedCount++;
                  }
              }
-             echo "</ul><strong>Total Synced: $syncedCount</strong><br><a href='debug_planning.php?student_search=" . urlencode($studentSearchTerm) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
+             echo "</ul><strong>Total Synced: $syncedCount</strong><br><a href='debug_planning.php?student_search=" . urlencode($studentId) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
              $rawProgress = $DB->get_records('gmk_course_progre', ['userid' => $studentId]); 
         }
 
@@ -269,11 +271,22 @@ if ($studentId) {
                  $moodleGradeObj = grade_get_course_grade($studentId, $rp->courseid);
                  $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
                  
-                 $effectiveGrade = ($dbGrade !== null) ? $dbGrade : $moodleGrade;
+                 // Effective Grade Logic:
+                 // 1. If Moodle has a grade, trust it (including 0.0).
+                 // 2. If Moodle has NO grade (-), but DB has a grade > 0, trust DB.
+                 // 3. If DB has 0 but Moodle is null, it's just 'Assigned/Default' -> Ignore.
+                 
+                 $effectiveGrade = null;
+                 if ($moodleGrade !== null) {
+                     $effectiveGrade = $moodleGrade;
+                 } elseif ($dbGrade !== null && $dbGrade > 0) {
+                     $effectiveGrade = $dbGrade;
+                 }
+                 
                  $newStatus = $currentStatus;
                  $changed = false;
 
-                 // Logic 1: Sync Grade from Moodle if missing
+                 // Logic 1: Sync Grade from Moodle if missing in DB
                  if ($dbGrade === null && $moodleGrade !== null) {
                      $rp->grade = $moodleGrade;
                      $changed = true;
@@ -301,7 +314,7 @@ if ($studentId) {
                      $countFixed++;
                  }
             }
-            echo "</ul><strong>Total Records Updated/Synced: $countFixed</strong><br><a href='debug_planning.php?student_search=" . urlencode($studentSearchTerm) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
+            echo "</ul><strong>Total Records Updated/Synced: $countFixed</strong><br><a href='debug_planning.php?mode=student&student_search=" . urlencode($studentId) . "&search=" . urlencode($studentSearchTerm) . "&view=1' class='btn btn-primary'>Refresh Page</a></div>";
             // Refresh raw data
             $rawProgress = $DB->get_records('gmk_course_progre', ['userid' => $studentId]); 
         }
@@ -320,29 +333,38 @@ if ($studentId) {
                  $currentStatus = $rp->status;
                  $dbGrade = $rp->grade !== null ? (float)$rp->grade : null;
                  
-                 // Effective Grade for logic
-                 $effectiveGrade = ($dbGrade !== null) ? $dbGrade : $moodleGrade;
-                 
-                 $newStatus = $currentStatus;
-                 $action = "OK";
-                 $color = "black";
+                  // Effective Grade Logic:
+                  // 1. If Moodle has a grade, trust it (including 0.0).
+                  // 2. If Moodle has NO grade (-), but DB has a grade > 0, trust DB.
+                  // 3. If DB has 0 but Moodle is null, it's just 'Assigned/Default' -> Ignore.
+                  
+                  $effectiveGrade = null;
+                  if ($moodleGrade !== null) {
+                      $effectiveGrade = $moodleGrade;
+                  } elseif ($dbGrade !== null && $dbGrade > 0) {
+                      $effectiveGrade = $dbGrade;
+                  }
+                  
+                  $newStatus = $currentStatus;
+                  $action = "OK";
+                  $color = "black";
 
-                 // Rule 1: Approval
-                 if ($effectiveGrade !== null && $effectiveGrade >= 71) {
-                     if ($currentStatus < 3) {
-                         $newStatus = 4;
-                         $action = "Change to 4 (Approved)";
-                         $color = "green";
-                     }
-                 }
-                 // Rule 2: Failure (Detect Real 0)
-                 elseif ($effectiveGrade !== null && $effectiveGrade < 71) {
-                     if ($currentStatus != 5) {
-                         $newStatus = 5;
-                         $action = "Change to 5 (Failed)";
-                         $color = "red";
-                     }
-                 }
+                  // Rule 1: Approval
+                  if ($effectiveGrade !== null && $effectiveGrade >= 71) {
+                      if ($currentStatus < 3) {
+                          $newStatus = 4;
+                          $action = "Change to 4 (Approved)";
+                          $color = "green";
+                      }
+                  }
+                  // Rule 2: Failure (Detect Real 0 or low grade)
+                  elseif ($effectiveGrade !== null && $effectiveGrade < 71) {
+                      if ($currentStatus != 5) {
+                          $newStatus = 5;
+                          $action = "Change to 5 (Failed)";
+                          $color = "red";
+                      }
+                  }
                  
                  $statusLabel = "($currentStatus)";
                  if ($currentStatus == 0) $statusLabel .= " No Disp";
