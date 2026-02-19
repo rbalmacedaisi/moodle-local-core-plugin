@@ -84,28 +84,9 @@ foreach ($records as $r) {
     $rawPeriod = $r->periodname ?: 'NULL';
     $rawSubperiod = $r->subperiodname ?: 'Bimestre I (Default)';
     
-    // Simulating planning_manager::parse_semester_number exactly
-    $levelNum = 1;
-    if ($r->periodname) {
-        $romans = ['X' => 10, 'IX' => 9, 'VIII' => 8, 'VII' => 7, 'VI' => 6, 'V' => 5, 'IV' => 4, 'III' => 3, 'II' => 2, 'I' => 1];
-        $found = false;
-        foreach ($romans as $rom => $v) {
-            if (stripos($r->periodname, $rom) !== false) {
-                $levelNum = $v;
-                $found = true;
-                break;
-            }
-        }
-        
-        if (!$found) {
-            if (preg_match('/\d+/', $r->periodname, $matches)) {
-                $levelNum = (int)$matches[0];
-            }
-        }
-    }
-
-    // DESTINY LOGIC (As implemented in academic_planning.php)
-    $isBimestre2 = stripos($rawSubperiod, 'II') !== false;
+    // Using fixed planning_manager methods
+    $levelNum = planning_manager::parse_semester_number($rawPeriod);
+    $isBimestre2 = planning_manager::is_bimestre_two($rawSubperiod);
     
     $planningLevel = $levelNum;
     $planningBimestre = 'Bimestre II';

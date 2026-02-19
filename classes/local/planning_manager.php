@@ -514,20 +514,37 @@ class planning_manager {
     /**
      * Helper to extract numeric level from names like "Periodo IV" or "Nivel 2"
      */
-    private static function parse_semester_number($name) {
+    public static function parse_semester_number($name) {
         if (empty($name)) return 1;
         
-        // Check for Romans
-        $romans = ['X' => 10, 'IX' => 9, 'VIII' => 8, 'VII' => 7, 'VI' => 6, 'V' => 5, 'IV' => 4, 'III' => 3, 'II' => 2, 'I' => 1];
-        foreach ($romans as $r => $v) {
-            if (stripos($name, $r) !== false) return $v;
-        }
-        
-        // Fallback to digits
+        // 1. Prioritize Digits (e.g., "Cuatrimestre 4")
         if (preg_match('/\d+/', $name, $matches)) {
             return (int)$matches[0];
         }
+
+        // 2. Check for Romans as strict whole words (e.g., "Periodo IV")
+        // We use \b boundary to avoid matching 'i' inside 'Cuatrimestre'
+        $romans = ['X' => 10, 'IX' => 9, 'VIII' => 8, 'VII' => 7, 'VI' => 6, 'V' => 5, 'IV' => 4, 'III' => 3, 'II' => 2, 'I' => 1];
+        foreach ($romans as $r => $v) {
+            if (preg_match('/\b' . $r . '\b/i', $name)) {
+                return $v;
+            }
+        }
         
         return 1;
+    }
+
+    /**
+     * Helper to determine Bimestre I or II
+     */
+    public static function is_bimestre_two($name) {
+        if (empty($name)) return false;
+        $name = strtoupper($name);
+        
+        // Match "II", " 2", or ending with "2"
+        if (strpos($name, 'II') !== false || strpos($name, ' 2') !== false || substr($name, -1) === '2') {
+            return true;
+        }
+        return false;
     }
 }
