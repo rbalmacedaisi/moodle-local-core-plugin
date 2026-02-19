@@ -163,7 +163,7 @@ class planning_manager {
 
                     // A course is "Pending" if it's not approved.
                     // However, we flag if it's "Reprobada" (Explicit Status 5)
-                    $isReprobada = isset($failedCourses[$u->id]) && in_array($course->id, $failedCourses[$u->id]);
+                    $isReprobada = isset($failedCourses[$u->id][$course->id]);
                     
                     $pending[] = [
                         'id' => $course->id,
@@ -350,7 +350,7 @@ class planning_manager {
         
         foreach ($recordsProgre as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
-            $map[$r->userid][] = $r->courseid;
+            $map[$r->userid][$r->courseid] = true;
         }
 
         // 2. Check Standard Moodle Completion (Fallback/Merge)
@@ -360,10 +360,7 @@ class planning_manager {
 
         foreach ($recordsMoodle as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
-            // Avoid duplicates
-            if (!in_array($r->course, $map[$r->userid])) {
-                $map[$r->userid][] = $r->course;
-            }
+            $map[$r->userid][$r->course] = true;
         }
 
         return $map;
@@ -381,7 +378,7 @@ class planning_manager {
         $records = $DB->get_records_sql($sqlFailed);
         foreach ($records as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
-            $map[$r->userid][] = $r->courseid;
+            $map[$r->userid][$r->courseid] = true;
         }
         return $map;
     }
