@@ -68,8 +68,61 @@ echo "</table>";
 
 // 2. Sample Student Analysis
 $studentId = optional_param('userid', 0, PARAM_INT);
+$search = optional_param('search', '', PARAM_TEXT);
+
 echo "<h3>2. Student Analysis (Status & Approved)</h3>";
-echo "<form method='GET'>User ID: <input type='number' name='userid' value='$studentId'> <input type='submit' value='Analyze'></form>";
+
+// Search Form
+echo "<form method='GET' style='margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px;'>";
+echo "  <strong>Search Student:</strong> ";
+echo "  <input type='text' name='search' value='" . s($search) . "' placeholder='Name or Username...'> ";
+echo "  <input type='submit' value='Search'>";
+echo "  <a href='?' style='margin-left:10px'>Clear</a>";
+echo "</form>";
+
+// Search Results
+if ($search) {
+    $foundUsers = $DB->get_records_sql(
+        "SELECT id, firstname, lastname, username, email FROM {user} 
+         WHERE deleted = 0 AND (firstname LIKE :q1 OR lastname LIKE :q2 OR username LIKE :q3)
+         LIMIT 20",
+        ['q1' => "%$search%", 'q2' => "%$search%", 'q3' => "%$search%"]
+    );
+    
+    if ($foundUsers) {
+        echo "<ul>";
+        foreach ($foundUsers as $u) {
+            echo "<li><a href='?userid=$u->id&search=".urlencode($search)."'>$u->firstname $u->lastname ($u->username)</a></li>";
+        }
+        echo "</ul>";
+    } else {
+        echo "<p>No users found matching '$search'.</p>";
+    }
+}
+
+// Sample List (if no search and no selection)
+if (!$studentId && !$search) {
+    echo "<h4>Sample Active Students (from Planning Data)</h4>";
+    $periodId = $DB->get_field_sql("SELECT MAX(id) FROM {gmk_academic_periods}");
+    if ($periodId) {
+        $data = planning_manager::get_planning_data($periodId);
+        echo "<ul>";
+        $count = 0;
+        foreach ($data['students'] as $s) {
+            $uName = $s['name'] ?? 'Unknown';
+            $uId = $s['dbId'] ?? 0;
+            // Only show students with pending subjects for interest
+            if (!empty($s['pendingSubjects'])) {
+                 echo "<li><a href='?userid=$uId'>$uName</a> (" . count($s['pendingSubjects']) . " pending subjects) - " . $s['career'] . "</li>";
+                 $count++;
+            }
+            if ($count >= 15) break;
+        }
+        echo "</ul>";
+    }
+}
+
+echo "<hr>";
 
 if ($studentId) {
     $user = $DB->get_record('user', ['id' => $studentId]);
