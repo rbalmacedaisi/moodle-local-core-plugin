@@ -1252,6 +1252,14 @@ const app = createApp({
                 return { ...s, totalP1, isOpen, suggestion, manual };
             });
 
+            // Filter Subjects by Selected Career
+            if (selectedCareer.value !== 'Todas') {
+                subjectsArray = subjectsArray.filter(s => {
+                    // Check if the subject belongs to the selected career
+                    return s.careers && s.careers.includes(selectedCareer.value);
+                });
+            }
+
             // 5. Build Student Status Lists
             const openSubjectsSet = new Set(subjectsArray.filter(s => s.isOpen).map(s => s.name));
             

@@ -101,12 +101,12 @@ class planning_manager {
         $allSubjects = [];
         
         // Fetch all courses linked to learning plans to build a master list
-        // Fetch all courses linked to learning plans to build a master list
-        // FIX: Use lpc.id (Link ID) as key to avoid losing courses that might be reused (though less critical here than above)
-        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname
+        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname, lp.name as planname
                              FROM {local_learning_courses} lpc
                              JOIN {course} c ON c.id = lpc.courseid
-                             JOIN {local_learning_periods} p ON p.id = lpc.periodid";
+                             JOIN {local_learning_periods} p ON p.id = lpc.periodid
+                             JOIN {local_learning_plans} lp ON lp.id = p.learningplanid";
+        
         $plan_courses_records = $DB->get_records_sql($plan_courses_sql);
 
         foreach ($plan_courses_records as $pc) {
@@ -115,8 +115,13 @@ class planning_manager {
                     'id' => $pc->courseid,
                     'name' => $pc->coursename,
                     'semester_num' => self::parse_semester_number($pc->periodname),
-                    'semester_name' => $pc->periodname
+                    'semester_name' => $pc->periodname,
+                    'careers' => [$pc->planname]
                 ];
+            } else {
+                if (!in_array($pc->planname, $allSubjects[$pc->courseid]['careers'])) {
+                    $allSubjects[$pc->courseid]['careers'][] = $pc->planname;
+                }
             }
         }
 
