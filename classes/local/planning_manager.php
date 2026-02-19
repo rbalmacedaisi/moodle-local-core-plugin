@@ -141,6 +141,14 @@ class planning_manager {
             $studentGrades = $allUserGrades[$u->id] ?? [];
             $studentApproved = $approvedCourses[$u->id] ?? [];
             
+            // 1. Determine student's TARGET Level for the period being planned
+            $currentLevel = self::parse_semester_number($u->periodname);
+            $isBimestre2 = self::is_bimestre_two($u->subperiodname);
+            
+            // If they just finished Bimestre 2, their target for planning IS the next level.
+            // If they are in Bimestre 1, they stay in same level but move to Bimestre 2.
+            $targetLevel = $isBimestre2 ? ($currentLevel + 1) : $currentLevel;
+
             $pending = [];
             foreach ($planStructure as $course) {
                 $grade = isset($studentGrades[$course->id]) ? $studentGrades[$course->id] : null;
@@ -167,15 +175,17 @@ class planning_manager {
                     }
 
                     // A course is "Pending" if it's not approved.
-                    // However, we flag if it's "Reprobada" (Explicit Status 5)
                     $isReprobada = isset($failedCourses[$u->id][$course->id]);
                     
+                    // PARITY FIX: A subject is P-I ONLY if prereqs are met AND Level <= Target Level
+                    $isPriority = ($isPreRequisiteMet && $course->semester_num <= $targetLevel);
+
                     $pending[] = [
                         'id' => $course->id,
                         'name' => $course->fullname,
                         'semester' => $course->semester_num, // Normalized numeric level
                         'semesterName' => $course->semester_name,
-                        'isPriority' => $isPreRequisiteMet, 
+                        'isPriority' => $isPriority, 
                         'isPreRequisiteMet' => $isPreRequisiteMet,
                         'isReprobada' => $isReprobada,
                         'missingPrereqs' => $missingPrereqs

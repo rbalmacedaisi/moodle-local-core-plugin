@@ -188,6 +188,9 @@ echo $OUTPUT->header();
                             <tr>
                                 <th class="px-4 py-3 bg-slate-50 min-w-[200px]">Asignatura</th>
                                 <th class="px-2 py-3 bg-slate-50 text-center">Nivel</th>
+                                <th v-for="period in analysis.sortedEntryPeriods" :key="period" class="px-1 py-3 bg-slate-100 text-[10px] text-center w-12 border-l border-slate-200">
+                                    {{ period }}
+                                </th>
                                 <th class="px-2 py-3 bg-slate-50 text-center w-20">Nuevos<br/>(Man)</th>
                                 <th class="px-2 py-3 bg-blue-50 text-blue-900 text-center border-l border-blue-100">
                                     P-I (Próximo)<br/><span class="text-[10px] font-normal">(Planificación)</span>
@@ -206,6 +209,9 @@ echo $OUTPUT->header();
                                 </td>
                                 <td class="px-2 py-3 text-center text-xs">
                                     <span class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">{{ toRoman(subj.semesterNum) }}</span>
+                                </td>
+                                <td v-for="period in analysis.sortedEntryPeriods" :key="period" :class="['px-1 py-3 text-center text-[11px] border-l border-slate-100', subj.entryPeriodCounts[period] > 0 ? 'bg-blue-50/30 font-bold text-blue-600' : 'text-slate-300']">
+                                    {{ subj.entryPeriodCounts[period] || '-' }}
                                 </td>
                                 <td class="px-2 py-2 text-center">
                                     <input type="number" min="0" class="w-12 p-1 text-center text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono"
@@ -1002,24 +1008,15 @@ const app = createApp({
             // 1. Initialize Cohorts & Students
             filtered.forEach(stu => {
                  // Determine Level/Bimestre from Config or Props
-                 // Parse 'Nivel X' or check pending?
-                 // Let's use the explicit 'currentSemConfig' sent from backend first, or fallback.
-                 // Assuming format "Periodo X" or "Nivel X". 
-                 // Backend sends periodname, subperiodname.
-                 // We need to parse Number.
+                 let levelConfig = stu.currentSemConfig; 
+                 let subConfig = stu.currentSubperiodConfig;
                  
-                 // Normalize Level
-                 let levelConfig = stu.currentSemConfig; // e.g., "Periodo IV"
-                 let subConfig = stu.currentSubperiodConfig; // e.g., "Bimestre II"
-                 
-                 // Helper to extract number
                  let levelNum = 0;
                  if (typeof levelConfig === 'string') {
                      let match = levelConfig.match(/\d+/);
                      if (match) levelNum = parseInt(match[0]);
-                     // Roman support?
                      if (!match) {
-                         if (levelConfig.includes('I')) levelNum = 1; // Simplified Roman fallback if needed
+                         if (levelConfig.includes('I')) levelNum = 1;
                      }
                  }
                  
@@ -1034,7 +1031,8 @@ const app = createApp({
                      planningBimestre = 'I';
                  }
                  
-                 const cohortKey = `${stu.career} - ${stu.shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre}`;
+                 const entryP = stu.entry_period || 'Sin Definir';
+                 const cohortKey = `${stu.career} - ${stu.shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre} [${entryP}]`;
                  
                  // Init Student Object
                  // Init Student Object
@@ -1043,7 +1041,7 @@ const app = createApp({
                      planningLevel,
                      planningBimestre,
                      cohortKey,
-                     isGradRisk: false // to be calc
+                     isGradRisk: false 
                  };
                  
                  // Init Cohort
@@ -1054,6 +1052,7 @@ const app = createApp({
                          shift: stu.shift,
                          semester: `Nivel ${planningLevel}`,
                          bimestreLabel: `Bimestre ${planningBimestre}`,
+                         entryPeriod: entryP,
                          levelNum: planningLevel,
                          studentCount: 0,
                          subjectsByPeriod: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] }
@@ -1065,17 +1064,11 @@ const app = createApp({
                  if (!studentsInSem[planningLevel][cohortKey]) studentsInSem[planningLevel][cohortKey] = { count: 0, students: [] };
                  
                   studentsMap[stu.id].cohortKey = cohortKey;
-                  // studentsMap already set above
                   cohorts[cohortKey].studentCount++;
                   studentsInSem[planningLevel][cohortKey].count++;
-                  // Use name/ID string for aggregation? Or object?
-                  // Wait, in Step 5311 I changed this to `${stu.name} (${stu.id})` but in wave process logic.
-                  // Here (Line 543) it pushes `studentsMap[stu.id]`.
-                  // Let's keep object here for Wave Logic which reads properties from it.
                   studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
 
                   // Population Tree Logic
-                  const entryP = stu.entry_period || 'Sin Definir';
                   entryPeriodsSet.add(entryP);
                   
                   if (!populationTree[stu.career]) {
@@ -1091,6 +1084,8 @@ const app = createApp({
                   if (!populationTree[stu.career].periods[entryP].groups[cohortKey]) {
                       populationTree[stu.career].periods[entryP].groups[cohortKey] = {
                           key: cohortKey,
+                          level: planningLevel,
+                          bimestre: planningBimestre,
                           count: 0
                       };
                   }
@@ -1197,50 +1192,47 @@ const app = createApp({
                 });
             });
 
-            // 3. Process Wave (Future Demand)
-            // Recursively check lower levels flowing up?
-            // "If you are in level X, you will need level X+1 in P-II"
-            const processWave = (targetLevel, subject, periodIdx, groupProp) => {
-                 if (studentsInSem[targetLevel]) {
-                     Object.entries(studentsInSem[targetLevel]).forEach(([cKey, data]) => {
-                         // Check Deferral
-                         let deferKey = `${subject.name}_${cKey}`;
-                         let actualPeriod = deferredGroups[deferKey] !== undefined ? deferredGroups[deferKey] : periodIdx;
+            // 3. Process Wave (Future Demand) - Cohort-centric logic for parity
+            Object.values(cohorts).forEach(coh => {
+                let curL = coh.levelNum;
+                let isB2 = coh.bimestreLabel.includes('II');
+                let curB = isB2 ? 2 : 1;
+                
+                // We advance the state of the cohort for 5 future periods (P-II to P-VI)
+                for (let pIdx = 1; pIdx <= 5; pIdx++) {
+                    // Advance student state: 2 Bimestres per Level
+                    if (curB === 1) {
+                        curB = 2;
+                        // Stay in same Level
+                    } else {
+                        curB = 1;
+                        curL++; // Advanced to next level after finishing Bimestre II
+                    }
+                    
+                    // All subjects of Level 'curL' are needed by this cohort in period 'pIdx'
+                    allSubjectsList.filter(s => parseInt(s.semester_num) === curL).forEach(s => {
+                         if (!subjectsMap[s.name]) return;
                          
-                         // Add Count
+                         // Check for manual deferrals
+                         let deferKey = `${s.name}_${coh.key}`;
+                         let actualPeriod = deferredGroups[deferKey] !== undefined ? deferredGroups[deferKey] : pIdx;
+                         
                          let pKey = 'countP' + (actualPeriod + 1);
-                         if (subject[pKey] !== undefined) subject[pKey] += data.count;
+                         if (subjectsMap[s.name][pKey] !== undefined) {
+                             subjectsMap[s.name][pKey] += coh.studentCount;
+                         }
                          
                          let gKey = 'groupsP' + (actualPeriod + 1);
-                         if (!subject[gKey][cKey]) subject[gKey][cKey] = { count: 0, students: [] };
-                         subject[gKey][cKey].count += data.count;
-                         // In wave, we don't have individual student objects readily available in 'data.students' unless we stored them in studentsInSem
-                         if (data.students) {
-                              subject[gKey][cKey].students.push(...data.students.map(s => `${s.name} (${s.id})`));
+                         if (!subjectsMap[s.name][gKey][coh.key]) {
+                             subjectsMap[s.name][gKey][coh.key] = { count: 0, students: [] };
                          }
-
+                         subjectsMap[s.name][gKey][coh.key].count += coh.studentCount;
+                         
                          // Add to Cohort View
-                         if (cohorts[cKey]) {
-                             if (!cohorts[cKey].subjectsByPeriod[actualPeriod].includes(subject.name)) {
-                                 cohorts[cKey].subjectsByPeriod[actualPeriod].push(subject.name);
-                             }
+                         if (coh.subjectsByPeriod[actualPeriod] && !coh.subjectsByPeriod[actualPeriod].includes(s.name)) {
+                             coh.subjectsByPeriod[actualPeriod].push(s.name);
                          }
-                     });
-                 }
-            };
-            
-            Object.values(subjectsMap).forEach(subj => {
-                const lvl = subj.semesterNum;
-                if (lvl > 0) {
-                     // Wave Logic:
-                     // Subject Level L is needed by Cohort at L-1 in Period 1 (Normal flow P-II) -> Wait.
-                     // The logic in React:
-                     // processWave(lvl - 1, subj, 1, ...); // People currently in L-1 need it in P-II (Index 1)
-                     processWave(lvl - 1, subj, 1, 'groupsP2');
-                     processWave(lvl - 2, subj, 2, 'groupsP3');
-                     processWave(lvl - 3, subj, 3, 'groupsP4');
-                     processWave(lvl - 4, subj, 4, 'groupsP5');
-                     processWave(lvl - 5, subj, 5, 'groupsP6');
+                    });
                 }
             });
 
@@ -1301,7 +1293,8 @@ const app = createApp({
                     studentList: studentAnalysisList,
                     populationTree,
                     totalStudents: filtered.length,
-                    sortedEntryPeriods: Array.from(entryPeriodsSet).sort()
+                    sortedEntryPeriods: Array.from(entryPeriodsSet).sort().reverse(),
+                    students: studentsMap
                 };
 
             } catch (err) {
