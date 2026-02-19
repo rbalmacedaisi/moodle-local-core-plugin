@@ -41,7 +41,8 @@ class planning_manager {
             $piSelect = ", uid_pi.data AS entry_period";
         }
 
-        $sql = "SELECT u.id, u.firstname, u.lastname, u.idnumber, u.email,
+        // Use llu.id as unique key to prevent "Duplicate value" error when user has multiple plans
+        $sql = "SELECT llu.id as subscriptionid, u.id, u.firstname, u.lastname, u.idnumber, u.email,
                        lp.id as planid, lp.name as planname,
                        p.id as periodid, p.name as periodname,
                        sp.id as subperiodid, sp.name as subperiodname
@@ -54,10 +55,16 @@ class planning_manager {
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
                 $piJoin
-                WHERE u.deleted = 0 AND u.suspended = 0";
+                WHERE u.deleted = 0 AND u.suspended = 0
+                ORDER BY llu.id ASC"; // Order by ID to process older first, so newer overwrites older in loop
 
-
-        $studentsRaw = $DB->get_records_sql($sql);
+        $subscriptionsRaw = $DB->get_records_sql($sql);
+        
+        // Deduplicate students, keeping the latest subscription (highest ID)
+        $studentsRaw = [];
+        foreach ($subscriptionsRaw as $sub) {
+            $studentsRaw[$sub->id] = $sub; // $sub->id is user ID here
+        }
         $studentList = [];
 
         // 2. Fetch Progress (Grades) to determine Pending Subjects
