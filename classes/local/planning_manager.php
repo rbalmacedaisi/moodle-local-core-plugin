@@ -280,7 +280,7 @@ class planning_manager {
                  }
              }
 
-             $structure[$r->learningplanid][] = (object) [
+             $structure[$r->learningplanid][$r->courseid] = (object) [
                 'id' => $r->courseid,
                 'fullname' => $r->fullname,
                 'name' => $r->fullname, // Alias for frontend compatibility
