@@ -144,11 +144,19 @@ class planning_manager {
                 if (!$isApproved) {
                     // Check Prerequisites
                     $isPreRequisiteMet = true;
+                    $missingPrereqs = [];
                     if (!empty($course->prereqs)) {
                         foreach ($course->prereqs as $prereqId) {
                             if (!isset($studentApproved[$prereqId])) {
                                 $isPreRequisiteMet = false;
-                                break;
+                                // Find prereq name in current plan or all subjects
+                                $prereqName = "ID: " . $prereqId;
+                                if (isset($planStructure[$prereqId])) {
+                                    $prereqName = $planStructure[$prereqId]->fullname;
+                                } elseif (isset($allSubjects[$prereqId])) {
+                                    $prereqName = $allSubjects[$prereqId]['name'];
+                                }
+                                $missingPrereqs[] = $prereqName;
                             }
                         }
                     }
@@ -164,7 +172,8 @@ class planning_manager {
                         'semesterName' => $course->semester_name,
                         'isPriority' => $isPreRequisiteMet, 
                         'isPreRequisiteMet' => $isPreRequisiteMet,
-                        'isReprobada' => $isReprobada
+                        'isReprobada' => $isReprobada,
+                        'missingPrereqs' => $missingPrereqs
                     ];
                 }
             }

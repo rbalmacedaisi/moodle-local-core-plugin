@@ -52,11 +52,12 @@ if ($courseId > 0) {
             <thead>
                 <tr>
                     <th>Student Name</th>
+                    <th>Career</th>
                     <th>Theoretical Level</th>
                     <th>Prereqs Met?</th>
                     <th>Is Reprobada?</th>
                     <th>Included in P-I?</th>
-                    <th>Reason</th>
+                    <th>Reason / Missing Prereqs</th>
                 </tr>
             </thead>
             <tbody>";
@@ -67,11 +68,12 @@ if ($courseId > 0) {
             if ($ps['id'] == $courseId) {
                 $isMet = !empty($ps['isPreRequisiteMet']);
                 $isReprobada = !empty($ps['isReprobada']);
+                $missing = !empty($ps['missingPrereqs']) ? implode(", ", $ps['missingPrereqs']) : "";
                 
                 // --- CURRENT LOGIC (Refined) ---
                 $included = $isMet; 
                 $reason = "";
-                if (!$isMet) $reason = "Missing Prerequisites";
+                if (!$isMet) $reason = "<strong>Missing:</strong> " . $missing;
                 else $reason = "OK - Included (" . ($isReprobada ? "Reprobada" : "Pending") . ")";
 
                 $rowClass = $included ? "highlight" : "";
@@ -79,6 +81,7 @@ if ($courseId > 0) {
                 
                 echo "<tr class='$rowClass'>
                         <td>{$stu['name']}</td>
+                        <td>{$stu['career']}</td>
                         <td>{$stu['currentSemConfig']}</td>
                         <td class='" . ($isMet ? "status-ok" : "status-fail") . "'>" . ($isMet ? "YES" : "NO") . "</td>
                         <td class='" . ($isReprobada ? "status-fail" : "") . "'>" . ($isReprobada ? "YES" : "NO") . "</td>
