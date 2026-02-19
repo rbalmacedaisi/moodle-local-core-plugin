@@ -12,74 +12,81 @@ $PAGE->set_context($context);
 $PAGE->set_title('Debug Academic Planning');
 $PAGE->set_heading('Debug Academic Planning Data');
 
-echo $OUTPUT->header();
-
-// --- AJAX Handler ---
+// --- AJAX Handler --- (Must be BEFORE any output like $OUTPUT->header())
 $ajaxAction = optional_param('ajax_action', '', PARAM_TEXT);
 if ($ajaxAction === 'massive_step') {
     require_sesskey();
     header('Content-Type: application/json');
-    $subid = required_param('subid', PARAM_INT); // Subscription ID
-    $sub = $DB->get_record('local_learning_users', ['id' => $subid]);
+    $res = ['status' => 'ok', 'added' => 0, 'fixed' => 0, 'details' => '', 'error' => ''];
     
-    $res = ['status' => 'ok', 'added' => 0, 'fixed' => 0, 'details' => ''];
-    if ($sub && $sub->userrolename === 'student') {
-        $sid = $sub->userid;
-        $pid = $sub->learningplanid;
+    try {
+        $subid = required_param('subid', PARAM_INT); // Subscription ID
+        $sub = $DB->get_record('local_learning_users', ['id' => $subid]);
         
-        // A. Sync Missing
-        $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $pid]);
-        $progRaw = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
-        $existing = [];
-        foreach ($progRaw as $pr) {
-            $existing[$pr->courseid] = $pr->id;
-        }
-        
-        foreach ($planCourses as $pc) {
-            if (!isset($existing[$pc->courseid])) {
-                $new = new stdClass();
-                $new->userid = $sid; $new->learningplanid = $pid; $new->periodid = $pc->periodid;
-                $new->courseid = $pc->courseid; $new->status = 0; $new->grade = 0; $new->progress = 0;
-                $new->timecreated = time(); $new->timemodified = time();
-                $DB->insert_record('gmk_course_progre', $new);
-                $res['added']++;
-            }
-        }
-
-        // B. Fix Status/Grades
-        $progRecs = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
-        foreach ($progRecs as $rp) {
-            $dbGrade = $rp->grade !== null ? (float)$rp->grade : 0;
-            $moodleGradeObj = grade_get_course_grade($sid, $rp->courseid);
-            $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+        if ($sub && $sub->userrolename === 'student') {
+            $sid = $sub->userid;
+            $pid = $sub->learningplanid;
             
-            $effectiveGrade = ($moodleGrade !== null) ? $moodleGrade : (($dbGrade > 0) ? $dbGrade : null);
-            $changed = false;
-
-            if ($dbGrade == 0 && $moodleGrade !== null) {
-                $rp->grade = $moodleGrade; $changed = true;
+            // A. Sync Missing
+            $planCourses = $DB->get_records('local_learning_courses', ['learningplanid' => $pid]);
+            $progRaw = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
+            $existing = [];
+            foreach ($progRaw as $pr) {
+                $existing[$pr->courseid] = $pr->id;
             }
-
-            if ($effectiveGrade !== null) {
-                if ($effectiveGrade >= 71 && $rp->status < 3) {
-                    $rp->status = 4; $changed = true;
-                } elseif ($effectiveGrade < 71 && $rp->status != 5 && $rp->status != 3 && $rp->status != 4) {
-                    $rp->status = 5; $changed = true;
+            
+            foreach ($planCourses as $pc) {
+                if (!isset($existing[$pc->courseid])) {
+                    $new = new stdClass();
+                    $new->userid = $sid; $new->learningplanid = $pid; $new->periodid = $pc->periodid;
+                    $new->courseid = $pc->courseid; $new->status = 0; $new->grade = 0; $new->progress = 0;
+                    $new->timecreated = time(); $new->timemodified = time();
+                    $DB->insert_record('gmk_course_progre', $new);
+                    $res['added']++;
                 }
             }
 
-            if ($changed) {
-                $rp->timemodified = time();
-                $DB->update_record('gmk_course_progre', $rp);
-                $res['fixed']++;
+            // B. Fix Status/Grades
+            $progRecs = $DB->get_records('gmk_course_progre', ['userid' => $sid]);
+            foreach ($progRecs as $rp) {
+                $dbGrade = $rp->grade !== null ? (float)$rp->grade : 0;
+                $moodleGradeObj = grade_get_course_grade($sid, $rp->courseid);
+                $moodleGrade = ($moodleGradeObj && isset($moodleGradeObj->grade)) ? (float)$moodleGradeObj->grade : null;
+                
+                $effectiveGrade = ($moodleGrade !== null) ? $moodleGrade : (($dbGrade > 0) ? $dbGrade : null);
+                $changed = false;
+
+                if ($dbGrade == 0 && $moodleGrade !== null) {
+                    $rp->grade = $moodleGrade; $changed = true;
+                }
+
+                if ($effectiveGrade !== null) {
+                    if ($effectiveGrade >= 71 && $rp->status < 3) {
+                        $rp->status = 4; $changed = true;
+                    } elseif ($effectiveGrade < 71 && $rp->status != 5 && $rp->status != 3 && $rp->status != 4) {
+                        $rp->status = 5; $changed = true;
+                    }
+                }
+
+                if ($changed) {
+                    $rp->timemodified = time();
+                    $DB->update_record('gmk_course_progre', $rp);
+                    $res['fixed']++;
+                }
             }
+            $userObj = $DB->get_record('user', ['id' => $sid], 'firstname, lastname');
+            $res['details'] = ($userObj ? "{$userObj->firstname} {$userObj->lastname}" : "User ID $sid");
         }
-        $userObj = $DB->get_record('user', ['id' => $sid], 'firstname, lastname');
-        $res['details'] = "{$userObj->firstname} {$userObj->lastname}";
+    } catch (Exception $e) {
+        $res['status'] = 'error';
+        $res['error'] = $e->getMessage();
     }
+    
     echo json_encode($res);
     die();
 }
+
+echo $OUTPUT->header();
 
 echo "
 <style>
