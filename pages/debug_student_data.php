@@ -90,9 +90,10 @@ if ($action === 'update_student_data') {
             if (empty($docNum)) continue;
 
             // Find user by documentnumber
-            $userId = $DB->get_field('user_info_data', 'userid', ['fieldid' => $docField->id, 'data' => $docNum]);
+            $sqlUser = "SELECT userid FROM {user_info_data} WHERE fieldid = :fieldid AND " . $DB->sql_compare_text('data') . " = :docnum";
+            $userId = $DB->get_field_sql($sqlUser, ['fieldid' => $docField->id, 'docnum' => $docNum]);
+            
             if (!$userId) {
-                // Try to find if the user ID exists as documentnumber in the column if data is ID-like
                 $log[] = "Aviso: Alumno con Documento $docNum no encontrado.";
                 continue;
             }
