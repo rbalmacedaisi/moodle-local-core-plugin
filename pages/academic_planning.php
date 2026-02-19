@@ -1123,7 +1123,8 @@ const app = createApp({
                       semesterNum: parseInt(subj.semester_num) || 0,
                       countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
                       groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
-                      entryPeriodCounts: {} // New track for analysis
+                      entryPeriodCounts: {},
+                      careers: subj.careers || []
                   };
              });
             
@@ -1153,8 +1154,16 @@ const app = createApp({
                                   semesterNum: parseInt(subj.semester) || 0,
                                   countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
                                   groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
-                                  entryPeriodCounts: {}
+                                  entryPeriodCounts: {},
+                                  careers: [stu.career]
                               };
+                         } else {
+                             // Ensure the student's career is in the subject's career list
+                             if (subjectsMap[subj.name].careers && !subjectsMap[subj.name].careers.includes(stu.career)) {
+                                 subjectsMap[subj.name].careers.push(stu.career);
+                             } else if (!subjectsMap[subj.name].careers) {
+                                 subjectsMap[subj.name].careers = [stu.career];
+                             }
                          }
                          
                          // Check Deferral of Cohort
