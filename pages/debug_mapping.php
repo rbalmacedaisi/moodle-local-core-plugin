@@ -1,7 +1,7 @@
 <?php
-require_once(__DIR__ . '/../../config.php');
-require_once($CFG->libdir . '/adminlib.php');
-require_once(__DIR__ . '/classes/local/planning_manager.php');
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
 
 use local_grupomakro_core\local\planning_manager;
 
