@@ -94,7 +94,9 @@ class planning_manager {
         $allSubjects = [];
         
         // Fetch all courses linked to learning plans to build a master list
-        $plan_courses_sql = "SELECT lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname
+        // Fetch all courses linked to learning plans to build a master list
+        // FIX: Use lpc.id (Link ID) as key to avoid losing courses that might be reused (though less critical here than above)
+        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname
                              FROM {local_learning_courses} lpc
                              JOIN {course} c ON c.id = lpc.courseid
                              JOIN {local_learning_periods} p ON p.id = lpc.periodid";
@@ -213,9 +215,10 @@ class planning_manager {
             $selectCustom = ", cfd.value as prereq_shortnames";
         }
 
-        $sql = "SELECT p.learningplanid, p.id as period_id, p.name as period_name,
-                       c.id as courseid, c.fullname, c.shortname,
-                       lpc.id as linkid
+        // FIX: Use lpc.id (Link ID) as the first column (key) to ensure uniqueness.
+        // Previously, it was using p.learningplanid (or implied first col), causing massive data loss (only 1 row per plan).
+        $sql = "SELECT lpc.id as linkid, p.learningplanid, p.id as period_id, p.name as period_name,
+                       c.id as courseid, c.fullname, c.shortname
                        $selectCustom
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
