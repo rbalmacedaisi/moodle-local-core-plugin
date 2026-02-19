@@ -92,14 +92,10 @@ class planning_manager {
 
         // 2c. Get All Approved Courses per Student (for Prereq check)
         // A course is approved if Grade >= 71 in gmk_course_progre OR if it's in course_completions
-        $approvedCourses = [];
-        foreach ($allUserGrades as $userId => $grades) {
-            foreach ($grades as $courseId => $grade) {
-                if ($grade >= 71) {
-                    $approvedCourses[$userId][$courseId] = true;
-                }
-            }
-        }
+        $approvedCourses = self::get_all_approved_courses();
+        
+        // 2d. Get All Failed Courses per Student (Explicit Status 5)
+        $failedCourses = self::get_all_failed_courses();
 
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
@@ -158,8 +154,8 @@ class planning_manager {
                     }
 
                     // A course is "Pending" if it's not approved.
-                    // However, we flag if it's "Reprobada" (Grade < 71 but not null)
-                    $isReprobada = ($grade !== null && $grade < 71);
+                    // However, we flag if it's "Reprobada" (Explicit Status 5)
+                    $isReprobada = isset($failedCourses[$u->id]) && in_array($course->id, $failedCourses[$u->id]);
                     
                     $pending[] = [
                         'id' => $course->id,
@@ -361,6 +357,23 @@ class planning_manager {
             }
         }
 
+        return $map;
+    }
+
+    /**
+     * Helper: Get All Failed Courses for All Students.
+     * returns [ userid => [ courseId1, courseId2... ] ]
+     */
+    private static function get_all_failed_courses() {
+        global $DB;
+        $map = [];
+        // Status 5 = Reprobada (Failed).
+        $sqlFailed = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 5";
+        $records = $DB->get_records_sql($sqlFailed);
+        foreach ($records as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            $map[$r->userid][] = $r->courseid;
+        }
         return $map;
     }
 
