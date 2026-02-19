@@ -287,7 +287,10 @@ class planning_manager {
 
         // 1. Check Custom Progress Table (gmk_course_progre)
         // Status 3 = Completed, 4 = Approved.
-        $sqlProgre = "SELECT userid, courseid FROM {gmk_course_progre} WHERE status >= 3";
+        // 1. Check Custom Progress Table (gmk_course_progre)
+        // Status 3 = Completed, 4 = Approved.
+        // FIX: Use 'id' as first column (key) to prevent deduplication by userid
+        $sqlProgre = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status >= 3";
         $recordsProgre = $DB->get_records_sql($sqlProgre);
         
         foreach ($recordsProgre as $r) {
@@ -296,7 +299,8 @@ class planning_manager {
         }
 
         // 2. Check Standard Moodle Completion (Fallback/Merge)
-        $sqlMoodle = "SELECT userid, course FROM {course_completions} WHERE timecompleted > 0";
+        // FIX: Use 'id' as first column (key)
+        $sqlMoodle = "SELECT id, userid, course FROM {course_completions} WHERE timecompleted > 0";
         $recordsMoodle = $DB->get_records_sql($sqlMoodle);
 
         foreach ($recordsMoodle as $r) {
