@@ -228,8 +228,69 @@ if ($studentId) {
         }
         // --- END NEW ---
         
-        // Get Pre Field ID
-        $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+        // --- END NEW ---
+        
+        // --- NEW: State Correction Simulator ---
+        echo "<h5>State Correction Simulator (Rule: Grade < 71 -> Failed/Reprobada)</h5>";
+        if ($rawProgress) {
+             echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%; margin-bottom:15px'>";
+             echo "<tr style='background:#fff0e0'><th>Course</th><th>Current Status</th><th>Grade</th><th>Progress (hrs/%)</th><th>Proposed Status Correction</th><th>Action Logic</th></tr>";
+             
+             foreach ($rawProgress as $rp) {
+                 $cName = $DB->get_field('course', 'fullname', ['id' => $rp->courseid]);
+                 
+                 // Logic Simulation based on progress_manager::close_class_grades_and_open_revalids
+                 // simplified constants
+                 // 0=NoAv, 1=Av, 2=InProg, 3=Comp, 4=Appr, 5=Fail
+                 
+                 $currentStatus = $rp->status;
+                 $grade = (float)$rp->grade;
+                 $progress = (float)$rp->progress; 
+                 // Assuming practicalhours logic is secondary or we can infer default
+                 
+                 $newStatus = $currentStatus;
+                 $action = "No Change";
+                 $color = "black";
+
+                 // Rule 1: Approval
+                 if ($grade >= 71) {
+                     if ($currentStatus < 3) {
+                         $newStatus = 4; // Approved
+                         $action = "Mark as Approved (Grade >= 71)";
+                         $color = "green";
+                     }
+                 }
+                 // Rule 2: Failure (Grade < 71)
+                 // Note: Official logic uses 70.4 and 60 for Revalid. Simplified here to user's "71".
+                 elseif ($grade > 0 && $grade < 71) {
+                     // Check Revalid range (60-70) vs Fail (<60)
+                     // User said "inferior a 71 deberían aparecer como reprobadas".
+                     // Let's strictly check if status is currently 0 or 1
+                     if ($currentStatus == 0 || $currentStatus == 1 || $currentStatus == 2) {
+                         $newStatus = 5; // Failed
+                         $action = "Mark as Failed (Grade < 71)";
+                         $color = "red";
+                     }
+                 }
+                 
+                 // Display
+                 $statusLabel = "($currentStatus)";
+                 if ($currentStatus == 0) $statusLabel .= " No Disp";
+                 if ($currentStatus == 1) $statusLabel .= " Disp";
+                 if ($currentStatus == 5) $statusLabel .= " Reprobada";
+                 
+                 echo "<tr>
+                        <td>$cName</td>
+                        <td>$statusLabel</td>
+                        <td>$grade</td>
+                        <td>$progress</td>
+                        <td style='color:$color; font-weight:bold'>" . ($newStatus != $currentStatus ? "Change to $newStatus" : "OK") . "</td>
+                        <td>$action</td>
+                      </tr>";
+             }
+             echo "</table>";
+        }
+        // --- END SIMULATOR ---
         
         $sqlPlan = "SELECT c.id, c.fullname, c.shortname, cfd.value as prereq_shortnames, 
                            p.name as semester_name, p.id as semester_id

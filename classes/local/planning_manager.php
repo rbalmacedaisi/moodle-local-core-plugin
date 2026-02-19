@@ -432,7 +432,7 @@ class planning_manager {
             'demand_tree' => $tree,
             'student_list' => $planningData['students'],
             'projections' => $planningData['planning_projections'], // Use the planning projections (manual overrides)
-            'subjects' => $planningData['subjects']
+            'subjects' => isset($planningData['all_subjects']) ? $planningData['all_subjects'] : [] 
         ];
     }
 
