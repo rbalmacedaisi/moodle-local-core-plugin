@@ -178,6 +178,13 @@ if ($studentId) {
         echo "<h4>Analyzing: $user->firstname $user->lastname ($user->username)</h4>";
 
         // 1. Check for Duplicate Subscriptions
+    // Get Study Plan ID
+    $planId = $DB->get_field('local_learning_users', 'learningplanid', ['userid' => $studentId]);
+    
+    // Get Pre Field ID for Prereq display
+    $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+
+    if ($planId) {  
         $subs = $DB->get_records('local_learning_users', ['userid' => $studentId]);
         echo "<h5>Subscription Records (local_learning_users)</h5>";
         if (count($subs) > 1) {
