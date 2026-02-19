@@ -287,81 +287,63 @@ if ($studentId) {
          }
          echo "</table>";
          
-         // 5. Demand Logic Simulation
-         echo "<h5>Demand Logic Simulation</h5>";
-         echo "<p>This shows exactly how this student is categorized in the Demand Tree (Backend Logic).</p>";
+         // 5. Real Demand Tree Verification
+         echo "<h5>Real Demand Tree Verification (Backend Output)</h5>";
          
-         // Replicate Logic from planning_manager::get_demand_data
-         // Level Key Logic
-         $levelLabel = $currentPeriodName ?: 'Sin Nivel';
-         $subLabel = $currentSubPeriodName ?: '';
-         $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
+         $periodId = $DB->get_field_sql("SELECT MAX(id) FROM {gmk_academic_periods}");
+         $realData = planning_manager::get_demand_data($periodId);
+         $tree = $realData['demand_tree'];
+         $foundInTree = [];
          
-         // Fallback Check
-         $usedFallback = false;
-         if (empty($currentPeriodName) && !empty($planCourses)) {
-              // Find first pending subject
-              foreach ($planCourses as $c) {
-                  $isApproved = in_array($c->id, $approved);
-                  if (!$isApproved) {
-                      $levelLabel = $c->semester_name; // Fallback
-                      $levelKey = $levelLabel; 
-                      $usedFallback = true;
-                      break;
-                  }
-              }
+         // Better approach: Find the student object in student_list first to know the ID used
+         $targetRef = null;
+         foreach ($realData['student_list'] as $sl) {
+             if ($sl['dbId'] == $studentId) {
+                 $targetRef = $sl;
+                 break;
+             }
          }
          
-         // Fetch Shift (Jornada)
-         $startJ = microtime(true);
-         // We need to fetch the shift from user_info_data
-         $jornadaFieldId = $DB->get_field('user_info_field', 'id', ['shortname' => 'gmkjourney']);
-         $shiftVal = $DB->get_field('user_info_data', 'data', ['userid' => $studentId, 'fieldid' => $jornadaFieldId ?: 0]);
-         $shiftDisplay = $shiftVal ?: 'Sin Jornada';
-         // Career
-         $careerDisplay = $mainSub->learningplanid ? $DB->get_field('local_learning_plans', 'name', ['id' => $mainSub->learningplanid]) : 'General';
-         
-         echo "<ul>";
-         echo "<li><strong>Career Group:</strong> $careerDisplay</li>";
-         echo "<li><strong>Shift Group (Jornada):</strong> $shiftDisplay</li>";
-         echo "<li><strong>Raw Period Name (DB):</strong> " . ($currentPeriodName ?: 'NULL') . "</li>";
-         echo "<li><strong>Raw Subperiod Name (DB):</strong> " . ($currentSubPeriodName ?: 'NULL') . "</li>";
-         echo "<li><strong>Calculated Level Key (Column):</strong> <span style='background:#e2e3e5; padding:2px 5px; border-radius:3px;'>$levelKey</span> " . ($usedFallback ? "(Derived via Fallback)" : "") . "</li>";
-         echo "</ul>";
-         
-         echo "<p><strong>Contributing Demand To:</strong></p>";
-         echo "<ul>";
-         $contributed = 0;
-         foreach ($planCourses as $c) {
-             $isApproved = in_array($c->id, $approved);
-             if (!$isApproved) {
-                 // Check Prereqs again (simplified for display) (Actually we calculated it above in loop)
-                 // But wait, the loop above printed rows. We need to re-evaluate IS MET logic.
-                 $isPrereqMet = true;
-                 if (!empty($c->prereq_shortnames)) {
-                     $raws = explode(',', $c->prereq_shortnames);
-                     foreach ($raws as $r) {
-                         $r = trim($r);
-                         $rid = $allShorts[$r] ?? null;
-                         if ($rid) {
-                             if (!in_array($rid, $approved)) { $isPrereqMet = false; break; }
-                         } else {
-                             $isPrereqMet = false; 
+         if (!$targetRef) {
+             echo "<p style='color:red'><strong>CRITICAL:</strong> Student NOT FOUND in 'student_list' returned by planning_manager! They are being filtered out early.</p>";
+         } else {
+             $targetId = $targetRef['id']; // The ID used in the tree
+             echo "<p>Student ID used in Tree: <strong>$targetId</strong></p>";
+             
+             foreach ($tree as $cName => $shifts) {
+                 foreach ($shifts as $sName => $levels) {
+                     foreach ($levels as $lName => $lData) {
+                         $coursesWithStudent = [];
+                         foreach ($lData['course_counts'] as $cId => $cData) {
+                             if (isset($cData['students']) && in_array($targetId, $cData['students'])) {
+                                 $coursesWithStudent[] = $cData['students']; // Just existence
+                                 // Get Subject Name
+                                 $subjName = $DB->get_field('course', 'fullname', ['id' => $cId]);
+                                 $coursesWithStudent[] = $subjName;
+                             }
+                         }
+                         
+                         if (!empty($coursesWithStudent)) {
+                             echo "<div style='background:#f8f9fa; padding:10px; margin-bottom:5px; border-left:4px solid green;'>";
+                             echo "<strong>FOUND IN:</strong><br>";
+                             echo "Career: $cName<br>";
+                             echo "Shift: $sName<br>";
+                             echo "Level/Column: <strong>$lName</strong><br>";
+                             echo "Included in Subjects: " . implode(', ', array_filter($coursesWithStudent, 'is_string'));
+                             echo "</div>";
+                             $foundInTree = true;
                          }
                      }
                  }
-                 
-                 if ($isPrereqMet) {
-                     echo "<li>{$c->fullname} ({$c->shortname}) -> <strong>Counted</strong></li>";
-                     $contributed++;
-                 } else {
-                     echo "<li style='color:#999'>{$c->fullname} -> Skipped (Prereq not met)</li>";
-                 }
+             }
+             
+             if (!$foundInTree) {
+                 echo "<div style='background:#fff3cd; padding:10px; border-left:4px solid orange;'>";
+                 echo "<strong>Student is in 'student_list' but NOT found in any Demand Tree Node.</strong><br>";
+                 echo "This implies they have pending subjects, but they were all filtered out (e.g. Prereqs not met).";
+                 echo "</div>";
              }
          }
-         if ($contributed == 0) echo "<li>None</li>";
-         echo "</ul>";
-
     }
 }
 echo "</div>"; // End Section 2
