@@ -1292,12 +1292,15 @@ const app = createApp({
 
             try {
                 return {
-                    subjectList: subjectsArray.sort((a,b) => b.totalP1 - a.totalP1),
+                    subjectList: subjectsArray.sort((a,b) => {
+                        if (a.semesterNum !== b.semesterNum) return a.semesterNum - b.semesterNum;
+                        return b.totalP1 - a.totalP1;
+                    }),
                     cohortViewList: Object.values(cohorts).sort((a,b) => b.studentCount - a.studentCount),
                     studentList: studentAnalysisList,
                     populationTree,
                     totalStudents: filtered.length,
-                    sortedEntryPeriods: Array.from(entryPeriodsSet).sort().reverse(),
+                    sortedEntryPeriods: Array.from(entryPeriodsSet).sort(),
                     students: studentsMap
                 };
 
