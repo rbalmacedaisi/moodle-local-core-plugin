@@ -394,7 +394,7 @@
                 throw new Error("Invalid server response (not JSON)");
             }
 
-            if (json.error || json.errorcode) {
+            if (json.error || json.errorcode || json.status === 'error') {
                 throw new Error(json.message || json.error || 'API Error');
             }
 

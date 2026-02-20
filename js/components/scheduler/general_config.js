@@ -180,6 +180,7 @@ window.SchedulerComponents.GeneralConfig = {
         if (window.lucide) {
             window.lucide.createIcons();
         }
+        this.loadInitialData();
     },
     updated() {
         if (window.lucide) {
@@ -187,6 +188,14 @@ window.SchedulerComponents.GeneralConfig = {
         }
     },
     methods: {
+        async loadInitialData() {
+            if (this.periodId && window.schedulerStore) {
+                // If context is completely missing or empty, fetch it so settings populate
+                if (!this.storeState.context || !this.storeState.context.configSettings) {
+                    await window.schedulerStore.loadContext(this.periodId);
+                }
+            }
+        },
         async saveConfig() {
             if (!this.periodId || !window.schedulerStore) return;
 

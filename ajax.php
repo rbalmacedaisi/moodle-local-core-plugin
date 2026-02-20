@@ -2665,6 +2665,22 @@ try {
             $response = ['status' => 'success', 'data' => $data];
             break;
 
+        case 'local_grupomakro_save_scheduler_config':
+            $periodid = required_param('periodid', PARAM_INT);
+            $holidays = isset($_POST['holidays']) && is_array($_POST['holidays']) ? $_POST['holidays'] : [];
+            $loads = isset($_POST['loads']) && is_array($_POST['loads']) ? $_POST['loads'] : [];
+            $configsettings = optional_param('configsettings', '', PARAM_RAW);
+            
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
+            $result = \local_grupomakro_core\external\admin\scheduler::save_scheduler_config($periodid, $holidays, $loads, $configsettings);
+            
+            if ($result) {
+                $response = ['status' => 'success'];
+            } else {
+                $response = ['status' => 'error', 'message' => 'Error al guardar la configuración'];
+            }
+            break;
+
         case 'local_grupomakro_get_demand_data':
             $periodid = required_param('periodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
