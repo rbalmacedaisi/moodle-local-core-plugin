@@ -745,34 +745,103 @@ echo $OUTPUT->header();
          </div>
      </div>
 
-    <!-- POPOVER MODAL (Simplification of Popover) -->
-    <div v-if="activePopover" :key="activePopover.subject.id + '-' + activePopover.periodIndex" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="activePopover = null">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-             <div class="p-3 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                 <h4 class="font-bold text-slate-800">{{ activePopover.subject.name }}</h4>
-                 <button @click="activePopover = null"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
-             </div>
-             <div class="p-4 max-h-[60vh] overflow-y-auto">
-                 <p class="text-xs font-bold text-slate-500 uppercase mb-2">Desglose por Cohortes ({{ getPeriodLabel(activePopover.periodIndex) }})</p>
-                 <div class="space-y-2">
-                     <div v-for="(groupData, groupKey) in activePopover.data" :key="groupKey" class="bg-slate-50 p-2 rounded border border-slate-100 text-sm">
-                         <details class="group">
-                             <summary class="flex justify-between items-center cursor-pointer list-none select-none">
-                                 <span class="font-medium text-slate-700">{{ groupKey }}</span>
-                                 <span class="font-bold text-blue-700 bg-blue-100 px-2 rounded">{{ groupData.count }}</span>
-                             </summary>
-                             <div class="mt-2 pl-2 border-l-2 border-slate-200">
-                                 <ul class="list-disc list-inside text-xs text-slate-500">
-                                      <li v-for="(stuName, sIdx) in groupData.students" :key="sIdx">{{ stuName }}</li>
-                                 </ul>
-                             </div>
-                         </details>
-                     </div>
-                     <div v-if="!activePopover.data || Object.keys(activePopover.data).length === 0" class="text-slate-400 italic text-center text-xs">
-                          Sin estudiantes asignados a este periodo.
-                     </div>
-                 </div>
-             </div>
+    <!-- BREAKDOWN POPOVER (Modern student group movement) -->
+    <div v-if="showBreakdownPopover && activePopover" 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/5 animate-in fade-in duration-200"
+         @click.self="showBreakdownPopover = false">
+        
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden" 
+             style="max-height: 85vh; display: flex; flex-direction: column;">
+            
+            <!-- Header -->
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
+                <div>
+                    <h4 class="font-bold text-slate-800 leading-tight">{{ popoverData.subject.name }}</h4>
+                    <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                        Cohortes en {{ getPeriodLabel(popoverData.period) }}
+                    </p>
+                </div>
+                <button @click="showBreakdownPopover = false" class="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Content -->
+            <div class="overflow-y-auto p-4 space-y-3 bg-slate-50/30 flex-1">
+                <div v-for="(group, key) in popoverData.groups" :key="key" 
+                     class="bg-white rounded-xl border border-slate-200 shadow-sm p-3 hover:border-blue-300 transition-all group">
+                    
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <span class="text-xs font-bold text-slate-400 uppercase tracking-tighter block mb-1">Cohorte / Grupo</span>
+                            <span class="text-sm font-bold text-slate-700 leading-snug">{{ key }}</span>
+                        </div>
+                        <button @click="onViewStudents(key, group.students)" 
+                                class="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold hover:bg-blue-100 transition-colors">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                            {{ group.count }}
+                        </button>
+                    </div>
+
+                    <!-- Movement Controls -->
+                    <div class="border-t border-slate-100 pt-3">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Mover a Periodo:</span>
+                        <div class="grid grid-cols-6 gap-1">
+                            <button v-for="i in 6" :key="i"
+                                    @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1)"
+                                    :class="[
+                                        'px-1 py-2 rounded text-[10px] font-bold transition-all border',
+                                        (deferredGroups[popoverData.subject.name + '_' + key] || 0) === (i-1) || (popoverData.period === (i-1) && deferredGroups[popoverData.subject.name + '_' + key] === undefined)
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105' 
+                                            : 'bg-white text-slate-400 border-slate-100 hover:border-blue-200 hover:text-blue-500'
+                                    ]">
+                                {{ getPeriodLabel(i-1) }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="Object.keys(popoverData.groups).length === 0" class="py-10 text-center">
+                    <div class="bg-slate-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="info" class="text-slate-400"></i>
+                    </div>
+                    <p class="text-slate-500 text-sm font-medium">No hay cohortes asignadas.</p>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-3 bg-white border-t border-slate-100 flex justify-end shrink-0">
+                <button @click="showBreakdownPopover = false" 
+                        class="px-5 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-900 transition-all shadow-md">
+                    Cerrar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STUDENT LIST MODAL -->
+    <div v-if="showStudentModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h4 class="font-bold text-slate-800">{{ studentModalData.title }}</h4>
+                <button @click="showStudentModal = false" class="p-1 hover:bg-slate-200 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
+            </div>
+            <div class="p-4 max-h-[60vh] overflow-y-auto">
+                <div class="space-y-2">
+                    <div v-for="stu in studentModalData.students" :key="stu.id" class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-all flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                            {{ stu.name.charAt(0) }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-700 leading-tight">{{ stu.name }}</p>
+                            <p class="text-[10px] text-slate-400 font-mono">{{ stu.id }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-200 text-center">
+                <button @click="showStudentModal = false" class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-bold transition-colors">Volver</button>
+            </div>
         </div>
     </div>
 
@@ -836,6 +905,12 @@ const app = createApp({
             
             // Popover
             const activePopover = ref(null);
+            const showBreakdownPopover = ref(false);
+            const popoverData = ref({ subject: null, period: 0, groups: {} });
+
+            // Modals
+            const showStudentModal = ref(false);
+            const studentModalData = ref({ title: '', students: [] });
             
             // Student Filter
             const studentStatusFilter = ref('Todos');
@@ -921,12 +996,8 @@ const app = createApp({
              saving.value = true;
              try {
                  // Prepare selections for the backend
-                 // Subjects from the analysis matrix
                  const items = [];
                  
-                 // manualProjections contains { SubjectName: Count }
-                 // We need to map it back to { planid, courseid, periodid, count }
-                 // This requires looking at the current analysis
                  analysis.value.subjectList.forEach(s => {
                      const count = manualProjections[s.name] || 0;
                      if (count > 0 || (rawData.value.selections && rawData.value.selections[s.careerId + '_' + s.id])) {
@@ -935,7 +1006,7 @@ const app = createApp({
                              courseid: s.id,
                              periodid: s.periodId, // relative level ID
                              count: count,
-                             checked: true // Selection if in matrix
+                             checked: true 
                          });
                      }
                  });
@@ -943,7 +1014,8 @@ const app = createApp({
                  console.log("Vue Planning App: savePlanning() items:", items);
                  let res = await callMoodle('local_grupomakro_save_planning', {
                      academicperiodid: selectedPeriodId.value,
-                     selections: JSON.stringify(items)
+                     selections: JSON.stringify(items),
+                     deferredGroups: JSON.stringify(deferredGroups)
                  });
                  
                  if (res) {
@@ -957,6 +1029,7 @@ const app = createApp({
                  saving.value = false;
              }
         };
+
         const fetchData = async () => {
              console.log("Vue Planning App: fetchData() starting for period", selectedPeriodId.value);
              loading.value = true;
@@ -966,19 +1039,32 @@ const app = createApp({
                  console.log("Vue Planning App: fetchData() received data:", res ? "SUCCESS" : "EMPTY");
                  rawData.value = res || [];
 
-                  // Initialize Manual Projections from saved data
-                  if (res && res.planning_projections) {
-                      // Clear existing
-                      Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
-                      
-                      res.planning_projections.forEach(pp => {
-                          const subject = res.subjects ? res.subjects.find(s => s.id == pp.courseid) : null;
-                          if (subject) {
-                              manualProjections[subject.name] = pp.projected_students;
-                          }
-                      });
-                  }
-              } catch (e) {
+                  // Initialize Manual Projections and Deferrals from saved data
+                   if (res) {
+                       // Projections
+                       if (res.planning_projections) {
+                           Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
+                           res.planning_projections.forEach(pp => {
+                               const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
+                               if (subject) {
+                                   manualProjections[subject.name] = pp.count;
+                               }
+                           });
+                       }
+                       // Deferrals
+                       if (res.deferrals) {
+                           Object.keys(deferredGroups).forEach(key => delete deferredGroups[key]);
+                           Object.entries(res.deferrals).forEach(([courseId, cohorts]) => {
+                               const subject = res.all_subjects ? res.all_subjects.find(s => s.id == courseId) : null;
+                               if (subject) {
+                                   Object.entries(cohorts).forEach(([cohortKey, targetIdx]) => {
+                                       deferredGroups[`${subject.name}_${cohortKey}`] = targetIdx;
+                                   });
+                               }
+                           });
+                       }
+                   }
+             } catch (e) {
                  console.error("Vue Planning App: fetchData() FAILED", e);
              } finally {
                  loading.value = false;
@@ -1492,13 +1578,39 @@ const app = createApp({
         };
 
         const openPopover = (subj, idx, e) => {
-            // Build data slice
-            let pKey = 'groupsP' + (idx+1);
-            activePopover.value = {
+            console.log("Vue Planning App: openPopover()", subj.name, idx);
+            const pKey = 'groupsP' + (idx + 1);
+            const groups = subj[pKey] || {};
+            
+            popoverData.value = {
                 subject: subj,
-                periodIndex: idx,
-                data: subj[pKey] || {}
+                period: idx,
+                groups: groups
             };
+            
+            // Interaction: if target isn't the button itself, find it
+            let target = e.currentTarget;
+            activePopover.value = target;
+            showBreakdownPopover.value = true;
+            
+            nextTick(() => lucide.createIcons());
+        };
+
+        const onViewStudents = (cohortKey, students) => {
+            console.log("Vue Planning App: onViewStudents()", cohortKey);
+            studentModalData.value = {
+                title: `Estudiantes: ${cohortKey}`,
+                students: students.map(s => {
+                    // students is array of strings: "Name (ID)"
+                    const parts = s.match(/(.*) \((.*)\)/);
+                    return {
+                        name: parts ? parts[1] : s,
+                        id: parts ? parts[2] : ''
+                    };
+                })
+            };
+            showStudentModal.value = true;
+            showBreakdownPopover.value = false;
         };
 
         // --- CALENDAR LOGIC ---

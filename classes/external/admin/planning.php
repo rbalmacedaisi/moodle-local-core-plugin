@@ -396,36 +396,30 @@ class planning extends external_api {
     public static function save_planning_parameters() {
         return new external_function_parameters([
             'academicperiodid' => new external_value(PARAM_INT, ''),
-            'selections' => new external_value(PARAM_RAW, 'JSON array of objects {planid, courseid, periodid, count}')
+            'selections' => new external_value(PARAM_RAW, 'JSON array of objects {planid, courseid, periodid, count}'),
+            'deferredGroups' => new external_value(PARAM_RAW, 'JSON object for student movements', VALUE_DEFAULT, '{}')
         ]);
     }
     
-    public static function save_planning($academicperiodid, $selections) {
+    public static function save_planning($academicperiodid, $selections, $deferredGroups = '{}') {
         global $DB;
          $context = \context_system::instance();
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
         
         $items = json_decode($selections, true);
-        if (!is_array($items)) return false;
+        
+        // Save Deferrals
+        require_once(__DIR__ . '/../../local/planning_manager.php');
+        $deferredData = json_decode($deferredGroups, true);
+        if (is_array($deferredData)) {
+            \local_grupomakro_core\local\planning_manager::save_deferrals($academicperiodid, $deferredData);
+        }
+
+        if (!is_array($items)) return true; // Could be just deferrals saved
         
         $now = time();
         $uid = $GLOBALS['USER']->id;
-        
-        // Strategy: We can delete existing for this period/plan and re-insert, or upsert.
-        // Simplest for checkboxes: Delete all for this academic period and re-insert active ones?
-        // Risky if partial update.
-        // Better: The frontend sends the "delta" or we handle it item by item.
-        // Let's assume frontend sends strictly the "Checked" items.
-        // Ideally we would want to sync.
-        
-        // For simplicity: Loop and Insert if not exists.
-        // Note: Managing deletions of unchecked items is needed.
-        // Let's assume the user saves ONE plan/jornada block or the whole thing?
-        // Currently "save_planning" implies global save.
-        
-        // Let's Wipe and Re-insert for the given Academic Period? NO, dangerous.
-        // Let's try upsert.
         
         foreach ($items as $item) {
             // Check existence

@@ -225,7 +225,8 @@ class planning_manager {
             'students' => $studentList,
             'all_subjects' => array_values($allSubjects), // New: Master list of courses
             'projections' => array_values($projections),
-            'planning_projections' => array_values($planningProjections)
+            'planning_projections' => array_values($planningProjections),
+            'deferrals' => self::get_deferrals($periodId)
         ];
     }
 
@@ -562,5 +563,56 @@ class planning_manager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Fetch Deferrals for a period.
+     */
+    public static function get_deferrals($periodId) {
+        global $DB;
+        $records = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        $map = [];
+        foreach ($records as $r) {
+            $cohortKey = "{$r->career} - {$r->shift} - {$r->current_level}";
+            if (!isset($map[$r->courseid])) $map[$r->courseid] = [];
+            $map[$r->courseid][$cohortKey] = (int)$r->target_period_index;
+        }
+        return $map;
+    }
+
+    /**
+     * Save Deferrals for a period.
+     */
+    public static function save_deferrals($periodId, $deferredGroups) {
+        global $DB, $USER;
+        
+        // Clear existing for this period
+        $DB->delete_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        
+        if (empty($deferredGroups)) return;
+
+        foreach ($deferredGroups as $courseId => $cohorts) {
+            if (!is_array($cohorts)) continue;
+            foreach ($cohorts as $cohortKey => $targetIndex) {
+                // Split cohortKey: "Career - Shift - Level"
+                $parts = explode(' - ', $cohortKey, 3);
+                $career = isset($parts[0]) ? trim($parts[0]) : '';
+                $shift = isset($parts[1]) ? trim($parts[1]) : '';
+                $level = isset($parts[2]) ? trim($parts[2]) : '';
+                
+                $record = new \stdClass();
+                $record->academicperiodid = $periodId;
+                $record->courseid = $courseId;
+                $record->career = $career;
+                $record->shift = $shift;
+                $record->current_level = $level;
+                $record->target_period_index = $targetIndex;
+                $record->usermodified = $USER->id;
+                $record->timecreated = time();
+                $record->timemodified = time();
+                
+                $DB->insert_record('gmk_academic_deferrals', $record);
+            }
+        }
     }
 }

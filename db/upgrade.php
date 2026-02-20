@@ -1385,6 +1385,36 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260212001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260220000) {
+        // Define table gmk_academic_deferrals to be created.
+        $table = new xmldb_table('gmk_academic_deferrals');
+
+        // Adding fields to table gmk_academic_deferrals.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('academicperiodid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('career', XMLDB_TYPE_CHAR, '100', null, null, null, null);
+        $table->add_field('shift', XMLDB_TYPE_CHAR, '50', null, null, null, null);
+        $table->add_field('current_level', XMLDB_TYPE_CHAR, '50', null, null, null, null);
+        $table->add_field('target_period_index', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_academic_deferrals.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        $table->add_index('academicperiod_idx', XMLDB_INDEX_NOTUNIQUE, ['academicperiodid']);
+
+        // Conditionally launch create table for gmk_academic_deferrals.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260220000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
