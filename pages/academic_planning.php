@@ -174,6 +174,12 @@ echo $OUTPUT->header();
                         <span><i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i></span> Matriz de Proyección
                     </h3>
                     <div class="flex items-center gap-3">
+                         <label class="flex items-center gap-1.5 cursor-pointer bg-white px-2 py-1 rounded border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
+                             <input type="checkbox" v-model="isOrderLocked" class="w-3.5 h-3.5 text-blue-600 rounded focus:ring-blue-500" />
+                             <span class="text-[10px] font-bold text-slate-600 flex items-center gap-1 uppercase">
+                                 <i data-lucide="lock" class="w-3 h-3 text-slate-400"></i> Bloquear Orden
+                             </span>
+                         </label>
                          <a href="debug_student_data.php" target="_blank" class="px-2 py-1 bg-amber-50 text-amber-700 rounded border border-amber-200 text-[10px] font-bold uppercase transition-all hover:bg-amber-100 flex items-center gap-1">
                             <span><i data-lucide="alert-circle" class="w-3 h-3 text-amber-500"></i></span>
                             Limpiar "Sin Definir"
@@ -923,6 +929,7 @@ const app = createApp({
             // Configuration State
             
             // Manual Adjustments
+            const isOrderLocked = ref(false);
             const manualProjections = reactive({}); // { SubjectName: Count }
             const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
             const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
@@ -1446,6 +1453,9 @@ const app = createApp({
                 return {
                     subjectList: subjectsArray.sort((a,b) => {
                         if (a.semesterNum !== b.semesterNum) return a.semesterNum - b.semesterNum;
+                        if (isOrderLocked.value) {
+                            return a.name.localeCompare(b.name);
+                        }
                         return b.totalP1 - a.totalP1;
                     }),
                     cohortViewList: Object.values(cohorts).sort((a,b) => b.studentCount - a.studentCount),
@@ -1855,7 +1865,7 @@ const app = createApp({
 
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
-                ignoredSubjects,
+                ignoredSubjects, isOrderLocked,
                 // Filters
                 selectedCareer, selectedShift, careers, shifts,
                 activeTab,
