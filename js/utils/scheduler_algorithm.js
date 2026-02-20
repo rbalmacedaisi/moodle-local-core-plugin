@@ -268,6 +268,7 @@
                 for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                     if (placed) break;
                     const tEnd = t + durationMins;
+                    const timeStr = formatTime(t);
                     stats.slotsTested++;
 
                     if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
