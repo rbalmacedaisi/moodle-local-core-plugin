@@ -209,10 +209,17 @@
                     const totalStudents = data.students;
                     const count = totalStudents.length;
                     const numGroups = Math.ceil(count / MAX_CAPACITY);
+                    // Equitable distribution: divide total students by number of groups
+                    const baseCount = Math.floor(count / numGroups);
+                    const remainder = count % numGroups;
 
+                    let offset = 0;
                     for (let i = 0; i < numGroups; i++) {
-                        const groupStudents = totalStudents.slice(i * MAX_CAPACITY, (i + 1) * MAX_CAPACITY);
+                        // Distribute the remainder (extra students) among the first few groups
+                        const currentGroupSize = (i < remainder) ? (baseCount + 1) : baseCount;
+                        const groupStudents = totalStudents.slice(offset, offset + currentGroupSize);
                         const groupCount = groupStudents.length;
+                        offset += currentGroupSize;
 
                         schedules.push({
                             id: `gen-${idCounter++}`,
