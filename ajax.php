@@ -55,6 +55,7 @@ if (empty($action)) {
 
 require_login();
 $context = context_system::instance();
+$PAGE->set_context($context);
 
 $response = [
     'status' => 'error',
