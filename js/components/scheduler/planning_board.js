@@ -39,9 +39,17 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                             
                             <!-- Placement Warning -->
-                            <div v-if="cls.warning" class="mt-2 text-[10px] bg-orange-50 text-orange-700 p-1.5 rounded border border-orange-100 flex items-start gap-1">
-                                <i data-lucide="alert-circle" class="w-3 h-3 shrink-0 mt-0.5"></i>
-                                <span>{{ cls.warning }}</span>
+                            <div v-if="cls.warning" class="mt-2 text-[10px] bg-orange-50 text-orange-700 p-1.5 rounded border border-orange-100 flex flex-col gap-1.5">
+                                <div class="flex items-start gap-1">
+                                    <i data-lucide="alert-circle" class="w-3 h-3 shrink-0 mt-0.5"></i>
+                                    <span>{{ cls.warning }}</span>
+                                </div>
+                                <button v-if="cls.auditLog && cls.auditLog.length > 0" 
+                                        @click.stop="viewAuditLog(cls)" 
+                                        class="text-left text-orange-800 font-bold hover:underline flex items-center gap-1">
+                                    <i data-lucide="scroll" class="w-3 h-3"></i>
+                                    Ver Bitácora de Intentos
+                                </button>
                             </div>
 
                             <!-- Assign Badge -->
@@ -214,8 +222,52 @@ window.SchedulerComponents.PlanningBoard = {
                             </tbody>
                         </table>
                     </div>
-                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                     <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button @click="studentsDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Cerrar</button>
+                    </div>
+                </div>
+             </div>
+
+             <!-- View Audit Log Modal -->
+             <div v-if="logDialog" class="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" @click.self="logDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                         <div>
+                            <h4 class="font-bold text-slate-800">Bitácora de Intentos</h4>
+                            <p class="text-[10px] text-slate-500">{{ selectedClass?.subjectName }}</p>
+                         </div>
+                         <button @click="logDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                    </div>
+                    <div class="p-0 max-h-[70vh] overflow-y-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-slate-50 text-slate-500 uppercase font-bold sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2 border-b">Día</th>
+                                    <th class="px-4 py-2 border-b">Hora</th>
+                                    <th class="px-4 py-2 border-b">Estado</th>
+                                    <th class="px-4 py-2 border-b">Detalle del Fallo</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="(entry, idx) in currentLog" :key="idx" class="hover:bg-slate-50">
+                                    <td class="px-4 py-2 font-bold">{{ entry.day }}</td>
+                                    <td class="px-4 py-2 font-mono text-slate-500">{{ entry.time }}</td>
+                                    <td class="px-4 py-2">
+                                        <span :class="{
+                                            'text-orange-600 bg-orange-50': entry.status === 'Conflict',
+                                            'text-red-600 bg-red-50': entry.status === 'RoomBusy',
+                                            'text-slate-500 bg-slate-100': entry.status === 'Lunch'
+                                        }" class="px-1.5 py-0.5 rounded font-bold uppercase text-[9px] whitespace-nowrap">
+                                            {{ entry.status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-2 text-slate-600">{{ entry.detail }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                        <button @click="logDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Entendido</button>
                     </div>
                 </div>
              </div>
@@ -232,7 +284,9 @@ window.SchedulerComponents.PlanningBoard = {
             selectedClass: null,
             saving: false,
             studentsDialog: false,
-            currentStudents: []
+            currentStudents: [],
+            logDialog: false,
+            currentLog: []
         };
     },
     computed: {
@@ -395,6 +449,11 @@ window.SchedulerComponents.PlanningBoard = {
             // Filter students whose id is in cls.studentIds
             this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id));
             this.studentsDialog = true;
+        },
+        viewAuditLog(cls) {
+            this.selectedClass = cls;
+            this.currentLog = cls.auditLog || [];
+            this.logDialog = true;
         }
     }
 };

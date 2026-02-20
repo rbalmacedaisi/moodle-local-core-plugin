@@ -178,8 +178,30 @@
             return conflictMsg;
         };
 
+        // Pre-initialize: Compute assignedDates for already placed schedules
+        // This is crucial for consistency between manual dragging/loading and auto-placement
         nextSchedules.forEach(s => {
-            if (s.day !== 'N/A' && s.assignedDates) {
+            if (s.day !== 'N/A' && s.start && s.end) {
+                const availableDates = allDatesByDay[s.day] || [];
+                const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
+                let targetDates = availableDates;
+                if (subRange) {
+                    targetDates = availableDates.filter(d => d >= subRange.start && d <= subRange.end);
+                }
+
+                // Handle Intensive Courses (maxSessions)
+                let maxSessions = null;
+                const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
+                if (loadData && loadData.intensity && loadData.totalHours) {
+                    maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
+                }
+
+                if (maxSessions && targetDates.length > maxSessions) {
+                    s.assignedDates = targetDates.slice(0, maxSessions);
+                } else {
+                    s.assignedDates = targetDates;
+                }
+
                 markBusyGranular(roomUsage, s.room, s.assignedDates, s);
                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, s.assignedDates, s);
                 if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, s.assignedDates, s));
@@ -224,6 +246,7 @@
                 });
 
             let placed = false;
+            let auditLog = [];
             let stats = {
                 slotsTested: 0,
                 daysTested: 0,
@@ -231,8 +254,8 @@
                 teacherConflictCount: 0,
                 roomBusyCount: 0,
                 lunchConflictCount: 0,
-                lastStudentConflict: null,
-                lastTeacherConflict: null,
+                studentConflicts: new Map(),
+                teacherConflicts: new Map(),
                 lastRoomConflict: null
             };
 
@@ -249,6 +272,7 @@
 
                     if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
                         stats.lunchConflictCount++;
+                        auditLog.push({ day, time: timeStr, status: 'Lunch', detail: 'Coincide con almuerzo' });
                         continue;
                     }
 
@@ -262,31 +286,34 @@
                         targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
                     }
 
-                    if (targetDates.length === 0) continue;
+                    if (targetDates.length === 0) {
+                        auditLog.push({ day, time: timeStr, status: 'Period', detail: 'Fuera de rango subperiodo' });
+                        continue;
+                    }
 
                     const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
                     if (stConflict) {
                         stats.studentConflictCount++;
-                        stats.lastStudentConflict = stConflict;
-                        continue; // No sense checking rooms if students are busy
+                        stats.studentConflicts.set(stConflict, (stats.studentConflicts.get(stConflict) || 0) + 1);
+                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Alumnos ocupados (${stConflict})` });
+                        continue;
                     }
 
                     const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd) : null;
                     if (tConflict) {
                         stats.teacherConflictCount++;
-                        stats.lastTeacherConflict = tConflict;
-                        continue; // No sense checking rooms if teacher is busy
+                        stats.teacherConflicts.set(tConflict, (stats.teacherConflicts.get(tConflict) || 0) + 1);
+                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Docente ocupado (${tConflict})` });
+                        continue;
                     }
 
-                    // --- MECHANICAL CONFLICT CHECK (Rooms) ---
+                    // --- MECHANICAL CONFLICT CHECK ---
+                    let roomRejectionDetail = "";
                     for (const room of validRooms) {
                         if (placed) break;
 
                         if (maxSessions) {
-                            const freeDates = targetDates.filter(d => {
-                                return !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
-                            });
-
+                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd));
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
@@ -296,12 +323,13 @@
                                 placed = true;
                             } else {
                                 stats.roomBusyCount++;
+                                roomRejectionDetail = "Sesiones insuficientes para intensivo";
                             }
                         } else {
                             const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
                             if (rConflict) {
                                 stats.roomBusyCount++;
-                                stats.lastRoomConflict = rConflict;
+                                roomRejectionDetail = `Aulas ocupadas (${room.name}: ${rConflict})`;
                                 continue;
                             }
 
@@ -312,8 +340,13 @@
                             placed = true;
                         }
                     }
+                    if (!placed) {
+                        auditLog.push({ day, time: timeStr, status: 'RoomBusy', detail: roomRejectionDetail || 'Sin aula libre' });
+                    }
                 }
             }
+
+            s.auditLog = auditLog;
 
             if (!placed) {
                 if (validRooms.length === 0) {
@@ -321,14 +354,17 @@
                 } else if (stats.slotsTested === 0) {
                     s.warning = "Fuera de ventana horaria permitida";
                 } else {
-                    // Exhaustive Proof Warning
-                    if (stats.studentConflictCount > (stats.slotsTested * 0.8)) {
-                        s.warning = `Choque Alumnos: Bloqueado por ${stats.lastStudentConflict} en la mayoría de huecos`;
-                    } else if (stats.teacherConflictCount > (stats.slotsTested * 0.5)) {
-                        s.warning = `Choque Docente: Bloqueado por ${stats.lastTeacherConflict}`;
+                    const topStudentConflict = [...stats.studentConflicts.entries()].sort((a, b) => b[1] - a[1])[0];
+                    const topTeacherConflict = [...stats.teacherConflicts.entries()].sort((a, b) => b[1] - a[1])[0];
+
+                    if (topStudentConflict && stats.studentConflictCount > (stats.slotsTested * 0.4)) {
+                        s.warning = `Choque Alumnos: ${topStudentConflict[0]} (${topStudentConflict[1]} veces)`;
+                    } else if (topTeacherConflict && stats.teacherConflictCount > (stats.slotsTested * 0.4)) {
+                        s.warning = `Choque Docente: ${topTeacherConflict[0]}`;
                     } else {
-                        s.warning = `Tras ${stats.slotsTested} intentos: ${stats.roomBusyCount} aulas ocupadas, ${stats.studentConflictCount} choques alumnos, ${stats.lunchConflictCount} almuerzo`;
+                        s.warning = `Tras ${stats.slotsTested} intentos: ${stats.roomBusyCount} aulas ocupadas, ${stats.studentConflictCount} choques alumnos`;
                     }
+                    s.isConflict = true;
                 }
             }
         });
