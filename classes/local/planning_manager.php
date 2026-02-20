@@ -102,7 +102,7 @@ class planning_manager {
         
         // Fetch all courses linked to learning plans to build a master list
         $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname, lp.name as planname,
-                                    COALESCE(sp.position, 1) as subperiod_position
+                                    COALESCE(NULLIF(sp.position, 0), 1) as subperiod_position
                              FROM {local_learning_courses} lpc
                              JOIN {course} c ON c.id = lpc.courseid
                              JOIN {local_learning_periods} p ON p.id = lpc.periodid
@@ -254,7 +254,7 @@ class planning_manager {
         // Previously, it was using p.learningplanid (or implied first col), causing massive data loss (only 1 row per plan).
         $sql = "SELECT lpc.id as linkid, p.learningplanid, p.id as period_id, p.name as period_name,
                        c.id as courseid, c.fullname, c.shortname,
-                       COALESCE(sp.position, 1) as subperiod_position
+                       COALESCE(NULLIF(sp.position, 0), 1) as subperiod_position
                        $selectCustom
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
