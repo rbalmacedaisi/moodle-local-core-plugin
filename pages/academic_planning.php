@@ -1801,6 +1801,7 @@ const app = createApp({
 
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
+                ignoredSubjects,
                 // Filters
                 selectedCareer, selectedShift, careers, shifts,
                 activeTab,
