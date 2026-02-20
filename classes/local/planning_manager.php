@@ -417,6 +417,8 @@ class planning_manager {
         
         $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodId]);
         $period = null;
+        $configSettings = new \stdClass();
+
         if ($periodRec) {
             $period = [
                 'id' => $periodRec->id,
@@ -424,6 +426,13 @@ class planning_manager {
                 'start' => date('Y-m-d', $periodRec->startdate),
                 'end' => date('Y-m-d', $periodRec->enddate)
             ];
+            
+            if (!empty($periodRec->configsettings)) {
+                $decoded = json_decode($periodRec->configsettings);
+                if ($decoded) {
+                    $configSettings = $decoded;
+                }
+            }
         }
 
         // Format holidays
@@ -437,7 +446,8 @@ class planning_manager {
             'classrooms' => array_values($classrooms),
             'holidays' => $formattedHolidays,
             'loads' => array_values($loads),
-            'period' => $period
+            'period' => $period,
+            'configSettings' => $configSettings
         ];
     }
 

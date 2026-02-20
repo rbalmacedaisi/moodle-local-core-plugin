@@ -263,6 +263,29 @@
             }
         },
 
+        async saveConfigSettings(periodId, settings) {
+            this.state.loading = true;
+            try {
+                // The backend requires holidays and loads to be passed too, otherwise they might get wiped depending on implementation
+                // Alternatively, we pass them as they are in the context
+                await this._fetch('local_grupomakro_save_scheduler_config', {
+                    periodid: periodId,
+                    holidays: this.state.context.holidays || [],
+                    loads: this.state.context.loads || [],
+                    configsettings: JSON.stringify(settings)
+                });
+
+                // Keep local state in sync
+                this.state.context.configSettings = settings;
+                this.state.successMessage = "Configuración guardada correctamente";
+            } catch (e) {
+                console.error("Save config error:", e);
+                this.state.error = "Error al guardar configuración: " + (e.message || "Desconocido");
+            } finally {
+                this.state.loading = false;
+            }
+        },
+
         async uploadSubjectLoads(file) {
             if (!window.XLSX) {
                 this.state.error = "Librería XLSX no cargada";

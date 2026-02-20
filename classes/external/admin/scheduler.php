@@ -78,7 +78,8 @@ class scheduler extends external_api {
                 'name' => new external_value(PARAM_TEXT, 'Name'),
                 'start' => new external_value(PARAM_TEXT, 'Start Date'),
                 'end' => new external_value(PARAM_TEXT, 'End Date')
-            ], 'Period metadata', VALUE_OPTIONAL)
+            ], 'Period metadata', VALUE_OPTIONAL),
+            'configSettings' => new external_value(PARAM_RAW, 'JSON encoded config settings', VALUE_OPTIONAL)
         ]);
     }
 
@@ -100,11 +101,12 @@ class scheduler extends external_api {
                     'total_hours' => new external_value(PARAM_INT, ''),
                     'intensity' => new external_value(PARAM_FLOAT, '', VALUE_DEFAULT, 0)
                 ])
-            )
+            ),
+            'configsettings' => new external_value(PARAM_RAW, 'JSON string with shift/internal parameters', VALUE_DEFAULT, '')
         ]);
     }
 
-    public static function save_scheduler_config($periodid, $holidays, $loads) {
+    public static function save_scheduler_config($periodid, $holidays, $loads, $configsettings = '') {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -135,6 +137,11 @@ class scheduler extends external_api {
                 $rec->timecreated = time();
                 $rec->timemodified = time();
                 $DB->insert_record('gmk_subject_loads', $rec);
+            }
+
+            // Update configuration settings in period if provided
+            if ($configsettings !== '') {
+                $DB->set_field('gmk_academic_periods', 'configsettings', $configsettings, ['id' => $periodid]);
             }
 
             $transaction->allow_commit();

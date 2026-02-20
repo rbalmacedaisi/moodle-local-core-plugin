@@ -1415,6 +1415,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260220000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260220001) {
+
+        // Define field configsettings to be added to gmk_academic_periods
+        $table = new xmldb_table('gmk_academic_periods');
+        $field = new xmldb_field('configsettings', XMLDB_TYPE_TEXT, null, null, null, null, null, 'block2end');
+
+        // Conditionally launch add field configsettings The
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260220001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

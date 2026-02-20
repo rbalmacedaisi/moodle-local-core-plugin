@@ -40,6 +40,7 @@ echo $OUTPUT->header();
 <script src="../js/components/scheduler/scheduler_view.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/classroom_manager.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/holiday_manager.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/general_config.js?v=<?= time() ?>"></script>
 
 <style>
     .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
@@ -487,11 +488,12 @@ echo $OUTPUT->header();
           <!-- TAB 5: CONFIGURATION (CRUD) -->
           <div v-show="activeTab === 'config'" class="space-y-6">
               <!-- Sub-tabs for Config -->
-              <div class="flex gap-4 border-b border-slate-200 mb-6">
-                  <button @click="configSubTab = 'periods'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'periods' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Periodos Académicos</button>
-                  <button @click="configSubTab = 'classrooms'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'classrooms' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Gestión de Aulas</button>
-                  <button @click="configSubTab = 'holidays'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'holidays' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Calendario de Festivos</button>
-                  <button @click="configSubTab = 'loads'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors', configSubTab === 'loads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Cargas Horarias (Excel)</button>
+              <div class="flex gap-4 border-b border-slate-200 mb-6 overflow-x-auto">
+                  <button @click="configSubTab = 'periods'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap', configSubTab === 'periods' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Periodos Académicos</button>
+                  <button @click="configSubTab = 'classrooms'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap', configSubTab === 'classrooms' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Gestión de Aulas</button>
+                  <button @click="configSubTab = 'holidays'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap', configSubTab === 'holidays' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Festivos</button>
+                  <button @click="configSubTab = 'loads'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap', configSubTab === 'loads' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Cargas (Excel)</button>
+                  <button @click="configSubTab = 'general'" :class="['px-4 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap', configSubTab === 'general' ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700']">Configuración General</button>
               </div>
 
               <!-- Content for Config Sub-tabs -->
@@ -593,6 +595,15 @@ echo $OUTPUT->header();
                           </div>
                       </div>
                   </div>
+              </div>
+
+              <!-- General Configuration (Shifts, Intervals, Lunch) -->
+              <div v-if="configSubTab === 'general'">
+                  <div v-if="!selectedPeriodId" class="flex flex-col items-center justify-center py-20 bg-white rounded-xl border border-slate-200 text-slate-400">
+                      <i data-lucide="calendar" class="w-16 h-16 mb-4 opacity-50"></i>
+                      <p class="text-lg font-medium">Seleccione un periodo arriba para configurar</p>
+                  </div>
+                  <general-config v-else :period-id="selectedPeriodId"></general-config>
               </div>
           </div>
 
