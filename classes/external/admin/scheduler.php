@@ -233,11 +233,16 @@ class scheduler extends external_api {
 
         $students = $DB->get_records_sql($sql);
 
-        // 2. Pre-fetch Curricula
-        $plan_courses = $DB->get_records('local_learning_courses', [], 'learningplanid, periodid, position');
+        // 2. Pre-fetch Curricula WITH subperiod position
+        $sql = "SELECT lpc.id, lpc.learningplanid, lpc.periodid, lpc.courseid, 
+                       (COALESCE(sp.position, 0) + 1) as subperiod_pos
+                FROM {local_learning_courses} lpc
+                LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid";
+        $plan_courses = $DB->get_records_sql($sql);
+        
         $curricula = [];
         foreach ($plan_courses as $pc) {
-            $curricula[$pc->learningplanid][$pc->periodid][] = $pc->courseid;
+            $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = $pc->subperiod_pos;
         }
 
         // 3. Pre-fetch Passed Courses
@@ -277,7 +282,7 @@ class scheduler extends external_api {
             
             $pending_count = 0;
             if (isset($curricula[$stu->planid][$planningLevelId])) {
-                foreach ($curricula[$stu->planid][$planningLevelId] as $cid) {
+                foreach ($curricula[$stu->planid][$planningLevelId] as $cid => $subpos) {
                      if (!isset($passed_map[$stu->id . '_' . $cid])) {
                          $pending_count++;
                          
@@ -295,9 +300,14 @@ class scheduler extends external_api {
                          }
                          
                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                             $demand[$career][$jornada][$semNum]['course_counts'][$cid] = 0;
+                             $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
+                                 'count' => 0,
+                                 'subperiod' => $subpos,
+                                 'students' => []
+                             ];
                          }
-                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]++;
+                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
+                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
                      }
                 }
             }

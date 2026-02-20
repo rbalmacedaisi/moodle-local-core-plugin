@@ -186,11 +186,13 @@
                                 const projection = this.state.projections.find(p => p.courseid == courseId);
                                 if (projection && projection.status == 2) continue;
 
-                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}` : `${courseId}|${shift}`;
+                                const subperiodId = val.subperiod || 0;
+                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
                                 if (!aggregatedDemand[aggKey]) {
                                     aggregatedDemand[aggKey] = {
                                         courseid: courseId,
                                         shift: shift,
+                                        subperiod: subperiodId,
                                         students: [],
                                         careers: new Set(),
                                         levels: new Set()
@@ -237,7 +239,7 @@
                             levelDisplay: Array.from(data.levels).join(', '),
                             levelList: Array.from(data.levels), // For algorithm use
                             subGroup: i + 1,
-                            subperiod: 0,
+                            subperiod: data.subperiod,
                             studentIds: groupStudents
                         });
                     }

@@ -445,6 +445,16 @@ class planning_manager {
                 'end' => date('Y-m-d', $periodRec->enddate)
             ];
             
+            // Subperiod Ranges
+            $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodId]);
+            if ($calendar && $calendar->hassubperiods) {
+                // For now assuming 2 subperiods as per gmk_academic_calendar table structure (from process_period_transition.php)
+                $period['subperiods'] = [
+                    1 => ['start' => date('Y-m-d', $calendar->block1start), 'end' => date('Y-m-d', $calendar->block1end)],
+                    2 => ['start' => date('Y-m-d', $calendar->block2start), 'end' => date('Y-m-d', $calendar->block2end)]
+                ];
+            }
+
             if (!empty($periodRec->configsettings)) {
                 $decoded = json_decode($periodRec->configsettings);
                 if ($decoded) {

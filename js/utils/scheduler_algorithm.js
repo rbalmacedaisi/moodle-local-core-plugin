@@ -301,16 +301,24 @@
                         if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
 
                         // Granular overlap check
-                        // If it's intensive, we only check for the first maxSessions available dates
-                        // If it's normal, we check if it can be placed in ALL available dates for that weekday
+                        // Subperiod filtering: If schedule has a subperiod, only check dates in that range
                         let targetDates = availableDates;
+                        const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
+
+                        if (subRange) {
+                            const subStart = subRange.start;
+                            const subEnd = subRange.end;
+                            targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
+                        }
+
+                        if (targetDates.length === 0) continue;
 
                         const sCareers = s.careerList || (typeof s.career === 'string' ? s.career.split(',').map(c => c.trim()) : [s.career]);
                         const sLevels = s.levelList || (typeof s.levelDisplay === 'string' ? s.levelDisplay.split(',').map(l => l.trim()) : [s.levelDisplay]);
 
                         if (maxSessions) {
                             // Find which dates are actually free for this block
-                            const freeDates = availableDates.filter(d => {
+                            const freeDates = targetDates.filter(d => {
                                 const roomOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
                                 const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
 
@@ -330,13 +338,13 @@
                                 continue; // Not enough consecutive sessions for intensive course
                             }
                         } else {
-                            // Standard weekly repeat: check ALL dates
-                            const roomOk = !checkBusyGranular(roomUsage, room.name, availableDates, s.subperiod, t, tEnd);
-                            const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, availableDates, s.subperiod, t, tEnd);
+                            // Standard weekly repeat: check targetDates
+                            const roomOk = !checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
+                            const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
 
                             const groupOk = sCareers.every(c =>
                                 sLevels.every(l =>
-                                    !checkBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, availableDates, s.subperiod, t, tEnd)
+                                    !checkBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, targetDates, s.subperiod, t, tEnd)
                                 )
                             );
 
