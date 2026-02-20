@@ -1130,7 +1130,6 @@ const app = createApp({
                  const cohortKey = `${stu.career} - ${stu.shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre} [${entryP}]`;
                  
                  // Init Student Object
-                 // Init Student Object
                  studentsMap[stu.id] = {
                      ...stu,
                      planningLevel,
@@ -1150,6 +1149,7 @@ const app = createApp({
                          entryPeriod: entryP,
                          levelNum: planningLevel,
                          studentCount: 0,
+                         studentNames: [],
                          subjectsByPeriod: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] }
                      };
                  }
@@ -1160,6 +1160,7 @@ const app = createApp({
                  
                   studentsMap[stu.id].cohortKey = cohortKey;
                   cohorts[cohortKey].studentCount++;
+                  cohorts[cohortKey].studentNames.push(`${stu.name} (${stu.id})`);
                   studentsInSem[planningLevel][cohortKey].count++;
                   studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
 
@@ -1190,7 +1191,6 @@ const app = createApp({
 
             // 1. Initialize Subjects from Backend Master List (to show 0 demand items)
             // Backend now returns { students: [], all_subjects: [] }
-            // Check if rawData has this structure, or backward compatible
             
             let students = studentsMap; // Use the processed studentsMap
             
@@ -1199,13 +1199,10 @@ const app = createApp({
             if (rawData.value.all_subjects && Array.isArray(rawData.value.all_subjects)) {
                 allSubjectsList = rawData.value.all_subjects;
             } else if (Array.isArray(rawData.value)) {
-                // Fallback: old format, empty list? or extract from students? 
-                // We'll rely on pending subjects loop.
                 allSubjectsList = [];
             }
             
             // Initialize Subjects Map
-            // subjectsMap already declared above
             allSubjectsList.forEach(subj => {
                   subjectsMap[subj.name] = {
                       id: subj.id,
@@ -1218,26 +1215,12 @@ const app = createApp({
                   };
              });
             
-            // If allSubjectsList was empty (fallback), we build subjects dynamically from pending (like before)
-            // But usually we prefer to have the list.
 
             // 2. Process Demand (P-I) from Pending Subjects
             Object.values(students).forEach(stu => {
-                // ... Apply Filters ... (These filters are already applied to 'filtered' array above)
-                // if (searchTerm.value && !stu.name.toLowerCase().includes(searchTerm.value.toLowerCase())) return;
-                // if (selectedCareer.value !== 'Todas' && stu.career !== selectedCareer.value) return;
-                // Note: Filter filteredStudents for Table, but for Aggregate Demand usually we want GLOBAL or FILTERED?
-                // React app: "Global Demand" filters apply to the matrix.
-                // So applied filters logic IS correct here.
-                // if (selectedShift.value !== 'Todas' && stu.shift !== selectedShift.value) return;
-                
                 (stu.pendingSubjects || []).forEach(subj => {
-                    // Only count if Priority (Prereqs Met)?
-                    // "La Ola" usually counts next immediate need.
-                     // "La Ola" usually counts next immediate need.
                     if (subj.isPriority) {
                          if (!subjectsMap[subj.name]) {
-                             // Initialize if not in master list
                               subjectsMap[subj.name] = {
                                   id: subj.id,
                                   name: subj.name,
@@ -1248,7 +1231,6 @@ const app = createApp({
                                   careers: [stu.career]
                               };
                          } else {
-                             // Ensure the student's career is in the subject's career list
                              if (subjectsMap[subj.name].careers && !subjectsMap[subj.name].careers.includes(stu.career)) {
                                  subjectsMap[subj.name].careers.push(stu.career);
                              } else if (!subjectsMap[subj.name].careers) {
@@ -1270,7 +1252,7 @@ const app = createApp({
                          if (!subjectsMap[subj.name][gKey][stu.cohortKey]) subjectsMap[subj.name][gKey][stu.cohortKey] = { count: 0, students: [] };
                          subjectsMap[subj.name][gKey][stu.cohortKey].count++;
                          // Store Name and ID for display
-                          subjectsMap[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
+                         subjectsMap[subj.name][gKey][stu.cohortKey].students.push(`${stu.name} (${stu.id})`);
                           
                           // Track counts by Entry Period for Analysis
                           const entryP = stu.entry_period || 'Sin Definir';
@@ -1292,24 +1274,33 @@ const app = createApp({
                 let curL = coh.levelNum;
                 let isB2 = coh.bimestreLabel.toLowerCase().includes('ii') || coh.bimestreLabel.includes('2');
                 let curB = isB2 ? 2 : 1;
+
+                // TRACK subjects already handled as "Pending Priority" for this cohort to avoid double counting
+                const pendingForCohort = new Set();
+                Object.values(studentsMap).forEach(s => {
+                    if (s.cohortKey === coh.key) {
+                        (s.pendingSubjects || []).forEach(ps => {
+                            if (ps.isPriority) pendingForCohort.add(ps.name);
+                        });
+                    }
+                });
                 
                 // We advance the state of the cohort for 5 future periods (P-II to P-VI)
                 for (let pIdx = 1; pIdx <= 5; pIdx++) {
                     // Advance student state: 2 Bimestres per Level
                     if (curB === 1) {
                         curB = 2;
-                        // Stay in same Level
                     } else {
                         curB = 1;
                         curL++; // Advanced to next level after finishing Bimestre II
                     }
                     
-                    // GRANULAR FIX: A cohort in curated level/bimestre only generates demand for subjects matching BOTH.
-                    // Use robust integer comparison and career filtering.
                     const targetSubjets = allSubjectsList.filter(s => {
                         const sLevel = parseInt(s.semester_num) || 0;
                         const sBimestre = parseInt(s.bimestre) || 0;
                         const careerMatch = s.careers && s.careers.includes(coh.career);
+                        // Skip if already in P-I Pending demand for this cohort
+                        if (pendingForCohort.has(s.name)) return false;
                         return sLevel === curL && sBimestre === curB && careerMatch;
                     });
 
@@ -1330,6 +1321,7 @@ const app = createApp({
                              subjectsMap[s.name][gKey][coh.key] = { count: 0, students: [] };
                          }
                          subjectsMap[s.name][gKey][coh.key].count += coh.studentCount;
+                         subjectsMap[s.name][gKey][coh.key].students = [...coh.studentNames];
                          
                          // Add to Cohort View
                          if (coh.subjectsByPeriod[actualPeriod] && !coh.subjectsByPeriod[actualPeriod].includes(s.name)) {
@@ -1356,10 +1348,8 @@ const app = createApp({
                 return { ...s, totalP1, isOpen, suggestion, manual };
             });
 
-            // Filter Subjects by Selected Career
             if (selectedCareer.value !== 'Todas') {
                 subjectsArray = subjectsArray.filter(s => {
-                    // Check if the subject belongs to the selected career
                     return s.careers && s.careers.includes(selectedCareer.value);
                 });
             }
@@ -1369,17 +1359,13 @@ const app = createApp({
             
             const studentAnalysisList = Object.values(students).map(stu => {
                 const priority = (stu.pendingSubjects || []).filter(s => s.isPriority);
-                
-                // Check if projected to open in P-I (Index 0)
                 const projected = priority.filter(s => {
-                     // Check if open globally AND not deferred for this cohort
                      let deferKey = `${s.name}_${stu.cohortKey}`;
                      let pIndex = deferredGroups[deferKey] || 0;
-                     // If pIndex is 0 and Subject is Open (TotalP1 >= 12)
                      return openSubjectsSet.has(s.name) && pIndex === 0;
                 });
                 
-                const missing = priority.filter(s => !openSubjectsSet.has(s.name)); // Simplified missing logic
+                const missing = priority.filter(s => !openSubjectsSet.has(s.name));
                 
                 let status = 'normal';
                 if (projected.length === 0) status = 'critical';
