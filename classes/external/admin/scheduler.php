@@ -555,7 +555,7 @@ class scheduler extends external_api {
             
         } catch (\Exception $e) {
             //$transaction->rollback($e);
-            return false;
+            return $e->getMessage();
         }
     }
     

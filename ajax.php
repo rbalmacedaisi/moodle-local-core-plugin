@@ -2763,10 +2763,11 @@ try {
 
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
             $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result($periodid, $schedules);
-            if ($result) {
+            if ($result === true) {
                 $response = ['status' => 'success'];
             } else {
-                $response = ['status' => 'error', 'message' => 'Error al guardar estructura matricial'];
+                $err = is_string($result) ? $result : 'Error al guardar estructura matricial';
+                $response = ['status' => 'error', 'message' => $err];
             }
             break;
 
