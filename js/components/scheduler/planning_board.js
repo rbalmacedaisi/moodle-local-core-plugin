@@ -30,15 +30,24 @@ window.SchedulerComponents.PlanningBoard = {
                                 <span class="font-bold text-slate-800 text-sm leading-tight line-clamp-2" :title="cls.subjectName">{{ cls.subjectName }}</span>
                                 <span class="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ cls.studentCount }}</span>
                             </div>
+                            <div class="text-[10px] flex flex-wrap gap-1 items-center text-slate-500">
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
                                 <span>{{ cls.shift }}</span>
-                                 <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
+                                <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
                                     <i data-lucide="users" class="w-3 h-3"></i>
                                 </button>
-                                <!-- Assign Badge -->
-                                <div class="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span class="bg-blue-600 text-white rounded-full p-1"><i data-lucide="grip-vertical" class="w-3 h-3"></i></span>
-                                </div>
+                            </div>
+                            
+                            <!-- Placement Warning -->
+                            <div v-if="cls.warning" class="mt-2 text-[10px] bg-orange-50 text-orange-700 p-1.5 rounded border border-orange-100 flex items-start gap-1">
+                                <i data-lucide="alert-circle" class="w-3 h-3 shrink-0 mt-0.5"></i>
+                                <span>{{ cls.warning }}</span>
+                            </div>
+
+                            <!-- Assign Badge -->
+                            <div class="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span class="bg-blue-600 text-white rounded-full p-1"><i data-lucide="grip-vertical" class="w-3 h-3"></i></span>
+                            </div>
                             </div>
                             <div v-if="filteredUnassigned.length === 0" class="text-center text-slate-400 text-xs py-4 italic">
                             No hay clases pendientes.
