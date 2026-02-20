@@ -1289,10 +1289,12 @@ const app = createApp({
                                   careers: [stu.career]
                               };
                          } else {
-                             if (subjectsMap[subj.name].careers && !subjectsMap[subj.name].careers.includes(stu.career)) {
+                             const hasCareer = subjectsMap[subj.name].careers && subjectsMap[subj.name].careers.some(c => {
+                                 const cName = (typeof c === 'object' && c !== null) ? c.name : c;
+                                 return cName === stu.career;
+                             });
+                             if (!hasCareer) {
                                  subjectsMap[subj.name].careers.push(stu.career);
-                             } else if (!subjectsMap[subj.name].careers) {
-                                 subjectsMap[subj.name].careers = [stu.career];
                              }
                          }
                          
@@ -1408,7 +1410,11 @@ const app = createApp({
 
             if (selectedCareer.value !== 'Todas') {
                 subjectsArray = subjectsArray.filter(s => {
-                    return s.careers && s.careers.includes(selectedCareer.value);
+                    if (!s.careers || !Array.isArray(s.careers)) return false;
+                    return s.careers.some(c => {
+                        const careerName = (typeof c === 'object' && c !== null) ? c.name : c;
+                        return careerName === selectedCareer.value;
+                    });
                 });
             }
 
