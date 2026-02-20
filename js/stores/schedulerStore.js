@@ -147,6 +147,8 @@
                 let idCounter = 1;
 
                 const demand = this.state.demand || {};
+                const configSettings = this.state.context.configSettings || {};
+                const isolatedCareers = new Set(configSettings.isolatedCareers || []);
 
                 if (!demand || Object.keys(demand).length === 0) {
                     console.warn("SchedulerStore: No demand data available.");
@@ -155,70 +157,82 @@
                     this.state.loading = false;
                     return;
                 }
-                // const academicPeriodId = this.state.activePeriod;
 
-                const MAX_CAPACITY = 40; // Default max
+                const MAX_CAPACITY = (configSettings.maxRoomCapacity) ? parseInt(configSettings.maxRoomCapacity) : 40;
+
+                // --- Demand Aggregation ---
+                // Key: courseId | shift [| career if isolated]
+                const aggregatedDemand = {};
 
                 for (const career of Object.keys(demand)) {
                     if (!demand[career]) continue;
+                    const isIsolated = isolatedCareers.has(career);
 
                     for (const shift of Object.keys(demand[career])) {
                         if (!demand[career][shift]) continue;
 
                         for (const sem of Object.keys(demand[career][shift])) {
                             const semData = demand[career][shift][sem];
-                            // course_counts: { courseId: studentCount }
-
+                            // course_counts: { courseId: { count, students: [] } }
                             for (const [courseId, val] of Object.entries(semData.course_counts)) {
-                                let count = 0;
                                 let studentIds = [];
-
-                                if (typeof val === 'number') {
-                                    count = val;
-                                } else if (val && typeof val === 'object') {
-                                    count = val.count || 0;
+                                if (val && typeof val === 'object') {
                                     studentIds = val.students || [];
                                 }
 
-                                if (count <= 0) continue;
+                                if (studentIds.length === 0) continue;
 
                                 // Ignore if status is 2 (Omitir Auto)
                                 const projection = this.state.projections.find(p => p.courseid == courseId);
-                                if (projection && projection.status == 2) {
-                                    console.log(`SchedulerStore: Skipping course ${courseId} because it is marked as Ignored (Omitir Auto)`);
-                                    continue;
-                                }
+                                if (projection && projection.status == 2) continue;
 
-                                // TODO: Map courseId to Subject Name properly using a map from backend
-                                // For now, we use a placeholder that might fail matching if teacher competence uses strict names.
-                                // We really need the course code or name here.
-                                // Assumption: courseId is adequate for now or we fix the mapping later.
-
-                                const numGroups = Math.ceil(count / MAX_CAPACITY);
-                                for (let i = 0; i < numGroups; i++) {
-                                    // Slice students for this group
-                                    const groupStudents = studentIds.slice(i * MAX_CAPACITY, (i + 1) * MAX_CAPACITY);
-
-                                    schedules.push({
-                                        id: `gen-${idCounter++}`,
+                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}` : `${courseId}|${shift}`;
+                                if (!aggregatedDemand[aggKey]) {
+                                    aggregatedDemand[aggKey] = {
                                         courseid: courseId,
-                                        subjectName: (this.state.subjects[courseId] ? this.state.subjects[courseId].name : `Materia: ${courseId}`),
-                                        teacherName: null,
-                                        day: 'N/A',
-                                        start: '00:00',
-                                        end: '00:00',
-                                        room: 'Sin aula',
-                                        studentCount: Math.min(count - (i * MAX_CAPACITY), MAX_CAPACITY),
-                                        career: career,
                                         shift: shift,
-                                        levelDisplay: semData.semester_name,
-                                        subGroup: i + 1,
-                                        subperiod: 0, // Default: Unassigned/Both
-                                        studentIds: groupStudents // Attach specific students to this group
-                                    });
+                                        students: [],
+                                        careers: new Set(),
+                                        levels: new Set()
+                                    };
                                 }
+                                aggregatedDemand[aggKey].students.push(...studentIds);
+                                aggregatedDemand[aggKey].careers.add(career);
+                                aggregatedDemand[aggKey].levels.add(semData.semester_name);
                             }
                         }
+                    }
+                }
+
+                // --- Object Creation ---
+                for (const [aggKey, data] of Object.entries(aggregatedDemand)) {
+                    const totalStudents = data.students;
+                    const count = totalStudents.length;
+                    const numGroups = Math.ceil(count / MAX_CAPACITY);
+
+                    for (let i = 0; i < numGroups; i++) {
+                        const groupStudents = totalStudents.slice(i * MAX_CAPACITY, (i + 1) * MAX_CAPACITY);
+                        const groupCount = groupStudents.length;
+
+                        schedules.push({
+                            id: `gen-${idCounter++}`,
+                            courseid: data.courseid,
+                            subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
+                            teacherName: null,
+                            day: 'N/A',
+                            start: '00:00',
+                            end: '00:00',
+                            room: 'Sin aula',
+                            studentCount: groupCount,
+                            career: Array.from(data.careers).join(', '),
+                            careerList: Array.from(data.careers), // For algorithm use
+                            shift: data.shift,
+                            levelDisplay: Array.from(data.levels).join(', '),
+                            levelList: Array.from(data.levels), // For algorithm use
+                            subGroup: i + 1,
+                            subperiod: 0,
+                            studentIds: groupStudents
+                        });
                     }
                 }
 

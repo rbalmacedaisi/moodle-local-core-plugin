@@ -116,6 +116,38 @@ window.SchedulerComponents.GeneralConfig = {
                          </div>
                      </div>
                 </div>
+
+                <!-- Career Isolation Settings -->
+                <div class="mt-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="w-5 h-5 text-red-500"></i>
+                            Carreras Bloqueadas (Aislamiento)
+                        </h3>
+                        <span class="bg-red-50 text-red-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-red-100">Restricción de Mezcla</span>
+                    </div>
+                    
+                    <p class="text-xs text-slate-500 mb-4 italic">
+                        Las carreras seleccionadas aquí <strong>no se mezclarán</strong> con otras para completar grupos. El algoritmo las mantendrá aisladas independientemente del quórum.
+                    </p>
+
+                    <div v-if="availableCareers.length === 0" class="p-4 bg-slate-50 rounded text-center text-xs text-slate-400 italic">
+                        Cargue los datos de demanda primero para ver las carreras disponibles.
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div v-for="career in availableCareers" :key="career" 
+                            @click="toggleCareer(career)"
+                            :class="['p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between group', 
+                                localConfig.isolatedCareers.includes(career) ? 'bg-red-50 border-red-200 text-red-800' : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50']">
+                            <span class="text-xs font-bold truncate pr-2" :title="career">{{ career }}</span>
+                            <div class="flex items-center shrink-0">
+                                <span><i :data-lucide="localConfig.isolatedCareers.includes(career) ? 'lock' : 'unlock'" 
+                                   :class="['w-4 h-4', localConfig.isolatedCareers.includes(career) ? 'text-red-500' : 'text-slate-300 group-hover:text-blue-400']"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     `,
@@ -137,7 +169,8 @@ window.SchedulerComponents.GeneralConfig = {
                     Diurna: { start: '07:00', end: '18:00' },
                     Nocturna: { start: '18:00', end: '22:00' },
                     Sabatina: { start: '07:00', end: '17:00' }
-                }
+                },
+                isolatedCareers: [] // Array of career names
             }
         };
     },
@@ -147,6 +180,10 @@ window.SchedulerComponents.GeneralConfig = {
         },
         globalConfig() {
             return this.storeState.context?.configSettings || {};
+        },
+        availableCareers() {
+            const demand = this.storeState.demand || {};
+            return Object.keys(demand).sort();
         }
     },
     watch: {
@@ -156,7 +193,10 @@ window.SchedulerComponents.GeneralConfig = {
                     // Deep merge to default structure
                     this.localConfig = JSON.parse(JSON.stringify({ ...this.localConfig, ...newVal }));
 
-                    // Ensure shiftWindows exists
+                    // Ensure arrays and objects exist
+                    if (!this.localConfig.isolatedCareers) {
+                        this.localConfig.isolatedCareers = [];
+                    }
                     if (!this.localConfig.shiftWindows) {
                         this.localConfig.shiftWindows = {
                             Diurna: { start: '07:00', end: '18:00' },
@@ -194,6 +234,14 @@ window.SchedulerComponents.GeneralConfig = {
                 if (!this.storeState.context || !this.storeState.context.configSettings) {
                     await window.schedulerStore.loadContext(this.periodId);
                 }
+            }
+        },
+        toggleCareer(career) {
+            const index = this.localConfig.isolatedCareers.indexOf(career);
+            if (index === -1) {
+                this.localConfig.isolatedCareers.push(career);
+            } else {
+                this.localConfig.isolatedCareers.splice(index, 1);
             }
         },
         async saveConfig() {
