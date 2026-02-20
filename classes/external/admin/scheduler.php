@@ -235,14 +235,16 @@ class scheduler extends external_api {
 
         // 2. Pre-fetch Curricula WITH subperiod position
         $sql = "SELECT lpc.id, lpc.learningplanid, lpc.periodid, lpc.courseid, 
-                       (COALESCE(sp.position, 0) + 1) as subperiod_pos
+                       (COALESCE(sp.position + 1, 0)) as subperiod_pos
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid";
         $plan_courses = $DB->get_records_sql($sql);
         
         $curricula = [];
+        $curricula_subperiods = []; // To lookup subperiod for planning/projections
         foreach ($plan_courses as $pc) {
             $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = $pc->subperiod_pos;
+            $curricula_subperiods[$pc->learningplanid][$pc->courseid] = $pc->subperiod_pos;
         }
 
         // 3. Pre-fetch Passed Courses
@@ -345,6 +347,15 @@ class scheduler extends external_api {
                  ];
              }
              
+             if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
+                 $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
+                     'count' => 0,
+                     'subperiod' => $curricula_subperiods[$proj->learningplanid][$cid] ?? 0,
+                     'students' => []
+                 ];
+             }
+             
+             $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count'] += $proj->count;
              $demand[$career][$jornada][$semNum]['student_count'] += $proj->count;
         }
 
@@ -376,9 +387,13 @@ class scheduler extends external_api {
                         ];
                     }
                     if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                        $demand[$career][$jornada][$semNum]['course_counts'][$cid] = 0;
+                        $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
+                            'count' => 0,
+                            'subperiod' => $curricula_subperiods[$pp->learningplanid][$cid] ?? 0,
+                            'students' => []
+                        ];
                     }
-                    $demand[$career][$jornada][$semNum]['course_counts'][$cid] += $count;
+                    $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count'] += $count;
                     // If this is a manual projection with no students, we add to student_count too
                     if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
                         $demand[$career][$jornada][$semNum]['student_count'] = $count;
