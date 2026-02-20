@@ -270,7 +270,13 @@
             const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
             const validRooms = (context.classrooms || [])
                 .filter(r => r.capacity >= s.studentCount)
-                .sort((a, b) => a.capacity - b.capacity);
+                .sort((a, b) => {
+                    if (a.capacity !== b.capacity) {
+                        return a.capacity - b.capacity;
+                    }
+                    // Randomize order for rooms with the same capacity to spread load
+                    return Math.random() - 0.5;
+                });
 
             let placed = false;
             for (const room of validRooms) {
