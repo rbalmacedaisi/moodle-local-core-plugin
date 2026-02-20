@@ -2,9 +2,7 @@
  * Scheduler Algorithm Utilities
  * 
  * Ported from React codebase (teacherAssignment.js).
- * Handles automatic teacher assignment and suggestion generation.
- * 
- * Structure: Global Object window.SchedulerAlgorithm
+ * Handles automatic placement, teacher assignment and conflict detection.
  */
 
 (function () {
@@ -25,40 +23,20 @@
     };
 
     const parseTimeRange = (range) => {
-        // Expected formats: "7:30pm-9:30pm", "07:30-09:30", "7:30 am a 9:30 am"
-        // Normalize to [startMins, endMins]
         if (!range) return null;
-
         const parts = range.toLowerCase().split(/[-–—]| a /).map(p => p.trim());
         if (parts.length !== 2) return null;
-
         const parsePart = (p) => {
             const isPM = p.includes('pm') || p.includes('tarde') || p.includes('noche');
             const isAM = p.includes('am') || p.includes('mañana');
             let timeStr = p.replace(/[a-z\s]/g, '');
             if (!timeStr.includes(':')) timeStr += ':00';
-
             let [h, m] = timeStr.split(':').map(Number);
             if (isPM && h < 12) h += 12;
             if (isAM && h === 12) h = 0;
             return h * 60 + (m || 0);
         };
-
         return [parsePart(parts[0]), parsePart(parts[1])];
-    };
-
-    const isOverlap = (s1, s2) => {
-        if (s1.day !== s2.day) return false;
-        const start1 = toMins(s1.start);
-        const end1 = toMins(s1.end);
-        const start2 = toMins(s2.start);
-        const end2 = toMins(s2.end);
-
-        // Subperiod overlap logic
-        const subOverlap = (s1.subperiod === 0) || (s2.subperiod === 0) || (s1.subperiod === s2.subperiod);
-        if (!subOverlap) return false;
-
-        return Math.max(start1, start2) < Math.min(end1, end2);
     };
 
     const getEffectiveWeeks = (period) => {
@@ -67,28 +45,20 @@
         const end = new Date(period.end);
         const diffDays = (end - start) / (1000 * 60 * 60 * 24);
         const weeks = Math.floor(diffDays / 7);
-        // Reserve 1 week for reválidas/final exams as per logic
         return Math.max(1, weeks - 1);
     };
 
-    // --- Main Functions ---
+    // --- Core Algorithm Functions ---
 
     const autoAssign = (schedules, availability) => {
-        // 1. Pre-process availability to include parsed time ranges
         const teacherPool = availability.map(a => ({
             ...a,
             timeRangeMins: parseTimeRange(a.timeRange)
         })).filter(a => a.timeRangeMins);
 
-        // 2. Clone schedules to avoid mutation
-        // JSON parse/stringify is a safe deep clone for data objects
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
-
-        // 3. Keep track of teacher busy slots
-        // teacherName -> [ { day, start, end } ]
         const teacherBusy = {};
 
-        // Initial busy slots from already assigned teachers in schedules (if any)
         nextSchedules.forEach(s => {
             if (s.teacherName && s.day !== 'N/A') {
                 if (!teacherBusy[s.teacherName]) teacherBusy[s.teacherName] = [];
@@ -101,66 +71,36 @@
             }
         });
 
-        // 4. Iterate through unassigned schedules
         nextSchedules.forEach(s => {
             if (s.teacherName || s.day === 'N/A') return;
-
             const sStart = toMins(s.start);
             const sEnd = toMins(s.end);
+            const eligible = teacherPool.filter(a =>
+                a.subjectName.toLowerCase().trim() === s.subjectName.toLowerCase().trim() &&
+                a.day.toLowerCase().trim() === s.day.toLowerCase().trim() &&
+                a.timeRangeMins[0] <= sStart && a.timeRangeMins[1] >= sEnd
+            );
 
-            // Find eligible teachers
-            const eligible = teacherPool.filter(a => {
-                // Match subject (case insensitive, trimmed)
-                const subjMatch = a.subjectName.toLowerCase().trim() === s.subjectName.toLowerCase().trim();
-                if (!subjMatch) return false;
-
-                // Match day
-                const dayMatch = a.day.toLowerCase().trim() === s.day.toLowerCase().trim();
-                if (!dayMatch) return false;
-
-                // Match time: Teacher range must contain schedule range
-                const [tStart, tEnd] = a.timeRangeMins;
-                return tStart <= sStart && tEnd >= sEnd;
-            });
-
-            // Try to assign one that isn't busy
             for (const auth of eligible) {
                 const isBusy = (teacherBusy[auth.teacherName] || []).some(busy => {
-                    const bStart = toMins(busy.start);
-                    const bEnd = toMins(busy.end);
                     const subOverlap = (busy.subperiod === s.subperiod) || (busy.subperiod === 0) || (s.subperiod === 0);
-                    return busy.day === s.day && subOverlap && Math.max(sStart, bStart) < Math.min(sEnd, bEnd);
+                    return busy.day === s.day && subOverlap && Math.max(sStart, toMins(busy.start)) < Math.min(sEnd, toMins(busy.end));
                 });
-
                 if (!isBusy) {
-                    // Assign!
                     s.teacherName = auth.teacherName;
-                    s.instructorId = auth.instructorId; // Keep ID if available
-
+                    s.instructorId = auth.instructorId;
                     if (!teacherBusy[auth.teacherName]) teacherBusy[auth.teacherName] = [];
-                    teacherBusy[auth.teacherName].push({
-                        day: s.day,
-                        start: s.start,
-                        end: s.end,
-                        subperiod: s.subperiod || 0
-                    });
-                    break; // Move to next schedule
+                    teacherBusy[auth.teacherName].push({ day: s.day, start: s.start, end: s.end, subperiod: s.subperiod || 0 });
+                    break;
                 }
             }
         });
-
         return nextSchedules;
     };
 
-    /**
-     * Automatic Placement Algorithm
-     * Finds Day, Time, and Room for unassigned schedules using date-level granularity.
-     */
     const autoPlace = (schedules, context) => {
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
         const intervalMins = context.configSettings?.intervalMinutes || 10;
-
-        // 1. Prepare Calendars (Dates per Day)
         const holidaySet = new Set((context.configSettings?.holidays || []).map(h => h.formatted_date || h.date));
         const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
         const allDatesByDay = { 'Lunes': [], 'Martes': [], 'Miercoles': [], 'Jueves': [], 'Viernes': [], 'Sabado': [], 'Domingo': [] };
@@ -170,10 +110,8 @@
             const tempEnd = new Date(context.period.end);
             while (tempD <= tempEnd) {
                 const dStr = tempD.toISOString().split('T')[0];
-                const dIdx = tempD.getUTCDay(); // UTC to avoid timezone issues with pure dates
-                if (!holidaySet.has(dStr)) {
-                    allDatesByDay[dayMap[dIdx]].push(dStr);
-                }
+                const dIdx = tempD.getUTCDay();
+                if (!holidaySet.has(dStr)) allDatesByDay[dayMap[dIdx]].push(dStr);
                 tempD.setUTCDate(tempD.getUTCDate() + 1);
             }
         }
@@ -188,10 +126,9 @@
         const lunchStart = toMins(context.configSettings?.lunchStart || '12:00');
         const lunchEnd = toMins(context.configSettings?.lunchEnd || '13:00');
 
-        // Usage maps: key -> DateStr -> [ {start, end, subperiod} ]
         const roomUsage = new Map();
         const teacherUsage = new Map();
-        const studentUsage = new Map(); // key: studentId
+        const studentUsage = new Map();
 
         const markBusyGranular = (usageMap, key, dates, s) => {
             if (!key) return;
@@ -199,11 +136,7 @@
             const entityMap = usageMap.get(key);
             dates.forEach(date => {
                 if (!entityMap.has(date)) entityMap.set(date, []);
-                entityMap.get(date).push({
-                    start: toMins(s.start),
-                    end: toMins(s.end),
-                    subperiod: s.subperiod || 0
-                });
+                entityMap.get(date).push({ start: toMins(s.start), end: toMins(s.end), subperiod: s.subperiod || 0 });
             });
         };
 
@@ -224,36 +157,29 @@
             return studentIds.some(sid => checkBusyGranular(studentUsage, sid, dates, subperiod, start, end));
         };
 
-        // 2. Initial occupancy from already assigned schedules
         nextSchedules.forEach(s => {
             if (s.day !== 'N/A' && s.assignedDates) {
                 markBusyGranular(roomUsage, s.room, s.assignedDates, s);
                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, s.assignedDates, s);
-                if (s.studentIds) {
-                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, s.assignedDates, s));
-                }
+                if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, s.assignedDates, s));
             }
         });
 
-        // 3. Sort unassigned tasks (Larger student counts first)
         const unassigned = nextSchedules.filter(s => s.day === 'N/A');
         unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
 
-        // 4. Process unassigned
         unassigned.forEach(s => {
             if (s.studentCount < 12 && !s.isQuorumException) {
                 s.warning = "Quórum Insuficiente (<12)";
                 return;
             }
 
-            // Duration and Intensity logic
             let durationMins = 120;
             let maxSessions = null;
             const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
             if (loadData) {
                 if (loadData.intensity) {
                     durationMins = Math.round(loadData.intensity * 60);
-                    // If intensive, calculate total sessions needed
                     if (loadData.totalHours) maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
                 } else if (loadData.totalHours) {
                     durationMins = Math.round((loadData.totalHours / effectiveWeeks) * 60);
@@ -265,316 +191,186 @@
             const winStart = toMins(win.start);
             const winEnd = toMins(win.end);
             let winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-            if (s.shift === 'Sabatina') {
-                winDays = ['Sabado'];
-            } else if (win && win.days) {
-                // If config provides specific days, use them but try to keep early week preference if possible
-                // Currently shiftWindows doesn't have a 'days' array in Moodle DB by default, so we fallback to the above
-                winDays = win.days;
-            }
+            if (s.shift === 'Sabatina') winDays = ['Sabado'];
+            else if (win && win.days) winDays = win.days;
 
-            const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
                 .sort((a, b) => {
                     const diff = a.capacity - b.capacity;
-                    // If capacity is within 5 students, treat as "equal" for distribution purposes
-                    if (Math.abs(diff) <= 5) {
-                        return Math.random() - 0.5;
-                    }
+                    if (Math.abs(diff) <= 5) return Math.random() - 0.5;
                     return diff;
                 });
 
             let placed = false;
+            let failureReasons = new Set();
+            let testedSlots = 0;
+
             for (const day of winDays) {
                 if (placed) break;
-
                 const availableDates = allDatesByDay[day] || [];
                 if (availableDates.length === 0) continue;
 
                 for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                     if (placed) break;
                     const tEnd = t + durationMins;
+                    if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
+                        failureReasons.add("Horario coincide con almuerzo");
+                        continue;
+                    }
 
-                    // Lunch check
-                    if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
-
+                    testedSlots++;
                     for (const room of validRooms) {
                         if (placed) break;
-
-                        // Granular overlap check
-                        // Subperiod filtering: If schedule has a subperiod, only check dates in that range
                         let targetDates = availableDates;
                         const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
-
                         if (subRange) {
                             const subStart = subRange.start;
                             const subEnd = subRange.end;
                             targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
                         }
 
-                        if (targetDates.length === 0) continue;
-
-                        const sCareers = s.careerList || (typeof s.career === 'string' ? s.career.split(',').map(c => c.trim()) : [s.career]);
-                        const sLevels = s.levelList || (typeof s.levelDisplay === 'string' ? s.levelDisplay.split(',').map(l => l.trim()) : [s.levelDisplay]);
+                        if (targetDates.length === 0) {
+                            failureReasons.add("Sin fechas en subperiodo");
+                            continue;
+                        }
 
                         if (maxSessions) {
-                            // Find which dates are actually free for this block
                             const freeDates = targetDates.filter(d => {
-                                const roomOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
-                                const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
-                                const studentOk = !checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
-
-                                return roomOk && teacherOk && studentOk;
+                                const rOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
+                                const tOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
+                                const sOk = !checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
+                                return rOk && tOk && sOk;
                             });
-
                             if (freeDates.length >= maxSessions) {
-                                // Found!
                                 const selectedDates = freeDates.slice(0, maxSessions);
-                                s.day = day;
-                                s.start = formatTime(t);
-                                s.end = formatTime(tEnd);
-                                s.room = room.name;
-                                s.assignedDates = selectedDates;
-
+                                s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
                                 markBusyGranular(roomUsage, room.name, selectedDates, s);
                                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, selectedDates, s);
-                                if (s.studentIds) {
-                                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, selectedDates, s));
-                                }
+                                if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, selectedDates, s));
                                 placed = true;
+                            } else if (freeDates.length > 0) {
+                                failureReasons.add("Días insuficientes para curso intensivo");
                             }
                         } else {
-                            // Standard weekly repeat: check targetDates
-                            const roomOk = !checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
-                            const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
-                            const studentOk = !checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
+                            const rOk = !checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
+                            if (!rOk) { failureReasons.add(`Aula ${room.name} ocupada`); continue; }
+                            const tOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
+                            if (!tOk) { failureReasons.add(`Docente ${s.teacherName} ocupado`); continue; }
+                            const stOk = !checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
+                            if (!stOk) { failureReasons.add(`Choque de alumnos`); continue; }
 
-                            if (roomOk && teacherOk && studentOk) {
-                                s.day = day;
-                                s.start = formatTime(t);
-                                s.end = formatTime(tEnd);
-                                s.room = room.name;
-                                s.assignedDates = targetDates;
-
-                                markBusyGranular(roomUsage, room.name, targetDates, s);
-                                if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
-                                if (s.studentIds) {
-                                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));
-                                }
-                                placed = true;
-                            }
+                            s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = targetDates;
+                            markBusyGranular(roomUsage, room.name, targetDates, s);
+                            if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
+                            if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));
+                            placed = true;
                         }
                     }
                 }
             }
 
             if (!placed) {
-                s.warning = "No se encontró espacio disponible (Verifique capacidad o choques)";
+                if (validRooms.length === 0) s.warning = `Sin aulas de capacidad ${s.studentCount}`;
+                else if (testedSlots === 0) s.warning = "Fuera de ventana horaria";
+                else {
+                    const res = Array.from(failureReasons);
+                    if (res.includes("Choque de alumnos")) s.warning = "Conflicto: Alumnos ya ocupados";
+                    else if (res.some(r => r.includes("Docente"))) s.warning = "Conflicto: Docente ocupado";
+                    else s.warning = "Sin espacio disponible (Todo ocupado)";
+                }
             }
         });
-
         return nextSchedules;
     };
 
     const getSuggestions = (schedules, availability) => {
-        const suggestions = [];
         const teacherPool = availability.map(a => ({
             ...a,
             timeRangeMins: parseTimeRange(a.timeRange)
         })).filter(a => a.timeRangeMins);
 
+        const nextSchedules = JSON.parse(JSON.stringify(schedules));
         const teacherBusy = {};
-        schedules.forEach(s => {
+        nextSchedules.forEach(s => {
             if (s.teacherName && s.day !== 'N/A') {
                 if (!teacherBusy[s.teacherName]) teacherBusy[s.teacherName] = [];
-                teacherBusy[s.teacherName].push({
-                    day: s.day,
-                    start: s.start,
-                    end: s.end,
-                    subperiod: s.subperiod || 0
-                });
+                teacherBusy[s.teacherName].push({ day: s.day, start: s.start, end: s.end, subperiod: s.subperiod || 0 });
             }
         });
 
-        schedules.forEach(s => {
-            // Suggest for unassigned OR assigned without teacher OR assigned with teacher conflict
-            // Find all potential slots for this subject
-            const matchTeachers = teacherPool.filter(a =>
-                a.subjectName.toLowerCase().trim() === s.subjectName.toLowerCase().trim()
-            );
-
+        const suggestions = [];
+        nextSchedules.forEach(s => {
+            const matchTeachers = teacherPool.filter(a => a.subjectName.toLowerCase().trim() === s.subjectName.toLowerCase().trim());
             matchTeachers.forEach(auth => {
-                const [tStartMins, tEndMins] = auth.timeRangeMins;
-                const durationMins = s.durationMins || 120;
-                const tDay = auth.day;
-
-                // Proposal: Start of teacher's avail block
-                const proposedStart = formatTime(tStartMins);
-                //const proposedEnd = formatTime(tStartMins + durationMins);
-
-                // Ideally iterate through blocks of durationMins within [tStartMins, tEndMins]
-                // For now, simpler port: check if (tStart + duration) fits and is free
-
-                // Check if this specific proposal overlaps with teacher's busy slots
+                const [tStart, tEnd] = auth.timeRangeMins;
+                const duration = s.durationMins || 120;
                 const isBusy = (teacherBusy[auth.teacherName] || []).some(busy => {
-                    const bStart = toMins(busy.start);
-                    const bEnd = toMins(busy.end);
                     const subOverlap = (busy.subperiod === s.subperiod) || (busy.subperiod === 0) || (s.subperiod === 0);
-                    return busy.day === tDay && subOverlap && Math.max(tStartMins, bStart) < Math.min(tStartMins + durationMins, bEnd);
+                    return busy.day === auth.day && subOverlap && Math.max(tStart, toMins(busy.start)) < Math.min(tStart + duration, toMins(busy.end));
                 });
-
                 if (!isBusy) {
-                    // If it's already exactly where it is and has the teacher, don't suggest
-                    if (s.day === tDay && toMins(s.start) === tStartMins && s.teacherName === auth.teacherName) {
-                        return;
-                    }
-
-                    const suggestionId = `sug-${s.id}-${auth.teacherName}-${tDay}-${proposedStart}`;
+                    if (s.day === auth.day && toMins(s.start) === tStart && s.teacherName === auth.teacherName) return;
                     suggestions.push({
-                        id: suggestionId,
+                        id: `sug-${s.id}-${auth.teacherName}-${auth.day}-${tStart}`,
                         scheduleId: s.id,
                         subjectName: s.subjectName,
                         career: s.career,
-                        shift: s.shift,
-                        originalDay: s.day,
-                        originalTime: s.day === 'N/A' ? 'Sin hora' : `${s.start}-${s.end}`,
-                        proposedDay: tDay,
-                        proposedStart: proposedStart,
-                        proposedEnd: formatTime(tStartMins + durationMins),
+                        proposedDay: auth.day,
+                        proposedStart: formatTime(tStart),
+                        proposedEnd: formatTime(tStart + duration),
                         teacherName: auth.teacherName,
                         type: s.day === 'N/A' ? 'assignment' : 'movement'
                     });
                 }
             });
         });
-
-        // Deduplicate suggestions by ID
-        const uniqueSuggestions = [];
-        const seenSugs = new Set();
-        suggestions.forEach(sug => {
-            if (!seenSugs.has(sug.id)) {
-                uniqueSuggestions.push(sug);
-                seenSugs.add(sug.id);
-            }
-        });
-
-        return uniqueSuggestions.slice(0, 20);
+        return suggestions.slice(0, 20);
     };
 
-    /**
-     * granular Conflict Detection
-     * @param {Object} schedule - The schedule being validated/moved
-     * @param {Array} allSchedules - Current state of all schedules
-     * @param {Object} context - { classrooms, holidays }
-     */
     const detectConflicts = (schedule, allSchedules, context) => {
         const issues = [];
         if (!schedule || schedule.day === 'N/A') return issues;
-
         const sStart = toMins(schedule.start);
         const sEnd = toMins(schedule.end);
         const sDates = new Set(schedule.assignedDates || []);
 
-        // Helper overlap check
         const checkOverlap = (other) => {
-            if (other.id === schedule.id) return false; // Don't check against self
-
-            // Granular Date Check: Do they share at least one date?
+            if (other.id === schedule.id) return false;
             const oDates = other.assignedDates || [];
-            const hasDateOverlap = oDates.some(d => sDates.has(d));
+            if (schedule.assignedDates && other.assignedDates) {
+                if (!oDates.some(d => sDates.has(d))) return false;
+            } else if (other.day !== schedule.day) return false;
 
-            // Fallback to day-only check if assignedDates is missing in either (for compatibility)
-            if (!schedule.assignedDates || !other.assignedDates) {
-                if (other.day !== schedule.day) return false;
-            } else if (!hasDateOverlap) {
-                return false;
-            }
-
-            // Subperiod logic: 
-            // 0 = Full Semester (overlaps everything)
-            // 1 = P-I (overlaps 0 and 1)
-            // 2 = P-II (overlaps 0 and 2)
             const subOverlap = (other.subperiod === 0) || (schedule.subperiod === 0) || (other.subperiod === schedule.subperiod);
             if (!subOverlap) return false;
-
-            const oStart = toMins(other.start);
-            const oEnd = toMins(other.end);
-            return Math.max(sStart, oStart) < Math.min(sEnd, oEnd);
+            return Math.max(sStart, toMins(other.start)) < Math.min(sEnd, toMins(other.end));
         };
 
-        // 1. Teacher Conflict
         if (schedule.teacherName) {
-            const teacherConflict = allSchedules.find(s =>
-                s.teacherName === schedule.teacherName && checkOverlap(s)
-            );
-            if (teacherConflict) {
-                issues.push({
-                    type: 'teacher',
-                    message: `Docente ${schedule.teacherName} ocupado en ${teacherConflict.day} ${teacherConflict.start}`,
-                    relatedId: teacherConflict.id
-                });
-            }
+            const tC = allSchedules.find(s => s.teacherName === schedule.teacherName && checkOverlap(s));
+            if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}`, relatedId: tC.id });
         }
-
-        // 2. Room Conflict (and Capacity)
         if (schedule.room && schedule.room !== 'Sin aula') {
-            const roomConflict = allSchedules.find(s =>
-                s.room === schedule.room && checkOverlap(s)
-            );
-            if (roomConflict) {
-                issues.push({
-                    type: 'room',
-                    message: `Aula ${schedule.room} ocupada por ${roomConflict.subjectName}`,
-                    relatedId: roomConflict.id
-                });
-            }
-
-            // Capacity Check
-            if (context && context.classrooms) {
-                const roomData = context.classrooms.find(r => r.name === schedule.room);
-                if (roomData && schedule.studentCount > roomData.capacity) {
-                    issues.push({
-                        type: 'capacity',
-                        message: `Sobrecapacidad: ${schedule.studentCount} alumnos vs ${roomData.capacity} cupos`
-                    });
-                }
+            const rC = allSchedules.find(s => s.room === schedule.room && checkOverlap(s));
+            if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}`, relatedId: rC.id });
+            if (context?.classrooms) {
+                const rD = context.classrooms.find(r => r.name === schedule.room);
+                if (rD && schedule.studentCount > rD.capacity) issues.push({ type: 'capacity', message: `Sobrecapacidad (${schedule.studentCount}/${rD.capacity})` });
             }
         }
-
-        // 3. Group/Student Conflict
-        if (schedule.studentIds && schedule.studentIds.length > 0) {
-            const studentConflict = allSchedules.find(s => {
-                if (s.id === schedule.id || s.day === 'N/A' || s.day !== schedule.day) return false;
-
-                // Detailed overlap check including subperiod
-                const sStart = toMins(schedule.start);
-                const sEnd = toMins(schedule.end);
-                const bStart = toMins(s.start);
-                const bEnd = toMins(s.end);
+        if (schedule.studentIds?.length > 0) {
+            const sC = allSchedules.find(s => {
                 const subOverlap = (s.subperiod === 0) || (schedule.subperiod === 0) || (s.subperiod === schedule.subperiod);
-
-                const timeOverlap = subOverlap && Math.max(sStart, bStart) < Math.min(sEnd, bEnd);
-                if (!timeOverlap) return false;
-
-                // Check for intersection of students
-                const otherStudents = s.studentIds || [];
-                return schedule.studentIds.some(sid => otherStudents.includes(sid));
+                if (!subOverlap || s.id === schedule.id || s.day !== schedule.day) return false;
+                if (Math.max(sStart, toMins(s.start)) >= Math.min(sEnd, toMins(s.end))) return false;
+                return schedule.studentIds.some(sid => (s.studentIds || []).includes(sid));
             });
-
-            if (studentConflict) {
-                issues.push({
-                    type: 'group',
-                    message: `Choque de horario para uno o más estudiantes con el grupo de ${studentConflict.subjectName}`,
-                    relatedId: studentConflict.id
-                });
-            }
+            if (sC) issues.push({ type: 'group', message: `Choque de alumnos con ${sC.subjectName}`, relatedId: sC.id });
         }
-
         return issues;
     };
 
-    // Export to window
     window.SchedulerAlgorithm = {
         autoAssign,
         autoPlace,
@@ -585,5 +381,4 @@
         parseTimeRange,
         getEffectiveWeeks
     };
-
 })();
