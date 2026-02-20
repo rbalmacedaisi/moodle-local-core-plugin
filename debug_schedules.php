@@ -1,0 +1,66 @@
+<?php
+require_once(__DIR__ . '/../../config.php');
+require_login();
+require_capability('moodle/site:config', context_system::instance());
+
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/debug_schedules.php'));
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Debug Generación de Horarios');
+
+echo $OUTPUT->header();
+
+echo "<h2>Estado de las Tablas (Revisión de Guardado)</h2>";
+
+global $DB;
+
+$periods = $DB->get_records('gmk_academic_periods');
+echo "<h3>Periodos Activos con Clases</h3>";
+echo "<ul>";
+foreach ($periods as $p) {
+    $count = $DB->count_records('gmk_class', ['periodid' => $p->id]);
+    echo "<li>Periodo {$p->id} ({$p->name}): <strong>{$count}</strong> clases guardadas.</li>";
+}
+echo "</ul>";
+
+echo "<h3>Últimas 10 Clases Guardadas (Cualquier periodo)</h3>";
+$latest_classes = $DB->get_records('gmk_class', [], 'id DESC', '*', 0, 10);
+if ($latest_classes) {
+    echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
+    echo "<tr><th>ID</th><th>Periodo</th><th>Curso</th><th>Nombre</th><th>Docente</th><th>Modificado</th></tr>";
+    foreach ($latest_classes as $c) {
+        $dates = date('Y-m-d H:i:s', $c->timemodified);
+        echo "<tr>";
+        echo "<td>{$c->id}</td>";
+        echo "<td>{$c->periodid}</td>";
+        echo "<td>{$c->courseid}</td>";
+        echo "<td>{$c->name}</td>";
+        echo "<td>{$c->instructorid}</td>";
+        echo "<td>{$dates}</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+} else {
+    echo "<p>No hay clases en gmk_class.</p>";
+}
+
+echo "<h3>Últimos 10 Horarios Asociados (Días/Horas)</h3>";
+$latest_schedules = $DB->get_records('gmk_class_schedules', [], 'id DESC', '*', 0, 10);
+if ($latest_schedules) {
+    echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
+    echo "<tr><th>ID</th><th>Class ID</th><th>Día</th><th>Inicio</th><th>Fin</th><th>Aula</th></tr>";
+    foreach ($latest_schedules as $s) {
+        echo "<tr>";
+        echo "<td>{$s->id}</td>";
+        echo "<td>{$s->classid}</td>";
+        echo "<td>{$s->day}</td>";
+        echo "<td>{$s->start_time}</td>";
+        echo "<td>{$s->end_time}</td>";
+        echo "<td>{$s->classroomid}</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+} else {
+    echo "<p>No hay vínculos en gmk_class_schedules.</p>";
+}
+
+echo $OUTPUT->footer();
