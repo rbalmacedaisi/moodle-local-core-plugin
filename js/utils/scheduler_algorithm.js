@@ -161,7 +161,7 @@
         const intervalMins = context.configSettings?.intervalMinutes || 10;
 
         // 1. Prepare Calendars (Dates per Day)
-        const holidaySet = new Set((context.configSettings?.holidays || []).map(h => h.date));
+        const holidaySet = new Set((context.configSettings?.holidays || []).map(h => h.formatted_date || h.date));
         const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
         const allDatesByDay = { 'Lunes': [], 'Martes': [], 'Miercoles': [], 'Jueves': [], 'Viernes': [], 'Sabado': [], 'Domingo': [] };
 

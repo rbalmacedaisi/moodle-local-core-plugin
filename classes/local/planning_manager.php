@@ -413,7 +413,19 @@ class planning_manager {
         
         $classrooms = $DB->get_records('gmk_classrooms', [], 'name ASC');
         $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodId], 'date ASC');
+        $loads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $periodId], 'subjectname ASC');
         
+        $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodId]);
+        $period = null;
+        if ($periodRec) {
+            $period = [
+                'id' => $periodRec->id,
+                'name' => $periodRec->name,
+                'start' => date('Y-m-d', $periodRec->startdate),
+                'end' => date('Y-m-d', $periodRec->enddate)
+            ];
+        }
+
         // Format holidays
         $formattedHolidays = [];
         foreach ($holidays as $h) {
@@ -424,7 +436,8 @@ class planning_manager {
         return [
             'classrooms' => array_values($classrooms),
             'holidays' => $formattedHolidays,
-            'loads' => [] // Future: Teacher loads
+            'loads' => array_values($loads),
+            'period' => $period
         ];
     }
 

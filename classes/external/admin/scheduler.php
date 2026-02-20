@@ -72,7 +72,13 @@ class scheduler extends external_api {
                     'total_hours' => new external_value(PARAM_INT, 'Total Hours'),
                     'intensity' => new external_value(PARAM_FLOAT, 'Weekly Intensity', VALUE_OPTIONAL)
                 ])
-            )
+            ),
+            'period' => new external_single_structure([
+                'id' => new external_value(PARAM_INT, 'ID'),
+                'name' => new external_value(PARAM_TEXT, 'Name'),
+                'start' => new external_value(PARAM_TEXT, 'Start Date'),
+                'end' => new external_value(PARAM_TEXT, 'End Date')
+            ], 'Period metadata', VALUE_OPTIONAL)
         ]);
     }
 
