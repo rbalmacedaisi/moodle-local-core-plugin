@@ -1046,16 +1046,22 @@ const app = createApp({
                           let targetPeriodId = 0;
                           
                           if (selectedCareer.value !== 'Todas') {
-                              const found = s.careers.find(c => c.name === selectedCareer.value);
-                              if (found) {
+                              const found = s.careers.find(c => {
+                                  if (typeof c === 'object' && c !== null) return c.name === selectedCareer.value;
+                                  return c === selectedCareer.value;
+                              });
+                              if (found && typeof found === 'object') {
                                   targetPlanId = found.id;
                                   targetPeriodId = found.periodid;
                               }
                           }
                           
                           if (!targetPlanId && s.careers && s.careers.length > 0) {
-                              targetPlanId = s.careers[0].id;
-                              targetPeriodId = s.careers[0].periodid;
+                              const firstObj = s.careers.find(c => typeof c === 'object' && c !== null && c.id);
+                              if (firstObj) {
+                                  targetPlanId = firstObj.id;
+                                  targetPeriodId = firstObj.periodid;
+                              }
                           }
 
                           if (targetPlanId) {
