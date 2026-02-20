@@ -101,7 +101,7 @@ class planning_manager {
         $allSubjects = [];
         
         // Fetch all courses linked to learning plans to build a master list
-        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname, lp.name as planname,
+        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, lp.id as planid, c.fullname AS coursename, p.name AS periodname, lp.name as planname,
                                     (COALESCE(sp.position, 0) + 1) as subperiod_position
                              FROM {local_learning_courses} lpc
                              JOIN {course} c ON c.id = lpc.courseid

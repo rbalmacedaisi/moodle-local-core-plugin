@@ -1021,49 +1021,48 @@ const app = createApp({
              try {
                  const items = [];
                  
-                 analysis.value.subjectList.forEach(s => {
-                     const count = manualProjections[s.name] || 0;
-                     const isIgnored = ignoredSubjects[s.name] || false;
-                     
-                     // If we have manual count or ignored status, we need to save it.
-                     // Since a subject can belong to multiple careers, we pick the first one 
-                     // or the currently selected one if applicable.
-                     // In the DB, gmk_academic_planning is per (academicperiodid, planid, courseid).
-                     
-                     if (count > 0 || isIgnored) {
-                         // Find the best career to associate this with.
-                         // If we are filtering by career, use that.
-                         // Otherwise use the first one available for the subject.
-                         let targetPlanId = 0;
-                         let targetPeriodId = 0;
-                         
-                         if (selectedCareer.value !== 'Todas') {
-                             const found = s.careers.find(c => c.name === selectedCareer.value);
-                             if (found) {
-                                 targetPlanId = found.id;
-                                 targetPeriodId = found.periodid;
-                             }
-                         }
-                         
-                         if (!targetPlanId && s.careers && s.careers.length > 0) {
-                             targetPlanId = s.careers[0].id;
-                             targetPeriodId = s.careers[0].periodid;
-                         }
+                  analysis.value.subjectList.forEach(s => {
+                      const count = manualProjections[s.name] || 0;
+                      const isIgnored = ignoredSubjects[s.name] || false;
+                      
+                      // Check if it was previously saved in the database
+                      const wasSaved = rawData.value.planning_projections && 
+                                       rawData.value.planning_projections.find(pp => pp.courseid == s.id);
+                      
+                      // We send it if:
+                      // 1. It has a manual count > 0
+                      // 2. It is marked as ignored
+                      // 3. It was PREVIOUSLY saved (even if now count is 0 and not ignored, we need to update/delete it)
+                      
+                      if (count > 0 || isIgnored || wasSaved) {
+                          let targetPlanId = 0;
+                          let targetPeriodId = 0;
+                          
+                          if (selectedCareer.value !== 'Todas') {
+                              const found = s.careers.find(c => c.name === selectedCareer.value);
+                              if (found) {
+                                  targetPlanId = found.id;
+                                  targetPeriodId = found.periodid;
+                              }
+                          }
+                          
+                          if (!targetPlanId && s.careers && s.careers.length > 0) {
+                              targetPlanId = s.careers[0].id;
+                              targetPeriodId = s.careers[0].periodid;
+                          }
 
-                         if (targetPlanId) {
-                             items.push({
-                                 planid: targetPlanId,
-                                 courseid: s.id,
-                                 periodid: targetPeriodId, 
-                                 count: count,
-                                 ignored: isIgnored,
-                                 checked: true 
-                             });
-                         }
-                     }
-                     // Also check if we should delete old selections that were un-checked?
-                     // (The current logic only sends items to save/ignore)
-                 });
+                          if (targetPlanId) {
+                              items.push({
+                                  planid: targetPlanId,
+                                  courseid: s.id,
+                                  periodid: targetPeriodId, 
+                                  count: count,
+                                  ignored: isIgnored,
+                                  checked: (count > 0 || isIgnored) // If BOTH are 0/false, it means we want to delete/disable
+                              });
+                          }
+                      }
+                  });
 
                  console.log("Vue Planning App: savePlanning() items:", items);
                  let res = await callMoodle('local_grupomakro_save_planning', {
