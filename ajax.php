@@ -2657,7 +2657,7 @@ try {
             $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
             $result = \local_grupomakro_core\external\learningPlan\get_learning_plan_list::execute($learningplanid);
             if (isset($result['learningPlans'])) {
-                $response = ['status' => 'success', 'plans' => json_decode($result['learningPlans'], true)];
+                $response = ['status' => 'success', 'data' => json_decode($result['learningPlans'], true)];
             } else {
                 $response = ['status' => 'error', 'message' => isset($result['message']) ? $result['message'] : 'Error loading plans'];
             }
