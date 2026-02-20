@@ -214,8 +214,13 @@ echo $OUTPUT->header();
                                 <td class="px-2 py-3 text-center text-xs">
                                     <span class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">{{ toRoman(subj.semesterNum) }}</span>
                                 </td>
-                                <td v-for="period in analysis.sortedEntryPeriods" :key="period" :class="['px-1 py-3 text-center text-[11px] border-l border-slate-100', subj.entryPeriodCounts[period] > 0 ? 'bg-blue-50/30 font-bold text-blue-600' : 'text-slate-300']">
-                                    {{ subj.entryPeriodCounts[period] || '-' }}
+                                <td v-for="period in analysis.sortedEntryPeriods" :key="period" :class="['px-1 py-1 text-center text-[11px] border-l border-slate-100', subj.entryPeriodCounts[period] > 0 ? 'bg-blue-50/30' : 'text-slate-300']">
+                                    <button v-if="subj.entryPeriodCounts[period] > 0" 
+                                            @click="openPopover(subj, 0, $event, period)" 
+                                            class="w-full h-full font-bold text-blue-600 hover:bg-blue-100 rounded transition-colors">
+                                        {{ subj.entryPeriodCounts[period] }}
+                                    </button>
+                                    <span v-else>-</span>
                                 </td>
                                 <td class="px-2 py-2 text-center">
                                     <input type="number" min="0" class="w-12 p-1 text-center text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono"
@@ -1577,15 +1582,27 @@ const app = createApp({
              }
         };
 
-        const openPopover = (subj, idx, e) => {
-            console.log("Vue Planning App: openPopover()", subj.name, idx);
+        const openPopover = (subj, idx, e, entryPeriod = null) => {
+            console.log("Vue Planning App: openPopover()", subj.name, idx, entryPeriod);
             const pKey = 'groupsP' + (idx + 1);
-            const groups = subj[pKey] || {};
+            let groups = subj[pKey] || {};
             
+            if (entryPeriod) {
+                // Filter groups to only show cohorts from this entry period
+                const filteredGroups = {};
+                Object.entries(groups).forEach(([key, val]) => {
+                    if (key.endsWith(`[${entryPeriod}]`)) {
+                        filteredGroups[key] = val;
+                    }
+                });
+                groups = filteredGroups;
+            }
+
             popoverData.value = {
                 subject: subj,
                 period: idx,
-                groups: groups
+                groups: groups,
+                entryPeriod: entryPeriod
             };
             
             // Interaction: if target isn't the button itself, find it
@@ -1768,7 +1785,9 @@ const app = createApp({
                 // Drag
                 handleDragStart, handleDrop, deferredGroups,
                 // Popover
-                openPopover, activePopover,
+                openPopover, activePopover, showBreakdownPopover, popoverData,
+                // Modals
+                showStudentModal, studentModalData, onViewStudents,
                 // Calendar
                 calendarYear, monthsLabels, calendarRows,
                 getPeriodsForMonth, getPeriodStyle, 
