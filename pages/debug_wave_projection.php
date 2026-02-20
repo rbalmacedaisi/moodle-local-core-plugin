@@ -16,7 +16,11 @@ echo "<h2>1. Subject Bimestre Metadata</h2>";
 echo "<table border='1' cellpadding='5'>";
 echo "<tr><th>Subject ID</th><th>Name</th><th>Level</th><th>Bimestre</th></tr>";
 foreach ($data['all_subjects'] as $s) {
-    echo "<tr><td>{$s['id']}</td><td>{$s['name']}</td><td>{$s['semester_num']}</td><td>{$s['bimestre']}</td></tr>";
+    if (is_object($s)) {
+        echo "<tr><td>{$s->id}</td><td>{$s->name}</td><td>{$s->semester_num}</td><td>{$s->bimestre}</td></tr>";
+    } else {
+        echo "<tr><td>{$s['id']}</td><td>{$s['name']}</td><td>{$s['semester_num']}</td><td>{$s['bimestre']}</td></tr>";
+    }
 }
 echo "</table>";
 
