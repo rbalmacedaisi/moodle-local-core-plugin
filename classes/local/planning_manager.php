@@ -101,11 +101,13 @@ class planning_manager {
         $allSubjects = [];
         
         // Fetch all courses linked to learning plans to build a master list
-        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname, lp.name as planname
+        $plan_courses_sql = "SELECT lpc.id as linkid, lpc.courseid, lpc.periodid, c.fullname AS coursename, p.name AS periodname, lp.name as planname,
+                                    COALESCE(sp.position, 1) as subperiod_position
                              FROM {local_learning_courses} lpc
                              JOIN {course} c ON c.id = lpc.courseid
                              JOIN {local_learning_periods} p ON p.id = lpc.periodid
-                             JOIN {local_learning_plans} lp ON lp.id = p.learningplanid";
+                             JOIN {local_learning_plans} lp ON lp.id = p.learningplanid
+                             LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid";
         
         $plan_courses_records = $DB->get_records_sql($plan_courses_sql);
 
@@ -116,6 +118,7 @@ class planning_manager {
                     'name' => $pc->coursename,
                     'semester_num' => self::parse_semester_number($pc->periodname),
                     'semester_name' => $pc->periodname,
+                    'bimestre' => (int)$pc->subperiod_position,
                     'careers' => [$pc->planname]
                 ];
             } else {
