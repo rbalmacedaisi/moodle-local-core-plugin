@@ -23,6 +23,15 @@ window.SchedulerComponents.GeneralConfig = {
                 </button>
             </div>
             
+            <div v-if="storeState.error" class="mb-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg flex items-start gap-3">
+                <span class="mt-0.5"><i data-lucide="alert-circle" class="w-5 h-5"></i></span>
+                <p class="text-sm font-medium">{{ storeState.error }}</p>
+            </div>
+            <div v-if="storeState.successMessage" class="mb-6 p-4 bg-green-50 text-green-700 border border-green-200 rounded-lg flex items-start gap-3">
+                <span class="mt-0.5"><i data-lucide="check-circle" class="w-5 h-5"></i></span>
+                <p class="text-sm font-medium">{{ storeState.successMessage }}</p>
+            </div>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- Left: Global Settings -->
                 <div class="space-y-6">

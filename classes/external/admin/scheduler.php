@@ -93,14 +93,20 @@ class scheduler extends external_api {
                     'date' => new external_value(PARAM_INT, ''),
                     'name' => new external_value(PARAM_TEXT, ''),
                     'type' => new external_value(PARAM_TEXT, '')
-                ])
+                ]),
+                'List of holidays',
+                VALUE_DEFAULT,
+                []
             ),
             'loads' => new external_multiple_structure(
                 new external_single_structure([
                     'subjectname' => new external_value(PARAM_TEXT, ''),
                     'total_hours' => new external_value(PARAM_INT, ''),
                     'intensity' => new external_value(PARAM_FLOAT, '', VALUE_DEFAULT, 0)
-                ])
+                ]),
+                'List of subject loads',
+                VALUE_DEFAULT,
+                []
             ),
             'configsettings' => new external_value(PARAM_RAW, 'JSON string with shift/internal parameters', VALUE_DEFAULT, '')
         ]);
