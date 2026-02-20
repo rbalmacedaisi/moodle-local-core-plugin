@@ -470,6 +470,52 @@ class planning extends external_api {
          return new external_value(PARAM_BOOL, 'Success');
     }
 
+    public static function save_period_mappings($baseperiodid, $mappingsJson) {
+        global $DB, $USER;
+        
+        $mappings = json_decode($mappingsJson, true);
+        if (!is_array($mappings)) {
+            return false;
+        }
+
+        $now = time();
+        
+        foreach ($mappings as $relativeIndex => $targetPeriodId) {
+            if (!$targetPeriodId) {
+                // If it was cleared, remove the record
+                $DB->delete_records('gmk_planning_period_maps', [
+                    'base_period_id' => $baseperiodid,
+                    'relative_index' => $relativeIndex
+                ]);
+                continue;
+            }
+
+            // Check if exists
+            $exists = $DB->get_record('gmk_planning_period_maps', [
+                'base_period_id' => $baseperiodid,
+                'relative_index' => $relativeIndex
+            ]);
+
+            if ($exists) {
+                $exists->target_period_id = $targetPeriodId;
+                $exists->timemodified = $now;
+                $exists->usermodified = $USER->id;
+                $DB->update_record('gmk_planning_period_maps', $exists);
+            } else {
+                $rec = new \stdClass();
+                $rec->base_period_id = $baseperiodid;
+                $rec->relative_index = $relativeIndex;
+                $rec->target_period_id = $targetPeriodId;
+                $rec->timecreated = $now;
+                $rec->timemodified = $now;
+                $rec->usermodified = $USER->id;
+                $DB->insert_record('gmk_planning_period_maps', $rec);
+            }
+        }
+        
+        return true;
+    }
+
     // --- Manual Student Management ---
 
     public static function manually_update_student_period_parameters() {

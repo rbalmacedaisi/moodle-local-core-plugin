@@ -239,12 +239,19 @@ class planning_manager {
 
         }
 
+        $periodMappings = $DB->get_records('gmk_planning_period_maps', ['base_period_id' => $periodId]);
+        $mapArray = [];
+        foreach ($periodMappings as $pm) {
+            $mapArray[$pm->relative_index] = $pm->target_period_id;
+        }
+
         return [
             'students' => $studentList,
             'all_subjects' => array_values($allSubjects), // New: Master list of courses
             'projections' => array_values($projections),
             'planning_projections' => array_values($planningProjections),
-            'deferrals' => self::get_deferrals($periodId)
+            'deferrals' => self::get_deferrals($periodId),
+            'period_mappings' => $mapArray
         ];
     }
 

@@ -506,6 +506,25 @@
         <KEY NAME="academicperiodid" TYPE="foreign" FIELDS="academicperiodid" REFTABLE="gmk_academic_periods" REFFIELDS="id"/>
       </KEYS>
     </TABLE>
+    <TABLE NAME="gmk_planning_period_maps" COMMENT="Maps theoretical planning columns to real academic periods">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="base_period_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The academic period where the planning was made"/>
+        <FIELD NAME="relative_index" TYPE="int" LENGTH="3" NOTNULL="true" SEQUENCE="false" COMMENT="0 for P-I, 1 for P-II, etc."/>
+        <FIELD NAME="target_period_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The actual mapped academic period"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="base_period_id" TYPE="foreign" FIELDS="base_period_id" REFTABLE="gmk_academic_periods" REFFIELDS="id"/>
+        <KEY NAME="target_period_id" TYPE="foreign" FIELDS="target_period_id" REFTABLE="gmk_academic_periods" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="base_index_idx" UNIQUE="true" FIELDS="base_period_id, relative_index"/>
+      </INDEXES>
+    </TABLE>
     <TABLE NAME="gmk_academic_period_lps" COMMENT="Links academic periods to learning plans">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>

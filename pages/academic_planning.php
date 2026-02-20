@@ -203,11 +203,23 @@ echo $OUTPUT->header();
                                     {{ period }}
                                 </th>
                                 <th class="px-2 py-3 bg-slate-50 text-center w-20">Nuevos<br/>(Man)</th>
-                                <th class="px-2 py-3 bg-blue-50 text-blue-900 text-center border-l border-blue-100">
-                                    P-I (Próximo)<br/><span class="text-[10px] font-normal">(Planificación)</span>
+                                <th class="px-2 py-3 bg-blue-50 text-blue-900 text-center border-l border-blue-100 min-w-[120px]">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="whitespace-nowrap">P-I (Próximo)</span>
+                                        <select v-model.number="periodMappings[0]" class="w-full text-xs font-normal bg-white border border-blue-200 rounded px-1 py-0.5 outline-none max-w-[110px]">
+                                            <option :value="undefined">Automático</option>
+                                            <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                        </select>
+                                    </div>
                                 </th>
-                                <th v-for="i in 5" :key="i" class="px-2 py-3 text-slate-400 text-center border-l border-slate-100">
-                                    {{ getPeriodLabel(i) }}
+                                <th v-for="i in 5" :key="i" class="px-2 py-3 text-slate-500 text-center border-l border-slate-100 min-w-[120px]">
+                                    <div class="flex flex-col items-center gap-1">
+                                        <span class="whitespace-nowrap">{{ getPeriodLabel(i) }}</span>
+                                        <select v-model.number="periodMappings[i]" class="w-full text-[10px] font-normal bg-white border border-slate-200 rounded px-1 outline-none text-slate-600 max-w-[110px]">
+                                            <option :value="undefined">Automático</option>
+                                            <option v-for="p in uniquePeriods" :key="p.id" :value="p.id">{{ p.name }}</option>
+                                        </select>
+                                    </div>
                                 </th>
                                 <th class="px-2 py-3 bg-slate-50 text-center w-16">Omitir<br/>Auto</th>
                                 <th class="px-2 py-3 bg-slate-50 text-center">Sugerencia</th>
@@ -948,6 +960,7 @@ const app = createApp({
             // Student Filter
             const studentStatusFilter = ref('Todos');
             const searchTerm = ref('');
+            const periodMappings = ref({});
     
             // New UI State for Tabs
             const expandedCareer = ref(null);
@@ -1120,6 +1133,12 @@ const app = createApp({
                  }
 
                  console.log("Vue Planning App: savePlanning() deferrals payload:", JSON.stringify(repackedDeferrals));
+                 
+                 // Save Period Mappings
+                 await callMoodle('local_grupomakro_save_period_mappings', {
+                     baseperiodid: selectedPeriodId.value,
+                     mappings: JSON.stringify(periodMappings.value)
+                 });
 
                  let res = await callMoodle('local_grupomakro_save_planning', {
                      academicperiodid: selectedPeriodId.value,
@@ -1151,6 +1170,7 @@ const app = createApp({
                         // Reset current states
                         Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
                         Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
+                        periodMappings.value = res.period_mappings || {};
                         
                         // Guarantee reactivity by pre-defining properties for all subjects
                         if (res.all_subjects) {
@@ -1922,7 +1942,7 @@ const app = createApp({
 
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
-                ignoredSubjects, isOrderLocked, updateProjection,
+                ignoredSubjects, isOrderLocked, updateProjection, periodMappings,
                 // Filters
                 selectedCareer, selectedShift, careers, shifts,
                 activeTab,

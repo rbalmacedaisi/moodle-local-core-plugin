@@ -1430,6 +1430,36 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260220001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260220003) {
+        // Define table gmk_planning_period_maps to be created.
+        $table = new xmldb_table('gmk_planning_period_maps');
+
+        // Adding fields to table gmk_planning_period_maps.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('base_period_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('relative_index', XMLDB_TYPE_INTEGER, '3', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('target_period_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table gmk_planning_period_maps.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('base_period_id', XMLDB_KEY_FOREIGN, ['base_period_id'], 'gmk_academic_periods', ['id']);
+        $table->add_key('target_period_id', XMLDB_KEY_FOREIGN, ['target_period_id'], 'gmk_academic_periods', ['id']);
+
+        // Adding indexes to table gmk_planning_period_maps.
+        $table->add_index('base_index_idx', XMLDB_INDEX_UNIQUE, ['base_period_id', 'relative_index']);
+
+        // Conditionally launch create table for gmk_planning_period_maps.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260220003, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

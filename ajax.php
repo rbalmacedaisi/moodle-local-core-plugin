@@ -473,6 +473,14 @@ try {
             $response = ['status' => 'success', 'data' => $res];
             break;
 
+        case 'local_grupomakro_save_period_mappings':
+            $baseperiodid = required_param('baseperiodid', PARAM_INT);
+            $mappings = required_param('mappings', PARAM_RAW);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $res = \local_grupomakro_core\external\admin\planning::save_period_mappings($baseperiodid, $mappings);
+            $response = ['status' => 'success', 'data' => $res];
+            break;
+
         case 'local_grupomakro_get_academic_periods':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
             $periods = \local_grupomakro_core\external\admin\planning::get_periods();
