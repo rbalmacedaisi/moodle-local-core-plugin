@@ -158,7 +158,9 @@
                     return;
                 }
 
-                const MAX_CAPACITY = (configSettings.maxRoomCapacity) ? parseInt(configSettings.maxRoomCapacity) : 40;
+                const classrooms = this.state.context.classrooms || [];
+                const maxRoomCap = classrooms.length > 0 ? Math.max(...classrooms.map(r => parseInt(r.capacity) || 0)) : 40;
+                const MAX_CAPACITY = (configSettings.maxRoomCapacity) ? parseInt(configSettings.maxRoomCapacity) : maxRoomCap;
 
                 // --- Demand Aggregation ---
                 // Key: courseId | shift [| career if isolated]

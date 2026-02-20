@@ -285,19 +285,21 @@
                 });
 
             let placed = false;
-            for (const room of validRooms) {
+            for (const day of winDays) {
                 if (placed) break;
-                for (const day of winDays) {
+
+                const availableDates = allDatesByDay[day] || [];
+                if (availableDates.length === 0) continue;
+
+                for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                     if (placed) break;
+                    const tEnd = t + durationMins;
 
-                    const availableDates = allDatesByDay[day] || [];
-                    if (availableDates.length === 0) continue;
+                    // Lunch check
+                    if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
 
-                    for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
-                        const tEnd = t + durationMins;
-
-                        // Lunch check
-                        if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
+                    for (const room of validRooms) {
+                        if (placed) break;
 
                         // Granular overlap check
                         // Subperiod filtering: If schedule has a subperiod, only check dates in that range
@@ -326,9 +328,20 @@
                             });
 
                             if (freeDates.length >= maxSessions) {
-                                targetDates = freeDates.slice(0, maxSessions);
-                            } else {
-                                continue; // Not enough consecutive sessions for intensive course
+                                // Found!
+                                const selectedDates = freeDates.slice(0, maxSessions);
+                                s.day = day;
+                                s.start = formatTime(t);
+                                s.end = formatTime(tEnd);
+                                s.room = room.name;
+                                s.assignedDates = selectedDates;
+
+                                markBusyGranular(roomUsage, room.name, selectedDates, s);
+                                if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, selectedDates, s);
+                                if (s.studentIds) {
+                                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, selectedDates, s));
+                                }
+                                placed = true;
                             }
                         } else {
                             // Standard weekly repeat: check targetDates
@@ -336,25 +349,21 @@
                             const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
                             const studentOk = !checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
 
-                            if (!roomOk || !teacherOk || !studentOk) continue;
+                            if (roomOk && teacherOk && studentOk) {
+                                s.day = day;
+                                s.start = formatTime(t);
+                                s.end = formatTime(tEnd);
+                                s.room = room.name;
+                                s.assignedDates = targetDates;
+
+                                markBusyGranular(roomUsage, room.name, targetDates, s);
+                                if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
+                                if (s.studentIds) {
+                                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));
+                                }
+                                placed = true;
+                            }
                         }
-
-                        // PLACE!
-                        s.day = day;
-                        s.start = formatTime(t);
-                        s.end = formatTime(tEnd);
-                        s.room = room.name;
-                        s.assignedDates = targetDates;
-
-                        // Mark as busy for next items
-                        markBusyGranular(roomUsage, room.name, targetDates, s);
-                        if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
-                        if (s.studentIds) {
-                            s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));
-                        }
-
-                        placed = true;
-                        break;
                     }
                 }
             }
