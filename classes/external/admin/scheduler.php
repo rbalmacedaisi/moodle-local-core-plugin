@@ -503,7 +503,9 @@ class scheduler extends external_api {
             
             foreach ($data as $cls) {
                 $classRec = new stdClass();
-                if (!empty($cls['id'])) $classRec->id = $cls['id'];
+                if (!empty($cls['id']) && is_numeric($cls['id'])) {
+                    $classRec->id = $cls['id'];
+                }
                 
                 $classRec->periodid = $periodid; // Linking to Calendar Period
                 $classRec->courseid = $cls['courseid'];
