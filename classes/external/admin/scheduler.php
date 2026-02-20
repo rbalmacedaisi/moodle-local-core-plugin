@@ -575,10 +575,72 @@ class scheduler extends external_api {
             ];
             return $romans[strtoupper($matches[1])] ?? 0;
         }
-        // Fallback: look for digits
         if (preg_match('/(\d+)/', $name, $matches)) {
             return (int)$matches[1];
         }
         return 0;
+    }
+
+    // --- 6. Fetch Generated Schedules ---
+    public static function get_generated_schedules_parameters() {
+        return new external_function_parameters([
+            'periodid' => new external_value(PARAM_INT, 'Academic Period ID')
+        ]);
+    }
+
+    public static function get_generated_schedules($periodid) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+
+        $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
+                       lp.name as career, c.type, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid
+                FROM {gmk_class} c
+                LEFT JOIN {user} u ON u.id = c.instructorid
+                LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
+                WHERE c.periodid = :periodid";
+        
+        $classes = $DB->get_records_sql($sql, ['periodid' => $periodid]);
+        $result = [];
+
+        foreach ($classes as $c) {
+            $sessions = $DB->get_records('gmk_class_schedules', ['classid' => $c->id]);
+            $sessArr = [];
+            foreach ($sessions as $s) {
+                $sessArr[] = [
+                    'day' => $s->day,
+                    'start' => $s->start_time,
+                    'end' => $s->end_time,
+                    'classroomid' => $s->classroomid
+                ];
+            }
+
+            // Estimate shift and level based on career/course if we had tight mapping,
+            // but for generic visualization, we supply defaults if unknown.
+            $result[] = [
+                'id' => $c->id,
+                'courseid' => $c->courseid,
+                'subjectName' => $c->subjectname ?? 'Materia ' . $c->courseid,
+                'teacherName' => ($c->instructorid && $c->firstname) ? ($c->firstname . ' ' . $c->lastname) : null,
+                'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
+                'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
+                'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
+                'room' => empty($sessArr) || !$sessArr[0]['classroomid'] ? 'Sin aula' : $sessArr[0]['classroomid'],
+                'studentCount' => 0, // Would need to query gmk_class_queue if used
+                'career' => $c->career ?? 'General',
+                'shift' => 'No Definida', 
+                'levelDisplay' => 'Nivel X', 
+                'subGroup' => $c->subgroup,
+                'subperiod' => $c->subperiod,
+                'sessions' => $sessArr
+            ];
+        }
+
+        return $result;
+    }
+
+    public static function get_generated_schedules_returns() {
+        return new external_value(PARAM_RAW, 'JSON representation of schedules array');
     }
 }

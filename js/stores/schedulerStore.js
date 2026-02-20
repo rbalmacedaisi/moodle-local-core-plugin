@@ -46,7 +46,8 @@
                     this.loadContext(periodId),
                     this.loadDemand(periodId),
                     this.loadPlans(),
-                    this.loadInstructors()
+                    this.loadInstructors(),
+                    this.loadGeneratedSchedules(periodId)
                 ]);
             } catch (e) {
                 console.error("Error loading scheduler data", e);
@@ -77,6 +78,11 @@
             const res = await this._fetch('local_grupomakro_get_teachers_disponibility');
             // Check if response is array or wrapped
             this.state.instructors = Array.isArray(res) ? res : (res.data || []);
+        },
+
+        async loadGeneratedSchedules(periodId) {
+            const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
+            this.state.generatedSchedules = Array.isArray(res) ? res : (res.data || []);
         },
 
         async loadDemand(periodId) {

@@ -2755,6 +2755,13 @@ try {
             }
             break;
 
+        case 'local_grupomakro_get_generated_schedules':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
+            $data = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
         case 'local_grupomakro_save_generation_result':
             $periodid = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);
