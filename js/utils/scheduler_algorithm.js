@@ -154,11 +154,30 @@
 
     /**
      * Automatic Placement Algorithm
-     * Finds Day, Time, and Room for unassigned schedules.
+     * Finds Day, Time, and Room for unassigned schedules using date-level granularity.
      */
     const autoPlace = (schedules, context) => {
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
         const intervalMins = context.configSettings?.intervalMinutes || 10;
+
+        // 1. Prepare Calendars (Dates per Day)
+        const holidaySet = new Set((context.configSettings?.holidays || []).map(h => h.date));
+        const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+        const allDatesByDay = { 'Lunes': [], 'Martes': [], 'Miercoles': [], 'Jueves': [], 'Viernes': [], 'Sabado': [], 'Domingo': [] };
+
+        if (context.period?.start && context.period?.end) {
+            let tempD = new Date(context.period.start);
+            const tempEnd = new Date(context.period.end);
+            while (tempD <= tempEnd) {
+                const dStr = tempD.toISOString().split('T')[0];
+                const dIdx = tempD.getUTCDay(); // UTC to avoid timezone issues with pure dates
+                if (!holidaySet.has(dStr)) {
+                    allDatesByDay[dayMap[dIdx]].push(dStr);
+                }
+                tempD.setUTCDate(tempD.getUTCDate() + 1);
+            }
+        }
+
         const effectiveWeeks = getEffectiveWeeks(context.period);
         const shiftWindows = context.configSettings?.shiftWindows || {
             'Diurna': { start: '07:00', end: '18:00' },
@@ -169,58 +188,67 @@
         const lunchStart = toMins(context.configSettings?.lunchStart || '12:00');
         const lunchEnd = toMins(context.configSettings?.lunchEnd || '13:00');
 
-        // Track usage to avoid conflicts during autoPlace
-        const roomUsage = {}; // roomName -> [ {day, subperiod, start, end} ]
-        const teacherUsage = {}; // teacherName -> [ {day, subperiod, start, end} ]
-        const groupUsage = {}; // career|level|shift -> [ {day, subperiod, start, end} ]
+        // Usage maps: key -> DateStr -> [ {start, end, subperiod} ]
+        const roomUsage = new Map();
+        const teacherUsage = new Map();
+        const groupUsage = new Map();
 
-        const markBusy = (pool, key, s) => {
+        const markBusyGranular = (usageMap, key, dates, s) => {
             if (!key) return;
-            if (!pool[key]) pool[key] = [];
-            pool[key].push({
-                day: s.day,
-                subperiod: s.subperiod || 0,
-                start: toMins(s.start),
-                end: toMins(s.end)
+            if (!usageMap.has(key)) usageMap.set(key, new Map());
+            const entityMap = usageMap.get(key);
+            dates.forEach(date => {
+                if (!entityMap.has(date)) entityMap.set(date, []);
+                entityMap.get(date).push({
+                    start: toMins(s.start),
+                    end: toMins(s.end),
+                    subperiod: s.subperiod || 0
+                });
             });
         };
 
-        const checkBusy = (pool, key, day, subperiod, start, end) => {
-            if (!key || !pool[key]) return false;
-            return pool[key].some(busy => {
-                const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
-                return busy.day === day && subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+        const checkBusyGranular = (usageMap, key, dates, subperiod, start, end) => {
+            if (!key || !usageMap.has(key)) return false;
+            const entityMap = usageMap.get(key);
+            return dates.some(date => {
+                const slots = entityMap.get(date) || [];
+                return slots.some(busy => {
+                    const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
+                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+                });
             });
         };
 
-        // 1. Initial occupancy from assigned schedules
+        // 2. Initial occupancy from already assigned schedules (if granular data is present)
         nextSchedules.forEach(s => {
-            if (s.day !== 'N/A') {
-                markBusy(roomUsage, s.room, s);
-                markBusy(teacherUsage, s.teacherName, s);
+            if (s.day !== 'N/A' && s.assignedDates) {
+                markBusyGranular(roomUsage, s.room, s.assignedDates, s);
+                markBusyGranular(teacherUsage, s.teacherName, s);
                 const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
-                markBusy(groupUsage, groupKey, s);
+                markBusyGranular(groupUsage, groupKey, s.assignedDates, s);
             }
         });
 
-        // 2. Sort unassigned tasks (Larger student counts first)
+        // 3. Sort unassigned tasks (Larger student counts first)
         const unassigned = nextSchedules.filter(s => s.day === 'N/A');
         unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
 
-        // 3. Process unassigned
+        // 4. Process unassigned
         unassigned.forEach(s => {
-            // Skip if low quorum (unless exception)
             if (s.studentCount < 12 && !s.isQuorumException) {
                 s.warning = "Quórum Insuficiente (<12)";
                 return;
             }
 
-            // Calculate Duration
-            let durationMins = 120; // Fallback
+            // Duration and Intensity logic
+            let durationMins = 120;
+            let maxSessions = null;
             const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
             if (loadData) {
                 if (loadData.intensity) {
                     durationMins = Math.round(loadData.intensity * 60);
+                    // If intensive, calculate total sessions needed
+                    if (loadData.totalHours) maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
                 } else if (loadData.totalHours) {
                     durationMins = Math.round((loadData.totalHours / effectiveWeeks) * 60);
                 }
@@ -243,32 +271,52 @@
                 for (const day of winDays) {
                     if (placed) break;
 
-                    // Iterate time slots
+                    const availableDates = allDatesByDay[day] || [];
+                    if (availableDates.length === 0) continue;
+
                     for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                         const tEnd = t + durationMins;
 
                         // Lunch check
                         if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) continue;
 
-                        // Room busy?
-                        if (checkBusy(roomUsage, room.name, day, s.subperiod, t, tEnd)) continue;
+                        // Granular overlap check
+                        // If it's intensive, we only check for the first maxSessions available dates
+                        // If it's normal, we check if it can be placed in ALL available dates for that weekday
+                        let targetDates = availableDates;
+                        if (maxSessions) {
+                            // Find which dates are actually free for this block
+                            const freeDates = availableDates.filter(d => {
+                                const roomOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
+                                const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
+                                const groupOk = !checkBusyGranular(groupUsage, groupKey, [d], s.subperiod, t, tEnd);
+                                return roomOk && teacherOk && groupOk;
+                            });
 
-                        // Teacher busy?
-                        if (s.teacherName && checkBusy(teacherUsage, s.teacherName, day, s.subperiod, t, tEnd)) continue;
-
-                        // Group busy?
-                        if (checkBusy(groupUsage, groupKey, day, s.subperiod, t, tEnd)) continue;
+                            if (freeDates.length >= maxSessions) {
+                                targetDates = freeDates.slice(0, maxSessions);
+                            } else {
+                                continue; // Not enough consecutive sessions for intensive course
+                            }
+                        } else {
+                            // Standard weekly repeat: check ALL dates
+                            const roomOk = !checkBusyGranular(roomUsage, room.name, availableDates, s.subperiod, t, tEnd);
+                            const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, availableDates, s.subperiod, t, tEnd);
+                            const groupOk = !checkBusyGranular(groupUsage, groupKey, availableDates, s.subperiod, t, tEnd);
+                            if (!roomOk || !teacherOk || !groupOk) continue;
+                        }
 
                         // PLACE!
                         s.day = day;
                         s.start = formatTime(t);
                         s.end = formatTime(tEnd);
                         s.room = room.name;
+                        s.assignedDates = targetDates;
 
                         // Mark as busy for next items
-                        markBusy(roomUsage, room.name, s);
-                        if (s.teacherName) markBusy(teacherUsage, s.teacherName, s);
-                        markBusy(groupUsage, groupKey, s);
+                        markBusyGranular(roomUsage, room.name, targetDates, s);
+                        if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
+                        markBusyGranular(groupUsage, groupKey, targetDates, s);
 
                         placed = true;
                         break;
@@ -277,7 +325,7 @@
             }
 
             if (!placed) {
-                s.warning = "No se encontró espacio disponible";
+                s.warning = "No se encontró espacio disponible (Verifique capacidad o choques)";
             }
         });
 
@@ -381,11 +429,22 @@
 
         const sStart = toMins(schedule.start);
         const sEnd = toMins(schedule.end);
+        const sDates = new Set(schedule.assignedDates || []);
 
         // Helper overlap check
         const checkOverlap = (other) => {
             if (other.id === schedule.id) return false; // Don't check against self
-            if (other.day !== schedule.day) return false;
+
+            // Granular Date Check: Do they share at least one date?
+            const oDates = other.assignedDates || [];
+            const hasDateOverlap = oDates.some(d => sDates.has(d));
+
+            // Fallback to day-only check if assignedDates is missing in either (for compatibility)
+            if (!schedule.assignedDates || !other.assignedDates) {
+                if (other.day !== schedule.day) return false;
+            } else if (!hasDateOverlap) {
+                return false;
+            }
 
             // Subperiod logic: 
             // 0 = Full Semester (overlaps everything)
@@ -439,8 +498,6 @@
         }
 
         // 3. Group/Student Conflict
-        // Assumption: "Group" is defined by Career + Level + Shift
-        // If a group has two classes at the same time, it's a conflict.
         if (schedule.career && schedule.levelDisplay && schedule.shift) {
             const groupConflict = allSchedules.find(s =>
                 s.career === schedule.career &&

@@ -514,4 +514,27 @@ class planning extends external_api {
         return new external_value(PARAM_BOOL, 'Success');
     }
 
+    public static function delete_period_parameters() {
+        return new external_function_parameters([
+            'id' => new external_value(PARAM_INT, 'Period ID')
+        ]);
+    }
+
+    public static function delete_period($id) {
+        global $DB;
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('moodle/site:config', $context);
+        
+        $DB->delete_records('gmk_academic_period_lps', ['academicperiodid' => $id]);
+        $DB->delete_records('gmk_academic_calendar', ['academicperiodid' => (string)$id]);
+        $DB->delete_records('gmk_academic_periods', ['id' => $id]);
+        
+        return true;
+    }
+
+    public static function delete_period_returns() {
+        return new external_value(PARAM_BOOL, 'Success');
+    }
+
 }

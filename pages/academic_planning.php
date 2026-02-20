@@ -532,11 +532,14 @@ echo $OUTPUT->header();
                                       <span v-if="p.status == 1" class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">Activo</span>
                                       <span v-else class="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-xs font-bold">Cerrado</span>
                                   </td>
-                                  <td class="p-4 text-right">
-                                      <button @click="openPeriodModal(p)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
-                                          <i data-lucide="edit-3" class="w-4 h-4"></i>
-                                      </button>
-                                  </td>
+                                   <td class="p-4 text-right flex justify-end gap-2">
+                                       <button @click="openPeriodModal(p)" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
+                                           <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                       </button>
+                                       <button @click="deletePeriod(p)" class="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors" title="Eliminar">
+                                           <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                       </button>
+                                   </td>
                               </tr>
                           </tbody>
                       </table>
@@ -1568,6 +1571,22 @@ const app = createApp({
              }
         };
 
+        const deletePeriod = async (period) => {
+            if (!confirm(`¿Está seguro de eliminar el periodo "${period.name}"? Esta acción borrará la configuración y el calendario asociado.`)) {
+                return;
+            }
+            
+            try {
+                const res = await callMoodle('local_grupomakro_delete_academic_period', { id: period.id });
+                if (res) {
+                    await loadCalendarData();
+                    await loadInitial();
+                }
+            } catch (e) {
+                alert("Error al eliminar periodo: " + e.message);
+            }
+        };
+
         const openPopover = (subj, idx, e, entryPeriod = null) => {
             console.log("Vue Planning App: openPopover()", subj.name, idx, entryPeriod);
             const pKey = 'groupsP' + (idx + 1);
@@ -1780,7 +1799,7 @@ const app = createApp({
                 formatDate, formatDateShort, isStartOfMonth,
                 // Configuration / CRUD
                 academicPeriods, allLearningPlans, showPeriodForm, editingPeriod, saving,
-                openPeriodModal, savePeriod, getPlanName,
+                openPeriodModal, savePeriod, deletePeriod, getPlanName,
                 // New Tabs Logic
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
                 studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule,

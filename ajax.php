@@ -479,6 +479,13 @@ try {
             $response = ['status' => 'success', 'data' => ['id' => $resId]];
             break;
 
+        case 'local_grupomakro_delete_academic_period':
+            $id = required_param('id', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            \local_grupomakro_core\external\admin\planning::delete_period($id);
+            $response = ['status' => 'success', 'data' => true];
+            break;
+
         case 'local_grupomakro_get_periods':
             $planid = optional_param('planid', 0, PARAM_INT);
             if ($planid > 0) {
