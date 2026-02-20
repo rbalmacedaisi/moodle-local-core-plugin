@@ -2652,6 +2652,17 @@ try {
             $response = ['status' => 'success'];
             break;
         
+        case 'local_grupomakro_get_learning_plan_list':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/learningPlan/get_learning_plan_list.php');
+            $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
+            $result = \local_grupomakro_core\external\learningPlan\get_learning_plan_list::execute($learningplanid);
+            if (isset($result['learningPlans'])) {
+                $response = ['status' => 'success', 'plans' => json_decode($result['learningPlans'], true)];
+            } else {
+                $response = ['status' => 'error', 'message' => isset($result['message']) ? $result['message'] : 'Error loading plans'];
+            }
+            break;
+
         case 'local_grupomakro_get_planning_data':
             $periodid = required_param('periodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
@@ -2703,6 +2714,36 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
             $data = \local_grupomakro_core\local\planning_manager::get_demand_data($periodid);
             $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_save_projections':
+            $periodid = required_param('periodid', PARAM_INT);
+            $projections_json = required_param('projections', PARAM_RAW);
+            $projections = json_decode($projections_json, true);
+            if (!is_array($projections)) $projections = [];
+
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
+            $result = \local_grupomakro_core\external\admin\scheduler::save_projections($periodid, $projections);
+            if ($result) {
+                $response = ['status' => 'success'];
+            } else {
+                $response = ['status' => 'error', 'message' => 'Error al guardar proyecciones'];
+            }
+            break;
+
+        case 'local_grupomakro_save_generation_result':
+            $periodid = required_param('periodid', PARAM_INT);
+            $schedules_json = required_param('schedules', PARAM_RAW);
+            $schedules = json_decode($schedules_json, true);
+            if (!is_array($schedules)) $schedules = [];
+
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
+            $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result($periodid, $schedules);
+            if ($result) {
+                $response = ['status' => 'success'];
+            } else {
+                $response = ['status' => 'error', 'message' => 'Error al guardar estructura matricial'];
+            }
             break;
 
         case 'local_grupomakro_get_classrooms':
