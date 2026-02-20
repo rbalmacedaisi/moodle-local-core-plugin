@@ -232,7 +232,9 @@ echo $OUTPUT->header();
                                 </td>
                                 <td class="px-2 py-2 text-center">
                                     <input type="number" min="0" class="w-12 p-1 text-center text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono"
-                                           v-model.number="manualProjections[subj.name]" placeholder="0">
+                                           :value="manualProjections[subj.name]" 
+                                           @input="updateProjection(subj.name, $event.target.value)" 
+                                           placeholder="0">
                                 </td>
                                 <td class="px-2 py-3 text-center border-l border-blue-100 font-bold text-base">
                                      <button @click="openPopover(subj, 0, $event)" :class="['px-3 py-1 rounded transition-all border border-transparent hover:scale-105', subj.isOpen ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200']">
@@ -1021,6 +1023,12 @@ const app = createApp({
         };
 
         const reloadData = () => fetchData();
+
+        const updateProjection = (name, val) => {
+            const num = parseInt(val, 10) || 0;
+            console.log(`DEBUG updateProjection: Setting '${name}' to ${num}`);
+            manualProjections[name] = num;
+        };
 
         const savePlanning = async () => {
              if (selectedPeriodId.value === 0) return;
@@ -1886,7 +1894,7 @@ const app = createApp({
 
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
-                ignoredSubjects, isOrderLocked,
+                ignoredSubjects, isOrderLocked, updateProjection,
                 // Filters
                 selectedCareer, selectedShift, careers, shifts,
                 activeTab,
