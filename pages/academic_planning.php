@@ -1474,12 +1474,24 @@ const app = createApp({
         });
 
         const careers = computed(() => {
-            const raw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
-            return ['Todas', ...new Set(raw.map(s => s.career))].sort();
+            const studentRaw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
+            const subjectRaw = rawData.value?.all_subjects || [];
+            
+            const names = new Set();
+            studentRaw.forEach(s => { if(s.career) names.add(s.career); });
+            subjectRaw.forEach(s => {
+                if(s.careers) {
+                    s.careers.forEach(c => {
+                        const n = (typeof c === 'object' && c !== null) ? c.name : c;
+                        if(n) names.add(n);
+                    });
+                }
+            });
+            return Array.from(names).filter(n => n && n !== 'Todas').sort();
         });
         const shifts = computed(() => {
             const raw = Array.isArray(rawData.value) ? rawData.value : (rawData.value?.students || []);
-            return ['Todas', ...new Set(raw.map(s => s.shift))].sort();
+            return [...new Set(raw.map(s => s.shift))].filter(s => s && s !== 'Todas').sort();
         });
         
         const filteredStudents = computed(() => {
