@@ -191,7 +191,7 @@
         // Usage maps: key -> DateStr -> [ {start, end, subperiod} ]
         const roomUsage = new Map();
         const teacherUsage = new Map();
-        const groupUsage = new Map();
+        const studentUsage = new Map(); // key: studentId
 
         const markBusyGranular = (usageMap, key, dates, s) => {
             if (!key) return;
@@ -219,20 +219,19 @@
             });
         };
 
-        // 2. Initial occupancy from already assigned schedules (if granular data is present)
+        const checkStudentsBusy = (studentIds, dates, subperiod, start, end) => {
+            if (!studentIds || studentIds.length === 0) return false;
+            return studentIds.some(sid => checkBusyGranular(studentUsage, sid, dates, subperiod, start, end));
+        };
+
+        // 2. Initial occupancy from already assigned schedules
         nextSchedules.forEach(s => {
             if (s.day !== 'N/A' && s.assignedDates) {
                 markBusyGranular(roomUsage, s.room, s.assignedDates, s);
                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, s.assignedDates, s);
-
-                const sCareers = s.careerList || (typeof s.career === 'string' ? s.career.split(',').map(c => c.trim()) : [s.career]);
-                const sLevels = s.levelList || (typeof s.levelDisplay === 'string' ? s.levelDisplay.split(',').map(l => l.trim()) : [s.levelDisplay]);
-
-                sCareers.forEach(c => {
-                    sLevels.forEach(l => {
-                        markBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, s.assignedDates, s);
-                    });
-                });
+                if (s.studentIds) {
+                    s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, s.assignedDates, s));
+                }
             }
         });
 
@@ -321,15 +320,9 @@
                             const freeDates = targetDates.filter(d => {
                                 const roomOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
                                 const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
+                                const studentOk = !checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
 
-                                // Group check: Check every career/level combination involved
-                                const groupOk = sCareers.every(c =>
-                                    sLevels.every(l =>
-                                        !checkBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, [d], s.subperiod, t, tEnd)
-                                    )
-                                );
-
-                                return roomOk && teacherOk && groupOk;
+                                return roomOk && teacherOk && studentOk;
                             });
 
                             if (freeDates.length >= maxSessions) {
@@ -341,14 +334,9 @@
                             // Standard weekly repeat: check targetDates
                             const roomOk = !checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
                             const teacherOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
+                            const studentOk = !checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
 
-                            const groupOk = sCareers.every(c =>
-                                sLevels.every(l =>
-                                    !checkBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, targetDates, s.subperiod, t, tEnd)
-                                )
-                            );
-
-                            if (!roomOk || !teacherOk || !groupOk) continue;
+                            if (!roomOk || !teacherOk || !studentOk) continue;
                         }
 
                         // PLACE!
@@ -361,12 +349,9 @@
                         // Mark as busy for next items
                         markBusyGranular(roomUsage, room.name, targetDates, s);
                         if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
-
-                        sCareers.forEach(c => {
-                            sLevels.forEach(l => {
-                                markBusyGranular(groupUsage, `${c}|${l}|${s.shift}`, targetDates, s);
-                            });
-                        });
+                        if (s.studentIds) {
+                            s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));
+                        }
 
                         placed = true;
                         break;
@@ -548,29 +533,30 @@
         }
 
         // 3. Group/Student Conflict
-        if (schedule.career && schedule.levelDisplay && schedule.shift) {
-            const sCareers = schedule.careerList || (typeof schedule.career === 'string' ? schedule.career.split(',').map(c => c.trim()) : [schedule.career]);
-            const sLevels = schedule.levelList || (typeof schedule.levelDisplay === 'string' ? schedule.levelDisplay.split(',').map(l => l.trim()) : [schedule.levelDisplay]);
+        if (schedule.studentIds && schedule.studentIds.length > 0) {
+            const studentConflict = allSchedules.find(s => {
+                if (s.id === schedule.id || s.day === 'N/A' || s.day !== schedule.day) return false;
 
-            const groupConflict = allSchedules.find(s => {
-                if (s.id === schedule.id) return false;
-                if (s.shift !== schedule.shift) return false;
+                // Detailed overlap check including subperiod
+                const sStart = toMins(schedule.start);
+                const sEnd = toMins(schedule.end);
+                const bStart = toMins(s.start);
+                const bEnd = toMins(s.end);
+                const subOverlap = (s.subperiod === 0) || (schedule.subperiod === 0) || (s.subperiod === schedule.subperiod);
 
-                const oCareers = s.careerList || (typeof s.career === 'string' ? s.career.split(',').map(c => c.trim()) : [s.career]);
-                const oLevels = s.levelList || (typeof s.levelDisplay === 'string' ? s.levelDisplay.split(',').map(l => l.trim()) : [s.levelDisplay]);
+                const timeOverlap = subOverlap && Math.max(sStart, bStart) < Math.min(sEnd, bEnd);
+                if (!timeOverlap) return false;
 
-                // Detect intersection
-                const hasCommonCareer = sCareers.some(sc => oCareers.includes(sc));
-                const hasCommonLevel = sLevels.some(sl => oLevels.includes(sl));
-
-                return hasCommonCareer && hasCommonLevel && checkOverlap(s);
+                // Check for intersection of students
+                const otherStudents = s.studentIds || [];
+                return schedule.studentIds.some(sid => otherStudents.includes(sid));
             });
 
-            if (groupConflict) {
+            if (studentConflict) {
                 issues.push({
                     type: 'group',
-                    message: `Choque de horario para el grupo ${schedule.career} - ${schedule.levelDisplay}`,
-                    relatedId: groupConflict.id
+                    message: `Choque de horario para uno o más estudiantes con el grupo de ${studentConflict.subjectName}`,
+                    relatedId: studentConflict.id
                 });
             }
         }
