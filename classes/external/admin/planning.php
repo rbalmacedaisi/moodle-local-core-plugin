@@ -443,14 +443,15 @@ class planning extends external_api {
                 $rec->courseid = $item['courseid'];
                 $rec->periodid = $item['periodid']; // stored relative period
                 $rec->projected_students = $item['count'];
-                $rec->status = 1;
+                $rec->status = !empty($item['ignored']) ? 2 : 1;
                 $rec->timecreated = $now;
                 $rec->timemodified = $now;
                 $rec->usermodified = $uid;
                 $DB->insert_record('gmk_academic_planning', $rec);
             } else {
-                // Update count?
+                // Update count and status
                 $exists->projected_students = $item['count'];
+                $exists->status = !empty($item['ignored']) ? 2 : 1;
                 $exists->timemodified = $now;
                 $DB->update_record('gmk_academic_planning', $exists);
             }

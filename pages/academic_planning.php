@@ -203,6 +203,7 @@ echo $OUTPUT->header();
                                 <th v-for="i in 5" :key="i" class="px-2 py-3 text-slate-400 text-center border-l border-slate-100">
                                     {{ getPeriodLabel(i) }}
                                 </th>
+                                <th class="px-2 py-3 bg-slate-50 text-center w-16">Omitir<br/>Auto</th>
                                 <th class="px-2 py-3 bg-slate-50 text-center">Sugerencia</th>
                             </tr>
                         </thead>
@@ -237,6 +238,9 @@ echo $OUTPUT->header();
                                         {{ subj['countP'+(i+1)] }}
                                     </button>
                                     <span v-else>-</span>
+                                </td>
+                                <td class="px-2 py-3 text-center">
+                                    <input type="checkbox" v-model="ignoredSubjects[subj.name]" class="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer" />
                                 </td>
                                 <td class="px-2 py-3 text-center">
                                     <span :class="getSuggestionBadgeClass(subj.suggestion)">{{ subj.suggestion }}</span>
@@ -921,6 +925,7 @@ const app = createApp({
             // Manual Adjustments
             const manualProjections = reactive({}); // { SubjectName: Count }
             const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
+            const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
             
             // Popover
             const activePopover = ref(null);
@@ -1019,12 +1024,14 @@ const app = createApp({
                  
                  analysis.value.subjectList.forEach(s => {
                      const count = manualProjections[s.name] || 0;
-                     if (count > 0 || (rawData.value.selections && rawData.value.selections[s.careerId + '_' + s.id])) {
+                     const isIgnored = ignoredSubjects[s.name] || false;
+                     if (count > 0 || isIgnored || (rawData.value.selections && rawData.value.selections[s.careerId + '_' + s.id])) {
                          items.push({
                              planid: s.careerId,
                              courseid: s.id,
                              periodid: s.periodId, // relative level ID
                              count: count,
+                             ignored: isIgnored,
                              checked: true 
                          });
                      }
@@ -1063,10 +1070,14 @@ const app = createApp({
                        // Projections
                        if (res.planning_projections) {
                            Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
+                           Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
                            res.planning_projections.forEach(pp => {
                                const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
                                if (subject) {
                                    manualProjections[subject.name] = pp.count;
+                                   if (pp.status == 2) {
+                                       ignoredSubjects[subject.name] = true;
+                                   }
                                }
                            });
                        }

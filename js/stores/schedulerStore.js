@@ -182,6 +182,13 @@
 
                                 if (count <= 0) continue;
 
+                                // Ignore if status is 2 (Omitir Auto)
+                                const projection = this.state.projections.find(p => p.courseid == courseId);
+                                if (projection && projection.status == 2) {
+                                    console.log(`SchedulerStore: Skipping course ${courseId} because it is marked as Ignored (Omitir Auto)`);
+                                    continue;
+                                }
+
                                 // TODO: Map courseId to Subject Name properly using a map from backend
                                 // For now, we use a placeholder that might fail matching if teacher competence uses strict names.
                                 // We really need the course code or name here.
