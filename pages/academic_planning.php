@@ -1024,6 +1024,9 @@ const app = createApp({
 
         const savePlanning = async () => {
              if (selectedPeriodId.value === 0) return;
+             
+             console.log("DEBUG manualProjections proxy:", JSON.parse(JSON.stringify(manualProjections)));
+             
              saving.value = true;
              try {
                  const items = [];
