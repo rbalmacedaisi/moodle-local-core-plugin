@@ -429,7 +429,7 @@ class planning_manager {
     public static function get_scheduler_context($periodId) {
         global $DB;
         
-        $classrooms = $DB->get_records('gmk_classrooms', [], 'name ASC');
+        $classrooms = $DB->get_records('gmk_classrooms', ['active' => 1], 'name ASC');
         $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodId], 'date ASC');
         $loads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $periodId], 'subjectname ASC');
         
