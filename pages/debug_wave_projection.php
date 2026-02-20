@@ -15,26 +15,39 @@ if (!$periodId) {
 
 $data = planning_manager::get_planning_data($periodId);
 
-echo "<h1>Wave Projection Diagnostic</h1>";
-echo "<p>Period ID: $periodId</p>";
+// 0. Dump Subperiods Table
+echo "<h2>0. Subperiods Table Raw Data</h2>";
+$subperiodsTable = $DB->get_records('local_learning_subperiods', [], 'id ASC', '*', 0, 50);
+echo "<table border='1' cellpadding='5'>";
+echo "<tr><th>ID</th><th>Name</th><th>Plan ID</th><th>Period ID</th><th>Position</th></tr>";
+foreach ($subperiodsTable as $sp) {
+    echo "<tr><td>{$sp->id}</td><td>{$sp->name}</td><td>{$sp->learningplanid}</td><td>{$sp->periodid}</td><td>{$sp->position}</td></tr>";
+}
+echo "</table>";
 
 echo "<h2>1. Subject Bimestre Metadata</h2>";
 echo "<table border='1' cellpadding='5'>";
-echo "<tr><th>Subject ID</th><th>Name</th><th>Level</th><th>Bimestre (Backend)</th></tr>";
+echo "<tr><th>Subject ID</th><th>Name</th><th>Level</th><th>Bimestre (Pos)</th><th>Subperiod Name</th></tr>";
 foreach ($data['all_subjects'] as $s) {
     if (is_array($s)) {
         $id = $s['id'];
         $name = $s['name'];
         $level = $s['semester_num'];
         $bimestre = isset($s['bimestre']) ? $s['bimestre'] : 'NOT SET';
+        // Logic to get name if possible
     } else {
         $id = $s->id;
         $name = $s->fullname;
         $level = $s->semester_num;
         $bimestre = isset($s->bimestre) ? $s->bimestre : 'NOT SET';
     }
+    
+    // Find subperiod name from raw table for this specific course link if possible
+    // (This is just a diagnostic, we'll join properly in manager later)
+    $spName = 'N/A';
+    
     $color = ($bimestre === 'NOT SET' || $bimestre == 0) ? 'red' : 'inherit';
-    echo "<tr><td>$id</td><td>$name</td><td>$level</td><td style='color:$color'>$bimestre</td></tr>";
+    echo "<tr><td>$id</td><td>$name</td><td>$level</td><td style='color:$color'>$bimestre</td><td>$spName</td></tr>";
 }
 echo "</table>";
 
