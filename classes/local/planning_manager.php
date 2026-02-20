@@ -250,13 +250,15 @@ class planning_manager {
         // FIX: Use lpc.id (Link ID) as the first column (key) to ensure uniqueness.
         // Previously, it was using p.learningplanid (or implied first col), causing massive data loss (only 1 row per plan).
         $sql = "SELECT lpc.id as linkid, p.learningplanid, p.id as period_id, p.name as period_name,
-                       c.id as courseid, c.fullname, c.shortname
+                       c.id as courseid, c.fullname, c.shortname,
+                       COALESCE(sp.position, 1) as subperiod_position
                        $selectCustom
                 FROM {local_learning_periods} p
                 JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
                 JOIN {course} c ON c.id = lpc.courseid
+                LEFT JOIN {local_learning_subperiods} sp ON sp.id = lpc.subperiodid
                 $joinCustom
-                ORDER BY p.learningplanid, p.id";
+                ORDER BY p.learningplanid, p.id, sp.position";
 
         $records = $DB->get_records_sql($sql);
         
@@ -301,6 +303,7 @@ class planning_manager {
                 'name' => $r->fullname, // Alias for frontend compatibility
                 'semester_num' => $semesterNum, 
                 'semester_name' => $r->period_name,
+                'bimestre' => (int)$r->subperiod_position,
                 'prereqs' => $prereqs
             ];
         }

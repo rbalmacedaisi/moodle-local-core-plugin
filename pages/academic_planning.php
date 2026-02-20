@@ -1213,8 +1213,8 @@ const app = createApp({
                         curL++; // Advanced to next level after finishing Bimestre II
                     }
                     
-                    // All subjects of Level 'curL' are needed by this cohort in period 'pIdx'
-                    allSubjectsList.filter(s => parseInt(s.semester_num) === curL).forEach(s => {
+                    // GRANULAR FIX: A cohort in curate level/bimestre only generates demand for subjects matching BOTH.
+                    allSubjectsList.filter(s => parseInt(s.semester_num) === curL && parseInt(s.bimestre) === curB).forEach(s => {
                          if (!subjectsMap[s.name]) return;
                          
                          // Check for manual deferrals
