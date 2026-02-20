@@ -17,8 +17,8 @@ window.SchedulerComponents.GeneralConfig = {
                     @click="saveConfig" 
                     :disabled="storeState.loading"
                     class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg flex items-center gap-2 transition-colors">
-                    <i v-if="!storeState.loading" data-lucide="save" class="w-4 h-4"></i>
-                    <i v-else data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span v-show="!storeState.loading" class="flex items-center"><i data-lucide="save" class="w-4 h-4"></i></span>
+                    <span v-show="storeState.loading" class="flex items-center"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i></span>
                     Guardar Parámetros
                 </button>
             </div>
