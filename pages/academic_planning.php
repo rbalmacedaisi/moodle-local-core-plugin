@@ -1064,6 +1064,10 @@ const app = createApp({
                               }
                           }
 
+                          if (!targetPlanId) {
+                              console.warn("Vue Planning App: Could not find targetPlanId for subject", s.name, s.careers);
+                          }
+
                           if (targetPlanId) {
                               items.push({
                                   planid: targetPlanId,
@@ -1077,7 +1081,7 @@ const app = createApp({
                       }
                   });
 
-                 console.log("Vue Planning App: savePlanning() items:", items);
+                 console.log("Vue Planning App: savePlanning() items payload:", JSON.stringify(items));
                  let res = await callMoodle('local_grupomakro_save_planning', {
                      academicperiodid: selectedPeriodId.value,
                      selections: JSON.stringify(items),

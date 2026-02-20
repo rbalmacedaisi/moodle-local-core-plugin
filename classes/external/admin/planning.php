@@ -408,20 +408,26 @@ class planning extends external_api {
         require_capability('moodle/site:config', $context);
         
         $items = json_decode($selections, true);
+        error_log("save_planning items: " . print_r($items, true));
         
         // Save Deferrals
         require_once(__DIR__ . '/../../local/planning_manager.php');
         $deferredData = json_decode($deferredGroups, true);
+        error_log("save_planning deferred groups: " . print_r($deferredData, true));
         if (is_array($deferredData)) {
             \local_grupomakro_core\local\planning_manager::save_deferrals($academicperiodid, $deferredData);
         }
 
-        if (!is_array($items)) return true; // Could be just deferrals saved
+        if (!is_array($items)) {
+            error_log("save_planning error: items is not an array");
+            return true; // Could be just deferrals saved
+        }
         
         $now = time();
         $uid = $GLOBALS['USER']->id;
         
         foreach ($items as $item) {
+            error_log("save_planning Processing item: " . print_r($item, true));
             // Check existence
             $exists = $DB->get_record('gmk_academic_planning', [
                 'academicperiodid' => $academicperiodid, 
