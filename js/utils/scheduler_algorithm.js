@@ -258,7 +258,14 @@
             const win = shiftWindows[s.shift] || shiftWindows['Diurna'];
             const winStart = toMins(win.start);
             const winEnd = toMins(win.end);
-            const winDays = (s.shift === 'Sabatina') ? ['Sabado'] : ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+            let winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+            if (s.shift === 'Sabatina') {
+                winDays = ['Sabado'];
+            } else if (win && win.days) {
+                // If config provides specific days, use them but try to keep early week preference if possible
+                // Currently shiftWindows doesn't have a 'days' array in Moodle DB by default, so we fallback to the above
+                winDays = win.days;
+            }
 
             const groupKey = `${s.career}|${s.levelDisplay}|${s.shift}`;
             const validRooms = (context.classrooms || [])
