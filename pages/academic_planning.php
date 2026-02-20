@@ -796,7 +796,7 @@ echo $OUTPUT->header();
                                     @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1)"
                                     :class="[
                                         'px-1 py-2 rounded text-[10px] font-bold transition-all border',
-                                        (deferredGroups[popoverData.subject.name + '_' + key] || 0) === (i-1) || (popoverData.period === (i-1) && deferredGroups[popoverData.subject.name + '_' + key] === undefined)
+                                        (deferredGroups[popoverData.subject.name + '_' + key] !== undefined ? deferredGroups[popoverData.subject.name + '_' + key] : popoverData.period) === (i-1)
                                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105' 
                                             : 'bg-white text-slate-400 border-slate-100 hover:border-blue-200 hover:text-blue-500'
                                     ]">
