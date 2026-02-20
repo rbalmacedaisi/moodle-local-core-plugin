@@ -1024,7 +1024,7 @@ const app = createApp({
                      }
                  }
                  
-                 let isBimestre2 = subConfig && subConfig.includes('II');
+                 let isBimestre2 = (subConfig && (subConfig.toLowerCase().includes('ii') || subConfig.includes('2')));
                  
                  // Logic from React: calculate 'Planning Level'
                  let planningLevel = levelNum;
@@ -1199,7 +1199,7 @@ const app = createApp({
             // 3. Process Wave (Future Demand) - Cohort-centric logic for parity
             Object.values(cohorts).forEach(coh => {
                 let curL = coh.levelNum;
-                let isB2 = coh.bimestreLabel.includes('II');
+                let isB2 = coh.bimestreLabel.toLowerCase().includes('ii') || coh.bimestreLabel.includes('2');
                 let curB = isB2 ? 2 : 1;
                 
                 // We advance the state of the cohort for 5 future periods (P-II to P-VI)
@@ -1213,8 +1213,16 @@ const app = createApp({
                         curL++; // Advanced to next level after finishing Bimestre II
                     }
                     
-                    // GRANULAR FIX: A cohort in curate level/bimestre only generates demand for subjects matching BOTH.
-                    allSubjectsList.filter(s => parseInt(s.semester_num) === curL && parseInt(s.bimestre) === curB).forEach(s => {
+                    // GRANULAR FIX: A cohort in curated level/bimestre only generates demand for subjects matching BOTH.
+                    // Use robust integer comparison and career filtering.
+                    const targetSubjets = allSubjectsList.filter(s => {
+                        const sLevel = parseInt(s.semester_num) || 0;
+                        const sBimestre = parseInt(s.bimestre) || 0;
+                        const careerMatch = s.careers && s.careers.includes(coh.career);
+                        return sLevel === curL && sBimestre === curB && careerMatch;
+                    });
+
+                    targetSubjets.forEach(s => {
                          if (!subjectsMap[s.name]) return;
                          
                          // Check for manual deferrals
