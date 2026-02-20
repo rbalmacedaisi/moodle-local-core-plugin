@@ -1419,7 +1419,7 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
 
         // Define field configsettings to be added to gmk_academic_periods
         $table = new xmldb_table('gmk_academic_periods');
-        $field = new xmldb_field('configsettings', XMLDB_TYPE_TEXT, null, null, null, null, null, 'block2end');
+        $field = new xmldb_field('configsettings', XMLDB_TYPE_TEXT, null, null, null, null, null, null);
 
         // Conditionally launch add field configsettings The
         if (!$dbman->field_exists($table, $field)) {
