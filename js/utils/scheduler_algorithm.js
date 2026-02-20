@@ -117,6 +117,8 @@
         }
 
         const effectiveWeeks = getEffectiveWeeks(context.period);
+        const studentNameMap = new Map();
+        if (context.students) context.students.forEach(s => studentNameMap.set(s.id, s.name));
         const shiftWindows = context.configSettings?.shiftWindows || {
             'Diurna': { start: '07:00', end: '18:00' },
             'Nocturna': { start: '18:00', end: '22:00' },
@@ -166,16 +168,26 @@
 
         const checkStudentsBusy = (studentIds, dates, subperiod, start, end) => {
             if (!studentIds || studentIds.length === 0) return null;
-            let conflictMsg = null;
-            studentIds.some(sid => {
+            let firstSubject = null;
+            let busyNames = [];
+            studentIds.forEach(sid => {
                 const subject = checkBusyGranular(studentUsage, sid, dates, subperiod, start, end);
                 if (subject) {
-                    conflictMsg = subject;
-                    return true;
+                    if (!firstSubject) firstSubject = subject;
+                    const sName = studentNameMap.get(sid) || `ID:${sid}`;
+                    if (busyNames.length < 3) busyNames.push(sName);
                 }
-                return false;
             });
-            return conflictMsg;
+
+            if (firstSubject) {
+                let msg = `${firstSubject}`;
+                if (busyNames.length > 0) {
+                    msg += `: ${busyNames.join(', ')}`;
+                    if (busyNames.length < studentIds.length && busyNames.length >= 3) msg += '...';
+                }
+                return msg;
+            }
+            return null;
         };
 
         // Pre-initialize: Compute assignedDates for already placed schedules
@@ -448,13 +460,31 @@
             }
         }
         if (schedule.studentIds?.length > 0) {
-            const sC = allSchedules.find(s => {
+            let conflictSubject = null;
+            let conflictingStudents = [];
+
+            allSchedules.some(s => {
                 const subOverlap = (s.subperiod === 0) || (schedule.subperiod === 0) || (s.subperiod === schedule.subperiod);
                 if (!subOverlap || s.id === schedule.id || s.day !== schedule.day) return false;
                 if (Math.max(sStart, toMins(s.start)) >= Math.min(sEnd, toMins(s.end))) return false;
-                return schedule.studentIds.some(sid => (s.studentIds || []).includes(sid));
+
+                const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
+                if (overlaps.length > 0) {
+                    conflictSubject = s.subjectName;
+                    const nameMap = new Map();
+                    if (context?.students) context.students.forEach(st => nameMap.set(st.id, st.name));
+                    conflictingStudents = overlaps.slice(0, 3).map(sid => nameMap.get(sid) || `ID:${sid}`);
+                    if (overlaps.length > 3) conflictingStudents.push('...');
+                    return true;
+                }
+                return false;
             });
-            if (sC) issues.push({ type: 'group', message: `Choque de alumnos con ${sC.subjectName}`, relatedId: sC.id });
+
+            if (conflictSubject) {
+                let msg = `Choque alumnos con ${conflictSubject}`;
+                if (conflictingStudents.length > 0) msg += ` (${conflictingStudents.join(', ')})`;
+                issues.push({ type: 'group', message: msg });
+            }
         }
         return issues;
     };

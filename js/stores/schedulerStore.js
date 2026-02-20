@@ -85,6 +85,7 @@
             // demand_tree comes as JSON string
             this.state.demand = typeof res.demand_tree === 'string' ? JSON.parse(res.demand_tree) : res.demand_tree;
             this.state.students = res.student_list;
+            if (this.state.context) this.state.context.students = res.student_list;
             this.state.projections = res.projections;
 
             // Index subjects by ID
@@ -261,7 +262,8 @@
                     classrooms: this.state.context.classrooms || [],
                     loads: this.state.context.loads || [],
                     period: this.state.activePeriodDates || {},
-                    configSettings: this.state.context.configSettings || {}
+                    configSettings: this.state.context.configSettings || {},
+                    students: this.state.students || []
                 });
 
                 // 4. AUTO-ASSIGN TEACHERS to the placed schedules
