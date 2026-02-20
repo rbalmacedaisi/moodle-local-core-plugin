@@ -1358,7 +1358,10 @@ const app = createApp({
                     const targetSubjets = allSubjectsList.filter(s => {
                         const sLevel = parseInt(s.semester_num) || 0;
                         const sBimestre = parseInt(s.bimestre) || 0;
-                        const careerMatch = s.careers && s.careers.includes(coh.career);
+                        const careerMatch = s.careers && s.careers.some(c => {
+                            const cName = (typeof c === 'object' && c !== null) ? c.name : c;
+                            return cName === coh.career;
+                        });
                         // Skip if already in P-I Pending demand for this cohort
                         if (pendingForCohort.has(s.name)) return false;
                         return sLevel === curL && sBimestre === curB && careerMatch;
@@ -1405,7 +1408,7 @@ const app = createApp({
                 if (totalP1 < 12 && maxDemand < 12) suggestion = "Baja Demanda";
                 if (isOpen && !suggestion.includes("Esperar")) suggestion = "ABRIR AHORA";
                 
-                return { ...s, totalP1, isOpen, suggestion, manual };
+                return { ...s, totalP1, isOpen, suggestion, manual, countP1: s.countP1 };
             });
 
             if (selectedCareer.value !== 'Todas') {
