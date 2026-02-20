@@ -486,8 +486,8 @@ class scheduler extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
         
-        $data = json_decode($schedules, true);
-        if (!is_array($data)) return false;
+        $data = is_string($schedules) ? json_decode($schedules, true) : $schedules;
+        if (!is_array($data)) return 'El payload de horarios no es un array válido. Tipo recibido: ' . gettype($schedules);
         
         //$transaction = $DB->start_delegated_transaction();
         
