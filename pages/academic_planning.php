@@ -1113,6 +1113,14 @@ const app = createApp({
                         Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
                         Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
                         
+                        // Guarantee reactivity by pre-defining properties for all subjects
+                        if (res.all_subjects) {
+                            res.all_subjects.forEach(subj => {
+                                manualProjections[subj.name] = 0;
+                                ignoredSubjects[subj.name] = false;
+                            });
+                        }
+                        
                         if (res.planning_projections) {
                             res.planning_projections.forEach(pp => {
                                 const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
