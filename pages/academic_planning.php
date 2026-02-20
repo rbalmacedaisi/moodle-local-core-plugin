@@ -1093,10 +1093,38 @@ const app = createApp({
                   });
 
                  console.log("Vue Planning App: savePlanning() items payload:", JSON.stringify(items));
+                 
+                 // Repack deferredGroups flat object into { courseId: { cohortKey: targetIdx } } expected by backend
+                 const repackedDeferrals = {};
+                 const allSubjects = (rawData.value && rawData.value.all_subjects) ? rawData.value.all_subjects : analysis.value.subjectList;
+                 
+                 if (allSubjects) {
+                     Object.entries(deferredGroups).forEach(([flatKey, targetIdx]) => {
+                         let matchedSubject = null;
+                         for (const s of allSubjects) {
+                             if (flatKey.startsWith(s.name + '_')) {
+                                 matchedSubject = s;
+                                 break;
+                             }
+                         }
+                         if (matchedSubject) {
+                             const cohortKey = flatKey.substring(matchedSubject.name.length + 1);
+                             if (!repackedDeferrals[matchedSubject.id]) {
+                                 repackedDeferrals[matchedSubject.id] = {};
+                             }
+                             repackedDeferrals[matchedSubject.id][cohortKey] = targetIdx;
+                         } else {
+                             console.warn("Vue Planning App: Could not repack deferral, subject not found for key:", flatKey);
+                         }
+                     });
+                 }
+
+                 console.log("Vue Planning App: savePlanning() deferrals payload:", JSON.stringify(repackedDeferrals));
+
                  let res = await callMoodle('local_grupomakro_save_planning', {
                      academicperiodid: selectedPeriodId.value,
                      selections: JSON.stringify(items),
-                     deferredGroups: JSON.stringify(deferredGroups)
+                     deferredGroups: JSON.stringify(repackedDeferrals)
                  });
                  
                  if (res) {
