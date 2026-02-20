@@ -1834,6 +1834,7 @@ if (window.SchedulerComponents) {
     app.component('projections-modal', window.SchedulerComponents.ProjectionsModal);
     app.component('classroom-manager', window.SchedulerComponents.ClassroomManager);
     app.component('holiday-manager', window.SchedulerComponents.HolidayManager);
+    app.component('general-config', window.SchedulerComponents.GeneralConfig);
 }
 
 console.log("Vue Planning App: Attempting to mount...");
