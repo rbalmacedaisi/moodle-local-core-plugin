@@ -2665,6 +2665,22 @@ try {
             $response = ['status' => 'success', 'data' => $data];
             break;
 
+        case 'local_grupomakro_get_teachers_disponibility':
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/disponibility/get_teachers_disponibility.php');
+            $instructorId = optional_param('instructorId', null, PARAM_TEXT);
+            $initTime = optional_param('initTime', null, PARAM_TEXT);
+            $endTime = optional_param('endTime', null, PARAM_TEXT);
+            
+            $result = \local_grupomakro_core\external\disponibility\get_teachers_disponibility::execute($instructorId, $initTime, $endTime);
+            if (isset($result['status']) && $result['status'] == 1) {
+                // Return decoded json array
+                $data = json_decode($result['teacherAvailabilityRecords'], true);
+                $response = ['status' => 'success', 'data' => $data];
+            } else {
+                $response = ['status' => 'error', 'message' => isset($result['message']) ? $result['message'] : 'Error loading disponibility'];
+            }
+            break;
+
         case 'local_grupomakro_save_scheduler_config':
             $periodid = required_param('periodid', PARAM_INT);
             $holidays = isset($_POST['holidays']) && is_array($_POST['holidays']) ? $_POST['holidays'] : [];

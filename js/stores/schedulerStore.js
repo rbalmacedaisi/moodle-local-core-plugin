@@ -215,7 +215,7 @@
                     }
                 }
 
-                // 2. Call Algorithm
+                // 2. Extracted Availability
                 const availability = this.state.instructors.map(inst => ({
                     teacherName: inst.firstname + ' ' + inst.lastname,
                     instructorId: inst.id,
@@ -224,18 +224,16 @@
                     timeRange: `${inst.starttime}-${inst.endtime}`
                 }));
 
-                // Note: schedules have dummy subjectName if not mapped.
-                // We ensure subject names are correct using this.state.subjects[courseId].name
-
-                const result = window.SchedulerAlgorithm.autoAssign(schedules, availability);
-
-                // 3. AUTO-PLACEMENT
-                const finalResult = window.SchedulerAlgorithm.autoPlace(result, {
+                // 3. AUTO-PLACEMENT (Determine Days and Times first)
+                let finalResult = window.SchedulerAlgorithm.autoPlace(schedules, {
                     classrooms: this.state.context.classrooms || [],
                     loads: this.state.context.loads || [],
                     period: this.state.activePeriodDates || {},
-                    configSettings: this.state.context.config || {}
+                    configSettings: this.state.context.configSettings || {}
                 });
+
+                // 4. AUTO-ASSIGN TEACHERS to the placed schedules
+                finalResult = window.SchedulerAlgorithm.autoAssign(finalResult, availability);
 
                 this.state.generatedSchedules = finalResult;
                 this.state.successMessage = "Horarios generados y ubicados automáticamente";
