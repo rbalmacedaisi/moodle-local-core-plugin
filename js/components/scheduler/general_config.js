@@ -182,6 +182,11 @@ window.SchedulerComponents.GeneralConfig = {
             return this.storeState.context?.configSettings || {};
         },
         availableCareers() {
+            // Priority 1: Careers from context (available even before demand analysis)
+            if (this.storeState.context?.careers && this.storeState.context.careers.length > 0) {
+                return [...this.storeState.context.careers].sort();
+            }
+            // Priority 2: Careers from demand (after analysis)
             const demand = this.storeState.demand || {};
             return Object.keys(demand).sort();
         }

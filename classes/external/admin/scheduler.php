@@ -39,10 +39,39 @@ class scheduler extends external_api {
         // 3. Get Subject Loads for this period
         $loads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $periodid], 'subjectname ASC');
 
+        // 4. Get Period Record and Careers
+        $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+        $period = null;
+        $configSettings = '';
+        $careers = [];
+
+        if ($periodRec) {
+            $period = [
+                'id' => $periodRec->id,
+                'name' => $periodRec->name,
+                'start' => date('Y-m-d', $periodRec->startdate),
+                'end' => date('Y-m-d', $periodRec->enddate)
+            ];
+            $configSettings = $periodRec->configsettings ?: '';
+
+            // Extract Careers from linked learning plans
+            $lpIds = json_decode($periodRec->learningplans, true);
+            if ($lpIds && is_array($lpIds)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($lpIds);
+                $plans = $DB->get_records_select('local_learning_plans', "id $insql", $inparams, 'name ASC', 'id, name');
+                foreach ($plans as $p) {
+                    $careers[] = $p->name;
+                }
+            }
+        }
+
         return [
             'classrooms' => array_values($classrooms),
             'holidays' => array_values($holidays),
-            'loads' => array_values($loads)
+            'loads' => array_values($loads),
+            'period' => $period,
+            'configSettings' => $configSettings,
+            'careers' => $careers
         ];
     }
 
@@ -79,7 +108,8 @@ class scheduler extends external_api {
                 'start' => new external_value(PARAM_TEXT, 'Start Date'),
                 'end' => new external_value(PARAM_TEXT, 'End Date')
             ], 'Period metadata', VALUE_OPTIONAL),
-            'configSettings' => new external_value(PARAM_RAW, 'JSON encoded config settings', VALUE_OPTIONAL)
+            'configSettings' => new external_value(PARAM_RAW, 'JSON encoded config settings', VALUE_OPTIONAL),
+            'careers' => new external_multiple_structure(new external_value(PARAM_TEXT, 'Career name'), 'List of career names', VALUE_OPTIONAL)
         ]);
     }
 
