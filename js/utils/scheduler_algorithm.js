@@ -224,50 +224,69 @@
                 });
 
             let placed = false;
-            let failureReasons = new Set();
-            let testedSlots = 0;
+            let stats = {
+                slotsTested: 0,
+                daysTested: 0,
+                studentConflictCount: 0,
+                teacherConflictCount: 0,
+                roomBusyCount: 0,
+                lunchConflictCount: 0,
+                lastStudentConflict: null,
+                lastTeacherConflict: null,
+                lastRoomConflict: null
+            };
 
             for (const day of winDays) {
                 if (placed) break;
                 const availableDates = allDatesByDay[day] || [];
                 if (availableDates.length === 0) continue;
+                stats.daysTested++;
 
                 for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                     if (placed) break;
                     const tEnd = t + durationMins;
+                    stats.slotsTested++;
+
                     if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
-                        failureReasons.add("Horario coincide con almuerzo");
+                        stats.lunchConflictCount++;
                         continue;
                     }
 
-                    testedSlots++;
+                    // --- HUMAN CONFLICT CHECK (Student/Teacher) ---
+                    // We check this ONCE per time slot since it's the same regardless of the room
+                    let targetDates = availableDates;
+                    const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
+                    if (subRange) {
+                        const subStart = subRange.start;
+                        const subEnd = subRange.end;
+                        targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
+                    }
+
+                    if (targetDates.length === 0) continue;
+
+                    const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
+                    if (stConflict) {
+                        stats.studentConflictCount++;
+                        stats.lastStudentConflict = stConflict;
+                        continue; // No sense checking rooms if students are busy
+                    }
+
+                    const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd) : null;
+                    if (tConflict) {
+                        stats.teacherConflictCount++;
+                        stats.lastTeacherConflict = tConflict;
+                        continue; // No sense checking rooms if teacher is busy
+                    }
+
+                    // --- MECHANICAL CONFLICT CHECK (Rooms) ---
                     for (const room of validRooms) {
                         if (placed) break;
-                        let targetDates = availableDates;
-                        const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
-                        if (subRange) {
-                            const subStart = subRange.start;
-                            const subEnd = subRange.end;
-                            targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
-                        }
-
-                        if (targetDates.length === 0) {
-                            failureReasons.add("Sin fechas en subperiodo");
-                            continue;
-                        }
 
                         if (maxSessions) {
                             const freeDates = targetDates.filter(d => {
-                                const rOkName = checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
-                                const tOkName = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd) : null;
-                                const sOkName = checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
-
-                                if (rOkName) failureReasons.add(`Aula ocupada: ${rOkName}`);
-                                if (tOkName) failureReasons.add(`Docente ocupado: ${tOkName}`);
-                                if (sOkName) failureReasons.add(`Choque Alumnos: ${sOkName}`);
-
-                                return !rOkName && !tOkName && !sOkName;
+                                return !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
                             });
+
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
@@ -275,18 +294,16 @@
                                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, selectedDates, s);
                                 if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, selectedDates, s));
                                 placed = true;
-                            } else if (freeDates.length > 0) {
-                                failureReasons.add("Días insuficientes para curso intensivo");
+                            } else {
+                                stats.roomBusyCount++;
                             }
                         } else {
                             const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
-                            if (rConflict) { failureReasons.add(`Aula ${room.name} ocupada (${rConflict})`); continue; }
-
-                            const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd) : null;
-                            if (tConflict) { failureReasons.add(`Docente ${s.teacherName} ocupado (${tConflict})`); continue; }
-
-                            const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
-                            if (stConflict) { failureReasons.add(`Choque Alumnos: ${stConflict}`); continue; }
+                            if (rConflict) {
+                                stats.roomBusyCount++;
+                                stats.lastRoomConflict = rConflict;
+                                continue;
+                            }
 
                             s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = targetDates;
                             markBusyGranular(roomUsage, room.name, targetDates, s);
@@ -299,17 +316,18 @@
             }
 
             if (!placed) {
-                if (validRooms.length === 0) s.warning = `Sin aulas de capacidad ${s.studentCount}`;
-                else if (testedSlots === 0) s.warning = "Fuera de ventana horaria";
-                else {
-                    const resArr = Array.from(failureReasons);
-                    const stuConflict = resArr.find(r => r.startsWith("Choque Alumnos:"));
-                    if (stuConflict) {
-                        s.warning = stuConflict;
-                    } else if (resArr.some(r => r.includes("Docente"))) {
-                        s.warning = "Conflicto: Docente ocupado";
+                if (validRooms.length === 0) {
+                    s.warning = `Sin aulas de capacidad ${s.studentCount}`;
+                } else if (stats.slotsTested === 0) {
+                    s.warning = "Fuera de ventana horaria permitida";
+                } else {
+                    // Exhaustive Proof Warning
+                    if (stats.studentConflictCount > (stats.slotsTested * 0.8)) {
+                        s.warning = `Choque Alumnos: Bloqueado por ${stats.lastStudentConflict} en la mayoría de huecos`;
+                    } else if (stats.teacherConflictCount > (stats.slotsTested * 0.5)) {
+                        s.warning = `Choque Docente: Bloqueado por ${stats.lastTeacherConflict}`;
                     } else {
-                        s.warning = "Sin espacio disponible (Todo ocupado)";
+                        s.warning = `Tras ${stats.slotsTested} intentos: ${stats.roomBusyCount} aulas ocupadas, ${stats.studentConflictCount} choques alumnos, ${stats.lunchConflictCount} almuerzo`;
                     }
                 }
             }
