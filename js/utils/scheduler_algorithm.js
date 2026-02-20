@@ -136,25 +136,46 @@
             const entityMap = usageMap.get(key);
             dates.forEach(date => {
                 if (!entityMap.has(date)) entityMap.set(date, []);
-                entityMap.get(date).push({ start: toMins(s.start), end: toMins(s.end), subperiod: s.subperiod || 0 });
-            });
-        };
-
-        const checkBusyGranular = (usageMap, key, dates, subperiod, start, end) => {
-            if (!key || !usageMap.has(key)) return false;
-            const entityMap = usageMap.get(key);
-            return dates.some(date => {
-                const slots = entityMap.get(date) || [];
-                return slots.some(busy => {
-                    const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
-                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+                entityMap.get(date).push({
+                    start: toMins(s.start),
+                    end: toMins(s.end),
+                    subperiod: s.subperiod || 0,
+                    subjectName: s.subjectName
                 });
             });
         };
 
+        const checkBusyGranular = (usageMap, key, dates, subperiod, start, end) => {
+            if (!key || !usageMap.has(key)) return null;
+            const entityMap = usageMap.get(key);
+            let conflictSubject = null;
+            dates.some(date => {
+                const slots = entityMap.get(date) || [];
+                const conflict = slots.find(busy => {
+                    const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
+                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+                });
+                if (conflict) {
+                    conflictSubject = conflict.subjectName;
+                    return true;
+                }
+                return false;
+            });
+            return conflictSubject;
+        };
+
         const checkStudentsBusy = (studentIds, dates, subperiod, start, end) => {
-            if (!studentIds || studentIds.length === 0) return false;
-            return studentIds.some(sid => checkBusyGranular(studentUsage, sid, dates, subperiod, start, end));
+            if (!studentIds || studentIds.length === 0) return null;
+            let conflictMsg = null;
+            studentIds.some(sid => {
+                const subject = checkBusyGranular(studentUsage, sid, dates, subperiod, start, end);
+                if (subject) {
+                    conflictMsg = subject;
+                    return true;
+                }
+                return false;
+            });
+            return conflictMsg;
         };
 
         nextSchedules.forEach(s => {
@@ -237,10 +258,15 @@
 
                         if (maxSessions) {
                             const freeDates = targetDates.filter(d => {
-                                const rOk = !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
-                                const tOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd);
-                                const sOk = !checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
-                                return rOk && tOk && sOk;
+                                const rOkName = checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd);
+                                const tOkName = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, [d], s.subperiod, t, tEnd) : null;
+                                const sOkName = checkStudentsBusy(s.studentIds, [d], s.subperiod, t, tEnd);
+
+                                if (rOkName) failureReasons.add(`Aula ocupada: ${rOkName}`);
+                                if (tOkName) failureReasons.add(`Docente ocupado: ${tOkName}`);
+                                if (sOkName) failureReasons.add(`Choque Alumnos: ${sOkName}`);
+
+                                return !rOkName && !tOkName && !sOkName;
                             });
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
@@ -253,12 +279,14 @@
                                 failureReasons.add("Días insuficientes para curso intensivo");
                             }
                         } else {
-                            const rOk = !checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
-                            if (!rOk) { failureReasons.add(`Aula ${room.name} ocupada`); continue; }
-                            const tOk = !s.teacherName || !checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd);
-                            if (!tOk) { failureReasons.add(`Docente ${s.teacherName} ocupado`); continue; }
-                            const stOk = !checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
-                            if (!stOk) { failureReasons.add(`Choque de alumnos`); continue; }
+                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
+                            if (rConflict) { failureReasons.add(`Aula ${room.name} ocupada (${rConflict})`); continue; }
+
+                            const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd) : null;
+                            if (tConflict) { failureReasons.add(`Docente ${s.teacherName} ocupado (${tConflict})`); continue; }
+
+                            const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
+                            if (stConflict) { failureReasons.add(`Choque Alumnos: ${stConflict}`); continue; }
 
                             s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = targetDates;
                             markBusyGranular(roomUsage, room.name, targetDates, s);
@@ -274,10 +302,15 @@
                 if (validRooms.length === 0) s.warning = `Sin aulas de capacidad ${s.studentCount}`;
                 else if (testedSlots === 0) s.warning = "Fuera de ventana horaria";
                 else {
-                    const res = Array.from(failureReasons);
-                    if (res.includes("Choque de alumnos")) s.warning = "Conflicto: Alumnos ya ocupados";
-                    else if (res.some(r => r.includes("Docente"))) s.warning = "Conflicto: Docente ocupado";
-                    else s.warning = "Sin espacio disponible (Todo ocupado)";
+                    const resArr = Array.from(failureReasons);
+                    const stuConflict = resArr.find(r => r.startsWith("Choque Alumnos:"));
+                    if (stuConflict) {
+                        s.warning = stuConflict;
+                    } else if (resArr.some(r => r.includes("Docente"))) {
+                        s.warning = "Conflicto: Docente ocupado";
+                    } else {
+                        s.warning = "Sin espacio disponible (Todo ocupado)";
+                    }
                 }
             }
         });
