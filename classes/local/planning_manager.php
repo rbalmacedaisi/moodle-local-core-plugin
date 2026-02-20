@@ -119,11 +119,29 @@ class planning_manager {
                     'semester_num' => self::parse_semester_number($pc->periodname),
                     'semester_name' => $pc->periodname,
                     'bimestre' => (int)$pc->subperiod_position,
-                    'careers' => [$pc->planname]
+                    'careers' => [
+                        [
+                            'id' => $pc->planid,
+                            'name' => $pc->planname,
+                            'periodid' => $pc->periodid
+                        ]
+                    ]
                 ];
             } else {
-                if (!in_array($pc->planname, $allSubjects[$pc->courseid]['careers'])) {
-                    $allSubjects[$pc->courseid]['careers'][] = $pc->planname;
+                // Check if this career is already added
+                $exists = false;
+                foreach ($allSubjects[$pc->courseid]['careers'] as $c) {
+                    if ($c['id'] == $pc->planid) {
+                        $exists = true;
+                        break;
+                    }
+                }
+                if (!$exists) {
+                    $allSubjects[$pc->courseid]['careers'][] = [
+                        'id' => $pc->planid,
+                        'name' => $pc->planname,
+                        'periodid' => $pc->periodid
+                    ];
                 }
             }
         }

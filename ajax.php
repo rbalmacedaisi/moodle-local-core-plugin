@@ -457,6 +457,22 @@ try {
             }
             break;
 
+        case 'local_grupomakro_get_planning_data':
+            $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
+            $data = \local_grupomakro_core\local\planning_manager::get_planning_data($periodid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
+        case 'local_grupomakro_save_planning':
+            $academicperiodid = required_param('academicperiodid', PARAM_INT);
+            $selections = required_param('selections', PARAM_RAW);
+            $deferredGroups = optional_param('deferredGroups', '{}', PARAM_RAW);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
+            $res = \local_grupomakro_core\external\admin\planning::save_planning($academicperiodid, $selections, $deferredGroups);
+            $response = ['status' => 'success', 'data' => $res];
+            break;
+
         case 'local_grupomakro_get_academic_periods':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/planning.php');
             $periods = \local_grupomakro_core\external\admin\planning::get_periods();

@@ -171,17 +171,17 @@ echo $OUTPUT->header();
             <div class="bg-white rounded-xl shadow-sm border border-gray-100">
                 <div class="p-4 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
                     <h3 class="font-bold text-slate-700 flex items-center gap-2">
-                        <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i> Matriz de Proyección
+                        <span><i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i></span> Matriz de Proyección
                     </h3>
                     <div class="flex items-center gap-3">
                          <a href="debug_student_data.php" target="_blank" class="px-2 py-1 bg-amber-50 text-amber-700 rounded border border-amber-200 text-[10px] font-bold uppercase transition-all hover:bg-amber-100 flex items-center gap-1">
-                            <i data-lucide="alert-circle" class="w-3 h-3 text-amber-500"></i>
+                            <span><i data-lucide="alert-circle" class="w-3 h-3 text-amber-500"></i></span>
                             Limpiar "Sin Definir"
                          </a>
                          <span class="px-2 py-1 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 text-xs">Editable: Nuevos Ingresos</span>
                          <button @click="savePlanning" :disabled="saving" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-md">
-                            <i v-if="saving" data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
-                            <i v-else data-lucide="save" class="w-3.5 h-3.5"></i>
+                            <span><i v-if="saving" data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i></span>
+                            <span><i v-else data-lucide="save" class="w-3.5 h-3.5"></i></span>
                             Guardar Proyecciones
                         </button>
                     </div>
@@ -290,8 +290,8 @@ echo $OUTPUT->header();
                               <template v-for="(data, career) in analysis.populationTree" :key="career">
                                   <tr class="cursor-pointer hover:bg-pink-50/30 transition-colors" :class="{'bg-pink-50/50': expandedCareer === career}" @click="toggleCareer(career)">
                                       <td class="p-3 font-bold text-slate-700 flex items-center gap-2">
-                                          <i v-if="expandedCareer === career" data-lucide="chevron-down" class="w-4 h-4 text-pink-500"></i>
-                                          <i v-else data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                                          <span><i v-if="expandedCareer === career" data-lucide="chevron-down" class="w-4 h-4 text-pink-500"></i></span>
+                                          <span><i v-else data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i></span>
                                           {{ career }}
                                       </td>
                                       <td class="p-3 text-right font-bold text-pink-700">{{ data.count }}</td>
@@ -304,8 +304,8 @@ echo $OUTPUT->header();
                                       <template v-for="(pData, period) in data.periods" :key="period">
                                           <tr class="bg-slate-50/50 cursor-pointer hover:bg-slate-100 transition-colors" @click.stop="togglePeriod(period)">
                                               <td class="p-2 pl-8 text-slate-600 text-xs font-medium flex items-center gap-2">
-                                                  <i v-if="expandedPeriod === period" data-lucide="chevron-down" class="w-3 h-3 text-indigo-500"></i>
-                                                  <i v-else data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i>
+                                                  <span><i v-if="expandedPeriod === period" data-lucide="chevron-down" class="w-3 h-3 text-indigo-500"></i></span>
+                                                  <span><i v-else data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i></span>
                                                   {{ period }}
                                               </td>
                                               <td class="p-2 text-right text-xs font-medium text-slate-600">{{ pData.count }}</td>
@@ -334,7 +334,7 @@ echo $OUTPUT->header();
           <!-- TAB 2: SEARCH -->
           <div v-show="activeTab === 'search'" class="space-y-6">
               <div class="flex flex-col items-center justify-center py-10 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div class="bg-sky-50 p-4 rounded-full mb-4"><i data-lucide="search" class="w-8 h-8 text-sky-500"></i></div>
+                  <div class="bg-sky-50 p-4 rounded-full mb-4"><span><i data-lucide="search" class="w-8 h-8 text-sky-500"></i></span></div>
                   <h3 class="text-lg font-bold text-slate-800 mb-2">Buscador de Estudiantes</h3>
                   <div class="flex gap-2 w-full max-w-md px-4">
                       <input
@@ -361,7 +361,7 @@ echo $OUTPUT->header();
                           </div>
                       </div>
                       <button @click="handleExportStudentSchedule" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors text-sm">
-                          <i data-lucide="download" class="w-4 h-4"></i> Exportar Info
+                          <span><i data-lucide="download" class="w-4 h-4"></i></span> Exportar Info
                       </button>
                   </div>
 
@@ -369,7 +369,7 @@ echo $OUTPUT->header();
                       <!-- PENDING SUBJECTS -->
                       <div>
                           <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                              <i data-lucide="book-open" class="text-sky-500 w-4 h-4"></i>
+                              <span><i data-lucide="book-open" class="text-sky-500 w-4 h-4"></i></span>
                               Materias Pendientes (Prioridad)
                           </h4>
                           <div class="space-y-2">
@@ -416,7 +416,7 @@ echo $OUTPUT->header();
          <div v-if="activeTab === 'students'" class="space-y-6">
               <!-- ALERTS -->
              <div v-if="analysis.studentList.filter(s => s.isGradRisk).length > 0" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg flex items-start gap-3">
-                 <i data-lucide="alert-triangle" class="text-red-600 mt-1 w-5 h-5"></i>
+                 <span><i data-lucide="alert-triangle" class="text-red-600 mt-1 w-5 h-5"></i></span>
                  <div>
                      <h4 class="font-bold text-red-800">Alerta de Graduación</h4>
                      <p class="text-sm text-red-700 mt-1">
@@ -432,7 +432,7 @@ echo $OUTPUT->header();
                 <button @click="studentStatusFilter = 'Critical'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all', studentStatusFilter === 'Critical' ? 'bg-red-500 text-white border-red-500' : 'bg-white border-slate-200 text-red-500']">Sin Asignación</button>
                 
                 <div class="ml-auto relative w-full md:w-64">
-                    <i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i>
+                    <span><i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i></span>
                     <input type="text" v-model="searchTerm" placeholder="Buscar..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
              </div>
@@ -467,7 +467,7 @@ echo $OUTPUT->header();
                                 <td class="p-4 align-top">
                                     <ul v-if="student.projectedSubjects.length > 0" class="space-y-1">
                                         <li v-for="s in student.projectedSubjects" :key="s.name" class="flex items-start gap-1.5 text-xs text-slate-700">
-                                            <i data-lucide="check-circle" class="w-3 h-3 text-green-500 mt-0.5 shrink-0"></i>
+                                            <span><i data-lucide="check-circle" class="w-3 h-3 text-green-500 mt-0.5 shrink-0"></i></span>
                                             <span>{{ s.name }}</span>
                                         </li>
                                     </ul>
@@ -476,7 +476,7 @@ echo $OUTPUT->header();
                                 <td class="p-4 align-top bg-red-50/30 border-l border-red-50">
                                     <ul v-if="student.missingSubjects.length > 0" class="space-y-1">
                                         <li v-for="s in student.missingSubjects" :key="s.name" class="flex items-start gap-1.5 text-xs text-red-700/80">
-                                            <i data-lucide="lock" class="w-3 h-3 text-red-400 mt-0.5 shrink-0"></i>
+                                            <span><i data-lucide="lock" class="w-3 h-3 text-red-400 mt-0.5 shrink-0"></i></span>
                                             <span>{{ s.name }}</span>
                                         </li>
                                     </ul>
@@ -1019,22 +1019,50 @@ const app = createApp({
              if (selectedPeriodId.value === 0) return;
              saving.value = true;
              try {
-                 // Prepare selections for the backend
                  const items = [];
                  
                  analysis.value.subjectList.forEach(s => {
                      const count = manualProjections[s.name] || 0;
                      const isIgnored = ignoredSubjects[s.name] || false;
-                     if (count > 0 || isIgnored || (rawData.value.selections && rawData.value.selections[s.careerId + '_' + s.id])) {
-                         items.push({
-                             planid: s.careerId,
-                             courseid: s.id,
-                             periodid: s.periodId, // relative level ID
-                             count: count,
-                             ignored: isIgnored,
-                             checked: true 
-                         });
+                     
+                     // If we have manual count or ignored status, we need to save it.
+                     // Since a subject can belong to multiple careers, we pick the first one 
+                     // or the currently selected one if applicable.
+                     // In the DB, gmk_academic_planning is per (academicperiodid, planid, courseid).
+                     
+                     if (count > 0 || isIgnored) {
+                         // Find the best career to associate this with.
+                         // If we are filtering by career, use that.
+                         // Otherwise use the first one available for the subject.
+                         let targetPlanId = 0;
+                         let targetPeriodId = 0;
+                         
+                         if (selectedCareer.value !== 'Todas') {
+                             const found = s.careers.find(c => c.name === selectedCareer.value);
+                             if (found) {
+                                 targetPlanId = found.id;
+                                 targetPeriodId = found.periodid;
+                             }
+                         }
+                         
+                         if (!targetPlanId && s.careers && s.careers.length > 0) {
+                             targetPlanId = s.careers[0].id;
+                             targetPeriodId = s.careers[0].periodid;
+                         }
+
+                         if (targetPlanId) {
+                             items.push({
+                                 planid: targetPlanId,
+                                 courseid: s.id,
+                                 periodid: targetPeriodId, 
+                                 count: count,
+                                 ignored: isIgnored,
+                                 checked: true 
+                             });
+                         }
                      }
+                     // Also check if we should delete old selections that were un-checked?
+                     // (The current logic only sends items to save/ignore)
                  });
 
                  console.log("Vue Planning App: savePlanning() items:", items);
@@ -1060,47 +1088,53 @@ const app = createApp({
              console.log("Vue Planning App: fetchData() starting for period", selectedPeriodId.value);
              loading.value = true;
              try {
-                 // Call new Backend Logic
                  let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
                  console.log("Vue Planning App: fetchData() received data:", res ? "SUCCESS" : "EMPTY");
                  rawData.value = res || [];
 
-                  // Initialize Manual Projections and Deferrals from saved data
                    if (res) {
-                       // Projections
-                       if (res.planning_projections) {
-                           Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
-                           Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
-                           res.planning_projections.forEach(pp => {
-                               const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
-                               if (subject) {
-                                   manualProjections[subject.name] = pp.count;
-                                   if (pp.status == 2) {
-                                       ignoredSubjects[subject.name] = true;
-                                   }
-                               }
-                           });
-                       }
-                       // Deferrals
-                       if (res.deferrals) {
-                           Object.keys(deferredGroups).forEach(key => delete deferredGroups[key]);
-                           Object.entries(res.deferrals).forEach(([courseId, cohorts]) => {
-                               const subject = res.all_subjects ? res.all_subjects.find(s => s.id == courseId) : null;
-                               if (subject) {
-                                   Object.entries(cohorts).forEach(([cohortKey, targetIdx]) => {
-                                       deferredGroups[`${subject.name}_${cohortKey}`] = targetIdx;
-                                   });
-                               }
-                           });
-                       }
+                        // Reset current states
+                        Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
+                        Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
+                        
+                        if (res.planning_projections) {
+                            res.planning_projections.forEach(pp => {
+                                const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
+                                if (subject) {
+                                    if (pp.projected_students > 0) {
+                                        manualProjections[subject.name] = pp.projected_students;
+                                    }
+                                    if (pp.status == 2) {
+                                        ignoredSubjects[subject.name] = true;
+                                    }
+                                }
+                            });
+                        }
+                        
+                        if (res.deferrals) {
+                            Object.keys(deferredGroups).forEach(key => delete deferredGroups[key]);
+                            Object.entries(res.deferrals).forEach(([courseId, cohorts]) => {
+                                const subject = res.all_subjects ? res.all_subjects.find(s => s.id == courseId) : null;
+                                if (subject) {
+                                    Object.entries(cohorts).forEach(([cohortKey, targetIdx]) => {
+                                        deferredGroups[`${subject.name}_${cohortKey}`] = targetIdx;
+                                    });
+                                }
+                            });
+                        }
                    }
              } catch (e) {
                  console.error("Vue Planning App: fetchData() FAILED", e);
              } finally {
                  loading.value = false;
                  console.log("Vue Planning App: fetchData() complete, loading=false");
+                 // Use setTimeout to ensure DOM is ready before Lucide runs
+                 setTimeout(() => {
+                     if (typeof lucide !== 'undefined') {
+                         lucide.createIcons();
+                     }
+                 }, 50);
              }
-             nextTick(() => lucide.createIcons());
         };
 
 
