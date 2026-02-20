@@ -25,16 +25,21 @@ foreach ($subperiodsTable as $sp) {
 }
 echo "</table>";
 
+// 1b. Map Subperiods for name resolution in Subjects table
+$subNamesMap = [];
+foreach ($subperiodsTable as $sp) {
+    $subNamesMap[$sp->position + 1] = $sp->name; // position is 0-indexed in DB
+}
+
 echo "<h2>1. Subject Bimestre Metadata</h2>";
 echo "<table border='1' cellpadding='5'>";
-echo "<tr><th>Subject ID</th><th>Name</th><th>Level</th><th>Bimestre (Pos)</th><th>Subperiod Name</th></tr>";
+echo "<tr><th>Subject ID</th><th>Name</th><th>Level</th><th>Bimestre (Pos)</th><th>Probable Name</th></tr>";
 foreach ($data['all_subjects'] as $s) {
     if (is_array($s)) {
         $id = $s['id'];
         $name = $s['name'];
         $level = $s['semester_num'];
         $bimestre = isset($s['bimestre']) ? $s['bimestre'] : 'NOT SET';
-        // Logic to get name if possible
     } else {
         $id = $s->id;
         $name = $s->fullname;
@@ -42,11 +47,9 @@ foreach ($data['all_subjects'] as $s) {
         $bimestre = isset($s->bimestre) ? $s->bimestre : 'NOT SET';
     }
     
-    // Find subperiod name from raw table for this specific course link if possible
-    // (This is just a diagnostic, we'll join properly in manager later)
-    $spName = 'N/A';
+    $spName = isset($subNamesMap[$bimestre]) ? $subNamesMap[$bimestre] : 'N/A';
     
-    $color = ($bimestre === 'NOT SET' || $bimestre == 0) ? 'red' : 'inherit';
+    $color = ($bimestre === 'NOT SET') ? 'red' : 'inherit';
     echo "<tr><td>$id</td><td>$name</td><td>$level</td><td style='color:$color'>$bimestre</td><td>$spName</td></tr>";
 }
 echo "</table>";
