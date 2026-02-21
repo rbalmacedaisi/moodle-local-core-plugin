@@ -533,22 +533,36 @@ class scheduler extends external_api {
                 }
                 
                 // Save Schedule Details (Sessions/Stripes)
+                $DB->delete_records('gmk_class_schedules', ['classid' => $classid]);
+                $sessionsToSave = [];
+                
                 if (isset($cls['sessions']) && is_array($cls['sessions'])) {
-                    $DB->delete_records('gmk_class_schedules', ['classid' => $classid]);
-                    
-                    foreach ($cls['sessions'] as $sess) {
-                        $sLink = new stdClass();
-                        $sLink->classid = $classid;
-                        $sLink->day = $sess['day']; // 'Monday', 'Tuesday'...
-                        $sLink->start_time = $sess['start']; // '08:00'
-                        $sLink->end_time = $sess['end'];
-                        $sLink->classroomid = $sess['classroomid'] ?? null;
-                        $sLink->usermodified = $GLOBALS['USER']->id;
-                        $sLink->timecreated = time();
-                        $sLink->timemodified = time();
-                        
-                        $DB->insert_record('gmk_class_schedules', $sLink);
+                    $sessionsToSave = $cls['sessions'];
+                } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
+                    // Fallback for flat structure from generic generator
+                    $sessionsToSave[] = [
+                        'day' => $cls['day'],
+                        'start' => $cls['start'],
+                        'end' => $cls['end'],
+                        'classroomid' => $cls['room'] !== 'Sin aula' ? $cls['room'] : null
+                    ];
+                }
+                
+                foreach ($sessionsToSave as $sess) {
+                    $sLink = new stdClass();
+                    $sLink->classid = $classid;
+                    $sLink->day = $sess['day']; // 'Monday', 'Tuesday'...
+                    $sLink->start_time = $sess['start']; // '08:00'
+                    $sLink->end_time = $sess['end'];
+                    $sLink->classroomid = $sess['classroomid'] ?? null;
+                    if (is_string($sLink->classroomid) && !is_numeric($sLink->classroomid)) {
+                        $sLink->classroomid = null; // Clean generic "Sin aula"
                     }
+                    $sLink->usermodified = $GLOBALS['USER']->id;
+                    $sLink->timecreated = time();
+                    $sLink->timemodified = time();
+                    
+                    $DB->insert_record('gmk_class_schedules', $sLink);
                 }
             }
             
@@ -595,7 +609,7 @@ class scheduler extends external_api {
         require_capability('moodle/site:config', $context);
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
-                       lp.name as career, c.type, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid
+                       lp.name as career, c.type, c.groupid as subGroup, c.learningplanid
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -632,7 +646,7 @@ class scheduler extends external_api {
                 'shift' => 'No Definida', 
                 'levelDisplay' => 'Nivel X', 
                 'subGroup' => $c->subgroup,
-                'subperiod' => $c->subperiod,
+                'subperiod' => 0,
                 'sessions' => $sessArr
             ];
         }

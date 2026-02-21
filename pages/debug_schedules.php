@@ -14,6 +14,23 @@ echo "<h2>Estado de las Tablas (Revisión de Guardado)</h2>";
 global $DB;
 
 $periods = $DB->get_records('gmk_academic_periods');
+echo "<h3>Estructura de las Tablas</h3>";
+echo "<h4>Columnas de gmk_class</h4>";
+$class_cols = $DB->get_columns('gmk_class');
+echo "<ul>";
+foreach ($class_cols as $col) {
+    echo "<li>{$col->name} ({$col->type})</li>";
+}
+echo "</ul>";
+
+echo "<h4>Columnas de gmk_class_schedules</h4>";
+$sched_cols = $DB->get_columns('gmk_class_schedules');
+echo "<ul>";
+foreach ($sched_cols as $col) {
+    echo "<li>{$col->name} ({$col->type})</li>";
+}
+echo "</ul>";
+
 echo "<h3>Periodos Activos con Clases</h3>";
 echo "<ul>";
 foreach ($periods as $p) {
