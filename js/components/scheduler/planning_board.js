@@ -160,7 +160,20 @@ window.SchedulerComponents.PlanningBoard = {
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Docente</label>
-                            <input type="text" v-model="selectedClass.teacherName" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre del docente o ID Moodle" />
+                            <select v-model="selectedClass.teacherName" @change="onTeacherChange" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Sin asignar</option>
+                                <option v-for="inst in storeState.instructors" :key="inst.id" :value="inst.firstname + ' ' + inst.lastname">
+                                    {{ inst.firstname }} {{ inst.lastname }}
+                                </option>
+                            </select>
+                            
+                            <!-- Conflict Warnings in Modal -->
+                            <div v-if="getTeacherConflicts(selectedClass).length > 0" class="mt-2 space-y-1">
+                                <div v-for="conflict in getTeacherConflicts(selectedClass)" :key="conflict.type" class="text-[10px] bg-red-50 text-red-700 p-1.5 rounded border border-red-100 flex items-start gap-1">
+                                    <i data-lucide="alert-circle" class="w-3 h-3 shrink-0 mt-0.5"></i>
+                                    <span>{{ conflict.message }}</span>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
@@ -380,7 +393,17 @@ window.SchedulerComponents.PlanningBoard = {
         },
         getConflicts(cls) {
             if (!window.SchedulerAlgorithm || !window.SchedulerAlgorithm.detectConflicts) return [];
-            return window.SchedulerAlgorithm.detectConflicts(cls, this.allClasses, this.storeState.context);
+            const context = {
+                ...this.storeState.context,
+                instructors: this.storeState.instructors,
+                students: this.storeState.students
+            };
+            return window.SchedulerAlgorithm.detectConflicts(cls, this.allClasses, context);
+        },
+        getTeacherConflicts(cls) {
+            if (!cls) return [];
+            const issues = this.getConflicts(cls);
+            return issues.filter(i => ['teacher', 'availability', 'competency'].includes(i.type));
         },
         getConflictTooltip(cls) {
             const issues = this.getConflicts(cls);
@@ -424,6 +447,17 @@ window.SchedulerComponents.PlanningBoard = {
         editClass(cls) {
             this.selectedClass = cls;
             this.editDialog = true;
+            // Ensure icons are created for newly dynamic content
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        onTeacherChange() {
+            if (!this.selectedClass) return;
+            const inst = this.storeState.instructors.find(i => (i.firstname + ' ' + i.lastname) === this.selectedClass.teacherName);
+            if (inst) {
+                this.selectedClass.instructorId = inst.id;
+            } else {
+                this.selectedClass.instructorId = null;
+            }
         },
         unassignClass() {
             if (this.selectedClass) {

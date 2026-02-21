@@ -428,6 +428,46 @@
         return suggestions.slice(0, 20);
     };
 
+    const removeTildes = (str) => {
+        if (!str) return "";
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    };
+
+    const checkTeacherSkills = (instructor, subjectName) => {
+        if (!instructor || !instructor.instructorSkills || !subjectName) return true;
+
+        const cleanSubject = removeTildes(subjectName.toLowerCase());
+        return instructor.instructorSkills.some(skill => {
+            const cleanSkill = removeTildes(skill.name.toLowerCase());
+            return cleanSubject.includes(cleanSkill) || cleanSkill.includes(cleanSubject);
+        });
+    };
+
+    const checkTeacherAvailability = (instructor, day, startMins, endMins) => {
+        if (!instructor || !day) return true;
+
+        // Normalize day name to handle tildes (e.g., Miércoles vs Miercoles)
+        const cleanDay = removeTildes(day);
+
+        // Find the record in availabilityRecords using normalized names
+        // locallib.php returns disponibilityRecords indexed by Spanish day names (with tildes potentially)
+        const records = instructor.disponibilityRecords || {};
+        const targetKey = Object.keys(records).find(k => removeTildes(k) === cleanDay);
+
+        if (!targetKey) return true;
+
+        const dayRanges = records[targetKey] || [];
+        if (dayRanges.length === 0) return false;
+
+        return dayRanges.some(rangeStr => {
+            const parts = rangeStr.split(',').map(p => p.trim());
+            if (parts.length !== 2) return false;
+            const startRange = toMins(parts[0]);
+            const endRange = toMins(parts[1]);
+            return startMins >= startRange && endMins <= endRange;
+        });
+    };
+
     const detectConflicts = (schedule, allSchedules, context) => {
         const issues = [];
         if (!schedule || schedule.day === 'N/A') return issues;
@@ -447,10 +487,26 @@
             return Math.max(sStart, toMins(other.start)) < Math.min(sEnd, toMins(other.end));
         };
 
+        // --- Teacher Specific Conflicts ---
         if (schedule.teacherName) {
+            // Existing: busy at same time
             const tC = allSchedules.find(s => s.teacherName === schedule.teacherName && checkOverlap(s));
             if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}`, relatedId: tC.id });
+
+            // NEW: Availability and Competency Check
+            if (context?.instructors) {
+                const instructor = context.instructors.find(i => (i.firstname + ' ' + i.lastname) === schedule.teacherName || i.id == schedule.instructorId);
+                if (instructor) {
+                    if (!checkTeacherAvailability(instructor, schedule.day, sStart, sEnd)) {
+                        issues.push({ type: 'availability', message: `Docente no disponible los ${schedule.day} en este horario` });
+                    }
+                    if (!checkTeacherSkills(instructor, schedule.subjectName)) {
+                        issues.push({ type: 'competency', message: `Docente no cuenta con la competencia para: ${schedule.subjectName}` });
+                    }
+                }
+            }
         }
+
         if (schedule.room && schedule.room !== 'Sin aula') {
             const rC = allSchedules.find(s => s.room === schedule.room && checkOverlap(s));
             if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}`, relatedId: rC.id });
@@ -497,6 +553,8 @@
         toMins,
         formatTime,
         parseTimeRange,
-        getEffectiveWeeks
+        getEffectiveWeeks,
+        checkTeacherAvailability,
+        checkTeacherSkills
     };
 })();

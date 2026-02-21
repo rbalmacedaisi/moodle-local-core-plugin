@@ -77,7 +77,14 @@
             // service: local_grupomakro_get_teachers_disponibility
             const res = await this._fetch('local_grupomakro_get_teachers_disponibility');
             // Check if response is array or wrapped
-            this.state.instructors = Array.isArray(res) ? res : (res.data || []);
+            let data = Array.isArray(res) ? res : (res.data || []);
+
+            // If it's an associative object (Moodle often returns this), convert to array
+            if (data && typeof data === 'object' && !Array.isArray(data)) {
+                data = Object.values(data);
+            }
+
+            this.state.instructors = Array.isArray(data) ? data : [];
         },
 
         async loadGeneratedSchedules(periodId) {
