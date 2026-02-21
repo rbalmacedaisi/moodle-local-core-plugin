@@ -248,7 +248,7 @@
                             levelDisplay: Array.from(data.levels).join(', '),
                             levelList: Array.from(data.levels), // For algorithm use
                             subGroup: i + 1,
-                            subperiod: data.subperiod,
+                            subperiod: data.subperiod || 1, // Default to P-I (Bloque 1) instead of 0 (Ambos)
                             studentIds: groupStudents
                         });
                     }

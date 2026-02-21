@@ -154,9 +154,13 @@ window.SchedulerComponents.PlanningBoard = {
                          <button @click="editDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
                     </div>
                     <div class="p-4 space-y-3">
+                        <div class="mb-3">
+                            <h3 class="font-bold text-lg text-slate-800 leading-tight">{{ selectedClass.subjectName }}</h3>
+                            <p class="text-xs text-slate-500 mt-1">{{ selectedClass.career }} &bull; {{ selectedClass.levelDisplay }}</p>
+                        </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Docente</label>
-                            <input type="text" v-model="selectedClass.teacherName" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre del docente" />
+                            <input type="text" v-model="selectedClass.teacherName" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre del docente o ID Moodle" />
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
@@ -180,7 +184,10 @@ window.SchedulerComponents.PlanningBoard = {
                                 <option :value="2">P-II (Bloque 2)</option>
                             </select>
                         </div>
-                        <div class="pt-2">
+                        <div class="pt-2 flex flex-col gap-2">
+                             <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                                <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
+                             </button>
                              <button @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
                                 Desasignar (Mover a Lista)
                              </button>
