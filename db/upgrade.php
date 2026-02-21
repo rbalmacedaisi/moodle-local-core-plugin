@@ -1508,6 +1508,19 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260221001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260221002) {
+
+        // Changing the type of field level_label on table gmk_class to text.
+        $table = new xmldb_table('gmk_class');
+        $field = new xmldb_field('level_label', XMLDB_TYPE_TEXT, null, null, null, null, null, 'shift');
+
+        // Launch change of type for field level_label.
+        $dbman->change_field_type($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260221002, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
