@@ -165,7 +165,7 @@ window.SchedulerComponents.PlanningBoard = {
                                     v-model="teacherSearch" 
                                     @input="onTeacherChange"
                                     @focus="showTeacherList = true"
-                                    @blur="setTimeout(() => showTeacherList = false, 200)"
+                                    @blur="hideTeacherList"
                                     class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" 
                                     placeholder="Buscar docente o 'Sin asignar'..." />
                                 
@@ -478,6 +478,12 @@ window.SchedulerComponents.PlanningBoard = {
             this.editDialog = true;
             // Ensure icons are created for newly dynamic content
             this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        hideTeacherList() {
+            // Delay to allow mousedown to trigger before the list is removed
+            setTimeout(() => {
+                this.showTeacherList = false;
+            }, 200);
         },
         selectInstructor(inst) {
             if (!this.selectedClass) return;
