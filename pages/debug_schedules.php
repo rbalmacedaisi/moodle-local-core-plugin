@@ -41,7 +41,9 @@ echo "<h3>Periodos Activos con Clases</h3>";
 echo "<ul>";
 foreach ($periods as $p) {
     $count = $DB->count_records('gmk_class', ['periodid' => $p->id]);
-    echo "<li>Periodo {$p->id} ({$p->name}): <strong>{$count}</strong> clases guardadas.</li>";
+    $session_sql = "SELECT COUNT(*) FROM {gmk_class_schedules} s JOIN {gmk_class} c ON c.id = s.classid WHERE c.periodid = ?";
+    $session_count = $DB->count_records_sql($session_sql, [$p->id]);
+    echo "<li>Periodo {$p->id} ({$p->name}): <strong>{$count}</strong> clases y <strong>{$session_count}</strong> sesiones de horario.</li>";
 }
 echo "</ul>";
 

@@ -500,31 +500,50 @@ class scheduler extends external_api {
             
             // For now, let's iterate and Create/Update.
             // Assumption: Frontend sends 'id' if updating.
-            
+           try {
+            // To avoid duplicates while allowing updates:
+            // 1. Identify existing numeric IDs in the payload
+            $validIds = [];
+            foreach ($data as $cls) {
+                if (!empty($cls['id']) && is_numeric($cls['id'])) {
+                    $validIds[] = $cls['id'];
+                }
+            }
+
+            // 2. Delete classes for this period that are NOT in the payload (optional: only if you want full sync)
+            if (!empty($validIds)) {
+                $sql = "periodid = ? AND id NOT IN (" . implode(',', $validIds) . ")";
+                $DB->delete_records_select('gmk_class', $sql, [$periodid]);
+            } else {
+                $DB->delete_records('gmk_class', ['periodid' => $periodid]);
+            }
+
             foreach ($data as $cls) {
                 $classRec = new stdClass();
+                $isUpdate = false;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
                     $classRec->id = $cls['id'];
+                    $isUpdate = true;
                 }
-                
-                $classRec->periodid = $periodid; // Linking to Calendar Period
+
+                $classRec->periodid = $periodid;
                 $classRec->courseid = $cls['courseid'];
-                $classRec->instructorid = $cls['instructorid'] ?? 0;
-                $classRec->name = $cls['name'] ?? 'Clase Auto'; 
-                $classRec->groupid = 0; // Or passed group?
-                
-                // Common fields defaults
-                $classRec->type = 0;
                 $classRec->learningplanid = $cls['learningplanid'] ?? 0;
+                $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
+                $classRec->instructorid = $cls['instructorid'] ?? 0;
+                $classRec->groupid = $cls['subGroup'] ?? 0;
+                $classRec->subperiodid = $cls['subperiod'] ?? 0; // Fixed: using the correct column name
+                $classRec->type = 1; 
+                
                 $classRec->inittime = '';
                 $classRec->endtime = '';
-                $classRec->classdays = '0/0/0/0/0/0/0'; // Replaced by gmk_class_schedules
+                $classRec->classdays = '0/0/0/0/0/0/0';
                 $classRec->approved = 1;
                 $classRec->active = 1;
                 $classRec->timemodified = time();
                 $classRec->usermodified = $GLOBALS['USER']->id;
                 
-                if (isset($classRec->id)) {
+                if ($isUpdate) {
                     $DB->update_record('gmk_class', $classRec);
                     $classid = $classRec->id;
                 } else {
@@ -539,24 +558,23 @@ class scheduler extends external_api {
                 if (isset($cls['sessions']) && is_array($cls['sessions'])) {
                     $sessionsToSave = $cls['sessions'];
                 } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
-                    // Fallback for flat structure from generic generator
                     $sessionsToSave[] = [
                         'day' => $cls['day'],
                         'start' => $cls['start'],
                         'end' => $cls['end'],
-                        'classroomid' => $cls['room'] !== 'Sin aula' ? $cls['room'] : null
+                        'classroomid' => (!empty($cls['room']) && $cls['room'] !== 'Sin aula') ? $cls['room'] : null
                     ];
                 }
                 
                 foreach ($sessionsToSave as $sess) {
                     $sLink = new stdClass();
                     $sLink->classid = $classid;
-                    $sLink->day = $sess['day']; // 'Monday', 'Tuesday'...
-                    $sLink->start_time = $sess['start']; // '08:00'
+                    $sLink->day = $sess['day'];
+                    $sLink->start_time = $sess['start']; 
                     $sLink->end_time = $sess['end'];
-                    $sLink->classroomid = $sess['classroomid'] ?? null;
-                    if (is_string($sLink->classroomid) && !is_numeric($sLink->classroomid)) {
-                        $sLink->classroomid = null; // Clean generic "Sin aula"
+                    $sLink->classroomid = null;
+                    if (!empty($sess['classroomid']) && is_numeric($sess['classroomid'])) {
+                        $sLink->classroomid = $sess['classroomid'];
                     }
                     $sLink->usermodified = $GLOBALS['USER']->id;
                     $sLink->timecreated = time();
@@ -565,8 +583,6 @@ class scheduler extends external_api {
                     $DB->insert_record('gmk_class_schedules', $sLink);
                 }
             }
-            
-            //$transaction->allow_commit();
             return true;
             
         } catch (\Exception $e) {
@@ -609,7 +625,7 @@ class scheduler extends external_api {
         require_capability('moodle/site:config', $context);
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
-                       lp.name as career, c.type, c.groupid as subGroup, c.learningplanid
+                       lp.name as career, c.type, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -630,23 +646,23 @@ class scheduler extends external_api {
                 ];
             }
 
-            // Estimate shift and level based on career/course if we had tight mapping,
-            // but for generic visualization, we supply defaults if unknown.
+            $subjectName = $c->subjectname ?? $c->name ?? ('Materia ' . $c->courseid);
+
             $result[] = [
                 'id' => $c->id,
                 'courseid' => $c->courseid,
-                'subjectName' => $c->subjectname ?? 'Materia ' . $c->courseid,
-                'teacherName' => ($c->instructorid && $c->firstname) ? ($c->firstname . ' ' . $c->lastname) : null,
+                'subjectName' => $subjectName,
+                'teacherName' => ($c->instructorid && !empty($c->firstname)) ? ($c->firstname . ' ' . $c->lastname) : null,
                 'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
-                'room' => empty($sessArr) || !$sessArr[0]['classroomid'] ? 'Sin aula' : $sessArr[0]['classroomid'],
-                'studentCount' => 0, // Would need to query gmk_class_queue if used
+                'room' => (empty($sessArr) || !$sessArr[0]['classroomid']) ? 'Sin aula' : $sessArr[0]['classroomid'],
+                'studentCount' => 0, 
                 'career' => $c->career ?? 'General',
                 'shift' => 'No Definida', 
                 'levelDisplay' => 'Nivel X', 
                 'subGroup' => $c->subgroup,
-                'subperiod' => 0,
+                'subperiod' => $c->subperiod,
                 'sessions' => $sessArr
             ];
         }
