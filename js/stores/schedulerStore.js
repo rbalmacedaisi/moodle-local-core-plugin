@@ -26,6 +26,7 @@
             projections: [], // Manual projections
             generatedSchedules: [], // The algorithms output
             subperiodFilter: 0, // 0: Todos, 1: P-I, 2: P-II
+            careerFilter: null, // Filter by career name
             loading: false,
             error: null,
             successMessage: null

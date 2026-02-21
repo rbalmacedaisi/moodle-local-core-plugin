@@ -338,9 +338,14 @@ window.SchedulerComponents.PlanningBoard = {
         },
         unassignedClasses() {
             const filter = this.storeState.subperiodFilter;
+            const careerFilter = this.storeState.careerFilter;
             return this.allClasses.filter(c => {
                 const isUnassigned = c.day === 'N/A' || !c.day;
                 if (!isUnassigned) return false;
+
+                // Career filter
+                if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return false;
+
                 if (filter === 0) return true;
                 return c.subperiod === 0 || c.subperiod === filter;
             });
@@ -375,8 +380,13 @@ window.SchedulerComponents.PlanningBoard = {
     methods: {
         getClassesForDay(day) {
             const filter = this.storeState.subperiodFilter;
+            const careerFilter = this.storeState.careerFilter;
             return this.allClasses.filter(c => {
                 if (c.day !== day || !c.start || !c.end) return false;
+
+                // Career filter
+                if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return false;
+
                 if (filter === 0) return true;
                 return c.subperiod === 0 || c.subperiod === filter;
             });
