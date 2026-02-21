@@ -517,6 +517,8 @@ class scheduler extends external_api {
                 $DB->delete_records('gmk_class', ['periodid' => $periodid]);
             }
 
+            $teachers_cache = [];
+
             foreach ($data as $cls) {
                 $classRec = new stdClass();
                 $isUpdate = false;
@@ -529,7 +531,20 @@ class scheduler extends external_api {
                 $classRec->courseid = $cls['courseid'];
                 $classRec->learningplanid = $cls['learningplanid'] ?? 0;
                 $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
-                $classRec->instructorid = $cls['instructorid'] ?? 0;
+                
+                // Lookup instructor ID prioritizing teacherName
+                $tname = trim($cls['teacherName'] ?? '');
+                if (!empty($tname) && !is_numeric($tname)) {
+                    if (!array_key_exists($tname, $teachers_cache)) {
+                        $sql = "SELECT id FROM {user} WHERE ".$DB->sql_concat('firstname', "' '", 'lastname')." = :name";
+                        $tid = $DB->get_field_sql($sql, ['name' => $tname], IGNORE_MULTIPLE);
+                        $teachers_cache[$tname] = $tid ?: 0;
+                    }
+                    $classRec->instructorid = $teachers_cache[$tname];
+                } else {
+                    $classRec->instructorid = $cls['instructorid'] ?? 0;
+                }
+                
                 $classRec->groupid = $cls['subGroup'] ?? 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
                 $classRec->type = 1; 
@@ -592,8 +607,19 @@ class scheduler extends external_api {
                     $sLink->start_time = $sess['start']; 
                     $sLink->end_time = $sess['end'];
                     $sLink->classroomid = null;
-                    if (!empty($sess['classroomid']) && is_numeric($sess['classroomid'])) {
-                        $sLink->classroomid = $sess['classroomid'];
+                    
+                    $cid = $sess['classroomid'] ?? null;
+                    if (!empty($cid)) {
+                        if (is_numeric($cid)) {
+                            $sLink->classroomid = $cid;
+                        } else {
+                            $rname = trim($cid);
+                            if (!array_key_exists($rname, $classrooms_cache)) {
+                                $rid = $DB->get_field('gmk_classrooms', 'id', ['name' => $rname], IGNORE_MULTIPLE);
+                                $classrooms_cache[$rname] = $rid ?: null;
+                            }
+                            $sLink->classroomid = $classrooms_cache[$rname];
+                        }
                     }
                     $sLink->usermodified = $GLOBALS['USER']->id;
                     $sLink->timecreated = time();
@@ -673,9 +699,11 @@ class scheduler extends external_api {
                 'courseid' => $c->courseid,
                 'subjectName' => $subjectName,
                 'teacherName' => ($c->instructorid && !empty($c->firstname)) ? ($c->firstname . ' ' . $c->lastname) : null,
+                'instructorid' => $c->instructorid,
                 'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
+                'room' => (empty($sessArr) || empty($sessArr[0]['classroomid'])) ? 'Sin aula' : $sessArr[0]['classroomid'],
                 'studentCount' => (int)$DB->count_records('gmk_class_queue', ['classid' => $c->id]),
                 'studentIds' => array_values($DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id])),
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
