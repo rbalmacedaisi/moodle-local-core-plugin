@@ -570,7 +570,7 @@ window.SchedulerComponents.PlanningBoard = {
 
             const allStudents = window.schedulerStore.state.students || [];
             // Filter students whose id is in cls.studentIds
-            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id));
+            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id || s.dbId));
             this.studentsDialog = true;
         },
         viewAuditLog(cls) {

@@ -245,7 +245,7 @@ window.SchedulerComponents.PeriodGroupedView = {
             }
 
             const allStudents = window.schedulerStore.state.students || [];
-            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.dbId));
+            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id || s.dbId));
             this.studentsDialog = true;
         }
     }
