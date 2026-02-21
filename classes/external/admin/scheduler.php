@@ -408,10 +408,18 @@ class scheduler extends external_api {
             }
         }
 
+        // Prepare subjects
+        $course_names = $DB->get_records_menu('course', [], '', 'id, fullname');
+        $subjects = [];
+        foreach ($course_names as $id => $name) {
+            $subjects[] = ['id' => $id, 'name' => $name];
+        }
+
         return [
             'demand_tree' => json_encode($demand),
             'student_list' => $student_list,
-            'projections' => array_values($projections)
+            'projections' => array_values($projections),
+            'subjects' => $subjects
         ];
     }
 
@@ -424,7 +432,8 @@ class scheduler extends external_api {
                     'name' => new external_value(PARAM_TEXT, ''),
                     'career' => new external_value(PARAM_TEXT, ''),
                     'shift' => new external_value(PARAM_TEXT, ''),
-                    'semester' => new external_value(PARAM_INT, '')
+                    'semester' => new external_value(PARAM_INT, ''),
+                    'entry_period' => new external_value(PARAM_TEXT, '', VALUE_OPTIONAL)
                 ])
             ),
             'projections' => new external_multiple_structure(
@@ -434,6 +443,12 @@ class scheduler extends external_api {
                     'shift' => new external_value(PARAM_TEXT, ''),
                     'count' => new external_value(PARAM_INT, '')
                 ])
+            ),
+            'subjects' => new external_multiple_structure(
+                new external_single_structure([
+                    'id' => new external_value(PARAM_INT, ''),
+                    'name' => new external_value(PARAM_TEXT, '')
+                ]), 'List of all subjects', VALUE_OPTIONAL
             )
         ]);
     }

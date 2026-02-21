@@ -107,6 +107,7 @@
                     }
 
                     if (cls.shift) cls.shift = String(cls.shift).trim();
+                    if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
 
                     // Normalize sessions and excluded_dates
                     if (cls.sessions && Array.isArray(cls.sessions)) {
