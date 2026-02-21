@@ -640,7 +640,6 @@ echo $OUTPUT->header();
               <scheduler-view></scheduler-view>
           </div>
         </div> <!-- End of analysis wrapper -->
-        <full-calendar-view></full-calendar-view>
     </div> <!-- End of loading=false wrapper -->
 
     <!-- MODALS (Stay inside root, outside layout containers) -->

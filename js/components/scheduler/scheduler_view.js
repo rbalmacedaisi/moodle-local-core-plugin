@@ -63,6 +63,12 @@ window.SchedulerComponents.SchedulerView = {
                     <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Análisis de Demanda
                 </button>
                 <button 
+                    @click="activeTab = 1"
+                    :disabled="!isPeriodSelected"
+                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 1 ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
+                    <i data-lucide="layout-grid" class="w-4 h-4"></i> Tablero de Planificación
+                </button>
+                <button 
                     @click="activeTab = 2"
                     :disabled="!isPeriodSelected"
                     :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 2 ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
