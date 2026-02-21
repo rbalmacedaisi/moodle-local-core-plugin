@@ -601,9 +601,9 @@ class scheduler extends external_api {
                     $sessionsToSave[] = [
                         'day' => $cls['day'],
                         'start' => $cls['start'],
-                        'end' => $sess['end'],
+                        'end' => $cls['end'],
                         'classroomid' => (!empty($cls['room']) && $cls['room'] !== 'Sin aula') ? $cls['room'] : null,
-                        'excluded_dates' => $sess['excluded_dates'] ?? null
+                        'excluded_dates' => $cls['excluded_dates'] ?? null
                     ];
                 }
                 
