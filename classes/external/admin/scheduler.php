@@ -679,16 +679,29 @@ class scheduler extends external_api {
         
         $classes = $DB->get_records_sql($sql, ['periodid' => $periodid]);
         $result = [];
+        
+        $classrooms_cache = [];
 
         foreach ($classes as $c) {
             $sessions = $DB->get_records('gmk_class_schedules', ['classid' => $c->id]);
             $sessArr = [];
             foreach ($sessions as $s) {
+                // Resolve classroom name
+                $roomName = 'Sin aula';
+                if (!empty($s->classroomid)) {
+                    if (!isset($classrooms_cache[$s->classroomid])) {
+                        $rinfo = $DB->get_field('gmk_classrooms', 'name', ['id' => $s->classroomid], IGNORE_MISSING);
+                        $classrooms_cache[$s->classroomid] = $rinfo ? $rinfo : $s->classroomid;
+                    }
+                    $roomName = $classrooms_cache[$s->classroomid];
+                }
+                
                 $sessArr[] = [
                     'day' => $s->day,
                     'start' => $s->start_time,
                     'end' => $s->end_time,
-                    'classroomid' => $s->classroomid
+                    'classroomid' => $s->classroomid,
+                    'roomName' => $roomName
                 ];
             }
 
@@ -703,7 +716,7 @@ class scheduler extends external_api {
                 'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
-                'room' => (empty($sessArr) || empty($sessArr[0]['classroomid'])) ? 'Sin aula' : $sessArr[0]['classroomid'],
+                'room' => empty($sessArr) ? 'Sin aula' : $sessArr[0]['roomName'],
                 'studentCount' => (int)$DB->count_records('gmk_class_queue', ['classid' => $c->id]),
                 'studentIds' => array_values($DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id])),
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
