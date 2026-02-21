@@ -132,6 +132,9 @@ window.SchedulerComponents.PlanningBoard = {
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
+                                            <button @click.stop="openCalendar(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-teal-600" title="Ver Calendario / Liberia día">
+                                                <i data-lucide="calendar" class="w-3 h-3"></i>
+                                            </button>
                                         </div>
                                         
                                         <!-- Conflict Indicator -->
@@ -572,6 +575,11 @@ window.SchedulerComponents.PlanningBoard = {
             this.selectedClass = cls;
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
+        },
+        openCalendar(cls) {
+            if (window.openCalendarView) {
+                window.openCalendarView(cls);
+            }
         }
     }
 };

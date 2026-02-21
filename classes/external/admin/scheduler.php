@@ -595,8 +595,9 @@ class scheduler extends external_api {
                     $sessionsToSave[] = [
                         'day' => $cls['day'],
                         'start' => $cls['start'],
-                        'end' => $cls['end'],
-                        'classroomid' => (!empty($cls['room']) && $cls['room'] !== 'Sin aula') ? $cls['room'] : null
+                        'end' => $sess['end'],
+                        'classroomid' => (!empty($cls['room']) && $cls['room'] !== 'Sin aula') ? $cls['room'] : null,
+                        'excluded_dates' => $sess['excluded_dates'] ?? null
                     ];
                 }
                 
@@ -621,6 +622,7 @@ class scheduler extends external_api {
                             $sLink->classroomid = $classrooms_cache[$rname];
                         }
                     }
+                    $sLink->excluded_dates = !empty($sess['excluded_dates']) ? (is_array($sess['excluded_dates']) ? json_encode($sess['excluded_dates']) : $sess['excluded_dates']) : null;
                     $sLink->usermodified = $GLOBALS['USER']->id;
                     $sLink->timecreated = time();
                     $sLink->timemodified = time();
@@ -701,7 +703,8 @@ class scheduler extends external_api {
                     'start' => $s->start_time,
                     'end' => $s->end_time,
                     'classroomid' => $s->classroomid,
-                    'roomName' => $roomName
+                    'roomName' => $roomName,
+                    'excluded_dates' => !empty($s->excluded_dates) ? json_decode($s->excluded_dates, true) : []
                 ];
             }
 

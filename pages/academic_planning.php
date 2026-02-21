@@ -24,6 +24,9 @@ echo $OUTPUT->header();
 <!-- Lucide Icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
+<!-- FullCalendar -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
 <!-- PDF Export Libs -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -41,6 +44,7 @@ echo $OUTPUT->header();
 <script src="../js/components/scheduler/classroom_manager.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/holiday_manager.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/general_config.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/full_calendar_view.js?v=<?= time() ?>"></script>
 
 <style>
     .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
@@ -636,6 +640,7 @@ echo $OUTPUT->header();
               <scheduler-view></scheduler-view>
           </div>
         </div> <!-- End of analysis wrapper -->
+        <full-calendar-view></full-calendar-view>
     </div> <!-- End of loading=false wrapper -->
 
     <!-- MODALS (Stay inside root, outside layout containers) -->
@@ -1988,6 +1993,7 @@ if (window.SchedulerComponents) {
     app.component('classroom-manager', window.SchedulerComponents.ClassroomManager);
     app.component('holiday-manager', window.SchedulerComponents.HolidayManager);
     app.component('general-config', window.SchedulerComponents.GeneralConfig);
+    app.component('full-calendar-view', window.FullCalendarView);
 }
 
 console.log("Vue Planning App: Attempting to mount...");

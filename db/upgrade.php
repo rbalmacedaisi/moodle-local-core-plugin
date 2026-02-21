@@ -1521,6 +1521,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260221002, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260221003) {
+
+        // Define field excluded_dates to be added to gmk_class_schedules.
+        $table = new xmldb_table('gmk_class_schedules');
+        $field = new xmldb_field('excluded_dates', XMLDB_TYPE_TEXT, null, null, null, null, null, 'timemodified');
+
+        // Conditionally launch add field excluded_dates.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260221003, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

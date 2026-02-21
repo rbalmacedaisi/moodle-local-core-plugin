@@ -107,6 +107,18 @@
                     }
 
                     if (cls.shift) cls.shift = String(cls.shift).trim();
+
+                    // Normalize sessions and excluded_dates
+                    if (cls.sessions && Array.isArray(cls.sessions)) {
+                        cls.sessions.forEach(sess => {
+                            if (!sess.excluded_dates) sess.excluded_dates = [];
+                            else if (typeof sess.excluded_dates === 'string') {
+                                try { sess.excluded_dates = JSON.parse(sess.excluded_dates); }
+                                catch (e) { sess.excluded_dates = []; }
+                            }
+                        });
+                    }
+
                     return cls;
                 });
             } catch (e) {
