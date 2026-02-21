@@ -575,7 +575,9 @@ window.SchedulerComponents.ReportView = {
 
                 if (s.studentIds && s.studentIds.length > 0) {
                     // Get student objects from global store
-                    const classStudents = allStudents.filter(st => s.studentIds.includes(st.dbId || st.id));
+                    const classStudents = allStudents.filter(st =>
+                        s.studentIds.some(sid => String(sid) === String(st.dbId || st.id))
+                    );
 
                     classStudents.forEach(st => {
                         studentRows.push({
@@ -626,10 +628,10 @@ window.SchedulerComponents.ReportView = {
             // Extract unique students from currently filtered schedules
             const studentSet = new Set();
             this.reportedSchedules.forEach(s => {
-                if (s.studentIds) s.studentIds.forEach(id => studentSet.add(id));
+                if (s.studentIds) s.studentIds.forEach(id => studentSet.add(String(id)));
             });
 
-            const studentsToReport = allStudents.filter(st => studentSet.has(st.dbId || st.id));
+            const studentsToReport = allStudents.filter(st => studentSet.has(String(st.dbId || st.id)));
 
             if (studentsToReport.length === 0) {
                 alert("No hay estudiantes para generar reportes en las clases seleccionadas.");
@@ -640,7 +642,7 @@ window.SchedulerComponents.ReportView = {
                 if (index > 0) doc.addPage();
 
                 const studentSchedules = this.reportedSchedules.filter(s =>
-                    s.studentIds && s.studentIds.includes(student.dbId || student.id)
+                    s.studentIds && s.studentIds.some(sid => String(sid) === String(student.dbId || student.id))
                 );
 
                 // 1. Header Section
