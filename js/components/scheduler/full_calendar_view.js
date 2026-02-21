@@ -107,7 +107,11 @@
                 const activePeriod = store.state.activePeriod;
                 if (!activePeriod || !schedules.length) return [];
 
-                const period = store.state.context.periods.find(p => p.id === activePeriod) || {};
+                const period = store.state.context.period || {};
+                const config = (typeof store.state.context.configSettings === 'string' && store.state.context.configSettings)
+                    ? JSON.parse(store.state.context.configSettings)
+                    : (store.state.context.configSettings || {});
+
                 const events = [];
 
                 const dayMap = {
@@ -131,15 +135,15 @@
                     if (shiftFilter && sched.shift !== shiftFilter) return;
 
                     // Range for this schedule based on subperiod
-                    let startDate = new Date(period.startdate * 1000);
-                    let endDate = new Date(period.enddate * 1000);
+                    let startDate = period.start ? new Date(period.start) : new Date();
+                    let endDate = period.end ? new Date(period.end) : new Date();
 
-                    if (sched.subperiod === 1 && period.block1start) {
-                        startDate = new Date(period.block1start * 1000);
-                        endDate = new Date(period.block1end * 1000);
-                    } else if (sched.subperiod === 2 && period.block2start) {
-                        startDate = new Date(period.block2start * 1000);
-                        endDate = new Date(period.block2end * 1000);
+                    if (sched.subperiod === 1 && config.block1start) {
+                        startDate = new Date(config.block1start);
+                        endDate = new Date(config.block1end);
+                    } else if (sched.subperiod === 2 && config.block2start) {
+                        startDate = new Date(config.block2start);
+                        endDate = new Date(config.block2end);
                     }
 
                     sched.sessions.forEach((session, sessionIdx) => {
