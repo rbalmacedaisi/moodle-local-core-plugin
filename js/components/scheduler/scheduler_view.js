@@ -99,7 +99,7 @@ window.SchedulerComponents.SchedulerView = {
                                 @click="boardView = 'calendar'"
                                 :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'calendar' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50']"
                             >
-                                <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> Calendario
+                                <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> Vista Semanal
                             </button>
                             <button 
                                 @click="boardView = 'grouped'" 

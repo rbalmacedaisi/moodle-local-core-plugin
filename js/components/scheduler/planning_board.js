@@ -33,9 +33,14 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="text-[10px] flex flex-wrap gap-1 items-center text-slate-500">
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
                                 <span>{{ cls.shift }}</span>
-                                <button @click.stop="viewStudents(cls)" class="ml-auto text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
-                                    <i data-lucide="users" class="w-3 h-3"></i>
-                                </button>
+                                <div class="ml-auto flex gap-1">
+                                    <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
+                                        <i data-lucide="users" class="w-3 h-3"></i>
+                                    </button>
+                                    <button @click.stop="openCalendar(cls)" class="text-slate-400 hover:text-teal-600" title="Calendario Mensual / Excluir fechas">
+                                        <i data-lucide="calendar" class="w-3 h-3"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <!-- Placement Warning -->
@@ -115,6 +120,9 @@ window.SchedulerComponents.PlanningBoard = {
                                     >
                                         <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800'">
                                             {{ cls.subjectName }}
+                                            <span v-if="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
+                                                {{ cls.excluded_dates.length }}
+                                            </span>
                                         </div>
                                         <div class="text-[9px] leading-tight text-slate-500 mt-0.5">
                                             <span v-if="cls.teacherName" class="block font-medium text-slate-700 truncate">{{ cls.teacherName }}</span>
@@ -128,7 +136,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         </div>
                                         
                                         <!-- Actions -->
-                                        <div class="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                        <div class="absolute bottom-1 right-1 flex gap-1">
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
