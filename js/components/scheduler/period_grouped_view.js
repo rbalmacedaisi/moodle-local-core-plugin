@@ -136,8 +136,12 @@ window.SchedulerComponents.PeriodGroupedView = {
                 if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) return;
                 if (!c.day || c.day === 'N/A') return;
 
-                // Career filter
-                if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return;
+                // Career filter (Robust check)
+                if (careerFilter) {
+                    const inList = c.careerList && c.careerList.includes(careerFilter);
+                    const inString = c.career && c.career.includes(careerFilter);
+                    if (!inList && !inString) return;
+                }
 
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;

@@ -90,8 +90,31 @@
         },
 
         async loadGeneratedSchedules(periodId) {
-            const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
-            this.state.generatedSchedules = Array.isArray(res) ? res : (res.data || []);
+            this.state.loading = true;
+            try {
+                const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
+                const rawData = Array.isArray(res) ? res : (res.data || []);
+
+                // Normalize data (Ensure careerList exists for filtering)
+                this.state.generatedSchedules = rawData.map(cls => {
+                    if (cls.career) cls.career = String(cls.career).trim();
+                    if (!cls.careerList && cls.career) {
+                        cls.careerList = cls.career.split(',').map(s => s.trim());
+                    } else if (cls.careerList && Array.isArray(cls.careerList)) {
+                        cls.careerList = cls.careerList.map(s => String(s).trim());
+                    } else {
+                        cls.careerList = [];
+                    }
+
+                    if (cls.shift) cls.shift = String(cls.shift).trim();
+                    return cls;
+                });
+            } catch (e) {
+                console.error("Load Error", e);
+                this.state.error = e.message;
+            } finally {
+                this.state.loading = false;
+            }
         },
 
         async loadDemand(periodId) {
