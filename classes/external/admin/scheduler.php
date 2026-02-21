@@ -531,9 +531,14 @@ class scheduler extends external_api {
                 $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
                 $classRec->instructorid = $cls['instructorid'] ?? 0;
                 $classRec->groupid = $cls['subGroup'] ?? 0;
-                $classRec->subperiodid = $cls['subperiod'] ?? 0; // Fixed: using the correct column name
+                $classRec->subperiodid = $cls['subperiod'] ?? 0;
                 $classRec->type = 1; 
                 
+                // Metadata Persistence
+                $classRec->shift = $cls['shift'] ?? '';
+                $classRec->level_label = $cls['levelDisplay'] ?? '';
+                $classRec->career_label = $cls['career'] ?? '';
+
                 $classRec->inittime = '';
                 $classRec->endtime = '';
                 $classRec->classdays = '0/0/0/0/0/0/0';
@@ -548,6 +553,21 @@ class scheduler extends external_api {
                 } else {
                     $classRec->timecreated = time();
                     $classid = $DB->insert_record('gmk_class', $classRec);
+                }
+
+                // Save Students to Queue
+                $DB->delete_records('gmk_class_queue', ['classid' => $classid]);
+                if (!empty($cls['studentIds']) && is_array($cls['studentIds'])) {
+                    foreach ($cls['studentIds'] as $uid) {
+                        $q = new stdClass();
+                        $q->classid = $classid;
+                        $q->userid = $uid;
+                        $q->courseid = $cls['courseid'];
+                        $q->timecreated = time();
+                        $q->timemodified = time();
+                        $q->usermodified = $GLOBALS['USER']->id;
+                        $DB->insert_record('gmk_class_queue', $q);
+                    }
                 }
                 
                 // Save Schedule Details (Sessions/Stripes)
@@ -624,7 +644,8 @@ class scheduler extends external_api {
         require_capability('moodle/site:config', $context);
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
-                       lp.name as career, c.type, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid
+                       lp.name as career, c.type, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
+                       c.shift, c.level_label, c.career_label
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -655,13 +676,13 @@ class scheduler extends external_api {
                 'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
-                'room' => (empty($sessArr) || !$sessArr[0]['classroomid']) ? 'Sin aula' : $sessArr[0]['classroomid'],
-                'studentCount' => 0, 
-                'career' => $c->career ?? 'General',
-                'shift' => 'No Definida', 
-                'levelDisplay' => 'Nivel X', 
-                'subGroup' => $c->subgroup,
-                'subperiod' => $c->subperiod,
+                'studentCount' => (int)$DB->count_records('gmk_class_queue', ['classid' => $c->id]),
+                'studentIds' => array_values($DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id])),
+                'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
+                'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
+                'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
+                'subGroup' => (int)$c->subperiod, // Fixed mapping to subgroup
+                'subperiod' => (int)$c->subperiod,
                 'sessions' => $sessArr
             ];
         }

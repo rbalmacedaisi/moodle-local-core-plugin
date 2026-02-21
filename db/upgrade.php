@@ -1460,6 +1460,34 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260220003, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260221000) {
+
+        // Define fields to be added to gmk_class.
+        $table = new xmldb_table('gmk_class');
+        
+        $field_shift = new xmldb_field('shift', XMLDB_TYPE_CHAR, '50', null, null, null, null, 'gradecategoryid');
+        $field_level = new xmldb_field('level_label', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'shift');
+        $field_career = new xmldb_field('career_label', XMLDB_TYPE_TEXT, null, null, null, null, null, 'level_label');
+
+        // Conditionally launch add field shift.
+        if (!$dbman->field_exists($table, $field_shift)) {
+            $dbman->add_field($table, $field_shift);
+        }
+
+        // Conditionally launch add field level_label.
+        if (!$dbman->field_exists($table, $field_level)) {
+            $dbman->add_field($table, $field_level);
+        }
+
+        // Conditionally launch add field career_label.
+        if (!$dbman->field_exists($table, $field_career)) {
+            $dbman->add_field($table, $field_career);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260221000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

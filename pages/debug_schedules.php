@@ -51,15 +51,19 @@ echo "<h3>Últimas 10 Clases Guardadas (Cualquier periodo)</h3>";
 $latest_classes = $DB->get_records('gmk_class', [], 'id DESC', '*', 0, 10);
 if ($latest_classes) {
     echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>";
-    echo "<tr><th>ID</th><th>Periodo</th><th>Curso</th><th>Nombre</th><th>Docente</th><th>Modificado</th></tr>";
+    echo "<tr><th>ID</th><th>Periodo</th><th>Curso</th><th>Nombre</th><th>Docente</th><th>Jornada</th><th>Nivel</th><th>Alumnos</th><th>Modificado</th></tr>";
     foreach ($latest_classes as $c) {
         $dates = date('Y-m-d H:i:s', $c->timemodified);
+        $student_count = $DB->count_records('gmk_class_queue', ['classid' => $c->id]);
         echo "<tr>";
         echo "<td>{$c->id}</td>";
         echo "<td>{$c->periodid}</td>";
         echo "<td>{$c->courseid}</td>";
         echo "<td>{$c->name}</td>";
         echo "<td>{$c->instructorid}</td>";
+        echo "<td>" . ($c->shift ?? '-') . "</td>";
+        echo "<td>" . ($c->level_label ?? '-') . "</td>";
+        echo "<td><strong>{$student_count}</strong></td>";
         echo "<td>{$dates}</td>";
         echo "</tr>";
     }
