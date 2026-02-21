@@ -1488,6 +1488,26 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260221000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260221001) {
+
+        // Changing the type of field userid on table gmk_class_queue to char.
+        $table = new xmldb_table('gmk_class_queue');
+        $field = new xmldb_field('userid', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null, 'timemodified');
+
+        // Launch change of type for field userid.
+        $dbman->change_field_type($table, $field);
+
+        // Changing the type of field userid on table gmk_class_pre_registration to char.
+        $table = new xmldb_table('gmk_class_pre_registration');
+        $field = new xmldb_field('userid', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'timemodified');
+
+        // Launch change of type for field userid.
+        $dbman->change_field_type($table, $field);
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260221001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

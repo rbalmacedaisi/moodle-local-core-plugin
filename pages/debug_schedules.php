@@ -29,6 +29,14 @@ foreach ($class_cols as $col) {
 }
 echo "</ul>";
 
+echo "<h4>Muestra de Usuarios (Tabla {user})</h4>";
+$sample_users = $DB->get_records('user', [], 'id ASC', 'id, username, firstname, lastname', 0, 5);
+echo "<ul>";
+foreach ($sample_users as $u) {
+    echo "<li>ID: <strong>{$u->id}</strong> | Username: {$u->username} | Nombre: {$u->firstname} {$u->lastname}</li>";
+}
+echo "</ul>";
+
 echo "<h4>Columnas de gmk_class_schedules</h4>";
 $sched_cols = $DB->get_columns('gmk_class_schedules');
 echo "<ul>";
