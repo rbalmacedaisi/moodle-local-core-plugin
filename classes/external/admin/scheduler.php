@@ -500,7 +500,6 @@ class scheduler extends external_api {
             
             // For now, let's iterate and Create/Update.
             // Assumption: Frontend sends 'id' if updating.
-           try {
             // To avoid duplicates while allowing updates:
             // 1. Identify existing numeric IDs in the payload
             $validIds = [];
