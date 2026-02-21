@@ -24,7 +24,7 @@
 
     const parseTimeRange = (range) => {
         if (!range) return null;
-        const parts = range.toLowerCase().split(/[-–—]| a /).map(p => p.trim());
+        const parts = range.toLowerCase().split(/[-–—,]| a /).map(p => p.trim());
         if (parts.length !== 2) return null;
         const parsePart = (p) => {
             const isPM = p.includes('pm') || p.includes('tarde') || p.includes('noche');
@@ -495,7 +495,11 @@
 
             // NEW: Availability and Competency Check
             if (context?.instructors) {
-                const instructor = context.instructors.find(i => (i.firstname + ' ' + i.lastname) === schedule.teacherName || i.id == schedule.instructorId);
+                const instructor = context.instructors.find(i =>
+                    i.instructorName === schedule.teacherName ||
+                    i.id == schedule.instructorId ||
+                    i.instructorId == schedule.instructorId
+                );
                 if (instructor) {
                     if (!checkTeacherAvailability(instructor, schedule.day, sStart, sEnd)) {
                         issues.push({ type: 'availability', message: `Docente no disponible los ${schedule.day} en este horario` });

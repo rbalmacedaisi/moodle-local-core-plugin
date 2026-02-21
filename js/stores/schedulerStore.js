@@ -261,14 +261,40 @@
                     }
                 }
 
-                // 2. Extracted Availability
-                const availability = this.state.instructors.map(inst => ({
-                    teacherName: inst.firstname + ' ' + inst.lastname,
-                    instructorId: inst.id,
-                    subjectName: inst.competency || '',
-                    day: inst.day,
-                    timeRange: `${inst.starttime}-${inst.endtime}`
-                }));
+                // 2. Extracted Availability (Flattened by day and skill)
+                const availability = [];
+                this.state.instructors.forEach(inst => {
+                    const skills = (inst.instructorSkills || []).map(s => s.name);
+                    const records = inst.disponibilityRecords || {};
+                    const tName = inst.instructorName;
+                    const tId = inst.instructorId || inst.id;
+
+                    for (const [day, ranges] of Object.entries(records)) {
+                        ranges.forEach(rangeStr => {
+                            if (skills.length > 0) {
+                                skills.forEach(skillName => {
+                                    availability.push({
+                                        teacherName: tName,
+                                        instructorId: tId,
+                                        subjectName: skillName,
+                                        day: day,
+                                        timeRange: rangeStr
+                                    });
+                                });
+                            } else {
+                                // Even if no skills listed, maybe available for assignment if manually handled?
+                                // Usually we need skill match in autoAssign, but let's keep it consistent.
+                                availability.push({
+                                    teacherName: tName,
+                                    instructorId: tId,
+                                    subjectName: '',
+                                    day: day,
+                                    timeRange: rangeStr
+                                });
+                            }
+                        });
+                    }
+                });
 
                 // 3. AUTO-PLACEMENT (Determine Days and Times first)
                 let finalResult = window.SchedulerAlgorithm.autoPlace(schedules, {

@@ -158,15 +158,33 @@ window.SchedulerComponents.PlanningBoard = {
                             <h3 class="font-bold text-lg text-slate-800 leading-tight">{{ selectedClass.subjectName }}</h3>
                             <p class="text-xs text-slate-500 mt-1">{{ selectedClass.career }} &bull; {{ selectedClass.levelDisplay }}</p>
                         </div>
-                        <div>
+                        <div class="relative">
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Docente</label>
-                            <select v-model="selectedClass.teacherName" @change="onTeacherChange" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="">Sin asignar</option>
-                                <option v-for="inst in storeState.instructors" :key="inst.id" :value="inst.firstname + ' ' + inst.lastname">
-                                    {{ inst.firstname }} {{ inst.lastname }}
-                                </option>
-                            </select>
+                            <div class="relative">
+                                <input type="text" 
+                                    v-model="teacherSearch" 
+                                    @input="onTeacherChange"
+                                    @focus="showTeacherList = true"
+                                    @blur="setTimeout(() => showTeacherList = false, 200)"
+                                    class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" 
+                                    placeholder="Buscar docente o 'Sin asignar'..." />
+                                
+                                <div v-if="showTeacherList && filteredInstructors.length > 0" 
+                                    class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto overflow-x-hidden">
+                                    <div v-for="inst in filteredInstructors" :key="inst.instructorId"
+                                        @mousedown="selectInstructor(inst)"
+                                        class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 flex justify-between items-center group">
+                                        <span class="font-medium text-slate-700">{{ inst.instructorName }}</span>
+                                        <span class="text-[9px] text-slate-400 group-hover:text-blue-500 uppercase font-bold">Seleccionar</span>
+                                    </div>
+                                </div>
+                            </div>
                             
+                            <!-- Display current selection if not searching -->
+                            <div v-if="!showTeacherList && selectedClass.teacherName" class="mt-1 flex items-center gap-1.5">
+                                <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Actual: {{ selectedClass.teacherName }}</span>
+                            </div>
+
                             <!-- Conflict Warnings in Modal -->
                             <div v-if="getTeacherConflicts(selectedClass).length > 0" class="mt-2 space-y-1">
                                 <div v-for="conflict in getTeacherConflicts(selectedClass)" :key="conflict.type" class="text-[10px] bg-red-50 text-red-700 p-1.5 rounded border border-red-100 flex items-start gap-1">
@@ -306,7 +324,9 @@ window.SchedulerComponents.PlanningBoard = {
             studentsDialog: false,
             currentStudents: [],
             logDialog: false,
-            currentLog: []
+            currentLog: [],
+            teacherSearch: '',
+            showTeacherList: false
         };
     },
     computed: {
@@ -339,6 +359,14 @@ window.SchedulerComponents.PlanningBoard = {
                 slots.push(`${h.toString().padStart(2, '0')}:00`);
             }
             return slots;
+        },
+        filteredInstructors() {
+            const instructors = this.storeState.instructors || [];
+            if (!this.teacherSearch) return instructors.slice(0, 10);
+            const s = this.teacherSearch.toLowerCase();
+            return instructors.filter(i =>
+                (i.instructorName || '').toLowerCase().includes(s)
+            ).slice(0, 50);
         }
     },
     updated() {
@@ -446,17 +474,32 @@ window.SchedulerComponents.PlanningBoard = {
         },
         editClass(cls) {
             this.selectedClass = cls;
+            this.teacherSearch = cls.teacherName || '';
             this.editDialog = true;
             // Ensure icons are created for newly dynamic content
             this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
         },
+        selectInstructor(inst) {
+            if (!this.selectedClass) return;
+            this.selectedClass.teacherName = inst.instructorName;
+            this.selectedClass.instructorId = inst.instructorId || inst.id;
+            this.teacherSearch = inst.instructorName;
+            this.showTeacherList = false;
+        },
         onTeacherChange() {
             if (!this.selectedClass) return;
-            const inst = this.storeState.instructors.find(i => (i.firstname + ' ' + i.lastname) === this.selectedClass.teacherName);
-            if (inst) {
-                this.selectedClass.instructorId = inst.id;
-            } else {
+
+            // If search is cleared, unassign
+            if (!this.teacherSearch) {
+                this.selectedClass.teacherName = null;
                 this.selectedClass.instructorId = null;
+                return;
+            }
+
+            const inst = this.storeState.instructors.find(i => i.instructorName === this.teacherSearch);
+            if (inst) {
+                this.selectedClass.teacherName = inst.instructorName;
+                this.selectedClass.instructorId = inst.instructorId || inst.id;
             }
         },
         unassignClass() {
