@@ -130,22 +130,8 @@ window.SchedulerComponents.SchedulerView = {
                 </div>
                 
                 <!-- Tab 2: Reports -->
-                <div v-if="activeTab === 2 && isPeriodSelected" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div @click="exportGroupPDF" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-all hover:border-red-200 group">
-                        <div class="flex items-center justify-center w-12 h-12 bg-red-50 rounded-full mb-4 group-hover:bg-red-100 transition-colors">
-                            <i data-lucide="file-text" class="w-6 h-6 text-red-600"></i>
-                        </div>
-                        <h3 class="text-lg font-bold text-slate-800 mb-1">Horarios por Grupo</h3>
-                        <p class="text-sm text-slate-500">Generar PDF matricial con horarios semanales agrupados por cohorte/grupo.</p>
-                    </div>
-                    
-                    <div @click="exportTeacherPDF" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
-                        <div class="flex items-center justify-center w-12 h-12 bg-blue-50 rounded-full mb-4 group-hover:bg-blue-100 transition-colors">
-                            <i data-lucide="users" class="w-6 h-6 text-blue-600"></i>
-                        </div>
-                        <h3 class="text-lg font-bold text-slate-800 mb-1">Horarios por Docente</h3>
-                        <p class="text-sm text-slate-500">Generar PDF individual con la carga horaria asignada a cada docente.</p>
-                    </div>
+                <div v-if="activeTab === 2 && isPeriodSelected" class="h-full flex flex-col min-h-[600px]">
+                    <report-view :period-id="selectedPeriod"></report-view>
                 </div>
             </div>
             
