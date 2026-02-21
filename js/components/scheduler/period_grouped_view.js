@@ -129,6 +129,7 @@ window.SchedulerComponents.PeriodGroupedView = {
         groupedSchedules() {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
+            const shiftFilter = this.storeState.shiftFilter;
             const groups = {};
 
             this.allClasses.forEach(c => {
@@ -137,6 +138,9 @@ window.SchedulerComponents.PeriodGroupedView = {
 
                 // Career filter
                 if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return;
+
+                // Shift filter
+                if (shiftFilter && c.shift !== shiftFilter) return;
 
                 // Group Key: Career + Level + Shift
                 // Actually, viewing by Level across careers might be messy if levels don't align.

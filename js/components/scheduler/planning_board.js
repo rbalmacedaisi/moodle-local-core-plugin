@@ -339,12 +339,16 @@ window.SchedulerComponents.PlanningBoard = {
         unassignedClasses() {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
+            const shiftFilter = this.storeState.shiftFilter;
             return this.allClasses.filter(c => {
                 const isUnassigned = c.day === 'N/A' || !c.day;
                 if (!isUnassigned) return false;
 
                 // Career filter
                 if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return false;
+
+                // Shift filter
+                if (shiftFilter && c.shift !== shiftFilter) return false;
 
                 if (filter === 0) return true;
                 return c.subperiod === 0 || c.subperiod === filter;
@@ -381,11 +385,16 @@ window.SchedulerComponents.PlanningBoard = {
         getClassesForDay(day) {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
+            const shiftFilter = this.storeState.shiftFilter;
+
             return this.allClasses.filter(c => {
                 if (c.day !== day || !c.start || !c.end) return false;
 
                 // Career filter
                 if (careerFilter && c.careerList && !c.careerList.includes(careerFilter)) return false;
+
+                // Shift filter
+                if (shiftFilter && c.shift !== shiftFilter) return false;
 
                 if (filter === 0) return true;
                 return c.subperiod === 0 || c.subperiod === filter;

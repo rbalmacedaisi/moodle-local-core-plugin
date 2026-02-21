@@ -41,6 +41,14 @@ window.SchedulerComponents.SchedulerView = {
                          </select>
                     </div>
 
+                    <div class="flex flex-col flex-1 md:w-64">
+                         <label class="text-xs text-slate-500 font-bold mb-1">Jornada (Filtro Matrix)</label>
+                         <select v-model="storeState.shiftFilter" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option :value="null">Todas las Jornadas</option>
+                            <option v-for="shift in shiftList" :key="shift" :value="shift">{{ shift }}</option>
+                         </select>
+                    </div>
+
                     <button @click="refreshData" :disabled="storeState.loading" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors mt-4">
                         <i data-lucide="refresh-cw" class="w-5 h-5" :class="{'animate-spin': storeState.loading}"></i>
                     </button>
@@ -161,6 +169,14 @@ window.SchedulerComponents.SchedulerView = {
         careerList() {
             const demand = this.storeState.demand || {};
             return Object.keys(demand).sort();
+        },
+        shiftList() {
+            const demand = this.storeState.demand || {};
+            const shifts = new Set();
+            Object.values(demand).forEach(cDetails => {
+                Object.keys(cDetails).forEach(sName => shifts.add(sName));
+            });
+            return Array.from(shifts).sort();
         }
     },
     created() {
