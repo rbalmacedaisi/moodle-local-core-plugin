@@ -37,9 +37,6 @@ window.SchedulerComponents.PlanningBoard = {
                                     <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
                                         <i data-lucide="users" class="w-3 h-3"></i>
                                     </button>
-                                    <button @click.stop="openCalendar(cls)" class="text-slate-400 hover:text-teal-600" title="Calendario Mensual / Excluir fechas">
-                                        <i data-lucide="calendar" class="w-3 h-3"></i>
-                                    </button>
                                 </div>
                             </div>
                             
@@ -140,9 +137,6 @@ window.SchedulerComponents.PlanningBoard = {
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
-                                            <button @click.stop="openCalendar(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-teal-600" title="Ver Calendario / Liberia día">
-                                                <i data-lucide="calendar" class="w-3 h-3"></i>
-                                            </button>
                                         </div>
                                         
                                         <!-- Conflict Indicator -->
@@ -227,9 +221,6 @@ window.SchedulerComponents.PlanningBoard = {
                             </select>
                         </div>
                         <div class="pt-2 flex flex-col gap-2">
-                              <button @click="openCalendar(selectedClass)" class="w-full py-2 bg-teal-100 text-teal-700 hover:bg-teal-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
-                                <i data-lucide="calendar" class="w-4 h-4"></i> Ver Calendario Mensual / Liberar Días
-                              </button>
                               <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
                               </button>
@@ -586,14 +577,6 @@ window.SchedulerComponents.PlanningBoard = {
             this.selectedClass = cls;
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
-        },
-        openCalendar(cls) {
-            // Simply switch to the Monthly Calendar tab (Tab 2) in the parent store/state
-            // This might require a way to communicate with SchedulerView
-            // Since we don't have a direct reference here, we'll just advise using the tabs.
-            if (window.switchSchedulerTab) {
-                window.switchSchedulerTab(2);
-            }
         }
     }
 };

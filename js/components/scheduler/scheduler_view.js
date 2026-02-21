@@ -63,21 +63,9 @@ window.SchedulerComponents.SchedulerView = {
                     <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Análisis de Demanda
                 </button>
                 <button 
-                    @click="activeTab = 1"
-                    :disabled="!isPeriodSelected"
-                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 1 ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
-                    <i data-lucide="layout-grid" class="w-4 h-4"></i> Tablero de Planificación
-                </button>
-                <button 
                     @click="activeTab = 2"
                     :disabled="!isPeriodSelected"
-                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 2 ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
-                    <i data-lucide="calendar" class="w-4 h-4"></i> Calendario Mensual
-                </button>
-                <button 
-                    @click="activeTab = 3"
-                    :disabled="!isPeriodSelected"
-                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 3 ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
+                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 2 ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
                     <i data-lucide="file-text" class="w-4 h-4"></i> Reportes
                 </button>
             </div>
@@ -108,6 +96,12 @@ window.SchedulerComponents.SchedulerView = {
                                 <i data-lucide="calendar" class="w-3 h-3 inline mr-1"></i> Vista Semanal
                             </button>
                             <button 
+                                @click="boardView = 'monthly'"
+                                :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'monthly' ? 'bg-teal-100 text-teal-700' : 'text-slate-500 hover:bg-slate-50']"
+                            >
+                                <i data-lucide="calendar-days" class="w-3 h-3 inline mr-1"></i> Calendario Mensual
+                            </button>
+                            <button 
                                 @click="boardView = 'grouped'" 
                                 :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'grouped' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50']"
                             >
@@ -120,19 +114,17 @@ window.SchedulerComponents.SchedulerView = {
                         v-if="boardView === 'calendar'"
                         :period-id="selectedPeriod"
                     ></planning-board>
+                    <full-calendar-view
+                        v-else-if="boardView === 'monthly'"
+                    ></full-calendar-view>
                     <period-grouped-view 
                         v-else
                         :period-id="selectedPeriod"
                     ></period-grouped-view>
                 </div>
-
-                <!-- Tab 2: Monthly Calendar -->
-                <div v-if="activeTab === 2 && isPeriodSelected" class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                    <full-calendar-view></full-calendar-view>
-                </div>
                 
-                <!-- Tab 3: Reports -->
-                <div v-if="activeTab === 3 && isPeriodSelected" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Tab 2: Reports -->
+                <div v-if="activeTab === 2 && isPeriodSelected" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div @click="exportGroupPDF" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-all hover:border-red-200 group">
                         <div class="flex items-center justify-center w-12 h-12 bg-red-50 rounded-full mb-4 group-hover:bg-red-100 transition-colors">
                             <i data-lucide="file-text" class="w-6 h-6 text-red-600"></i>
