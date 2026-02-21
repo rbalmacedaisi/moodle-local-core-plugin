@@ -342,9 +342,9 @@
             doc.text(levelName, 55, 45);
 
             doc.setFont('helvetica', 'bold');
-            doc.text(`Horas Totales:`, 20, 52);
+            doc.text(`Estudiantes en Periodo:`, 20, 52);
             doc.setFont('helvetica', 'normal');
-            doc.text(`${Math.round(groupData.totalHours)} hrs`, 55, 52);
+            doc.text(`${groupData.totalPeriodStudents || 0}`, 65, 52);
 
             doc.setFont('helvetica', 'bold');
             doc.text(`Periodo Académico:`, 140, 45);
@@ -358,58 +358,50 @@
             doc.setLineWidth(0.5);
             doc.line(20, 56, doc.internal.pageSize.getWidth() - 20, 56);
 
-            // --- TABLE DATA ---
-            // Sort classes by Day, then Start time
-            const sortedClasses = [...groupData.classes].sort((a, b) => {
-                const dayA = dayOrder[a.day] || 99;
-                const dayB = dayOrder[b.day] || 99;
-                if (dayA !== dayB) return dayA - dayB;
-                return (a.start || "").localeCompare(b.start || "");
+            // --- GRID DATA ---
+            const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+
+            const rowData = days.map(day => {
+                const dayClasses = groupData.classes.filter(s => s.day === day || s.day === day.replace('Miercoles', 'Miércoles'))
+                    .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+
+                if (dayClasses.length === 0) return '';
+
+                return dayClasses.map(s => {
+                    const studentCount = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
+                    return `Horario: ${s.start} - ${s.end}\nAsignatura: ${s.subjectName}\nAula: ${s.room || 'Sin aula'}\nDocente: ${s.teacherName || 'Pendiente'}\nEst. Clase: ${studentCount}\n${s.career || 'N/A'}\n${s.shift || 'N/A'}`;
+                }).join('\n\n-----------------\n\n');
             });
 
-            const tableData = sortedClasses.map(cls => {
-                const studentCount = cls.studentIds ? cls.studentIds.length : (cls.studentCount || 0);
-                return [
-                    cls.day,
-                    `${cls.start} - ${cls.end}`,
-                    cls.subjectName,
-                    (cls.teacherName && !cls.teacherName.includes('Asignar')) ? cls.teacherName : 'Pendiente',
-                    cls.career || 'N/A',
-                    cls.shift || 'N/A',
-                    cls.room || 'Sin aula',
-                    studentCount.toString()
-                ];
-            });
+            const tableWidth = doc.internal.pageSize.getWidth() - 40;
+            const colWidth = tableWidth / 6;
 
             doc.autoTable({
                 startY: 62,
-                head: [['DÍA', 'HORARIO', 'ASIGNATURA', 'DOCENTE', 'CARRERA', 'JORNADA', 'AULA', 'EST.']],
-                body: tableData,
-                theme: 'striped',
+                head: [days],
+                body: [rowData],
+                theme: 'grid',
+                styles: {
+                    fontSize: 7,
+                    cellPadding: 2,
+                    textColor: [50, 50, 50],
+                    valign: 'top',
+                    overflow: 'linebreak'
+                },
                 headStyles: {
-                    fillColor: [30, 64, 175], // Match header
+                    fillColor: [30, 64, 175], // Royal Blue
                     textColor: [255, 255, 255],
                     fontStyle: 'bold',
-                    fontSize: 8,
-                    halign: 'center'
-                },
-                bodyStyles: {
-                    fontSize: 7,
-                    textColor: [60, 60, 60],
-                    valign: 'middle'
-                },
-                alternateRowStyles: {
-                    fillColor: [248, 250, 252] // Slate 50
+                    halign: 'center',
+                    fontSize: 8
                 },
                 columnStyles: {
-                    0: { fontStyle: 'bold', cellWidth: 20 },
-                    1: { cellWidth: 25 },
-                    2: { cellWidth: 60 },
-                    3: { cellWidth: 40 },
-                    4: { cellWidth: 40 },
-                    5: { cellWidth: 25 },
-                    6: { cellWidth: 25 },
-                    7: { halign: 'center', cellWidth: 15, fontStyle: 'bold' }
+                    0: { cellWidth: colWidth },
+                    1: { cellWidth: colWidth },
+                    2: { cellWidth: colWidth },
+                    3: { cellWidth: colWidth },
+                    4: { cellWidth: colWidth },
+                    5: { cellWidth: colWidth }
                 },
                 margin: { left: 20, right: 20, bottom: 20 },
                 didDrawPage: function (data) {

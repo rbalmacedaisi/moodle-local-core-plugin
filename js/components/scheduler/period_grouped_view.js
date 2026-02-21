@@ -153,13 +153,26 @@ window.SchedulerComponents.PeriodGroupedView = {
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                // Group Key: Periodo de Ingreso (which is kept in levelDisplay)
-                const key = c.levelDisplay || 'Periodo Desconocido';
+                // Find real entry period for this class by inspecting students
+                let key = 'Sin Definir';
+                const allStudents = this.storeState.students || [];
+                if (c.studentIds && c.studentIds.length > 0) {
+                    const classStudents = allStudents.filter(s => c.studentIds.includes(s.id || s.dbId));
+                    if (classStudents.length > 0) {
+                        const periodCounts = {};
+                        classStudents.forEach(s => {
+                            const ep = s.entry_period || 'Sin Definir';
+                            periodCounts[ep] = (periodCounts[ep] || 0) + 1;
+                        });
+                        key = Object.keys(periodCounts).reduce((a, b) => periodCounts[a] > periodCounts[b] ? a : b);
+                    }
+                }
 
                 if (!groups[key]) {
                     groups[key] = {
                         classes: [],
-                        totalHours: 0
+                        totalHours: 0,
+                        totalPeriodStudents: allStudents.filter(s => (s.entry_period || 'Sin Definir') === key).length
                     };
                 }
                 groups[key].classes.push(c);

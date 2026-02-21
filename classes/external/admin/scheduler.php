@@ -219,15 +219,20 @@ class scheduler extends external_api {
         $jornadaJoin = $jornadaField ? "LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = " . $jornadaField->id : "";
         $jornadaSelect = $jornadaField ? ", uid_j.data AS jornada" : "";
 
+        $piField = $DB->get_record('user_info_field', ['shortname' => 'gmkperiodoingreso']);
+        $piJoin = $piField ? "LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . $piField->id : "";
+        $piSelect = $piField ? ", uid_pi.data AS entry_period" : ", '' as entry_period";
+
         $sql = "SELECT u.id, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
                        llu.currentperiodid, p.name as currentperiodname,
-                       llu.currentsubperiodid, sp.name as currentsubperiodname $jornadaSelect
+                       llu.currentsubperiodid, sp.name as currentsubperiodname $jornadaSelect $piSelect
                 FROM {user} u
                 JOIN {local_learning_users} llu ON llu.userid = u.id
                 LEFT JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
                 LEFT JOIN {local_learning_periods} p ON p.id = llu.currentperiodid
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
+                $piJoin
                 WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student' 
                   AND llu.status = 'activo'"; 
 
@@ -324,7 +329,8 @@ class scheduler extends external_api {
                      'name' => $stu->firstname . ' ' . $stu->lastname,
                      'career' => $career,
                      'shift' => $jornada,
-                     'semester' => $semNum
+                     'semester' => $semNum,
+                     'entry_period' => $stu->entry_period ?? 'Sin Definir'
                  ];
             }
         }
