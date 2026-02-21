@@ -8,6 +8,25 @@
 (function () {
     const { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } = Vue;
 
+    // Inject styles for fullcalendar customization
+    if (!document.getElementById('gmk-fullcalendar-styles')) {
+        const style = document.createElement('style');
+        style.id = 'gmk-fullcalendar-styles';
+        style.textContent = `
+            .fc .fc-toolbar-title { font-size: 1.1rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
+            .fc .fc-button-primary { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #475569 !important; font-weight: 800 !important; font-size: 0.75rem !important; text-transform: uppercase; padding: 0.4rem 0.8rem !important; }
+            .fc .fc-button-primary:hover { background-color: #e2e8f0 !important; }
+            .fc .fc-button-active { background-color: #3b82f6 !important; color: white !important; border-color: #2563eb !important; }
+            .fc .fc-daygrid-day-number { font-size: 0.8rem; font-weight: 700; color: #64748b; padding: 8px !important; }
+            .fc .fc-col-header-cell-cushion { font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px !important; }
+            .fc-theme-standard td, .fc-theme-standard th { border-color: #f1f5f9 !important; }
+            .fc .fc-day-today { background: rgba(59, 130, 246, 0.04) !important; }
+            .fc-event { border: none !important; border-radius: 6px !important; padding: 2px 4px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; transition: transform 0.15s ease; cursor: pointer; }
+            .fc-event:hover { transform: translateY(-1px); }
+        `;
+        document.head.appendChild(style);
+    }
+
     window.FullCalendarView = {
         template: `
             <div class="flex flex-col h-full bg-slate-50 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
@@ -40,19 +59,6 @@
 
                 <!-- Calendar Content Outer -->
                 <div class="flex-1 bg-white p-4 overflow-hidden flex flex-col min-h-0">
-                    <!-- Custom Styles for FullCalendar -->
-                    <style>
-                        .fc .fc-toolbar-title { font-size: 1.1rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
-                        .fc .fc-button-primary { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #475569 !important; font-weight: 800 !important; font-size: 0.75rem !important; text-transform: uppercase; padding: 0.4rem 0.8rem !important; }
-                        .fc .fc-button-primary:hover { background-color: #e2e8f0 !important; }
-                        .fc .fc-button-active { background-color: #3b82f6 !important; color: white !important; border-color: #2563eb !important; }
-                        .fc .fc-daygrid-day-number { font-size: 0.8rem; font-weight: 700; color: #64748b; padding: 8px !important; }
-                        .fc .fc-col-header-cell-cushion { font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px !important; }
-                        .fc-theme-standard td, .fc-theme-standard th { border-color: #f1f5f9 !important; }
-                        .fc .fc-day-today { background: rgba(59, 130, 246, 0.04) !important; }
-                        .fc-event { border: none !important; border-radius: 6px !important; padding: 2px 4px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; transition: transform 0.15s ease; cursor: pointer; }
-                        .fc-event:hover { transform: translateY(-1px); }
-                    </style>
                     <div id="full-calendar-container" class="h-full min-h-[500px]"></div>
                 </div>
             </div>
