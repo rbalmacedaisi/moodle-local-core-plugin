@@ -10,32 +10,50 @@
 
     window.FullCalendarView = {
         template: `
-            <div class="flex flex-col h-[700px] bg-white">
-                <!-- Toolbar / Legend -->
-                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 shrink-0">
-                    <div class="flex items-center gap-6">
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 rounded bg-blue-600"></div>
-                            <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Sesión Programada</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 rounded bg-red-100 border border-red-200"></div>
-                            <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Día Liberado</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 rounded bg-slate-200"></div>
-                            <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Festivo / Cerrado</span>
-                        </div>
+            <div class="flex flex-col h-full bg-slate-50 overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+                <!-- Premium Header -->
+                <div class="px-6 py-4 bg-white border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h3 class="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                             <div class="p-2 bg-blue-100 rounded-lg"><i data-lucide="calendar" class="w-5 h-5 text-blue-600"></i></div>
+                             Vista Mensual de Planificación
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1 font-medium">Gestiona exclusiones y visualiza la carga horaria global del mes.</p>
                     </div>
-                    
-                    <div class="text-[11px] text-slate-400 italic">
-                        * Haz clic en una sesión azul para liberarla. Haz clic en una sesión roja para reactivarla.
+
+                    <!-- Modern Legend -->
+                    <div class="flex flex-wrap items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm"></div>
+                               <span class="text-[10px] font-bold text-slate-600 uppercase">Programada</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-red-400 shadow-sm"></div>
+                            <span class="text-[10px] font-bold text-slate-600 uppercase">Liberada</span>
+                        </div>
+                        <div class="flex items-center gap-2 border-l border-slate-200 pl-4">
+                            <i data-lucide="info" class="w-3.5 h-3.5 text-slate-400"></i>
+                            <span class="text-[10px] text-slate-400 italic">Clic para alternar estado</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Calendar Area -->
-                <div class="flex-1 overflow-hidden p-6 relative">
-                    <div id="full-calendar-container" class="h-full"></div>
+                <!-- Calendar Content Outer -->
+                <div class="flex-1 bg-white p-4 overflow-hidden flex flex-col min-h-0">
+                    <!-- Custom Styles for FullCalendar -->
+                    <style>
+                        .fc .fc-toolbar-title { font-size: 1.1rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
+                        .fc .fc-button-primary { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #475569 !important; font-weight: 800 !important; font-size: 0.75rem !important; text-transform: uppercase; padding: 0.4rem 0.8rem !important; }
+                        .fc .fc-button-primary:hover { background-color: #e2e8f0 !important; }
+                        .fc .fc-button-active { background-color: #3b82f6 !important; color: white !important; border-color: #2563eb !important; }
+                        .fc .fc-daygrid-day-number { font-size: 0.8rem; font-weight: 700; color: #64748b; padding: 8px !important; }
+                        .fc .fc-col-header-cell-cushion { font-size: 0.7rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; padding: 10px !important; }
+                        .fc-theme-standard td, .fc-theme-standard th { border-color: #f1f5f9 !important; }
+                        .fc .fc-day-today { background: rgba(59, 130, 246, 0.04) !important; }
+                        .fc-event { border: none !important; border-radius: 6px !important; padding: 2px 4px !important; box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; transition: transform 0.15s ease; cursor: pointer; }
+                        .fc-event:hover { transform: translateY(-1px); }
+                    </style>
+                    <div id="full-calendar-container" class="h-full min-h-[500px]"></div>
                 </div>
             </div>
         `,
@@ -88,14 +106,40 @@
                     eventClick: handleEventClick,
                     dayCellDidMount: (info) => {
                         // Mark holidays
-                        const dateStr = FullCalendar.formatDate(info.date, { year: 'numeric', month: '2-digit', day: '2-digit' });
+                        const d = info.date;
+                        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                         const isHoliday = store.state.context.holidays.some(h => {
                             const hDate = new Date(h.date * 1000);
-                            return FullCalendar.formatDate(hDate, { year: 'numeric', month: '2-digit', day: '2-digit' }) === dateStr;
+                            return `${hDate.getFullYear()}-${String(hDate.getMonth() + 1).padStart(2, '0')}-${String(hDate.getDate()).padStart(2, '0')}` === dateStr;
                         });
                         if (isHoliday) {
                             info.el.style.backgroundColor = '#f8fafc';
                         }
+                    },
+                    eventContent: (arg) => {
+                        const props = arg.event.extendedProps;
+                        const isExcluded = props.isExcluded;
+                        const isHoliday = props.isHoliday;
+
+                        let bgColor = isExcluded ? 'bg-red-50' : (isHoliday ? 'bg-slate-100' : 'bg-blue-600');
+                        let borderColor = isExcluded ? 'border-red-200' : (isHoliday ? 'border-slate-200' : 'border-blue-700');
+                        let textColor = isExcluded ? 'text-red-700' : (isHoliday ? 'text-slate-500' : 'text-white');
+                        let dotColor = isExcluded ? 'bg-red-500' : (isHoliday ? 'bg-slate-400' : 'bg-blue-200');
+
+                        return {
+                            html: `
+                                <div class="p-1 px-1.5 rounded flex flex-col gap-0.5 border ${borderColor} ${bgColor} overflow-hidden">
+                                    <div class="flex items-center gap-1.5 overflow-hidden">
+                                        <div class="w-1.5 h-1.5 rounded-full ${dotColor} shrink-0"></div>
+                                        <span class="text-[9px] font-extrabold truncate ${textColor} uppercase">${arg.event.title}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center px-0.5">
+                                        <span class="text-[8px] font-medium opacity-80 ${textColor}">${arg.event.extendedProps.timeStr || ''}</span>
+                                        ${isExcluded ? '<span class="text-[7px] font-black uppercase text-red-600 bg-white px-1 rounded border border-red-100 shadow-sm">LIBERADO</span>' : ''}
+                                    </div>
+                                </div>
+                            `
+                        };
                     }
                 });
 
@@ -156,28 +200,27 @@
                         }
 
                         while (current <= endDate) {
-                            const dateStr = FullCalendar.formatDate(current, { year: 'numeric', month: '2-digit', day: '2-digit' });
+                            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
 
                             const isExcluded = session.excluded_dates && session.excluded_dates.includes(dateStr);
                             const isHoliday = store.state.context.holidays.some(h => {
                                 const hDate = new Date(h.date * 1000);
-                                return FullCalendar.formatDate(hDate, { year: 'numeric', month: '2-digit', day: '2-digit' }) === dateStr;
+                                const hStr = `${hDate.getFullYear()}-${String(hDate.getMonth() + 1).padStart(2, '0')}-${String(hDate.getDate()).padStart(2, '0')}`;
+                                return hStr === dateStr;
                             });
 
                             events.push({
                                 id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
-                                title: isExcluded ? `[LIBERADO] ${sched.subjectName}` : (isHoliday ? `[FESTIVO] ${sched.subjectName}` : sched.subjectName),
+                                title: sched.subjectName,
                                 start: `${dateStr}T${session.start}`,
                                 end: `${dateStr}T${session.end}`,
-                                backgroundColor: isExcluded ? '#fee2e2' : (isHoliday ? '#e2e8f0' : '#2563eb'),
-                                borderColor: isExcluded ? '#fecaca' : (isHoliday ? '#cbd5e1' : '#1d4ed8'),
-                                textColor: isExcluded ? '#991b1b' : (isHoliday ? '#64748b' : '#ffffff'),
                                 extendedProps: {
                                     isExcluded: isExcluded,
                                     isHoliday: isHoliday,
                                     schedIdx: schedIdx,
                                     sessionIdx: sessionIdx,
-                                    dateStr: dateStr
+                                    dateStr: dateStr,
+                                    timeStr: `${session.start} - ${session.end}`
                                 }
                             });
 
