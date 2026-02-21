@@ -12,7 +12,7 @@ window.SchedulerComponents.PeriodGroupedView = {
             <!-- Header Controls -->
             <div class="p-3 border-b border-gray-200 flex justify-between items-center bg-slate-50">
                 <div class="flex items-center gap-4">
-                     <h3 class="font-bold text-slate-700 text-sm">Vista por Niveles (Cohortes)</h3>
+                     <h3 class="font-bold text-slate-700 text-sm">Vista por Periodo de Ingreso</h3>
                      <div class="flex gap-2">
                         <span class="flex items-center gap-1 text-xs text-slate-500">
                             <span class="w-2 h-2 rounded-full bg-blue-500"></span> Mañana
@@ -22,6 +22,9 @@ window.SchedulerComponents.PeriodGroupedView = {
                         </span>
                      </div>
                 </div>
+                <button @click="exportToPDF" class="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 font-bold text-xs rounded-lg transition-colors border border-red-100 shadow-sm">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> Exportar a PDF
+                </button>
             </div>
 
             <!-- Matrix -->
@@ -48,13 +51,17 @@ window.SchedulerComponents.PeriodGroupedView = {
                                     <div class="flex justify-between items-center text-[10px] opacity-80">
                                         <span>{{ cls.start }} - {{ cls.end }}</span>
                                     </div>
-                                    <div class="text-[10px] opacity-70 truncate mt-0.5">
+                                    <div class="text-[10px] opacity-70 truncate mt-0.5" :title="cls.career">
+                                        {{ cls.career }}
+                                    </div>
+                                    <div class="text-[10px] opacity-70 truncate mt-0.5 font-medium">
                                         {{ cls.teacherName || 'Sin docente' }}
                                     </div>
                                     
                                      <!-- Tooltip on Hover -->
                                     <div class="absolute inset-0 bg-white/95 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-center items-center text-center border-2 border-blue-500 rounded z-10">
                                         <span class="font-bold text-blue-700">{{ cls.room || 'Sin aula' }}</span>
+                                        <span class="text-[9px] text-slate-500 italic mt-1">{{ cls.shift }}</span>
                                         <span class="text-[10px] text-slate-600 block mb-2">{{ cls.subperiod === 0 ? 'Semestral' : (cls.subperiod === 1 ? 'Bloque 1' : 'Bloque 2') }}</span>
                                         <button @click.stop="viewStudents(cls)" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold hover:bg-blue-200 pointer-events-auto">
                                             <i data-lucide="users" class="w-3 h-3 inline mr-1"></i> Ver Estudiantes
@@ -146,11 +153,8 @@ window.SchedulerComponents.PeriodGroupedView = {
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                // Group Key: Career + Level + Shift
-                // Actually, viewing by Level across careers might be messy if levels don't align.
-                // Better: Group by Career, then Level.
-                // Or "Career - Level - Shift" as the Header.
-                const key = `${c.career || 'General'} - ${c.levelDisplay} (${c.shift})`;
+                // Group Key: Periodo de Ingreso (which is kept in levelDisplay)
+                const key = c.levelDisplay || 'Periodo Desconocido';
 
                 if (!groups[key]) {
                     groups[key] = {
@@ -180,6 +184,24 @@ window.SchedulerComponents.PeriodGroupedView = {
         if (window.lucide) window.lucide.createIcons();
     },
     methods: {
+        exportToPDF() {
+            if (!window.SchedulerPDF) {
+                alert("El módulo de exportación PDF no está cargado.");
+                return;
+            }
+
+            // Extract Academic Period info
+            let periodName = 'Periodo Académico';
+            if (this.periodId && window.SchedulerComponents && window.SchedulerComponents.SchedulerView) {
+                // Not strictly necessary since generateIntakePeriodPDF can take a string
+            }
+
+            const activePeriodInfo = (window.schedulerStore && window.schedulerStore.state.context.period)
+                ? window.schedulerStore.state.context.period
+                : '';
+
+            window.SchedulerPDF.generateIntakePeriodPDF(this.groupedSchedules, activePeriodInfo, this.storeState.subperiodFilter);
+        },
         getClasses(classes, day) {
             return classes.filter(c => c.day === day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
         },

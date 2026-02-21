@@ -111,7 +111,7 @@ window.SchedulerComponents.SchedulerView = {
                                 @click="boardView = 'grouped'" 
                                 :class="['px-3 py-1 text-xs font-bold rounded transition-colors', boardView === 'grouped' ? 'bg-blue-100 text-blue-700' : 'text-slate-500 hover:bg-slate-50']"
                             >
-                                <i data-lucide="layers" class="w-3 h-3 inline mr-1"></i> Por Niveles
+                                <i data-lucide="layers" class="w-3 h-3 inline mr-1"></i> Por Periodo de Ingreso
                             </button>
                         </div>
                     </div>

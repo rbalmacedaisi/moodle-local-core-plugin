@@ -298,9 +298,136 @@
         doc.save(`Horarios_Docentes_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
+    const generateIntakePeriodPDF = (groupedSchedules, academicPeriod, subperiod = 0) => {
+        const doc = getJsPDF();
+        if (!doc) return;
+
+        const subperiodLabel = subperiod === 1 ? ' (Bloque 1)' : (subperiod === 2 ? ' (Bloque 2)' : '');
+        const periodLabel = typeof academicPeriod === 'object' && academicPeriod !== null
+            ? `${academicPeriod.start} - ${academicPeriod.end}`
+            : (academicPeriod || '');
+
+        const groups = Object.keys(groupedSchedules).sort();
+
+        if (groups.length === 0) {
+            alert("No hay horarios asignados para exportar bajo esta vista.");
+            return;
+        }
+
+        const dayOrder = { 'Lunes': 1, 'Martes': 2, 'Miercoles': 3, 'Miércoles': 3, 'Jueves': 4, 'Viernes': 5, 'Sabado': 6, 'Sábado': 6, 'Domingo': 7 };
+
+        groups.forEach((levelName, index) => {
+            if (index > 0) doc.addPage();
+            const groupData = groupedSchedules[levelName];
+
+            // --- PREMIUM HEADER ---
+            doc.setFillColor(30, 64, 175); // Royal Blue
+            doc.rect(0, 0, doc.internal.pageSize.getWidth(), 35, 'F');
+
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(255, 255, 255);
+            doc.text('INSTITUTO SUPERIOR DE INGENIERÍA', doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
+
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`REPORTE DE HORARIOS POR PERIODO DE INGRESO${subperiodLabel}`, doc.internal.pageSize.getWidth() / 2, 23, { align: 'center' });
+
+            // --- METADATA SECTION ---
+            doc.setTextColor(50, 50, 50);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Periodo de Ingreso:`, 20, 45);
+            doc.setFont('helvetica', 'normal');
+            doc.text(levelName, 55, 45);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Horas Totales:`, 20, 52);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${Math.round(groupData.totalHours)} hrs`, 55, 52);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Periodo Académico:`, 140, 45);
+            doc.setFont('helvetica', 'normal');
+            doc.text(periodLabel || 'Todos', 175, 45);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Página ${index + 1} de ${groups.length}`, doc.internal.pageSize.getWidth() - 40, 45);
+
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.5);
+            doc.line(20, 56, doc.internal.pageSize.getWidth() - 20, 56);
+
+            // --- TABLE DATA ---
+            // Sort classes by Day, then Start time
+            const sortedClasses = [...groupData.classes].sort((a, b) => {
+                const dayA = dayOrder[a.day] || 99;
+                const dayB = dayOrder[b.day] || 99;
+                if (dayA !== dayB) return dayA - dayB;
+                return (a.start || "").localeCompare(b.start || "");
+            });
+
+            const tableData = sortedClasses.map(cls => {
+                const studentCount = cls.studentIds ? cls.studentIds.length : (cls.studentCount || 0);
+                return [
+                    cls.day,
+                    `${cls.start} - ${cls.end}`,
+                    cls.subjectName,
+                    (cls.teacherName && !cls.teacherName.includes('Asignar')) ? cls.teacherName : 'Pendiente',
+                    cls.career || 'N/A',
+                    cls.shift || 'N/A',
+                    cls.room || 'Sin aula',
+                    studentCount.toString()
+                ];
+            });
+
+            doc.autoTable({
+                startY: 62,
+                head: [['DÍA', 'HORARIO', 'ASIGNATURA', 'DOCENTE', 'CARRERA', 'JORNADA', 'AULA', 'EST.']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: {
+                    fillColor: [30, 64, 175], // Match header
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 8,
+                    halign: 'center'
+                },
+                bodyStyles: {
+                    fontSize: 7,
+                    textColor: [60, 60, 60],
+                    valign: 'middle'
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252] // Slate 50
+                },
+                columnStyles: {
+                    0: { fontStyle: 'bold', cellWidth: 20 },
+                    1: { cellWidth: 25 },
+                    2: { cellWidth: 60 },
+                    3: { cellWidth: 40 },
+                    4: { cellWidth: 40 },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 25 },
+                    7: { halign: 'center', cellWidth: 15, fontStyle: 'bold' }
+                },
+                margin: { left: 20, right: 20, bottom: 20 },
+                didDrawPage: function (data) {
+                    // Footer
+                    doc.setFontSize(7);
+                    doc.setTextColor(150, 150, 150);
+                    doc.text(`Generado automáticamente en el Tablero de Planificación - Sistema de Horarios`, 20, doc.internal.pageSize.getHeight() - 10);
+                }
+            });
+        });
+
+        doc.save(`Horarios_Por_Periodo_Ingreso_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     window.SchedulerPDF = {
         generateGroupSchedulesPDF,
-        generateTeacherSchedulesPDF
+        generateTeacherSchedulesPDF,
+        generateIntakePeriodPDF
     };
 
 })();
