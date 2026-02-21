@@ -41,6 +41,7 @@ echo $OUTPUT->header();
 <script src="../js/components/scheduler/planning_board.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/period_grouped_view.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/scheduler_view.js?v=<?= time() ?>"></script>
+<script src="../js/components/scheduler/report_view.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/classroom_manager.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/holiday_manager.js?v=<?= time() ?>"></script>
 <script src="../js/components/scheduler/general_config.js?v=<?= time() ?>"></script>
@@ -1992,6 +1993,7 @@ if (window.SchedulerComponents) {
     app.component('classroom-manager', window.SchedulerComponents.ClassroomManager);
     app.component('holiday-manager', window.SchedulerComponents.HolidayManager);
     app.component('general-config', window.SchedulerComponents.GeneralConfig);
+    app.component('report-view', window.SchedulerComponents.ReportView);
     app.component('full-calendar-view', window.FullCalendarView);
 }
 
