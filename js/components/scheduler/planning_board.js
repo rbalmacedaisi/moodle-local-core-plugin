@@ -588,8 +588,11 @@ window.SchedulerComponents.PlanningBoard = {
             this.logDialog = true;
         },
         openCalendar(cls) {
-            if (window.openCalendarView) {
-                window.openCalendarView(cls);
+            // Simply switch to the Monthly Calendar tab (Tab 2) in the parent store/state
+            // This might require a way to communicate with SchedulerView
+            // Since we don't have a direct reference here, we'll just advise using the tabs.
+            if (window.switchSchedulerTab) {
+                window.switchSchedulerTab(2);
             }
         }
     }

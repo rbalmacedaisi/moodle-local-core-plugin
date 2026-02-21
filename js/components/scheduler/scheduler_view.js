@@ -71,7 +71,13 @@ window.SchedulerComponents.SchedulerView = {
                 <button 
                     @click="activeTab = 2"
                     :disabled="!isPeriodSelected"
-                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 2 ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
+                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 2 ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
+                    <i data-lucide="calendar" class="w-4 h-4"></i> Calendario Mensual
+                </button>
+                <button 
+                    @click="activeTab = 3"
+                    :disabled="!isPeriodSelected"
+                    :class="['px-4 py-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2', activeTab === 3 ? 'border-orange-600 text-orange-700' : 'border-transparent text-slate-500 hover:text-slate-700', !isPeriodSelected ? 'opacity-50 cursor-not-allowed' : '']">
                     <i data-lucide="file-text" class="w-4 h-4"></i> Reportes
                 </button>
             </div>
@@ -119,9 +125,14 @@ window.SchedulerComponents.SchedulerView = {
                         :period-id="selectedPeriod"
                     ></period-grouped-view>
                 </div>
+
+                <!-- Tab 2: Monthly Calendar -->
+                <div v-if="activeTab === 2 && isPeriodSelected" class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                    <full-calendar-view></full-calendar-view>
+                </div>
                 
-                <!-- Tab 2: Reports -->
-                <div v-if="activeTab === 2 && isPeriodSelected" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Tab 3: Reports -->
+                <div v-if="activeTab === 3 && isPeriodSelected" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div @click="exportGroupPDF" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition-all hover:border-red-200 group">
                         <div class="flex items-center justify-center w-12 h-12 bg-red-50 rounded-full mb-4 group-hover:bg-red-100 transition-colors">
                             <i data-lucide="file-text" class="w-6 h-6 text-red-600"></i>
@@ -181,6 +192,10 @@ window.SchedulerComponents.SchedulerView = {
     },
     created() {
         this.loadPeriods();
+        // Expose switch function for other components
+        window.switchSchedulerTab = (index) => {
+            this.activeTab = index;
+        };
     },
     updated() {
         // Refresh icons when DOM updates
