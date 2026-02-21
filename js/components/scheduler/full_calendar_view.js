@@ -98,7 +98,10 @@
 
             const initCalendar = () => {
                 const calendarEl = document.getElementById('full-calendar-container');
-                if (!calendarEl) return;
+                if (!calendarEl || typeof FullCalendar === 'undefined') {
+                    console.error("FullCalendar library not loaded!");
+                    return;
+                }
 
                 const events = generateEvents();
 

@@ -219,9 +219,12 @@ window.SchedulerComponents.PlanningBoard = {
                             </select>
                         </div>
                         <div class="pt-2 flex flex-col gap-2">
-                             <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                              <button @click="openCalendar(selectedClass)" class="w-full py-2 bg-teal-100 text-teal-700 hover:bg-teal-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                                <i data-lucide="calendar" class="w-4 h-4"></i> Ver Calendario Mensual / Liberar Días
+                              </button>
+                              <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
-                             </button>
+                              </button>
                              <button @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
                                 Desasignar (Mover a Lista)
                              </button>
