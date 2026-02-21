@@ -1,9 +1,15 @@
 <?php
-require_once(__DIR__ . '/../../config.php');
+// Try multiple levels up to find config.php
+$config_path = __DIR__ . '/../../../config.php';
+if (!file_exists($config_path)) {
+    $config_path = __DIR__ . '/../../../../config.php';
+}
+require_once($config_path);
+
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
-$PAGE->set_url(new moodle_url('/local/grupomakro_core/debug_schedules.php'));
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_schedules.php'));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Debug Generación de Horarios');
 
