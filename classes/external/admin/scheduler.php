@@ -587,8 +587,8 @@ class scheduler extends external_api {
                 
                 $classRec->groupid = $cls['subGroup'] ?? 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
-                $classRec->type = $cls['type'] ?? 1; 
-                $classRec->typelabel = $cls['typeLabel'] ?? 'Virtual';
+                $classRec->type = $cls['type'] ?? 0; 
+                $classRec->typelabel = $cls['typeLabel'] ?? 'Presencial';
                 
                 // Metadata Persistence
                 $classRec->shift = $cls['shift'] ?? '';

@@ -110,11 +110,11 @@
                     if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
 
                     // Standardize Class Type and Label
-                    if (cls.type === undefined) cls.type = 1; // Default to Virtual
+                    if (cls.type === undefined) cls.type = 0; // Default to Presencial
                     if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
                     if (!cls.typeLabel) {
                         const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
-                        cls.typeLabel = typeMap[cls.type] || 'Virtual';
+                        cls.typeLabel = typeMap[cls.type] || 'Presencial';
                     }
 
                     // Normalize sessions and excluded_dates
@@ -303,8 +303,8 @@
                             subGroup: i + 1,
                             subperiod: data.subperiod || 1, // Default to P-I (Bloque 1) instead of 0 (Ambos)
                             studentIds: groupStudents,
-                            type: 1, // Default Virtual
-                            typeLabel: 'Virtual',
+                            type: 0, // Default Presencial
+                            typeLabel: 'Presencial',
                             classdays: '0/0/0/0/0/0/0' // Will be calculated upon placement
                         });
                     }
