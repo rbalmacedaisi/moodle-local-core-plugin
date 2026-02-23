@@ -147,7 +147,7 @@
             });
         };
 
-        const checkBusyGranular = (usageMap, key, dates, subperiod, start, end) => {
+        const checkBusyGranular = (usageMap, key, dates, subperiod, start, end, interval = 0) => {
             if (!key || !usageMap.has(key)) return null;
             const entityMap = usageMap.get(key);
             let conflictSubject = null;
@@ -155,7 +155,8 @@
                 const slots = entityMap.get(date) || [];
                 const conflict = slots.find(busy => {
                     const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
-                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+                    // Include interval padding to enforce recess
+                    return subOverlap && Math.max(start, busy.start - interval) < Math.min(end, busy.end + interval);
                 });
                 if (conflict) {
                     conflictSubject = conflict.subjectName;
@@ -166,12 +167,12 @@
             return conflictSubject;
         };
 
-        const checkStudentsBusy = (studentIds, dates, subperiod, start, end) => {
+        const checkStudentsBusy = (studentIds, dates, subperiod, start, end, interval = 0) => {
             if (!studentIds || studentIds.length === 0) return null;
             let firstSubject = null;
             let busyNames = [];
             studentIds.forEach(sid => {
-                const subject = checkBusyGranular(studentUsage, sid, dates, subperiod, start, end);
+                const subject = checkBusyGranular(studentUsage, sid, dates, subperiod, start, end, interval);
                 if (subject) {
                     if (!firstSubject) firstSubject = subject;
                     const sName = studentNameMap.get(sid) || `ID:${sid}`;
@@ -304,19 +305,19 @@
                         continue;
                     }
 
-                    const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd);
+                    const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd, intervalMins);
                     if (stConflict) {
                         stats.studentConflictCount++;
                         stats.studentConflicts.set(stConflict, (stats.studentConflicts.get(stConflict) || 0) + 1);
-                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Alumnos ocupados (${stConflict})` });
+                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Alumnos ocupados (+${intervalMins}m receso) (${stConflict})` });
                         continue;
                     }
 
-                    const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd) : null;
+                    const tConflict = s.teacherName ? checkBusyGranular(teacherUsage, s.teacherName, targetDates, s.subperiod, t, tEnd, intervalMins) : null;
                     if (tConflict) {
                         stats.teacherConflictCount++;
                         stats.teacherConflicts.set(tConflict, (stats.teacherConflicts.get(tConflict) || 0) + 1);
-                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Docente ocupado (${tConflict})` });
+                        auditLog.push({ day, time: timeStr, status: 'Conflict', detail: `Docente ocupado (+${intervalMins}m receso) (${tConflict})` });
                         continue;
                     }
 
@@ -326,7 +327,7 @@
                         if (placed) break;
 
                         if (maxSessions) {
-                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd));
+                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, intervalMins));
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
@@ -339,10 +340,10 @@
                                 roomRejectionDetail = "Sesiones insuficientes para intensivo";
                             }
                         } else {
-                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd);
+                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd, intervalMins);
                             if (rConflict) {
                                 stats.roomBusyCount++;
-                                roomRejectionDetail = `Aulas ocupadas (${room.name}: ${rConflict})`;
+                                roomRejectionDetail = `Aulas ocupadas (+${intervalMins}m receso) (${room.name}: ${rConflict})`;
                                 continue;
                             }
 
@@ -475,6 +476,8 @@
         const sEnd = toMins(schedule.end);
         const sDates = new Set(schedule.assignedDates || []);
 
+        const intervalMins = context.configSettings?.intervalMinutes || 10;
+
         const checkOverlap = (other) => {
             if (other.id === schedule.id) return false;
             const oDates = other.assignedDates || [];
@@ -484,7 +487,8 @@
 
             const subOverlap = (other.subperiod === 0) || (schedule.subperiod === 0) || (other.subperiod === schedule.subperiod);
             if (!subOverlap) return false;
-            return Math.max(sStart, toMins(other.start)) < Math.min(sEnd, toMins(other.end));
+            // Include interval padding to enforce recess in conflict detection
+            return Math.max(sStart, toMins(other.start) - intervalMins) < Math.min(sEnd, toMins(other.end) + intervalMins);
         };
 
         // --- Teacher Specific Conflicts ---
@@ -526,7 +530,7 @@
             allSchedules.some(s => {
                 const subOverlap = (s.subperiod === 0) || (schedule.subperiod === 0) || (s.subperiod === schedule.subperiod);
                 if (!subOverlap || s.id === schedule.id || s.day !== schedule.day) return false;
-                if (Math.max(sStart, toMins(s.start)) >= Math.min(sEnd, toMins(s.end))) return false;
+                if (Math.max(sStart, toMins(s.start) - intervalMins) >= Math.min(sEnd, toMins(s.end) + intervalMins)) return false;
 
                 const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
                 if (overlaps.length > 0) {
