@@ -653,8 +653,14 @@ window.SchedulerComponents.ReportView = {
             studentsToReport.forEach((student, index) => {
                 if (index > 0) doc.addPage();
 
+                const sid = String(student.id);
+                const sDbId = student.dbId ? String(student.dbId) : null;
+
                 const studentSchedules = this.reportedSchedules.filter(s =>
-                    s.studentIds && s.studentIds.some(sid => String(sid) === String(student.dbId || student.id))
+                    s.studentIds && s.studentIds.some(qsid => {
+                        const qs = String(qsid);
+                        return qs === sid || (sDbId && qs === sDbId);
+                    })
                 );
 
                 // 1. Header Section
