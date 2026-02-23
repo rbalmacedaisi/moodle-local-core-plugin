@@ -235,24 +235,26 @@
 
                         for (const sem of Object.keys(demand[career][shift])) {
                             const semData = demand[career][shift][sem];
-                            // course_counts: { courseId: { count, students: [] } }
-                            for (const [courseId, val] of Object.entries(semData.course_counts)) {
+                            // course_counts keys are now subjectid
+                            for (const [subjectId, val] of Object.entries(semData.course_counts)) {
                                 let studentIds = [];
                                 if (val && typeof val === 'object') {
                                     studentIds = val.students || [];
                                 }
 
-                                if (studentIds.length === 0) continue;
+                                // We still want to include cohorts even if no students (manual projections or planning matrix)
+                                // if (studentIds.length === 0) continue; // Remove this to allow empty cohorts
 
                                 // Ignore if status is 2 (Omitir Auto)
-                                const projection = this.state.projections.find(p => p.courseid == courseId);
+                                const projection = this.state.projections.find(p => p.courseid == subjectId);
                                 if (projection && projection.status == 2) continue;
 
                                 const subperiodId = val.subperiod || 0;
-                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
+                                const aggKey = isIsolated ? `${subjectId}|${shift}|${career}|${subperiodId}` : `${subjectId}|${shift}|${subperiodId}`;
                                 if (!aggregatedDemand[aggKey]) {
                                     aggregatedDemand[aggKey] = {
-                                        courseid: courseId,
+                                        subjectid: parseInt(subjectId),
+                                        moodleid: val.moodleid || 0,
                                         shift: shift,
                                         subperiod: subperiodId,
                                         students: [],
@@ -263,8 +265,8 @@
                                 aggregatedDemand[aggKey].students.push(...studentIds);
                                 aggregatedDemand[aggKey].careers.add(career);
                                 aggregatedDemand[aggKey].levels.add(semData.semester_name);
-                                aggregatedDemand[aggKey].subjectid = val.subjectid || 0;
                                 aggregatedDemand[aggKey].levelid = val.levelid || 0;
+                                aggregatedDemand[aggKey].learningplanid = val.learningplanid || 0; // Fallback plan
                                 if (val.plan_map) {
                                     if (!aggregatedDemand[aggKey].plan_map) aggregatedDemand[aggKey].plan_map = {};
                                     Object.assign(aggregatedDemand[aggKey].plan_map, val.plan_map);
@@ -307,6 +309,9 @@
                             }
                         }
 
+                        // Fallback to provided learning plan if no majority found
+                        if (majorityPlanId === 0) majorityPlanId = data.learningplanid;
+
                         // Use plan_map to resolve the correct Subject ID and Level ID for this specific majority plan
                         let resolvedSubjectId = data.subjectid;
                         let resolvedLevelId = data.levelid;
@@ -318,10 +323,10 @@
                         schedules.push({
                             id: `gen-${idCounter++}`,
                             courseid: resolvedSubjectId, // Precise Subject ID
-                            corecourseid: data.courseid, // Moodle ID
+                            corecourseid: data.moodleid, // Moodle ID
                             learningplanid: majorityPlanId,
                             periodid: resolvedLevelId, // Academic Level ID
-                            subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
+                            subjectName: (this.state.subjects[data.moodleid] ? this.state.subjects[data.moodleid].name : `Materia: ${data.subjectid}`),
                             teacherName: null,
                             day: 'N/A',
                             start: '00:00',
