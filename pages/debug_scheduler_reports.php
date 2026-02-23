@@ -1,7 +1,10 @@
 <?php
-require_once(__DIR__ . '/../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 if (!$periodid) {
