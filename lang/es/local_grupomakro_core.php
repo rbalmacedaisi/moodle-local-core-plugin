@@ -253,8 +253,12 @@ $string['notassigned'] = 'No asignado';
 //Class management pages labels and texts
 $string['confirm_delete_class'] = 'Confirmación eliminación de clase';
 $string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
+$string['deleteselected'] = 'Eliminar seleccionados';
 $string['allclasses'] = 'Todas las Clases';
 $string['class_management'] = 'Gestión de clases';
+$string['gridview'] = 'Vista de cuadrícula';
+$string['listview'] = 'Vista de lista';
+$string['noclasses'] = 'No hay clases disponibles';
 $string['create_class'] = 'Crear Clase';
 $string['edit_class'] = 'Editar Clase';
 $string['class_general_data'] = 'Datos Generales';

@@ -44,10 +44,16 @@
             {{! Class menu card }}
             <div class="card p-3">
                 {{! Button to create classes }}
-                <div class="pb-4">
+                <div class="pb-3">
                     <a type="button" class="btn btn-primary btn-block shadow-sm" href="{{createclass_url}}">{{#str}}create_class, local_grupomakro_core{{/str}}</a>
                 </div>
-                {{! End Button to create classes }}
+                
+                {{! Button to delete multiple classes }}
+                <div class="pb-4">
+                    <button type="button" class="btn btn-danger btn-block shadow-sm d-none" id="bulkDeleteButton" data-toggle="modal" data-target="#deleteClassModalCenter">
+                        <i class="fa fa-trash mr-1"></i> {{#str}}deleteselected{{/str}}
+                    </button>
+                </div>
                 
                 {{! Class filter }}
                 <ul class="nav flex-column class-tabs">
@@ -70,7 +76,82 @@
         <div class="tab-content">
             {{! Tab content all classes }}
             <div class="tab-pane active" id="all" role="tabpanel" aria-labelledby="all-tab">
-                <div class="d-flex flex-wrap">
+                {{! View Controls }}
+                <div class="d-flex justify-content-end mb-3">
+                    <div class="btn-group shadow-sm bg-white" role="group" aria-label="View toggle">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-grid-view" title="{{#str}}gridview{{/str}}">
+                            <i class="fa fa-th"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary active" id="btn-list-view" title="{{#str}}listview{{/str}}">
+                            <i class="fa fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+
+                {{! List View }}
+                <div id="class-list-view" class="table-responsive bg-white shadow-sm rounded">
+                    <table class="table table-hover mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th scope="col" style="width: 40px;" class="text-center align-middle">
+                                    <input type="checkbox" id="selectAllClasses" aria-label="Select All">
+                                </th>
+                                <th scope="col" class="align-middle">{{#str}}name{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}instructor, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}type, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}startdate, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}schedule, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle text-center">{{#str}}actions, local_grupomakro_core{{/str}}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#allClasses}}
+                            <tr>
+                                <td class="text-center align-middle">
+                                    <input type="checkbox" class="class-checkbox" value="{{id}}">
+                                </td>
+                                <td class="align-middle font-weight-bold">{{name}}</td>
+                                <td class="align-middle">
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{instructorProfileImage}}" class="rounded-circle mr-2" style="width:32px; height:32px; object-fit:cover;">
+                                        <div class="d-flex flex-column">
+                                            <span class="mb-0">{{instructorName}}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="align-middle">
+                                    <i class="{{icon}} mr-1"></i> {{typelabel}}
+                                </td>
+                                <td class="align-middle">
+                                    <i class="fa fa-calendar-o mr-1 text-muted"></i> {{startDate}}
+                                </td>
+                                <td class="align-middle">
+                                    <div><i class="fa fa-clock-o mr-1 text-muted"></i> {{inithourformatted}}</div>
+                                    <small class="text-muted">{{classDaysString}}</small>
+                                </td>
+                                <td class="align-middle text-center">
+                                    <a data-toggle='tooltip' title="{{#str}} modify, local_grupomakro_core{{/str}}" href="/local/grupomakro_core/pages/editclass.php?class_id={{id}}" class="btn btn-sm btn-light border">
+                                        <i class="fa fa-gear text-secondary"></i>
+                                    </a>
+                                    <a title="{{#str}} remove, local_grupomakro_core{{/str}}" data-toggle='modal' class="deleteButton btn btn-sm btn-light border text-danger ml-1" class-id="{{id}}" data-target='#deleteClassModalCenter'>
+                                        <i class="fa fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {{/allClasses}}
+                            {{^allClasses}}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    {{#str}}noclasses, local_grupomakro_core{{/str}}
+                                </td>
+                            </tr>
+                            {{/allClasses}}
+                        </tbody>
+                    </table>
+                </div>
+
+                {{! Grid View }}
+                <div id="class-grid-view" class="d-flex flex-wrap d-none">
                     {{#allClasses}}
                     {{! Class card }}
                     <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
