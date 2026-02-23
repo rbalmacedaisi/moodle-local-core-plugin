@@ -1,0 +1,62 @@
+<?php
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/adminlib.php');
+require_once(__DIR__ . '/../locallib.php');
+
+require_login();
+$context = context_system::instance();
+require_capability('moodle/site:config', $context);
+
+$classid = optional_param('class_id', null, PARAM_INT);
+
+echo $OUTPUT->header();
+echo "<h1>Debug Class Metadata Mapping</h1>";
+
+if (!$classid) {
+    echo "<form method='get'>
+            Enter Class ID: <input type='text' name='class_id'>
+            <input type='submit' value='Debug'>
+          </form>";
+} else {
+    global $DB;
+    
+    echo "<h2>Data for Class ID: $classid</h2>";
+    
+    // 1. Raw gmk_class record
+    $class_raw = $DB->get_record('gmk_class', ['id' => $classid]);
+    echo "<h3>1. Raw gmk_class record</h3>";
+    echo "<pre>" . print_r($class_raw, true) . "</pre>";
+    
+    // 2. local_learning_courses record (Subject)
+    if ($class_raw && !empty($class_raw->courseid)) {
+        $subject = $DB->get_record('local_learning_courses', ['id' => $class_raw->courseid]);
+        echo "<h3>2. local_learning_courses record (Subject ID: {$class_raw->courseid})</h3>";
+        echo "<pre>" . print_r($subject, true) . "</pre>";
+        
+        if ($subject && !empty($subject->courseid)) {
+            $core_course = $DB->get_record('course', ['id' => $subject->courseid]);
+            echo "<h3>3. Moodle Core Course (ID: {$subject->courseid})</h3>";
+            echo "<pre>" . print_r($core_course, true) . "</pre>";
+        }
+    }
+    
+    // 3. Result of list_classes
+    $list_classes_result = list_classes(['id' => $classid]);
+    echo "<h3>4. Result of list_classes(['id' => $classid])</h3>";
+    echo "<pre>" . print_r($list_classes_result[$classid], true) . "</pre>";
+    
+    // 4. Learning Plan and Period info
+    if ($class_raw && !empty($class_raw->learningplanid)) {
+        $lp = $DB->get_record('local_learning_plans', ['id' => $class_raw->learningplanid]);
+        echo "<h3>5. Learning Plan (ID: {$class_raw->learningplanid})</h3>";
+        echo "<pre>" . print_r($lp, true) . "</pre>";
+    }
+    
+    if ($class_raw && !empty($class_raw->periodid)) {
+        $period = $DB->get_record('local_learning_periods', ['id' => $class_raw->periodid]);
+        echo "<h3>6. Period / Level (ID: {$class_raw->periodid})</h3>";
+        echo "<pre>" . print_r($period, true) . "</pre>";
+    }
+}
+
+echo $OUTPUT->footer();
