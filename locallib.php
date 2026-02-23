@@ -469,16 +469,20 @@ function delete_class($classId, $reason =  null)
 
     $class = $DB->get_record('gmk_class', ['id' => $classId]);
 
-    if ($class->gradecategoryid) {
+    if ($class->gradecategoryid && !empty($class->corecourseid) && $DB->record_exists('course', ['id' => $class->corecourseid])) {
         $classCourseGradeTree = new grade_tree($class->corecourseid, false, false);
         $classGradeCategory = $classCourseGradeTree->locate_element('cg' . $class->gradecategoryid)['object'];
-        $classGradeCategory->delete();
+        if ($classGradeCategory) {
+            $classGradeCategory->delete();
+        }
     }
 
     //Delete section if it's already created and all the activities in it.
-    if ($class->coursesectionid) {
+    if ($class->coursesectionid && !empty($class->corecourseid) && $DB->record_exists('course', ['id' => $class->corecourseid])) {
         $section = $DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
-        course_delete_section($class->corecourseid, $section, true, true);
+        if ($section !== false) {
+            course_delete_section($class->corecourseid, $section, true, true);
+        }
         $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
     }
 
