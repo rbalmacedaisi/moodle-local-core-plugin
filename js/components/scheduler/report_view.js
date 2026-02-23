@@ -716,10 +716,10 @@ window.SchedulerComponents.ReportView = {
                         const dayClasses = studentSchedules.filter(s => s.day === day || s.day === day.replace('é', 'e'));
                         let cellText = "";
                         dayClasses.forEach(cls => {
-                            cellText += 'Horario: ' + cls.start + ' - ' + cls.end + '\\n';
-                            cellText += 'Aula: ' + cls.room + '\\n';
-                            cellText += 'Asignatura: ' + cls.subjectName + '\\n';
-                            cellText += 'Docente: ' + (cls.teacherName || 'POR ASIGNAR') + '\\n\\n';
+                            cellText += 'Horario: ' + cls.start + ' - ' + cls.end + '\n';
+                            cellText += 'Aula: ' + cls.room + '\n';
+                            cellText += 'Asignatura: ' + cls.subjectName + '\n';
+                            cellText += 'Docente: ' + (cls.teacherName || 'POR ASIGNAR') + '\n\n';
                         });
                         gridBody[0][dIdx] = cellText;
                     });
