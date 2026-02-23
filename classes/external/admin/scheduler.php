@@ -426,12 +426,17 @@ class scheduler extends external_api {
                 if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$moodleId])) {
                     $demand[$career][$jornada][$semNum]['course_counts'][$moodleId] = [
                         'count' => 0,
-                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$subjId] ?? 0,
+                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$moodleId] ?? 0,
                         'subjectid' => $subjId,
                         'levelid' => $pp->periodid,
-                        'students' => []
+                        'students' => [],
+                        'plan_map' => []
                     ];
                 }
+                $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$pp->learningplanid] = [
+                    'subjectid' => $subjId,
+                    'levelid' => $pp->periodid
+                ];
                 $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $count;
                 if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
                     $demand[$career][$jornada][$semNum]['student_count'] = $count;

@@ -265,6 +265,10 @@
                                 aggregatedDemand[aggKey].levels.add(semData.semester_name);
                                 aggregatedDemand[aggKey].subjectid = val.subjectid || 0;
                                 aggregatedDemand[aggKey].levelid = val.levelid || 0;
+                                if (val.plan_map) {
+                                    if (!aggregatedDemand[aggKey].plan_map) aggregatedDemand[aggKey].plan_map = {};
+                                    Object.assign(aggregatedDemand[aggKey].plan_map, val.plan_map);
+                                }
                             }
                         }
                     }
@@ -303,12 +307,20 @@
                             }
                         }
 
+                        // Use plan_map to resolve the correct Subject ID and Level ID for this specific majority plan
+                        let resolvedSubjectId = data.subjectid;
+                        let resolvedLevelId = data.levelid;
+                        if (data.plan_map && data.plan_map[majorityPlanId]) {
+                            resolvedSubjectId = data.plan_map[majorityPlanId].subjectid || resolvedSubjectId;
+                            resolvedLevelId = data.plan_map[majorityPlanId].levelid || resolvedLevelId;
+                        }
+
                         schedules.push({
                             id: `gen-${idCounter++}`,
-                            courseid: data.subjectid || data.courseid, // Store Subject ID if possible
+                            courseid: resolvedSubjectId, // Precise Subject ID
                             corecourseid: data.courseid, // Moodle ID
                             learningplanid: majorityPlanId,
-                            periodid: data.levelid, // Academic Level
+                            periodid: resolvedLevelId, // Academic Level ID
                             subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
                             teacherName: null,
                             day: 'N/A',

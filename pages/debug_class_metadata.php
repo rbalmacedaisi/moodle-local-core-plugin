@@ -13,7 +13,7 @@ $PAGE->set_title("Debug Class Metadata Mapping");
 
 $classid = optional_param('class_id', null, PARAM_INT);
 $periodid = optional_param('period_id', null, PARAM_INT);
-$search_subject = optional_param('search_subject', '', PARAM_TEXT);
+$search_subject = optional_param('search_subject', 'acuerdos', PARAM_TEXT);
 
 echo $OUTPUT->header();
 echo "<h1>Debug Class Metadata Mapping</h1>";
