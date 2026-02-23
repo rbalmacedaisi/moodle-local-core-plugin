@@ -1,6 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+use local_grupomakro_core\external\admin\scheduler;
 
 require_login();
 $context = context_system::instance();
