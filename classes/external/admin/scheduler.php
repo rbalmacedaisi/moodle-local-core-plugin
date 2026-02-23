@@ -319,19 +319,20 @@ class scheduler extends external_api {
                 }
             }
             
+            $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
+            $semNum = self::parse_semester_number($semName);
+
+            $student_list[] = [
+                'id' => $stu->id,
+                'name' => $stu->firstname . ' ' . $stu->lastname,
+                'career' => $career,
+                'shift' => $jornada,
+                'semester' => $semNum,
+                'entry_period' => $stu->entry_period ?? 'Sin Definir'
+            ];
+
             if ($pending_count > 0) {
-                 $semName = $period_names[$planningLevelId] ?? 'Nivel ' . $planningLevelId;
-                 $semNum = self::parse_semester_number($semName);
-                 $demand[$career][$jornada][$semNum]['student_count']++;
-                 
-                 $student_list[] = [
-                     'id' => $stu->id,
-                     'name' => $stu->firstname . ' ' . $stu->lastname,
-                     'career' => $career,
-                     'shift' => $jornada,
-                     'semester' => $semNum,
-                     'entry_period' => $stu->entry_period ?? 'Sin Definir'
-                 ];
+                $demand[$career][$jornada][$semNum]['student_count']++;
             }
         }
 
