@@ -458,12 +458,14 @@ class scheduler extends external_api {
             $subjects[] = ['id' => $id, 'name' => $name];
         }
 
-        return [
+        $ret = [
             'demand_tree' => json_encode($demand),
             'student_list' => $student_list,
             'projections' => array_values($projections),
             'subjects' => $subjects
         ];
+        file_put_contents(__DIR__ . '/../../../../demand_dump.json', json_encode($ret, JSON_PRETTY_PRINT));
+        return $ret;
     }
 
     public static function get_demand_data_returns() {
