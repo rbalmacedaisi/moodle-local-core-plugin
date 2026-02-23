@@ -458,14 +458,12 @@ class scheduler extends external_api {
             $subjects[] = ['id' => $id, 'name' => $name];
         }
 
-        $ret = [
+        return [
             'demand_tree' => json_encode($demand),
             'student_list' => $student_list,
             'projections' => array_values($projections),
             'subjects' => $subjects
         ];
-        file_put_contents(__DIR__ . '/../../../../demand_dump.json', json_encode($ret, JSON_PRETTY_PRINT));
-        return $ret;
     }
 
     public static function get_demand_data_returns() {
@@ -610,22 +608,6 @@ class scheduler extends external_api {
                     $courses_cache[$courseId] = $subj;
                 }
                 $subjMeta = $courses_cache[$courseId];
-                
-                // --- Fallback Lookup ---
-                // If we don't have metadata (courseId was 0 or invalid), attempt to recover via class name
-                if (!$subjMeta && !empty($classRec->name) && $classRec->name !== 'Clase Auto') {
-                    // Try to find a matching Moodle course by fullname
-                    $moodleCourse = $DB->get_record('course', ['fullname' => $classRec->name], '*', IGNORE_MULTIPLE);
-                    if ($moodleCourse) {
-                        // Find any link in local_learning_courses pointing to this Moodle course
-                        $link = $DB->get_record('local_learning_courses', ['courseid' => $moodleCourse->id], 'id, courseid, learningplanid, periodid', IGNORE_MULTIPLE);
-                        if ($link) {
-                            $subjMeta = $link;
-                            $classRec->courseid = $link->id; // Recover Subject ID
-                        }
-                    }
-                }
-
                 $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : 0;
                 $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
                 $classRec->periodid = (int)($cls['periodid'] ?? ($subjMeta ? $subjMeta->periodid : $periodid));
