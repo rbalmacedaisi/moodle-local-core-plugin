@@ -223,8 +223,12 @@
                 const MAX_CAPACITY = (configSettings.maxRoomCapacity) ? parseInt(configSettings.maxRoomCapacity) : maxRoomCap;
 
                 // --- Demand Aggregation ---
-                // Key: courseId | shift [| career if isolated]
                 const aggregatedDemand = {};
+                const studentMap = (this.state.students || []).reduce((acc, s) => {
+                    acc[s.dbId] = s;
+                    acc[s.id] = s;
+                    return acc;
+                }, {});
 
                 for (const career of Object.keys(demand)) {
                     if (!demand[career]) continue;
@@ -235,21 +239,10 @@
 
                         for (const sem of Object.keys(demand[career][shift])) {
                             const semData = demand[career][shift][sem];
-                            // course_counts: { courseId: { count, students: [] } }
                             for (const [courseId, val] of Object.entries(semData.course_counts)) {
-                                let studentIds = [];
-                                if (val && typeof val === 'object') {
-                                    studentIds = val.students || [];
-                                }
-
-                                if (studentIds.length === 0) continue;
-
-                                // Ignore if status is 2 (Omitir Auto)
-                                const projection = this.state.projections.find(p => p.courseid == courseId);
-                                if (projection && projection.status == 2) continue;
-
                                 const subperiodId = val.subperiod || 0;
                                 const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
+
                                 if (!aggregatedDemand[aggKey]) {
                                     aggregatedDemand[aggKey] = {
                                         courseid: courseId,
@@ -257,17 +250,26 @@
                                         subperiod: subperiodId,
                                         students: [],
                                         careers: new Set(),
-                                        levels: new Set()
+                                        levels: new Set(),
+                                        plan_map: {},
+                                        plan_scores: {}
                                     };
                                 }
-                                aggregatedDemand[aggKey].students.push(...studentIds);
+
+                                const studentIds = val.students || [];
+                                if (studentIds.length > 0) {
+                                    aggregatedDemand[aggKey].students.push(...studentIds);
+                                }
+
                                 aggregatedDemand[aggKey].careers.add(career);
                                 aggregatedDemand[aggKey].levels.add(semData.semester_name);
-                                aggregatedDemand[aggKey].subjectid = val.subjectid || 0;
-                                aggregatedDemand[aggKey].levelid = val.levelid || 0;
+
                                 if (val.plan_map) {
-                                    if (!aggregatedDemand[aggKey].plan_map) aggregatedDemand[aggKey].plan_map = {};
-                                    Object.assign(aggregatedDemand[aggKey].plan_map, val.plan_map);
+                                    Object.entries(val.plan_map).forEach(([pid, meta]) => {
+                                        aggregatedDemand[aggKey].plan_map[pid] = meta;
+                                        const weight = val.count || studentIds.length || 0;
+                                        aggregatedDemand[aggKey].plan_scores[pid] = (aggregatedDemand[aggKey].plan_scores[pid] || 0) + weight;
+                                    });
                                 }
                             }
                         }
@@ -277,50 +279,66 @@
                 // --- Object Creation ---
                 for (const [aggKey, data] of Object.entries(aggregatedDemand)) {
                     const totalStudents = data.students;
-                    const count = totalStudents.length;
+                    const count = totalStudents.length || Math.max(...Object.values(data.plan_scores || { 0: 0 }));
+                    if (count === 0) continue;
+
                     const numGroups = Math.ceil(count / MAX_CAPACITY);
-                    // Equitable distribution: divide total students by number of groups
                     const baseCount = Math.floor(count / numGroups);
                     const remainder = count % numGroups;
 
                     let offset = 0;
                     for (let i = 0; i < numGroups; i++) {
-                        // Distribute the remainder (extra students) among the first few groups
                         const currentGroupSize = (i < remainder) ? (baseCount + 1) : baseCount;
                         const groupStudents = totalStudents.slice(offset, offset + currentGroupSize);
-                        const groupCount = groupStudents.length;
+                        const groupCount = groupStudents.length || currentGroupSize;
                         offset += currentGroupSize;
 
-                        // Resolve majority Learning Plan ID
-                        const planCounts = groupStudents.reduce((acc, uid) => {
-                            const stu = this.state.students.find(s => (s.dbId == uid || s.id == uid));
-                            const pid = stu ? stu.planid : null;
-                            if (pid) acc[pid] = (acc[pid] || 0) + 1;
-                            return acc;
-                        }, {});
                         let majorityPlanId = 0;
-                        let maxCount = 0;
-                        for (const [pid, pcount] of Object.entries(planCounts)) {
-                            if (pcount > maxCount) {
-                                maxCount = pcount;
-                                majorityPlanId = parseInt(pid);
-                            }
+                        if (groupStudents.length > 0) {
+                            const localPlanCounts = groupStudents.reduce((acc, uid) => {
+                                const stu = studentMap[uid];
+                                if (stu && stu.planid) acc[stu.planid] = (acc[stu.planid] || 0) + 1;
+                                return acc;
+                            }, {});
+                            let maxLocal = 0;
+                            Object.entries(localPlanCounts).forEach(([pid, pcount]) => {
+                                if (pcount > maxLocal) {
+                                    maxLocal = pcount;
+                                    majorityPlanId = parseInt(pid);
+                                }
+                            });
                         }
 
-                        // Use plan_map to resolve the correct Subject ID and Level ID for this specific majority plan
-                        let resolvedSubjectId = data.subjectid;
-                        let resolvedLevelId = data.levelid;
-                        if (data.plan_map && data.plan_map[majorityPlanId]) {
-                            resolvedSubjectId = data.plan_map[majorityPlanId].subjectid || resolvedSubjectId;
-                            resolvedLevelId = data.plan_map[majorityPlanId].levelid || resolvedLevelId;
+                        if (!majorityPlanId) {
+                            let maxGlobal = -1;
+                            Object.entries(data.plan_scores).forEach(([pid, pscore]) => {
+                                if (pscore > maxGlobal) {
+                                    maxGlobal = pscore;
+                                    majorityPlanId = parseInt(pid);
+                                }
+                            });
+                        }
+
+                        let resolvedSubjectId = 0;
+                        let resolvedLevelId = 0;
+                        if (data.plan_map[majorityPlanId]) {
+                            resolvedSubjectId = data.plan_map[majorityPlanId].subjectid;
+                            resolvedLevelId = data.plan_map[majorityPlanId].levelid;
+                        } else {
+                            const firstPlan = Object.keys(data.plan_map)[0];
+                            if (firstPlan) {
+                                majorityPlanId = parseInt(firstPlan);
+                                resolvedSubjectId = data.plan_map[firstPlan].subjectid;
+                                resolvedLevelId = data.plan_map[firstPlan].levelid;
+                            }
                         }
 
                         schedules.push({
                             id: `gen-${idCounter++}`,
-                            courseid: resolvedSubjectId, // Precise Subject ID
-                            corecourseid: data.courseid, // Moodle ID
+                            courseid: resolvedSubjectId,
+                            corecourseid: data.courseid,
                             learningplanid: majorityPlanId,
-                            periodid: resolvedLevelId, // Academic Level ID
+                            periodid: resolvedLevelId,
                             subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
                             teacherName: null,
                             day: 'N/A',
@@ -329,16 +347,16 @@
                             room: 'Sin aula',
                             studentCount: groupCount,
                             career: Array.from(data.careers).join(', '),
-                            careerList: Array.from(data.careers), // For algorithm use
+                            careerList: Array.from(data.careers),
                             shift: data.shift,
                             levelDisplay: Array.from(data.levels).join(', '),
-                            levelList: Array.from(data.levels), // For algorithm use
+                            levelList: Array.from(data.levels),
                             subGroup: i + 1,
-                            subperiod: data.subperiod || 1, // Default to P-I (Bloque 1) instead of 0 (Ambos)
+                            subperiod: data.subperiod || 1,
                             studentIds: groupStudents,
-                            type: 0, // Default Presencial
+                            type: 0,
                             typeLabel: 'Presencial',
-                            classdays: '0/0/0/0/0/0/0' // Will be calculated upon placement
+                            classdays: '0/0/0/0/0/0/0'
                         });
                     }
                 }
