@@ -547,6 +547,9 @@ class scheduler extends external_api {
         if (!is_array($data)) return 'El payload de horarios no es un array válido. Tipo recibido: ' . gettype($schedules);
         
         gmk_log("Iniciando guardado para Periodo Institucional: $periodid. Clases en payload: " . count($data));
+        if (count($data) > 0) {
+            gmk_log("DEBUG: Primera clase del payload: " . json_encode($data[0]));
+        }
         
         $transaction = $DB->start_delegated_transaction();
         

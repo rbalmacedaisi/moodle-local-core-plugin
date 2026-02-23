@@ -793,6 +793,11 @@ function list_classes($filters)
                 // Fallback: if not found, maybe it's a Moodle courseid? (legacy or error)
                 if (!$subj) {
                     $subj = $DB->get_record('local_learning_courses', ['courseid' => $class->courseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    if ($subj) {
+                        gmk_log("DEBUG: list_classes encontró materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid);
+                    } else {
+                        gmk_log("DEBUG: list_classes NO encontró metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
+                    }
                 }
                 
                 $subjects_metadata_cache[$class->courseid] = $subj ?: null;
