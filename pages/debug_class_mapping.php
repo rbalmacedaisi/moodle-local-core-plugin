@@ -1,6 +1,11 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
 use local_grupomakro_core\external\admin\scheduler;
 
 require_login();
@@ -13,6 +18,8 @@ $PAGE->set_title('Debug Class Mapping');
 $PAGE->set_heading('Debug Class Mapping');
 
 echo $OUTPUT->header();
+
+try {
 
 $classid = optional_param('classid', 0, PARAM_INT);
 $inspectdemand = optional_param('inspectdemand', 0, PARAM_INT);
@@ -115,5 +122,12 @@ if ($classid) {
             echo "ID: {$m->id} | Name: {$m->fullname}<br>";
         }
     }
+} catch (Throwable $e) {
+    echo "<div style='color: white; background: red; padding: 10px;'>";
+    echo "<strong>Fatal Error:</strong> " . $e->getMessage() . "<br>";
+    echo "<strong>File:</strong> " . $e->getFile() . " (Line: " . $e->getLine() . ")<br>";
+    echo "<strong>Stack Trace:</strong><pre>" . $e->getTraceAsString() . "</pre>";
+    echo "</div>";
+}
 
 echo $OUTPUT->footer();
