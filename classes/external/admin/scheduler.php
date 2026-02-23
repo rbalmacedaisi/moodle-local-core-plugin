@@ -318,13 +318,20 @@ class scheduler extends external_api {
                          }
                          
                           if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                              if (empty($subpos['subjectid'])) {
-                                  gmk_log("WARNING: get_demand_data Part A - subjectid es 0 para Moodle Course $cid en Plan $stu->planid");
+                              $resolvedSubjId = $subpos['subjectid'];
+                              if (empty($resolvedSubjId)) {
+                                  // Global fallback lookup if missing in curricular map
+                                  $globalSubj = $DB->get_record('local_learning_courses', ['courseid' => $cid], 'id', IGNORE_MULTIPLE);
+                                  $resolvedSubjId = $globalSubj ? $globalSubj->id : 0;
+                                  if (empty($resolvedSubjId)) {
+                                      gmk_log("WARNING: get_demand_data Part A - No se pudo resolver subjectid para Moodle Course $cid");
+                                  }
                               }
+
                               $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
                                   'count' => 0,
                                   'subperiod' => $subpos['subperiod_pos'],
-                                  'subjectid' => $subpos['subjectid'],
+                                  'subjectid' => $resolvedSubjId,
                                   'levelid' => $planningLevelId,
                                   'students' => []
                               ];
@@ -606,6 +613,22 @@ class scheduler extends external_api {
                 }
 
                 $courseId = $cls['courseid'];
+                
+                // HEALING: If courseid is 0, try to resolve via subjectName or corecourseid
+                if (empty($courseId) || $courseId == "0") {
+                    if (!empty($cls['subjectName'])) {
+                        $subjByRef = $DB->get_record_sql("SELECT id FROM {local_learning_courses} WHERE name = ? ORDER BY id DESC", [$cls['subjectName']], IGNORE_MULTIPLE);
+                        if ($subjByRef) $courseId = $subjByRef->id;
+                    }
+                    if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
+                        $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $cls['corecourseid']], 'id', IGNORE_MULTIPLE);
+                        if ($subjByCore) $courseId = $subjByCore->id;
+                    }
+                    if (!empty($courseId) && $courseId != "0") {
+                        gmk_log("HEALING: Resolved courseid " . $courseId . " for class: " . ($cls['subjectName'] ?? 'unnamed'));
+                    }
+                }
+                
                 $classRec->periodid = $periodid;
                 $classRec->courseid = $courseId;
                 $classRec->learningplanid = $cls['learningplanid'] ?? 0;
@@ -842,7 +865,28 @@ class scheduler extends external_api {
             
             // Derive Academic Metadata from Subject ID (courseid)
             $academic_period_id = 0;
-            if (!empty($c->courseid)) {
+            
+            // HEALING: If courseid is 0 but we have corecourseid or name, try to resolve it
+            if (empty($c->courseid) || $c->courseid == "0") {
+                if (!empty($c->corecourseid)) {
+                    $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $c->corecourseid], 'id, learningplanid, periodid', IGNORE_MULTIPLE);
+                    if ($subjByCore) {
+                        $c->courseid = $subjByCore->id;
+                        $c->learningplanid = $subjByCore->learningplanid;
+                        $academic_period_id = $subjByCore->periodid;
+                    }
+                }
+                if ((empty($c->courseid) || $c->courseid == "0") && !empty($c->subjectname)) {
+                    $subjByName = $DB->get_record_sql("SELECT id, learningplanid, periodid FROM {local_learning_courses} WHERE name = ? ORDER BY id DESC", [$c->subjectname], IGNORE_MULTIPLE);
+                    if ($subjByName) {
+                        $c->courseid = $subjByName->id;
+                        $c->learningplanid = $subjByName->learningplanid;
+                        $academic_period_id = $subjByName->periodid;
+                    }
+                }
+            }
+
+            if (!empty($c->courseid) && $c->courseid != "0") {
                 if (!isset($subjects_metadata_cache[$c->courseid])) {
                     $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'id, learningplanid, periodid, courseid');
                     if (!$subj) {
