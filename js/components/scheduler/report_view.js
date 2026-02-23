@@ -624,14 +624,25 @@ window.SchedulerComponents.ReportView = {
             const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
             const allStudents = this.storeState.students || [];
+            console.log("ReportView: allStudents count:", allStudents.length);
 
             // Extract unique students from currently filtered schedules
             const studentSet = new Set();
             this.reportedSchedules.forEach(s => {
-                if (s.studentIds) s.studentIds.forEach(id => studentSet.add(String(id)));
+                if (s.studentIds) {
+                    s.studentIds.forEach(id => {
+                        studentSet.add(String(id));
+                    });
+                }
             });
+            console.log("ReportView: studentSet unique IDs:", Array.from(studentSet));
 
-            const studentsToReport = allStudents.filter(st => studentSet.has(String(st.dbId || st.id)));
+            const studentsToReport = allStudents.filter(st => {
+                const sid = String(st.dbId || st.id);
+                const isMatch = studentSet.has(sid);
+                return isMatch;
+            });
+            console.log("ReportView: studentsToReport count:", studentsToReport.length);
 
             if (studentsToReport.length === 0) {
                 alert("No hay estudiantes para generar reportes en las clases seleccionadas.");
