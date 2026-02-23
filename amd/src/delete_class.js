@@ -21,7 +21,7 @@ const handleViewToggle = () => {
     const listView = $('#class-list-view');
 
     // Check localStorage for saved preference
-    const savedView = localStorage.getItem('classManagementView') || 'list';
+    const savedView = localStorage.getItem('classManagementView') || 'grid';
 
     const setView = (viewType) => {
         if (viewType === 'grid') {

@@ -79,17 +79,17 @@
                 {{! View Controls }}
                 <div class="d-flex justify-content-end mb-3">
                     <div class="btn-group shadow-sm bg-white" role="group" aria-label="View toggle">
-                        <button type="button" class="btn btn-outline-secondary" id="btn-grid-view" title="{{#str}}gridview, local_grupomakro_core{{/str}}">
+                        <button type="button" class="btn btn-outline-secondary active" id="btn-grid-view" title="{{#str}}gridview, local_grupomakro_core{{/str}}">
                             <i class="fa fa-th"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary active" id="btn-list-view" title="{{#str}}listview, local_grupomakro_core{{/str}}">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-list-view" title="{{#str}}listview, local_grupomakro_core{{/str}}">
                             <i class="fa fa-list"></i>
                         </button>
                     </div>
                 </div>
 
                 {{! List View }}
-                <div id="class-list-view" class="table-responsive bg-white shadow-sm rounded">
+                <div id="class-list-view" class="table-responsive bg-white shadow-sm rounded d-none">
                     <table class="table table-hover mb-0">
                         <thead class="thead-light">
                             <tr>
@@ -151,7 +151,7 @@
                 </div>
 
                 {{! Grid View }}
-                <div id="class-grid-view" class="d-flex flex-wrap d-none">
+                <div id="class-grid-view" class="d-flex flex-wrap">
                     {{#allClasses}}
                     {{! Class card }}
                     <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
