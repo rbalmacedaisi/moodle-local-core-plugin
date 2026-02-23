@@ -825,49 +825,77 @@ function list_classes($filters)
         $class->hourRangeString = $class->inithourformatted . ' - ' . $class->endhourformatted;
 
         //Set class instructor Info
-        if (!array_key_exists($class->instructorid, $fetchedInstructors)) {
-            $classInstructor = user_get_users_by_id([$class->instructorid])[$class->instructorid];
-            $fetchedInstructors[$class->instructorid] = $classInstructor;
-        } else {
-            $classInstructor = $fetchedInstructors[$class->instructorid];
-        }
+        $class->instructorName = get_string('notassigned', 'local_grupomakro_core');
+        if (!empty($class->instructorid)) {
+            if (!array_key_exists($class->instructorid, $fetchedInstructors)) {
+                $instructors = user_get_users_by_id([$class->instructorid]);
+                if (isset($instructors[$class->instructorid])) {
+                    $classInstructor = $instructors[$class->instructorid];
+                    $fetchedInstructors[$class->instructorid] = $classInstructor;
+                } else {
+                    $fetchedInstructors[$class->instructorid] = null;
+                }
+            } else {
+                $classInstructor = $fetchedInstructors[$class->instructorid];
+            }
 
-        $class->instructorName = $classInstructor->firstname . ' ' . $classInstructor->lastname;
+            if (!empty($classInstructor)) {
+                $class->instructorName = $classInstructor->firstname . ' ' . $classInstructor->lastname;
+            }
+        }
 
         //Set Learning plan Info
-        if (!array_key_exists($class->learningplanid, $fetchedLearningPlans)) {
-            $classLearningPlan = $DB->get_record('local_learning_plans', ['id' => $class->learningplanid]);
-            $fetchedLearningPlans[$class->learningplanid] = $classLearningPlan;
-        } else {
-            $classLearningPlan = $fetchedLearningPlans[$class->learningplanid];
+        $class->learningPlanName = 'N/A';
+        if (!empty($class->learningplanid)) {
+            if (!array_key_exists($class->learningplanid, $fetchedLearningPlans)) {
+                $classLearningPlan = $DB->get_record('local_learning_plans', ['id' => $class->learningplanid]);
+                $fetchedLearningPlans[$class->learningplanid] = $classLearningPlan;
+            } else {
+                $classLearningPlan = $fetchedLearningPlans[$class->learningplanid];
+            }
+            if ($classLearningPlan) {
+                $class->learningPlanName = $classLearningPlan->name;
+                $class->learningPlanShortname = $classLearningPlan->shortname;
+            }
         }
-        $class->learningPlanName = $classLearningPlan->name;
-        $class->learningPlanShortname = $classLearningPlan->shortname;
-        // print_object($class);
-        // print_object($classLearningPlan);
 
         //Set period Info
-        if (!array_key_exists($class->periodid, $fetchedLearningPlanPeriods)) {
-            $classLearningPlanPeriod = $DB->get_record('local_learning_periods', ['id' => $class->periodid]);
-            $fetchedLearningPlanPeriods[$class->periodid] = $classLearningPlanPeriod;
-        } else {
-            $classLearningPlanPeriod = $fetchedLearningPlanPeriods[$class->periodid];
+        $class->periodName = 'N/A';
+        if (!empty($class->periodid)) {
+            if (!array_key_exists($class->periodid, $fetchedLearningPlanPeriods)) {
+                $classLearningPlanPeriod = $DB->get_record('local_learning_periods', ['id' => $class->periodid]);
+                $fetchedLearningPlanPeriods[$class->periodid] = $classLearningPlanPeriod;
+            } else {
+                $classLearningPlanPeriod = $fetchedLearningPlanPeriods[$class->periodid];
+            }
+            if ($classLearningPlanPeriod) {
+                $class->periodName = $classLearningPlanPeriod->name;
+            }
         }
-        $class->periodName = $classLearningPlanPeriod->name;
 
         //Set the course Info
-        if (!array_key_exists($class->corecourseid, $fetchedCourses)) {
-            $classCourse = get_course($class->corecourseid);
-            $courseCustomFields = \core_course\customfield\course_handler::create()->get_instance_data($class->corecourseid);
-            foreach ($courseCustomFields as $courseCustomField) {
-                $classCourse->{$courseCustomField->get_field()->get('shortname')} = $courseCustomField->get_value();
+        $class->coreCourseName = 'N/A';
+        if (!empty($class->corecourseid)) {
+            if (!array_key_exists($class->corecourseid, $fetchedCourses)) {
+                $classCourse = $DB->get_record('course', ['id' => $class->corecourseid]);
+                if ($classCourse) {
+                    $courseCustomFields = \core_course\customfield\course_handler::create()->get_instance_data($class->corecourseid);
+                    foreach ($courseCustomFields as $courseCustomField) {
+                        $classCourse->{$courseCustomField->get_field()->get('shortname')} = $courseCustomField->get_value();
+                    }
+                    $fetchedCourses[$class->corecourseid] = $classCourse;
+                } else {
+                    $fetchedCourses[$class->corecourseid] = null;
+                }
+            } else {
+                $classCourse = $fetchedCourses[$class->corecourseid];
             }
-            $fetchedCourses[$class->corecourseid] = $classCourse;
-        } else {
-            $classCourse = $fetchedCourses[$class->corecourseid];
+
+            if ($classCourse) {
+                $class->course = $classCourse;
+                $class->coreCourseName = $class->course->fullname;
+            }
         }
-        $class->course = $classCourse;
-        $class->coreCourseName = $class->course->fullname;
         $class->coursesectionid = $class->coursesectionid;
 
         //Set the number of students registered for the class

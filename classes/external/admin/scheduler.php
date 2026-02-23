@@ -547,6 +547,9 @@ class scheduler extends external_api {
             }
 
             $teachers_cache = [];
+            $courses_cache = [];
+            $periodStart = $periodRec ? $periodRec->startdate : time();
+            $periodEnd = $periodRec ? $periodRec->enddate : time();
 
             foreach ($data as $cls) {
                 $classRec = new stdClass();
@@ -556,10 +559,18 @@ class scheduler extends external_api {
                     $isUpdate = true;
                 }
 
+                $courseId = $cls['courseid'];
                 $classRec->periodid = $periodid;
-                $classRec->courseid = $cls['courseid'];
+                $classRec->courseid = $courseId;
                 $classRec->learningplanid = $cls['learningplanid'] ?? 0;
                 $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
+
+                // Lookup corecourseid
+                if (!array_key_exists($courseId, $courses_cache)) {
+                    $coreId = $DB->get_field('local_learning_courses', 'courseid', ['id' => $courseId], IGNORE_MISSING);
+                    $courses_cache[$courseId] = $coreId ?: 0;
+                }
+                $classRec->corecourseid = $courses_cache[$courseId];
                 
                 // Lookup instructor ID prioritizing teacherName
                 $tname = trim($cls['teacherName'] ?? '');
@@ -577,14 +588,32 @@ class scheduler extends external_api {
                 $classRec->groupid = $cls['subGroup'] ?? 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
                 $classRec->type = 1; 
+                $classRec->typelabel = 'Virtual';
                 
                 // Metadata Persistence
                 $classRec->shift = $cls['shift'] ?? '';
                 $classRec->level_label = $cls['levelDisplay'] ?? '';
                 $classRec->career_label = $cls['career'] ?? '';
 
-                $classRec->inittime = '';
-                $classRec->endtime = '';
+                $classRec->inittime = $cls['start'] ?? '';
+                $classRec->endtime = $cls['end'] ?? '';
+                $classRec->inithourformatted = $classRec->inittime ? date('h:i A', strtotime($classRec->inittime)) : '';
+                $classRec->endhourformatted = $classRec->endtime ? date('h:i A', strtotime($classRec->endtime)) : '';
+                
+                if ($classRec->inittime && $classRec->endtime) {
+                    $sTS = strtotime($classRec->inittime);
+                    $eTS = strtotime($classRec->endtime);
+                    $classRec->inittimets = (date('H', $sTS) * 3600) + (date('i', $sTS) * 60);
+                    $classRec->endtimets = (date('H', $eTS) * 3600) + (date('i', $eTS) * 60);
+                    $classRec->classduration = $classRec->endtimets - $classRec->inittimets;
+                } else {
+                    $classRec->inittimets = 0;
+                    $classRec->endtimets = 0;
+                    $classRec->classduration = 0;
+                }
+
+                $classRec->initdate = $periodStart;
+                $classRec->enddate = $periodEnd;
                 $classRec->classdays = '0/0/0/0/0/0/0';
                 $classRec->approved = 1;
                 $classRec->active = 1;
