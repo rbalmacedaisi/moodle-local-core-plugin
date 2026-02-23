@@ -825,7 +825,7 @@ function list_classes($filters)
         $class->hourRangeString = $class->inithourformatted . ' - ' . $class->endhourformatted;
 
         //Set class instructor Info
-        $class->instructorName = get_string('notassigned', 'local_grupomakro_core');
+        $class->instructorName = 'No asignado'; // Fallback to avoid iterative get_string warnings while cache refreshes.
         if (!empty($class->instructorid)) {
             if (!array_key_exists($class->instructorid, $fetchedInstructors)) {
                 $instructors = user_get_users_by_id([$class->instructorid]);
