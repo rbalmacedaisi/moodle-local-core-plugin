@@ -22,6 +22,9 @@ global $DB;
 
 // Handle bulk deletion
 if ($bulk_delete && $confirm) {
+    core_php_time_limit::set(600); // 10 minutes
+    raise_memory_limit(MEMORY_HUGE);
+
     $sql = "SELECT c.id 
             FROM {gmk_class} c
             LEFT JOIN {gmk_academic_periods} p ON c.periodid = p.id
@@ -31,12 +34,18 @@ if ($bulk_delete && $confirm) {
     
     $to_delete = $DB->get_records_sql($sql);
     $count = 0;
+    $errors = 0;
     foreach ($to_delete as $c) {
-        if (delete_class($c->id, 'Bulk deleted via debug tool (no level/no LP)')) {
-            $count++;
+        try {
+            if (delete_class($c->id, 'Bulk deleted via debug tool (no level/no LP)')) {
+                $count++;
+            }
+        } catch (Exception $e) {
+            $errors++;
+            gmk_log("Error bulk deleting class {$c->id}: " . $e->getMessage());
         }
     }
-    echo $OUTPUT->notification("Successfully deleted $count invalid classes.", 'notifysuccess');
+    echo $OUTPUT->notification("Successfully deleted $count invalid classes." . ($errors ? " ($errors errors logged)" : ""), 'notifysuccess');
 } else if ($bulk_delete) {
     echo $OUTPUT->confirm(
         "Are you sure you want to delete ALL classes that have no Learning Plan AND no level metadata?",
@@ -134,10 +143,6 @@ if ($orphans) {
           </tr>";
     echo $table_content;
     echo "</table>";
-} else {
-    echo $OUTPUT->notification("No orphan classes found.", 'notifysuccess');
-}
-
 }
 
 echo $OUTPUT->footer();
