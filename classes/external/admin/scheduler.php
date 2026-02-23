@@ -318,13 +318,16 @@ class scheduler extends external_api {
                          }
                          
                           if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                             $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
-                                 'count' => 0,
-                                 'subperiod' => $subpos['subperiod_pos'],
-                                 'subjectid' => $subpos['subjectid'],
-                                 'levelid' => $planningLevelId,
-                                 'students' => []
-                             ];
+                              if (empty($subpos['subjectid'])) {
+                                  gmk_log("WARNING: get_demand_data Part A - subjectid es 0 para Moodle Course $cid en Plan $stu->planid");
+                              }
+                              $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
+                                  'count' => 0,
+                                  'subperiod' => $subpos['subperiod_pos'],
+                                  'subjectid' => $subpos['subjectid'],
+                                  'levelid' => $planningLevelId,
+                                  'students' => []
+                              ];
                           }
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
@@ -441,8 +444,15 @@ class scheduler extends external_api {
                 if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
                     $demand[$career][$jornada][$semNum]['student_count'] = $count;
                 }
+                
+                if (empty($subjId)) {
+                    gmk_log("WARNING: get_demand_data Part C - subjId es 0 para planning record " . $pp->id);
+                }
             }
         }
+        
+        // Final sanity check
+        gmk_log("DEBUG: get_demand_data finalizando. Demand careers: " . implode(',', array_keys($demand)));
 
         // Prepare subjects
         $course_names = $DB->get_records_menu('course', [], '', 'id, fullname');
@@ -794,7 +804,7 @@ class scheduler extends external_api {
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
-                       c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id
+                       c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -861,17 +871,18 @@ class scheduler extends external_api {
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
                 'room' => empty($sessArr) ? 'Sin aula' : $sessArr[0]['roomName'],
+                'corecourseid' => (int)($c->corecourseid ?? 0),
                 'studentCount' => (int)$DB->count_records('gmk_class_queue', ['classid' => $c->id]),
                 'studentIds' => array_values($DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id])),
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
                 'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
                 'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
                 'subGroup' => (int)($c->subgroup ?? 0),
-                'subperiod' => (int)($c->subperiod ?? 0),
+                'subperiod' => (int)($c->subperiod ?? 1),
                 'type' => (int)($c->type ?? 0),
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
-                'periodid' => (int)($academic_period_id ?: ($c->periodid ?? 0)), 
+                'periodid' => (int)($academic_period_id ?: ($c->institutional_period_id ?? 0)), 
                 'sessions' => $sessArr
             ];
         }
