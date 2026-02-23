@@ -28,17 +28,17 @@ echo "</table>";
 
 // 2. Proyecciones
 echo "<h2>2. Proyecciones Activas (gmk_academic_projections)</h2>";
-$sql = "SELECT p.*, lp.name as plan_name, c.fullname as course_name 
+$sql = "SELECT p.*, lp.name as plan_name 
         FROM {gmk_academic_projections} p
         LEFT JOIN {local_learning_plans} lp ON lp.id = p.learningplanid
-        LEFT JOIN {course} c ON c.id = p.courseid
         WHERE p.academicperiodid = 1";
 $projs = $DB->get_records_sql($sql);
 if ($projs) {
     echo "<table border='1' cellpadding='5' style='border-collapse:collapse; width:100%;'>";
-    echo "<tr style='background:#eee;'><th>Plan</th><th>Course</th><th>Materia</th><th>Cantidad</th><th>Status</th></tr>";
+    echo "<tr style='background:#eee;'><th>Plan</th><th>Jornada</th><th>Cantidad</th><th>Status</th></tr>";
     foreach ($projs as $p) {
-        echo "<tr><td>[$p->learningplanid] $p->plan_name</td><td>$p->courseid</td><td>$p->course_name</td><td>$p->count</td><td>$p->status</td></tr>";
+        $color = ($p->learningplanid == 13) ? "background:#ffcccc;" : "";
+        echo "<tr style='$color'><td>[$p->learningplanid] $p->plan_name</td><td>$p->shift</td><td>$p->count</td><td>$p->status</td></tr>";
     }
     echo "</table>";
 } else {
