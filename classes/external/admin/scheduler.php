@@ -617,7 +617,10 @@ class scheduler extends external_api {
                 // HEALING: If courseid is 0, try to resolve via subjectName or corecourseid
                 if (empty($courseId) || $courseId == "0") {
                     if (!empty($cls['subjectName'])) {
-                        $subjByRef = $DB->get_record_sql("SELECT id FROM {local_learning_courses} WHERE name = ? ORDER BY id DESC", [$cls['subjectName']], IGNORE_MULTIPLE);
+                        $subjByRef = $DB->get_record_sql("SELECT lc.id FROM {local_learning_courses} lc 
+                                                         JOIN {course} c ON c.id = lc.courseid 
+                                                         WHERE c.fullname = ? OR c.shortname = ? 
+                                                         ORDER BY lc.id DESC", [$cls['subjectName'], $cls['subjectName']], IGNORE_MULTIPLE);
                         if ($subjByRef) $courseId = $subjByRef->id;
                     }
                     if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
@@ -877,7 +880,10 @@ class scheduler extends external_api {
                     }
                 }
                 if ((empty($c->courseid) || $c->courseid == "0") && !empty($c->subjectname)) {
-                    $subjByName = $DB->get_record_sql("SELECT id, learningplanid, periodid FROM {local_learning_courses} WHERE name = ? ORDER BY id DESC", [$c->subjectname], IGNORE_MULTIPLE);
+                    $subjByName = $DB->get_record_sql("SELECT lc.id, lc.learningplanid, lc.periodid FROM {local_learning_courses} lc 
+                                                       JOIN {course} co ON co.id = lc.courseid 
+                                                       WHERE co.fullname = ? OR co.shortname = ? 
+                                                       ORDER BY lc.id DESC", [$c->subjectname, $c->subjectname], IGNORE_MULTIPLE);
                     if ($subjByName) {
                         $c->courseid = $subjByName->id;
                         $c->learningplanid = $subjByName->learningplanid;
