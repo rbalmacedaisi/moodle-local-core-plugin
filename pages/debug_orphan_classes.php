@@ -22,7 +22,7 @@ global $DB;
 
 // Handle bulk deletion
 if ($bulk_delete && $confirm) {
-    core_php_time_limit::set(600); // 10 minutes
+    core_php_time_limit::raise(600); // 10 minutes
     raise_memory_limit(MEMORY_HUGE);
 
     $sql = "SELECT c.id 
