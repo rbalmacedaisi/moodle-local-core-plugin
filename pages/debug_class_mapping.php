@@ -25,6 +25,9 @@ $classid = optional_param('classid', 0, PARAM_INT);
 $inspectdemand = optional_param('inspectdemand', 0, PARAM_INT);
 $periodid = optional_param('periodid', 1, PARAM_INT); // Default to 2026-I usually
 
+// List recent classes
+$classes = $DB->get_records('gmk_class', null, 'id DESC', '*', 0, 50);
+
 $periods = $DB->get_records('gmk_academic_periods');
 echo "<form method='GET'>Period: <select name='periodid'>";
 foreach ($periods as $p) {
@@ -122,6 +125,7 @@ if ($classid) {
             echo "ID: {$m->id} | Name: {$m->fullname}<br>";
         }
     }
+}
 } catch (Throwable $e) {
     echo "<div style='color: white; background: red; padding: 10px;'>";
     echo "<strong>Fatal Error:</strong> " . $e->getMessage() . "<br>";
