@@ -660,6 +660,16 @@ class scheduler extends external_api {
                 }
                 $subjMeta = $courses_cache[$courseId];
                 
+                // DEBUG: Trace ID resolution for this class
+                gmk_log("DEBUG: Guardando clase " . ($cls['id'] ?? 'NUEVA') . " - '" . ($cls['subjectName'] ?? '') . "'");
+                gmk_log("  -> Input: courseid=" . ($cls['courseid'] ?? '0') . ", corecourseid=" . ($cls['corecourseid'] ?? '0') . ", plan=" . ($cls['learningplanid'] ?? '0') . ", period=" . ($cls['periodid'] ?? '0'));
+                gmk_log("  -> Final Resolution: courseid=" . $courseId . ", plan=" . ($cls['learningplanid'] ?? '0') . ", period=" . $periodid);
+                if ($subjMeta) {
+                    gmk_log("  -> Meta found in DB: courseid=" . $subjMeta->courseid . ", plan=" . $subjMeta->learningplanid . ", level=" . $subjMeta->periodid);
+                } else {
+                    gmk_log("  -> WARNING: No metadata found in local_learning_courses for Subject ID " . $courseId);
+                }
+                
                 // Ensure we store the Subject ID (local_learning_courses.id) in courseid
                 $classRec->courseid = $courseId; 
                 // Core Moodle Course ID
