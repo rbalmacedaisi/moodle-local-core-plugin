@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260223002;         // Updated version to force cache refresh.
+$plugin->version   = 20260223003;         // Updated version to force cache refresh.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

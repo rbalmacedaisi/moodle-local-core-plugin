@@ -89,7 +89,8 @@
                 </div>
 
                 {{! List View }}
-                <div id="class-list-view" class="table-responsive bg-white shadow-sm rounded d-none">
+                <div id="class-list-view" class="d-none">
+                    <div class="table-responsive bg-white shadow-sm rounded">
                     <table class="table table-hover mb-0">
                         <thead class="thead-light">
                             <tr>
@@ -148,10 +149,12 @@
                             {{/allClasses}}
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 {{! Grid View }}
-                <div id="class-grid-view" class="d-flex flex-wrap">
+                <div id="class-grid-view">
+                    <div class="d-flex flex-wrap">
                     {{#allClasses}}
                     {{! Class card }}
                     <div class="card position-relative border-0 mx-2 mb-3 shadow-sm" style="width: 320px;">
@@ -220,6 +223,7 @@
                     </div>
                     {{! End Class card }}
                     {{/allClasses}}
+                    </div>
                 </div>
             </div>
             {{! ENd Tab content all classes }}
