@@ -20,6 +20,15 @@ if (!$periodid) {
     exit;
 }
 
+// Check specific student
+$check_id = '2025-IV-00000068';
+$match = $DB->get_record_sql("SELECT id, idnumber, username FROM {user} WHERE idnumber = ? OR username = ?", [$check_id, $check_id]);
+if ($match) {
+    echo "<p style='background:yellow; padding:10px;'><b>Búsqueda Directa:</b> El ID '$check_id' coincide con el usuario Moodle ID: {$match->id} (Field: " . ($match->idnumber == $check_id ? 'idnumber' : 'username') . ")</p>";
+} else {
+    echo "<p style='background:orange; padding:10px;'><b>Búsqueda Directa:</b> No se encontró coincidencia para '$check_id' en idnumber o username.</p>";
+}
+
 // 1. Obtener datos de demanda (Lista global de estudiantes)
 $demand = \local_grupomakro_core\external\admin\scheduler::get_demand_data($periodid);
 $all_students = $demand['student_list'];

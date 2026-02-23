@@ -223,7 +223,7 @@ class scheduler extends external_api {
         $piJoin = $piField ? "LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . $piField->id : "";
         $piSelect = $piField ? ", uid_pi.data AS entry_period" : ", '' as entry_period";
 
-        $sql = "SELECT u.id, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
+        $sql = "SELECT u.id, u.idnumber, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
                        llu.currentperiodid, p.name as currentperiodname,
                        llu.currentsubperiodid, sp.name as currentsubperiodname $jornadaSelect $piSelect
                 FROM {user} u
@@ -234,7 +234,9 @@ class scheduler extends external_api {
                 $jornadaJoin
                 $piJoin
                 WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student' 
-                  AND llu.status = 'activo'"; 
+                  AND llu.status = 'activo'
+                GROUP BY u.id, u.idnumber, u.firstname, u.lastname, lp.id, lp.name, 
+                         llu.currentperiodid, p.name, llu.currentsubperiodid, sp.name $jornadaSelect $piSelect"; 
 
         $students = $DB->get_records_sql($sql);
 
@@ -264,6 +266,8 @@ class scheduler extends external_api {
         $student_list = [];
 
         foreach ($students as $stu) {
+            $idToUse = !empty($stu->idnumber) ? $stu->idnumber : (string)$stu->id;
+            
             if (!isset($curricula[$stu->planid])) continue;
 
             $career = $stu->planname;
@@ -323,7 +327,8 @@ class scheduler extends external_api {
             $semNum = self::parse_semester_number($semName);
 
             $student_list[] = [
-                'id' => $stu->id,
+                'id' => $idToUse,
+                'dbId' => $stu->id,
                 'name' => $stu->firstname . ' ' . $stu->lastname,
                 'career' => $career,
                 'shift' => $jornada,
