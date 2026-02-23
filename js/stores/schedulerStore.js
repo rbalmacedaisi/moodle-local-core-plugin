@@ -300,6 +300,7 @@
                                 if (stu && stu.planid) acc[stu.planid] = (acc[stu.planid] || 0) + 1;
                                 return acc;
                             }, {});
+
                             let maxLocal = 0;
                             Object.entries(localPlanCounts).forEach(([pid, pcount]) => {
                                 if (pcount > maxLocal) {
@@ -311,12 +312,23 @@
 
                         if (!majorityPlanId) {
                             let maxGlobal = -1;
+                            let tiePlans = [];
+
                             Object.entries(data.plan_scores).forEach(([pid, pscore]) => {
                                 if (pscore > maxGlobal) {
                                     maxGlobal = pscore;
                                     majorityPlanId = parseInt(pid);
+                                    tiePlans = [parseInt(pid)];
+                                } else if (pscore === maxGlobal && maxGlobal !== -1) {
+                                    tiePlans.push(parseInt(pid));
                                 }
                             });
+
+                            // Tie-breaker: If tie at 0 points, ignore Plan 13 if possible
+                            if (maxGlobal <= 0 && tiePlans.length > 1) {
+                                const non13 = tiePlans.filter(pid => pid !== 13);
+                                if (non13.length > 0) majorityPlanId = non13[0];
+                            }
                         }
 
                         let resolvedSubjectId = 0;
