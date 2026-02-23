@@ -324,6 +324,13 @@
                                 }
                             });
 
+                            // DEBUG: Ver por qué se elige este plan
+                            if (data.courseid == 49 || data.courseid == 60) { // Materias problema
+                                console.log(`DEBUG Puntuaciones para ${aggKey}:`, data.plan_scores);
+                                console.log(`  -> Ganador: ${majorityPlanId} (Puntos: ${maxGlobal})`);
+                                console.log(`  -> Empatados:`, tiePlans);
+                            }
+
                             // Tie-breaker: If tie at 0 points, ignore Plan 13 if possible
                             if (maxGlobal <= 0 && tiePlans.length > 1) {
                                 const non13 = tiePlans.filter(pid => pid !== 13);
