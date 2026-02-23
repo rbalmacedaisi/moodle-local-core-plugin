@@ -33,7 +33,11 @@ echo "<p>Total estudiantes encontrados: " . count($all_students) . "</p>";
 if (count($all_students) > 0) {
     echo "<ul>";
     for ($i = 0; $i < min(5, count($all_students)); $i++) {
-        echo "<li>ID: {$all_students[$i]['id']} - Nombre: {$all_students[$i]['name']}</li>";
+        $st = $all_students[$i];
+        $stu_info = $DB->get_record('user', ['id' => $st['id']], 'id, idnumber, username');
+        $idnum = $stu_info ? $stu_info->idnumber : 'N/A';
+        $uname = $stu_info ? $stu_info->username : 'N/A';
+        echo "<li>Moodle ID: {$st['id']} - <b>IDNumber: {$idnum}</b> - Username: {$uname} - Nombre: {$st['name']}</li>";
     }
     echo "<li>...</li>";
     echo "</ul>";
