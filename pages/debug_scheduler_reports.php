@@ -18,7 +18,7 @@ if (!$periodid) {
 }
 
 // 1. Obtener datos de demanda (Lista global de estudiantes)
-$demand = \local_grupomakro\external\admin\scheduler::get_demand_data($periodid);
+$demand = \local_grupomakro_core\external\admin\scheduler::get_demand_data($periodid);
 $all_students = $demand['student_list'];
 $student_map = [];
 foreach ($all_students as $st) {
@@ -39,7 +39,7 @@ if (count($all_students) > 0) {
 }
 
 // 2. Obtener horarios generados
-$schedules = \local_grupomakro\external\admin\scheduler::get_generated_schedules($periodid);
+$schedules = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid);
 
 echo "<h2>2. Horarios y Estudiantes Asignados (desde get_generated_schedules)</h2>";
 echo "<p>Total clases encontradas: " . count($schedules) . "</p>";
