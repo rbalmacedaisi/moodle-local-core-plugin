@@ -255,6 +255,7 @@ $string['confirm_delete_class'] = 'Confirmación eliminación de clase';
 $string['delete_class'] = '¿Está seguro de eliminar de forma definitiva esta clase y toda la información relacionada?';
 $string['deleteselected'] = 'Eliminar seleccionados';
 $string['allclasses'] = 'Todas las Clases';
+$string['instructor'] = 'Instructor';
 $string['class_management'] = 'Gestión de clases';
 $string['gridview'] = 'Vista de cuadrícula';
 $string['listview'] = 'Vista de lista';

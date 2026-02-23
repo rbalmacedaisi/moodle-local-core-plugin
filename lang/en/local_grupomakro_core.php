@@ -255,6 +255,7 @@ $string['delete_class'] = 'Are you sure to permanently delete this class and all
 $string['confirm_delete_class'] = 'Delete class confirmation';
 $string['deleteselected'] = 'Delete selected';
 $string['allclasses'] = 'All the classes';
+$string['instructor'] = 'Instructor';
 $string['class_management'] = 'Class Management';
 $string['gridview'] = 'Grid view';
 $string['listview'] = 'List view';

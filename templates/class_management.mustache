@@ -51,7 +51,7 @@
                 {{! Button to delete multiple classes }}
                 <div class="pb-4">
                     <button type="button" class="btn btn-danger btn-block shadow-sm d-none" id="bulkDeleteButton" data-toggle="modal" data-target="#deleteClassModalCenter">
-                        <i class="fa fa-trash mr-1"></i> {{#str}}deleteselected{{/str}}
+                        <i class="fa fa-trash mr-1"></i> {{#str}}deleteselected, local_grupomakro_core{{/str}}
                     </button>
                 </div>
                 
@@ -79,10 +79,10 @@
                 {{! View Controls }}
                 <div class="d-flex justify-content-end mb-3">
                     <div class="btn-group shadow-sm bg-white" role="group" aria-label="View toggle">
-                        <button type="button" class="btn btn-outline-secondary" id="btn-grid-view" title="{{#str}}gridview{{/str}}">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-grid-view" title="{{#str}}gridview, local_grupomakro_core{{/str}}">
                             <i class="fa fa-th"></i>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary active" id="btn-list-view" title="{{#str}}listview{{/str}}">
+                        <button type="button" class="btn btn-outline-secondary active" id="btn-list-view" title="{{#str}}listview, local_grupomakro_core{{/str}}">
                             <i class="fa fa-list"></i>
                         </button>
                     </div>
@@ -96,11 +96,11 @@
                                 <th scope="col" style="width: 40px;" class="text-center align-middle">
                                     <input type="checkbox" id="selectAllClasses" aria-label="Select All">
                                 </th>
-                                <th scope="col" class="align-middle">{{#str}}name{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}class_name, local_grupomakro_core{{/str}}</th>
                                 <th scope="col" class="align-middle">{{#str}}instructor, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}type, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}class_type, local_grupomakro_core{{/str}}</th>
                                 <th scope="col" class="align-middle">{{#str}}startdate, local_grupomakro_core{{/str}}</th>
-                                <th scope="col" class="align-middle">{{#str}}schedule, local_grupomakro_core{{/str}}</th>
+                                <th scope="col" class="align-middle">{{#str}}class_schedule, local_grupomakro_core{{/str}}</th>
                                 <th scope="col" class="align-middle text-center">{{#str}}actions, local_grupomakro_core{{/str}}</th>
                             </tr>
                         </thead>
