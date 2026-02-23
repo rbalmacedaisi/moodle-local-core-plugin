@@ -612,8 +612,14 @@ class scheduler extends external_api {
             $classrooms_cache = [];
             
             $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+            $periodName = $periodRec ? $periodRec->name : "ID: $periodid";
             $periodStart = $periodRec ? $periodRec->startdate : time();
             $periodEnd = $periodRec ? $periodRec->enddate : time();
+
+            // Cache names for logging
+            $lp_names = $DB->get_records_menu('local_learning_plans', [], '', 'id, name');
+            $lvl_names = $DB->get_records_menu('local_learning_periods', [], '', 'id, name');
+            $course_fullnames = $DB->get_records_menu('course', [], '', 'id, fullname');
 
             foreach ($data as $cls) {
                 $classRec = new stdClass();
@@ -660,14 +666,22 @@ class scheduler extends external_api {
                 }
                 $subjMeta = $courses_cache[$courseId];
                 
-                // DEBUG: Trace ID resolution for this class
-                gmk_log("DEBUG: Guardando clase " . ($cls['id'] ?? 'NUEVA') . " - '" . ($cls['subjectName'] ?? '') . "'");
-                gmk_log("  -> Input: courseid=" . ($cls['courseid'] ?? '0') . ", corecourseid=" . ($cls['corecourseid'] ?? '0') . ", plan=" . ($cls['learningplanid'] ?? '0') . ", period=" . ($cls['periodid'] ?? '0'));
-                gmk_log("  -> Final Resolution: courseid=" . $courseId . ", plan=" . ($cls['learningplanid'] ?? '0') . ", period=" . $periodid);
-                if ($subjMeta) {
-                    gmk_log("  -> Meta found in DB: courseid=" . $subjMeta->courseid . ", plan=" . $subjMeta->learningplanid . ", level=" . $subjMeta->periodid);
-                } else {
-                    gmk_log("  -> WARNING: No metadata found in local_learning_courses for Subject ID " . $courseId);
+                // DEBUG: Trace ID resolution for this class with names
+                $inputPlanName = $lp_names[$cls['learningplanid'] ?? 0] ?? 'N/A';
+                $inputLvlName = $lvl_names[$cls['periodid'] ?? 0] ?? 'N/A';
+                $resolvedLvlName = $lvl_names[$subjMeta->periodid ?? 0] ?? 'N/A';
+                $resolvedPlanName = $lp_names[$subjMeta->learningplanid ?? 0] ?? 'N/A';
+                $moodleCourseName = $course_fullnames[$subjMeta->courseid ?? 0] ?? 'N/A';
+
+                gmk_log("DEBUG: PROCESANDO CLASE " . ($cls['id'] ?? 'NUEVA'));
+                gmk_log("  -> Materia: '" . ($cls['subjectName'] ?? 'Sin Nombre') . "'");
+                gmk_log("  -> Moodle Course: [$moodleCourseName] (ID: " . ($subjMeta->courseid ?? '0') . ")");
+                gmk_log("  -> INPUT (Frontend): Plan=[$inputPlanName], Nivel=[$inputLvlName], SubjectID=" . ($cls['courseid'] ?? '0'));
+                gmk_log("  -> RESOLVED (Backend): SubjectID=" . $courseId . ", Plan=[$resolvedPlanName], Nivel=[$resolvedLvlName]");
+                gmk_log("  -> INSTITUTIONAL PERIOD (Target): [$periodName] (ID: $periodid)");
+                
+                if (!$subjMeta) {
+                    gmk_log("  -> WARNING: No se encontró registro en local_learning_courses para Subject ID " . $courseId);
                 }
                 
                 // Ensure we store the Subject ID (local_learning_courses.id) in courseid
