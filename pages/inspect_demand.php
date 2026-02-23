@@ -1,6 +1,6 @@
 <?php
 define('NO_OUTPUT_BUFFERING', true);
-require_once(__DIR__ . '/../../../../config.php');
+require_once(__DIR__ . '/../../../config.php');
 
 global $DB;
 
