@@ -251,12 +251,14 @@ class scheduler extends external_api {
         
         $curricula = [];
         $curricula_subperiods = []; // To lookup subperiod for planning/projections
+        $reverse_curricula = []; // To lookup Moodle ID from Subject ID
         foreach ($plan_courses as $pc) {
             $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = [
                 'subjectid' => $pc->id,
                 'subperiod_pos' => $pc->subperiod_pos
             ];
             $curricula_subperiods[$pc->learningplanid][$pc->courseid] = $pc->subperiod_pos;
+            $reverse_curricula[$pc->id] = $pc->courseid;
         }
 
         // 3. Pre-fetch Passed Courses
@@ -353,30 +355,41 @@ class scheduler extends external_api {
         $projections = $DB->get_records('gmk_academic_projections', ['academicperiodid' => $periodid]);
         
         foreach ($projections as $proj) {
-            $career = $proj->career;
+            $career_name = $proj->career;
             $jornada = $proj->shift;
             $semNum = 1; 
             
-            if (!isset($demand[$career])) $demand[$career] = [];
-            if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
-             if (!isset($demand[$career][$jornada][$semNum])) {
-                 $demand[$career][$jornada][$semNum] = [
-                     'semester_name' => 'Nivel I',
-                     'student_count' => 0,
-                     'course_counts' => []
-                 ];
-             }
-             
-             if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                 $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
-                     'count' => 0,
-                     'subperiod' => $curricula_subperiods[$proj->learningplanid][$cid] ?? 0,
-                     'students' => []
-                 ];
-             }
-             
-             $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count'] += $proj->count;
-             $demand[$career][$jornada][$semNum]['student_count'] += $proj->count;
+            // Try to find the learning plan ID for this career name
+            $lpId = array_search($career_name, $plan_names);
+            if (!$lpId || !isset($curricula[$lpId])) continue;
+
+            // Find Level 1 for this plan
+            $level1 = $DB->get_record_sql("SELECT id, name FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$lpId], IGNORE_MULTIPLE);
+            if (!$level1 || !isset($curricula[$lpId][$level1->id])) continue;
+
+            if (!isset($demand[$career_name])) $demand[$career_name] = [];
+            if (!isset($demand[$career_name][$jornada])) $demand[$career_name][$jornada] = [];
+            if (!isset($demand[$career_name][$jornada][$semNum])) {
+                $demand[$career_name][$jornada][$semNum] = [
+                    'semester_name' => $level1->name,
+                    'student_count' => 0,
+                    'course_counts' => []
+                ];
+            }
+            
+            foreach ($curricula[$lpId][$level1->id] as $moodleId => $info) {
+                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId])) {
+                    $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId] = [
+                        'count' => 0,
+                        'subperiod' => $info['subperiod_pos'],
+                        'subjectid' => $info['subjectid'],
+                        'levelid' => $level1->id,
+                        'students' => []
+                    ];
+                }
+                $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $proj->count;
+            }
+            $demand[$career_name][$jornada][$semNum]['student_count'] += $proj->count;
         }
 
         // C. Fetch Planning Selections (from Planning Tab Matrix)
@@ -385,39 +398,43 @@ class scheduler extends external_api {
 
         foreach ($planning as $pp) {
             $career = $plan_names[$pp->learningplanid] ?? 'Plan ' . $pp->learningplanid;
-            $cid = $pp->courseid;
+            $subjId = $pp->courseid; // gmk_academic_planning stores Subject ID
             $count = $pp->projected_students;
             
-            // Note: gmk_academic_planning currently lacks 'shift'. 
-            // We append to all shifts found for this career/level, or a default one (Matutina).
-            if (isset($demand[$career])) {
-                $semName = $period_names[$pp->periodid] ?? '';
-                $semNum = self::parse_semester_number($semName);
-                
-                $shiftsToUpdate = array_keys($demand[$career]);
-                if (empty($shiftsToUpdate)) $shiftsToUpdate = ['Matutina']; // Default if no real students found
+            // Map Subject ID to Moodle ID
+            $moodleId = $reverse_curricula[$subjId] ?? 0;
+            if (!$moodleId) continue;
 
-                foreach ($shiftsToUpdate as $jornada) {
-                    if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
-                    if (!isset($demand[$career][$jornada][$semNum])) {
-                        $demand[$career][$jornada][$semNum] = [
-                            'semester_name' => $semName ?: ('Nivel ' . $semNum),
-                            'student_count' => 0,
-                            'course_counts' => []
-                        ];
-                    }
-                    if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                        $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
-                            'count' => 0,
-                            'subperiod' => $curricula_subperiods[$pp->learningplanid][$cid] ?? 0,
-                            'students' => []
-                        ];
-                    }
-                    $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count'] += $count;
-                    // If this is a manual projection with no students, we add to student_count too
-                    if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
-                        $demand[$career][$jornada][$semNum]['student_count'] = $count;
-                    }
+            $semName = $period_names[$pp->periodid] ?? '';
+            $semNum = self::parse_semester_number($semName);
+            
+            if (!isset($demand[$career])) $demand[$career] = [];
+
+            // We apply to all shifts or Matutina
+            $shiftsToUpdate = array_keys($demand[$career]);
+            if (empty($shiftsToUpdate)) $shiftsToUpdate = ['Matutina'];
+
+            foreach ($shiftsToUpdate as $jornada) {
+                if (!isset($demand[$career][$jornada])) $demand[$career][$jornada] = [];
+                if (!isset($demand[$career][$jornada][$semNum])) {
+                    $demand[$career][$jornada][$semNum] = [
+                        'semester_name' => $semName ?: ('Nivel ' . $semNum),
+                        'student_count' => 0,
+                        'course_counts' => []
+                    ];
+                }
+                if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$moodleId])) {
+                    $demand[$career][$jornada][$semNum]['course_counts'][$moodleId] = [
+                        'count' => 0,
+                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$subjId] ?? 0,
+                        'subjectid' => $subjId,
+                        'levelid' => $pp->periodid,
+                        'students' => []
+                    ];
+                }
+                $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $count;
+                if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
+                    $demand[$career][$jornada][$semNum]['student_count'] = $count;
                 }
             }
         }

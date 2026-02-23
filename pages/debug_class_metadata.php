@@ -65,7 +65,7 @@ echo "</div>";
 
 if ($search_subject) {
     echo "<h2>Resultados de búsqueda para: '$search_subject'</h2>";
-    $sql = "SELECT lpc.id as subjectid, lp.name as planname, p.name as levelname, c.fullname
+    $sql = "SELECT lpc.id as subjectid, lpc.courseid as moodleid, lp.name as planname, p.name as levelname, c.fullname
             FROM {local_learning_courses} lpc
             JOIN {local_learning_plans} lp ON lp.id = lpc.learningplanid
             JOIN {local_learning_periods} p ON p.id = lpc.periodid
@@ -74,9 +74,9 @@ if ($search_subject) {
     $matches = $DB->get_records_sql($sql, ['search' => "%$search_subject%", 'search2' => "%$search_subject%"]);
     if ($matches) {
         echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>
-                <tr><th>Subject ID</th><th>Carrera</th><th>Nivel</th><th>Nombre Moodle</th></tr>";
+                <tr><th>Subject ID</th><th>Moodle ID</th><th>Carrera</th><th>Nivel</th><th>Nombre Moodle</th></tr>";
         foreach ($matches as $m) {
-            echo "<tr><td>{$m->subjectid}</td><td>{$m->planname}</td><td>{$m->levelname}</td><td>{$m->fullname}</td></tr>";
+            echo "<tr><td>{$m->subjectid}</td><td>{$m->moodleid}</td><td>{$m->planname}</td><td>{$m->levelname}</td><td>{$m->fullname}</td></tr>";
         }
         echo "</table>";
     } else {
