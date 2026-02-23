@@ -522,15 +522,6 @@ window.SchedulerComponents.PlanningBoard = {
                 this.draggedClass.classdays = mask.join('/');
             }
 
-            // Create or update single session for compatibility with full_calendar_view.js
-            this.draggedClass.sessions = [{
-                day: day,
-                start: start,
-                end: end,
-                roomName: this.draggedClass.room || 'Sin aula',
-                excluded_dates: this.draggedClass.sessions?.[0]?.excluded_dates || []
-            }];
-
             this.draggedClass = null;
         },
         editClass(cls) {
@@ -579,7 +570,6 @@ window.SchedulerComponents.PlanningBoard = {
                 this.selectedClass.day = 'N/A';
                 this.selectedClass.start = '00:00';
                 this.selectedClass.end = '00:00';
-                this.selectedClass.sessions = [];
                 this.editDialog = false;
             }
         },

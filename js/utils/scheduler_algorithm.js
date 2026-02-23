@@ -218,17 +218,6 @@
                 markBusyGranular(roomUsage, s.room, s.assignedDates, s);
                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, s.assignedDates, s);
                 if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, s.assignedDates, s));
-
-                // Ensure sessions array exists for pre-initialized placed schedules
-                if (!s.sessions || s.sessions.length === 0) {
-                    s.sessions = [{
-                        day: s.day,
-                        start: s.start,
-                        end: s.end,
-                        roomName: s.room || 'Sin aula',
-                        excluded_dates: []
-                    }];
-                }
             }
         });
 
@@ -338,28 +327,10 @@
                         if (placed) break;
 
                         if (maxSessions) {
+                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, intervalMins));
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
-
-                                // Update classdays bitmask
-                                const dayToBitIndex = { 'Lunes': 0, 'Martes': 1, 'Miercoles': 2, 'Jueves': 3, 'Viernes': 4, 'Sabado': 5, 'Domingo': 6 };
-                                const bitIdx = dayToBitIndex[day];
-                                if (bitIdx !== undefined) {
-                                    const mask = [0, 0, 0, 0, 0, 0, 0];
-                                    mask[bitIdx] = 1;
-                                    s.classdays = mask.join('/');
-                                }
-
-                                // Create single session for compatibility with full_calendar_view.js
-                                s.sessions = [{
-                                    day: s.day,
-                                    start: s.start,
-                                    end: s.end,
-                                    roomName: s.room,
-                                    excluded_dates: []
-                                }];
-
                                 markBusyGranular(roomUsage, room.name, selectedDates, s);
                                 if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, selectedDates, s);
                                 if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, selectedDates, s));
@@ -377,16 +348,6 @@
                             }
 
                             s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = targetDates;
-
-                            // Update classdays bitmask
-                            const dayToBitIndex = { 'Lunes': 0, 'Martes': 1, 'Miercoles': 2, 'Jueves': 3, 'Viernes': 4, 'Sabado': 5, 'Domingo': 6 };
-                            const bitIdx = dayToBitIndex[day];
-                            if (bitIdx !== undefined) {
-                                const mask = [0, 0, 0, 0, 0, 0, 0];
-                                mask[bitIdx] = 1;
-                                s.classdays = mask.join('/');
-                            }
-
                             markBusyGranular(roomUsage, room.name, targetDates, s);
                             if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, targetDates, s);
                             if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, targetDates, s));

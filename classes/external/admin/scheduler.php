@@ -604,9 +604,13 @@ class scheduler extends external_api {
                 $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : 0;
                 $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
                 $classRec->periodid = (int)($cls['periodid'] ?? ($subjMeta ? $subjMeta->periodid : $periodid));
-                // We store the Institutional Period in gradecategoryid for tracking if needed,
+                // We store the Institutional Period in gradecategoryid for tracking if needed, 
                 // but we keep periodid as the Level ID to fix editclass.php
-                $classRec->gradecategoryid = $periodid; // Link to institutional period
+                // Actually, if I change periodid here, get_generated_schedules will break.
+                // Re-thinking: I'll stick to deriving metadata in list_classes and KEEPING periodid as Institutional.
+                // So I'll revert the periodid change here and just fix the dates.
+                
+                $classRec->periodid = $periodid; // Institutional Period
                 
                 // Lookup instructor ID prioritizing teacherName
                 $tname = trim($cls['teacherName'] ?? '');

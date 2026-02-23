@@ -184,41 +184,27 @@
 
                     if (shiftFilter && sched.shift !== shiftFilter) return;
 
-                    // Range for this schedule based on subperiod (parse locally to avoid timezone offsets)
-                    const parseLocalDate = (dateStr) => {
-                        if (!dateStr) return new Date();
-                        if (dateStr.includes('T')) return new Date(dateStr); // Already full ISO
-                        const [y, m, d] = dateStr.split('-');
-                        return new Date(y, m - 1, d);
-                    };
-
-                    let startDate = parseLocalDate(period.start);
-                    let endDate = parseLocalDate(period.end);
+                    // Range for this schedule based on subperiod
+                    let startDate = period.start ? new Date(period.start) : new Date();
+                    let endDate = period.end ? new Date(period.end) : new Date();
 
                     if (sched.subperiod === 1 && config.block1start) {
-                        startDate = parseLocalDate(config.block1start);
-                        endDate = parseLocalDate(config.block1end);
+                        startDate = new Date(config.block1start);
+                        endDate = new Date(config.block1end);
                     } else if (sched.subperiod === 2 && config.block2start) {
-                        startDate = parseLocalDate(config.block2start);
-                        endDate = parseLocalDate(config.block2end);
+                        startDate = new Date(config.block2start);
+                        endDate = new Date(config.block2end);
                     }
 
                     sched.sessions.forEach((session, sessionIdx) => {
-                        if (!session.day) return;
-
-                        // Handle "N/A" and normalize Tildes (Miércoles -> MIERCOLES)
-                        const cleanDay = session.day.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-                        const targetDay = dayMap[cleanDay];
+                        const targetDay = dayMap[session.day.toUpperCase()];
                         if (targetDay === undefined) return;
 
                         let current = new Date(startDate);
-
-                        // Advance to the first occurrence of `targetDay`
                         while (current.getDay() !== targetDay) {
                             current.setDate(current.getDate() + 1);
                         }
 
-                        // Loop through all weeks until endDate
                         while (current <= endDate) {
                             const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
 
