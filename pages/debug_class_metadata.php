@@ -7,8 +7,13 @@ require_login();
 $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
+$PAGE->set_context($context);
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_class_metadata.php'));
+$PAGE->set_title("Debug Class Metadata Mapping");
+
 $classid = optional_param('class_id', null, PARAM_INT);
 $periodid = optional_param('period_id', null, PARAM_INT);
+$search_subject = optional_param('search_subject', '', PARAM_TEXT);
 
 echo $OUTPUT->header();
 echo "<h1>Debug Class Metadata Mapping</h1>";
@@ -48,7 +53,36 @@ if ($periodid) {
 } else {
     echo "<em>Selecciona un periodo para ver las clases.</em>";
 }
-echo "</form></div>";
+echo "</form>";
+
+// Search Subject Form
+echo "<hr><form method='get'>";
+echo "<strong>Buscar Materia por Nombre:</strong><br>";
+echo "<input type='text' name='search_subject' value='" . s($search_subject) . "'>";
+echo "<input type='submit' value='Buscar Subject ID'>";
+echo "</form>";
+echo "</div>";
+
+if ($search_subject) {
+    echo "<h2>Resultados de búsqueda para: '$search_subject'</h2>";
+    $sql = "SELECT lpc.id as subjectid, lp.name as planname, p.name as levelname, c.fullname
+            FROM {local_learning_courses} lpc
+            JOIN {local_learning_plans} lp ON lp.id = lpc.learningplanid
+            JOIN {local_learning_periods} p ON p.id = lpc.periodid
+            JOIN {course} c ON c.id = lpc.courseid
+            WHERE c.fullname LIKE :search OR c.shortname LIKE :search2";
+    $matches = $DB->get_records_sql($sql, ['search' => "%$search_subject%", 'search2' => "%$search_subject%"]);
+    if ($matches) {
+        echo "<table border='1' cellpadding='5' style='border-collapse: collapse;'>
+                <tr><th>Subject ID</th><th>Carrera</th><th>Nivel</th><th>Nombre Moodle</th></tr>";
+        foreach ($matches as $m) {
+            echo "<tr><td>{$m->subjectid}</td><td>{$m->planname}</td><td>{$m->levelname}</td><td>{$m->fullname}</td></tr>";
+        }
+        echo "</table>";
+    } else {
+        echo "No se encontraron materias.";
+    }
+}
 
 if ($classid) {
     echo "<h2>Data for Class ID: $classid</h2>";
