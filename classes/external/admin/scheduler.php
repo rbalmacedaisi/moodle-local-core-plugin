@@ -478,8 +478,21 @@ class scheduler extends external_api {
             }
         }
         
-        // Final sanity check
-        gmk_log("DEBUG: get_demand_data finalizando. Demand careers: " . implode(',', array_keys($demand)));
+        // Final sanity check and demand summary
+        gmk_log("DEBUG: get_demand_data finalizando.");
+        foreach ($demand as $career_name => $shifts) {
+            $c_total = 0;
+            $subj_count = 0;
+            foreach ($shifts as $jornada => $sems) {
+                foreach ($sems as $sem_id => $semData) {
+                    $c_total += $semData['student_count'] ?? 0;
+                    $subj_count += count($semData['course_counts'] ?? []);
+                }
+            }
+            if ($c_total > 0 || $subj_count > 0) {
+                gmk_log("  -> Career: '$career_name' | Demand Total: $c_total | Subjects with Demand: $subj_count");
+            }
+        }
 
         // Prepare subjects
         $course_names = $DB->get_records_menu('course', [], '', 'id, fullname');
