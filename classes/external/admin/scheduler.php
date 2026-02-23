@@ -252,7 +252,10 @@ class scheduler extends external_api {
         $curricula = [];
         $curricula_subperiods = []; // To lookup subperiod for planning/projections
         foreach ($plan_courses as $pc) {
-            $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = $pc->subperiod_pos;
+            $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = [
+                'subjectid' => $pc->id,
+                'subperiod_pos' => $pc->subperiod_pos
+            ];
             $curricula_subperiods[$pc->learningplanid][$pc->courseid] = $pc->subperiod_pos;
         }
 
@@ -312,13 +315,15 @@ class scheduler extends external_api {
                              ];
                          }
                          
-                         if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
+                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
                              $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
                                  'count' => 0,
-                                 'subperiod' => $subpos,
+                                 'subperiod' => $subpos['subperiod_pos'],
+                                 'subjectid' => $subpos['subjectid'],
+                                 'levelid' => $planningLevelId,
                                  'students' => []
                              ];
-                         }
+                          }
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
                      }
@@ -333,6 +338,7 @@ class scheduler extends external_api {
                 'dbId' => $stu->id,
                 'name' => $stu->firstname . ' ' . $stu->lastname,
                 'career' => $career,
+                'planid' => $stu->planid,
                 'shift' => $jornada,
                 'semester' => $semNum,
                 'entry_period' => $stu->entry_period ?? 'Sin Definir'
@@ -548,6 +554,8 @@ class scheduler extends external_api {
 
             $teachers_cache = [];
             $courses_cache = [];
+            
+            $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
             $periodStart = $periodRec ? $periodRec->startdate : time();
             $periodEnd = $periodRec ? $periodRec->enddate : time();
 
@@ -567,10 +575,20 @@ class scheduler extends external_api {
 
                 // Lookup corecourseid
                 if (!array_key_exists($courseId, $courses_cache)) {
-                    $coreId = $DB->get_field('local_learning_courses', 'courseid', ['id' => $courseId], IGNORE_MISSING);
-                    $courses_cache[$courseId] = $coreId ?: 0;
+                    $subj = $DB->get_record('local_learning_courses', ['id' => $courseId], 'courseid, learningplanid, periodid');
+                    $courses_cache[$courseId] = $subj;
                 }
-                $classRec->corecourseid = $courses_cache[$courseId];
+                $subjMeta = $courses_cache[$courseId];
+                $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : 0;
+                $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
+                $classRec->periodid = (int)($cls['periodid'] ?? ($subjMeta ? $subjMeta->periodid : $periodid));
+                // We store the Institutional Period in gradecategoryid for tracking if needed, 
+                // but we keep periodid as the Level ID to fix editclass.php
+                // Actually, if I change periodid here, get_generated_schedules will break.
+                // Re-thinking: I'll stick to deriving metadata in list_classes and KEEPING periodid as Institutional.
+                // So I'll revert the periodid change here and just fix the dates.
+                
+                $classRec->periodid = $periodid; // Institutional Period
                 
                 // Lookup instructor ID prioritizing teacherName
                 $tname = trim($cls['teacherName'] ?? '');
@@ -612,8 +630,21 @@ class scheduler extends external_api {
                     $classRec->classduration = 0;
                 }
 
+                // Date logic based on Subperiod (Block)
                 $classRec->initdate = $periodStart;
                 $classRec->enddate = $periodEnd;
+                
+                $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
+                if ($calendar) {
+                    if ($classRec->subperiodid == 1 && !empty($calendar->block1start)) {
+                        $classRec->initdate = $calendar->block1start;
+                        $classRec->enddate = $calendar->block1end;
+                    } else if ($classRec->subperiodid == 2 && !empty($calendar->block2start)) {
+                        $classRec->initdate = $calendar->block2start;
+                        $classRec->enddate = $calendar->block2end;
+                    }
+                }
+
                 $classRec->classdays = $cls['classdays'] ?? '0/0/0/0/0/0/0';
                 $classRec->approved = 1;
                 $classRec->active = 1;
@@ -787,6 +818,8 @@ class scheduler extends external_api {
                 'subperiod' => (int)$c->subperiod,
                 'type' => (int)($c->type ?? 0),
                 'typeLabel' => $c->typelabel ?? 'Presencial',
+                'learningplanid' => (int)($c->learningplanid ?? 0),
+                'periodid' => (int)($c->subperiodid ?? 0), // Note: used for level/block context in some UI
                 'sessions' => $sessArr
             ];
         }

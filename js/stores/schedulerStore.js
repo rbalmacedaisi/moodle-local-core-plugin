@@ -263,6 +263,8 @@
                                 aggregatedDemand[aggKey].students.push(...studentIds);
                                 aggregatedDemand[aggKey].careers.add(career);
                                 aggregatedDemand[aggKey].levels.add(semData.semester_name);
+                                aggregatedDemand[aggKey].subjectid = val.subjectid || 0;
+                                aggregatedDemand[aggKey].levelid = val.levelid || 0;
                             }
                         }
                     }
@@ -285,9 +287,28 @@
                         const groupCount = groupStudents.length;
                         offset += currentGroupSize;
 
+                        // Resolve majority Learning Plan ID
+                        const planCounts = groupStudents.reduce((acc, uid) => {
+                            const stu = this.state.students.find(s => (s.dbId == uid || s.id == uid));
+                            const pid = stu ? stu.planid : null;
+                            if (pid) acc[pid] = (acc[pid] || 0) + 1;
+                            return acc;
+                        }, {});
+                        let majorityPlanId = 0;
+                        let maxCount = 0;
+                        for (const [pid, pcount] of Object.entries(planCounts)) {
+                            if (pcount > maxCount) {
+                                maxCount = pcount;
+                                majorityPlanId = parseInt(pid);
+                            }
+                        }
+
                         schedules.push({
                             id: `gen-${idCounter++}`,
-                            courseid: data.courseid,
+                            courseid: data.subjectid || data.courseid, // Store Subject ID if possible
+                            corecourseid: data.courseid, // Moodle ID
+                            learningplanid: majorityPlanId,
+                            periodid: data.levelid, // Academic Level
                             subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
                             teacherName: null,
                             day: 'N/A',

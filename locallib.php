@@ -774,7 +774,28 @@ function list_classes($filters)
     $fetchedInstructors = [];
 
     $classes = $DB->get_records('gmk_class', $filters);
+    
+    // We need a mapping to derive metadata from subject if needed
+    $subjects_metadata_cache = [];
+
     foreach ($classes as $class) {
+        
+        // Derive Academic Metadata from Subject ID (gmk_class.courseid)
+        if (!empty($class->courseid)) {
+            if (!isset($subjects_metadata_cache[$class->courseid])) {
+                $subj = $DB->get_record('local_learning_courses', ['id' => $class->courseid], 'id, learningplanid, periodid');
+                $subjects_metadata_cache[$class->courseid] = $subj ?: null;
+            }
+            $meta = $subjects_metadata_cache[$class->courseid];
+            if ($meta) {
+                // If the class record has the institutional period instead of level, or is empty, we prioritize subject metadata for UI display
+                $class->learningplanid = $meta->learningplanid;
+                $class->academic_period_id = $meta->periodid; // Use a helper field for the level
+                // We keep the original periodid available if needed, but for editclass.php we might need to override
+                // Actually, editclass.php uses $class->periodid and $class->learningplanid
+                $class->periodid = $meta->periodid; 
+            }
+        }
 
         //Set the type class icon and label robustness
         $typeMap = ['0' => 'Presencial', '1' => 'Virtual', '2' => 'Mixta'];
