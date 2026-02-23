@@ -218,10 +218,12 @@ class scheduler extends external_api {
         $jornadaField = $DB->get_record('user_info_field', ['shortname' => 'gmkjourney']);
         $jornadaJoin = $jornadaField ? "LEFT JOIN {user_info_data} uid_j ON uid_j.userid = u.id AND uid_j.fieldid = " . $jornadaField->id : "";
         $jornadaSelect = $jornadaField ? ", uid_j.data AS jornada" : "";
+        $jornadaGroupBy = $jornadaField ? ", uid_j.data" : "";
 
         $piField = $DB->get_record('user_info_field', ['shortname' => 'gmkperiodoingreso']);
         $piJoin = $piField ? "LEFT JOIN {user_info_data} uid_pi ON uid_pi.userid = u.id AND uid_pi.fieldid = " . $piField->id : "";
         $piSelect = $piField ? ", uid_pi.data AS entry_period" : ", '' as entry_period";
+        $piGroupBy = $piField ? ", uid_pi.data" : "";
 
         $sql = "SELECT u.id, u.idnumber, u.firstname, u.lastname, lp.id as planid, lp.name as planname, 
                        llu.currentperiodid, p.name as currentperiodname,
@@ -236,7 +238,7 @@ class scheduler extends external_api {
                 WHERE u.deleted = 0 AND u.suspended = 0 AND llu.userrolename = 'student' 
                   AND llu.status = 'activo'
                 GROUP BY u.id, u.idnumber, u.firstname, u.lastname, lp.id, lp.name, 
-                         llu.currentperiodid, p.name, llu.currentsubperiodid, sp.name $jornadaSelect $piSelect"; 
+                         llu.currentperiodid, p.name, llu.currentsubperiodid, sp.name $jornadaGroupBy $piGroupBy"; 
 
         $students = $DB->get_records_sql($sql);
 

@@ -638,9 +638,10 @@ window.SchedulerComponents.ReportView = {
             console.log("ReportView: studentSet unique IDs:", Array.from(studentSet));
 
             const studentsToReport = allStudents.filter(st => {
-                const sid = String(st.dbId || st.id);
-                const isMatch = studentSet.has(sid);
-                return isMatch;
+                // Check both potential identifiers for a match
+                const sid = String(st.id);
+                const sDbId = st.dbId ? String(st.dbId) : null;
+                return studentSet.has(sid) || (sDbId && studentSet.has(sDbId));
             });
             console.log("ReportView: studentsToReport count:", studentsToReport.length);
 
