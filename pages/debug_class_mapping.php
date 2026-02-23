@@ -111,19 +111,28 @@ if ($classid) {
     }
     
     echo "<h3>System Search by Name: \"{$rawClass->name}\"</h3>";
-    $matches = $DB->get_records_select('local_learning_courses', "fullname = ? OR idnumber = ?", [$rawClass->name, $rawClass->name]);
-    if ($matches) {
-        echo "<p style='color: blue;'>Exact matches found in local_learning_courses:</p>";
-        foreach ($matches as $m) {
-            echo "ID: {$m->id} | Name: {$m->fullname} | LP ID: {$m->learningplanid} | Period ID: {$m->periodid}<br>";
+    // Find Moodle courses first
+    $moodleCourses = $DB->get_records_select('course', "fullname LIKE ?", ["%{$rawClass->name}%"]);
+    if ($moodleCourses) {
+        echo "<p>Matching Moodle courses:</p>";
+        $mIds = array_keys($moodleCourses);
+        foreach ($moodleCourses as $mc) {
+            echo "Moodle ID: {$mc->id} | Name: {$mc->fullname}<br>";
+        }
+        
+        // Find links in local_learning_courses
+        list($insql, $inparams) = $DB->get_in_or_equal($mIds);
+        $links = $DB->get_records_select('local_learning_courses', "courseid $insql", $inparams);
+        if ($links) {
+            echo "<p style='color: blue;'>Links found in local_learning_courses:</p>";
+            foreach ($links as $l) {
+                echo "Subject ID: {$l->id} | Moodle ID: {$l->courseid} | LP ID: {$l->learningplanid} | Period ID: {$l->periodid}<br>";
+            }
+        } else {
+            echo "<p style='color: orange;'>No links found in local_learning_courses for these Moodle IDs.</p>";
         }
     } else {
-        echo "<p style='color: orange;'>No exact match by fullname or idnumber.</p>";
-        $likeMatches = $DB->get_records_select('local_learning_courses', "fullname LIKE ?", ["%".substr($rawClass->name, 0, 10)."%"]);
-        echo "<p>Partial matches (first 10 chars):</p>";
-        foreach ($likeMatches as $m) {
-            echo "ID: {$m->id} | Name: {$m->fullname}<br>";
-        }
+        echo "<p style='color: orange;'>No Moodle course found with name similar to \"{$rawClass->name}\".</p>";
     }
 }
 } catch (Throwable $e) {

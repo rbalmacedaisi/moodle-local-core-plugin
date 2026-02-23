@@ -253,11 +253,11 @@ class scheduler extends external_api {
         $curricula_subperiods = []; // To lookup subperiod for planning/projections
         $reverse_curricula = []; // To lookup Moodle ID from Subject ID
         foreach ($plan_courses as $pc) {
-            $curricula[$pc->learningplanid][$pc->periodid][$pc->courseid] = [
-                'subjectid' => $pc->id,
+            $curricula[$pc->learningplanid][$pc->periodid][$pc->id] = [
+                'moodleid' => $pc->courseid,
                 'subperiod_pos' => $pc->subperiod_pos
             ];
-            $curricula_subperiods[$pc->learningplanid][$pc->courseid] = $pc->subperiod_pos;
+            $curricula_subperiods[$pc->learningplanid][$pc->id] = $pc->subperiod_pos;
             $reverse_curricula[$pc->id] = $pc->courseid;
         }
 
@@ -300,7 +300,8 @@ class scheduler extends external_api {
             
             $pending_count = 0;
             if (isset($curricula[$stu->planid][$planningLevelId])) {
-                foreach ($curricula[$stu->planid][$planningLevelId] as $cid => $subpos) {
+                foreach ($curricula[$stu->planid][$planningLevelId] as $sid => $subpos) {
+                     $cid = $subpos['moodleid'];
                      if (!isset($passed_map[$stu->id . '_' . $cid])) {
                          $pending_count++;
                          
@@ -317,17 +318,19 @@ class scheduler extends external_api {
                              ];
                          }
                          
-                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid])) {
-                             $demand[$career][$jornada][$semNum]['course_counts'][$cid] = [
+                          if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$sid])) {
+                             $demand[$career][$jornada][$semNum]['course_counts'][$sid] = [
                                  'count' => 0,
                                  'subperiod' => $subpos['subperiod_pos'],
-                                 'subjectid' => $subpos['subjectid'],
+                                 'subjectid' => $sid,
+                                 'moodleid' => $cid,
                                  'levelid' => $planningLevelId,
+                                 'learningplanid' => $stu->planid,
                                  'students' => []
                              ];
                           }
-                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
-                         $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
+                         $demand[$career][$jornada][$semNum]['course_counts'][$sid]['count']++;
+                         $demand[$career][$jornada][$semNum]['course_counts'][$sid]['students'][] = $stu->id;
                      }
                 }
             }
@@ -377,17 +380,19 @@ class scheduler extends external_api {
                 ];
             }
             
-            foreach ($curricula[$lpId][$level1->id] as $moodleId => $info) {
-                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId])) {
-                    $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId] = [
+            foreach ($curricula[$lpId][$level1->id] as $sid => $info) {
+                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$sid])) {
+                    $demand[$career_name][$jornada][$semNum]['course_counts'][$sid] = [
                         'count' => 0,
                         'subperiod' => $info['subperiod_pos'],
-                        'subjectid' => $info['subjectid'],
+                        'subjectid' => $sid,
+                        'moodleid' => $info['moodleid'],
                         'levelid' => $level1->id,
+                        'learningplanid' => $lpId,
                         'students' => []
                     ];
                 }
-                $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $proj->count;
+                $demand[$career_name][$jornada][$semNum]['course_counts'][$sid]['count'] += $proj->count;
             }
             $demand[$career_name][$jornada][$semNum]['student_count'] += $proj->count;
         }
@@ -423,21 +428,23 @@ class scheduler extends external_api {
                         'course_counts' => []
                     ];
                 }
-                if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$moodleId])) {
-                    $demand[$career][$jornada][$semNum]['course_counts'][$moodleId] = [
+                if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$subjId])) {
+                    $demand[$career][$jornada][$semNum]['course_counts'][$subjId] = [
                         'count' => 0,
-                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$moodleId] ?? 0,
+                        'subperiod' => $curricula_subperiods[$pp->learningplanid][$subjId] ?? 0,
                         'subjectid' => $subjId,
+                        'moodleid' => $moodleId,
                         'levelid' => $pp->periodid,
+                        'learningplanid' => $pp->learningplanid,
                         'students' => [],
                         'plan_map' => []
                     ];
                 }
-                $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$pp->learningplanid] = [
+                $demand[$career][$jornada][$semNum]['course_counts'][$subjId]['plan_map'][$pp->learningplanid] = [
                     'subjectid' => $subjId,
                     'levelid' => $pp->periodid
                 ];
-                $demand[$career][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $count;
+                $demand[$career][$jornada][$semNum]['course_counts'][$subjId]['count'] += $count;
                 if ($count > 0 && $demand[$career][$jornada][$semNum]['student_count'] < $count) {
                     $demand[$career][$jornada][$semNum]['student_count'] = $count;
                 }
