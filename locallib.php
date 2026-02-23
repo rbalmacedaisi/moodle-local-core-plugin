@@ -906,9 +906,15 @@ function list_classes($filters)
         $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
 
         //Instructor profile image
-        $userpicture = new user_picture(core_user::get_user($class->instructorid));
-        $userpicture->size = 1; // Size f1.
-        $class->instructorProfileImage = $userpicture->get_url($PAGE)->out(false);
+        $class->instructorProfileImage = $OUTPUT->image_url('u/f1'); // Default fallback
+        if (!empty($class->instructorid)) {
+            $user = core_user::get_user($class->instructorid);
+            if ($user) {
+                $userpicture = new user_picture($user);
+                $userpicture->size = 1; // Size f1.
+                $class->instructorProfileImage = $userpicture->get_url($PAGE)->out(false);
+            }
+        }
 
         //Setting other variables
         $class->startDate =  date('Y-m-d');
