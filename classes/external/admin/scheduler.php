@@ -117,10 +117,8 @@ class scheduler extends external_api {
 
     public static function save_scheduler_config_parameters() {
         return new external_function_parameters([
-                'subperiod' => new external_value(PARAM_INT, 'Subperiod ID'),
-                'type' => new external_value(PARAM_INT, 'Class Type (0=Presencial, 1=Virtual, 2=Mixta)'),
-                'typeLabel' => new external_value(PARAM_TEXT, 'Class Type Label'),
-                'sessions' => new external_multiple_structure(
+            'periodid' => new external_value(PARAM_INT, 'Period ID'),
+            'holidays' => new external_multiple_structure(
                 new external_single_structure([
                     'date' => new external_value(PARAM_INT, ''),
                     'name' => new external_value(PARAM_TEXT, ''),
@@ -731,7 +729,7 @@ class scheduler extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-                $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
+        $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
                        c.shift, c.level_label, c.career_label
                 FROM {gmk_class} c
