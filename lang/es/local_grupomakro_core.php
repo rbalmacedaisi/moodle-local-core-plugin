@@ -246,6 +246,7 @@ $string['enrolUserDocumentLabel'] = 'Número de documento';
 $string['enrolUserFirstName'] = 'Nombre';
 $string['enrolUserLastName'] = 'Apellidos';
 $string['enrolUserEmail'] = 'Correo electrónico';
+$string['notassigned'] = 'No asignado';
 
 // Pagina Gestión de clases.----------------------------------------------------
 

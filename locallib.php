@@ -766,7 +766,7 @@ function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDa
 
 function list_classes($filters)
 {
-    global $DB, $PAGE;
+    global $DB, $PAGE, $OUTPUT;
 
     $fetchedLearningPlans = [];
     $fetchedLearningPlanPeriods = [];
