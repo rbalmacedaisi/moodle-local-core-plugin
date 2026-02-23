@@ -546,7 +546,9 @@ class scheduler extends external_api {
         $data = is_string($schedules) ? json_decode($schedules, true) : $schedules;
         if (!is_array($data)) return 'El payload de horarios no es un array válido. Tipo recibido: ' . gettype($schedules);
         
-        //$transaction = $DB->start_delegated_transaction();
+        gmk_log("Iniciando guardado para Periodo Institucional: $periodid. Clases en payload: " . count($data));
+        
+        $transaction = $DB->start_delegated_transaction();
         
         try {
             // Need to decide: Wipe existing classes for this period? 
@@ -743,10 +745,13 @@ class scheduler extends external_api {
                     $DB->insert_record('gmk_class_schedules', $sLink);
                 }
             }
+            gmk_log("Guardado exitoso para Periodo $periodid");
+            $transaction->allow_commit();
             return true;
             
         } catch (\Exception $e) {
-            //$transaction->rollback($e);
+            $transaction->rollback($e);
+            gmk_log("ERROR en save_generation_result: " . $e->getMessage());
             return $e->getMessage();
         }
     }
@@ -786,7 +791,7 @@ class scheduler extends external_api {
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
-                       c.shift, c.level_label, c.career_label
+                       c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -796,6 +801,7 @@ class scheduler extends external_api {
         $result = [];
         
         $classrooms_cache = [];
+        $subjects_metadata_cache = [];
 
         foreach ($classes as $c) {
             $sessions = $DB->get_records('gmk_class_schedules', ['classid' => $c->id]);
@@ -820,6 +826,25 @@ class scheduler extends external_api {
                     'excluded_dates' => !empty($s->excluded_dates) ? json_decode($s->excluded_dates, true) : []
                 ];
             }
+            
+            // Derive Academic Metadata from Subject ID (courseid)
+            $academic_period_id = 0;
+            if (!empty($c->courseid)) {
+                if (!isset($subjects_metadata_cache[$c->courseid])) {
+                    $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'id, learningplanid, periodid, courseid');
+                    if (!$subj) {
+                        $subj = $DB->get_record('local_learning_courses', ['courseid' => $c->courseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    }
+                    $subjects_metadata_cache[$c->courseid] = $subj ?: null;
+                }
+                
+                $meta = $subjects_metadata_cache[$c->courseid];
+                if ($meta) {
+                    $c->learningplanid = $meta->learningplanid;
+                    $academic_period_id = $meta->periodid;
+                    $c->courseid = $meta->id;
+                }
+            }
 
             $subjectName = $c->subjectname ?? $c->name ?? ('Materia ' . $c->courseid);
 
@@ -838,12 +863,12 @@ class scheduler extends external_api {
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
                 'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
                 'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
-                'subGroup' => (int)$c->subperiod, // Fixed mapping to subgroup
-                'subperiod' => (int)$c->subperiod,
+                'subGroup' => (int)($c->subgroup ?? 0),
+                'subperiod' => (int)($c->subperiod ?? 0),
                 'type' => (int)($c->type ?? 0),
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
-                'periodid' => (int)($c->subperiodid ?? 0), // Note: used for level/block context in some UI
+                'periodid' => (int)($academic_period_id ?: ($c->periodid ?? 0)), 
                 'sessions' => $sessArr
             ];
         }
