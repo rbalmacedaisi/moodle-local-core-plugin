@@ -333,9 +333,18 @@ class scheduler extends external_api {
                                   'subperiod' => $subpos['subperiod_pos'],
                                   'subjectid' => $resolvedSubjId,
                                   'levelid' => $planningLevelId,
-                                  'students' => []
+                                  'students' => [],
+                                  'plan_map' => []
                               ];
                           }
+                         
+                         if (!isset($demand[$career][$jornada][$semNum]['course_counts'][$cid]['plan_map'][$stu->planid])) {
+                             $demand[$career][$jornada][$semNum]['course_counts'][$cid]['plan_map'][$stu->planid] = [
+                                 'subjectid' => $resolvedSubjId,
+                                 'levelid' => $planningLevelId
+                             ];
+                         }
+
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['count']++;
                          $demand[$career][$jornada][$semNum]['course_counts'][$cid]['students'][] = $stu->id;
                      }
@@ -394,7 +403,14 @@ class scheduler extends external_api {
                         'subperiod' => $info['subperiod_pos'],
                         'subjectid' => $info['subjectid'],
                         'levelid' => $level1->id,
-                        'students' => []
+                        'students' => [],
+                        'plan_map' => []
+                    ];
+                }
+                if (!isset($demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$lpId])) {
+                    $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['plan_map'][$lpId] = [
+                        'subjectid' => $info['subjectid'],
+                        'levelid' => $level1->id
                     ];
                 }
                 $demand[$career_name][$jornada][$semNum]['course_counts'][$moodleId]['count'] += $proj->count;
