@@ -8,7 +8,7 @@ ini_set('display_errors', 1);
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 if (!$periodid) {
-    $period = $DB->get_record('gmk_academic_periods', ['active' => 1], '*', IGNORE_MULTIPLE);
+    $period = $DB->get_record('gmk_academic_periods', ['status' => 1], '*', IGNORE_MULTIPLE);
     if ($period) $periodid = $period->id;
 }
 
