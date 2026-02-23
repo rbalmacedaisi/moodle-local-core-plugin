@@ -14,9 +14,28 @@ $PAGE->set_heading('Debug Class Mapping');
 echo $OUTPUT->header();
 
 $classid = optional_param('classid', 0, PARAM_INT);
+$inspectdemand = optional_param('inspectdemand', 0, PARAM_INT);
+$periodid = optional_param('periodid', 1, PARAM_INT); // Default to 2026-I usually
 
-// List recent classes
-$classes = $DB->get_records('gmk_class', null, 'id DESC', '*', 0, 50);
+$periods = $DB->get_records('gmk_academic_periods');
+echo "<form method='GET'>Period: <select name='periodid'>";
+foreach ($periods as $p) {
+    $sel = ($p->id == $periodid) ? 'selected' : '';
+    echo "<option value='{$p->id}' $sel>{$p->name}</option>";
+}
+echo "</select> <input type='submit' value='Change Period'> <a href='?periodid=$periodid&inspectdemand=1'>Inspect Demand Data</a></form><br>";
+
+if ($inspectdemand) {
+    echo "<h2>Demand Data for Period ID: $periodid</h2>";
+    try {
+        $demandData = scheduler::get_demand_data($periodid);
+        echo "<pre>" . json_encode($demandData, JSON_PRETTY_PRINT) . "</pre>";
+    } catch (Exception $e) {
+        echo "Error fetching demand: " . $e->getMessage();
+    }
+    echo $OUTPUT->footer();
+    die();
+}
 
 echo "<h3>Recent Classes (gmk_class)</h3>";
 echo "<table border='1' cellpadding='5'>";
@@ -76,9 +95,24 @@ if ($classid) {
         $lvl = $DB->get_record('local_learning_periods', ['id' => $pClass->periodid]);
         echo "Academic Level (local_learning_periods): " . ($lvl ? $lvl->name : "NOT FOUND (ID: {$pClass->periodid})") . "<br>";
         
-        $inst = $DB->get_record('gmk_academic_period', ['id' => $pClass->periodid]);
-        echo "Institutional Period (gmk_academic_period): " . ($inst ? $inst->name : "NOT FOUND (ID: {$pClass->periodid})") . "<br>";
+        $inst = $DB->get_record('gmk_academic_periods', ['id' => $pClass->periodid]);
+        echo "Institutional Period (gmk_academic_periods): " . ($inst ? $inst->name : "NOT FOUND (ID: {$pClass->periodid})") . "<br>";
     }
-}
+    
+    echo "<h3>System Search by Name: \"{$rawClass->name}\"</h3>";
+    $matches = $DB->get_records_select('local_learning_courses', "fullname = ? OR idnumber = ?", [$rawClass->name, $rawClass->name]);
+    if ($matches) {
+        echo "<p style='color: blue;'>Exact matches found in local_learning_courses:</p>";
+        foreach ($matches as $m) {
+            echo "ID: {$m->id} | Name: {$m->fullname} | LP ID: {$m->learningplanid} | Period ID: {$m->periodid}<br>";
+        }
+    } else {
+        echo "<p style='color: orange;'>No exact match by fullname or idnumber.</p>";
+        $likeMatches = $DB->get_records_select('local_learning_courses', "fullname LIKE ?", ["%".substr($rawClass->name, 0, 10)."%"]);
+        echo "<p>Partial matches (first 10 chars):</p>";
+        foreach ($likeMatches as $m) {
+            echo "ID: {$m->id} | Name: {$m->fullname}<br>";
+        }
+    }
 
 echo $OUTPUT->footer();
