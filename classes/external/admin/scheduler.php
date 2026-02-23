@@ -587,8 +587,8 @@ class scheduler extends external_api {
                 
                 $classRec->groupid = $cls['subGroup'] ?? 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
-                $classRec->type = 1; 
-                $classRec->typelabel = 'Virtual';
+                $classRec->type = $cls['type'] ?? 1; 
+                $classRec->typelabel = $cls['typeLabel'] ?? 'Virtual';
                 
                 // Metadata Persistence
                 $classRec->shift = $cls['shift'] ?? '';
@@ -614,7 +614,7 @@ class scheduler extends external_api {
 
                 $classRec->initdate = $periodStart;
                 $classRec->enddate = $periodEnd;
-                $classRec->classdays = '0/0/0/0/0/0/0';
+                $classRec->classdays = $cls['classdays'] ?? '0/0/0/0/0/0/0';
                 $classRec->approved = 1;
                 $classRec->active = 1;
                 $classRec->timemodified = time();

@@ -109,6 +109,14 @@
                     if (cls.shift) cls.shift = String(cls.shift).trim();
                     if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
 
+                    // Standardize Class Type and Label
+                    if (cls.type === undefined) cls.type = 1; // Default to Virtual
+                    if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
+                    if (!cls.typeLabel) {
+                        const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
+                        cls.typeLabel = typeMap[cls.type] || 'Virtual';
+                    }
+
                     // Normalize sessions and excluded_dates
                     if (cls.sessions && Array.isArray(cls.sessions)) {
                         cls.sessions.forEach(sess => {
@@ -294,7 +302,10 @@
                             levelList: Array.from(data.levels), // For algorithm use
                             subGroup: i + 1,
                             subperiod: data.subperiod || 1, // Default to P-I (Bloque 1) instead of 0 (Ambos)
-                            studentIds: groupStudents
+                            studentIds: groupStudents,
+                            type: 1, // Default Virtual
+                            typeLabel: 'Virtual',
+                            classdays: '0/0/0/0/0/0/0' // Will be calculated upon placement
                         });
                     }
                 }

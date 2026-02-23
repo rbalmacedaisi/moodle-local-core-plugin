@@ -126,6 +126,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             <span v-else class="block text-orange-500 italic">Por asignar</span>
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
+                                                <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
                                                 <span v-if="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
@@ -198,9 +199,19 @@ window.SchedulerComponents.PlanningBoard = {
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
-                            <input type="text" v-model="selectedClass.room" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="E.g. A-101" />
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Clase</label>
+                                <select v-model="selectedClass.type" @change="onTypeChange" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option :value="1">Virtual</option>
+                                    <option :value="0">Presencial</option>
+                                    <option :value="2">Mixta</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
+                                <input type="text" v-model="selectedClass.room" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="E.g. A-101" />
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -503,6 +514,14 @@ window.SchedulerComponents.PlanningBoard = {
             this.draggedClass.start = start;
             this.draggedClass.end = end;
 
+            // Update classdays bitmask
+            const dayIdx = this.days.indexOf(day);
+            if (dayIdx !== -1) {
+                const mask = [0, 0, 0, 0, 0, 0, 0];
+                mask[dayIdx] = 1;
+                this.draggedClass.classdays = mask.join('/');
+            }
+
             this.draggedClass = null;
         },
         editClass(cls) {
@@ -540,6 +559,11 @@ window.SchedulerComponents.PlanningBoard = {
                 this.selectedClass.teacherName = inst.instructorName;
                 this.selectedClass.instructorId = inst.instructorId || inst.id;
             }
+        },
+        onTypeChange() {
+            if (!this.selectedClass) return;
+            const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
+            this.selectedClass.typeLabel = typeMap[this.selectedClass.type];
         },
         unassignClass() {
             if (this.selectedClass) {

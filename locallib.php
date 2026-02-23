@@ -776,8 +776,19 @@ function list_classes($filters)
     $classes = $DB->get_records('gmk_class', $filters);
     foreach ($classes as $class) {
 
-        //Set the type class icon
-        $class->icon = $class->type === '0' ? 'fa fa-group' : 'fa fa-desktop';
+        //Set the type class icon and label robustness
+        $typeMap = ['0' => 'Presencial', '1' => 'Virtual', '2' => 'Mixta'];
+        if (empty($class->typelabel) && isset($typeMap[$class->type])) {
+            $class->typelabel = $typeMap[$class->type];
+        }
+        
+        if ($class->type === '0') {
+            $class->icon = 'fa fa-group';
+        } else if ($class->type === '2') {
+            $class->icon = 'fa fa-handshake-o'; // Icon for Mixta
+        } else {
+            $class->icon = 'fa fa-desktop';
+        }
 
         //Set the list of choosen days
         $daysES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
