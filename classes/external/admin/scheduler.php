@@ -576,6 +576,7 @@ class scheduler extends external_api {
 
             $teachers_cache = [];
             $courses_cache = [];
+            $classrooms_cache = [];
             
             $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
             $periodStart = $periodRec ? $periodRec->startdate : time();
@@ -595,22 +596,23 @@ class scheduler extends external_api {
                 $classRec->learningplanid = $cls['learningplanid'] ?? 0;
                 $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
 
-                // Lookup corecourseid
+                // Lookup corecourseid and other metadata using courseid (Subject ID)
                 if (!array_key_exists($courseId, $courses_cache)) {
-                    $subj = $DB->get_record('local_learning_courses', ['id' => $courseId], 'courseid, learningplanid, periodid');
+                    $subj = $DB->get_record('local_learning_courses', ['id' => $courseId], 'id, courseid, learningplanid, periodid');
                     $courses_cache[$courseId] = $subj;
                 }
                 $subjMeta = $courses_cache[$courseId];
-                $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : 0;
-                $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
-                $classRec->periodid = (int)($cls['periodid'] ?? ($subjMeta ? $subjMeta->periodid : $periodid));
-                // We store the Institutional Period in gradecategoryid for tracking if needed, 
-                // but we keep periodid as the Level ID to fix editclass.php
-                // Actually, if I change periodid here, get_generated_schedules will break.
-                // Re-thinking: I'll stick to deriving metadata in list_classes and KEEPING periodid as Institutional.
-                // So I'll revert the periodid change here and just fix the dates.
                 
-                $classRec->periodid = $periodid; // Institutional Period
+                // Ensure we store the Subject ID (local_learning_courses.id) in courseid
+                $classRec->courseid = $courseId; 
+                // Core Moodle Course ID
+                $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : ($cls['corecourseid'] ?? 0);
+                // Learning Plan
+                $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
+                
+                // Note: periodid in DB stores the Institutional Period for filtering.
+                // The Academic Level (Level ID) is derived by list_classes using courseid.
+                $classRec->periodid = (int)$periodid; 
                 
                 // Lookup instructor ID prioritizing teacherName
                 $tname = trim($cls['teacherName'] ?? '');

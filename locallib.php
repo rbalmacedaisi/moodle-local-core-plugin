@@ -787,17 +787,29 @@ function list_classes($filters)
         // Derive Academic Metadata from Subject ID (gmk_class.courseid)
         if (!empty($class->courseid)) {
             if (!isset($subjects_metadata_cache[$class->courseid])) {
-                $subj = $DB->get_record('local_learning_courses', ['id' => $class->courseid], 'id, learningplanid, periodid');
+                // First try: assume courseid is the Subject ID (local_learning_courses.id)
+                $subj = $DB->get_record('local_learning_courses', ['id' => $class->courseid], 'id, learningplanid, periodid, courseid');
+                
+                // Fallback: if not found, maybe it's a Moodle courseid? (legacy or error)
+                if (!$subj) {
+                    $subj = $DB->get_record('local_learning_courses', ['courseid' => $class->courseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                }
+                
                 $subjects_metadata_cache[$class->courseid] = $subj ?: null;
             }
+            
             $meta = $subjects_metadata_cache[$class->courseid];
             if ($meta) {
-                // If the class record has the institutional period instead of level, or is empty, we prioritize subject metadata for UI display
+                // Prioritize subject metadata for UI display and editor context
                 $class->learningplanid = $meta->learningplanid;
-                $class->academic_period_id = $meta->periodid; // Use a helper field for the level
-                // We keep the original periodid available if needed, but for editclass.php we might need to override
-                // Actually, editclass.php uses $class->periodid and $class->learningplanid
+                $class->academic_period_id = $meta->periodid; // Helper field for the Level ID
+                
+                // Override periodid in-memory for editclass.php compatibility (it expects Level ID here)
                 $class->periodid = $meta->periodid; 
+                
+                // Ensure courseid matches the Subject ID if it was a Moodle ID fallback
+                $class->courseid = $meta->id;
+                $class->corecourseid = $meta->courseid;
             }
         }
 
