@@ -8,18 +8,49 @@ $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 $classid = optional_param('class_id', null, PARAM_INT);
+$periodid = optional_param('period_id', null, PARAM_INT);
 
 echo $OUTPUT->header();
 echo "<h1>Debug Class Metadata Mapping</h1>";
 
-if (!$classid) {
-    echo "<form method='get'>
-            Enter Class ID: <input type='text' name='class_id'>
-            <input type='submit' value='Debug'>
-          </form>";
+global $DB;
+
+// Selection Form
+echo "<div style='background: #f4f4f4; padding: 15px; border-radius: 8px; margin-bottom: 20px;'>";
+echo "<form method='get' id='debug-form'>";
+
+// Period Selector
+$periods = $DB->get_records_menu('gmk_academic_periods', [], 'id DESC', 'id, name');
+echo "<strong>1. Seleccionar Periodo Institucional:</strong><br>";
+echo "<select name='period_id' onchange='document.getElementById(\"debug-form\").submit()'>";
+echo "<option value=''>-- Seleccionar Periodo --</option>";
+foreach ($periods as $pid => $pname) {
+    $sel = ($periodid == $pid) ? 'selected' : '';
+    echo "<option value='$pid' $sel>$pname</option>";
+}
+echo "</select><br><br>";
+
+// Class Selector (filtered by period if selected)
+if ($periodid) {
+    $classes_list = $DB->get_records_menu('gmk_class', ['periodid' => $periodid], 'id DESC', 'id, name');
+    if ($classes_list) {
+        echo "<strong>2. Seleccionar Clase:</strong><br>";
+        echo "<select name='class_id' onchange='document.getElementById(\"debug-form\").submit()'>";
+        echo "<option value=''>-- Seleccionar Clase --</option>";
+        foreach ($classes_list as $cid => $cname) {
+            $sel = ($classid == $cid) ? 'selected' : '';
+            echo "<option value='$cid' $sel>[$cid] $cname</option>";
+        }
+        echo "</select>";
+    } else {
+        echo "<em>No se encontraron clases en este periodo.</em>";
+    }
 } else {
-    global $DB;
-    
+    echo "<em>Selecciona un periodo para ver las clases.</em>";
+}
+echo "</form></div>";
+
+if ($classid) {
     echo "<h2>Data for Class ID: $classid</h2>";
     
     // 1. Raw gmk_class record
