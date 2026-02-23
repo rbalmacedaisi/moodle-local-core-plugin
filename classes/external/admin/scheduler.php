@@ -561,12 +561,7 @@ class scheduler extends external_api {
         require_capability('moodle/site:config', $context);
         
         $data = is_string($schedules) ? json_decode($schedules, true) : $schedules;
-        if (!is_array($data)) return 'El payload de horarios no es un array válido. Tipo recibido: ' . gettype($schedules);
-        
         gmk_log("Iniciando guardado para Periodo Institucional: $periodid. Clases en payload: " . count($data));
-        if (count($data) > 0) {
-            gmk_log("DEBUG: Primera clase del payload: " . json_encode($data[0]));
-        }
         
         $transaction = $DB->start_delegated_transaction();
         
@@ -614,14 +609,19 @@ class scheduler extends external_api {
 
                 $courseId = $cls['courseid'];
                 
-                // HEALING: If courseid is 0, try to resolve via subjectName or corecourseid
                 if (empty($courseId) || $courseId == "0") {
                     if (!empty($cls['subjectName'])) {
-                        $subjByRef = $DB->get_record_sql("SELECT lc.id FROM {local_learning_courses} lc 
+                        $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc 
                                                          JOIN {course} c ON c.id = lc.courseid 
                                                          WHERE c.fullname = ? OR c.shortname = ? 
                                                          ORDER BY lc.id DESC", [$cls['subjectName'], $cls['subjectName']], IGNORE_MULTIPLE);
-                        if ($subjByRef) $courseId = $subjByRef->id;
+                        if ($subjByRef) {
+                            $courseId = $subjByRef->id;
+                            // Also heal corecourseid if it's currently missing in the payload
+                            if (empty($cls['corecourseid'])) {
+                                $cls['corecourseid'] = $subjByRef->courseid;
+                            }
+                        }
                     }
                     if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
                         $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $cls['corecourseid']], 'id', IGNORE_MULTIPLE);
@@ -880,7 +880,7 @@ class scheduler extends external_api {
                     }
                 }
                 if ((empty($c->courseid) || $c->courseid == "0") && !empty($c->subjectname)) {
-                    $subjByName = $DB->get_record_sql("SELECT lc.id, lc.learningplanid, lc.periodid FROM {local_learning_courses} lc 
+                    $subjByName = $DB->get_record_sql("SELECT lc.id, lc.learningplanid, lc.periodid, lc.courseid FROM {local_learning_courses} lc 
                                                        JOIN {course} co ON co.id = lc.courseid 
                                                        WHERE co.fullname = ? OR co.shortname = ? 
                                                        ORDER BY lc.id DESC", [$c->subjectname, $c->subjectname], IGNORE_MULTIPLE);
@@ -888,6 +888,7 @@ class scheduler extends external_api {
                         $c->courseid = $subjByName->id;
                         $c->learningplanid = $subjByName->learningplanid;
                         $academic_period_id = $subjByName->periodid;
+                        $c->corecourseid = $subjByName->courseid;
                     }
                 }
             }
