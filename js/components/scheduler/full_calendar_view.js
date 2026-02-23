@@ -80,8 +80,14 @@
                 }
             });
 
-            // Watch for changes in schedules to refresh calendar
-            watch(() => store.state.generatedSchedules, () => {
+            // Watch for changes in anything that affects events
+            watch([
+                () => store.state.generatedSchedules,
+                () => store.state.context.period,
+                () => store.state.activePeriod,
+                () => store.state.careerFilter,
+                () => store.state.shiftFilter
+            ], () => {
                 if (calendar.value) {
                     calendar.value.removeAllEvents();
                     calendar.value.addEventSource(generateEvents());
@@ -106,12 +112,11 @@
                     },
                     locale: 'es',
                     events: events,
-                    dayMaxEvents: 3,
+                    dayMaxEvents: 5,
                     height: '100%',
                     selectable: false,
                     eventClick: handleEventClick,
                     dayCellDidMount: (info) => {
-                        // Mark holidays
                         const d = info.date;
                         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                         const isHoliday = store.state.context.holidays.some(h => {
@@ -134,7 +139,7 @@
 
                         return {
                             html: `
-                                <div class="p-1 px-1.5 rounded flex flex-col gap-0.5 border ${borderColor} ${bgColor} overflow-hidden">
+                                <div class="p-1 px-1.5 rounded flex flex-col gap-0.5 border ${borderColor} ${bgColor} overflow-hidden shadow-sm">
                                     <div class="flex items-center gap-1.5 overflow-hidden">
                                         <div class="w-1.5 h-1.5 rounded-full ${dotColor} shrink-0"></div>
                                         <span class="text-[9px] font-extrabold truncate ${textColor} uppercase">${arg.event.title}</span>
@@ -169,31 +174,33 @@
                     'JUEVES': 4, 'VIERNES': 5, 'SABADO': 6, 'SÁBADO': 6, 'DOMINGO': 0
                 };
 
+                // Robust filtering matching PlanningBoard.js
+                const careerFilter = store.state.careerFilter;
+                const shiftFilter = store.state.shiftFilter;
+
                 schedules.forEach((sched, schedIdx) => {
                     if (!sched.sessions) return;
 
-                    // Apply filters (Career and Shift)
-                    const careerFilter = store.state.careerFilter;
-                    const shiftFilter = store.state.shiftFilter;
-
+                    // Career filter (Robust check)
                     if (careerFilter) {
                         const inList = sched.careerList && sched.careerList.includes(careerFilter);
                         const inString = sched.career && sched.career.includes(careerFilter);
                         if (!inList && !inString) return;
                     }
 
+                    // Shift filter
                     if (shiftFilter && sched.shift !== shiftFilter) return;
 
                     // Range for this schedule based on subperiod
-                    let startDate = period.start ? new Date(period.start) : new Date();
-                    let endDate = period.end ? new Date(period.end) : new Date();
+                    let startDate = period.start ? new Date(period.start + 'T00:00:00') : new Date();
+                    let endDate = period.end ? new Date(period.end + 'T23:59:59') : new Date();
 
                     if (sched.subperiod === 1 && config.block1start) {
-                        startDate = new Date(config.block1start);
-                        endDate = new Date(config.block1end);
+                        startDate = new Date(config.block1start + 'T00:00:00');
+                        endDate = new Date(config.block1end + 'T23:59:59');
                     } else if (sched.subperiod === 2 && config.block2start) {
-                        startDate = new Date(config.block2start);
-                        endDate = new Date(config.block2end);
+                        startDate = new Date(config.block2start + 'T00:00:00');
+                        endDate = new Date(config.block2end + 'T23:59:59');
                     }
 
                     sched.sessions.forEach((session, sessionIdx) => {
@@ -206,12 +213,17 @@
                         }
 
                         while (current <= endDate) {
-                            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+                            // Local-safe date string YYYY-MM-DD
+                            const dateStr = current.getFullYear() + '-' +
+                                String(current.getMonth() + 1).padStart(2, '0') + '-' +
+                                String(current.getDate()).padStart(2, '0');
 
                             const isExcluded = session.excluded_dates && session.excluded_dates.includes(dateStr);
                             const isHoliday = store.state.context.holidays.some(h => {
                                 const hDate = new Date(h.date * 1000);
-                                const hStr = `${hDate.getFullYear()}-${String(hDate.getMonth() + 1).padStart(2, '0')}-${String(hDate.getDate()).padStart(2, '0')}`;
+                                const hStr = hDate.getFullYear() + '-' +
+                                    String(hDate.getMonth() + 1).padStart(2, '0') + '-' +
+                                    String(hDate.getDate()).padStart(2, '0');
                                 return hStr === dateStr;
                             });
 
@@ -255,8 +267,10 @@
                 }
 
                 // Force refresh
-                calendar.value.removeAllEvents();
-                calendar.value.addEventSource(generateEvents());
+                if (calendar.value) {
+                    calendar.value.removeAllEvents();
+                    calendar.value.addEventSource(generateEvents());
+                }
             };
 
             return {

@@ -7,6 +7,7 @@ require_login();
 require_capability('moodle/site:config', $context);
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_monthly_calendar.php');
+$PAGE->set_context($context);
 $PAGE->set_title('Debug Monthly Calendar');
 $PAGE->set_heading('Diagnostic for Monthly Calendar View');
 
@@ -33,6 +34,8 @@ if (!$period) {
     
     echo "<h2>Period: {$period->name} (ID: {$period->id})</h2>";
     echo "Range: " . $report['start_date'] . " to " . $report['end_date'] . "<br>";
+    echo "ConfigSettings: <pre>" . ($period->configsettings ?: 'None') . "</pre><br>";
+    $report['configsettings'] = $period->configsettings;
 
     // Fetch classes
     $classes = $DB->get_records('gmk_class', ['periodid' => $period->id]);
@@ -51,6 +54,7 @@ if (!$period) {
                     $session_report[] = [
                         'class_id' => $c->id,
                         'class_name' => $c->name,
+                        'subperiodid' => $c->subperiodid,
                         'day' => $s->day,
                         'start' => $s->start_time,
                         'end' => $s->end_time,
@@ -67,12 +71,13 @@ if (!$period) {
         
         if (count($session_report) > 0) {
             echo "<h3>Sample Sessions (First 10):</h3><table border='1' cellpadding='5'>";
-            echo "<tr><th>Class ID</th><th>Name</th><th>Day</th><th>Time</th></tr>";
+            echo "<tr><th>Class ID</th><th>Name</th><th>Rel. Period (subperiodid)</th><th>Day</th><th>Time</th></tr>";
             for ($i = 0; $i < min(10, count($session_report)); $i++) {
                 $s = $session_report[$i];
                 echo "<tr>
                         <td>{$s['class_id']}</td>
                         <td>{$s['class_name']}</td>
+                        <td>{$s['subperiodid']}</td>
                         <td>{$s['day']}</td>
                         <td>{$s['start']} - {$s['end']}</td>
                       </tr>";
