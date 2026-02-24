@@ -54,6 +54,15 @@ class scheduler extends external_api {
             ];
             $configSettings = $periodRec->configsettings ?: '';
 
+            // Add subperiod date ranges from academic calendar
+            $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
+            if ($calendar && $calendar->hassubperiods) {
+                $period['subperiods'] = [
+                    1 => ['start' => date('Y-m-d', $calendar->block1start), 'end' => date('Y-m-d', $calendar->block1end)],
+                    2 => ['start' => date('Y-m-d', $calendar->block2start), 'end' => date('Y-m-d', $calendar->block2end)]
+                ];
+            }
+
             // Extract Careers from linked learning plans
             $lpIds = json_decode($periodRec->learningplans, true);
             if ($lpIds && is_array($lpIds)) {

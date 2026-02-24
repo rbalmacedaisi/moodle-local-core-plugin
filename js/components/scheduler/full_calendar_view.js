@@ -232,12 +232,26 @@
                     let startDate = period.start ? new Date(period.start + 'T00:00:00') : new Date();
                     let endDate = period.end ? new Date(period.end + 'T23:59:59') : new Date();
 
-                    if (sched.subperiod === 1 && config.block1start) {
-                        startDate = new Date(config.block1start + 'T00:00:00');
-                        endDate = new Date(config.block1end + 'T23:59:59');
-                    } else if (sched.subperiod === 2 && config.block2start) {
-                        startDate = new Date(config.block2start + 'T00:00:00');
-                        endDate = new Date(config.block2end + 'T23:59:59');
+                    // Use period.subperiods (from backend) as primary source, fallback to configSettings
+                    const subperiods = period.subperiods || {};
+                    if (sched.subperiod === 1) {
+                        const sp = subperiods[1] || subperiods['1'];
+                        if (sp) {
+                            startDate = new Date(sp.start + 'T00:00:00');
+                            endDate = new Date(sp.end + 'T23:59:59');
+                        } else if (config.block1start) {
+                            startDate = new Date(config.block1start + 'T00:00:00');
+                            endDate = new Date(config.block1end + 'T23:59:59');
+                        }
+                    } else if (sched.subperiod === 2) {
+                        const sp = subperiods[2] || subperiods['2'];
+                        if (sp) {
+                            startDate = new Date(sp.start + 'T00:00:00');
+                            endDate = new Date(sp.end + 'T23:59:59');
+                        } else if (config.block2start) {
+                            startDate = new Date(config.block2start + 'T00:00:00');
+                            endDate = new Date(config.block2end + 'T23:59:59');
+                        }
                     }
 
                     sched.sessions.forEach((session, sessionIdx) => {
