@@ -482,7 +482,7 @@
                 const essentialKeys = [
                     'id', 'courseid', 'corecourseid', 'learningplanid', 'periodid',
                     'subjectName', 'day', 'start', 'end', 'room',
-                    'instructorId', 'teacherName', 'studentCount', 'studentIds',
+                    'instructorId', 'instructorid', 'teacherName', 'studentCount', 'studentIds',
                     'subperiod', 'type', 'typeLabel', 'career', 'shift',
                     'careerList', 'levelList', 'levelDisplay', 'isQuorumException'
                 ];
@@ -709,7 +709,7 @@
             }
 
             if (json.status === 'success') {
-                return json.data;
+                return json.data !== undefined ? json.data : json;
             } else if (json.data !== undefined) {
                 return json.data;
             } else {

@@ -2897,18 +2897,23 @@ try {
             $schedulesJson = isset($_POST['schedules']) ? $_POST['schedules'] : null;
             $source = 'POST';
 
-            if ($schedulesJson === null) {
-                $raw = file_get_contents('php://input');
-                $decoded = json_decode($raw, true);
+            if ($schedulesJson === null && !empty($rawInput)) {
+                $decoded = json_decode($rawInput, true);
                 $schedulesJson = $decoded['schedules'] ?? null;
-                $source = 'RAW_INPUT';
+                $source = 'RAW_INPUT_VAR';
             }
             
             $len = $schedulesJson ? strlen($schedulesJson) : 0;
             error_log("DEBUG: Save draft for period $periodid. Source: $source. Length: $len chars.");
 
             if (!$schedulesJson || $len < 2) {
-                $response = ['status' => 'error', 'message' => 'No schedules data received', 'source' => $source];
+                $response = [
+                    'status' => 'error', 
+                    'message' => 'No schedules data received', 
+                    'source' => $source,
+                    'is_post_empty' => empty($_POST),
+                    'input_len' => strlen($rawInput ?? '')
+                ];
                 break;
             }
 
@@ -2918,11 +2923,17 @@ try {
             }
 
             try {
-                // Use set_field for simplicity, but with verification
                 $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
-                
                 $storedLen = $DB->get_field_sql("SELECT LENGTH(draft_schedules) FROM {gmk_academic_periods} WHERE id = ?", [$periodid]);
-                $response = ['status' => 'success', 'received_length' => $len, 'stored_length' => (int)$storedLen];
+                
+                $response = [
+                    'status' => 'success',
+                    'data' => [
+                        'received_length' => $len,
+                        'stored_length' => (int)$storedLen,
+                        'source' => $source
+                    ]
+                ];
                 error_log("DEBUG: Update result for $periodid. Stored length: $storedLen");
             } catch (Exception $e) {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
