@@ -423,6 +423,11 @@ class scheduler extends external_api {
         $plan_names = $DB->get_records_menu('local_learning_plans', [], '', 'id, name');
 
         foreach ($planning as $pp) {
+            // SKIP IF STATUS = 2 (OMITIR AUTO)
+            if (($pp->status ?? 0) == 2) {
+                continue;
+            }
+
             $career = $plan_names[$pp->learningplanid] ?? 'Plan ' . $pp->learningplanid;
             $subjId = $pp->courseid; // gmk_academic_planning stores Subject ID
             $count = $pp->projected_students;
