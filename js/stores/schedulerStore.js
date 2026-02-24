@@ -484,7 +484,8 @@
                     'subjectName', 'day', 'start', 'end', 'room',
                     'instructorId', 'instructorid', 'teacherName', 'studentCount', 'studentIds',
                     'subperiod', 'type', 'typeLabel', 'career', 'shift',
-                    'careerList', 'levelList', 'levelDisplay', 'isQuorumException'
+                    'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
+                    'assignedDates', 'maxSessions'
                 ];
 
                 if (Array.isArray(schedules) && schedules.length > 0) {
