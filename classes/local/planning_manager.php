@@ -558,24 +558,11 @@ class planning_manager {
                 if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
                      $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
                          'count' => 0,
-                         'students' => [],
-                         'plan_map' => []
+                         'students' => []
                      ];
                 }
-                
-                // Populate plan_map for this subject
-                if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId]['plan_map'][$planId])) {
-                    // Try to resolve the specific link ID and Period ID for this plan/course
-                    // Subject record in planning_manager usually already has these or we can find them.
-                    // Actually, the subject object passed here has the semester info.
-                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['plan_map'][$planId] = [
-                        'subjectid' => $courseId, // In planning_manager, 'id' is already the link ID
-                        'levelid' => $subj['semester'] // Normalized level
-                    ];
-                }
-
                 $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id']; // Use 'id' which matches the student_list key
             }
         }
         
