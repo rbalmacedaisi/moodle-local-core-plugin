@@ -1,2 +1,2 @@
 # Instrucciones de Interacción
-Si necesitas revisar la bd, recuerda que no tienes acceso directo al servidor ni entorno de pruebas, tienes que crear una página de debug y yo enviarte los datos para que puedas entender la estructura de la base de datos, los datos mismos o el codigo
+Si necesitas revisar la bd, recuerda que no tienes acceso directo al servidor ni entorno de pruebas, tienes que crear una página de debug y yo enviarte los datos para que puedas entender la estructura de la base de datos, los datos mismos o el codigo, procura que la página de debug sea dinámica, que no tenga que esta buscando ids
