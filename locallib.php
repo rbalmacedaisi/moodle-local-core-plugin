@@ -375,6 +375,33 @@ function get_potential_class_teachers($params)
             return $teacher;
         }, $learningPlanTeachers));
     }
+    // CRITICAL: If we are editing an existing class, ENSURE the current instructor is in the list
+    if ($params['classId']) {
+        $currentClass = $DB->get_record('gmk_class', ['id' => $params['classId']], 'instructorid');
+        if ($currentClass && !empty($currentClass->instructorid)) {
+            $alreadyIncluded = false;
+            foreach ($learningPlanTeachers as $teacher) {
+                if ((int)$teacher->id === (int)$currentClass->instructorid) {
+                    $alreadyIncluded = true;
+                    break;
+                }
+            }
+            if (!$alreadyIncluded) {
+                $currentTeacher = $DB->get_record('user', ['id' => $currentClass->instructorid]);
+                if ($currentTeacher) {
+                    $teacherObj = new stdClass();
+                    $teacherObj->id = $currentTeacher->id;
+                    $teacherObj->userid = $currentTeacher->id;
+                    $teacherObj->fullname = $currentTeacher->firstname . ' ' . $currentTeacher->lastname;
+                    $teacherObj->email = $currentTeacher->email;
+                    $teacherObj->instructorSkills = [];
+                    // Add to the beginning of the list
+                    array_unshift($learningPlanTeachers, $teacherObj);
+                }
+            }
+        }
+    }
+
     return $learningPlanTeachers;
 }
 

@@ -199,7 +199,6 @@ $templatedata = json_encode([
     'classPeriods'=>$classPeriods,
     'classCourses'=>$classCourses,
     'classTeachers'=>$classPotentialTeachers,
-    'classTeachers'=>$classPotentialTeachers,
     'initTime'=> $class->inittime,
     'endTime'=>$class->endtime,
     'initDate'=> $class->initdate ? date('Y-m-d', $class->initdate) : null,

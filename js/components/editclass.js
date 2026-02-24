@@ -1,16 +1,9 @@
-const classData = window.templatedata;
-const classTeacherId = (classData.classTeachers.find(teacher => teacher.selected) || {}).id
 const wstoken = window.userToken;
 const wsurl = window.location.origin + '/webservice/rest/server.php';
 const wsDefaultParams = {
     wstoken,
     moodlewsrestformat: 'json'
 }
-for (let day in classData.classDays) {
-    classData.classDays[day] = classData.classDays[day] === "1" || classData.classDays[day] === true ? true : false;
-}
-console.log("DEBUG editclass.js classData:", classData);
-console.log("DEBUG editclass.js classTeacherId:", classTeacherId);
 
 window.Vue.component('editclass', {
     template: `
@@ -319,44 +312,56 @@ window.Vue.component('editclass', {
             this.checkingRescheduling = false;
         },
         fillInputs() {
+            const rawTemplatedata = window.templatedata || {};
+            if (!rawTemplatedata.classId) {
+                console.error("ERROR editclass.js: window.templatedata is missing or invalid");
+                return;
+            }
 
-            this.classTeacherId = classTeacherId;
-            this.classData.id = classData.classId;
-            this.classData.name = classData.className;
+            // Normalize days
+            const classDays = rawTemplatedata.classDays || {};
+            for (let day in classDays) {
+                classDays[day] = classDays[day] === "1" || classDays[day] === true;
+            }
 
-            this.classTypes = classData.classTypes.options;
-            this.classData.type = classData.classTypes.selected;
+            // Find current teacher
+            const currentTeacher = (rawTemplatedata.classTeachers || []).find(t => t.selected) || {};
+            this.classTeacherId = currentTeacher.id;
 
-            this.learningPlans = classData.classLearningPlans.options;
-            this.classData.learningPlanId = classData.classLearningPlans.selected;
+            this.classData.id = rawTemplatedata.classId;
+            this.classData.name = rawTemplatedata.className;
 
-            this.periods = classData.classPeriods.options;
-            this.classData.periodId = classData.classPeriods.selected;
+            this.classTypes = (rawTemplatedata.classTypes || {}).options || [];
+            this.classData.type = (rawTemplatedata.classTypes || {}).selected;
 
-            this.courses = classData.classCourses.options;
-            this.classData.courseId = classData.classCourses.selected;
+            this.learningPlans = (rawTemplatedata.classLearningPlans || {}).options || [];
+            this.classData.learningPlanId = (rawTemplatedata.classLearningPlans || {}).selected;
 
-            this.classData.initTime = classData.initTime;
-            this.classData.endTime = classData.endTime;
-            this.classData.initDate = classData.initDate;
-            this.classData.endDate = classData.endDate;
+            this.periods = (rawTemplatedata.classPeriods || {}).options || [];
+            this.classData.periodId = (rawTemplatedata.classPeriods || {}).selected;
 
-            this.classData.classDays = classData.classDays;
+            this.courses = (rawTemplatedata.classCourses || {}).options || [];
+            this.classData.courseId = (rawTemplatedata.classCourses || {}).selected;
 
-            this.teachers = classData.classTeachers;
-            this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(classTeacherId))
-            console.log("DEBUG editclass.js teacherIndex:", this.classData.teacherIndex);
-            console.log("DEBUG editclass.js teachers:", this.teachers);
+            this.classData.initTime = rawTemplatedata.initTime;
+            this.classData.endTime = rawTemplatedata.endTime;
+            this.classData.initDate = rawTemplatedata.initDate;
+            this.classData.endDate = rawTemplatedata.endDate;
 
-            if (this.reschedulingActivity) {
-                this.activityRescheduleData.activityEndTime = classData.activityEndTime
-                this.activityRescheduleData.activityInitDate = classData.activityInitDate
-                this.activityRescheduleData.activityInitTime = classData.activityInitTime
-                this.activityRescheduleData.activityProposedDate = classData.activityProposedDate
-                this.activityRescheduleData.activityProposedEndTime = classData.activityProposedEndTime
-                this.activityRescheduleData.activityProposedInitTime = classData.activityProposedInitTime
-                this.activityRescheduleData.moduleId = classData.moduleId
-                this.activityRescheduleData.sessionId = classData.sessionId
+            this.classData.classDays = classDays;
+
+            this.teachers = rawTemplatedata.classTeachers || [];
+            this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(this.classTeacherId))
+
+            if (rawTemplatedata.reschedulingActivity) {
+                this.activityRescheduleData.activityEndTime = rawTemplatedata.activityEndTime
+                this.activityRescheduleData.activityInitDate = rawTemplatedata.activityInitDate
+                this.activityRescheduleData.activityInitTime = rawTemplatedata.activityInitTime
+                this.activityRescheduleData.activityProposedDate = rawTemplatedata.activityProposedDate
+                this.activityRescheduleData.activityProposedEndTime = rawTemplatedata.activityProposedEndTime
+                this.activityRescheduleData.activityProposedInitTime = rawTemplatedata.activityProposedInitTime
+                this.activityRescheduleData.moduleId = rawTemplatedata.moduleId
+                this.activityRescheduleData.sessionId = rawTemplatedata.sessionId
             }
 
             setTimeout(() => {
