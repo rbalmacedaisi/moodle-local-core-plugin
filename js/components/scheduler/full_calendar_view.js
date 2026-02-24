@@ -306,13 +306,13 @@
             };
 
             // One-time navigation to the period start
-            store.subscribe((mutation, state) => {
-                if (mutation.type === 'setGeneratedSchedules' && state.activePeriodDates?.start && calendar.value) {
+            watch(() => store.state.generatedSchedules, (newVal) => {
+                if (newVal && newVal.length > 0 && store.state.activePeriodDates?.start && calendar.value) {
                     setTimeout(() => {
-                        calendar.value.gotoDate(state.activePeriodDates.start);
+                        calendar.value.gotoDate(store.state.activePeriodDates.start);
                     }, 100);
                 }
-            });
+            }, { once: true });
 
             const handleEventClick = (info) => {
                 const props = info.event.extendedProps;
