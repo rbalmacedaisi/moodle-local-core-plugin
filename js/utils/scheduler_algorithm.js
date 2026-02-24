@@ -323,9 +323,11 @@
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
                 .sort((a, b) => {
+                    // Stable sort by capacity: prefer smallest room that fits to free up larger rooms
                     const diff = a.capacity - b.capacity;
-                    if (Math.abs(diff) <= 5) return Math.random() - 0.5;
-                    return diff;
+                    if (diff !== 0) return diff;
+                    // Then by name to keep it consistent
+                    return String(a.name).localeCompare(String(b.name));
                 });
 
             let placed = false;
