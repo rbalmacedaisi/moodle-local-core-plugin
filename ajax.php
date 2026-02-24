@@ -2891,6 +2891,24 @@ try {
             $response = ['status' => 'success', 'data' => ['saved' => $count]];
             break;
 
+        case 'local_grupomakro_save_generation_result':
+            $periodid = required_param('periodid', PARAM_INT);
+            $schedulesJson = required_param('schedules', PARAM_RAW);
+            
+            $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
+            $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_load_generation_result':
+            $periodid = required_param('periodid', PARAM_INT);
+            $draft = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
+            
+            $response = [
+                'status' => 'success',
+                'data' => $draft ? json_decode($draft) : []
+            ];
+            break;
+
         case 'local_grupomakro_upload_holidays_excel':
             $periodid = required_param('academicperiodid', PARAM_INT);
             

@@ -49,7 +49,8 @@
                     this.loadDemand(periodId),
                     this.loadPlans(),
                     this.loadInstructors(),
-                    this.loadGeneratedSchedules(periodId)
+                    this.loadGeneratedSchedules(periodId),
+                    this.loadGeneration(periodId) // Added this line
                 ]);
             } catch (e) {
                 console.error("Error loading scheduler data", e);
@@ -454,6 +455,9 @@
                 this.state.generatedSchedules = finalResult;
                 this.state.successMessage = "Horarios generados y ubicados automáticamente";
 
+                // Auto-save the generation result
+                await this.saveGeneration(this.state.activePeriod, finalResult);
+
             } catch (e) {
                 console.error("Generation Error", e);
                 this.state.error = "Error generando horarios: " + e.message;
@@ -471,9 +475,22 @@
                 });
                 this.state.successMessage = "Horarios guardados correctamente";
             } catch (e) {
+                console.error("Save generation error:", e);
                 this.state.error = e.message;
             } finally {
                 this.state.loading = false;
+            }
+        },
+
+        async loadGeneration(periodId) {
+            try {
+                const res = await this._fetch('local_grupomakro_load_generation_result', {
+                    periodid: periodId
+                });
+                this.state.generatedSchedules = res || [];
+            } catch (e) {
+                console.error("Load generation error:", e);
+                // Don't show error to user as it might be empty
             }
         },
 

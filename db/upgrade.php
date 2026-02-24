@@ -1536,6 +1536,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260221003, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260224000) {
+
+        // Define field draft_schedules to be added to gmk_academic_periods.
+        $table = new xmldb_table('gmk_academic_periods');
+        $field = new xmldb_field('draft_schedules', XMLDB_TYPE_TEXT, 'big', null, null, null, null, 'configsettings');
+
+        // Conditionally launch add field draft_schedules.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260224000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
