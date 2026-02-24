@@ -116,6 +116,7 @@ class update_class extends external_api {
         ]);
         
         try{
+            gmk_log("DEBUG update_class.php: ClassId: $classId | InstructorId: $instructorId | Days: $classDays");
             check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,'', $classId, $initDate, $endDate);
             
             update_class($params);

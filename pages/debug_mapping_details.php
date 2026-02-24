@@ -9,7 +9,21 @@ require_capability('moodle/site:config', $context);
 
 $classid = optional_param('class_id', 0, PARAM_INT);
 
-echo "<style>
+// --- LOG VIEWER ---
+$logfile = __DIR__ . '/../gmk_debug.log';
+if (file_exists($logfile)) {
+    echo "<div style='background:#f8f9fa; border:1px solid #ddd; padding:10px; margin-bottom:20px; border-radius:8px;'>";
+    echo "<h3>Recent Server Logs (gmk_debug.log)</h3>";
+    $logContent = file($logfile);
+    $lastLogs = array_slice($logContent, -15); // Last 15 lines
+    echo "<pre style='font-size: 0.85em; max-height: 200px; overflow-y: auto;'>";
+    foreach ($lastLogs as $line) {
+        echo s($line);
+    }
+    echo "</pre>";
+    echo "</div>";
+}
+// -----------------
     body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
     pre { background: #f4f4f4; padding: 10px; border: 1px solid #ddd; overflow: auto; max-height: 400px;}
     .class-item { padding: 10px; border-bottom: 1px solid #eee; }

@@ -37,6 +37,10 @@ window.Vue.component('editclass', {
                     <div v-if="!reschedulingActivity" id="fields-groups" class="row pb-5 mt-2 mx-0">
                         <div class="col-12">
                             <h5 class="text-secondary mb-0">{{ classData.name}}</h5>
+                            <!-- DEBUG INDICATOR -->
+                            <div v-if="filledInputs" style="background:#fff3cd; padding:5px; border-radius:4px; font-size:0.8em; margin-top:5px; display:inline-block;">
+                                <strong>DEBUG MODE:</strong> Days String: <code>{{ classDaysString }}</code> | Teacher ID: <code>{{ classTeacherId }}</code>
+                            </div>
                             <hr> </hr>
                         </div>    
                             
@@ -366,7 +370,12 @@ window.Vue.component('editclass', {
             this.classData.classDays = classDays;
 
             this.teachers = rawTemplatedata.classTeachers || [];
-            this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(this.classTeacherId))
+
+            // CRITICAL: Ensure we find the teacher index after setting the teachers list
+            this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(this.classTeacherId));
+            if (this.classData.teacherIndex === -1 && this.classTeacherId) {
+                console.warn("DEBUG editclass.js: Teacher ID " + this.classTeacherId + " not found in potential teachers list.");
+            }
 
             if (rawTemplatedata.reschedulingActivity) {
                 this.activityRescheduleData.activityEndTime = rawTemplatedata.activityEndTime
@@ -662,7 +671,7 @@ window.Vue.component('editclass', {
                 learningPlanId,
                 periodId,
                 courseId,
-                instructorId: this.selectedClassTeacher.id,
+                instructorId: this.selectedClassTeacher ? this.selectedClassTeacher.id : (this.classTeacherId || 0),
                 initTime,
                 endTime,
                 initDate: this.classData.initDate,
