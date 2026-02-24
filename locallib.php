@@ -1314,13 +1314,30 @@ function get_learning_plan_course_schedules($params)
 {
     global $DB;
 
+    error_log("DEBUG get_learning_plan_course_schedules: params=" . json_encode($params));
+
     //Set the filters if provided
     $filters = construct_course_schedules_filter($params);
 
+    error_log("DEBUG get_learning_plan_course_schedules: filters=" . json_encode($filters));
+
     $openClasses = [];
     foreach ($filters as $filter) {
-        $openClasses = array_merge($openClasses, list_classes($filter));
+        $found = list_classes($filter);
+        error_log("DEBUG get_learning_plan_course_schedules: filter=" . json_encode($filter) . " found=" . count($found) . " classes");
+        
+        // Also check: how many total classes exist for this corecourseid regardless of closed/period?
+        if (empty($found) && !empty($filter['corecourseid'])) {
+            $allForCourse = $DB->count_records('gmk_class', ['corecourseid' => $filter['corecourseid']]);
+            $closedForCourse = $DB->count_records('gmk_class', ['corecourseid' => $filter['corecourseid'], 'closed' => 1]);
+            $periodForCourse = !empty($filter['periodid']) ? $DB->count_records('gmk_class', ['corecourseid' => $filter['corecourseid'], 'periodid' => $filter['periodid']]) : 0;
+            error_log("DEBUG: For corecourseid={$filter['corecourseid']}: total=$allForCourse, closed=$closedForCourse, with periodid={$filter['periodid']}=$periodForCourse");
+        }
+        
+        $openClasses = array_merge($openClasses, $found);
     }
+
+    error_log("DEBUG get_learning_plan_course_schedules: total openClasses=" . count($openClasses));
 
     $classesByCoursePeriodAndLearningPlan = [];
 
