@@ -120,7 +120,7 @@ echo <<<EOT
   <script>
     var strings = $strings;
     var courseid = $id ;
-    var periodsid = $periodsid;
+    var periodsid = '$periodsid';
     var userToken = $token;
     var themeToken = $themeToken || null;
   </script>
