@@ -789,7 +789,40 @@ class scheduler extends external_api {
                     }
                 }
 
-                $classRec->classdays = $cls['classdays'] ?? '0/0/0/0/0/0/0';
+                // Derive classdays bitmask from sessions or day name if not explicitly set
+                $rawClassdays = $cls['classdays'] ?? '0/0/0/0/0/0/0';
+                $isAllZero = ($rawClassdays === '0/0/0/0/0/0/0' || empty(trim($rawClassdays)));
+                
+                if ($isAllZero) {
+                    // Derive from sessions or day
+                    $dayNameMap = [
+                        'Lunes' => 0, 'Martes' => 1, 'Miércoles' => 2, 'Miercoles' => 2,
+                        'Jueves' => 3, 'Viernes' => 4, 'Sábado' => 5, 'Sabado' => 5, 'Domingo' => 6
+                    ];
+                    $mask = [0, 0, 0, 0, 0, 0, 0];
+                    
+                    if (isset($cls['sessions']) && is_array($cls['sessions'])) {
+                        foreach ($cls['sessions'] as $sess) {
+                            $sDay = trim($sess['day'] ?? '');
+                            if (isset($dayNameMap[$sDay])) {
+                                $mask[$dayNameMap[$sDay]] = 1;
+                            }
+                        }
+                    } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
+                        $sDay = trim($cls['day']);
+                        if (isset($dayNameMap[$sDay])) {
+                            $mask[$dayNameMap[$sDay]] = 1;
+                        }
+                    }
+                    
+                    $derivedClassdays = implode('/', $mask);
+                    if ($derivedClassdays !== '0/0/0/0/0/0/0') {
+                        gmk_log("DEBUG save_generation_result: Derived classdays for class " . ($cls['id'] ?? 'NEW') . ": '$derivedClassdays' (was: '$rawClassdays')");
+                        $rawClassdays = $derivedClassdays;
+                    }
+                }
+                
+                $classRec->classdays = $rawClassdays;
                 $classRec->approved = 1;
                 $classRec->active = 1;
                 $classRec->timemodified = time();
