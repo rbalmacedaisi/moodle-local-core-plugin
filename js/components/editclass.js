@@ -487,11 +487,19 @@ window.Vue.component('editclass', {
 
             try {
                 let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
-
+                console.log("DEBUG editclass.js: Server response:", JSON.stringify(data));
 
                 let { status, message, exception } = data;
                 if (status === -1) {
-                    throw new Error(JSON.parse(message).join('\n'));
+                    // Handle both JSON array and plain string error messages
+                    let errorMsg = message;
+                    try {
+                        const parsed = JSON.parse(message);
+                        errorMsg = Array.isArray(parsed) ? parsed.join('\n') : String(parsed);
+                    } catch (e) {
+                        errorMsg = String(message);
+                    }
+                    throw new Error(errorMsg);
                 }
                 else if (exception) {
                     throw new Error(message);
@@ -500,7 +508,7 @@ window.Vue.component('editclass', {
                 this.returnToLastPage()
             }
             catch (error) {
-                console.error(error)
+                console.error("DEBUG editclass.js: Save failed:", error)
                 this.errorMessage = error.message;
                 this.showErrorDialog = true;
                 this.savingClass = false;

@@ -127,6 +127,13 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
 {
     //Check the instructor availability
     global $DB;
+    
+    // Guard: If no instructor is assigned, skip all availability checks
+    if (empty($instructorId) || intval($instructorId) <= 0) {
+        gmk_log("DEBUG check_class_schedule_availability: No instructor (id=$instructorId), skipping check.");
+        return true;
+    }
+    
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
@@ -1136,9 +1143,12 @@ function update_class($classParams)
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
 
+    gmk_log("DEBUG update_class: ID={$class->id} classDays='{$class->classdays}' instructorId='{$class->instructorid}'");
+
     $class = fill_computed_class_values($class, $classParams);
 
     $classUpdated = $DB->update_record('gmk_class', $class);
+    gmk_log("DEBUG update_class: DB update result=" . ($classUpdated ? 'true' : 'false'));
 
     if ($class->instructorid !== $classOldInstructorId) {
         update_class_group($class, $classOldInstructorId);

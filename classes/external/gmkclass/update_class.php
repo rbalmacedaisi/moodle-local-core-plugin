@@ -117,9 +117,16 @@ class update_class extends external_api {
         
         try{
             gmk_log("DEBUG update_class.php: ClassId: $classId | InstructorId: $instructorId | Days: $classDays");
-            check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,'', $classId, $initDate, $endDate);
+            
+            // Only check availability if an instructor is actually assigned
+            if (!empty($instructorId) && intval($instructorId) > 0) {
+                check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,'', $classId, $initDate, $endDate);
+            } else {
+                gmk_log("DEBUG update_class.php: Skipping availability check - no instructor assigned (instructorId=$instructorId)");
+            }
             
             update_class($params);
+            gmk_log("DEBUG update_class.php: update_class completed successfully for ClassId: $classId, Days saved: $classDays");
             
             // Return the result.
             return ['status' => 1, 'message' => 'ok'];
