@@ -324,12 +324,12 @@ window.Vue.component('editclass', {
             }
 
             // Normalize days
-            const classDays = rawTemplatedata.classDays || {};
-            for (let day in classDays) {
-                classDays[day] = classDays[day] === "1" || classDays[day] === true;
+            const classDays = {};
+            const rawDays = rawTemplatedata.classDays || {};
+            for (let day in rawDays) {
+                classDays[day] = rawDays[day] === "1" || rawDays[day] === true;
             }
-
-            // Find current teacher
+            this.$set(this.classData, 'classDays', classDays);
             const currentTeacher = (rawTemplatedata.classTeachers || []).find(t => t.selected) || {};
             this.classTeacherId = currentTeacher.id;
 
@@ -413,7 +413,7 @@ window.Vue.component('editclass', {
                 let { teachers } = data;
                 teachers = JSON.parse(teachers)
                 this.teachers = teachers.map(teacher => ({ email: teacher.email, fullname: teacher.fullname, id: teacher.id }))
-                this.classData.teacherIndex = selectedTeacherId ? this.teachers.findIndex(teacher => teacher.id === selectedTeacherId) : undefined
+                this.classData.teacherIndex = selectedTeacherId ? this.teachers.findIndex(teacher => String(teacher.id) === String(selectedTeacherId)) : undefined
             }
             catch (error) {
                 console.error(error)

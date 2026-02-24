@@ -134,7 +134,7 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
     return $teacherData;
 },$classPotentialTeachers));
 
-$classDaysRaw = $class->classdays;
+$classDaysRaw = trim($class->classdays ?? '');
 $daysParts = explode('/', $classDaysRaw);
 $classDays = [
     'monday'    => isset($daysParts[0]) && $daysParts[0] === '1',

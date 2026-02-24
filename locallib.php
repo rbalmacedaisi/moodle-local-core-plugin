@@ -383,43 +383,44 @@ function get_potential_class_teachers($params)
             return $teacher;
         }, $learningPlanTeachers));
     }
-    // CRITICAL: If we are editing an existing class, ENSURE the current instructor is in the list
+    // CRITICAL: Ensure the current instructor is ALWAYS included and deduplicate everything by Moodle User ID
+    $finalTeachersMap = [];
+
+    // First, process the filtered learning plan teachers
+    foreach ($learningPlanTeachers as $teacher) {
+        $moodleId = (int)(property_exists($teacher, 'userid') ? $teacher->userid : $teacher->id);
+        if ($moodleId > 0) {
+            $teacher->id = $moodleId;
+            $teacher->userid = $moodleId;
+            $finalTeachersMap[$moodleId] = $teacher;
+        }
+    }
+
+    // Second, ensure the currently assigned instructor is present
     if ($params['classId']) {
         $currentClass = $DB->get_record('gmk_class', ['id' => $params['classId']], 'instructorid');
         if ($currentClass && !empty($currentClass->instructorid)) {
-            $alreadyIncluded = false;
-            foreach ($learningPlanTeachers as $teacher) {
-                // Ensure we compare using moodle user id
-                $teacherUserId = property_exists($teacher, 'userid') ? $teacher->userid : $teacher->id;
-                if ((int)$teacherUserId === (int)$currentClass->instructorid) {
-                    $alreadyIncluded = true;
-                    // Ensure the 'selected' marker can be set later by having 'id' equal to instructorid
-                    $teacher->id = (int)$teacherUserId; 
-                    break;
-                }
-            }
-            if (!$alreadyIncluded) {
+            $instructorId = (int)$currentClass->instructorid;
+            if (!isset($finalTeachersMap[$instructorId])) {
                 try {
-                    $currentTeacher = core_user::get_user($currentClass->instructorid);
+                    $currentTeacher = core_user::get_user($instructorId);
                     if ($currentTeacher) {
-                        // Normalize the object to match what editclass.php expects
                         $teacherObj = new stdClass();
-                        $teacherObj->id = (int)$currentTeacher->id;
-                        $teacherObj->userid = (int)$currentTeacher->id;
+                        $teacherObj->id = $instructorId;
+                        $teacherObj->userid = $instructorId;
                         $teacherObj->fullname = fullname($currentTeacher);
                         $teacherObj->email = $currentTeacher->email;
                         $teacherObj->instructorSkills = [];
-                        // Add to the beginning of the list
-                        array_unshift($learningPlanTeachers, $teacherObj);
+                        $finalTeachersMap[$instructorId] = $teacherObj;
                     }
                 } catch (Exception $e) {
-                    gmk_log("ERROR get_potential_class_teachers: Could not fetch current instructor " . $currentClass->instructorid);
+                    gmk_log("ERROR get_potential_class_teachers: Could not fetch current instructor $instructorId");
                 }
             }
         }
     }
 
-    return $learningPlanTeachers;
+    return array_values($finalTeachersMap);
 }
 
 function create_class($classParams)
