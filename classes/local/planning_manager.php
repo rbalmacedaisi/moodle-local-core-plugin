@@ -329,6 +329,8 @@ class planning_manager {
 
              $structure[$r->learningplanid][$r->courseid] = (object) [
                 'id' => $r->courseid,
+                'subjectid' => $r->linkid,
+                'levelid' => $r->period_id,
                 'fullname' => $r->fullname,
                 'name' => $r->fullname, // Alias for frontend compatibility
                 'semester_num' => $semesterNum, 
@@ -558,9 +560,19 @@ class planning_manager {
                 if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
                      $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
                          'count' => 0,
-                         'students' => []
+                         'students' => [],
+                         'plan_map' => []
                      ];
                 }
+                
+                // Populate plan mapping metadata
+                if (isset($structures[$planId][$courseId])) {
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['plan_map'][$planId] = [
+                        'subjectid' => $structures[$planId][$courseId]->subjectid,
+                        'levelid' => $structures[$planId][$courseId]->levelid
+                    ];
+                }
+
                 $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
                 $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id']; // Use 'id' which matches the student_list key
             }

@@ -294,6 +294,8 @@
                         offset += currentGroupSize;
 
                         let majorityPlanId = 0;
+                        let selectionMethod = "none";
+
                         if (groupStudents.length > 0) {
                             const localPlanCounts = groupStudents.reduce((acc, uid) => {
                                 const stu = studentMap[uid];
@@ -306,36 +308,57 @@
                                 if (pcount > maxLocal) {
                                     maxLocal = pcount;
                                     majorityPlanId = parseInt(pid);
+                                    selectionMethod = "local_students";
                                 }
                             });
                         }
 
+                        // Fallback to global plan scores if no majority found from local students
                         if (!majorityPlanId) {
                             let maxGlobal = -1;
                             let tiePlans = [];
 
                             Object.entries(data.plan_scores).forEach(([pid, pscore]) => {
+                                const numericPid = parseInt(pid);
                                 if (pscore > maxGlobal) {
                                     maxGlobal = pscore;
-                                    majorityPlanId = parseInt(pid);
-                                    tiePlans = [parseInt(pid)];
+                                    majorityPlanId = numericPid;
+                                    tiePlans = [numericPid];
+                                    selectionMethod = "global_scores";
                                 } else if (pscore === maxGlobal && maxGlobal !== -1) {
-                                    tiePlans.push(parseInt(pid));
+                                    tiePlans.push(numericPid);
                                 }
                             });
 
-                            // DEBUG: Ver por qué se elige este plan
-                            if (data.courseid == 49 || data.courseid == 60) { // Materias problema
-                                console.log(`DEBUG Puntuaciones para ${aggKey}:`, data.plan_scores);
-                                console.log(`  -> Ganador: ${majorityPlanId} (Puntos: ${maxGlobal})`);
-                                console.log(`  -> Empatados:`, tiePlans);
-                            }
-
-                            // Tie-breaker: If tie at 0 points, ignore Plan 13 if possible
-                            if (maxGlobal <= 0 && tiePlans.length > 1) {
+                            // Tie-breaker: If tie at 0 or same score, avoid Plan 13 (Acuicultura) if others exist
+                            // This plan has historically been a default fallback that causes confusion.
+                            if (tiePlans.length > 1) {
                                 const non13 = tiePlans.filter(pid => pid !== 13);
-                                if (non13.length > 0) majorityPlanId = non13[0];
+                                if (non13.length > 0) {
+                                    majorityPlanId = non13[0];
+                                    selectionMethod = "tie_breaker_non13";
+                                }
                             }
+                        }
+
+                        // Final check: if still no majorityPlanId, just grab first from map
+                        if (!majorityPlanId) {
+                            const firstPlan = Object.keys(data.plan_map)[0];
+                            if (firstPlan) {
+                                majorityPlanId = parseInt(firstPlan);
+                                selectionMethod = "first_available_map";
+                            }
+                        }
+
+                        // DEBUG Materia problema: HISTORIA DE PANAMÁ
+                        if (data.courseid == 49 || data.courseid == 60 || String(data.courseid).includes('49')) {
+                            console.log(`DEBUG Selección Plan para ${aggKey}:`, {
+                                chosen: majorityPlanId,
+                                method: selectionMethod,
+                                localCounts: groupStudents.length > 0 ? "Present" : "Empty",
+                                scores: data.plan_scores,
+                                mapPlans: Object.keys(data.plan_map)
+                            });
                         }
 
                         let resolvedSubjectId = 0;
