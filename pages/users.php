@@ -32,7 +32,7 @@ require_login();
 
 
 $id = required_param('courseid', PARAM_INT);
-$periodsid = required_param('periodsid', PARAM_ALPHANUM);
+$periodsid = required_param('periodsid', PARAM_RAW);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/users.php', ['courseid' => $id, 'periodsid' => $periodsid]));
 $context = context_system::instance();
