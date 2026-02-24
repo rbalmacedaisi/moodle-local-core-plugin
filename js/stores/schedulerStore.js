@@ -70,6 +70,19 @@
 
         async loadContext(periodId) {
             const res = await this._fetch('local_grupomakro_get_scheduler_context', { periodid: periodId });
+
+            // Parse configSettings if it's a JSON string
+            if (res.configSettings && typeof res.configSettings === 'string') {
+                try {
+                    res.configSettings = JSON.parse(res.configSettings);
+                } catch (e) {
+                    console.error("Error parsing configSettings", e);
+                    res.configSettings = {};
+                }
+            } else if (!res.configSettings) {
+                res.configSettings = {};
+            }
+
             this.state.context = res;
             // Ensure period dates are available for duration calculation
             if (res.period) {
@@ -560,16 +573,17 @@
         async saveConfigSettings(periodId, settings) {
             this.state.loading = true;
             try {
-                // The backend requires holidays and loads to be passed too, otherwise they might get wiped depending on implementation
-                // Alternatively, we pass them as they are in the context
+                // Prepare as JSON string for the backend API
+                const settingsJson = JSON.stringify(settings);
+
                 await this._fetch('local_grupomakro_save_scheduler_config', {
                     periodid: periodId,
                     holidays: this.state.context.holidays || [],
                     loads: this.state.context.loads || [],
-                    configsettings: JSON.stringify(settings)
+                    configsettings: settingsJson
                 });
 
-                // Keep local state in sync
+                // Update local context with the OBJECT (not the string) to keep logic working
                 this.state.context.configSettings = settings;
                 this.state.successMessage = "Configuración guardada correctamente";
             } catch (e) {
