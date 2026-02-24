@@ -501,12 +501,28 @@ class planning_manager {
         $students = $planningData['students'];
         $tree = [];
 
+        // Build a map of ignored subjects per plan
+        $ignoredMap = [];
+        if (!empty($planningData['planning_projections'])) {
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ($pp->status == 2) {
+                    $ignoredMap[$pp->learningplanid][$pp->courseid] = true;
+                }
+            }
+        }
+
         foreach ($students as $stu) {
             $career = $stu['career'] ?: 'General';
-            $shift = $stu['shift'] ?: 'Sin Jornada'; // Should come from user_info_data
+            $shift = $stu['shift'] ?: 'Sin Jornada'; 
+            $planId = $stu['planid'];
             
             // Iterate Pending Subjects to build demand
             foreach ($stu['pendingSubjects'] as $subj) {
+                // Check if this subject is marked to be ignored for this plan
+                if (!empty($ignoredMap[$planId][$subj['id']])) {
+                    continue;
+                }
+
                 // If subject is NOT Priority (e.g. unmet prerequisites), maybe we shouldn't schedule it automatically?
                 // For now, "Wave" logic usually schedules everything pending.
                 // Let's stick to including it.

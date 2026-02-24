@@ -1488,16 +1488,17 @@ const app = createApp({
 
             // 4. Finalize Subjects List
             let subjectsArray = Object.values(subjectsMap).map(s => {
+                const isIgnored = ignoredSubjects[s.name] || false;
                 const manual = manualProjections[s.name] || 0;
                 const totalP1 = s.countP1 + manual;
-                const isOpen = totalP1 >= 12;
+                const isOpen = !isIgnored && totalP1 >= 12;
                 
-                let suggestion = "Abrir P-I";
+                let suggestion = isIgnored ? "OMITIDA" : "Abrir P-I";
                 let maxDemand = totalP1;
                 
-                if (s.countP2 > maxDemand) { maxDemand = s.countP2; suggestion = "Esperar P-II"; }
+                if (s.countP2 > maxDemand) { maxDemand = s.countP2; suggestion = isIgnored ? "OMITIDA" : "Esperar P-II"; }
                 
-                if (totalP1 < 12 && maxDemand < 12) suggestion = "Baja Demanda";
+                if (totalP1 < 12 && maxDemand < 12) suggestion = isIgnored ? "OMITIDA" : "Baja Demanda";
                 if (isOpen && !suggestion.includes("Esperar")) suggestion = "ABRIR AHORA";
                 
                 return { ...s, totalP1, isOpen, suggestion, manual, countP1: s.countP1 };
