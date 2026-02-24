@@ -459,6 +459,12 @@ Vue.component('scheduleapproval', {
                     const data = JSON.parse(response.data.courseSchedules)
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
+
+                    if (!array || array.length === 0) {
+                        console.warn('No class schedules found for this course/period combination.');
+                        return;
+                    }
+
                     this.dataCourse.name = array[0].courseName
                     this.dataCourse.id = array[0].courseId
                     this.dataCourse.learningPlanIds = array[0].learningPlanIds

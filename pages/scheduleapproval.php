@@ -31,7 +31,7 @@ $plugin_name = 'local_grupomakro_core';
 require_login();
 
 $id = required_param('id', PARAM_INT);
-$periodsid = required_param('periodsid', PARAM_ALPHANUM);
+$periodsid = required_param('periodsid', PARAM_RAW);
 global $DB;
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/scheduleapproval.php', ['id' => $id, 'periodsid' => $periodsid]));
