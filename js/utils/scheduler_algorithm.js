@@ -243,13 +243,15 @@
 
             let durationMins = 120;
             let maxSessions = null;
+            let dynamicDuration = false; // Flag: recalculate duration per-day based on actual sessions
             const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
             if (loadData) {
                 if (loadData.intensity) {
                     durationMins = Math.round(loadData.intensity * 60);
                     if (loadData.totalHours) maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
                 } else if (loadData.totalHours) {
-                    durationMins = Math.round((loadData.totalHours / effectiveWeeks) * 60);
+                    // Will be recalculated inside the day loop using actual available dates
+                    dynamicDuration = true;
                 }
             }
             s.durationMins = durationMins;
@@ -289,6 +291,21 @@
                 if (availableDates.length === 0) continue;
                 stats.daysTested++;
 
+                // Filter dates by subperiod BEFORE calculating duration
+                let targetDates = availableDates;
+                const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
+                if (subRange) {
+                    targetDates = availableDates.filter(d => d >= subRange.start && d <= subRange.end);
+                }
+
+                if (targetDates.length === 0) continue;
+
+                // Recalculate duration based on actual available sessions for THIS day
+                if (dynamicDuration && loadData.totalHours) {
+                    durationMins = Math.round((loadData.totalHours / targetDates.length) * 60);
+                    s.durationMins = durationMins;
+                }
+
                 for (let t = winStart; t <= winEnd - durationMins; t += intervalMins) {
                     if (placed) break;
                     const tEnd = t + durationMins;
@@ -302,20 +319,6 @@
                     }
 
                     // --- HUMAN CONFLICT CHECK (Student/Teacher) ---
-                    // We check this ONCE per time slot since it's the same regardless of the room
-                    let targetDates = availableDates;
-                    const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
-                    if (subRange) {
-                        const subStart = subRange.start;
-                        const subEnd = subRange.end;
-                        targetDates = availableDates.filter(d => d >= subStart && d <= subEnd);
-                    }
-
-                    if (targetDates.length === 0) {
-                        auditLog.push({ day, time: timeStr, status: 'Period', detail: 'Fuera de rango subperiodo' });
-                        continue;
-                    }
-
                     const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd, intervalMins);
                     if (stConflict) {
                         stats.studentConflictCount++;
