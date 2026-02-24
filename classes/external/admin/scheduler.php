@@ -613,11 +613,15 @@ class scheduler extends external_api {
             // For now, let's iterate and Create/Update.
             // Assumption: Frontend sends 'id' if updating.
             // To avoid duplicates while allowing updates:
-            // 1. Identify existing numeric IDs in the payload
+            // 1. Identify existing numeric IDs in the payload that ARE programmed
             $validIds = [];
             foreach ($data as $cls) {
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
-                    $validIds[] = $cls['id'];
+                    $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) || 
+                                    (!empty($cls['day']) && $cls['day'] !== 'N/A');
+                    if ($isProgrammed) {
+                        $validIds[] = $cls['id'];
+                    }
                 }
             }
 
@@ -644,6 +648,14 @@ class scheduler extends external_api {
             $course_fullnames = $DB->get_records_menu('course', [], '', 'id, fullname');
 
             foreach ($data as $cls) {
+                // Skip classes that are not programmed (unassigned)
+                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) || 
+                                (!empty($cls['day']) && $cls['day'] !== 'N/A');
+                
+                if (!$isProgrammed) {
+                    continue;
+                }
+
                 $classRec = new stdClass();
                 $isUpdate = false;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
