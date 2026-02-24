@@ -503,7 +503,7 @@
         async uploadSubjectLoads(file) {
             if (!window.XLSX) {
                 this.state.error = "Librería XLSX no cargada";
-                return;
+                return { success: false };
             }
 
             this.state.loading = true;
@@ -513,16 +513,39 @@
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = window.XLSX.utils.sheet_to_json(worksheet);
 
-                const loads = jsonData.map(row => {
-                    const subjectName = row['Asignatura'] || row['ASIGNATURA'] || row['Materia'];
-                    const totalHours = row['Horas'] || row['HORAS'] || row['Total'];
-                    const intensity = row['Intensidad'] || row['INTENSIDAD'] || row['Sesión'];
+                if (jsonData.length === 0) {
+                    this.state.error = "El archivo Excel está vacío";
+                    return { success: false };
+                }
 
-                    if (subjectName && totalHours) {
+                // Flexible column detection using first row keys
+                const headers = Object.keys(jsonData[0]);
+                const normalize = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+                const findCol = (keywords) => headers.find(h => {
+                    const n = normalize(h);
+                    return keywords.some(k => n.includes(k));
+                });
+
+                const subjectCol = findCol(['asignatura', 'materia', 'subject']);
+                const hoursCol = findCol(['carga horar', 'horas', 'total', 'hours']);
+                const intensityCol = findCol(['intensidad', 'sesion', 'session', 'diaria']);
+
+                if (!subjectCol) {
+                    this.state.error = "No se encontró columna de asignatura. Columnas detectadas: " + headers.join(', ');
+                    return { success: false };
+                }
+
+                const loads = jsonData.map(row => {
+                    const subjectName = row[subjectCol];
+                    const totalHours = hoursCol ? row[hoursCol] : null;
+                    const intensity = intensityCol ? row[intensityCol] : null;
+
+                    if (subjectName) {
                         return {
                             subjectName: String(subjectName).trim(),
-                            totalHours: parseFloat(totalHours),
-                            intensity: intensity ? parseFloat(intensity) : null
+                            totalHours: totalHours ? parseFloat(totalHours) : 0,
+                            intensity: intensity ? parseFloat(intensity) : 0
                         };
                     }
                     return null;
@@ -531,12 +554,33 @@
                 // Save to local context for immediate use
                 this.state.context.loads = loads;
 
-                // Persist via AJAX if possible (Need to implement backend endpoint save_scheduler_loads)
-                // For now, we keep it in state context.
+                // Persist to DB
+                const periodId = this.state.activePeriod;
+                if (periodId) {
+                    try {
+                        const url = window.location.origin + '/local/grupomakro_core/ajax.php';
+                        const body = new URLSearchParams();
+                        body.append('action', 'local_grupomakro_save_subject_loads');
+                        body.append('sesskey', M.cfg.sesskey);
+                        body.append('academicperiodid', periodId);
+                        body.append('loads', JSON.stringify(loads));
+
+                        const res = await fetch(url, { method: 'POST', body });
+                        const json = await res.json();
+                        if (json.status === 'error') {
+                            console.error('Failed to persist loads:', json.message);
+                        }
+                    } catch (e) {
+                        console.error('Failed to persist loads:', e);
+                    }
+                }
+
                 this.state.successMessage = `Cargadas ${loads.length} asignaturas`;
+                return { success: true, count: loads.length, columns: { subject: subjectCol, hours: hoursCol, intensity: intensityCol } };
             } catch (e) {
                 console.error("Excel Load Error", e);
                 this.state.error = "Error procesando el archivo de cargas";
+                return { success: false };
             } finally {
                 this.state.loading = false;
             }

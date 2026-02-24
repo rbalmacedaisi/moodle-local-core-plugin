@@ -2847,6 +2847,35 @@ try {
             $response = ['status' => 'success'];
             break;
 
+        case 'local_grupomakro_save_subject_loads':
+            $periodid = required_param('academicperiodid', PARAM_INT);
+            $loadsJson = required_param('loads', PARAM_RAW);
+            $loads = json_decode($loadsJson, true);
+            
+            if (!is_array($loads)) {
+                throw new Exception('Formato de cargas inválido.');
+            }
+            
+            // Wipe existing loads for this period and insert new ones
+            $DB->delete_records('gmk_subject_loads', ['academicperiodid' => $periodid]);
+            $count = 0;
+            foreach ($loads as $l) {
+                $rec = new stdClass();
+                $rec->academicperiodid = $periodid;
+                $rec->subjectname = trim($l['subjectName'] ?? '');
+                $rec->total_hours = floatval($l['totalHours'] ?? 0);
+                $rec->intensity = floatval($l['intensity'] ?? 0);
+                $rec->usermodified = $USER->id;
+                $rec->timecreated = time();
+                $rec->timemodified = time();
+                if (!empty($rec->subjectname)) {
+                    $DB->insert_record('gmk_subject_loads', $rec);
+                    $count++;
+                }
+            }
+            $response = ['status' => 'success', 'data' => ['saved' => $count]];
+            break;
+
         case 'local_grupomakro_upload_holidays_excel':
             $periodid = required_param('academicperiodid', PARAM_INT);
             

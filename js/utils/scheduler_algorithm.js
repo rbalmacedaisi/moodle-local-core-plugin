@@ -102,6 +102,14 @@
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
         const intervalMins = context.configSettings?.intervalMinutes || 10;
 
+        // Normalize loads to use consistent camelCase property names
+        // DB returns snake_case (subjectname, total_hours), client sends camelCase (subjectName, totalHours)
+        const normalizedLoads = (context.loads || []).map(l => ({
+            subjectName: l.subjectName || l.subjectname || '',
+            totalHours: parseFloat(l.totalHours || l.total_hours || 0),
+            intensity: parseFloat(l.intensity || 0)
+        }));
+
         // Unify holiday source: priority to context.holidays (live table)
         const holidays = context.holidays || context.configSettings?.holidays || [];
         const holidaySet = new Set(holidays.map(h => h.formatted_date || h.date));
@@ -207,7 +215,7 @@
 
                 // Handle Intensive Courses (maxSessions)
                 let maxSessions = null;
-                const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
+                const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
                 if (loadData && loadData.intensity && loadData.totalHours) {
                     maxSessions = Math.ceil(loadData.totalHours / loadData.intensity);
                 }
@@ -235,7 +243,7 @@
 
             let durationMins = 120;
             let maxSessions = null;
-            const loadData = (context.loads || []).find(l => l.subjectName === s.subjectName);
+            const loadData = normalizedLoads.find(l => l.subjectName === s.subjectName);
             if (loadData) {
                 if (loadData.intensity) {
                     durationMins = Math.round(loadData.intensity * 60);

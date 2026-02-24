@@ -595,9 +595,15 @@ echo $OUTPUT->header();
                           Carga Masiva de Horas (Excel)
                       </h3>
                       <p class="text-sm text-slate-500 mb-6 font-bold">
-                          Suba un archivo Excel con las columnas: <span class="bg-slate-100 px-1 rounded">Asignatura</span>, <span class="bg-slate-100 px-1 rounded">Horas</span> e <span class="bg-slate-100 px-1 rounded">Intensidad</span>.
+                          Suba un archivo Excel con columnas que contengan: <span class="bg-slate-100 px-1 rounded">Asignatura</span>, <span class="bg-slate-100 px-1 rounded">Carga Horaria / Horas</span> e <span class="bg-slate-100 px-1 rounded">Intensidad</span>.
                       </p>
                       
+                      <!-- Upload Result Banner -->
+                      <div v-if="loadUploadMessage" class="mb-4 px-4 py-2.5 text-sm font-medium rounded-lg flex items-center justify-between" :class="loadUploadError ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                          <span>{{ loadUploadMessage }}</span>
+                          <button @click="loadUploadMessage = ''" class="ml-4 opacity-60 hover:opacity-100 text-lg">&times;</button>
+                      </div>
+
                       <div class="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-10 hover:bg-slate-50 transition-colors cursor-pointer" @click="$refs.loadExcelInput.click()">
                           <i data-lucide="file-spreadsheet" class="w-12 h-12 text-slate-400 mb-4"></i>
                           <p class="text-slate-600 font-bold">Haga clic o arrastre su archivo Excel aquí</p>
@@ -619,7 +625,7 @@ echo $OUTPUT->header();
                                   <tbody class="divide-y divide-slate-100">
                                       <tr v-for="l in store.state.context.loads" :key="l.subjectName" class="hover:bg-slate-50">
                                           <td class="p-2">{{ l.subjectName }}</td>
-                                          <td class="p-2 text-center">{{ l.totalHours || l.total }}</td>
+                                          <td class="p-2 text-center">{{ l.totalHours || l.total_hours || '-' }}</td>
                                           <td class="p-2 text-center">{{ l.intensity || '-' }}</td>
                                       </tr>
                                   </tbody>
@@ -1921,11 +1927,22 @@ const app = createApp({
             }
         };
 
-        const handleLoadUpload = (e) => {
+        const loadUploadMessage = Vue.ref('');
+        const loadUploadError = Vue.ref(false);
+
+        const handleLoadUpload = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            store.uploadSubjectLoads(file);
+            loadUploadMessage.value = '';
+            loadUploadError.value = false;
+            const result = await store.uploadSubjectLoads(file);
             e.target.value = '';
+            if (result && result.success) {
+                loadUploadMessage.value = '✓ ' + result.count + ' asignaturas cargadas y guardadas.';
+            } else {
+                loadUploadError.value = true;
+                loadUploadMessage.value = store.state.error || 'Error al procesar el archivo.';
+            }
         };
 
         const handleExportStudentSchedule = () => {
@@ -1976,7 +1993,7 @@ const app = createApp({
                 // New Tabs Logic
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
                 studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule,
-                handleLoadUpload,
+                handleLoadUpload, loadUploadMessage, loadUploadError,
                 configSubTab, store
             };
 
