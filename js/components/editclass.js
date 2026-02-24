@@ -151,41 +151,33 @@ window.Vue.component('editclass', {
                             <input v-model="classData.endTime" ref="classEndTime" type="time" class="form-control" id="classEndTime" @change="getPotentialTeachers" required>
                         </div>
                             
-                        <div id="starttime-fieldset" class="row form-group py-2 mx-0 px-2">
-                            <div class="col-12">
+                        <v-row id="starttime-fieldset" class="form-group py-2 mx-0 px-2">
+                            <v-col cols="12">
                                 <label>{{ lang.class_days}}</label>
-                            </div>
+                            </v-col>
                         
-                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                <input v-model="classData.classDays.monday" type="checkbox" class="custom-control-input" id="customSwitchMonday" ref="switchMonday">
-                                <label class="custom-control-label" for="customSwitchMonday">{{lang.monday}}</label>
-                            </div>
-                            
-                            <div class="custom-control custom-switch col-6 col-sm-4">
-                                <input v-model="classData.classDays.tuesday" type="checkbox" class="custom-control-input" id="customSwitchTuesday" ref="switchTuesday">
-                                <label class="custom-control-label" for="customSwitchTuesday">{{lang.tuesday}}</label>
-                            </div>
-                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                <input v-model="classData.classDays.wednesday" type="checkbox" class="custom-control-input" id="customSwitchWednesday" ref="switchWednesday">
-                                <label class="custom-control-label" for="customSwitchWednesday">{{lang.wednesday}}</label>
-                            </div>
-                            <div class="custom-control custom-switch col-6 col-sm-4">
-                                <input v-model="classData.classDays.thursday" type="checkbox" class="custom-control-input" id="customSwitchThursday" ref="switchThursday">
-                                <label class="custom-control-label" for="customSwitchThursday">{{lang.thursday}}</label>
-                            </div>
-                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                <input v-model="classData.classDays.friday" type="checkbox" class="custom-control-input" id="customSwitchFriday" ref="switchFriday">
-                                <label class="custom-control-label" for="customSwitchFriday">{{lang.friday}}</label>
-                            </div>
-                            <div class="custom-control custom-switch col-6 col-sm-4">
-                                <input v-model="classData.classDays.saturday" type="checkbox" class="custom-control-input" id="customSwitchSaturday" ref="switchSaturday">
-                                <label class="custom-control-label" for="customSwitchSaturday">{{lang.saturday}}</label>
-                            </div>
-                            <div class="custom-control custom-switch col-6 col-sm-4 ml-11">
-                                <input v-model="classData.classDays.sunday" type="checkbox" class="custom-control-input" id="customSwitchSunday" ref="switchSunday">
-                                <label class="custom-control-label" for="customSwitchSunday">{{lang.sunday}}</label>
-                            </div>
-                        </div>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.monday" dir="ltr" :label="lang.monday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.tuesday" dir="ltr" :label="lang.tuesday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.wednesday" dir="ltr" :label="lang.wednesday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.thursday" dir="ltr" :label="lang.thursday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.friday" dir="ltr" :label="lang.friday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.saturday" dir="ltr" :label="lang.saturday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                            <v-col cols="12" sm="4">
+                                <v-switch v-model="classData.classDays.sunday" dir="ltr" :label="lang.sunday" color="primary" dense hide-details></v-switch>
+                            </v-col>
+                        </v-row>
                     </div>
                         
                         
@@ -324,12 +316,11 @@ window.Vue.component('editclass', {
             }
 
             // Normalize days
-            const classDays = {};
             const rawDays = rawTemplatedata.classDays || {};
             for (let day in rawDays) {
-                classDays[day] = rawDays[day] === "1" || rawDays[day] === true;
+                const val = rawDays[day] === "1" || rawDays[day] === 1 || rawDays[day] === true;
+                this.$set(this.classData.classDays, day, val);
             }
-            this.$set(this.classData, 'classDays', classDays);
             const currentTeacher = (rawTemplatedata.classTeachers || []).find(t => t.selected) || {};
             this.classTeacherId = currentTeacher.id;
 
@@ -430,27 +421,29 @@ window.Vue.component('editclass', {
             this.saveClass();
         },
         validateClassInputs() {
-            this.$refs.classEndTime.setCustomValidity('');
+            if (this.$refs.classEndTime) this.$refs.classEndTime.setCustomValidity('');
 
-            const valid = this.classInputs.every(input => {
-                return input.reportValidity();
+            const valid = (this.classInputs || []).every(input => {
+                return input ? input.reportValidity() : true;
             });
             if (!valid) {
                 return false
             }
             if (!this.validTimeRange) {
-                this.$refs.classEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
-                this.$refs.classEndTime.reportValidity();
+                if (this.$refs.classEndTime) {
+                    this.$refs.classEndTime.setCustomValidity('La hora de finalización debe ser mayor a la hora de inicio.');
+                    this.$refs.classEndTime.reportValidity();
+                }
                 return false
             }
             if (this.classDaysString === '0/0/0/0/0/0/0') {
-                this.$refs.switchMonday.setCustomValidity('Se debe seleccionar al menos un día de clase.')
-                this.$refs.switchMonday.reportValidity();
+                this.errorMessage = 'Debe seleccionar al menos un día de clase.';
+                this.showErrorDialog = true;
                 return false
             }
             if (!this.selectedClassTeacher) {
-                this.$refs.hiddenTeacherInput.setCustomValidity('Se debe seleccionar un instructor.')
-                this.$refs.hiddenTeacherInput.reportValidity();
+                this.errorMessage = 'Debe seleccionar un instructor.';
+                this.showErrorDialog = true;
                 return false
             }
             return true
@@ -461,6 +454,8 @@ window.Vue.component('editclass', {
                 return;
             }
             this.savingClass = true;
+            console.log("DEBUG editclass.js: Saving class with days:", this.classDaysString);
+            console.log(" - Full classData:", JSON.stringify(this.classData));
 
             try {
                 let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
