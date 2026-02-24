@@ -66,6 +66,8 @@ $activityInfo = null;
 //Get the class that is going to be edited
 $class =  list_classes(['id'=>$id])[$id];
 
+gmk_log("DEBUG editclass.php Load: ID=$id, Plan={$class->learningplanid}, Period={$class->periodid}, Course={$class->courseid}");
+
 if($reschedulingActivity){
     $activityInfo = getActivityInfo($moduleId,$sessionId);
 }

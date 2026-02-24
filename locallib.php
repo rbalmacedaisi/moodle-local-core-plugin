@@ -782,7 +782,7 @@ function list_classes($filters)
     // We need a mapping to derive metadata from subject if needed
     $subjects_metadata_cache = [];
 
-    foreach ($classes as $class) {
+    foreach ($classes as &$class) {
         
         // Derive Academic Metadata from Subject ID (gmk_class.courseid)
         if (!empty($class->courseid)) {
@@ -792,34 +792,54 @@ function list_classes($filters)
                 
                 // Fallback: if not found, maybe it's a Moodle courseid? (legacy or error)
                 if (!$subj) {
-                    $subj = $DB->get_record('local_learning_courses', ['courseid' => $class->courseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    $searchParams = ['courseid' => $class->courseid];
+                    // CRITICAL: If we already have a learningplanid, use it to narrow down the correct record!
+                    if (!empty($class->learningplanid)) {
+                        $searchParams['learningplanid'] = $class->learningplanid;
+                    }
+                    
+                    $subj = $DB->get_record('local_learning_courses', $searchParams, 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    
                     if ($subj) {
-                        gmk_log("DEBUG: list_classes encontró materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid);
+                        gmk_log("DEBUG: list_classes encontró materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
                     } else {
                         gmk_log("DEBUG: list_classes NO encontró metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
                     }
                 }
                 
-                $subjects_metadata_cache[$class->courseid] = $subj ?: null;
+                $subjects_metadata_cache[$class->courseid . '_' . ($class->learningplanid ?? 0)] = $subj ?: null;
             }
             
-            $meta = $subjects_metadata_cache[$class->courseid];
+            $meta = $subjects_metadata_cache[$class->courseid . '_' . ($class->learningplanid ?? 0)];
             if ($meta) {
-                // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
-                if (empty($class->learningplanid)) $class->learningplanid = $meta->learningplanid;
+                $oldPlan = $class->learningplanid;
+                $oldPeriod = $class->periodid;
+                $oldCourse = $class->courseid;
+
+                if (empty($class->learningplanid)) {
+                    $class->learningplanid = (int)$meta->learningplanid;
+                }
                 
                 // Helper field for the Level ID
-                $class->academic_period_id = $meta->periodid; 
+                $class->academic_period_id = (int)$meta->periodid; 
                 
-                // Override periodid in-memory for editclass.php compatibility (it expects Level ID here)
-                // However, we must be careful not to break other callers that expect the Institutional ID.
-                $class->periodid = $meta->periodid; 
-                
-                // Ensure courseid matches the Subject ID if it was a Moodle ID fallback
-                if ($class->courseid == $meta->courseid && $class->courseid != $meta->id) {
-                    $class->courseid = $meta->id;
+                // Keep institutional ID
+                if (!isset($class->institutional_period_id)) {
+                    $class->institutional_period_id = (int)$class->periodid;
                 }
-                $class->corecourseid = $meta->courseid;
+                
+                // Override for editclass.php
+                $class->periodid = (int)$meta->periodid; 
+                
+                // Sync Course ID
+                if ($class->courseid == $meta->courseid && $class->courseid != $meta->id) {
+                    $class->courseid = (int)$meta->id;
+                } else {
+                    $class->courseid = (int)$class->courseid;
+                }
+                $class->corecourseid = (int)$meta->courseid;
+
+                gmk_log("HEALING list_classes: Class {$class->id} - Plan: $oldPlan->{$class->learningplanid}, Period: $oldPeriod->{$class->periodid}, Course: $oldCourse->{$class->courseid}");
             }
         }
 

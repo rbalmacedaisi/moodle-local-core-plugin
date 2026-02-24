@@ -654,21 +654,26 @@ class scheduler extends external_api {
                 $courseId = $cls['courseid'];
                 
                 if (empty($courseId) || $courseId == "0") {
+                    $lpid = $cls['learningplanid'] ?? 0;
                     if (!empty($cls['subjectName'])) {
                         $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc 
                                                          JOIN {course} c ON c.id = lc.courseid 
-                                                         WHERE c.fullname = ? OR c.shortname = ? 
-                                                         ORDER BY lc.id DESC", [$cls['subjectName'], $cls['subjectName']], IGNORE_MULTIPLE);
+                                                         WHERE (c.fullname = ? OR c.shortname = ?) 
+                                                           " . ($lpid ? "AND lc.learningplanid = ?" : "") . "
+                                                         ORDER BY lc.id DESC", 
+                                                         $lpid ? [$cls['subjectName'], $cls['subjectName'], $lpid] : [$cls['subjectName'], $cls['subjectName']], 
+                                                         IGNORE_MULTIPLE);
                         if ($subjByRef) {
                             $courseId = $subjByRef->id;
-                            // Also heal corecourseid if it's currently missing in the payload
                             if (empty($cls['corecourseid'])) {
                                 $cls['corecourseid'] = $subjByRef->courseid;
                             }
                         }
                     }
                     if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
-                        $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $cls['corecourseid']], 'id', IGNORE_MULTIPLE);
+                        $searchParams = ['courseid' => $cls['corecourseid']];
+                        if ($lpid) $searchParams['learningplanid'] = $lpid;
+                        $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
                         if ($subjByCore) $courseId = $subjByCore->id;
                     }
                     if (!empty($courseId) && $courseId != "0") {
@@ -957,22 +962,28 @@ class scheduler extends external_api {
 
             // If we have a valid subject ID (courseid column in gmk_class), get its period if not already set
             if (!empty($c->courseid) && $c->courseid != "0") {
-                if (!isset($subjects_metadata_cache[$c->courseid])) {
+                if (!isset($subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)])) {
                     $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'id, learningplanid, periodid, courseid');
                     if (!$subj) {
-                        $subj = $DB->get_record('local_learning_courses', ['courseid' => $c->courseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                        $searchParams = ['courseid' => $c->courseid];
+                        if (!empty($c->learningplanid)) {
+                            $searchParams['learningplanid'] = $c->learningplanid;
+                        }
+                        $subj = $DB->get_record('local_learning_courses', $searchParams, 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
                     }
-                    $subjects_metadata_cache[$c->courseid] = $subj ?: null;
+                    $subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)] = $subj ?: null;
                 }
                 
-                $meta = $subjects_metadata_cache[$c->courseid];
+                $meta = $subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)];
                 if ($meta) {
                     // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
                     if (empty($c->learningplanid)) $c->learningplanid = $meta->learningplanid;
                     $academic_period_id = $meta->periodid;
                     // If the stored courseid was a corecourseid (Moodle ID), heal it to Subject ID (Link ID)
                     if ($c->courseid == $meta->courseid && $c->courseid != $meta->id) {
-                        $c->courseid = $meta->id;
+                        $c->courseid = (int)$meta->id;
+                    } else {
+                        $c->courseid = (int)$c->courseid;
                     }
                 }
             }
@@ -980,11 +991,11 @@ class scheduler extends external_api {
             $subjectName = $c->subjectname ?? $c->name ?? ('Materia ' . $c->courseid);
 
             $result[] = [
-                'id' => $c->id,
-                'courseid' => $c->courseid,
+                'id' => (int)$c->id,
+                'courseid' => (int)$c->courseid,
                 'subjectName' => $subjectName,
                 'teacherName' => ($c->instructorid && !empty($c->firstname)) ? ($c->firstname . ' ' . $c->lastname) : null,
-                'instructorid' => $c->instructorid,
+                'instructorid' => (int)$c->instructorid,
                 'day' => empty($sessArr) ? 'N/A' : $sessArr[0]['day'],
                 'start' => empty($sessArr) ? '00:00' : $sessArr[0]['start'],
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
