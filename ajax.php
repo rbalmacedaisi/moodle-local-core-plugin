@@ -2895,6 +2895,13 @@ try {
             $periodid = required_param('periodid', PARAM_INT);
             $schedulesJson = required_param('schedules', PARAM_RAW);
             
+            error_log("DEBUG: Saving draft for period $periodid. Length: " . strlen($schedulesJson));
+
+            if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
+                $response = ['status' => 'error', 'message' => 'El periodo academico no existe'];
+                break;
+            }
+
             $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
             $response = ['status' => 'success'];
             break;
@@ -2908,7 +2915,12 @@ try {
                 $decoded = json_decode($draft, true);
                 if (is_array($decoded)) {
                     $data = $decoded;
+                } else {
+                    error_log("DEBUG: JSON DECODE FAILED for period $periodid. Error: " . json_last_error_msg());
+                    error_log("DEBUG: First 100 chars of corrupted draft: " . substr($draft, 0, 100));
                 }
+            } else {
+                 error_log("DEBUG: No draft found in DB for period $periodid");
             }
 
             $response = [

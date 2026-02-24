@@ -639,19 +639,17 @@
 
         async _fetch(action, params = {}) {
             const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-            const body = new URLSearchParams();
+            const body = new FormData();
             body.append('action', action);
             if (typeof M !== 'undefined' && M.cfg && M.cfg.sesskey) {
                 body.append('sesskey', M.cfg.sesskey);
             }
 
-            // Helper to clean and append params
             const appendParams = (data, prefix = '') => {
                 if (data === null || data === undefined) return;
                 if (typeof data === 'object' && data !== null) {
                     if (Array.isArray(data)) {
                         data.forEach((item, index) => {
-                            // Moodle often expects indexed arrays as `param[0][subparam]=val`
                             appendParams(item, prefix ? `${prefix}[${index}]` : `${index}`);
                         });
                     } else {
@@ -674,11 +672,10 @@
 
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                // FormData sets Content-Type boundary automatically
                 body: body
             });
 
-            // Handle non-JSON responses or empty responses gracefully
             const text = await response.text();
             if (!text) return null;
 
@@ -694,8 +691,6 @@
                 throw new Error(json.message || json.error || 'API Error');
             }
 
-            // Moodle WebService often returns { data: ..., warnings: [] } or just val
-            // Our custom ajax.php wraps result in 'data' usually, or 'status'
             if (json.status === 'success') {
                 return json.data;
             } else if (json.data !== undefined) {
