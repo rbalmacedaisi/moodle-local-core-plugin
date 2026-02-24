@@ -2693,12 +2693,6 @@ try {
             $response = ['data' => $data, 'error' => false];
             break;
 
-        case 'local_grupomakro_get_scheduler_context':
-            $periodid = required_param('periodid', PARAM_INT);
-            require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
-            $data = \local_grupomakro_core\local\planning_manager::get_scheduler_context($periodid);
-            $response = ['status' => 'success', 'data' => $data];
-            break;
 
         case 'local_grupomakro_get_teachers_disponibility':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/disponibility/get_teachers_disponibility.php');
@@ -2810,7 +2804,9 @@ try {
 
         case 'local_grupomakro_get_scheduler_context':
             $periodid = required_param('periodid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
             $ctxData = \local_grupomakro_core\external\admin\scheduler::get_scheduler_context($periodid);
+            
             // Format holidays with formatted_date for calendar
             if (!empty($ctxData['holidays'])) {
                 foreach ($ctxData['holidays'] as &$h) {

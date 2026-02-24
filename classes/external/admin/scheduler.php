@@ -74,14 +74,53 @@ class scheduler extends external_api {
             }
         }
 
+        // 5. Get Overlapping Schedules from other periods
+        $overlapping = self::get_overlapping_schedules($periodid);
+
         return [
             'classrooms' => array_values($classrooms),
             'holidays' => array_values($holidays),
             'loads' => array_values($loads),
             'period' => $period,
             'configSettings' => $configSettings,
-            'careers' => $careers
+            'careers' => $careers,
+            'overlappingClasses' => $overlapping
         ];
+    }
+
+    /**
+     * Find classes from other periods that overlap in dates with the target period.
+     */
+    public static function get_overlapping_schedules($current_period_id) {
+        global $DB;
+        $current = $DB->get_record('gmk_academic_periods', ['id' => $current_period_id], 'id, startdate, enddate');
+        if (!$current) return [];
+
+        // Find overlapping periods: O.start <= C.end AND O.end >= C.start
+        $sql = "SELECT id FROM {gmk_academic_periods} 
+                WHERE id != :currentid 
+                  AND startdate <= :currentend 
+                  AND enddate >= :currentstart";
+        $others = $DB->get_records_sql($sql, [
+            'currentid' => $current->id,
+            'currentend' => $current->enddate,
+            'currentstart' => $current->startdate
+        ]);
+
+        if (empty($others)) return [];
+
+        $all_external = [];
+        foreach ($others as $other) {
+            $schedules = self::get_generated_schedules($other->id);
+            foreach ($schedules as $s) {
+                // Filter: only classes that ARE scheduled
+                if ($s['day'] === 'N/A') continue;
+                
+                $s['isExternal'] = true;
+                $all_external[] = $s;
+            }
+        }
+        return $all_external;
     }
 
     public static function get_scheduler_context_returns() {

@@ -25,6 +25,7 @@
             students: [], // Flat list of pending students
             projections: [], // Manual projections
             generatedSchedules: [], // The algorithms output
+            overlappingSchedules: [], // Schedules from other periods that overlap in dates
             subperiodFilter: 0, // 0: Todos, 1: P-I, 2: P-II
             careerFilter: null, // Filter by career name
             shiftFilter: null, // Filter by shift name (Jornada)
@@ -74,6 +75,12 @@
             if (res.period) {
                 this.state.activePeriodDates = res.period;
             }
+            // Normalize overlapping classes if present
+            if (res.overlappingClasses) {
+                this.state.overlappingSchedules = this._normalizeSchedules(res.overlappingClasses);
+            } else {
+                this.state.overlappingSchedules = [];
+            }
         },
 
         async loadPlans() {
@@ -102,48 +109,54 @@
             try {
                 const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
                 const rawData = Array.isArray(res) ? res : (res.data || []);
-
-                // Normalize data (Ensure careerList exists for filtering)
-                this.state.generatedSchedules = rawData.map(cls => {
-                    if (cls.career) cls.career = String(cls.career).trim();
-                    if (!cls.careerList && cls.career) {
-                        cls.careerList = cls.career.split(',').map(s => s.trim());
-                    } else if (cls.careerList && Array.isArray(cls.careerList)) {
-                        cls.careerList = cls.careerList.map(s => String(s).trim());
-                    } else {
-                        cls.careerList = [];
-                    }
-
-                    if (cls.shift) cls.shift = String(cls.shift).trim();
-                    if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
-
-                    // Standardize Class Type and Label
-                    if (cls.type === undefined) cls.type = 0; // Default to Presencial
-                    if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
-                    if (!cls.typeLabel) {
-                        const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
-                        cls.typeLabel = typeMap[cls.type] || 'Presencial';
-                    }
-
-                    // Normalize sessions and excluded_dates
-                    if (cls.sessions && Array.isArray(cls.sessions)) {
-                        cls.sessions.forEach(sess => {
-                            if (!sess.excluded_dates) sess.excluded_dates = [];
-                            else if (typeof sess.excluded_dates === 'string') {
-                                try { sess.excluded_dates = JSON.parse(sess.excluded_dates); }
-                                catch (e) { sess.excluded_dates = []; }
-                            }
-                        });
-                    }
-
-                    return cls;
-                });
+                this.state.generatedSchedules = this._normalizeSchedules(rawData);
             } catch (e) {
                 console.error("Load Error", e);
                 this.state.error = e.message;
             } finally {
                 this.state.loading = false;
             }
+        },
+
+        /**
+         * Internal helper to ensure all schedule objects have consistent structure
+         */
+        _normalizeSchedules(rawData) {
+            if (!Array.isArray(rawData)) return [];
+            return rawData.map(cls => {
+                if (cls.career) cls.career = String(cls.career).trim();
+                if (!cls.careerList && cls.career) {
+                    cls.careerList = cls.career.split(',').map(s => s.trim());
+                } else if (cls.careerList && Array.isArray(cls.careerList)) {
+                    cls.careerList = cls.careerList.map(s => String(s).trim());
+                } else {
+                    cls.careerList = [];
+                }
+
+                if (cls.shift) cls.shift = String(cls.shift).trim();
+                if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
+
+                // Standardize Class Type and Label
+                if (cls.type === undefined) cls.type = 0; // Default to Presencial
+                if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
+                if (!cls.typeLabel) {
+                    const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
+                    cls.typeLabel = typeMap[cls.type] || 'Presencial';
+                }
+
+                // Normalize sessions and excluded_dates
+                if (cls.sessions && Array.isArray(cls.sessions)) {
+                    cls.sessions.forEach(sess => {
+                        if (!sess.excluded_dates) sess.excluded_dates = [];
+                        else if (typeof sess.excluded_dates === 'string') {
+                            try { sess.excluded_dates = JSON.parse(sess.excluded_dates); }
+                            catch (e) { sess.excluded_dates = []; }
+                        }
+                    });
+                }
+
+                return cls;
+            });
         },
 
         async loadDemand(periodId) {

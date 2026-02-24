@@ -232,6 +232,36 @@
             }
         });
 
+        // Pre-initialize External: Process classes from overlapping periods
+        if (context.overlappingClasses && Array.isArray(context.overlappingClasses)) {
+            context.overlappingClasses.forEach(s => {
+                if (s.day !== 'N/A' && s.start && s.end) {
+                    // Use sessions if available, fallback to assignedDates
+                    let dates = s.assignedDates || [];
+                    if (s.sessions && Array.isArray(s.sessions)) {
+                        dates = [];
+                        s.sessions.forEach(sess => {
+                            const sessDates = allDatesByDay[sess.day] || [];
+                            const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
+                            let targetDates = sessDates;
+                            if (subRange) {
+                                targetDates = sessDates.filter(d => d >= subRange.start && d <= subRange.end);
+                            }
+                            // Exclude specific dates
+                            if (sess.excluded_dates) {
+                                targetDates = targetDates.filter(d => !sess.excluded_dates.includes(d));
+                            }
+                            dates.push(...targetDates);
+                        });
+                    }
+
+                    markBusyGranular(roomUsage, s.room, dates, s);
+                    if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, dates, s);
+                    if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, dates, s));
+                }
+            });
+        }
+
         const unassigned = nextSchedules.filter(s => s.day === 'N/A');
         unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
 
@@ -509,7 +539,7 @@
         if (schedule.teacherName) {
             // Existing: busy at same time
             const tC = allSchedules.find(s => s.teacherName === schedule.teacherName && checkOverlap(s));
-            if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}`, relatedId: tC.id });
+            if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}${tC.isExternal ? ' (Externo)' : ''}`, relatedId: tC.id });
 
             // NEW: Availability and Competency Check
             if (context?.instructors) {
@@ -531,7 +561,7 @@
 
         if (schedule.room && schedule.room !== 'Sin aula') {
             const rC = allSchedules.find(s => s.room === schedule.room && checkOverlap(s));
-            if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}`, relatedId: rC.id });
+            if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}${rC.isExternal ? ' (Externo)' : ''}`, relatedId: rC.id });
             if (context?.classrooms) {
                 const rD = context.classrooms.find(r => r.name === schedule.room);
                 if (rD && schedule.studentCount > rD.capacity) issues.push({ type: 'capacity', message: `Sobrecapacidad (${schedule.studentCount}/${rD.capacity})` });
@@ -548,7 +578,7 @@
 
                 const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
                 if (overlaps.length > 0) {
-                    conflictSubject = s.subjectName;
+                    conflictSubject = s.subjectName + (s.isExternal ? ' (Externo)' : '');
                     const nameMap = new Map();
                     if (context?.students) context.students.forEach(st => nameMap.set(st.id, st.name));
                     conflictingStudents = overlaps.slice(0, 3).map(sid => nameMap.get(sid) || `ID:${sid}`);

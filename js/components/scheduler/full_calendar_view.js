@@ -87,6 +87,7 @@
             // Watch for changes in anything that affects events
             watch([
                 () => store.state.generatedSchedules,
+                () => store.state.overlappingSchedules,
                 () => store.state.context.period,
                 () => store.state.activePeriod,
                 () => store.state.careerFilter,
@@ -134,18 +135,20 @@
                         }
                     },
                     eventContent: (arg) => {
-                        const props = arg.event.extendedProps;
                         const isExcluded = props.isExcluded;
                         const isHoliday = props.isHoliday;
+                        const isExternal = props.isExternal;
 
-                        let bgColor = isExcluded ? (isHoliday ? 'bg-slate-100' : 'bg-red-50') : 'bg-blue-600';
-                        let borderColor = isExcluded ? (isHoliday ? 'border-slate-200' : 'border-red-200') : 'border-blue-700';
-                        let textColor = isExcluded ? (isHoliday ? 'text-slate-500' : 'text-red-700') : 'text-white';
-                        let dotColor = isExcluded ? (isHoliday ? 'bg-slate-400' : 'bg-red-500') : 'bg-blue-200';
+                        let bgColor = isExternal ? 'bg-slate-100' : (isExcluded ? (isHoliday ? 'bg-slate-100' : 'bg-red-50') : 'bg-blue-600');
+                        let borderColor = isExternal ? 'border-slate-300' : (isExcluded ? (isHoliday ? 'border-slate-200' : 'border-red-200') : 'border-blue-700');
+                        let textColor = isExternal ? 'text-slate-600' : (isExcluded ? (isHoliday ? 'text-slate-500' : 'text-red-700') : 'text-white');
+                        let dotColor = isExternal ? 'bg-slate-400' : (isExcluded ? (isHoliday ? 'bg-slate-400' : 'bg-red-500') : 'bg-blue-200');
 
                         let statusBadge = '';
                         if (isHoliday) {
                             statusBadge = '<span class="text-[7px] font-black uppercase text-slate-600 bg-white px-1 rounded border border-slate-100 shadow-sm">FESTIVO</span>';
+                        } else if (isExternal) {
+                            statusBadge = '<span class="text-[7px] font-black uppercase text-slate-500 bg-white px-1 rounded border border-slate-200 shadow-sm">EXTERNO</span>';
                         } else if (isExcluded) {
                             statusBadge = '<span class="text-[7px] font-black uppercase text-red-600 bg-white px-1 rounded border border-red-100 shadow-sm">LIBERADO</span>';
                         }
@@ -171,7 +174,10 @@
             };
 
             const generateEvents = () => {
-                const schedules = store.state.generatedSchedules || [];
+                const schedules = [
+                    ...(store.state.generatedSchedules || []),
+                    ...(store.state.overlappingSchedules || [])
+                ];
                 const activePeriod = store.state.activePeriod;
                 if (!activePeriod || !schedules.length) {
                     console.log("DEBUG Calendar: No activePeriod or no schedules", { activePeriod, count: schedules.length });
@@ -293,11 +299,12 @@
                                 title: sched.subjectName,
                                 start: `${dateStr}T${session.start}`,
                                 end: `${dateStr}T${session.end}`,
-                                color: sched.subperiod === 2 ? '#0d9488' : '#2563eb', // Teal for P-II, Blue for P-I
+                                color: sched.isExternal ? '#94a3b8' : (sched.subperiod === 2 ? '#0d9488' : '#2563eb'),
                                 extendedProps: {
                                     isExcluded: isEffectiveExcluded,
                                     isHoliday: isHoliday,
                                     isManualExcluded: isExcluded,
+                                    isExternal: sched.isExternal,
                                     schedIdx: schedIdx,
                                     sessionIdx: sessionIdx,
                                     dateStr: dateStr,
@@ -330,7 +337,7 @@
 
             const handleEventClick = (info) => {
                 const props = info.event.extendedProps;
-                if (props.isHoliday) return;
+                if (props.isHoliday || props.isExternal) return;
 
                 const sched = store.state.generatedSchedules[props.schedIdx];
                 const session = sched.sessions[props.sessionIdx];
