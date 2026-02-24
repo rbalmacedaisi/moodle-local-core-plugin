@@ -518,8 +518,11 @@
                     return { success: false };
                 }
 
-                // Flexible column detection using first row keys
-                const headers = Object.keys(jsonData[0]);
+                // Collect headers from ALL rows — SheetJS omits keys for empty cells
+                const headerSet = new Set();
+                jsonData.forEach(row => Object.keys(row).forEach(k => headerSet.add(k)));
+                const headers = Array.from(headerSet);
+
                 const normalize = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
                 const findCol = (keywords) => headers.find(h => {
@@ -530,6 +533,8 @@
                 const subjectCol = findCol(['asignatura', 'materia', 'subject']);
                 const hoursCol = findCol(['carga horar', 'horas', 'total', 'hours']);
                 const intensityCol = findCol(['intensidad', 'sesion', 'session', 'diaria']);
+
+                console.log('[Cargas] Columnas detectadas:', { headers, subjectCol, hoursCol, intensityCol });
 
                 if (!subjectCol) {
                     this.state.error = "No se encontró columna de asignatura. Columnas detectadas: " + headers.join(', ');
