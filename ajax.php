@@ -2903,9 +2903,17 @@ try {
             $periodid = required_param('periodid', PARAM_INT);
             $draft = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
             
+            $data = [];
+            if ($draft) {
+                $decoded = json_decode($draft, true);
+                if (is_array($decoded)) {
+                    $data = $decoded;
+                }
+            }
+
             $response = [
                 'status' => 'success',
-                'data' => $draft ? json_decode($draft) : []
+                'data' => $data
             ];
             break;
 

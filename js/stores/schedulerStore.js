@@ -44,14 +44,21 @@
             this.state.error = null;
 
             try {
+                // 1. Load basic context data
                 await Promise.all([
                     this.loadContext(periodId),
                     this.loadDemand(periodId),
                     this.loadPlans(),
-                    this.loadInstructors(),
-                    this.loadGeneratedSchedules(periodId),
-                    this.loadGeneration(periodId) // Added this line
+                    this.loadInstructors()
                 ]);
+
+                // 2. Load committed schedules (actual courses in DB)
+                await this.loadGeneratedSchedules(periodId);
+
+                // 3. Load draft schedules (uncommitted/projected work)
+                // This will ONLY overwrite/enhance if a draft exists
+                await this.loadGeneration(periodId);
+
             } catch (e) {
                 console.error("Error loading scheduler data", e);
                 this.state.error = e.message || "Error loading data";
@@ -467,8 +474,10 @@
         },
 
         async saveGeneration(periodId, schedules) {
+            if (!periodId || !schedules) return;
             this.state.loading = true;
             try {
+                console.log(`DEBUG: Saving draft for period ${periodId} with ${schedules.length} items`);
                 await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,
                     schedules: JSON.stringify(schedules)
@@ -483,14 +492,21 @@
         },
 
         async loadGeneration(periodId) {
+            if (!periodId) return;
+            console.log(`DEBUG: Attempting to load draft for period ${periodId}...`);
             try {
                 const res = await this._fetch('local_grupomakro_load_generation_result', {
                     periodid: periodId
                 });
-                this.state.generatedSchedules = res || [];
+
+                if (res && Array.isArray(res) && res.length > 0) {
+                    console.log(`DEBUG: Draft FOUND with ${res.length} items. Applying...`);
+                    this.state.generatedSchedules = res;
+                } else {
+                    console.log("DEBUG: No draft found or draft is empty for this period.");
+                }
             } catch (e) {
                 console.error("Load generation error:", e);
-                // Don't show error to user as it might be empty
             }
         },
 
