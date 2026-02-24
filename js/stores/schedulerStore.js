@@ -477,11 +477,18 @@
             if (!periodId || !schedules) return;
             this.state.loading = true;
             try {
-                console.log(`DEBUG: Saving draft for period ${periodId} with ${schedules.length} items`);
-                await this._fetch('local_grupomakro_save_generation_result', {
+                const payloadStr = JSON.stringify(schedules);
+                console.log(`DEBUG: Saving draft for period ${periodId} with ${schedules.length} items. String length: ${payloadStr.length}`);
+
+                const res = await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,
-                    schedules: JSON.stringify(schedules)
+                    schedules: payloadStr
                 });
+
+                if (res && res.received_length !== undefined) {
+                    console.log(`DEBUG: Server confirmed receipt of ${res.received_length} characters.`);
+                }
+
                 this.state.successMessage = "Horarios guardados correctamente";
             } catch (e) {
                 console.error("Save generation error:", e);
@@ -639,41 +646,17 @@
 
         async _fetch(action, params = {}) {
             const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-            const body = new FormData();
-            body.append('action', action);
-            if (typeof M !== 'undefined' && M.cfg && M.cfg.sesskey) {
-                body.append('sesskey', M.cfg.sesskey);
-            }
 
-            const appendParams = (data, prefix = '') => {
-                if (data === null || data === undefined) return;
-                if (typeof data === 'object' && data !== null) {
-                    if (Array.isArray(data)) {
-                        data.forEach((item, index) => {
-                            appendParams(item, prefix ? `${prefix}[${index}]` : `${index}`);
-                        });
-                    } else {
-                        Object.keys(data).forEach(key => {
-                            appendParams(data[key], prefix ? `${prefix}[${key}]` : key);
-                        });
-                    }
-                } else {
-                    body.append(prefix, data);
-                }
+            const payload = {
+                action: action,
+                sesskey: (typeof M !== 'undefined' && M.cfg && M.cfg.sesskey) ? M.cfg.sesskey : null,
+                ...params
             };
-
-            for (const [key, value] of Object.entries(params)) {
-                if (typeof value === 'object' && value !== null) {
-                    appendParams(value, key);
-                } else {
-                    body.append(key, value);
-                }
-            }
 
             const response = await fetch(url, {
                 method: 'POST',
-                // FormData sets Content-Type boundary automatically
-                body: body
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
             const text = await response.text();

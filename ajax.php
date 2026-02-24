@@ -39,9 +39,7 @@ if (empty($action)) {
             // Extract core fields
             // Extract all root fields for compatibility with required_param/optional_param
             foreach ($jsonData as $key => $value) {
-                if (!is_array($value)) {
-                    $_POST[$key] = $_REQUEST[$key] = $value;
-                }
+                $_POST[$key] = $_REQUEST[$key] = $value;
             }
 
             // Flatten 'args' for compatibility with required_param/optional_param
@@ -2895,7 +2893,8 @@ try {
             $periodid = required_param('periodid', PARAM_INT);
             $schedulesJson = required_param('schedules', PARAM_RAW);
             
-            error_log("DEBUG: Saving draft for period $periodid. Length: " . strlen($schedulesJson));
+            $len = strlen($schedulesJson);
+            error_log("DEBUG: Saving draft for period $periodid. Length: $len");
 
             if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
                 $response = ['status' => 'error', 'message' => 'El periodo academico no existe'];
@@ -2903,7 +2902,7 @@ try {
             }
 
             $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
-            $response = ['status' => 'success'];
+            $response = ['status' => 'success', 'received_length' => $len];
             break;
 
         case 'local_grupomakro_load_generation_result':
