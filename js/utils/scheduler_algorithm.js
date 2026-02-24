@@ -166,8 +166,8 @@
                 const slots = entityMap.get(date) || [];
                 const conflict = slots.find(busy => {
                     const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
-                    // Strict overlap check: classes can start exactly when the previous ends (no padding)
-                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
+                    // Include interval padding to enforce recess
+                    return subOverlap && Math.max(start, busy.start - interval) < Math.min(end, busy.end + interval);
                 });
                 if (conflict) {
                     conflictSubject = conflict.subjectName;
@@ -323,11 +323,9 @@
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
                 .sort((a, b) => {
-                    // Stable sort by capacity: prefer smallest room that fits to free up larger rooms
                     const diff = a.capacity - b.capacity;
-                    if (diff !== 0) return diff;
-                    // Then by name to keep it consistent
-                    return String(a.name).localeCompare(String(b.name));
+                    if (Math.abs(diff) <= 5) return Math.random() - 0.5;
+                    return diff;
                 });
 
             let placed = false;
@@ -373,17 +371,9 @@
 
                     if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
                         stats.lunchConflictCount++;
-                        // Avoid adding too much to log to prevent memory blowup
-                        if (auditLog.length < 50) auditLog.push({ day, time: timeStr, status: 'Lunch', detail: 'Coincide con almuerzo' });
+                        auditLog.push({ day, time: timeStr, status: 'Lunch', detail: 'Coincide con almuerzo' });
                         continue;
                     }
-
-                    // Pre-check dates availability for this specific day/time
-                    // This is important if maxSessions is used
-                    const checkRoomAvailability = (roomName) => {
-                        const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, roomName, [d], s.subperiod, t, tEnd, intervalMins));
-                        return freeDates;
-                    };
 
                     // --- HUMAN CONFLICT CHECK (Student/Teacher) ---
                     const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd, intervalMins);
@@ -402,16 +392,13 @@
                         continue;
                     }
 
-                    // Mechanical Conflict Check
+                    // --- MECHANICAL CONFLICT CHECK ---
                     let roomRejectionDetail = "";
                     for (const room of validRooms) {
                         if (placed) break;
 
-                        // Calculate available dates for THIS specific room
-                        const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, 0));
-                        if (placed) break;
-
                         if (maxSessions) {
+                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, intervalMins));
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
@@ -421,13 +408,13 @@
                                 placed = true;
                             } else {
                                 stats.roomBusyCount++;
-                                roomRejectionDetail = `Sesiones insuficientes (${freeDates.length}/${maxSessions})`;
+                                roomRejectionDetail = "Sesiones insuficientes para intensivo";
                             }
                         } else {
-                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd, 0);
+                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd, intervalMins);
                             if (rConflict) {
                                 stats.roomBusyCount++;
-                                roomRejectionDetail = `Aulas ocupadas (${room.name}: ${rConflict})`;
+                                roomRejectionDetail = `Aulas ocupadas (+${intervalMins}m receso) (${room.name}: ${rConflict})`;
                                 continue;
                             }
 

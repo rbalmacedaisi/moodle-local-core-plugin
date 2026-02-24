@@ -312,11 +312,7 @@
 
                 // --- Object Creation ---
                 for (const [aggKey, data] of Object.entries(aggregatedDemand)) {
-                    // Critical Fix: Deduplicate students to prevent false-positive conflicts and waste of rooms
-                    const uniqueStudents = Array.from(new Set(data.students));
-                    data.students = uniqueStudents;
-
-                    const totalStudents = uniqueStudents;
+                    const totalStudents = data.students;
                     const count = totalStudents.length || Math.max(...Object.values(data.plan_scores || { 0: 0 }));
                     if (count === 0) continue;
 
