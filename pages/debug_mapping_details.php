@@ -21,25 +21,56 @@ echo "<style>
 
 echo "<h1>Grupomakro Mapping Debugger</h1>";
 
+// --- SEARCH TOOL ---
+$search = optional_param('search', '', PARAM_RAW);
+echo "<div style='background:#e7f3ff; padding:15px; border-radius:8px; margin-bottom:20px;'>
+    <h3>Search Tool (Find User by Hash/Email/Name)</h3>
+    <form method='get'>
+        <input type='text' name='search' value='" . s($search) . "' placeholder='Paste hash or email here...' style='width:300px; padding:5px;'>
+        <button type='submit'>Search User</button>
+    </form>";
+
+if ($search) {
+    $foundUsers = $DB->get_records_sql("SELECT * FROM {user} WHERE email LIKE ? OR username LIKE ? OR firstname LIKE ? OR lastname LIKE ? OR id = ?", ["%$search%", "%$search%", "%$search%", "%$search%", (int)$search]);
+    if ($foundUsers) {
+        echo "<h4>Search Results:</h4><ul>";
+        foreach ($foundUsers as $u) {
+            echo "<li><strong>ID: {$u->id}</strong> | Name: " . fullname($u) . " | Email: {$u->email} | Username: {$u->username}</li>";
+        }
+        echo "</ul>";
+    } else {
+        echo "<p>No user found matching that search.</p>";
+    }
+}
+echo "</div>";
+// -------------------
+
 if (!$classid) {
     echo "<h2>Select a Class to Debug</h2>";
-    echo "<p>Showing the 30 most recent classes:</p>";
+    echo "<p>Showing the 50 most recent classes:</p>";
     
-    $classes = $DB->get_records('gmk_class', null, 'id DESC', '*', 0, 30);
+    $classes = $DB->get_records('gmk_class', null, 'id DESC', '*', 0, 50);
     
     if (!$classes) {
         echo "<p>No classes found in gmk_class table.</p>";
     } else {
-        echo "<div style='max-width: 800px; border: 1px solid #ccc; border-radius: 8px;'>";
+        echo "<table border='1' cellpadding='8' style='border-collapse: collapse; width: 100%; max-width: 1000px;'>";
+        echo "<tr style='background:#eee;'><th>ID</th><th>Name</th><th>Instructor</th><th>Days</th><th>Status</th></tr>";
         foreach ($classes as $c) {
             $url = new moodle_url('/local/grupomakro_core/pages/debug_mapping_details.php', ['class_id' => $c->id]);
             $approved = $c->approved ? '<span class="badge badge-approved">Approved</span>' : '<span class="badge badge-pending">Draft</span>';
-            echo "<div class='class-item'>";
-            echo "<strong>ID: {$c->id}</strong> - <a href='{$url}'>{$c->name}</a> $approved<br>";
-            echo "<small>Instructor ID: " . ($c->instructorid ?: 'None') . " | Course ID: {$c->courseid} | Plan: {$c->learningplanid}</small>";
-            echo "</div>";
+            $hasDays = ($c->classdays !== '0/0/0/0/0/0/0') ? "<strong>$c->classdays</strong>" : "<span style='color:red'>None</span>";
+            $instructor = $c->instructorid ? "ID: $c->instructorid" : "<span style='color:orange'>Unassigned</span>";
+            
+            echo "<tr>";
+            echo "<td>{$c->id}</td>";
+            echo "<td><a href='{$url}'>{$c->name}</a></td>";
+            echo "<td>$instructor</td>";
+            echo "<td>$hasDays</td>";
+            echo "<td>$approved</td>";
+            echo "</tr>";
         }
-        echo "</div>";
+        echo "</table>";
     }
 } else {
     echo "<a href='debug_mapping_details.php'>&larr; Back to selection</a>";
