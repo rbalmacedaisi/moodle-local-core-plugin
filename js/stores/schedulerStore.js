@@ -685,6 +685,11 @@
                 body: JSON.stringify(payload)
             });
 
+            if (!response.ok) {
+                console.error(`HTTP Error: ${response.status} ${response.statusText}`);
+                throw new Error(`Server returned error ${response.status}: ${response.statusText}`);
+            }
+
             const text = await response.text();
             if (!text) return null;
 
