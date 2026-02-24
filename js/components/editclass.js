@@ -371,8 +371,11 @@ window.Vue.component('editclass', {
 
             setTimeout(() => {
                 this.filledInputs = true;
-                console.log("DEBUG editclass.js: Initialization complete. Days:", this.classData.classDays);
-            }, 1000)
+                console.log("DEBUG editclass.js: Initialization complete.");
+                console.log(" - Days:", JSON.stringify(this.classData.classDays));
+                console.log(" - Teacher ID:", this.classTeacherId);
+                console.log(" - Teacher List Size:", this.teachers.length);
+            }, 500)
         },
         async handleLearningPlanChange() {
             if (!this.classData.learningPlanId || !this.filledInputs) {
@@ -668,7 +671,9 @@ window.Vue.component('editclass', {
             return days.join('/');
         },
         reschedulingActivityTitle() {
-            return `${this.classData.name} (${this.activityRescheduleData.activityInitDate} ${this.activityRescheduleData.activityInitTime}-${this.activityRescheduleData.activityEndTime})`
+            const name = this.classData?.name || '';
+            const data = this.activityRescheduleData || {};
+            return `${name} (${data.activityInitDate} ${data.activityInitTime}-${data.activityEndTime})`
         },
         buttonLabel() {
             return this.reschedulingActivity ? this.lang.reschedule : this.lang.save

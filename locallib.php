@@ -383,35 +383,87 @@ function get_potential_class_teachers($params)
             return $teacher;
         }, $learningPlanTeachers));
     }
-    // CRITICAL: Ensure the current instructor is ALWAYS included and deduplicate everything by Moodle User ID
+    // CRITICAL: Ensure the current instructor is ALWAYS included and deduplicate everything by Name/Moodle User ID
+    // We deduplicate by Name because we found multiple accounts (e.g. legacy vs new) for the same person (e.g. Lorenzo)
     $finalTeachersMap = [];
+    $namesToIds = []; // Map name -> preferred ID
+
+    // Helper to detect MD5-like hashes (32 chars hex)
+    $is_hash = function($str) {
+        return preg_match('/^[a-f0-9]{32}$/i', trim($str));
+    };
 
     // First, process the filtered learning plan teachers
     foreach ($learningPlanTeachers as $teacher) {
         $moodleId = (int)(property_exists($teacher, 'userid') ? $teacher->userid : $teacher->id);
-        if ($moodleId > 0) {
+        if ($moodleId <= 0) continue;
+
+        $nameKey = trim(mb_strtolower($teacher->fullname));
+        $hasRealEmail = !$is_hash($teacher->email);
+
+        // Deduplication logic: If name exists, check if we should replace the existing entry
+        if (!isset($namesToIds[$nameKey])) {
+            $namesToIds[$nameKey] = $moodleId;
             $teacher->id = $moodleId;
             $teacher->userid = $moodleId;
+            if (!$hasRealEmail) $teacher->email = ''; // Clean hash
             $finalTeachersMap[$moodleId] = $teacher;
+        } else {
+            $existingId = $namesToIds[$nameKey];
+            $existingTeacher = $finalTeachersMap[$existingId];
+            $existingHasRealEmail = !$is_hash($existingTeacher->email);
+
+            // If new one has real email and old one doesn't, swap them
+            if ($hasRealEmail && !$existingHasRealEmail) {
+                unset($finalTeachersMap[$existingId]);
+                $namesToIds[$nameKey] = $moodleId;
+                $teacher->id = $moodleId;
+                $teacher->userid = $moodleId;
+                $finalTeachersMap[$moodleId] = $teacher;
+            }
         }
     }
 
-    // Second, ensure the currently assigned instructor is present
+    // Second, ensure the currently assigned instructor is present (even if legacy)
     if ($params['classId']) {
         $currentClass = $DB->get_record('gmk_class', ['id' => $params['classId']], 'instructorid');
         if ($currentClass && !empty($currentClass->instructorid)) {
             $instructorId = (int)$currentClass->instructorid;
+            
             if (!isset($finalTeachersMap[$instructorId])) {
                 try {
-                    $currentTeacher = core_user::get_user($instructorId);
-                    if ($currentTeacher) {
-                        $teacherObj = new stdClass();
-                        $teacherObj->id = $instructorId;
-                        $teacherObj->userid = $instructorId;
-                        $teacherObj->fullname = fullname($currentTeacher);
-                        $teacherObj->email = $currentTeacher->email;
-                        $teacherObj->instructorSkills = [];
-                        $finalTeachersMap[$instructorId] = $teacherObj;
+                    $currentTeacherUser = core_user::get_user($instructorId);
+                    if ($currentTeacherUser) {
+                        $currentNameKey = trim(mb_strtolower(fullname($currentTeacherUser)));
+                        
+                        // If we have another account with the same name, we should MERGE them
+                        // specifically for the UI to show only one entry but selectable as the current ID.
+                        $merged = false;
+                        if (isset($namesToIds[$currentNameKey])) {
+                            $matchingIdInList = $namesToIds[$currentNameKey];
+                            
+                            // If the one in the list is "better" (real email), we swap the ID 
+                            // of the list item to the current instructor ID so it shows as "(Actual)"
+                            // but with the good data.
+                            $existingTeacher = $finalTeachersMap[$matchingIdInList];
+                            if (!$is_hash($existingTeacher->email)) {
+                                unset($finalTeachersMap[$matchingIdInList]);
+                                $existingTeacher->id = $instructorId;
+                                $existingTeacher->userid = $instructorId;
+                                $finalTeachersMap[$instructorId] = $existingTeacher;
+                                $merged = true;
+                            }
+                        }
+
+                        if (!$merged) {
+                            $teacherObj = new stdClass();
+                            $teacherObj->id = $instructorId;
+                            $teacherObj->userid = $instructorId;
+                            $teacherObj->fullname = fullname($currentTeacherUser);
+                            $teacherObj->email = $is_hash($currentTeacherUser->email) ? '' : $currentTeacherUser->email;
+                            $teacherObj->instructorSkills = [];
+                            $finalTeachersMap[$instructorId] = $teacherObj;
+                        }
                     }
                 } catch (Exception $e) {
                     gmk_log("ERROR get_potential_class_teachers: Could not fetch current instructor $instructorId");
