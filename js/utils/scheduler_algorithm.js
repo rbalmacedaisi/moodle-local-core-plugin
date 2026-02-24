@@ -263,7 +263,24 @@
         }
 
         const unassigned = nextSchedules.filter(s => s.day === 'N/A');
-        unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
+
+        // --- IMPROVED SORTING (Clustering Heuristic) ---
+        // Sort by Career + Subperiod + StudentCount
+        // This keeps Cohorts together, allowing the algorithm to pack a single group's classes
+        // into the same days/rooms before moving to the next group, which is more "efficient"
+        // for students and improves Mon-Wed saturation.
+        unassigned.sort((a, b) => {
+            // First by Career name (lexicographical)
+            const careerA = String(a.career || '');
+            const careerB = String(b.career || '');
+            if (careerA !== careerB) return careerA.localeCompare(careerB);
+
+            // Then by Subperiod (P-I vs P-II blocks)
+            if (a.subperiod !== b.subperiod) return a.subperiod - b.subperiod;
+
+            // Finally by StudentCount (Descending - largest first within the group)
+            return (b.studentCount || 0) - (a.studentCount || 0);
+        });
 
         unassigned.forEach(s => {
             if (s.studentCount < 12 && !s.isQuorumException) {
@@ -289,9 +306,19 @@
             const win = shiftWindows[s.shift] || shiftWindows['Diurna'];
             const winStart = toMins(win.start);
             const winEnd = toMins(win.end);
+
+            // --- TIERED DAY PRIORITY ---
+            // The algorithm tries day by day in order. To prioritize Mon-Wed, 
+            // we ensure the search array starts with L, M, X.
             let winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-            if (s.shift === 'Sabatina') winDays = ['Sabado'];
-            else if (win && win.days) winDays = win.days;
+            if (s.shift === 'Sabatina') {
+                winDays = ['Sabado'];
+            } else if (win && win.days && Array.isArray(win.days)) {
+                winDays = win.days;
+            } else {
+                // Explicitly enforce Mon-Wed priority for standard shifts
+                winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+            }
 
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
