@@ -115,7 +115,9 @@
                         right: ''
                     },
                     locale: 'es',
-                    events: events,
+                    events: (info, successCallback) => {
+                        successCallback(generateEvents());
+                    },
                     dayMaxEvents: 5,
                     height: '100%',
                     selectable: false,
@@ -300,18 +302,17 @@
                 });
 
                 console.log(`DEBUG Calendar: Created ${events.length} events.`);
-
-                // Automatically move to the start date of the period in the first load
-                if (calendar.value && events.length > 0 && period.start) {
-                    const currentViewDate = calendar.value.getDate();
-                    const periodStartDate = new Date(period.start + 'T00:00:00');
-                    if (currentViewDate.getMonth() !== periodStartDate.getMonth() || currentViewDate.getFullYear() !== periodStartDate.getFullYear()) {
-                        calendar.value.gotoDate(period.start);
-                    }
-                }
-
                 return events;
             };
+
+            // One-time navigation to the period start
+            store.subscribe((mutation, state) => {
+                if (mutation.type === 'setGeneratedSchedules' && state.activePeriodDates?.start && calendar.value) {
+                    setTimeout(() => {
+                        calendar.value.gotoDate(state.activePeriodDates.start);
+                    }, 100);
+                }
+            });
 
             const handleEventClick = (info) => {
                 const props = info.event.extendedProps;
@@ -329,10 +330,9 @@
                     session.excluded_dates.push(dateStr);
                 }
 
-                // Force refresh
+                // Force refresh without resetting scroll
                 if (calendar.value) {
-                    calendar.value.removeAllEvents();
-                    calendar.value.addEventSource(generateEvents());
+                    calendar.value.refetchEvents();
                 }
             };
 
