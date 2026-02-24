@@ -293,7 +293,8 @@ window.Vue.component('editclass', {
             periods: [],
             courses: [],
             teachers: [],
-            classTeacherId,
+            classTeacherId: undefined,
+            reschedulingActivity: false,
             errorMessage: undefined,
             rescheduleMessage: undefined,
             savingClass: false,
@@ -313,7 +314,11 @@ window.Vue.component('editclass', {
         },
         fillInputs() {
             const rawTemplatedata = window.templatedata || {};
-            if (!rawTemplatedata.classId) {
+
+            // Set rescheduling mode early
+            this.reschedulingActivity = !!rawTemplatedata.reschedulingActivity;
+
+            if (!rawTemplatedata.classId && !this.reschedulingActivity) {
                 console.error("ERROR editclass.js: window.templatedata is missing or invalid");
                 return;
             }
@@ -647,7 +652,8 @@ window.Vue.component('editclass', {
             }
         },
         classDaysString() {
-            const classDays = this.classData.classDays
+            const classDays = this.classData?.classDays;
+            if (!classDays) return '0/0/0/0/0/0/0';
             const days = [
                 classDays.monday ? '1' : '0',
                 classDays.tuesday ? '1' : '0',
@@ -658,9 +664,6 @@ window.Vue.component('editclass', {
                 classDays.sunday ? '1' : '0',
             ];
             return days.join('/');
-        },
-        reschedulingActivity() {
-            return classData.reschedulingActivity;
         },
         reschedulingActivityTitle() {
             return `${this.classData.name} (${this.activityRescheduleData.activityInitDate} ${this.activityRescheduleData.activityInitTime}-${this.activityRescheduleData.activityEndTime})`
