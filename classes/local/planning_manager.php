@@ -229,6 +229,7 @@ class planning_manager {
                 'dbId' => $u->id,
                 'name' => $u->firstname . ' ' . $u->lastname,
                 'career' => $u->planname,
+                'planid' => $u->planid,
                 'shift' => $u->shift,
                 // Pass raw Current Period/Subperiod from DB Config, or Fallback
                 'currentSemConfig' => $dbPeriodName, 
