@@ -51,7 +51,10 @@ $PAGE->navbar->add(
     new moodle_url('/local/grupomakro_core/pages/editclass.php')
 );
 
-$id = required_param('class_id', PARAM_TEXT);
+$id = optional_param('class_id', null, PARAM_INT);
+if (!$id) {
+    redirect(new moodle_url('/local/grupomakro_core/pages/classmanagement.php'), 'ID de clase no proporcionado', 3);
+}
 $moduleId = optional_param('moduleId',null, PARAM_TEXT);
 $sessionId = optional_param('sessionId',null, PARAM_TEXT);
 $proposedDate = optional_param('proposedDate',null, PARAM_TEXT);
