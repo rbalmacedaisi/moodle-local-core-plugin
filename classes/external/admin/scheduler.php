@@ -928,16 +928,16 @@ class scheduler extends external_api {
                 ];
             }
             
-            // Derive Academic Metadata from Subject ID (courseid)
+            // Derive Academic Level from Subject ID (courseid) if missing
             $academic_period_id = 0;
             
-            // HEALING: If courseid is 0 but we have corecourseid or name, try to resolve it
+            // HEALING: If courseid is missing but we have metadata, try to resolve it
             if (empty($c->courseid) || $c->courseid == "0") {
                 if (!empty($c->corecourseid)) {
                     $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $c->corecourseid], 'id, learningplanid, periodid', IGNORE_MULTIPLE);
                     if ($subjByCore) {
                         $c->courseid = $subjByCore->id;
-                        $c->learningplanid = $subjByCore->learningplanid;
+                        if (empty($c->learningplanid)) $c->learningplanid = $subjByCore->learningplanid;
                         $academic_period_id = $subjByCore->periodid;
                     }
                 }
@@ -948,13 +948,14 @@ class scheduler extends external_api {
                                                        ORDER BY lc.id DESC", [$c->subjectname, $c->subjectname], IGNORE_MULTIPLE);
                     if ($subjByName) {
                         $c->courseid = $subjByName->id;
-                        $c->learningplanid = $subjByName->learningplanid;
+                        if (empty($c->learningplanid)) $c->learningplanid = $subjByName->learningplanid;
                         $academic_period_id = $subjByName->periodid;
-                        $c->corecourseid = $subjByName->courseid;
+                        if (empty($c->corecourseid)) $c->corecourseid = $subjByName->courseid;
                     }
                 }
             }
 
+            // If we have a valid subject ID (courseid column in gmk_class), get its period if not already set
             if (!empty($c->courseid) && $c->courseid != "0") {
                 if (!isset($subjects_metadata_cache[$c->courseid])) {
                     $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'id, learningplanid, periodid, courseid');
@@ -966,9 +967,13 @@ class scheduler extends external_api {
                 
                 $meta = $subjects_metadata_cache[$c->courseid];
                 if ($meta) {
-                    $c->learningplanid = $meta->learningplanid;
+                    // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
+                    if (empty($c->learningplanid)) $c->learningplanid = $meta->learningplanid;
                     $academic_period_id = $meta->periodid;
-                    $c->courseid = $meta->id;
+                    // If the stored courseid was a corecourseid (Moodle ID), heal it to Subject ID (Link ID)
+                    if ($c->courseid == $meta->courseid && $c->courseid != $meta->id) {
+                        $c->courseid = $meta->id;
+                    }
                 }
             }
 

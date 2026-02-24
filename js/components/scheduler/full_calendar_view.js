@@ -160,26 +160,45 @@
             const generateEvents = () => {
                 const schedules = store.state.generatedSchedules || [];
                 const activePeriod = store.state.activePeriod;
-                if (!activePeriod || !schedules.length) return [];
+                if (!activePeriod || !schedules.length) {
+                    console.log("DEBUG Calendar: No activePeriod or no schedules", { activePeriod, count: schedules.length });
+                    return [];
+                }
 
-                const period = store.state.context.period || {};
+                // Normalization helper for accents in day names
+                const normalizeDay = (day) => {
+                    if (!day) return '';
+                    return day.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                };
+
+                const dayMap = { 'LUNES': 1, 'MARTES': 2, 'MIERCOLES': 3, 'JUEVES': 4, 'VIERNES': 5, 'SABADO': 6, 'DOMINGO': 0 };
                 const config = (typeof store.state.context.configSettings === 'string' && store.state.context.configSettings)
                     ? JSON.parse(store.state.context.configSettings)
                     : (store.state.context.configSettings || {});
-
+                const period = store.state.context.period || {};
                 const events = [];
 
-                const dayMap = {
-                    'LUNES': 1, 'MARTES': 2, 'MIERCOLES': 3, 'MIÉRCOLES': 3,
-                    'JUEVES': 4, 'VIERNES': 5, 'SABADO': 6, 'SÁBADO': 6, 'DOMINGO': 0
-                };
+                console.log("DEBUG Calendar: Generating events for", schedules.length, "schedules. Period:", period);
 
                 // Robust filtering matching PlanningBoard.js
                 const careerFilter = store.state.careerFilter;
                 const shiftFilter = store.state.shiftFilter;
 
                 schedules.forEach((sched, schedIdx) => {
-                    if (!sched.sessions) return;
+                    if (!sched.sessions || sched.sessions.length === 0) {
+                        // Fallback: If sessions not present, use the root day/start/end (backward compatibility)
+                        if (sched.day && sched.day !== 'N/A') {
+                            sched.sessions = [{
+                                day: sched.day,
+                                start: sched.start,
+                                end: sched.end,
+                                roomName: sched.room,
+                                excluded_dates: sched.excluded_dates || []
+                            }];
+                        } else {
+                            return;
+                        }
+                    }
 
                     // Career filter (Robust check)
                     if (careerFilter) {
@@ -190,6 +209,11 @@
 
                     // Shift filter
                     if (shiftFilter && sched.shift !== shiftFilter) return;
+
+                    // Filter by subperiod
+                    if (store.state.subperiodFilter !== 0 && sched.subperiod !== 0) {
+                        if (sched.subperiod !== store.state.subperiodFilter) return;
+                    }
 
                     // Range for this schedule based on subperiod
                     let startDate = period.start ? new Date(period.start + 'T00:00:00') : new Date();
@@ -204,20 +228,26 @@
                     }
 
                     sched.sessions.forEach((session, sessionIdx) => {
-                        const targetDay = dayMap[session.day.toUpperCase()];
-                        if (targetDay === undefined) return;
+                        const targetDayStr = normalizeDay(session.day);
+                        const targetDay = dayMap[targetDayStr];
+
+                        if (targetDay === undefined) {
+                            console.warn(`DEBUG Calendar: Day not found in map: "${session.day}" (normalized: "${targetDayStr}")`);
+                            return;
+                        }
 
                         let current = new Date(startDate);
-                        while (current.getDay() !== targetDay) {
+                        // Find first occurrence
+                        let safety = 0;
+                        while (current.getDay() !== targetDay && safety < 8) {
                             current.setDate(current.getDate() + 1);
+                            safety++;
                         }
 
                         while (current <= endDate) {
-                            // Local-safe date string YYYY-MM-DD
-                            const dateStr = current.getFullYear() + '-' +
-                                String(current.getMonth() + 1).padStart(2, '0') + '-' +
-                                String(current.getDate()).padStart(2, '0');
+                            const dateStr = current.toISOString().split('T')[0];
 
+                            // Check exclusions
                             const isExcluded = session.excluded_dates && session.excluded_dates.includes(dateStr);
                             const isHoliday = store.state.context.holidays.some(h => {
                                 const hDate = new Date(h.date * 1000);
@@ -227,25 +257,44 @@
                                 return hStr === dateStr;
                             });
 
-                            events.push({
-                                id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
-                                title: sched.subjectName,
-                                start: `${dateStr}T${session.start}`,
-                                end: `${dateStr}T${session.end}`,
-                                extendedProps: {
-                                    isExcluded: isExcluded,
-                                    isHoliday: isHoliday,
-                                    schedIdx: schedIdx,
-                                    sessionIdx: sessionIdx,
-                                    dateStr: dateStr,
-                                    timeStr: `${session.start} - ${session.end}`
-                                }
-                            });
+                            if (!isExcluded) {
+                                events.push({
+                                    id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
+                                    title: sched.subjectName,
+                                    start: `${dateStr}T${session.start}`,
+                                    end: `${dateStr}T${session.end}`,
+                                    color: sched.subperiod === 2 ? '#0d9488' : '#2563eb', // Teal for P-II, Blue for P-I
+                                    extendedProps: {
+                                        isExcluded: isExcluded, // Still pass this for eventContent styling
+                                        isHoliday: isHoliday, // Still pass this for eventContent styling
+                                        schedIdx: schedIdx,
+                                        sessionIdx: sessionIdx,
+                                        dateStr: dateStr,
+                                        teacher: sched.teacherName,
+                                        room: session.roomName || sched.room,
+                                        career: sched.career,
+                                        level: sched.levelDisplay,
+                                        typeLabel: sched.typeLabel,
+                                        timeStr: `${session.start} - ${session.end}`
+                                    }
+                                });
+                            }
 
                             current.setDate(current.getDate() + 7);
                         }
                     });
                 });
+
+                console.log(`DEBUG Calendar: Created ${events.length} events.`);
+
+                // Automatically move to the start date of the period in the first load
+                if (calendar.value && events.length > 0 && period.start) {
+                    const currentViewDate = calendar.value.getDate();
+                    const periodStartDate = new Date(period.start + 'T00:00:00');
+                    if (currentViewDate.getMonth() !== periodStartDate.getMonth() || currentViewDate.getFullYear() !== periodStartDate.getFullYear()) {
+                        calendar.value.gotoDate(period.start);
+                    }
+                }
 
                 return events;
             };

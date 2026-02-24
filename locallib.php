@@ -805,15 +805,20 @@ function list_classes($filters)
             
             $meta = $subjects_metadata_cache[$class->courseid];
             if ($meta) {
-                // Prioritize subject metadata for UI display and editor context
-                $class->learningplanid = $meta->learningplanid;
-                $class->academic_period_id = $meta->periodid; // Helper field for the Level ID
+                // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
+                if (empty($class->learningplanid)) $class->learningplanid = $meta->learningplanid;
+                
+                // Helper field for the Level ID
+                $class->academic_period_id = $meta->periodid; 
                 
                 // Override periodid in-memory for editclass.php compatibility (it expects Level ID here)
+                // However, we must be careful not to break other callers that expect the Institutional ID.
                 $class->periodid = $meta->periodid; 
                 
                 // Ensure courseid matches the Subject ID if it was a Moodle ID fallback
-                $class->courseid = $meta->id;
+                if ($class->courseid == $meta->courseid && $class->courseid != $meta->id) {
+                    $class->courseid = $meta->id;
+                }
                 $class->corecourseid = $meta->courseid;
             }
         }
