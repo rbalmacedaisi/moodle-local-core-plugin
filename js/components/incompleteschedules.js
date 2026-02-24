@@ -1,4 +1,4 @@
-Vue.component('incompleteschedules',{
+Vue.component('incompleteschedules', {
     template: `
       <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="py-0">
@@ -134,8 +134,8 @@ Vue.component('incompleteschedules',{
             </v-dialog>
         </v-row>
     `,
-    data(){
-        return{
+    data() {
+        return {
             headers: [
                 {
                     text: 'Estudiante',
@@ -157,30 +157,30 @@ Vue.component('incompleteschedules',{
             items: [],
             dataCourse: {},
             selectedItems: [],
-            dataSchedule : false,
+            dataSchedule: false,
         }
     },
-    props:{},
-    created(){
+    props: {},
+    created() {
         this.getStudent()
         this.getschedules()
-    }, 
-    mounted(){},  
-    methods:{
+    },
+    mounted() { },
+    methods: {
         // Retrieves a list of students who do not have a schedule for a specific period.
-        getStudent(){
+        getStudent() {
             // Get the current URL of the page.
             var currentURL = window.location.href;
-            
+
             // Create a URL object based on the current URL.
             var siteurl = new URL(currentURL);
-            
+
             // Get the value of the "periodsid" parameter from the current URL.
             var periods = siteurl.searchParams.get("periodsid");
-            
+
             // Define the URL for the API endpoint.
             const url = this.siteUrl;
-            
+
             // Create an object with parameters required for the API call.
             const params = {
                 wstoken: this.token,
@@ -189,21 +189,21 @@ Vue.component('incompleteschedules',{
                 courseId: this.courseId,
                 periodIds: periods
             };
-            
+
             // Make a GET request to the specified URL, passing the parameters as query parameters.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     // Convert the API response data from JSON string format to an object.
                     const data = JSON.parse(response.data.schedulelessStudents)
-                    
+
                     // Convert the data object to an array.
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
                     console.log(array)
-                    
+
                     // Iterate through the array and add student information to the 'users' array.
-                    array.forEach((element)=>{
+                    array.forEach((element) => {
                         this.users.push({
                             id: element.id,
                             img: element.profilePicture,
@@ -215,19 +215,19 @@ Vue.component('incompleteschedules',{
                 // Log an error message to the console if the request fails.
                 .catch(error => {
                     console.error(error);
-            });  
+                });
         },
         // Retrieves class schedules for a specific course and period.
-        getschedules(){
+        getschedules() {
             // Get the current URL of the page.
             var currentURL = window.location.href;
-            
+
             // Create a URL object based on the current URL.
             var siteurl = new URL(currentURL);
-            
+
             // Get the value of the "periodsid" parameter from the current URL.
             var periods = siteurl.searchParams.get("periodsid");
-            
+
             // Define the URL for the API endpoint.
             const url = this.siteUrl;
 
@@ -240,21 +240,28 @@ Vue.component('incompleteschedules',{
                 periodIds: periods,
                 skipApproved: 1
             };
-            
+
             // Make a GET request to the specified URL, passing the parameters as query parameters.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     // Convert the API response data from JSON string format to an object.
-                    const data = JSON.parse(response.data.courseSchedules)
-                    if(data.length == 0){
-                        this.dataSchedule = true
+                    if (!response.data || !response.data.courseSchedules) {
+                        this.dataSchedule = true;
+                        return;
                     }
-                    
+
+                    const data = JSON.parse(response.data.courseSchedules)
+
                     // Convert the data object to an array.
                     const arrayEntries = Object.entries(data);
                     const array = arrayEntries.map(([clave, valor]) => valor);
-                    
+
+                    if (!array || array.length === 0) {
+                        this.dataSchedule = true;
+                        return;
+                    }
+
                     // Populate the 'dataCourse' object with course and schedule data.
                     this.dataCourse.name = array[0].courseName
                     this.dataCourse.id = array[0].courseId
@@ -263,9 +270,9 @@ Vue.component('incompleteschedules',{
                     this.dataCourse.periodIds = array[0].periodIds
                     this.dataCourse.periodNames = array[0].periodNames
                     this.dataCourse.schedules = array[0].schedules
-                    
+
                     // Iterate through the schedule data and add it to the 'schedules' array.
-                    this.dataCourse.schedules.forEach((element)=>{
+                    this.dataCourse.schedules.forEach((element) => {
                         this.schedules.push({
                             id: element.id,
                             name: element.name,
@@ -283,26 +290,32 @@ Vue.component('incompleteschedules',{
                             selected: false
                         })
                     })
-                    
+
                 })
                 // Log an error message to the console if the request fails.
                 .catch(error => {
                     console.error(error);
-            });
+                });
         },
         /**
          * Opens a dialog for adding a new class schedule and sets the 'itemselected' property.
          * @param '{Object} item' - The item or class schedule to be added.
          */
-        addschedule(item){
+        addschedule(item) {
             // Set the 'itemselected' property to the selected item.
             this.itemselected = item
-            
+
             // Set the 'dialog' property to true to open the dialog.
             this.dialog = true
         },
         // Enrolls a student in a selected class and sends an API request for enrollment.
-        save(){
+        save() {
+            // Guard: make sure a schedule was selected
+            if (!this.selectedItems || this.selectedItems.length === 0) {
+                console.warn('No schedule selected');
+                return;
+            }
+
             // Define the parameters for the API request.
             const params = {
                 wstoken: this.token,
@@ -312,25 +325,25 @@ Vue.component('incompleteschedules',{
                 classId: this.selectedItems[0].clasId,
                 forceQueue: 0
             };
-            
+
             // Define the URL for the API endpoint.
             const url = this.siteUrl;
-            
+
             // Make a GET request to the specified URL, passing the parameters as query parameters.
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
                     // Close the dialog after enrollment is successful.
                     this.dialog = false
-                    
+
                     // Reload the current page to reflect changes.
                     location.reload();
-                    
+
                 })
                 // Log an error message to the console if the request fails.
                 .catch(error => {
                     console.error(error);
-            });
+                });
         },
         // Updates the 'settings' property based on selected items from the 'items' array.
         updateSettings() {
@@ -344,10 +357,10 @@ Vue.component('incompleteschedules',{
         handleCheckboxChange(item) {
             // Toggle the 'selected' property of the item.
             item.selected = !item.selected;
-            
+
             // Find the index of the item in the 'selectedItems' array.
             const index = this.selectedItems.findIndex((selectedItem) => selectedItem.id === item.id);
-            
+
             // If the item is selected and not already in 'selectedItems', add it.
             if (index === -1 && item.selected) {
                 this.selectedItems.push(item);
@@ -357,7 +370,7 @@ Vue.component('incompleteschedules',{
                 this.selectedItems.splice(index, 1);
                 console.log('Item deseleccionado:', item);
             }
-            
+
             // Imprimir el array completo de items seleccionados
             console.log('Items seleccionados actualmente:', this.selectedItems);
         },
@@ -369,7 +382,7 @@ Vue.component('incompleteschedules',{
          *
          * @returns '{string}' - The constructed site URL.
          */
-        siteUrl(){
+        siteUrl() {
             return window.location.origin + '/webservice/rest/server.php'
         },
         /**
@@ -378,7 +391,7 @@ Vue.component('incompleteschedules',{
          *
          * @returns '{object}' - Language-related data.
          */
-        lang(){
+        lang() {
             return window.strings
         },
         /**
@@ -386,7 +399,7 @@ Vue.component('incompleteschedules',{
          *
          * @returns '{string}' - The user token.
          */
-        token(){
+        token() {
             return window.userToken;
         },
         /**
@@ -394,7 +407,7 @@ Vue.component('incompleteschedules',{
          *
          * @returns '{string}' - The course ID.
          */
-        courseId(){
+        courseId() {
             return window.courseid;
         }
     },
