@@ -504,12 +504,12 @@ class planning_manager {
         $students = $planningData['students'];
         $tree = [];
 
-        // Build a map of ignored subjects per plan
-        $ignoredMap = [];
+        // Build a GLOBAL ignore map for subjects in this period
+        $globalIgnoredMap = [];
         if (!empty($planningData['planning_projections'])) {
             foreach ($planningData['planning_projections'] as $pp) {
                 if ($pp->status == 2) {
-                    $ignoredMap[$pp->learningplanid][$pp->courseid] = true;
+                    $globalIgnoredMap[$pp->courseid] = true;
                 }
             }
         }
@@ -521,8 +521,8 @@ class planning_manager {
             
             // Iterate Pending Subjects to build demand
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Check if this subject is marked to be ignored for this plan
-                if (!empty($ignoredMap[$planId][$subj['id']])) {
+                // Check if this subject is marked to be ignored GLOBALLY in this period
+                if (!empty($globalIgnoredMap[$subj['id']])) {
                     continue;
                 }
 
