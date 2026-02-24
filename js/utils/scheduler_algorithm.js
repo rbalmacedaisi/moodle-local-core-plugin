@@ -101,7 +101,10 @@
     const autoPlace = (schedules, context) => {
         const nextSchedules = JSON.parse(JSON.stringify(schedules));
         const intervalMins = context.configSettings?.intervalMinutes || 10;
-        const holidaySet = new Set((context.configSettings?.holidays || []).map(h => h.formatted_date || h.date));
+
+        // Unify holiday source: priority to context.holidays (live table)
+        const holidays = context.holidays || context.configSettings?.holidays || [];
+        const holidaySet = new Set(holidays.map(h => h.formatted_date || h.date));
         const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
         const allDatesByDay = { 'Lunes': [], 'Martes': [], 'Miercoles': [], 'Jueves': [], 'Viernes': [], 'Sabado': [], 'Domingo': [] };
 

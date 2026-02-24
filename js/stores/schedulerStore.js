@@ -441,6 +441,7 @@
                 // 3. AUTO-PLACEMENT (Determine Days and Times first)
                 let finalResult = window.SchedulerAlgorithm.autoPlace(schedules, {
                     classrooms: this.state.context.classrooms || [],
+                    holidays: this.state.context.holidays || [],
                     loads: this.state.context.loads || [],
                     period: this.state.activePeriodDates || {},
                     configSettings: this.state.context.configSettings || {},

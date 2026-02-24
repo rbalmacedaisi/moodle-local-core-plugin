@@ -50,6 +50,10 @@
                             <div class="w-2.5 h-2.5 rounded-full bg-red-400 shadow-sm"></div>
                             <span class="text-[10px] font-bold text-slate-600 uppercase">Liberada</span>
                         </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-slate-400 shadow-sm"></div>
+                            <span class="text-[10px] font-bold text-slate-600 uppercase">Festivo</span>
+                        </div>
                         <div class="flex items-center gap-2 border-l border-slate-200 pl-4">
                             <i data-lucide="info" class="w-3.5 h-3.5 text-slate-400"></i>
                             <span class="text-[10px] text-slate-400 italic">Clic para alternar estado</span>
@@ -132,10 +136,17 @@
                         const isExcluded = props.isExcluded;
                         const isHoliday = props.isHoliday;
 
-                        let bgColor = isExcluded ? 'bg-red-50' : (isHoliday ? 'bg-slate-100' : 'bg-blue-600');
-                        let borderColor = isExcluded ? 'border-red-200' : (isHoliday ? 'border-slate-200' : 'border-blue-700');
-                        let textColor = isExcluded ? 'text-red-700' : (isHoliday ? 'text-slate-500' : 'text-white');
-                        let dotColor = isExcluded ? 'bg-red-500' : (isHoliday ? 'bg-slate-400' : 'bg-blue-200');
+                        let bgColor = isExcluded ? (isHoliday ? 'bg-slate-100' : 'bg-red-50') : 'bg-blue-600';
+                        let borderColor = isExcluded ? (isHoliday ? 'border-slate-200' : 'border-red-200') : 'border-blue-700';
+                        let textColor = isExcluded ? (isHoliday ? 'text-slate-500' : 'text-red-700') : 'text-white';
+                        let dotColor = isExcluded ? (isHoliday ? 'bg-slate-400' : 'bg-red-500') : 'bg-blue-200';
+
+                        let statusBadge = '';
+                        if (isHoliday) {
+                            statusBadge = '<span class="text-[7px] font-black uppercase text-slate-600 bg-white px-1 rounded border border-slate-100 shadow-sm">FESTIVO</span>';
+                        } else if (isExcluded) {
+                            statusBadge = '<span class="text-[7px] font-black uppercase text-red-600 bg-white px-1 rounded border border-red-100 shadow-sm">LIBERADO</span>';
+                        }
 
                         return {
                             html: `
@@ -146,7 +157,7 @@
                                     </div>
                                     <div class="flex justify-between items-center px-0.5">
                                         <span class="text-[8px] font-medium opacity-80 ${textColor}">${arg.event.extendedProps.timeStr || ''}</span>
-                                        ${isExcluded ? '<span class="text-[7px] font-black uppercase text-red-600 bg-white px-1 rounded border border-red-100 shadow-sm">LIBERADO</span>' : ''}
+                                        ${statusBadge}
                                     </div>
                                 </div>
                             `
@@ -249,6 +260,7 @@
 
                             // Check exclusions
                             const isExcluded = session.excluded_dates && session.excluded_dates.includes(dateStr);
+                            // HOLIDAY CHECK: Automatically mark as excluded if it's a holiday
                             const isHoliday = store.state.context.holidays.some(h => {
                                 const hDate = new Date(h.date * 1000);
                                 const hStr = hDate.getFullYear() + '-' +
@@ -257,28 +269,30 @@
                                 return hStr === dateStr;
                             });
 
-                            if (!isExcluded) {
-                                events.push({
-                                    id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
-                                    title: sched.subjectName,
-                                    start: `${dateStr}T${session.start}`,
-                                    end: `${dateStr}T${session.end}`,
-                                    color: sched.subperiod === 2 ? '#0d9488' : '#2563eb', // Teal for P-II, Blue for P-I
-                                    extendedProps: {
-                                        isExcluded: isExcluded, // Still pass this for eventContent styling
-                                        isHoliday: isHoliday, // Still pass this for eventContent styling
-                                        schedIdx: schedIdx,
-                                        sessionIdx: sessionIdx,
-                                        dateStr: dateStr,
-                                        teacher: sched.teacherName,
-                                        room: session.roomName || sched.room,
-                                        career: sched.career,
-                                        level: sched.levelDisplay,
-                                        typeLabel: sched.typeLabel,
-                                        timeStr: `${session.start} - ${session.end}`
-                                    }
-                                });
-                            }
+                            // FINAL EXCLUSION STATUS: Manual exclusion OR holiday
+                            const isEffectiveExcluded = isExcluded || isHoliday;
+
+                            events.push({
+                                id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
+                                title: sched.subjectName,
+                                start: `${dateStr}T${session.start}`,
+                                end: `${dateStr}T${session.end}`,
+                                color: sched.subperiod === 2 ? '#0d9488' : '#2563eb', // Teal for P-II, Blue for P-I
+                                extendedProps: {
+                                    isExcluded: isEffectiveExcluded,
+                                    isHoliday: isHoliday,
+                                    isManualExcluded: isExcluded,
+                                    schedIdx: schedIdx,
+                                    sessionIdx: sessionIdx,
+                                    dateStr: dateStr,
+                                    teacher: sched.teacherName,
+                                    room: session.roomName || sched.room,
+                                    career: sched.career,
+                                    level: sched.levelDisplay,
+                                    typeLabel: sched.typeLabel,
+                                    timeStr: `${session.start} - ${session.end}`
+                                }
+                            });
 
                             current.setDate(current.getDate() + 7);
                         }
@@ -309,7 +323,7 @@
 
                 if (!session.excluded_dates) session.excluded_dates = [];
 
-                if (props.isExcluded) {
+                if (props.isManualExcluded) {
                     session.excluded_dates = session.excluded_dates.filter(d => d !== dateStr);
                 } else {
                     session.excluded_dates.push(dateStr);
