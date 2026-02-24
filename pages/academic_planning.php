@@ -623,8 +623,8 @@ echo $OUTPUT->header();
                                       </tr>
                                   </thead>
                                   <tbody class="divide-y divide-slate-100">
-                                      <tr v-for="l in store.state.context.loads" :key="l.subjectName" class="hover:bg-slate-50">
-                                          <td class="p-2">{{ l.subjectName }}</td>
+                                      <tr v-for="l in store.state.context.loads" :key="l.subjectName || l.subjectname" class="hover:bg-slate-50">
+                                          <td class="p-2">{{ l.subjectName || l.subjectname }}</td>
                                           <td class="p-2 text-center">{{ l.totalHours || l.total_hours || '-' }}</td>
                                           <td class="p-2 text-center">{{ l.intensity || '-' }}</td>
                                       </tr>
