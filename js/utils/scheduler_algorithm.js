@@ -371,9 +371,17 @@
 
                     if (Math.max(t, lunchStart) < Math.min(tEnd, lunchEnd)) {
                         stats.lunchConflictCount++;
-                        auditLog.push({ day, time: timeStr, status: 'Lunch', detail: 'Coincide con almuerzo' });
+                        // Avoid adding too much to log to prevent memory blowup
+                        if (auditLog.length < 50) auditLog.push({ day, time: timeStr, status: 'Lunch', detail: 'Coincide con almuerzo' });
                         continue;
                     }
+
+                    // Pre-check dates availability for this specific day/time
+                    // This is important if maxSessions is used
+                    const checkRoomAvailability = (roomName) => {
+                        const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, roomName, [d], s.subperiod, t, tEnd, intervalMins));
+                        return freeDates;
+                    };
 
                     // --- HUMAN CONFLICT CHECK (Student/Teacher) ---
                     const stConflict = checkStudentsBusy(s.studentIds, targetDates, s.subperiod, t, tEnd, intervalMins);
