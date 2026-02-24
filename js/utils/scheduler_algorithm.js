@@ -402,15 +402,16 @@
                         continue;
                     }
 
+                    // Pre-check dates availability for this specific day/time
+                    // For subjects with manual sessions, we check how many dates are actually free
+                    const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, 0));
+
                     // Mechanical Conflict Check
                     let roomRejectionDetail = "";
                     for (const room of validRooms) {
                         if (placed) break;
 
                         if (maxSessions) {
-                            // Calculate sessions actually free for THIS room at THIS time
-                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, 0));
-
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
