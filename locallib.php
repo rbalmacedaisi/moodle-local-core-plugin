@@ -1383,6 +1383,8 @@ function get_learning_plan_course_schedules($params)
 
 function construct_course_schedules_filter($params)
 {
+    global $DB;
+
     $filtersArray = [];
     $filters = ['closed' => 0];
 
@@ -1391,7 +1393,56 @@ function construct_course_schedules_filter($params)
 
     if ($params['periodIds']) {
         $periods = explode(",", $params['periodIds']);
-        foreach ($periods as $period) {
+        
+        // The periodIds from the schedule panel are academic-level IDs
+        // (from local_learning_courses.periodid), but gmk_class.periodid stores 
+        // the institutional period ID (from gmk_academic_periods).
+        // We need to resolve them: find the institutional periods for these classes.
+        $resolvedPeriods = [];
+        
+        if (!empty($params['courseId'])) {
+            foreach ($periods as $period) {
+                $period = trim($period);
+                
+                // First, try direct match (works if periodid IS the institutional period)
+                $directCount = $DB->count_records('gmk_class', array_merge($filters, ['periodid' => $period]));
+                if ($directCount > 0) {
+                    $resolvedPeriods[] = $period;
+                    continue;
+                }
+                
+                // If no direct match, this is likely an academic-level periodid.
+                // Find the subjects in local_learning_courses for this academicPeriodId + courseId,
+                // then look up what institutional period their classes belong to.
+                $subjects = $DB->get_records('local_learning_courses', [
+                    'courseid' => $params['courseId'],
+                    'periodid' => $period
+                ], '', 'id');
+                
+                if (!empty($subjects)) {
+                    $subjectIds = array_keys($subjects);
+                    foreach ($subjectIds as $sid) {
+                        $classesForSubj = $DB->get_records('gmk_class', array_merge($filters, ['courseid' => $sid]), '', 'DISTINCT periodid');
+                        foreach ($classesForSubj as $cls) {
+                            if (!in_array($cls->periodid, $resolvedPeriods)) {
+                                $resolvedPeriods[] = $cls->periodid;
+                            }
+                        }
+                    }
+                }
+                
+                // If still nothing found, keep the original period as fallback
+                if (empty($resolvedPeriods)) {
+                    $resolvedPeriods[] = $period;
+                }
+            }
+        } else {
+            $resolvedPeriods = $periods;
+        }
+        
+        error_log("DEBUG construct_course_schedules_filter: input periods=[" . implode(',', $periods) . "] resolved=[" . implode(',', $resolvedPeriods) . "]");
+        
+        foreach ($resolvedPeriods as $period) {
             $filtersCopy = $filters;
             $filtersCopy['periodid'] = $period;
             $filtersArray[] = $filtersCopy;
