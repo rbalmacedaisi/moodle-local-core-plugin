@@ -143,7 +143,7 @@ echo <<<EOT
   
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/scheduleapproval.js'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/scheduleapproval.js', ['v' => time()]));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/deleteclass.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/approveusers.js'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/scheduleApproval/userslist.js'));

@@ -1,4 +1,5 @@
 /* global wsUrl */
+console.log('[scheduleapproval.js] v2024-02-24-v2 LOADED');
 Vue.component('scheduleapproval', {
     template: `
          <v-row justify="center" class="my-2 mx-0 position-relative">
