@@ -7,8 +7,10 @@ const wsDefaultParams = {
     moodlewsrestformat: 'json'
 }
 for (let day in classData.classDays) {
-    classData.classDays[day] = classData.classDays[day] === "1" ? true : false;
+    classData.classDays[day] = classData.classDays[day] === "1" || classData.classDays[day] === true ? true : false;
 }
+console.log("DEBUG editclass.js classData:", classData);
+console.log("DEBUG editclass.js classTeacherId:", classTeacherId);
 
 window.Vue.component('editclass', {
     template: `
@@ -342,7 +344,9 @@ window.Vue.component('editclass', {
             this.classData.classDays = classData.classDays;
 
             this.teachers = classData.classTeachers;
-            this.classData.teacherIndex = this.teachers.findIndex(teacher => teacher.id === classTeacherId)
+            this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(classTeacherId))
+            console.log("DEBUG editclass.js teacherIndex:", this.classData.teacherIndex);
+            console.log("DEBUG editclass.js teachers:", this.teachers);
 
             if (this.reschedulingActivity) {
                 this.activityRescheduleData.activityEndTime = classData.activityEndTime

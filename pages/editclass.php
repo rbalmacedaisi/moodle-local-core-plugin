@@ -66,7 +66,11 @@ $activityInfo = null;
 //Get the class that is going to be edited
 $class =  list_classes(['id'=>$id])[$id];
 
-gmk_log("DEBUG editclass.php Load: ID=$id, Plan={$class->learningplanid}, Period={$class->periodid}, Course={$class->courseid}");
+if (!$class) {
+    gmk_log("ERROR editclass.php: Class not found for ID $id");
+} else {
+    gmk_log("DEBUG editclass.php Load: ID=$id, Name={$class->name}, InstructorID=" . ($class->instructorid ?? 'NULL') . ", Days=" . ($class->classdays ?? 'NULL'));
+}
 
 if($reschedulingActivity){
     $activityInfo = getActivityInfo($moduleId,$sessionId);
@@ -119,21 +123,26 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
     $teacherData->fullname =$potentialTeacher->fullname;
     $teacherData->email =$potentialTeacher->email;
     $teacherData->id =$potentialTeacher->id;
-    $teacherData->selected = $potentialTeacher->id ===$class->instructorid;
+    $teacherData->selected = (int)$potentialTeacher->id === (int)$class->instructorid;
+    if ($teacherData->selected) {
+        gmk_log("DEBUG editclass.php Teacher selected: {$teacherData->fullname} (ID: {$teacherData->id})");
+    }
     
     return $teacherData;
 },$classPotentialTeachers));
 
-$classDays = $class->classdays;
+$classDaysRaw = $class->classdays;
+$daysParts = explode('/', $classDaysRaw);
 $classDays = [
-    'monday'=>$classDays[0],
-    'tuesday'=>$classDays[2],
-    'wednesday'=>$classDays[4],
-    'thursday'=>$classDays[6],
-    'friday'=>$classDays[8],
-    'saturday'=>$classDays[10],
-    'sunday'=>$classDays[12]
+    'monday'    => isset($daysParts[0]) ? $daysParts[0] : '0',
+    'tuesday'   => isset($daysParts[1]) ? $daysParts[1] : '0',
+    'wednesday' => isset($daysParts[2]) ? $daysParts[2] : '0',
+    'thursday'  => isset($daysParts[3]) ? $daysParts[3] : '0',
+    'friday'    => isset($daysParts[4]) ? $daysParts[4] : '0',
+    'saturday'  => isset($daysParts[5]) ? $daysParts[5] : '0',
+    'sunday'    => isset($daysParts[6]) ? $daysParts[6] : '0'
 ];
+gmk_log("DEBUG editclass.php Mapped Days: " . json_encode($classDays));
 $themeToken = get_theme_token();
 $userToken = get_logged_user_token();
 
