@@ -262,17 +262,25 @@ function get_potential_class_teachers($params)
     $learningPlanTeachers = $DB->get_records("local_learning_users", ['learningplanid' => $params['learningPlanId'], 'userroleid' => 4]);
 
     $learningPlanTeachers = array_map(function ($teacher) use ($DB, $teacherSkills) {
-        $coreUser = $DB->get_record('user', ['id' => $teacher->userid]);
-        $teacher->id = $coreUser->id;
-        $teacher->fullname = $coreUser->firstname . ' ' . $coreUser->lastname;
-        $teacher->email = $coreUser->email;
-        $teacherSkillsRelations = $DB->get_records('gmk_teacher_skill_relation', ['userid' => $teacher->userid]);
-        $teacher->instructorSkills = [];
-        foreach ($teacherSkillsRelations as $teacherSkillsRelation) {
-            $teacher->instructorSkills[] = $teacherSkills[$teacherSkillsRelation->skillid]->name;
+        try {
+            $coreUser = core_user::get_user($teacher->userid);
+            if ($coreUser) {
+                $teacher->id = (int)$coreUser->id;
+                $teacher->fullname = fullname($coreUser);
+                $teacher->email = $coreUser->email;
+                $teacherSkillsRelations = $DB->get_records('gmk_teacher_skill_relation', ['userid' => $teacher->userid]);
+                $teacher->instructorSkills = [];
+                foreach ($teacherSkillsRelations as $teacherSkillsRelation) {
+                    $teacher->instructorSkills[] = $teacherSkills[$teacherSkillsRelation->skillid]->name;
+                }
+                return $teacher;
+            }
+        } catch (Exception $e) {
+            return null;
         }
-        return $teacher;
+        return null;
     }, $learningPlanTeachers);
+    $learningPlanTeachers = array_filter($learningPlanTeachers);
 
 
     //Get the learning plan course for the course id given
@@ -381,22 +389,31 @@ function get_potential_class_teachers($params)
         if ($currentClass && !empty($currentClass->instructorid)) {
             $alreadyIncluded = false;
             foreach ($learningPlanTeachers as $teacher) {
-                if ((int)$teacher->id === (int)$currentClass->instructorid) {
+                // Ensure we compare using moodle user id
+                $teacherUserId = property_exists($teacher, 'userid') ? $teacher->userid : $teacher->id;
+                if ((int)$teacherUserId === (int)$currentClass->instructorid) {
                     $alreadyIncluded = true;
+                    // Ensure the 'selected' marker can be set later by having 'id' equal to instructorid
+                    $teacher->id = (int)$teacherUserId; 
                     break;
                 }
             }
             if (!$alreadyIncluded) {
-                $currentTeacher = $DB->get_record('user', ['id' => $currentClass->instructorid]);
-                if ($currentTeacher) {
-                    $teacherObj = new stdClass();
-                    $teacherObj->id = $currentTeacher->id;
-                    $teacherObj->userid = $currentTeacher->id;
-                    $teacherObj->fullname = $currentTeacher->firstname . ' ' . $currentTeacher->lastname;
-                    $teacherObj->email = $currentTeacher->email;
-                    $teacherObj->instructorSkills = [];
-                    // Add to the beginning of the list
-                    array_unshift($learningPlanTeachers, $teacherObj);
+                try {
+                    $currentTeacher = core_user::get_user($currentClass->instructorid);
+                    if ($currentTeacher) {
+                        // Normalize the object to match what editclass.php expects
+                        $teacherObj = new stdClass();
+                        $teacherObj->id = (int)$currentTeacher->id;
+                        $teacherObj->userid = (int)$currentTeacher->id;
+                        $teacherObj->fullname = fullname($currentTeacher);
+                        $teacherObj->email = $currentTeacher->email;
+                        $teacherObj->instructorSkills = [];
+                        // Add to the beginning of the list
+                        array_unshift($learningPlanTeachers, $teacherObj);
+                    }
+                } catch (Exception $e) {
+                    gmk_log("ERROR get_potential_class_teachers: Could not fetch current instructor " . $currentClass->instructorid);
                 }
             }
         }

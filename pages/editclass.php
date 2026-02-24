@@ -137,13 +137,13 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
 $classDaysRaw = $class->classdays;
 $daysParts = explode('/', $classDaysRaw);
 $classDays = [
-    'monday'    => isset($daysParts[0]) ? $daysParts[0] : '0',
-    'tuesday'   => isset($daysParts[1]) ? $daysParts[1] : '0',
-    'wednesday' => isset($daysParts[2]) ? $daysParts[2] : '0',
-    'thursday'  => isset($daysParts[3]) ? $daysParts[3] : '0',
-    'friday'    => isset($daysParts[4]) ? $daysParts[4] : '0',
-    'saturday'  => isset($daysParts[5]) ? $daysParts[5] : '0',
-    'sunday'    => isset($daysParts[6]) ? $daysParts[6] : '0'
+    'monday'    => isset($daysParts[0]) && $daysParts[0] === '1',
+    'tuesday'   => isset($daysParts[1]) && $daysParts[1] === '1',
+    'wednesday' => isset($daysParts[2]) && $daysParts[2] === '1',
+    'thursday'  => isset($daysParts[3]) && $daysParts[3] === '1',
+    'friday'    => isset($daysParts[4]) && $daysParts[4] === '1',
+    'saturday'  => isset($daysParts[5]) && $daysParts[5] === '1',
+    'sunday'    => isset($daysParts[6]) && $daysParts[6] === '1'
 ];
 gmk_log("DEBUG editclass.php Mapped Days: " . json_encode($classDays));
 $themeToken = get_theme_token();

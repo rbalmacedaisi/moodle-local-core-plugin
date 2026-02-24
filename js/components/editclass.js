@@ -371,6 +371,7 @@ window.Vue.component('editclass', {
 
             setTimeout(() => {
                 this.filledInputs = true;
+                console.log("DEBUG editclass.js: Initialization complete. Days:", this.classData.classDays);
             }, 1000)
         },
         async handleLearningPlanChange() {
@@ -402,7 +403,8 @@ window.Vue.component('editclass', {
             }
         },
         async getPotentialTeachers() {
-            if (!this.classData.learningPlanId || !this.filledInputs) {
+            // Avoid triggering during the initial fillInputs or if required fields are missing
+            if (!this.classData.learningPlanId || !this.filledInputs || !this.classData.courseId) {
                 return;
             }
             const selectedTeacherId = this.selectedClassTeacher?.id
