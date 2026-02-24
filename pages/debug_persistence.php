@@ -4,8 +4,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
 $context = context_system::instance();
-require_capability('moodle/site:config', $context);
-
+$PAGE->set_context($context);
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_persistence.php'));
 $PAGE->set_title('Diagnostic: Draft Persistence');
 $PAGE->set_heading('Diagnostic: Draft Persistence');
@@ -14,9 +13,12 @@ echo $OUTPUT->header();
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 if (!$periodid) {
-    // Try to get first available period
-    $first = $DB->get_record('gmk_academic_periods', [], 'id ASC', 'id, name');
-    if ($first) $periodid = $first->id;
+    // Correct usage of get_records to get the first one with sorting
+    $periods = $DB->get_records('gmk_academic_periods', [], 'id ASC', 'id, name', 0, 1);
+    if ($periods) {
+        $first = reset($periods);
+        $periodid = $first->id;
+    }
 }
 
 // 1. Environment Info
