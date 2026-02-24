@@ -1574,31 +1574,47 @@ function get_course_students_by_class_schedule($classId)
     global $DB;
     $classStudents = get_class_participants($DB->get_record('gmk_class', ['id' => $classId]));
 
+    // Helper function to resolve a userid that might be an idnumber string
+    $resolveUser = function($userid) use ($DB) {
+        // If userid is numeric, use the standard lookup
+        if (is_numeric($userid)) {
+            $result = user_get_users_by_id([$userid]);
+            return isset($result[$userid]) ? $result[$userid] : null;
+        }
+        // Otherwise, it's an idnumber string — look up by idnumber
+        return $DB->get_record('user', ['idnumber' => $userid, 'deleted' => 0]);
+    };
 
-    $classStudents->enroledStudents = array_map(function ($student) {
-        $studentInfo = user_get_users_by_id([$student->userid])[$student->userid];
-        $student->email = $studentInfo->email;
-        $student->firstname = $studentInfo->firstname;
-        $student->lastname = $studentInfo->lastname;
-        $student->profilePicture = get_user_picture_url($student->userid);
+    $classStudents->enroledStudents = array_map(function ($student) use ($resolveUser) {
+        $studentInfo = $resolveUser($student->userid);
+        if ($studentInfo) {
+            $student->email = $studentInfo->email;
+            $student->firstname = $studentInfo->firstname;
+            $student->lastname = $studentInfo->lastname;
+        }
+        $student->profilePicture = get_user_picture_url($studentInfo ? $studentInfo->id : 0);
         return $student;
     }, $classStudents->enroledStudents);
 
-    $classStudents->preRegisteredStudents = array_map(function ($student) {
-        $studentInfo = user_get_users_by_id([$student->userid])[$student->userid];
-        $student->email = $studentInfo->email;
-        $student->firstname = $studentInfo->firstname;
-        $student->lastname = $studentInfo->lastname;
-        $student->profilePicture = get_user_picture_url($student->userid);
+    $classStudents->preRegisteredStudents = array_map(function ($student) use ($resolveUser) {
+        $studentInfo = $resolveUser($student->userid);
+        if ($studentInfo) {
+            $student->email = $studentInfo->email;
+            $student->firstname = $studentInfo->firstname;
+            $student->lastname = $studentInfo->lastname;
+        }
+        $student->profilePicture = get_user_picture_url($studentInfo ? $studentInfo->id : 0);
         return $student;
     }, $classStudents->preRegisteredStudents);
 
-    $classStudents->queuedStudents = array_map(function ($student) {
-        $studentInfo = user_get_users_by_id([$student->userid])[$student->userid];
-        $student->email = $studentInfo->email;
-        $student->firstname = $studentInfo->firstname;
-        $student->lastname = $studentInfo->lastname;
-        $student->profilePicture = get_user_picture_url($student->userid);
+    $classStudents->queuedStudents = array_map(function ($student) use ($resolveUser) {
+        $studentInfo = $resolveUser($student->userid);
+        if ($studentInfo) {
+            $student->email = $studentInfo->email;
+            $student->firstname = $studentInfo->firstname;
+            $student->lastname = $studentInfo->lastname;
+        }
+        $student->profilePicture = get_user_picture_url($studentInfo ? $studentInfo->id : 0);
         return $student;
     }, $classStudents->queuedStudents);
 
