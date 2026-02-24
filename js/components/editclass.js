@@ -306,6 +306,7 @@ window.Vue.component('editclass', {
         },
         fillInputs() {
             const rawTemplatedata = window.templatedata || {};
+            console.log("DEBUG editclass.js: fillInputs starting with raw data:", JSON.stringify(rawTemplatedata.classDays));
 
             // Set rescheduling mode early
             this.reschedulingActivity = !!rawTemplatedata.reschedulingActivity;
@@ -315,12 +316,30 @@ window.Vue.component('editclass', {
                 return;
             }
 
-            // Normalize days
+            // Normalize days (Support both associative object and indexed string)
+            const daysMap = { monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6 };
+            const classDays = { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false };
+
             const rawDays = rawTemplatedata.classDays || {};
-            for (let day in rawDays) {
-                const val = rawDays[day] === "1" || rawDays[day] === 1 || rawDays[day] === true;
-                this.$set(this.classData.classDays, day, val);
+
+            // If it's the 1/0/0 format string
+            if (typeof rawDays === 'string') {
+                const parts = rawDays.split('/');
+                Object.keys(daysMap).forEach(day => {
+                    const idx = daysMap[day];
+                    classDays[day] = parts[idx] === '1';
+                });
+            } else {
+                // It's already an object
+                Object.keys(classDays).forEach(day => {
+                    const val = rawDays[day];
+                    classDays[day] = val === "1" || val === 1 || val === true;
+                });
             }
+
+            this.classData.classDays = classDays; // Direct assignment is safe because classData is already reactive
+            console.log("DEBUG editclass.js: Normalized days set to:", JSON.stringify(this.classData.classDays));
+
             const currentTeacher = (rawTemplatedata.classTeachers || []).find(t => t.selected) || {};
             this.classTeacherId = currentTeacher.id;
 
