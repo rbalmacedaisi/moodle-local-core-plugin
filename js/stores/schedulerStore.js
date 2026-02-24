@@ -477,8 +477,20 @@
             if (!periodId || !schedules) return;
             this.state.loading = true;
             try {
-                const payloadStr = JSON.stringify(schedules);
-                console.log(`DEBUG: Saving draft for period ${periodId} with ${schedules.length} items. String length: ${payloadStr.length}`);
+                // Strip redundant metadata to reduce payload size (1MB is too large)
+                const optimizedSchedules = Array.isArray(schedules) ? schedules.map(s => {
+                    const {
+                        availableInstructors, // VERY LARGE
+                        availableRooms,       // LARGE
+                        allPotentialInstructors,
+                        pathData,
+                        ...essential
+                    } = s;
+                    return essential;
+                }) : schedules;
+
+                const payloadStr = JSON.stringify(optimizedSchedules);
+                console.log(`DEBUG: Saving optimized draft for period ${periodId} with ${optimizedSchedules.length} items. String length: ${payloadStr.length}`);
 
                 const res = await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,

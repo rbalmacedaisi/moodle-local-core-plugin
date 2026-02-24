@@ -22,6 +22,15 @@ if (!$period) {
     die("Period not found");
 }
 
+// Check column type to be sure
+$columns = $DB->get_columns('gmk_academic_periods');
+$draftCol = $columns['draft_schedules'] ?? null;
+if ($draftCol) {
+    echo "<p>Column Type: <b>{$draftCol->meta_type}</b> ({$draftCol->type})</p>";
+} else {
+    echo "<p style='color:red'>COLUMN draft_schedules NOT FOUND!</p>";
+}
+
 echo "<h2>Period: {$period->name}</h2>";
 echo "<p>Draft Schedules Content Length: " . strlen($period->draft_schedules) . " characters</p>";
 

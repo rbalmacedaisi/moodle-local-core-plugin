@@ -2890,19 +2890,41 @@ try {
             break;
 
         case 'local_grupomakro_save_generation_result':
+            // Raise limits for potentially large JSON
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise(300);
+
             $periodid = required_param('periodid', PARAM_INT);
-            $schedulesJson = required_param('schedules', PARAM_RAW);
+            // Try to get from $_POST first (populated by JSON decode at the top)
+            $schedulesJson = isset($_POST['schedules']) ? $_POST['schedules'] : null;
+            
+            if ($schedulesJson === null) {
+                // Fallback to PARAM_RAW if decode failed or not found in POST
+                $schedulesJson = optional_param('schedules', '', PARAM_RAW);
+            }
             
             $len = strlen($schedulesJson);
-            error_log("DEBUG: Saving draft for period $periodid. Length: $len");
+            error_log("DEBUG: Saving draft via ajax for period $periodid. Length: $len characters");
 
             if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
                 $response = ['status' => 'error', 'message' => 'El periodo academico no existe'];
                 break;
             }
 
-            $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
-            $response = ['status' => 'success', 'received_length' => $len];
+            // Using direct execute to bypass any set_field quirks with very large strings
+            try {
+                $sql = "UPDATE {gmk_academic_periods} SET draft_schedules = ? WHERE id = ?";
+                $DB->execute($sql, [$schedulesJson, $periodid]);
+                
+                // Verify if it actually saved
+                $storedLen = $DB->get_field_sql("SELECT LENGTH(draft_schedules) FROM {gmk_academic_periods} WHERE id = ?", [$periodid]);
+                error_log("DEBUG: Database verify for period $periodid. Length in DB: $storedLen");
+
+                $response = ['status' => 'success', 'received_length' => $len, 'stored_length' => $storedLen];
+            } catch (Exception $e) {
+                error_log("DEBUG: DATABASE UPDATE FAILED for period $periodid. Error: " . $e->getMessage());
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
             break;
 
         case 'local_grupomakro_load_generation_result':
