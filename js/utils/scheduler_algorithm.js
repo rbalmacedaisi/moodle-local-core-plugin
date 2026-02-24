@@ -166,8 +166,8 @@
                 const slots = entityMap.get(date) || [];
                 const conflict = slots.find(busy => {
                     const subOverlap = (busy.subperiod === 0) || (subperiod === 0) || (busy.subperiod === subperiod);
-                    // Include interval padding to enforce recess
-                    return subOverlap && Math.max(start, busy.start - interval) < Math.min(end, busy.end + interval);
+                    // Strict overlap check: classes can start exactly when the previous ends (no padding)
+                    return subOverlap && Math.max(start, busy.start) < Math.min(end, busy.end);
                 });
                 if (conflict) {
                     conflictSubject = conflict.subjectName;
@@ -402,13 +402,16 @@
                         continue;
                     }
 
-                    // --- MECHANICAL CONFLICT CHECK ---
+                    // Pre-check dates availability for this specific day/time
+                    // For subjects with manual sessions, we check how many dates are actually free
+                    const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, 0));
+
+                    // Mechanical Conflict Check
                     let roomRejectionDetail = "";
                     for (const room of validRooms) {
                         if (placed) break;
 
                         if (maxSessions) {
-                            const freeDates = targetDates.filter(d => !checkBusyGranular(roomUsage, room.name, [d], s.subperiod, t, tEnd, intervalMins));
                             if (freeDates.length >= maxSessions) {
                                 const selectedDates = freeDates.slice(0, maxSessions);
                                 s.day = day; s.start = formatTime(t); s.end = formatTime(tEnd); s.room = room.name; s.assignedDates = selectedDates;
@@ -418,13 +421,13 @@
                                 placed = true;
                             } else {
                                 stats.roomBusyCount++;
-                                roomRejectionDetail = "Sesiones insuficientes para intensivo";
+                                roomRejectionDetail = `Sesiones insuficientes (${freeDates.length}/${maxSessions})`;
                             }
                         } else {
-                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd, intervalMins);
+                            const rConflict = checkBusyGranular(roomUsage, room.name, targetDates, s.subperiod, t, tEnd, 0);
                             if (rConflict) {
                                 stats.roomBusyCount++;
-                                roomRejectionDetail = `Aulas ocupadas (+${intervalMins}m receso) (${room.name}: ${rConflict})`;
+                                roomRejectionDetail = `Aulas ocupadas (${room.name}: ${rConflict})`;
                                 continue;
                             }
 
