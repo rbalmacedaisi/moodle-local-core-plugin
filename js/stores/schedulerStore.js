@@ -505,22 +505,22 @@
                 }) : schedules;
 
                 const payloadStr = JSON.stringify(optimizedSchedules);
-                console.log(`DEBUG: Saving optimized draft (Round 4) for period ${periodId}. Length: ${payloadStr.length} chars.`);
+                console.log(`DEBUG: Saving draft (Round 5) for period ${periodId}. String length: ${payloadStr.length}`);
 
-                const res = await this._fetch('local_grupomakro_save_generation_result', {
+                const res = await this._fetch('local_grupomakro_save_draft', {
                     periodid: periodId,
                     schedules: payloadStr
                 });
 
-                console.log("DEBUG: saveGeneration server response:", res);
-
                 if (res && res.received_length !== undefined) {
-                    console.log(`DEBUG: Server confirmed receipt of ${res.received_length} chars. Stored in DB: ${res.stored_length || 'unknown'}`);
+                    console.log(`DEBUG: Server confirmed receipt of ${res.received_length} chars. Stored in DB: ${res.stored_length}`);
+                } else if (res && res.status === 'success') {
+                    console.log("DEBUG: Save draft success (no numeric diagnostics in response root)");
                 }
 
                 this.state.successMessage = "Horarios guardados correctamente";
             } catch (e) {
-                console.error("Save generation error:", e);
+                console.error("Save generation error", e);
                 this.state.error = e.message;
             } finally {
                 this.state.loading = false;
@@ -531,13 +531,10 @@
             if (!periodId) return;
             console.log(`DEBUG: Attempting to load draft for period ${periodId}...`);
             try {
-                const res = await this._fetch('local_grupomakro_load_generation_result', {
-                    periodid: periodId
-                });
-
-                if (res && Array.isArray(res) && res.length > 0) {
-                    console.log(`DEBUG: Draft FOUND with ${res.length} items. Applying...`);
-                    this.state.generatedSchedules = res;
+                const draft = await this._fetch('local_grupomakro_load_draft', { periodid: periodId });
+                if (draft && Array.isArray(draft)) {
+                    console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
+                    this.state.generatedSchedules = draft;
                 } else {
                     console.log("DEBUG: No draft found or draft is empty for this period.");
                 }

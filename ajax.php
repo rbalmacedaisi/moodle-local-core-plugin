@@ -2889,7 +2889,7 @@ try {
             $response = ['status' => 'success', 'data' => ['saved' => $count]];
             break;
 
-        case 'local_grupomakro_save_generation_result':
+        case 'local_grupomakro_save_draft':
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(300);
 
@@ -2911,7 +2911,6 @@ try {
                     'status' => 'error', 
                     'message' => 'No schedules data received', 
                     'source' => $source,
-                    'is_post_empty' => empty($_POST),
                     'input_len' => strlen($rawInput ?? '')
                 ];
                 break;
@@ -2940,7 +2939,7 @@ try {
             }
             break;
 
-        case 'local_grupomakro_load_generation_result':
+        case 'local_grupomakro_load_draft':
             $periodid = required_param('periodid', PARAM_INT);
             $draft = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
             
@@ -2951,10 +2950,7 @@ try {
                     $data = $decoded;
                 } else {
                     error_log("DEBUG: JSON DECODE FAILED for period $periodid. Error: " . json_last_error_msg());
-                    error_log("DEBUG: First 100 chars of corrupted draft: " . substr($draft, 0, 100));
                 }
-            } else {
-                 error_log("DEBUG: No draft found in DB for period $periodid");
             }
 
             $response = [
