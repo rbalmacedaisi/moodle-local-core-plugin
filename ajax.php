@@ -2890,39 +2890,41 @@ try {
             break;
 
         case 'local_grupomakro_save_generation_result':
-            // Raise limits for potentially large JSON
             raise_memory_limit(MEMORY_HUGE);
             core_php_time_limit::raise(300);
 
             $periodid = required_param('periodid', PARAM_INT);
-            // Try to get from $_POST first (populated by JSON decode at the top)
             $schedulesJson = isset($_POST['schedules']) ? $_POST['schedules'] : null;
-            
+            $source = 'POST';
+
             if ($schedulesJson === null) {
-                // Fallback to PARAM_RAW if decode failed or not found in POST
-                $schedulesJson = optional_param('schedules', '', PARAM_RAW);
+                $raw = file_get_contents('php://input');
+                $decoded = json_decode($raw, true);
+                $schedulesJson = $decoded['schedules'] ?? null;
+                $source = 'RAW_INPUT';
             }
             
-            $len = strlen($schedulesJson);
-            error_log("DEBUG: Saving draft via ajax for period $periodid. Length: $len characters");
+            $len = $schedulesJson ? strlen($schedulesJson) : 0;
+            error_log("DEBUG: Save draft for period $periodid. Source: $source. Length: $len chars.");
 
-            if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
-                $response = ['status' => 'error', 'message' => 'El periodo academico no existe'];
+            if (!$schedulesJson || $len < 2) {
+                $response = ['status' => 'error', 'message' => 'No schedules data received', 'source' => $source];
                 break;
             }
 
-            // Using direct execute to bypass any set_field quirks with very large strings
-            try {
-                $sql = "UPDATE {gmk_academic_periods} SET draft_schedules = ? WHERE id = ?";
-                $DB->execute($sql, [$schedulesJson, $periodid]);
-                
-                // Verify if it actually saved
-                $storedLen = $DB->get_field_sql("SELECT LENGTH(draft_schedules) FROM {gmk_academic_periods} WHERE id = ?", [$periodid]);
-                error_log("DEBUG: Database verify for period $periodid. Length in DB: $storedLen");
+            if (!$DB->record_exists('gmk_academic_periods', ['id' => $periodid])) {
+                $response = ['status' => 'error', 'message' => 'Period not found'];
+                break;
+            }
 
-                $response = ['status' => 'success', 'received_length' => $len, 'stored_length' => $storedLen];
+            try {
+                // Use set_field for simplicity, but with verification
+                $DB->set_field('gmk_academic_periods', 'draft_schedules', $schedulesJson, ['id' => $periodid]);
+                
+                $storedLen = $DB->get_field_sql("SELECT LENGTH(draft_schedules) FROM {gmk_academic_periods} WHERE id = ?", [$periodid]);
+                $response = ['status' => 'success', 'received_length' => $len, 'stored_length' => (int)$storedLen];
+                error_log("DEBUG: Update result for $periodid. Stored length: $storedLen");
             } catch (Exception $e) {
-                error_log("DEBUG: DATABASE UPDATE FAILED for period $periodid. Error: " . $e->getMessage());
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
             }
             break;

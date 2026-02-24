@@ -478,21 +478,22 @@
             this.state.loading = true;
             try {
                 // Strip redundant metadata to reduce payload size (1MB is too large)
-                // Agresive optimization: Keep ONLY what we need to reconstruct the view
+                // Correct keys (lowercase as confirmed by stats)
                 const essentialKeys = [
-                    'id', 'courseId', 'subjectName', 'day', 'start', 'end', 'room',
-                    'instructorId', 'teacherName', 'studentCount', 'subperiod', 'type',
-                    'sessions', 'isQuorumException', 'instructorChanged'
+                    'id', 'courseid', 'corecourseid', 'learningplanid', 'periodid',
+                    'subjectName', 'day', 'start', 'end', 'room',
+                    'instructorId', 'teacherName', 'studentCount', 'studentIds',
+                    'subperiod', 'type', 'typeLabel', 'career', 'shift',
+                    'careerList', 'levelList', 'levelDisplay', 'isQuorumException'
                 ];
 
                 if (Array.isArray(schedules) && schedules.length > 0) {
-                    // Diagnostic: Check first item for bloat
                     const first = schedules[0];
                     const stats = {};
                     Object.keys(first).forEach(k => {
-                        stats[k] = JSON.stringify(first[k]).length;
+                        stats[k] = typeof first[k] === 'object' ? JSON.stringify(first[k]).length : String(first[k]).length;
                     });
-                    console.log("DEBUG: First item property sizes:", stats);
+                    console.log("DEBUG PRE-SAVE: Property sizes of item 0:", stats);
                 }
 
                 const optimizedSchedules = Array.isArray(schedules) ? schedules.map(s => {
@@ -504,15 +505,17 @@
                 }) : schedules;
 
                 const payloadStr = JSON.stringify(optimizedSchedules);
-                console.log(`DEBUG: Saving optimized draft (aggressive) for period ${periodId} with ${optimizedSchedules.length} items. String length: ${payloadStr.length}`);
+                console.log(`DEBUG: Saving optimized draft (Round 4) for period ${periodId}. Length: ${payloadStr.length} chars.`);
 
                 const res = await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,
                     schedules: payloadStr
                 });
 
+                console.log("DEBUG: saveGeneration server response:", res);
+
                 if (res && res.received_length !== undefined) {
-                    console.log(`DEBUG: Server confirmed receipt of ${res.received_length} characters.`);
+                    console.log(`DEBUG: Server confirmed receipt of ${res.received_length} chars. Stored in DB: ${res.stored_length || 'unknown'}`);
                 }
 
                 this.state.successMessage = "Horarios guardados correctamente";
