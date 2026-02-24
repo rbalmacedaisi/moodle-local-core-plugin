@@ -25,7 +25,6 @@
             students: [], // Flat list of pending students
             projections: [], // Manual projections
             generatedSchedules: [], // The algorithms output
-            overlappingSchedules: [], // Schedules from other periods that overlap in dates
             subperiodFilter: 0, // 0: Todos, 1: P-I, 2: P-II
             careerFilter: null, // Filter by career name
             shiftFilter: null, // Filter by shift name (Jornada)
@@ -70,29 +69,10 @@
 
         async loadContext(periodId) {
             const res = await this._fetch('local_grupomakro_get_scheduler_context', { periodid: periodId });
-
-            // Parse configSettings if it's a JSON string
-            if (res.configSettings && typeof res.configSettings === 'string') {
-                try {
-                    res.configSettings = JSON.parse(res.configSettings);
-                } catch (e) {
-                    console.error("Error parsing configSettings", e);
-                    res.configSettings = {};
-                }
-            } else if (!res.configSettings) {
-                res.configSettings = {};
-            }
-
             this.state.context = res;
             // Ensure period dates are available for duration calculation
             if (res.period) {
                 this.state.activePeriodDates = res.period;
-            }
-            // Normalize overlapping classes if present
-            if (res.overlappingClasses) {
-                this.state.overlappingSchedules = this._normalizeSchedules(res.overlappingClasses);
-            } else {
-                this.state.overlappingSchedules = [];
             }
         },
 
@@ -122,54 +102,48 @@
             try {
                 const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
                 const rawData = Array.isArray(res) ? res : (res.data || []);
-                this.state.generatedSchedules = this._normalizeSchedules(rawData);
+
+                // Normalize data (Ensure careerList exists for filtering)
+                this.state.generatedSchedules = rawData.map(cls => {
+                    if (cls.career) cls.career = String(cls.career).trim();
+                    if (!cls.careerList && cls.career) {
+                        cls.careerList = cls.career.split(',').map(s => s.trim());
+                    } else if (cls.careerList && Array.isArray(cls.careerList)) {
+                        cls.careerList = cls.careerList.map(s => String(s).trim());
+                    } else {
+                        cls.careerList = [];
+                    }
+
+                    if (cls.shift) cls.shift = String(cls.shift).trim();
+                    if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
+
+                    // Standardize Class Type and Label
+                    if (cls.type === undefined) cls.type = 0; // Default to Presencial
+                    if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
+                    if (!cls.typeLabel) {
+                        const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
+                        cls.typeLabel = typeMap[cls.type] || 'Presencial';
+                    }
+
+                    // Normalize sessions and excluded_dates
+                    if (cls.sessions && Array.isArray(cls.sessions)) {
+                        cls.sessions.forEach(sess => {
+                            if (!sess.excluded_dates) sess.excluded_dates = [];
+                            else if (typeof sess.excluded_dates === 'string') {
+                                try { sess.excluded_dates = JSON.parse(sess.excluded_dates); }
+                                catch (e) { sess.excluded_dates = []; }
+                            }
+                        });
+                    }
+
+                    return cls;
+                });
             } catch (e) {
                 console.error("Load Error", e);
                 this.state.error = e.message;
             } finally {
                 this.state.loading = false;
             }
-        },
-
-        /**
-         * Internal helper to ensure all schedule objects have consistent structure
-         */
-        _normalizeSchedules(rawData) {
-            if (!Array.isArray(rawData)) return [];
-            return rawData.map(cls => {
-                if (cls.career) cls.career = String(cls.career).trim();
-                if (!cls.careerList && cls.career) {
-                    cls.careerList = cls.career.split(',').map(s => s.trim());
-                } else if (cls.careerList && Array.isArray(cls.careerList)) {
-                    cls.careerList = cls.careerList.map(s => String(s).trim());
-                } else {
-                    cls.careerList = [];
-                }
-
-                if (cls.shift) cls.shift = String(cls.shift).trim();
-                if (cls.instructorid && !cls.instructorId) cls.instructorId = cls.instructorid;
-
-                // Standardize Class Type and Label
-                if (cls.type === undefined) cls.type = 0; // Default to Presencial
-                if (!cls.typeLabel && cls.typelabel) cls.typeLabel = cls.typelabel;
-                if (!cls.typeLabel) {
-                    const typeMap = { 0: 'Presencial', 1: 'Virtual', 2: 'Mixta' };
-                    cls.typeLabel = typeMap[cls.type] || 'Presencial';
-                }
-
-                // Normalize sessions and excluded_dates
-                if (cls.sessions && Array.isArray(cls.sessions)) {
-                    cls.sessions.forEach(sess => {
-                        if (!sess.excluded_dates) sess.excluded_dates = [];
-                        else if (typeof sess.excluded_dates === 'string') {
-                            try { sess.excluded_dates = JSON.parse(sess.excluded_dates); }
-                            catch (e) { sess.excluded_dates = []; }
-                        }
-                    });
-                }
-
-                return cls;
-            });
         },
 
         async loadDemand(periodId) {
@@ -573,17 +547,16 @@
         async saveConfigSettings(periodId, settings) {
             this.state.loading = true;
             try {
-                // Prepare as JSON string for the backend API
-                const settingsJson = JSON.stringify(settings);
-
+                // The backend requires holidays and loads to be passed too, otherwise they might get wiped depending on implementation
+                // Alternatively, we pass them as they are in the context
                 await this._fetch('local_grupomakro_save_scheduler_config', {
                     periodid: periodId,
                     holidays: this.state.context.holidays || [],
                     loads: this.state.context.loads || [],
-                    configsettings: settingsJson
+                    configsettings: JSON.stringify(settings)
                 });
 
-                // Update local context with the OBJECT (not the string) to keep logic working
+                // Keep local state in sync
                 this.state.context.configSettings = settings;
                 this.state.successMessage = "Configuración guardada correctamente";
             } catch (e) {

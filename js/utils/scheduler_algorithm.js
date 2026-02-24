@@ -232,55 +232,8 @@
             }
         });
 
-        // Pre-initialize External: Process classes from overlapping periods
-        if (context.overlappingClasses && Array.isArray(context.overlappingClasses)) {
-            context.overlappingClasses.forEach(s => {
-                if (s.day !== 'N/A' && s.start && s.end) {
-                    // Use sessions if available, fallback to assignedDates
-                    let dates = s.assignedDates || [];
-                    if (s.sessions && Array.isArray(s.sessions)) {
-                        dates = [];
-                        s.sessions.forEach(sess => {
-                            const sessDates = allDatesByDay[sess.day] || [];
-                            const subRange = (s.subperiod && context.period?.subperiods) ? context.period.subperiods[s.subperiod] : null;
-                            let targetDates = sessDates;
-                            if (subRange) {
-                                targetDates = sessDates.filter(d => d >= subRange.start && d <= subRange.end);
-                            }
-                            // Exclude specific dates
-                            if (sess.excluded_dates) {
-                                targetDates = targetDates.filter(d => !sess.excluded_dates.includes(d));
-                            }
-                            dates.push(...targetDates);
-                        });
-                    }
-
-                    markBusyGranular(roomUsage, s.room, dates, s);
-                    if (s.teacherName) markBusyGranular(teacherUsage, s.teacherName, dates, s);
-                    if (s.studentIds) s.studentIds.forEach(sid => markBusyGranular(studentUsage, sid, dates, s));
-                }
-            });
-        }
-
         const unassigned = nextSchedules.filter(s => s.day === 'N/A');
-
-        // --- IMPROVED SORTING (Clustering Heuristic) ---
-        // Sort by Career + Subperiod + StudentCount
-        // This keeps Cohorts together, allowing the algorithm to pack a single group's classes
-        // into the same days/rooms before moving to the next group, which is more "efficient"
-        // for students and improves Mon-Wed saturation.
-        unassigned.sort((a, b) => {
-            // First by Career name (lexicographical)
-            const careerA = String(a.career || '');
-            const careerB = String(b.career || '');
-            if (careerA !== careerB) return careerA.localeCompare(careerB);
-
-            // Then by Subperiod (P-I vs P-II blocks)
-            if (a.subperiod !== b.subperiod) return a.subperiod - b.subperiod;
-
-            // Finally by StudentCount (Descending - largest first within the group)
-            return (b.studentCount || 0) - (a.studentCount || 0);
-        });
+        unassigned.sort((a, b) => (b.studentCount || 0) - (a.studentCount || 0));
 
         unassigned.forEach(s => {
             if (s.studentCount < 12 && !s.isQuorumException) {
@@ -306,19 +259,9 @@
             const win = shiftWindows[s.shift] || shiftWindows['Diurna'];
             const winStart = toMins(win.start);
             const winEnd = toMins(win.end);
-
-            // --- TIERED DAY PRIORITY ---
-            // The algorithm tries day by day in order. To prioritize Mon-Wed, 
-            // we ensure the search array starts with L, M, X.
             let winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-            if (s.shift === 'Sabatina') {
-                winDays = ['Sabado'];
-            } else if (win && win.days && Array.isArray(win.days)) {
-                winDays = win.days;
-            } else {
-                // Explicitly enforce Mon-Wed priority for standard shifts
-                winDays = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
-            }
+            if (s.shift === 'Sabatina') winDays = ['Sabado'];
+            else if (win && win.days) winDays = win.days;
 
             const validRooms = (context.classrooms || [])
                 .filter(r => r.active != 0 && r.capacity >= s.studentCount)
@@ -566,7 +509,7 @@
         if (schedule.teacherName) {
             // Existing: busy at same time
             const tC = allSchedules.find(s => s.teacherName === schedule.teacherName && checkOverlap(s));
-            if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}${tC.isExternal ? ' (Externo)' : ''}`, relatedId: tC.id });
+            if (tC) issues.push({ type: 'teacher', message: `Docente ocupado en ${tC.day} ${tC.start}`, relatedId: tC.id });
 
             // NEW: Availability and Competency Check
             if (context?.instructors) {
@@ -588,7 +531,7 @@
 
         if (schedule.room && schedule.room !== 'Sin aula') {
             const rC = allSchedules.find(s => s.room === schedule.room && checkOverlap(s));
-            if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}${rC.isExternal ? ' (Externo)' : ''}`, relatedId: rC.id });
+            if (rC) issues.push({ type: 'room', message: `Aula ocupada por ${rC.subjectName}`, relatedId: rC.id });
             if (context?.classrooms) {
                 const rD = context.classrooms.find(r => r.name === schedule.room);
                 if (rD && schedule.studentCount > rD.capacity) issues.push({ type: 'capacity', message: `Sobrecapacidad (${schedule.studentCount}/${rD.capacity})` });
@@ -605,7 +548,7 @@
 
                 const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
                 if (overlaps.length > 0) {
-                    conflictSubject = s.subjectName + (s.isExternal ? ' (Externo)' : '');
+                    conflictSubject = s.subjectName;
                     const nameMap = new Map();
                     if (context?.students) context.students.forEach(st => nameMap.set(st.id, st.name));
                     conflictingStudents = overlaps.slice(0, 3).map(sid => nameMap.get(sid) || `ID:${sid}`);

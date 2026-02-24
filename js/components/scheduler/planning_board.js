@@ -106,16 +106,14 @@ window.SchedulerComponents.PlanningBoard = {
                                     <div v-for="t in timeSlots" :key="t" class="h-14 border-b border-slate-100 border-dashed"></div>
                                     
                                     <!-- Placed Events -->
-                                    <div v-for="cls in getClassesForDay(day)" :key="cls.id + (cls.isExternal ? '-ext' : '')"
-                                        class="absolute left-1 right-1 rounded border overflow-hidden p-1 shadow-sm transition-all z-10 group"
-                                        :class="[
-                                            cls.isExternal ? 'bg-slate-100 border-slate-300 opacity-80 cursor-not-allowed' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400 cursor-pointer hover:shadow-md'),
-                                        ]"
+                                    <div v-for="cls in getClassesForDay(day)" :key="cls.id"
+                                        class="absolute left-1 right-1 rounded border overflow-hidden p-1 shadow-sm cursor-pointer hover:shadow-md transition-all z-10 group"
+                                        :class="getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'"
                                         :style="getEventStyle(cls)"
-                                        :title="cls.isExternal ? 'Clase de otro periodo académico (Bloqueada)' : getConflictTooltip(cls)"
-                                        :draggable="!cls.isExternal"
-                                        @dragstart="!cls.isExternal ? onDragStart($event, cls) : null"
-                                        @click="!cls.isExternal ? editClass(cls) : null"
+                                        :title="getConflictTooltip(cls)"
+                                        draggable="true"
+                                        @dragstart="onDragStart($event, cls)"
+                                        @click="editClass(cls)"
                                     >
                                         <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800'">
                                             {{ cls.subjectName }}
@@ -129,13 +127,8 @@ window.SchedulerComponents.PlanningBoard = {
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
-                                                <span v-if="cls.studentCount < 12 && !cls.isQuorumException" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
+                                                <span v-if="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
-                                                </span>
-                                            </div>
-                                            <div v-if="cls.isExternal" class="mt-1 flex items-center gap-1">
-                                                <span class="bg-slate-200 text-slate-600 text-[7px] font-black px-1 rounded uppercase flex items-center gap-0.5">
-                                                    <i data-lucide="lock" class="w-2 h-2"></i> Externo
                                                 </span>
                                             </div>
                                         </div>
@@ -357,10 +350,7 @@ window.SchedulerComponents.PlanningBoard = {
             return window.schedulerStore ? window.schedulerStore.state : {};
         },
         allClasses() {
-            return [
-                ...(this.storeState.generatedSchedules || []),
-                ...(this.storeState.overlappingSchedules || [])
-            ];
+            return this.storeState.generatedSchedules || [];
         },
         unassignedClasses() {
             const filter = this.storeState.subperiodFilter;
