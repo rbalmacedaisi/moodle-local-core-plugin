@@ -1966,6 +1966,13 @@ const app = createApp({
              nextTick(() => lucide.createIcons());
         });
 
+        // Auto-load scheduler context (loads, holidays, etc.) when config sub-tabs are shown
+        watch(configSubTab, (newTab) => {
+            if (['loads', 'holidays', 'general'].includes(newTab) && selectedPeriodId.value) {
+                store.loadContext(selectedPeriodId.value);
+            }
+        }, { immediate: true });
+
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
                 ignoredSubjects, isOrderLocked, updateProjection, periodMappings,

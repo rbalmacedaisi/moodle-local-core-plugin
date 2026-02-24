@@ -2810,6 +2810,21 @@ try {
             $response = ['status' => 'success'];
             break;
 
+        case 'local_grupomakro_get_scheduler_context':
+            $periodid = required_param('periodid', PARAM_INT);
+            $ctxData = \local_grupomakro_core\external\admin\scheduler::get_scheduler_context($periodid);
+            // Format holidays with formatted_date for calendar
+            if (!empty($ctxData['holidays'])) {
+                foreach ($ctxData['holidays'] as &$h) {
+                    if (isset($h->date) && !isset($h->formatted_date)) {
+                        $h->formatted_date = date('Y-m-d', $h->date);
+                    }
+                }
+                unset($h);
+            }
+            $response = ['status' => 'success', 'data' => $ctxData];
+            break;
+
         case 'local_grupomakro_get_holidays':
             $periodid = required_param('academicperiodid', PARAM_INT);
             $holidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodid], 'date ASC');
