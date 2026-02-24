@@ -19,30 +19,72 @@ echo "<style>
     .badge-pending { background: #fff3cd; color: #856404; }
 </style>";
 
-echo "<h1>Grupomakro Mapping Debugger</h1>";
-
-// --- SEARCH TOOL ---
+// --- SEARCH & SCAN TOOLS ---
 $search = optional_param('search', '', PARAM_RAW);
-echo "<div style='background:#e7f3ff; padding:15px; border-radius:8px; margin-bottom:20px;'>
-    <h3>Search Tool (Find User by Hash/Email/Name)</h3>
-    <form method='get'>
-        <input type='text' name='search' value='" . s($search) . "' placeholder='Paste hash or email here...' style='width:300px; padding:5px;'>
-        <button type='submit'>Search User</button>
-    </form>";
+$scan = optional_param('scan_duplicates', 0, PARAM_INT);
+
+echo "<div style='background:#e7f3ff; padding:15px; border-radius:8px; margin-bottom:20px; display: flex; gap: 20px;'>
+    <div style='flex: 1; border-right: 1px solid #ccc; padding-right: 20px;'>
+        <h3>Search Tool (Hash/Email)</h3>
+        <form method='get'>
+            <input type='text' name='search' value='" . s($search) . "' placeholder='Paste hash or email here...' style='width:250px; padding:5px;'>
+            <button type='submit'>Search User</button>
+        </form>";
 
 if ($search) {
     $foundUsers = $DB->get_records_sql("SELECT * FROM {user} WHERE email LIKE ? OR username LIKE ? OR firstname LIKE ? OR lastname LIKE ? OR id = ?", ["%$search%", "%$search%", "%$search%", "%$search%", (int)$search]);
     if ($foundUsers) {
         echo "<h4>Search Results:</h4><ul>";
         foreach ($foundUsers as $u) {
-            echo "<li><strong>ID: {$u->id}</strong> | Name: " . fullname($u) . " | Email: {$u->email} | Username: {$u->username}</li>";
+            $lpCount = $DB->count_records('local_learning_users', ['userid' => $u->id]);
+            $is_hash = preg_match('/^[a-f0-9]{32}$/i', $u->email) ? "<span style='color:red'> [HASH EMAIL]</span>" : "";
+            echo "<li><strong>ID: {$u->id}</strong> | Name: " . fullname($u) . " | Email: {$u->email} $is_hash | LP Roles: $lpCount</li>";
         }
         echo "</ul>";
     } else {
         echo "<p>No user found matching that search.</p>";
     }
 }
-echo "</div>";
+echo "</div>
+    <div style='flex: 1;'>
+        <h3>Duplicate Scanner</h3>
+        <p>Finds users with identical First/Last names.</p>
+        <form method='get'>
+            <input type='hidden' name='scan_duplicates' value='1'>
+            <button type='submit' style='background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;'>Scan All Teachers for Duplicates</button>
+        </form>";
+
+if ($scan) {
+    echo "<h4>Possible Duplicate Groups:</h4>";
+    $sql = "SELECT firstname, lastname, COUNT(id) as c 
+            FROM {user} 
+            WHERE deleted = 0 
+            GROUP BY firstname, lastname 
+            HAVING COUNT(id) > 1 
+            ORDER BY c DESC";
+    $duplicates = $DB->get_records_sql($sql);
+    
+    if ($duplicates) {
+        echo "<ul style='max-height: 400px; overflow-y: auto;'>";
+        foreach ($duplicates as $dup) {
+            $users = $DB->get_records('user', ['firstname' => $dup->firstname, 'lastname' => $dup->lastname], 'id ASC');
+            echo "<li style='margin-bottom: 10px; padding: 10px; border: 1px solid #ddd; background: white;'>";
+            echo "<strong>" . fullname($dup) . " ({$dup->c} accounts)</strong><br>";
+            foreach ($users as $u) {
+                $lpCount = $DB->count_records('local_learning_users', ['userid' => $u->id]);
+                $classCount = $DB->count_records('gmk_class', ['instructorid' => $u->id]);
+                $is_hash = preg_match('/^[a-f0-9]{32}$/i', $u->email) ? "<span style='color:red;'> [HASH]</span>" : "";
+                $style = $is_hash ? "color: #666;" : "color: #000; font-weight: bold;";
+                echo "<span style='$style'>- ID: {$u->id} | Email: {$u->email} $is_hash | LP: $lpCount | Classes: $classCount</span><br>";
+            }
+            echo "</li>";
+        }
+        echo "</ul>";
+    } else {
+        echo "<p>No exact name duplicates found.</p>";
+    }
+}
+echo "</div></div>";
 // -------------------
 
 if (!$classid) {
