@@ -613,7 +613,26 @@ class scheduler extends external_api {
             // For now, let's iterate and Create/Update.
             // Assumption: Frontend sends 'id' if updating.
             // To avoid duplicates while allowing updates:
-            // 1. Identify existing numeric IDs in the payload
+            // 1. Load existing classes for this period to allow matching (Upsert)
+            $existingClasses = $DB->get_records('gmk_class', ['periodid' => $periodid]);
+            $existingMap = [];
+            foreach ($existingClasses as $ec) {
+                // Key by corecourseid + shift + groupid for matching
+                $key = "{$ec->corecourseid}|{$ec->shift}|{$ec->groupid}";
+                $existingMap[$key] = $ec->id;
+            }
+
+            // 2. Map Payload and find matches
+            foreach ($data as &$cls) {
+                if (empty($cls['id']) || !is_numeric($cls['id'])) {
+                    $key = "{$cls['corecourseid']}|{$cls['shift']}|" . ($cls['subGroup'] ?? 0);
+                    if (isset($existingMap[$key])) {
+                        $cls['id'] = $existingMap[$key];
+                    }
+                }
+            }
+
+            // 3. Identify IDs that must be KEPT (because they are in the payload)
             $validIds = [];
             foreach ($data as $cls) {
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
@@ -621,10 +640,10 @@ class scheduler extends external_api {
                 }
             }
 
-            // 2. Delete classes for this period that are NOT in the payload (optional: only if you want full sync)
+            // 4. Delete classes for this period that are NOT in the payload (Cleanup)
             if (!empty($validIds)) {
-                $sql = "periodid = ? AND id NOT IN (" . implode(',', $validIds) . ")";
-                $DB->delete_records_select('gmk_class', $sql, [$periodid]);
+                list($insql, $inparams) = $DB->get_in_or_equal($validIds, SQL_PARAMS_NAMED, 'kept', false);
+                $DB->delete_records_select('gmk_class', "periodid = :pid AND id $insql", array_merge(['pid' => $periodid], $inparams));
             } else {
                 $DB->delete_records('gmk_class', ['periodid' => $periodid]);
             }

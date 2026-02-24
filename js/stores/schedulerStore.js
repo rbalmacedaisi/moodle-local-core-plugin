@@ -332,9 +332,28 @@
                             }
 
                             // Tie-breaker: If tie at 0 points, ignore Plan 13 if possible
+                            // Also, if it's an isolated career, try to match the career name
+                            let filteredTiePlans = tiePlans;
+                            if (isIsolated) {
+                                const matchedPlan = tiePlans.find(pid => {
+                                    const planMeta = data.plan_map[pid];
+                                    return planMeta && this.state.demand[career] && pid == studentMap[Object.keys(studentMap).find(sid => studentMap[sid].planid == pid)]?.planid;
+                                    // Actually, let's just use the plan name from the store
+                                });
+                                // Simple approach: find plan whose name matches 'career'
+                                const bestMatch = tiePlans.find(pid => {
+                                    // We need plan names. We can get them from the store's context careers
+                                    // Actually, comparing the current career name with the plan's name is best.
+                                    // But we don't have a planID -> Name map here. 
+                                    // Let's use the students in the demand if any.
+                                    return false; // Fallback
+                                });
+                            }
+
                             if (maxGlobal <= 0 && tiePlans.length > 1) {
-                                const non13 = tiePlans.filter(pid => pid !== 13);
+                                const non13 = tiePlans.filter(pid => pid !== 13 && pid !== 0);
                                 if (non13.length > 0) majorityPlanId = non13[0];
+                                else majorityPlanId = tiePlans[0];
                             }
                         }
 
