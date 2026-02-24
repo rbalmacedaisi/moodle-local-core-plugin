@@ -478,19 +478,33 @@
             this.state.loading = true;
             try {
                 // Strip redundant metadata to reduce payload size (1MB is too large)
+                // Agresive optimization: Keep ONLY what we need to reconstruct the view
+                const essentialKeys = [
+                    'id', 'courseId', 'subjectName', 'day', 'start', 'end', 'room',
+                    'instructorId', 'teacherName', 'studentCount', 'subperiod', 'type',
+                    'sessions', 'isQuorumException', 'instructorChanged'
+                ];
+
+                if (Array.isArray(schedules) && schedules.length > 0) {
+                    // Diagnostic: Check first item for bloat
+                    const first = schedules[0];
+                    const stats = {};
+                    Object.keys(first).forEach(k => {
+                        stats[k] = JSON.stringify(first[k]).length;
+                    });
+                    console.log("DEBUG: First item property sizes:", stats);
+                }
+
                 const optimizedSchedules = Array.isArray(schedules) ? schedules.map(s => {
-                    const {
-                        availableInstructors, // VERY LARGE
-                        availableRooms,       // LARGE
-                        allPotentialInstructors,
-                        pathData,
-                        ...essential
-                    } = s;
-                    return essential;
+                    const clean = {};
+                    essentialKeys.forEach(k => {
+                        if (s[k] !== undefined) clean[k] = s[k];
+                    });
+                    return clean;
                 }) : schedules;
 
                 const payloadStr = JSON.stringify(optimizedSchedules);
-                console.log(`DEBUG: Saving optimized draft for period ${periodId} with ${optimizedSchedules.length} items. String length: ${payloadStr.length}`);
+                console.log(`DEBUG: Saving optimized draft (aggressive) for period ${periodId} with ${optimizedSchedules.length} items. String length: ${payloadStr.length}`);
 
                 const res = await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,
