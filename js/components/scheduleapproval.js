@@ -456,6 +456,9 @@ Vue.component('scheduleapproval', {
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
+                    console.log('DEBUG getData: params sent:', { courseId: this.courseId, periodIds: this.periodsIds });
+                    console.log('DEBUG getData: full response.data:', JSON.stringify(response.data).substring(0, 500));
+
                     // Check if the API returned an error
                     if (!response.data || !response.data.courseSchedules) {
                         console.warn('API returned no courseSchedules data. Status:', response.data?.status, 'Message:', response.data?.message);
@@ -464,6 +467,8 @@ Vue.component('scheduleapproval', {
 
                     // Converts the data returned from the API from JSON string format to object format.
                     const data = JSON.parse(response.data.courseSchedules)
+                    console.log('DEBUG getData: parsed data keys:', Object.keys(data), 'entries count:', Object.entries(data).length);
+
                     if (!data || typeof data !== 'object') {
                         console.warn('Parsed courseSchedules is empty or invalid.');
                         return;
