@@ -500,7 +500,7 @@
             }
         },
 
-        async uploadSubjectLoads(file) {
+        async uploadSubjectLoads(file, periodIdParam) {
             if (!window.XLSX) {
                 this.state.error = "Librería XLSX no cargada";
                 return { success: false };
@@ -559,8 +559,8 @@
                 // Save to local context for immediate use
                 this.state.context.loads = loads;
 
-                // Persist to DB
-                const periodId = this.state.activePeriod;
+                // Persist to DB — use provided periodId or fallback to activePeriod
+                const periodId = periodIdParam || this.state.activePeriod;
                 if (periodId) {
                     try {
                         const url = window.location.origin + '/local/grupomakro_core/ajax.php';

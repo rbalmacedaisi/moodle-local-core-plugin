@@ -1935,7 +1935,7 @@ const app = createApp({
             if (!file) return;
             loadUploadMessage.value = '';
             loadUploadError.value = false;
-            const result = await store.uploadSubjectLoads(file);
+            const result = await store.uploadSubjectLoads(file, selectedPeriodId.value);
             e.target.value = '';
             if (result && result.success) {
                 loadUploadMessage.value = '✓ ' + result.count + ' asignaturas cargadas y guardadas.';
