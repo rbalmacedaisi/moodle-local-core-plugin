@@ -37,10 +37,6 @@ window.Vue.component('editclass', {
                     <div v-if="!reschedulingActivity" id="fields-groups" class="row pb-5 mt-2 mx-0">
                         <div class="col-12">
                             <h5 class="text-secondary mb-0">{{ classData.name}}</h5>
-                            <!-- DEBUG INDICATOR -->
-                            <div v-if="filledInputs" style="background:#fff3cd; padding:5px; border-radius:4px; font-size:0.8em; margin-top:5px; display:inline-block;">
-                                <strong>DEBUG MODE:</strong> Days String: <code>{{ classDaysString }}</code> | Teacher ID: <code>{{ classTeacherId }}</code>
-                            </div>
                             <hr> </hr>
                         </div>    
                             
@@ -310,13 +306,11 @@ window.Vue.component('editclass', {
         },
         fillInputs() {
             const rawTemplatedata = window.templatedata || {};
-            console.log("DEBUG editclass.js: fillInputs starting with raw data:", JSON.stringify(rawTemplatedata.classDays));
 
             // Set rescheduling mode early
             this.reschedulingActivity = !!rawTemplatedata.reschedulingActivity;
 
             if (!rawTemplatedata.classId && !this.reschedulingActivity) {
-                console.error("ERROR editclass.js: window.templatedata is missing or invalid");
                 return;
             }
 
@@ -341,8 +335,7 @@ window.Vue.component('editclass', {
                 });
             }
 
-            this.classData.classDays = classDays; // Direct assignment is safe because classData is already reactive
-            console.log("DEBUG editclass.js: Normalized days set to:", JSON.stringify(this.classData.classDays));
+            this.classData.classDays = classDays;
 
             const currentTeacher = (rawTemplatedata.classTeachers || []).find(t => t.selected) || {};
             this.classTeacherId = currentTeacher.id;
@@ -373,9 +366,7 @@ window.Vue.component('editclass', {
 
             // CRITICAL: Ensure we find the teacher index after setting the teachers list
             this.classData.teacherIndex = this.teachers.findIndex(teacher => String(teacher.id) === String(this.classTeacherId));
-            if (this.classData.teacherIndex === -1 && this.classTeacherId) {
-                console.warn("DEBUG editclass.js: Teacher ID " + this.classTeacherId + " not found in potential teachers list.");
-            }
+
 
             if (rawTemplatedata.reschedulingActivity) {
                 this.activityRescheduleData.activityEndTime = rawTemplatedata.activityEndTime
@@ -390,10 +381,6 @@ window.Vue.component('editclass', {
 
             setTimeout(() => {
                 this.filledInputs = true;
-                console.log("DEBUG editclass.js: Initialization complete.");
-                console.log(" - Days:", JSON.stringify(this.classData.classDays));
-                console.log(" - Teacher ID:", this.classTeacherId);
-                console.log(" - Teacher List Size:", this.teachers.length);
             }, 500)
         },
         async handleLearningPlanChange() {
@@ -482,12 +469,11 @@ window.Vue.component('editclass', {
                 return;
             }
             this.savingClass = true;
-            console.log("DEBUG editclass.js: Saving class with days:", this.classDaysString);
-            console.log(" - Full classData:", JSON.stringify(this.classData));
+
 
             try {
                 let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
-                console.log("DEBUG editclass.js: Server response:", JSON.stringify(data));
+
 
                 let { status, message, exception } = data;
                 if (status === -1) {
@@ -508,7 +494,7 @@ window.Vue.component('editclass', {
                 this.returnToLastPage()
             }
             catch (error) {
-                console.error("DEBUG editclass.js: Save failed:", error)
+                console.error(error)
                 this.errorMessage = error.message;
                 this.showErrorDialog = true;
                 this.savingClass = false;

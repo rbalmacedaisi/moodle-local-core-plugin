@@ -69,11 +69,7 @@ $activityInfo = null;
 //Get the class that is going to be edited
 $class =  list_classes(['id'=>$id])[$id];
 
-if (!$class) {
-    gmk_log("ERROR editclass.php: Class not found for ID $id");
-} else {
-    gmk_log("DEBUG editclass.php Load: ID=$id, Name={$class->name}, InstructorID=" . ($class->instructorid ?? 'NULL') . ", Days=" . ($class->classdays ?? 'NULL'));
-}
+
 
 if($reschedulingActivity){
     $activityInfo = getActivityInfo($moduleId,$sessionId);
@@ -127,9 +123,7 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
     $teacherData->email =$potentialTeacher->email;
     $teacherData->id =$potentialTeacher->id;
     $teacherData->selected = (int)$potentialTeacher->id === (int)$class->instructorid;
-    if ($teacherData->selected) {
-        gmk_log("DEBUG editclass.php Teacher selected: {$teacherData->fullname} (ID: {$teacherData->id})");
-    }
+
     
     return $teacherData;
 },$classPotentialTeachers));
@@ -145,7 +139,7 @@ $classDays = [
     'saturday'  => isset($daysParts[5]) && $daysParts[5] === '1',
     'sunday'    => isset($daysParts[6]) && $daysParts[6] === '1'
 ];
-gmk_log("DEBUG editclass.php Mapped Days: " . json_encode($classDays));
+
 $themeToken = get_theme_token();
 $userToken = get_logged_user_token();
 

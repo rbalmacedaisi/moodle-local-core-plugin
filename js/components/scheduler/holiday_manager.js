@@ -14,10 +14,23 @@ window.SchedulerComponents.HolidayManager = {
                     <h3 class="font-bold text-slate-800">Calendario de Festivos / Excepciones</h3>
                     <p class="text-xs text-slate-500">Días que se excluirán del cálculo de horas teóricas.</p>
                 </div>
-                <button @click="showModal = true" class="flex items-center gap-2 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold transition-colors">
-                    <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
-                    Añadir Excepción
-                </button>
+                <div class="flex items-center gap-2">
+                    <input type="file" ref="excelInput" accept=".xlsx,.xls" @change="handleExcelUpload" class="hidden" />
+                    <button @click="$refs.excelInput.click()" :disabled="uploading" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                        {{ uploading ? 'Cargando...' : 'Cargar Excel' }}
+                    </button>
+                    <button @click="showModal = true" class="flex items-center gap-2 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold transition-colors">
+                        <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
+                        Añadir Excepción
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Result Banner -->
+            <div v-if="uploadMessage" class="px-4 py-2 text-sm font-medium flex items-center justify-between" :class="uploadError ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'">
+                <span>{{ uploadMessage }}</span>
+                <button @click="uploadMessage = ''" class="ml-4 opacity-60 hover:opacity-100">&times;</button>
             </div>
 
             <div class="p-4">
@@ -79,7 +92,7 @@ window.SchedulerComponents.HolidayManager = {
                         <div class="pt-4 flex gap-3">
                             <button type="button" @click="closeModal" class="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold transition-all">Cancelar</button>
                             <button type="submit" :disabled="saving" class="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold shadow-lg shadow-orange-200 disabled:opacity-50 transition-all">
-                                {{ saving ? 'Programar' : 'Programar' }}
+                                Programar
                             </button>
                         </div>
                     </form>
@@ -93,6 +106,9 @@ window.SchedulerComponents.HolidayManager = {
             loading: false,
             showModal: false,
             saving: false,
+            uploading: false,
+            uploadMessage: '',
+            uploadError: false,
             form: {
                 id: null,
                 name: '',
@@ -125,11 +141,54 @@ window.SchedulerComponents.HolidayManager = {
                 this.loading = false;
             }
         },
+        async handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file || !this.periodId) return;
+
+            this.uploading = true;
+            this.uploadMessage = '';
+            this.uploadError = false;
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'local_grupomakro_upload_holidays_excel');
+                formData.append('sesskey', M.cfg.sesskey);
+                formData.append('academicperiodid', this.periodId);
+                formData.append('file', file);
+
+                const res = await fetch(window.location.origin + '/local/grupomakro_core/ajax.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const json = await res.json();
+
+                if (json.status === 'error') {
+                    this.uploadError = true;
+                    this.uploadMessage = json.message || 'Error al procesar el archivo.';
+                } else {
+                    const count = json.data?.imported || 0;
+                    const skipped = json.data?.skipped || 0;
+                    this.uploadMessage = '✓ ' + count + ' festivos importados' + (skipped > 0 ? ' (' + skipped + ' duplicados omitidos)' : '') + '.';
+                    this.loadHolidays();
+
+                    // Refresh store context so calendar view picks up changes
+                    if (window.schedulerStore && window.schedulerStore.loadContext) {
+                        window.schedulerStore.loadContext(this.periodId);
+                    }
+                }
+            } catch (e) {
+                this.uploadError = true;
+                this.uploadMessage = 'Error: ' + e.message;
+            } finally {
+                this.uploading = false;
+                this.$refs.excelInput.value = '';
+            }
+        },
         async saveHoliday() {
             if (!this.periodId) return;
             this.saving = true;
             try {
-                const timestamp = Math.floor(new Date(this.form.dateStr).getTime() / 1000) + (12 * 3600); // Noon to avoid TZ issues
+                const timestamp = Math.floor(new Date(this.form.dateStr).getTime() / 1000) + (12 * 3600);
                 await this._call('local_grupomakro_save_holiday', {
                     ...this.form,
                     academicperiodid: this.periodId,

@@ -817,7 +817,6 @@ class scheduler extends external_api {
                     
                     $derivedClassdays = implode('/', $mask);
                     if ($derivedClassdays !== '0/0/0/0/0/0/0') {
-                        gmk_log("DEBUG save_generation_result: Derived classdays for class " . ($cls['id'] ?? 'NEW') . ": '$derivedClassdays' (was: '$rawClassdays')");
                         $rawClassdays = $derivedClassdays;
                     }
                 }

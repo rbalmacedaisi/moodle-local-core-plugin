@@ -18,6 +18,7 @@ use local_grupomakro_core\external\student\get_student_info;
 use local_grupomakro_core\external\student\update_status;
 use local_grupomakro_core\external\student\sync_progress;
 use local_grupomakro_core\external\teacher\get_dashboard_data;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 
 if (!function_exists('gmk_log')) {
@@ -2844,6 +2845,106 @@ try {
             $id = required_param('id', PARAM_INT);
             $DB->delete_records('gmk_holidays', ['id' => $id]);
             $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_upload_holidays_excel':
+            $periodid = required_param('academicperiodid', PARAM_INT);
+            
+            if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                throw new Exception('No se recibió un archivo válido.');
+            }
+            
+            $tmpPath = $_FILES['file']['tmp_name'];
+            $spreadsheet = IOFactory::load($tmpPath);
+            $sheet = $spreadsheet->getActiveSheet();
+            $rows = $sheet->toArray(null, true, true, true);
+            
+            // Detect header row and column mapping
+            $headerRow = array_shift($rows);
+            $colMap = [];
+            foreach ($headerRow as $col => $val) {
+                $normalized = mb_strtolower(trim($val ?? ''));
+                if (strpos($normalized, 'fecha') !== false) $colMap['date'] = $col;
+                if (strpos($normalized, 'festividad') !== false || strpos($normalized, 'nombre') !== false) $colMap['name'] = $col;
+                if (strpos($normalized, 'tipo') !== false) $colMap['type'] = $col;
+            }
+            
+            if (empty($colMap['date'])) {
+                throw new Exception('No se encontró la columna "Fecha" en el Excel.');
+            }
+            
+            // Get existing dates to skip duplicates
+            $existingHolidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $periodid], '', 'id, date');
+            $existingDates = [];
+            foreach ($existingHolidays as $eh) {
+                $existingDates[] = date('Y-m-d', $eh->date);
+            }
+            
+            $imported = 0;
+            $skipped = 0;
+            
+            foreach ($rows as $row) {
+                $rawDate = trim($row[$colMap['date']] ?? '');
+                if (empty($rawDate)) continue;
+                
+                // Try multiple date formats
+                $ts = 0;
+                if (is_numeric($rawDate)) {
+                    // Excel serial date
+                    $ts = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($rawDate);
+                } else {
+                    // Try common date string formats
+                    $parsed = strtotime($rawDate);
+                    if ($parsed !== false) {
+                        $ts = $parsed;
+                    } else {
+                        // Try MM/DD/YYYY format
+                        $parts = preg_split('/[\/\-]/', $rawDate);
+                        if (count($parts) === 3) {
+                            $ts = mktime(12, 0, 0, intval($parts[0]), intval($parts[1]), intval($parts[2]));
+                        }
+                    }
+                }
+                
+                if ($ts <= 0) continue;
+                
+                // Normalize to noon to avoid timezone issues
+                $dateStr = date('Y-m-d', $ts);
+                $ts = strtotime($dateStr . ' 12:00:00');
+                
+                // Skip duplicates
+                if (in_array($dateStr, $existingDates)) {
+                    $skipped++;
+                    continue;
+                }
+                
+                $record = new stdClass();
+                $record->academicperiodid = $periodid;
+                $record->date = $ts;
+                $record->name = trim($row[$colMap['name'] ?? ''] ?? 'Feriado');
+                
+                // Map type from Excel to short code
+                $rawType = mb_strtolower(trim($row[$colMap['type'] ?? ''] ?? ''));
+                if (strpos($rawType, 'nacional') !== false || strpos($rawType, 'feriado') !== false) {
+                    $record->type = 'feriado';
+                } else if (strpos($rawType, 'institucional') !== false) {
+                    $record->type = 'institucional';
+                } else if (strpos($rawType, 'duelo') !== false) {
+                    $record->type = 'feriado';
+                } else {
+                    $record->type = 'otro';
+                }
+                
+                $record->usermodified = $USER->id;
+                $record->timecreated = time();
+                $record->timemodified = time();
+                
+                $DB->insert_record('gmk_holidays', $record);
+                $existingDates[] = $dateStr;
+                $imported++;
+            }
+            
+            $response = ['status' => 'success', 'data' => ['imported' => $imported, 'skipped' => $skipped]];
             break;
 
         default:
