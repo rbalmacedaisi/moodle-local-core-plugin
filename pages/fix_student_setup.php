@@ -147,6 +147,7 @@ if ($action === 'get_current_state') {
 
 if ($action === 'ajax_fix') {
     header('Content-Type: application/json');
+    ob_start(); // Buffer any accidental output
     try {
         $userid = optional_param('userid', 0, PARAM_INT);
         $username = optional_param('username', '', PARAM_RAW);
@@ -339,10 +340,14 @@ if ($action === 'ajax_fix') {
         }
 
         $transaction->allow_commit();
+        ob_clean();
         echo json_encode(['status' => 'success']);
         exit;
     } catch (Exception $e) {
-        if (isset($transaction)) $transaction->rollback($e);
+        if (isset($transaction)) {
+            try { $transaction->rollback($e); } catch (Exception $re) { /* ignore */ }
+        }
+        ob_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
         exit;
     }
@@ -940,13 +945,20 @@ createApp({
                         }
                     });
 
-                    if (res.data.status === 'success') {
+                    if (res.data && res.data.status === 'success') {
                         this.addLog('success', `${row.username}: Reparado exitosamente.`);
                     } else {
-                        this.addLog('error', `${row.username}: Error - ${res.data.message}`);
+                        const errMsg = (res.data && res.data.message) ? res.data.message : 'Respuesta inesperada del servidor';
+                        this.addLog('error', `${row.username}: Error - ${errMsg}`);
                     }
                 } catch (e) {
-                    this.addLog('error', `${row.username}: Error de red o servidor.`);
+                    let detail = e.message;
+                    if (e.response && e.response.data && e.response.data.message) {
+                        detail = e.response.data.message;
+                    } else if (e.response && e.response.statusText) {
+                        detail = `HTTP ${e.response.status}: ${e.response.statusText}`;
+                    }
+                    this.addLog('error', `${row.username}: Error - ${detail}`);
                 }
                 
                 this.processedCount++;
