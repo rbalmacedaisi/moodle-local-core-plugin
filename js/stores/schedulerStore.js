@@ -538,7 +538,15 @@
                 const draft = await this._fetch('local_grupomakro_load_draft', { periodid: periodId });
                 if (draft && Array.isArray(draft)) {
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
-                    this.state.generatedSchedules = draft;
+                    // Preserve external courses fetched from live DB (they shouldn't be overwritten by draft)
+                    const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
+
+                    // Combine draft (mostly current period work) with external overlaps
+                    // Ensure we don't duplicate if draft already has some (though draft usually shouldn't have isExternal flagged ones)
+                    const draftIds = new Set(draft.map(s => s.id));
+                    const uniqueExternals = externalSchedules.filter(s => !draftIds.has(s.id));
+
+                    this.state.generatedSchedules = [...draft, ...uniqueExternals];
                 } else {
                     console.log("DEBUG: No draft found or draft is empty for this period.");
                 }

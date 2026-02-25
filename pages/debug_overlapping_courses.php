@@ -70,12 +70,15 @@ if ($periodid) {
             $instructor = $c->firstname ? "$c->firstname $c->lastname" : "Sin asignar";
             $pName = $c->period_name ?: "<span class='badge badge-danger'>SIN PERIODO</span>";
             
-            // Get students
+            // Get students from both planned queue and matriculated progress
             $students = $DB->get_records_sql("
                 SELECT u.id, u.idnumber, u.firstname, u.lastname 
                 FROM {user} u
-                JOIN {gmk_class_queue} q ON q.userid = u.id
-                WHERE q.classid = ?", [$c->id]);
+                JOIN (
+                    SELECT userid FROM {gmk_class_queue} WHERE classid = :cid1
+                    UNION
+                    SELECT userid FROM {gmk_course_progre} WHERE classid = :cid2
+                ) q ON q.userid = u.id", ['cid1' => $c->id, 'cid2' => $c->id]);
             
             $stuList = [];
             foreach ($students as $s) {
