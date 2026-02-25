@@ -2762,6 +2762,13 @@ try {
             $response = ['status' => 'success', 'data' => $data];
             break;
 
+        case 'local_grupomakro_get_course_students_by_class_schedule':
+            $classid = required_param('classid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/get_course_students_by_class_schedule.php');
+            $data = \local_grupomakro_core\external\schedule\get_course_students_by_class_schedule::execute($classid);
+            $response = ['status' => 'success', 'data' => $data];
+            break;
+
         case 'local_grupomakro_save_generation_result':
             $periodid = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);
