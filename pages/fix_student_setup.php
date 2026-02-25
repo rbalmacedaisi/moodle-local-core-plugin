@@ -32,72 +32,39 @@ if ($action === 'download_template') {
 
     // Get all learning plans
     $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
-    $plan_list = implode(', ', array_map(function($p) { return $p->name; }, $plans));
+    $plan_names = array_map(function($p) { return $p->name; }, $plans);
 
-    // Create spreadsheet
-    $spreadsheet = new Spreadsheet();
-    $sheet = $spreadsheet->getActiveSheet();
+    $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.csv';
 
-    // Set headers
-    $sheet->setCellValue('A1', 'Username (Cédula)');
-    $sheet->setCellValue('B1', 'Nombre Completo');
-    $sheet->setCellValue('C1', 'Email');
-    $sheet->setCellValue('D1', 'ID Number (Expediente)');
-    $sheet->setCellValue('E1', 'Plan de Aprendizaje');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
 
-    // Style headers
-    $headerStyle = [
-        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-        'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
-        'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER]
-    ];
-    $sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+    $fp = fopen('php://output', 'w');
+    fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
 
-    // Set column widths
-    $sheet->getColumnDimension('A')->setWidth(20);
-    $sheet->getColumnDimension('B')->setWidth(30);
-    $sheet->getColumnDimension('C')->setWidth(30);
-    $sheet->getColumnDimension('D')->setWidth(20);
-    $sheet->getColumnDimension('E')->setWidth(40);
+    // Headers
+    fputcsv($fp, ['Username (Cédula)', 'Nombre Completo', 'Email', 'ID Number (Expediente)', 'Plan de Aprendizaje']);
 
-    // Add data rows
-    $row = 2;
+    // Data rows
     foreach ($users_no_roles as $user) {
-        $sheet->setCellValue('A' . $row, $user->username);
-        $sheet->setCellValue('B' . $row, $user->firstname . ' ' . $user->lastname);
-        $sheet->setCellValue('C' . $row, $user->email);
-        $sheet->setCellValue('D' . $row, $user->idnumber);
-        $sheet->setCellValue('E' . $row, ''); // Empty for user to fill
-        $row++;
+        fputcsv($fp, [
+            $user->username,
+            $user->firstname . ' ' . $user->lastname,
+            $user->email,
+            $user->idnumber,
+            '' // Empty for user to fill
+        ]);
     }
 
-    // Add note sheet
-    $noteSheet = $spreadsheet->createSheet();
-    $noteSheet->setTitle('INSTRUCCIONES');
-    $noteSheet->setCellValue('A1', 'INSTRUCCIONES PARA USO DE LA PLANTILLA');
-    $noteSheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-    $noteSheet->setCellValue('A3', '1. La columna "Username (Cédula)" contiene la cédula del estudiante - NO MODIFICAR');
-    $noteSheet->setCellValue('A4', '2. La columna "Plan de Aprendizaje" debe llenarse con el NOMBRE EXACTO del plan');
-    $noteSheet->setCellValue('A5', '3. Planes disponibles:');
-    $noteSheet->setCellValue('A6', $plan_list);
-    $noteSheet->getStyle('A6')->getAlignment()->setWrapText(true);
-    $noteSheet->setCellValue('A8', '4. Una vez completada, suba el archivo en la página principal');
-    $noteSheet->getColumnDimension('A')->setWidth(100);
+    // Add instructions as comments
+    fputcsv($fp, []);
+    fputcsv($fp, ['INSTRUCCIONES:']);
+    fputcsv($fp, ['1. Complete la columna "Plan de Aprendizaje" con el nombre EXACTO del plan']);
+    fputcsv($fp, ['2. NO modifique las otras columnas']);
+    fputcsv($fp, ['3. Planes disponibles: ' . implode(', ', $plan_names)]);
 
-    // Set active sheet back to data
-    $spreadsheet->setActiveSheetIndex(0);
-
-    // Save to temp file
-    $tempdir = make_temp_directory('grupomakro_excel');
-    $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.xlsx';
-    $filepath = $tempdir . '/' . $filename;
-
-    $writer = new Xlsx($spreadsheet);
-    $writer->save($filepath);
-
-    // Send file using Moodle's function
-    send_temp_file($filepath, $filename);
-    die();
+    fclose($fp);
+    exit;
 }
 
 // ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
@@ -111,10 +78,6 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
         $tmpfile = $uploadfile['tmp_name'];
 
         try {
-            $spreadsheet = IOFactory::load($tmpfile);
-            $sheet = $spreadsheet->getActiveSheet();
-            $highestRow = $sheet->getHighestRow();
-
             $results = [
                 'success' => [],
                 'errors' => [],
@@ -128,32 +91,47 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
                 $plan_map[strtolower(trim($p->name))] = $p->id;
             }
 
-            // Process rows (skip header row 1)
-            for ($row = 2; $row <= $highestRow; $row++) {
-                $username = trim($sheet->getCell('A' . $row)->getValue());
-                $plan_name = trim($sheet->getCell('E' . $row)->getValue());
+            // Read CSV file
+            $fp = fopen($tmpfile, 'r');
+            $row_num = 0;
+
+            while (($data = fgetcsv($fp)) !== false) {
+                $row_num++;
+
+                // Skip header row
+                if ($row_num === 1) {
+                    continue;
+                }
+
+                // Stop at instructions section
+                if (empty($data[0]) || $data[0] === 'INSTRUCCIONES:') {
+                    break;
+                }
+
+                $username = trim($data[0]);
+                $plan_name = isset($data[4]) ? trim($data[4]) : '';
 
                 if (empty($username)) {
-                    $results['skipped'][] = "Fila $row: Username vacío";
+                    $results['skipped'][] = "Fila $row_num: Username vacío";
                     continue;
                 }
 
                 if (empty($plan_name)) {
-                    $results['errors'][] = "Fila $row ($username): Plan de aprendizaje vacío";
+                    $results['errors'][] = "Fila $row_num ($username): Plan de aprendizaje vacío";
                     continue;
                 }
 
                 // Find user
                 $user = $DB->get_record('user', ['username' => $username, 'deleted' => 0]);
                 if (!$user) {
-                    $results['errors'][] = "Fila $row ($username): Usuario no encontrado";
+                    $results['errors'][] = "Fila $row_num ($username): Usuario no encontrado";
                     continue;
                 }
 
                 // Find plan
                 $plan_name_lower = strtolower(trim($plan_name));
                 if (!isset($plan_map[$plan_name_lower])) {
-                    $results['errors'][] = "Fila $row ($username): Plan '$plan_name' no encontrado";
+                    $results['errors'][] = "Fila $row_num ($username): Plan '$plan_name' no encontrado";
                     continue;
                 }
                 $plan_id = $plan_map[$plan_name_lower];
@@ -168,7 +146,7 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
                         try {
                             role_assign($student_role->id, $user->id, $context->id);
                         } catch (Exception $e) {
-                            $results['errors'][] = "Fila $row ($username): Error asignando rol - " . $e->getMessage();
+                            $results['errors'][] = "Fila $row_num ($username): Error asignando rol - " . $e->getMessage();
                             continue;
                         }
                     }
@@ -187,14 +165,16 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
 
                     try {
                         $DB->insert_record('local_learning_users', $record);
-                        $results['success'][] = "Fila $row ($username): Reparado exitosamente con plan '$plan_name'";
+                        $results['success'][] = "Fila $row_num ($username): Reparado exitosamente con plan '$plan_name'";
                     } catch (Exception $e) {
-                        $results['errors'][] = "Fila $row ($username): Error creando registro - " . $e->getMessage();
+                        $results['errors'][] = "Fila $row_num ($username): Error creando registro - " . $e->getMessage();
                     }
                 } else {
-                    $results['skipped'][] = "Fila $row ($username): Ya tiene registro en local_learning_users";
+                    $results['skipped'][] = "Fila $row_num ($username): Ya tiene registro en local_learning_users";
                 }
             }
+
+            fclose($fp);
 
             // Store results for display
             $_SESSION['bulk_upload_results'] = $results;
@@ -290,19 +270,19 @@ if (isset($_SESSION['bulk_upload_error'])) {
 
 // ========== BULK UPLOAD FORM ==========
 echo "<div class='section info'>";
-echo "<h2>📤 Carga Masiva desde Excel</h2>";
-echo "<p>Descarga la plantilla Excel con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
+echo "<h2>📤 Carga Masiva desde CSV</h2>";
+echo "<p>Descarga la plantilla CSV con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
 
 echo "<div style='margin: 20px 0;'>";
 echo "<a href='?action=download_template' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
-echo "⬇️ Descargar Plantilla Excel (.xlsx)";
+echo "⬇️ Descargar Plantilla CSV";
 echo "</a>";
 echo "</div>";
 
 echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
 echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
 echo "<h3>Subir Archivo Completado</h3>";
-echo "<input type='file' name='uploadfile' accept='.xlsx' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
+echo "<input type='file' name='uploadfile' accept='.csv' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
 echo "<br>";
 echo "<input type='submit' value='⬆️ Procesar Archivo' class='btn btn-primary' style='font-size: 16px; padding: 10px 30px; margin-top: 10px;'>";
 echo "</div>";
@@ -314,6 +294,7 @@ echo "<li>La plantilla contiene SOLO los usuarios sin roles</li>";
 echo "<li>Debes completar la columna 'Plan de Aprendizaje' con el nombre EXACTO del plan</li>";
 echo "<li>NO modifiques las columnas de Username, Nombre, Email o ID Number</li>";
 echo "<li>El sistema asignará automáticamente el rol de estudiante y creará el registro en local_learning_users</li>";
+echo "<li>Puedes editar el CSV en Excel, Google Sheets o cualquier editor de texto</li>";
 echo "</ul></div>";
 
 echo "</div>";
