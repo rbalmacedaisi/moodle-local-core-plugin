@@ -7,17 +7,18 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-admin_externalpage_setup('grupomakro_core_manage_courses');
-
 global $DB;
 
+// Get parameters BEFORE any page setup
 $action = optional_param('action', '', PARAM_ALPHA);
 $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
-// ========== DOWNLOAD TEMPLATE ACTION ==========
+// ========== DOWNLOAD TEMPLATE ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'download_template') {
+    require_login();
+    require_capability('moodle/site:config', context_system::instance());
     // Get all users without roles
     $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
             FROM {user} u
@@ -97,8 +98,11 @@ if ($action === 'download_template') {
     exit;
 }
 
-// ========== BULK UPLOAD ACTION ==========
+// ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
+    require_login();
+    require_capability('moodle/site:config', context_system::instance());
+
     $uploadfile = $_FILES['uploadfile'];
 
     if ($uploadfile['error'] === UPLOAD_ERR_OK) {
@@ -203,6 +207,9 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
         redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php'));
     }
 }
+
+// ========== NOW SETUP PAGE (AFTER FILE OPERATIONS) ==========
+admin_externalpage_setup('grupomakro_core_manage_courses');
 
 echo $OUTPUT->header();
 
