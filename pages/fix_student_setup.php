@@ -418,43 +418,71 @@ echo $OUTPUT->header();
                         <div class="max-h-[500px] overflow-y-auto w-full">
                             <table class="w-full text-sm text-left border-collapse">
                                 <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md">
-                                    <tr class="text-[10px] uppercase tracking-widest text-slate-400 font-black border-b border-slate-100">
+                                    <tr class="text-[10px] uppercase tracking-widest text-slate-400 font-black border-b border-slate-100 whitespace-nowrap">
                                         <th class="px-6 py-4">Usuario</th>
                                         <th class="px-6 py-4">ID Number</th>
-                                        <th class="px-6 py-4">Plan</th>
-                                        <th class="px-6 py-4">Nivel / Periodo</th>
-                                        <th class="px-6 py-4">Bloque</th>
-                                        <th class="px-6 py-4">Estado</th>
+                                        <th class="px-6 py-4">Plan / Nivel / Periodo</th>
+                                        <th class="px-6 py-4">Bloque / Estado</th>
+                                        <th class="px-6 py-4">Documento</th>
+                                        <th class="px-6 py-4">Contactos</th>
+                                        <th class="px-6 py-4">Empresa / Depto</th>
+                                        <th class="px-6 py-4">Perf. Institucional</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                    <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
+                                        <!-- User & ID -->
                                         <td class="px-6 py-3">
-                                            <div class="font-bold text-slate-700">{{ row.fullname }}</div>
+                                            <div class="font-bold text-slate-700 leading-tight">{{ row.fullname }}</div>
                                             <div class="font-mono text-[10px] text-slate-400">{{ row.username }}</div>
+                                            <div class="text-[10px] text-blue-500">{{ row.email }}</div>
                                         </td>
                                         <td class="px-6 py-3 font-mono text-xs text-slate-600">{{ row.idnumber }}</td>
+                                        
+                                        <!-- Academic Config -->
                                         <td class="px-6 py-3">
-                                            <span v-if="row.plan_name" :class="row.plan_id ? 'text-blue-600 font-bold' : 'text-red-500 font-bold text-[10px]'">
+                                            <div class="text-[11px] font-bold" :class="row.plan_id ? 'text-slate-800' : 'text-red-500'">
                                                 {{ row.plan_name }}
                                                 <i v-if="!row.plan_id" data-lucide="alert-circle" class="w-3 h-3 inline ml-1"></i>
-                                            </span>
-                                            <span v-else class="text-slate-300 italic">No definido</span>
+                                            </div>
+                                            <div class="text-[10px] text-slate-500">{{ row.level_name || '-' }} / {{ row.academic_name || '-' }}</div>
                                         </td>
+
+                                        <!-- Status & Group -->
                                         <td class="px-6 py-3">
-                                            <div class="text-slate-700 font-medium">{{ row.level_name || '-' }}</div>
-                                            <div class="text-[10px] text-slate-400">{{ row.subperiod_name || '' }}</div>
-                                        </td>
-                                        <td class="px-6 py-3 text-slate-600 font-medium">{{ row.groupname || '-' }}</td>
-                                        <td class="px-6 py-3">
+                                            <div class="text-[11px] font-semibold text-slate-700 mb-1">Bloque: {{ row.groupname || '-' }}</div>
                                             <span :class="{
-                                                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider': true,
+                                                'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider': true,
                                                 'bg-green-100 text-green-700': row.status === 'activo',
                                                 'bg-amber-100 text-amber-700': row.status === 'aplazado',
                                                 'bg-slate-100 text-slate-600': row.status === 'retirado' || row.status === 'suspendido'
                                             }">
                                                 {{ row.status || 'activo' }}
                                             </span>
+                                        </td>
+
+                                        <!-- ID Documents -->
+                                        <td class="px-6 py-3">
+                                            <div class="text-[11px] font-bold text-slate-700">{{ row.documentnumber || '-' }}</div>
+                                            <div class="text-[9px] text-slate-400">{{ row.documenttype || '-' }}</div>
+                                        </td>
+
+                                        <!-- Contacts -->
+                                        <td class="px-6 py-3">
+                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">T1:</span> {{ row.phone1 || '-' }}</div>
+                                            <div class="text-[10px] text-slate-500">{{ row.personalemail || '-' }}</div>
+                                        </td>
+
+                                        <!-- Company Info -->
+                                        <td class="px-6 py-3">
+                                            <div class="text-[10px] font-medium text-slate-700">{{ row.institution || '-' }}</div>
+                                            <div class="text-[9px] text-slate-400">{{ row.department || '-' }}</div>
+                                        </td>
+
+                                        <!-- Profile fields -->
+                                        <td class="px-6 py-3">
+                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">Tipo:</span> {{ row.usertype || '-' }}</div>
+                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">Jornada:</span> {{ row.gmkjourney || '-' }}</div>
                                         </td>
                                     </tr>
                                 </tbody>
