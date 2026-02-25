@@ -719,8 +719,10 @@
                     const seen = new Set();
 
                     types.forEach(type => {
-                        if (raw[type] && Array.isArray(raw[type])) {
-                            raw[type].forEach(s => {
+                        if (raw[type]) {
+                            // Handle both arrays and objects (Moodle returns objects with numeric keys)
+                            const items = Array.isArray(raw[type]) ? raw[type] : Object.values(raw[type]);
+                            items.forEach(s => {
                                 // Map to the format PlanningBoard expects: { id, name, career }
                                 // In the backend, 'userid' is the DB ID, or for external classes, 'id' directly
                                 const userId = s.userid || s.id;
