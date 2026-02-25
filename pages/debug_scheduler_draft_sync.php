@@ -48,21 +48,20 @@ if ($currentPeriod) {
     $pS = $currentPeriod->startdate;
     $pE = $currentPeriod->enddate;
 
-    $sql = "SELECT DISTINCT s.id, s.classid, c.name as subjectname, c.periodid
-            FROM {gmk_class_schedules} s
-            JOIN {gmk_class} c ON c.id = s.classid
-            WHERE c.periodid != ?
+    $sql = "SELECT c.id, c.name as subjectname, c.periodid, c.initdate, c.enddate
+            FROM {gmk_class} c
+            WHERE (c.periodid != ? OR c.periodid IS NULL OR c.periodid = 0)
               AND c.initdate <= ?
               AND c.enddate >= ?";
     
     $liveExternals = $DB->get_records_sql($sql, [$periodid, $pE, $pS]);
-    echo "Live Externals identified: " . count($liveExternals) . "<br>";
+    echo "Live Externals identified in gmk_class: " . count($liveExternals) . "<br>";
 
     if (count($liveExternals) > 0) {
-        echo "<table><thead><tr><th>Schedule ID</th><th>Class ID</th><th>Subject</th><th>Period</th></tr></thead><tbody>";
+        echo "<table><thead><tr><th>Class ID</th><th>Subject</th><th>Period</th><th>Start</th><th>End</th></tr></thead><tbody>";
         foreach ($liveExternals as $le) {
             $isID125 = ($le->id == 125) ? " style='background: #fef3c7;'" : "";
-            echo "<tr$isID125><td>{$le->id}</td><td>{$le->classid}</td><td>{$le->subjectname}</td><td>{$le->periodid}</td></tr>";
+            echo "<tr$isID125><td>{$le->id}</td><td>{$le->subjectname}</td><td>{$le->periodid}</td><td>" . date('Y-m-d', $le->initdate) . "</td><td>" . date('Y-m-d', $le->enddate) . "</td></tr>";
         }
         echo "</tbody></table>";
     }

@@ -397,7 +397,7 @@
                             courseid: resolvedSubjectId,
                             corecourseid: data.courseid,
                             learningplanid: majorityPlanId,
-                            periodid: resolvedLevelId,
+                            periodid: resolvedLevelId || this.state.activePeriod,
                             subjectName: (this.state.subjects[data.courseid] ? this.state.subjects[data.courseid].name : `Materia: ${data.courseid}`),
                             teacherName: null,
                             day: 'N/A',
@@ -468,7 +468,8 @@
                 // 4. AUTO-ASSIGN TEACHERS to the placed schedules
                 finalResult = window.SchedulerAlgorithm.autoAssign(finalResult, availability);
 
-                this.state.generatedSchedules = finalResult;
+                const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
+                this.state.generatedSchedules = [...finalResult, ...externalSchedules];
                 this.state.successMessage = "Horarios generados y ubicados automáticamente";
 
                 // Auto-save the generation result
