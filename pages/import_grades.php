@@ -38,11 +38,11 @@ function map_course_status_to_code($statusText) {
     $map = [
         'no disponible' => 0,
         'disponible' => 1,
-        'en curso' => 2,
+        'cursando' => 2,           // En Curso
         'completado' => 3,
-        'aprobado' => 4,
-        'reprobado' => 5,
-        'migracion pendiente' => 99  // NEW STATUS
+        'aprobada' => 4,           // Aprobado/Aprobada
+        'reprobada' => 5,          // Reprobado/Reprobada
+        'migracion pendiente' => 99  // NEW STATUS - for migration process
     ];
 
     foreach ($map as $key => $value) {
@@ -277,7 +277,7 @@ echo $OUTPUT->header();
                         <li><strong>Nota:</strong> Calificación numérica</li>
                         <li><strong>Estado Estudiante:</strong> Estado del estudiante (activo, suspendido, etc.)</li>
                         <li><strong>Estado Financiero:</strong> Estado de pago</li>
-                        <li><strong>Estado Curso:</strong> Disponible, En Curso, Aprobado, Reprobado, <strong>Migración Pendiente</strong></li>
+                        <li><strong>Estado Curso:</strong> No Disponible, Disponible, Cursando, Completado, Aprobada, Reprobada, <strong>Migración Pendiente</strong></li>
                     </ul>
                 </div>
             </div>
@@ -607,10 +607,13 @@ echo $OUTPUT->header();
 
             getStatusClass(status) {
                 const normalized = (status || '').toLowerCase();
-                if (normalized.includes('aprobado')) return 'status-badge status-success';
-                if (normalized.includes('reprobado')) return 'status-badge status-error';
-                if (normalized.includes('en curso')) return 'status-badge status-info';
+                if (normalized.includes('aprobada') || normalized.includes('aprobado')) return 'status-badge status-success';
+                if (normalized.includes('reprobada') || normalized.includes('reprobado')) return 'status-badge status-error';
+                if (normalized.includes('cursando') || normalized.includes('en curso')) return 'status-badge status-info';
+                if (normalized.includes('completado')) return 'status-badge bg-blue-100 text-blue-700';
                 if (normalized.includes('migracion') || normalized.includes('pendiente')) return 'status-badge status-warning';
+                if (normalized.includes('disponible')) return 'status-badge bg-green-100 text-green-700';
+                if (normalized.includes('no disponible')) return 'status-badge bg-gray-300 text-gray-700';
                 return 'status-badge bg-gray-200 text-gray-700';
             }
         },

@@ -100,6 +100,9 @@ class planning_manager {
         // 2e. Get All Courses Currently In Progress per Student (Status 2)
         $inProgressCourses = self::get_all_in_progress_courses();
 
+        // 2f. Get All Courses Pending Migration per Student (Status 99)
+        $migrationPendingCourses = self::get_all_migration_pending_courses();
+
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
         
@@ -165,6 +168,7 @@ class planning_manager {
             $studentGrades = $allUserGrades[$u->id] ?? [];
             $studentApproved = $approvedCourses[$u->id] ?? [];
             $studentInProgress = $inProgressCourses[$u->id] ?? [];
+            $studentMigrationPending = $migrationPendingCourses[$u->id] ?? [];
 
             // 1. Determine student's TARGET Level for the period being planned
             $currentLevel = self::parse_semester_number($u->periodname);
@@ -179,9 +183,13 @@ class planning_manager {
                 $grade = isset($studentGrades[$course->id]) ? $studentGrades[$course->id] : null;
                 $isApproved = isset($studentApproved[$course->id]);
                 $isInProgress = isset($studentInProgress[$course->id]);
+                $isMigrationPending = isset($studentMigrationPending[$course->id]);
 
-                // Exclude courses that are approved OR currently in progress (status=2)
-                if (!$isApproved && !$isInProgress) {
+                // Exclude courses that are:
+                // - Approved (aprobada)
+                // - Currently in progress (cursando - status=2)
+                // - Pending migration (migración pendiente - status=99)
+                if (!$isApproved && !$isInProgress && !$isMigrationPending) {
                     // Check Prerequisites
                     $isPreRequisiteMet = true;
                     $missingPrereqs = [];
@@ -441,15 +449,34 @@ class planning_manager {
 
     /**
      * Helper: Get All Courses Currently In Progress for All Students.
-     * Status 2 = COURSE_IN_PROGRESS (En Curso)
+     * Status 2 = COURSE_IN_PROGRESS (Cursando)
      * returns [ userid => [ courseId1, courseId2... ] ]
      */
     private static function get_all_in_progress_courses() {
         global $DB;
         $map = [];
-        // Status 2 = En Curso (COURSE_IN_PROGRESS).
+        // Status 2 = Cursando (COURSE_IN_PROGRESS).
         $sqlInProgress = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 2";
         $records = $DB->get_records_sql($sqlInProgress);
+        foreach ($records as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            $map[$r->userid][$r->courseid] = true;
+        }
+        return $map;
+    }
+
+    /**
+     * Helper: Get All Courses Pending Migration for All Students.
+     * Status 99 = MIGRATION_PENDING (Migración Pendiente)
+     * These courses should NOT be included in demand calculation until migration is complete.
+     * returns [ userid => [ courseId1, courseId2... ] ]
+     */
+    private static function get_all_migration_pending_courses() {
+        global $DB;
+        $map = [];
+        // Status 99 = Migración Pendiente (MIGRATION_PENDING).
+        $sqlMigration = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 99";
+        $records = $DB->get_records_sql($sqlMigration);
         foreach ($records as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
             $map[$r->userid][$r->courseid] = true;
