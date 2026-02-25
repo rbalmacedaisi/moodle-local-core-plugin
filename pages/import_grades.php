@@ -1,112 +1,631 @@
 <?php
+// =============================================================================
+// IMPORTACIÓN MASIVA DE NOTAS - MIGRACIÓN DE DATOS
+// =============================================================================
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->libdir . '/gradelib.php');
-require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/vendor/autoload.php');
 
-// Permissions
+use PhpOffice\PhpSpreadsheet\IOFactory;
+
 admin_externalpage_setup('grupomakro_core_import_grades');
-if (!is_siteadmin()) {
-    print_error('onlyadmins', 'error');
+require_login();
+require_capability('moodle/site:config', context_system::instance());
+
+global $DB, $USER;
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Normalize text for fuzzy matching (remove accents, lowercase, trim).
+ */
+function php_normalize_field($str) {
+    if (empty($str)) return '';
+    $str = trim($str);
+    $unwanted = ['Š'=>'S','š'=>'s','Ž'=>'Z','ž'=>'z','À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A','Æ'=>'A','Ç'=>'C','È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E','Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I','Ñ'=>'N','Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ø'=>'O','Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U','Ý'=>'Y','Þ'=>'B','ß'=>'Ss','à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','æ'=>'a','ç'=>'c','è'=>'e','é'=>'e','ê'=>'e','ë'=>'e','ì'=>'i','í'=>'i','î'=>'i','ï'=>'i','ð'=>'o','ñ'=>'n','ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o','ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u','ý'=>'y','þ'=>'b','ÿ'=>'y'];
+    $str = strtr($str, $unwanted);
+    return strtolower($str);
 }
 
-$PAGE->set_url('/local/grupomakro_core/pages/import_grades.php');
-$PAGE->set_title('Importar Notas Históricas');
-$PAGE->set_heading('Migración de Notas (Q10 -> Moodle)');
+/**
+ * Map Estado Curso text to gmk_course_progre status codes.
+ */
+function map_course_status_to_code($statusText) {
+    $normalized = php_normalize_field($statusText);
+
+    $map = [
+        'no disponible' => 0,
+        'disponible' => 1,
+        'en curso' => 2,
+        'completado' => 3,
+        'aprobado' => 4,
+        'reprobado' => 5,
+        'migracion pendiente' => 99  // NEW STATUS
+    ];
+
+    foreach ($map as $key => $value) {
+        if (strpos($normalized, $key) !== false) {
+            return $value;
+        }
+    }
+
+    return null; // Unknown status
+}
+
+// =============================================================================
+// AJAX HANDLERS
+// =============================================================================
 
 $action = optional_param('action', '', PARAM_TEXT);
 
-if ($action === 'download_template') {
-    $filename = 'plantilla_notas_q10.csv';
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    
-    $fp = fopen('php://output', 'w');
-    fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM
-    
-    // Headers
-    $headers = ['Username', 'LearningPlanName', 'CourseShortname', 'Grade', 'Feedback'];
-    fputcsv($fp, $headers);
-    
-    // Example
-    $example = ['juan.perez', 'Soldadura Basica', 'SOLD-101', '85', 'Migrado 2023'];
-    fputcsv($fp, $example);
-    
-    fclose($fp);
-    die;
+// Get current course progress records for diff highlighting
+if ($action === 'get_current_state') {
+    header('Content-Type: application/json');
+
+    $userid = optional_param('userid', 0, PARAM_INT);
+    $courseid = optional_param('courseid', 0, PARAM_INT);
+
+    $record = $DB->get_record('gmk_course_progre', [
+        'userid' => $userid,
+        'courseid' => $courseid
+    ]);
+
+    if ($record) {
+        echo json_encode([
+            'status' => 'success',
+            'data' => [
+                'grade' => $record->grade,
+                'status' => $record->status,
+                'periodid' => $record->periodid,
+                'classid' => $record->classid
+            ]
+        ]);
+    } else {
+        echo json_encode(['status' => 'not_found']);
+    }
+    exit;
 }
 
-echo $OUTPUT->header();
-
-echo '<div class="mb-4 d-flex" style="gap: 10px;">';
-echo '<a href="grade_report.php" class="btn btn-info text-white"><i class="fa fa-list"></i> Ver Reporte de Discrepancias</a>';
-echo '<a href="?action=download_template" class="btn btn-outline-secondary"><i class="fa fa-download"></i> Descargar Plantilla CSV de Ejemplo</a>';
-echo '</div>';
-
-$mform = new \local_grupomakro_core\form\import_file_form(null, ['filetypes' => ['.xlsx', '.xls']]);
-
-if ($mform->is_cancelled()) {
-     redirect($CFG->wwwroot);
-} else if ($data = $mform->get_data()) {
+// Process individual grade import
+if ($action === 'ajax_import_grade') {
+    header('Content-Type: application/json');
 
     try {
-        $filename = $mform->get_new_filename('importfile');
-    $filepath = $mform->save_temp_file('importfile');
+        $data = json_decode(file_get_contents('php://input'), true);
 
-    echo $OUTPUT->heading("Procesando Notas: " . $filename);
+        // Extract fields from request
+        $identificacion = $data['identificacion'] ?? '';
+        $curso_shortname = $data['curso_shortname'] ?? '';
+        $nota = $data['nota'] ?? null;
+        $estado_curso = $data['estado_curso'] ?? '';
+        $carrera = $data['carrera'] ?? '';
+        $cuatrimestre = $data['cuatrimestre'] ?? '';
 
-    $filename = $mform->get_new_filename('importfile');
-    $filepath = $mform->save_temp_file('importfile');
+        // Find user by username (identificacion/cedula)
+        $user = $DB->get_record('user', ['username' => $identificacion, 'deleted' => 0]);
+        if (!$user) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => "Usuario no encontrado con identificación: $identificacion"
+            ]);
+            exit;
+        }
 
-    // Stage file for AJAX chunks
-    $tmpdir = make_temp_directory('grupomakro_imports');
-    $tmpfilename = md5(time() . $filename) . '.' . pathinfo($filename, PATHINFO_EXTENSION);
-    $stagedPath = $tmpdir . '/' . $tmpfilename;
-    copy($filepath, $stagedPath);
+        // Find course by shortname
+        $course = $DB->get_record('course', ['shortname' => $curso_shortname]);
+        if (!$course) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => "Curso no encontrado con shortname: $curso_shortname"
+            ]);
+            exit;
+        }
 
-    // Get row count for progress initialization
-    $spreadsheet = \local_grupomakro_core\local\importer_helper::load_spreadsheet($stagedPath);
-    $highestRow = $spreadsheet->getSheet(0)->getHighestDataRow();
-    unset($spreadsheet); // Free memory
+        // Find learning plan by name
+        $plan = null;
+        if (!empty($carrera)) {
+            $plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
+            foreach ($plans as $p) {
+                if (php_normalize_field($p->name) === php_normalize_field($carrera)) {
+                    $plan = $p;
+                    break;
+                }
+            }
+        }
 
-    echo $OUTPUT->heading("Panel de Importación Masiva: " . $filename);
-    
-    // Inject Vue container
-    echo '
-    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
-    
-    <div id="import-progress-app">
-        <v-app class="transparent">
-            <v-main>
-                <import-progress 
-                    filename="'.$tmpfilename.'" 
-                    :total-rows="'.($highestRow - 1).'"
-                    :chunk-size="50"
-                ></import-progress>
-            </v-main>
-        </v-app>
+        // Map status
+        $status_code = map_course_status_to_code($estado_curso);
+        if ($status_code === null) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => "Estado de curso desconocido: $estado_curso"
+            ]);
+            exit;
+        }
+
+        // Get current period (optional - can be null)
+        $current_period = $DB->get_record_sql(
+            "SELECT id FROM {gmk_academic_periods} WHERE startdate <= ? AND enddate >= ? ORDER BY id DESC LIMIT 1",
+            [time(), time()]
+        );
+
+        // Check if record exists
+        $existing = $DB->get_record('gmk_course_progre', [
+            'userid' => $user->id,
+            'courseid' => $course->id
+        ]);
+
+        $transaction = $DB->start_delegated_transaction();
+
+        if ($existing) {
+            // Update existing record
+            $existing->grade = $nota;
+            $existing->status = $status_code;
+            $existing->timemodified = time();
+            $existing->usermodified = $USER->id;
+
+            $DB->update_record('gmk_course_progre', $existing);
+            $action_taken = 'updated';
+        } else {
+            // Create new record
+            $record = new stdClass();
+            $record->userid = $user->id;
+            $record->courseid = $course->id;
+            $record->grade = $nota;
+            $record->status = $status_code;
+            $record->periodid = $current_period ? $current_period->id : 0;
+            $record->classid = 0; // Migration doesn't have classid
+            $record->timecreated = time();
+            $record->timemodified = time();
+            $record->usermodified = $USER->id;
+
+            $DB->insert_record('gmk_course_progre', $record);
+            $action_taken = 'created';
+        }
+
+        $transaction->allow_commit();
+
+        echo json_encode([
+            'status' => 'success',
+            'action' => $action_taken,
+            'message' => "Registro $action_taken correctamente"
+        ]);
+
+    } catch (Exception $e) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ]);
+    }
+    exit;
+}
+
+// =============================================================================
+// HTML OUTPUT
+// =============================================================================
+
+$PAGE->set_url('/local/grupomakro_core/pages/import_grades.php');
+$PAGE->set_title('Importación Masiva de Notas');
+$PAGE->set_heading('Migración de Notas - Sistema Académico');
+
+echo $OUTPUT->header();
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="https://unpkg.com/vue@3.3.4/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        [v-cloak] { display: none; }
+        .diff-highlight { background-color: #fef3c7; font-weight: bold; }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .status-warning { background-color: #fff3cd; color: #856404; }
+        .status-info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+
+<body class="bg-gray-50">
+    <div id="app" v-cloak class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">📊 Importación Masiva de Notas</h1>
+                    <p class="text-gray-600">Migración de datos históricos del sistema Q10 a Moodle</p>
+                </div>
+                <div>
+                    <a href="<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/pages/grade_report.php"
+                       class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                        <i data-lucide="list" class="w-4 h-4 mr-2"></i>
+                        Ver Reporte
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div v-if="state === 'idle'" class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded">
+            <div class="flex items-start">
+                <i data-lucide="info" class="w-5 h-5 text-blue-600 mr-3 mt-0.5"></i>
+                <div>
+                    <h3 class="font-semibold text-blue-800 mb-2">Formato del Archivo Excel (.xlsx)</h3>
+                    <p class="text-blue-700 text-sm mb-2">El archivo debe contener las siguientes columnas:</p>
+                    <ul class="text-blue-700 text-sm list-disc ml-5 space-y-1">
+                        <li><strong>ID Moodle:</strong> ID interno del usuario (opcional)</li>
+                        <li><strong>Nombre Completo:</strong> Nombre del estudiante</li>
+                        <li><strong>Email:</strong> Correo electrónico</li>
+                        <li><strong>Identificación:</strong> Cédula del estudiante (username) <span class="text-red-600">*REQUERIDO</span></li>
+                        <li><strong>Carrera:</strong> Nombre del plan de aprendizaje</li>
+                        <li><strong>Cuatrimestre:</strong> Nivel académico</li>
+                        <li><strong>Curso:</strong> Shortname del curso <span class="text-red-600">*REQUERIDO</span></li>
+                        <li><strong>Nota:</strong> Calificación numérica</li>
+                        <li><strong>Estado Estudiante:</strong> Estado del estudiante (activo, suspendido, etc.)</li>
+                        <li><strong>Estado Financiero:</strong> Estado de pago</li>
+                        <li><strong>Estado Curso:</strong> Disponible, En Curso, Aprobado, Reprobado, <strong>Migración Pendiente</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div v-if="state === 'idle'" class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800">📤 Cargar Archivo Excel</h2>
+
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <input
+                    type="file"
+                    ref="fileInput"
+                    @change="handleFileUpload"
+                    accept=".xlsx,.xls"
+                    class="hidden"
+                >
+
+                <div v-if="!fileName">
+                    <i data-lucide="upload-cloud" class="w-16 h-16 text-gray-400 mx-auto mb-4"></i>
+                    <p class="text-gray-600 mb-2">Arrastra un archivo o haz clic para seleccionar</p>
+                    <button
+                        @click="$refs.fileInput.click()"
+                        class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                    >
+                        Seleccionar Archivo Excel
+                    </button>
+                </div>
+
+                <div v-else>
+                    <i data-lucide="file-spreadsheet" class="w-16 h-16 text-green-600 mx-auto mb-4"></i>
+                    <p class="font-semibold text-gray-800">{{ fileName }}</p>
+                    <p class="text-sm text-gray-600 mt-2">{{ rows.length }} registros encontrados</p>
+                    <div class="mt-4 space-x-3">
+                        <button
+                            @click="state = 'preview'"
+                            class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                        >
+                            Vista Previa
+                        </button>
+                        <button
+                            @click="resetUpload"
+                            class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Section -->
+        <div v-if="state === 'preview'" class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">👀 Vista Previa: {{ rows.length }} Registros</h2>
+                <div class="space-x-3">
+                    <button
+                        @click="startProcessing"
+                        class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                    >
+                        <i data-lucide="play" class="w-4 h-4 inline mr-2"></i>
+                        Procesar Importación
+                    </button>
+                    <button
+                        @click="state = 'idle'"
+                        class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition"
+                    >
+                        Volver
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-96 overflow-y-auto border rounded">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Identificación</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Carrera</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Curso</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <tr v-for="(row, idx) in rows" :key="idx" class="hover:bg-gray-50">
+                            <td class="px-3 py-2 text-gray-500">{{ idx + 1 }}</td>
+                            <td class="px-3 py-2 font-mono text-sm">{{ row.identificacion }}</td>
+                            <td class="px-3 py-2">{{ row.nombre_completo }}</td>
+                            <td class="px-3 py-2 text-sm">{{ row.carrera }}</td>
+                            <td class="px-3 py-2 font-mono text-sm">{{ row.curso_shortname }}</td>
+                            <td class="px-3 py-2 text-center font-semibold">{{ row.nota }}</td>
+                            <td class="px-3 py-2">
+                                <span :class="getStatusClass(row.estado_curso)">
+                                    {{ row.estado_curso }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Processing Section -->
+        <div v-if="state === 'processing'" class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">⚙️ Procesando Importación...</h2>
+                <button
+                    v-if="!isFinished && !isCancelled"
+                    @click="cancelProcessing"
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                >
+                    <i data-lucide="x-circle" class="w-4 h-4 inline mr-2"></i>
+                    Cancelar
+                </button>
+                <button
+                    v-if="isFinished || isCancelled"
+                    @click="resetToIdle"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                    <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-2"></i>
+                    Nueva Importación
+                </button>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="mb-6">
+                <div class="flex justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Progreso: {{ processedCount }} / {{ rows.length }}</span>
+                    <span class="text-sm font-medium text-gray-700">{{ progressPercentage }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4">
+                    <div
+                        class="h-4 rounded-full transition-all duration-300"
+                        :class="isFinished ? 'bg-green-600' : isCancelled ? 'bg-red-600' : 'bg-blue-600'"
+                        :style="{ width: progressPercentage + '%' }"
+                    ></div>
+                </div>
+            </div>
+
+            <!-- Status Message -->
+            <div v-if="isFinished" class="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+                <div class="flex items-center">
+                    <i data-lucide="check-circle" class="w-5 h-5 text-green-600 mr-3"></i>
+                    <p class="text-green-800 font-semibold">✅ Importación Completada</p>
+                </div>
+            </div>
+
+            <div v-if="isCancelled" class="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                <div class="flex items-center">
+                    <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 mr-3"></i>
+                    <p class="text-red-800 font-semibold">⛔ Proceso Cancelado</p>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div class="bg-gray-50 rounded border p-4 max-h-64 overflow-y-auto">
+                <h3 class="font-semibold text-gray-700 mb-2">📋 Registro de Actividad</h3>
+                <div class="space-y-1 text-sm font-mono">
+                    <div v-for="(log, idx) in logs" :key="idx" :class="getLogClass(log)">
+                        {{ log.message }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    ';
+    <script>
+    const { createApp } = Vue;
 
-    $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/import_progress_component.js?v=' . time()));
-    $PAGE->requires->js_init_code("if(typeof initImportProgress === 'function') { initImportProgress(); } else { new Vue({ el: '#import-progress-app', vuetify: new Vuetify() }); }");
+    createApp({
+        data() {
+            return {
+                state: 'idle', // idle, preview, processing
+                fileName: '',
+                rows: [],
+                processedCount: 0,
+                logs: [],
+                isFinished: false,
+                isCancelled: false,
+                originalData: {}
+            };
+        },
+        computed: {
+            progressPercentage() {
+                if (this.rows.length === 0) return 0;
+                return Math.round((this.processedCount / this.rows.length) * 100);
+            }
+        },
+        methods: {
+            handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
 
-} catch (Exception $e) {
-    echo $OUTPUT->notification('Error: ' . $e->getMessage(), 'error');
-}
-echo $OUTPUT->continue_button(new moodle_url('/local/grupomakro_core/pages/import_grades.php'));
+                this.fileName = file.name;
+                const reader = new FileReader();
 
-} else {
-    // Buttons already shown at top
-    $mform->display();
-    echo "<hr><h3>Formato Requerido (Excel sin encabezados o salta fila 1)</h3>";
-    echo "<p>Col 1: Usuario | Col 2: Nombre Plan | Col 3: Shortname Curso | Col 4: Nota | Col 5: Feedback</p>";
-}
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
 
+                        // Parse rows (skip header)
+                        this.rows = [];
+                        for (let i = 1; i < jsonData.length; i++) {
+                            const row = jsonData[i];
+                            if (!row[3] || !row[6]) continue; // Skip if no identificacion or curso
+
+                            this.rows.push({
+                                id_moodle: row[0] || '',
+                                nombre_completo: row[1] || '',
+                                email: row[2] || '',
+                                identificacion: String(row[3] || '').trim(),
+                                carrera: row[4] || '',
+                                cuatrimestre: row[5] || '',
+                                curso_shortname: String(row[6] || '').trim(),
+                                nota: row[7] || '',
+                                estado_estudiante: row[8] || '',
+                                estado_financiero: row[9] || '',
+                                estado_curso: row[10] || ''
+                            });
+                        }
+
+                        if (this.rows.length === 0) {
+                            alert('No se encontraron registros válidos en el archivo');
+                            this.resetUpload();
+                        }
+
+                    } catch (err) {
+                        alert('Error al leer el archivo: ' + err.message);
+                        this.resetUpload();
+                    }
+                };
+
+                reader.readAsArrayBuffer(file);
+            },
+
+            resetUpload() {
+                this.fileName = '';
+                this.rows = [];
+                this.$refs.fileInput.value = '';
+            },
+
+            resetToIdle() {
+                this.state = 'idle';
+                this.fileName = '';
+                this.rows = [];
+                this.processedCount = 0;
+                this.logs = [];
+                this.isFinished = false;
+                this.isCancelled = false;
+                this.$refs.fileInput.value = '';
+            },
+
+            startProcessing() {
+                this.state = 'processing';
+                this.processedCount = 0;
+                this.logs = [];
+                this.isFinished = false;
+                this.isCancelled = false;
+
+                this.addLog('info', '🚀 Iniciando importación de ' + this.rows.length + ' registros...');
+                this.processNextRow(0);
+            },
+
+            async processNextRow(index) {
+                if (this.isCancelled) {
+                    this.addLog('warning', '⛔ Proceso cancelado por el usuario');
+                    return;
+                }
+
+                if (index >= this.rows.length) {
+                    this.isFinished = true;
+                    this.addLog('success', '✅ Importación finalizada: ' + this.processedCount + ' registros procesados');
+                    return;
+                }
+
+                const row = this.rows[index];
+
+                try {
+                    const response = await axios.post('<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/pages/import_grades.php?action=ajax_import_grade', row, {
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    if (response.data.status === 'success') {
+                        this.addLog('success', `✅ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message}`);
+                    } else {
+                        this.addLog('error', `❌ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message}`);
+                    }
+
+                } catch (err) {
+                    this.addLog('error', `❌ [${index + 1}] Error: ${err.message}`);
+                }
+
+                this.processedCount++;
+
+                // Continue with next row
+                setTimeout(() => this.processNextRow(index + 1), 100);
+            },
+
+            cancelProcessing() {
+                this.isCancelled = true;
+            },
+
+            addLog(type, message) {
+                this.logs.push({ type, message });
+                // Auto-scroll to bottom
+                this.$nextTick(() => {
+                    const logContainer = document.querySelector('.overflow-y-auto');
+                    if (logContainer) {
+                        logContainer.scrollTop = logContainer.scrollHeight;
+                    }
+                });
+            },
+
+            getLogClass(log) {
+                const baseClass = 'p-1 rounded';
+                if (log.type === 'success') return baseClass + ' text-green-700';
+                if (log.type === 'error') return baseClass + ' text-red-700 bg-red-50';
+                if (log.type === 'warning') return baseClass + ' text-orange-700';
+                return baseClass + ' text-gray-700';
+            },
+
+            getStatusClass(status) {
+                const normalized = (status || '').toLowerCase();
+                if (normalized.includes('aprobado')) return 'status-badge status-success';
+                if (normalized.includes('reprobado')) return 'status-badge status-error';
+                if (normalized.includes('en curso')) return 'status-badge status-info';
+                if (normalized.includes('migracion') || normalized.includes('pendiente')) return 'status-badge status-warning';
+                return 'status-badge bg-gray-200 text-gray-700';
+            }
+        },
+        mounted() {
+            // Initialize Lucide icons
+            lucide.createIcons();
+        },
+        updated() {
+            // Re-initialize icons after DOM updates
+            lucide.createIcons();
+        }
+    }).mount('#app');
+    </script>
+</body>
+</html>
+
+<?php
 echo $OUTPUT->footer();
