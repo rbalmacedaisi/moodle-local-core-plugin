@@ -26,6 +26,22 @@ function php_normalize_field($str) {
     return trim($str);
 }
 
+function php_parse_date($date_str) {
+    if (empty($date_str)) return 0;
+    
+    // Check if it's an Excel serial date (numeric > 20000 to avoid small numbers)
+    if (is_numeric($date_str) && $date_str > 20000) {
+        // Excel serial date to Unix timestamp (Excel base date is 1900-01-01)
+        return ($date_str - 25569) * 86400;
+    }
+    
+    // Try standard formats
+    $ts = strtotime($date_str);
+    if ($ts !== false) return $ts;
+    
+    return 0;
+}
+
 // ========== AJAX HANDLERS ==========
 if ($action === 'get_plans') {
     header('Content-Type: application/json');
@@ -67,16 +83,16 @@ if ($action === 'ajax_fix') {
         // Custom Profile Fields from Screenshot
         $usertype = optional_param('usertype', '', PARAM_TEXT);
         $accountmanager = optional_param('accountmanager', '', PARAM_RAW);
-        $birthday = optional_param('birthday', '', PARAM_RAW);
+        $birthdate = optional_param('birthdate', '', PARAM_RAW);
         $documenttype = optional_param('documenttype', '', PARAM_TEXT);
         $documentnumber = optional_param('documentnumber', '', PARAM_RAW);
         $needfirsttuition = optional_param('needfirsttuition', '', PARAM_ALPHA);
         $personalemail = optional_param('personalemail', '', PARAM_RAW);
         $studentstatus = optional_param('studentstatus', '', PARAM_ALPHA);
-        $gender = optional_param('gender', '', PARAM_ALPHA);
-        $journey = optional_param('journey', '', PARAM_ALPHA);
-        $personalmobile = optional_param('personalmobile', '', PARAM_RAW);
-        $admissionperiod = optional_param('admissionperiod', '', PARAM_RAW);
+        $gmkgenre = optional_param('gmkgenre', '', PARAM_ALPHA);
+        $gmkjourney = optional_param('gmkjourney', '', PARAM_ALPHA);
+        $custom_phone = optional_param('custom_phone', '', PARAM_RAW);
+        $periodo_ingreso = optional_param('periodo_ingreso', '', PARAM_RAW);
 
         // 1. Resolve User
         if ($userid > 0) {
@@ -173,16 +189,18 @@ if ($action === 'ajax_fix') {
         $custom_fields = [];
         if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
         if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
-        if (!empty($birthday)) $custom_fields['birthday'] = $birthday;
+        
+        $bdate_ts = php_parse_date($birthdate);
+        if ($bdate_ts > 0) $custom_fields['birthdate'] = $bdate_ts;
         if (!empty($documenttype)) $custom_fields['documenttype'] = $documenttype;
         if (!empty($documentnumber)) $custom_fields['documentnumber'] = $documentnumber;
         if (!empty($needfirsttuition)) $custom_fields['needfirsttuition'] = $needfirsttuition;
         if (!empty($personalemail)) $custom_fields['personalemail'] = $personalemail;
         if (!empty($studentstatus)) $custom_fields['studentstatus'] = $studentstatus;
-        if (!empty($gender)) $custom_fields['gender'] = $gender;
-        if (!empty($journey)) $custom_fields['journey'] = $journey;
-        if (!empty($personalmobile)) $custom_fields['personalmobile'] = $personalmobile;
-        if (!empty($admissionperiod)) $custom_fields['admissionperiod'] = $admissionperiod;
+        if (!empty($gmkgenre)) $custom_fields['gmkgenre'] = $gmkgenre;
+        if (!empty($gmkjourney)) $custom_fields['gmkjourney'] = $gmkjourney;
+        if (!empty($custom_phone)) $custom_fields['custom_phone'] = $custom_phone;
+        if (!empty($periodo_ingreso)) $custom_fields['periodo_ingreso'] = $periodo_ingreso;
         
         if (!empty($custom_fields)) {
             require_once($CFG->dirroot . '/user/profile/lib.php');
@@ -605,7 +623,7 @@ createApp({
                         const username = String(r[0]).trim();
                         
                         // Logic for Master vs Repair Template
-                        let docType, docNum, firstPay, personalMail, sStatus, gender, journey, pMobile, aPeriod, manager, uType, bDay;
+                        let docType, docNum, firstPay, personalMail, sStatus, genre, journey, cPhone, pIngreso, manager, uType, bDate;
                         
                         if (isMaster) {
                             // Column Mapping (U index based)
@@ -628,16 +646,16 @@ createApp({
                             // 12 Custom Fields
                             uType = r[16] ? String(r[16]).trim() : '';
                             manager = r[17] ? String(r[17]).trim() : '';
-                            bDay = r[18] ? String(r[18]).trim() : '';
+                            bDate = r[18] ? String(r[18]).trim() : '';
                             docType = r[19] ? String(r[19]).trim() : '';
                             docNum = r[20] ? String(r[20]).trim() : '';
                             firstPay = r[21] ? String(r[21]).trim() : '';
                             personalMail = r[22] ? String(r[22]).trim() : '';
                             sStatus = r[23] ? String(r[23]).trim() : '';
-                            gender = r[24] ? String(r[24]).trim() : '';
+                            genre = r[24] ? String(r[24]).trim() : '';
                             journey = r[25] ? String(r[25]).trim() : '';
-                            pMobile = r[26] ? String(r[26]).trim() : '';
-                            aPeriod = r[27] ? String(r[27]).trim() : '';
+                            cPhone = r[26] ? String(r[26]).trim() : '';
+                            pIngreso = r[27] ? String(r[27]).trim() : '';
                         } else {
                             // Repair Template Mapping: Username, FullName, Email, IDNumber, Plan
                             const parts = String(r[1]).trim().split(' ');
@@ -649,7 +667,7 @@ createApp({
                             
                             inst = dept = ph1 = ph2 = city = levelName = subName = academicName = groupName = '';
                             statusField = 'activo';
-                            uType = manager = bDay = docType = docNum = firstPay = personalMail = sStatus = gender = journey = pMobile = aPeriod = '';
+                            uType = manager = bDate = docType = docNum = firstPay = personalMail = sStatus = genre = journey = cPhone = pIngreso = '';
                         }
                         
                         const normalizedInput = normalize(planName);
@@ -665,11 +683,11 @@ createApp({
                             academic_name: academicName, groupname: groupName,
                             status: statusField,
                             
-                            usertype: uType, accountmanager: manager, birthday: bDay,
+                            usertype: uType, accountmanager: manager, birthdate: bDate,
                             documenttype: docType, documentnumber: docNum,
                             needfirsttuition: firstPay, personalemail: personalMail,
-                            studentstatus: sStatus, gender: gender, journey: journey,
-                            personalmobile: pMobile, admissionperiod: aPeriod,
+                            studentstatus: sStatus, gmkgenre: genre, gmkjourney: journey,
+                            custom_phone: cPhone, periodo_ingreso: pIngreso,
                             
                             status_ui: 'pending'
                         };
@@ -734,16 +752,16 @@ createApp({
                             
                             usertype: row.usertype,
                             accountmanager: row.accountmanager,
-                            birthday: row.birthday,
+                            birthdate: row.birthdate,
                             documenttype: row.documenttype,
                             documentnumber: row.documentnumber,
                             needfirsttuition: row.needfirsttuition,
                             personalemail: row.personalemail,
                             studentstatus: row.studentstatus,
-                            gender: row.gender,
-                            journey: row.journey,
-                            personalmobile: row.personalmobile,
-                            admissionperiod: row.admissionperiod
+                            gmkgenre: row.gmkgenre,
+                            gmkjourney: row.gmkjourney,
+                            custom_phone: row.custom_phone,
+                            periodo_ingreso: row.periodo_ingreso
                         }
                     });
 

@@ -145,16 +145,22 @@ foreach ($students as $s) {
     // Custom Fields from Screenshot
     $sheet->setCellValue('Q' . $curr_row, $s->profile_field_usertype ?? '');
     $sheet->setCellValue('R' . $curr_row, $s->profile_field_accountmanager ?? '');
-    $sheet->setCellValue('S' . $curr_row, $s->profile_field_birthday ?? '');
+    
+    // Format birthdate if it's a timestamp
+    $bday = $s->profile_field_birthdate ?? '';
+    if (is_numeric($bday) && $bday > 0) {
+        $bday = date('Y-m-d', $bday);
+    }
+    $sheet->setCellValue('S' . $curr_row, $bday);
     $sheet->setCellValue('T' . $curr_row, $s->profile_field_documenttype ?? '');
     $sheet->setCellValue('U' . $curr_row, $s->profile_field_documentnumber ?? '');
     $sheet->setCellValue('V' . $curr_row, $s->profile_field_needfirsttuition ?? '');
     $sheet->setCellValue('W' . $curr_row, $s->profile_field_personalemail ?? '');
     $sheet->setCellValue('X' . $curr_row, $s->profile_field_studentstatus ?? '');
-    $sheet->setCellValue('Y' . $curr_row, $s->profile_field_gender ?? '');
-    $sheet->setCellValue('Z' . $curr_row, $s->profile_field_journey ?? '');
-    $sheet->setCellValue('AA' . $curr_row, $s->profile_field_personalmobile ?? '');
-    $sheet->setCellValue('AB' . $curr_row, $s->profile_field_admissionperiod ?? '');
+    $sheet->setCellValue('Y' . $curr_row, $s->profile_field_gmkgenre ?? '');
+    $sheet->setCellValue('Z' . $curr_row, $s->profile_field_gmkjourney ?? '');
+    $sheet->setCellValue('AA' . $curr_row, $s->profile_field_custom_phone ?? '');
+    $sheet->setCellValue('AB' . $curr_row, $s->profile_field_periodo_ingreso ?? '');
     
     $curr_row++;
 }
