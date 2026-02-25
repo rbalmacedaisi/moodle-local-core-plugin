@@ -128,22 +128,21 @@ echo "<p>Let's call the function that the AJAX uses and see exactly what it retu
 
 require_once(__DIR__ . '/../classes/external/admin/scheduler.php');
 try {
-    $realItems = \local_grupomakro_core_scheduler::get_generated_schedules($periodid, true);
+    $realItems = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid, true);
     echo "Function returned " . count($realItems) . " items.<br>";
     
     echo "<table><thead><tr><th>ID</th><th>subjectName</th><th>periodid</th><th>isExternal</th></tr></thead><tbody>";
+    $count = 0;
     foreach ($realItems as $item) {
-        // Show ID 125, 9114, and first 5 matches
-        $show = false;
-        if ($item['id'] == 125 || $item['id'] == 9114) $show = true;
-        
-        if ($show || count($realItems) < 10) {
+        $is9114Or125 = ($item['id'] == 125 || $item['id'] == 9114);
+        if ($is9114Or125 || $count < 10) {
             $style = ($item['isExternal'] ? " style='background: #fee2e2;'" : "");
             echo "<tr$style><td>{$item['id']}</td><td>{$item['subjectName']}</td><td>{$item['periodid']}</td><td>" . ($item['isExternal'] ? 'YES' : 'NO') . "</td></tr>";
+            if (!$is9114Or125) $count++;
         }
     }
     echo "</tbody></table>";
-    echo "<p><i>(Showing only IDs 125 and 9114 for clarity)</i></p>";
+    echo "<p><i>(Showing ID 125, 9114 and a few others)</i></p>";
 } catch (\Exception $e) {
     echo "Error calling function: " . $e->getMessage();
 }
