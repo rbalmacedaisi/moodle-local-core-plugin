@@ -419,70 +419,71 @@ echo $OUTPUT->header();
                             <table class="w-full text-sm text-left border-collapse">
                                 <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md">
                                     <tr class="text-[10px] uppercase tracking-widest text-slate-400 font-black border-b border-slate-100 whitespace-nowrap">
-                                        <th class="px-6 py-4">Usuario</th>
-                                        <th class="px-6 py-4">ID Number</th>
-                                        <th class="px-6 py-4">Plan / Nivel / Periodo</th>
-                                        <th class="px-6 py-4">Bloque / Estado</th>
-                                        <th class="px-6 py-4">Documento</th>
-                                        <th class="px-6 py-4">Contactos</th>
-                                        <th class="px-6 py-4">Empresa / Depto</th>
-                                        <th class="px-6 py-4">Perf. Institucional</th>
+                                        <th class="px-6 py-4 bg-slate-100/50">Identidad Básica</th>
+                                        <th class="px-6 py-4">Configuración Académica</th>
+                                        <th class="px-6 py-4 bg-slate-100/50">Información de Contacto</th>
+                                        <th class="px-6 py-4">Perfil & Otros Datos</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
-                                        <!-- User & ID -->
-                                        <td class="px-6 py-3">
-                                            <div class="font-bold text-slate-700 leading-tight">{{ row.fullname }}</div>
-                                            <div class="font-mono text-[10px] text-slate-400">{{ row.username }}</div>
-                                            <div class="text-[10px] text-blue-500">{{ row.email }}</div>
+                                        <!-- Column 1: Identidad -->
+                                        <td class="px-6 py-4 bg-slate-50/30">
+                                            <div class="font-bold text-slate-700 leading-tight text-xs">{{ row.fullname }}</div>
+                                            <div class="font-mono text-[10px] text-slate-400 italic">User: {{ row.username }}</div>
+                                            <div class="mt-2 text-[11px] font-bold text-slate-600">ID: {{ row.idnumber }}</div>
+                                            <div class="text-[9px] text-slate-400">{{ row.documenttype }}: {{ row.documentnumber }}</div>
+                                            <div class="mt-1 text-[9px]"><span class="font-bold text-slate-500">Género:</span> {{ row.gmkgenre || '-' }} | <span class="font-bold text-slate-500">Nac:</span> {{ row.birthdate || '-' }}</div>
                                         </td>
-                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">{{ row.idnumber }}</td>
                                         
-                                        <!-- Academic Config -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[11px] font-bold" :class="row.plan_id ? 'text-slate-800' : 'text-red-500'">
+                                        <!-- Column 2: Académico -->
+                                        <td class="px-6 py-4">
+                                            <div class="text-[11px] font-bold" :class="row.plan_id ? 'text-blue-700' : 'text-red-500'">
                                                 {{ row.plan_name }}
                                                 <i v-if="!row.plan_id" data-lucide="alert-circle" class="w-3 h-3 inline ml-1"></i>
                                             </div>
-                                            <div class="text-[10px] text-slate-500">{{ row.level_name || '-' }} / {{ row.academic_name || '-' }}</div>
+                                            <div class="text-[10px] text-slate-600 mt-0.5"><span class="font-bold text-slate-400">Niv/Per:</span> {{ row.level_name || '-' }} / {{ row.academic_name || '-' }}</div>
+                                            <div class="text-[10px] text-slate-600"><span class="font-bold text-slate-400">Sub/Bloq:</span> {{ row.subperiod_name || '-' }} / {{ row.groupname || '-' }}</div>
+                                            <div class="mt-2">
+                                                <span :class="{
+                                                    'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider': true,
+                                                    'bg-green-100 text-green-700': row.status === 'activo',
+                                                    'bg-amber-100 text-amber-700': row.status === 'aplazado',
+                                                    'bg-slate-100 text-slate-600': row.status === 'retirado' || row.status === 'suspendido'
+                                                }">
+                                                    {{ row.status || 'activo' }}
+                                                </span>
+                                            </div>
                                         </td>
 
-                                        <!-- Status & Group -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[11px] font-semibold text-slate-700 mb-1">Bloque: {{ row.groupname || '-' }}</div>
-                                            <span :class="{
-                                                'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider': true,
-                                                'bg-green-100 text-green-700': row.status === 'activo',
-                                                'bg-amber-100 text-amber-700': row.status === 'aplazado',
-                                                'bg-slate-100 text-slate-600': row.status === 'retirado' || row.status === 'suspendido'
-                                            }">
-                                                {{ row.status || 'activo' }}
-                                            </span>
+                                        <!-- Column 3: Contacto -->
+                                        <td class="px-6 py-4 bg-slate-50/30">
+                                            <div class="text-[11px] text-blue-600 font-medium">{{ row.email || '-' }}</div>
+                                            <div class="text-[10px] text-slate-500 italic">{{ row.personalemail || '-' }}</div>
+                                            <div class="mt-2 text-[10px] flex flex-col gap-0.5">
+                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 1:</span> {{ row.phone1 || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 2:</span> {{ row.phone2 || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400 text-[9px]">MÓVIL:</span> {{ row.custom_phone || '-' }}</div>
+                                            </div>
+                                            <div class="mt-1 text-[10px] font-bold text-slate-600">Ciudad: {{ row.city || '-' }}</div>
                                         </td>
 
-                                        <!-- ID Documents -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[11px] font-bold text-slate-700">{{ row.documentnumber || '-' }}</div>
-                                            <div class="text-[9px] text-slate-400">{{ row.documenttype || '-' }}</div>
-                                        </td>
-
-                                        <!-- Contacts -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">T1:</span> {{ row.phone1 || '-' }}</div>
-                                            <div class="text-[10px] text-slate-500">{{ row.personalemail || '-' }}</div>
-                                        </td>
-
-                                        <!-- Company Info -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[10px] font-medium text-slate-700">{{ row.institution || '-' }}</div>
-                                            <div class="text-[9px] text-slate-400">{{ row.department || '-' }}</div>
-                                        </td>
-
-                                        <!-- Profile fields -->
-                                        <td class="px-6 py-3">
-                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">Tipo:</span> {{ row.usertype || '-' }}</div>
-                                            <div class="text-[10px]"><span class="font-bold text-slate-400 mr-1">Jornada:</span> {{ row.gmkjourney || '-' }}</div>
+                                        <!-- Column 4: Institucional & Otros -->
+                                        <td class="px-6 py-4">
+                                            <div class="text-[11px] font-bold text-slate-700">{{ row.usertype || 'Estudiante' }}</div>
+                                            <div class="text-[10px] font-medium text-slate-500 mb-2">{{ row.gmkjourney || '-' }}</div>
+                                            
+                                            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px]">
+                                                <div><span class="font-bold text-slate-400">Asesor:</span> {{ row.accountmanager || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400">Ingreso:</span> {{ row.periodo_ingreso || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400">Estado Est:</span> {{ row.studentstatus || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400">Paga:</span> {{ row.needfirsttuition || '-' }}</div>
+                                            </div>
+                                            
+                                            <div class="mt-2 pt-2 border-t border-slate-100">
+                                                <div class="text-[9px] font-bold text-slate-400 uppercase">Empresa / Depto</div>
+                                                <div class="text-[10px] text-slate-600">{{ row.institution || '-' }} / {{ row.department || '-' }}</div>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -652,9 +653,10 @@ createApp({
                         
                         // Logic for Master vs Repair Template
                         let docType, docNum, firstPay, personalMail, sStatus, genre, journey, cPhone, pIngreso, manager, uType, bDate;
-                        
+                        let firstname, lastname, email, idnumber, inst, dept, ph1, ph2, city, planName, levelName, subName, academicName, groupName, statusField;
+
                         if (isMaster) {
-                            // Column Mapping (U index based)
+                            // Column Mapping (0-27)
                             firstname = r[1] ? String(r[1]).trim() : '';
                             lastname = r[2] ? String(r[2]).trim() : '';
                             email = r[3] ? String(r[3]).trim() : '';
