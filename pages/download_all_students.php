@@ -16,8 +16,8 @@ global $DB;
 
 // SQL to get all students with their core data and academic configuration
 $sql = "SELECT 
-            llu.id as recordid,
             u.id as userid,
+            llu.id as recordid,
             u.username, 
             u.firstname, 
             u.lastname, 
@@ -47,7 +47,26 @@ $sql = "SELECT
 
 $students = $DB->get_records_sql($sql);
 
+if (!empty($students)) {
+    // Fetch ALL custom profile fields for these users in one query
+    $user_ids = array_keys($students);
+    list($insql, $inparams) = $DB->get_in_or_equal($user_ids);
+    $custom_data_sql = "SELECT d.id, d.userid, f.shortname, d.data
+                        FROM {user_info_data} d
+                        JOIN {user_info_field} f ON d.fieldid = f.id
+                        WHERE d.userid $insql";
+    $custom_records = $DB->get_records_sql($custom_data_sql, $inparams);
+    
+    foreach ($custom_records as $cr) {
+        if (isset($students[$cr->userid])) {
+            $fieldname = 'profile_field_' . $cr->shortname;
+            $students[$cr->userid]->$fieldname = $cr->data;
+        }
+    }
+}
+
 // Validation data
+// ... (rest of validation data) ...
 $available_plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
 $plan_names = array_map(function($p) { return $p->name; }, $available_plans);
 
@@ -67,6 +86,7 @@ $sheet = $spreadsheet->getActiveSheet();
 $sheet->setTitle('Exportación Estudiantes');
 
 // --- INSTRUCTIONS SECTION ---
+// ... (rest of instructions section) ...
 $sheet->setCellValue('A1', 'INSTRUCCIONES DE IMPORTACIÓN:');
 $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF0000'));
 
@@ -121,10 +141,6 @@ $sheet->getStyle($head_range)->applyFromArray($headerStyle);
 // Add data rows
 $curr_row++;
 foreach ($students as $s) {
-    // Load custom profile fields
-    $s->id = $s->userid;
-    profile_load_custom_fields($s);
-    
     $sheet->setCellValue('A' . $curr_row, $s->username);
     $sheet->setCellValue('B' . $curr_row, $s->firstname);
     $sheet->setCellValue('C' . $curr_row, $s->lastname);
