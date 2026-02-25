@@ -19,6 +19,7 @@ $confirm = optional_param('confirm', 0, PARAM_INT);
 if ($action === 'download_template') {
     require_login();
     require_capability('moodle/site:config', context_system::instance());
+
     // Get all users without roles
     $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
             FROM {user} u
@@ -86,16 +87,22 @@ if ($action === 'download_template') {
     // Set active sheet back to data
     $spreadsheet->setActiveSheetIndex(0);
 
+    // Clean any output buffers
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
     // Output file
     $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.xlsx';
 
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment;filename="' . $filename . '"');
     header('Cache-Control: max-age=0');
+    header('Pragma: public');
 
     $writer = new Xlsx($spreadsheet);
     $writer->save('php://output');
-    exit;
+    die();
 }
 
 // ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
