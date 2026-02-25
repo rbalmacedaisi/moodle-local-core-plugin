@@ -1609,8 +1609,9 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
         $isExternal = true;
     }
 
-    // EXTERNAL CLASS: Get Moodle enrollments
-    if ($isExternal && $class->corecourseid) {
+    // EXTERNAL CLASS WITHOUT GROUP: Get all Moodle enrollments
+    // Only use this fallback if the class has no groupid
+    if ($isExternal && $class->corecourseid && !$class->groupid) {
         $students = get_enrolled_students_by_courseid($class->corecourseid);
 
         // Format to match expected structure
@@ -1626,7 +1627,8 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
         return $classStudents;
     }
 
-    // NORMAL CLASS: Use existing logic
+    // NORMAL CLASS OR EXTERNAL CLASS WITH GROUP: Use existing logic
+    // External classes with groupid will use groups_members table
     $classStudents = get_class_participants($class);
 
     // Helper function to resolve a userid that might be an idnumber string
