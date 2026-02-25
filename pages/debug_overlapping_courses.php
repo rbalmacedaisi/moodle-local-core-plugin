@@ -93,11 +93,16 @@ if ($periodid) {
             // Get sessions
             $sessions = $DB->get_records('gmk_class_schedules', ['classid' => $c->id]);
             $sessList = [];
+            $sessArray = []; // Store for legacy check
             $days = [1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'];
             foreach ($sessions as $s) {
                 $sessList[] = ($days[$s->day] ?? 'Desconocido') . ": " . $s->starttime . " - " . $s->endtime;
             }
             $sessDisplay = empty($sessList) ? "<span class='text-danger'>SIN HORARIO</span>" : implode('<br>', $sessList);
+            
+            if (empty($sessList)) {
+                $sessDisplay .= "<div class='text-muted' style='font-size:0.7em'>Legacy: {$c->inittime}-{$c->endtime}<br>Days: {$c->classdays}</div>";
+            }
             
             // Resolve room
             $room = $DB->get_field_sql("SELECT r.name FROM {gmk_class_schedules} s JOIN {gmk_classrooms} r ON r.id = s.classroomid WHERE s.classid = ?", [$c->id]);
@@ -105,7 +110,7 @@ if ($periodid) {
             echo "<tr>";
             echo "<td>$c->id</td>";
             echo "<td>$pName</td>";
-            echo "<td>$c->subjectname</td>";
+            echo "<td>$c->name</td>";
             echo "<td>$instructor</td>";
             echo "<td>$stuDisplay</td>";
             echo "<td>" . ($c->initdate ? date('d/m/Y', $c->initdate) : 'N/A') . "</td>";

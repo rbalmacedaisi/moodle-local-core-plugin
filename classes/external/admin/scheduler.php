@@ -951,7 +951,7 @@ class scheduler extends external_api {
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
                        c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid,
-                       c.initdate, c.enddate
+                       c.initdate, c.enddate, c.inittime, c.endtime, c.classdays
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
@@ -1001,6 +1001,23 @@ class scheduler extends external_api {
                     'excluded_dates' => !empty($s->excluded_dates) ? json_decode($s->excluded_dates, true) : []
                 ];
             }
+
+        // FALLBACK: If no sessions in gmk_class_schedules, try legacy fields in gmk_class
+        if (empty($sessArr) && !empty($c->inittime) && $c->inittime !== '00:00') {
+            $dayBitmask = explode('/', $c->classdays);
+            $dayNames = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+            foreach ($dayBitmask as $idx => $val) {
+                if ($val == '1' && isset($dayNames[$idx])) {
+                    $sessArr[] = [
+                        'day' => $dayNames[$idx],
+                        'start' => $c->inittime,
+                        'end' => $c->endtime,
+                        'roomName' => 'Sin aula',
+                        'excluded_dates' => []
+                    ];
+                }
+            }
+        }
             
             // Derive Academic Level from Subject ID (courseid) if missing
             $academic_period_id = 0;
