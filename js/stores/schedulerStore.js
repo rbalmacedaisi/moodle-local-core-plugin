@@ -139,8 +139,13 @@
                         });
                     }
 
+                    // Force isExternal to boolean
+                    cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES');
+
                     return cls;
                 });
+                const externalCount = this.state.generatedSchedules.filter(s => s.isExternal).length;
+                console.log(`DEBUG Store: Loaded ${this.state.generatedSchedules.length} schedules. Externals found: ${externalCount}`);
             } catch (e) {
                 console.error("Load Error", e);
                 this.state.error = e.message;
@@ -540,15 +545,15 @@
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
                     // Preserve external courses fetched from live DB (they shouldn't be overwritten by draft)
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
+                    console.log(`DEBUG Draft: Prior to merge, state had ${externalSchedules.length} externals.`);
 
-                    // Combine draft (mostly current period work) with external overlaps
-                    // Ensure we don't duplicate if draft already has some (though draft usually shouldn't have isExternal flagged ones)
-                    const draftIds = new Set(draft.map(s => s.id));
-                    const uniqueExternals = externalSchedules.filter(s => !draftIds.has(s.id));
+                    const draftIds = new Set(draft.map(s => Number(s.id)));
+                    const uniqueExternals = externalSchedules.filter(s => !draftIds.has(Number(s.id)));
 
+                    console.log(`DEBUG Draft: Merging ${draft.length} draft items with ${uniqueExternals.length} unique externals.`);
                     this.state.generatedSchedules = [...draft, ...uniqueExternals];
                 } else {
-                    console.log("DEBUG: No draft found or draft is empty for this period.");
+                    console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
             } catch (e) {
                 console.error("Load generation error:", e);
