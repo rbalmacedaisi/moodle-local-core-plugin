@@ -107,6 +107,24 @@ if ($action === 'ajax_fix') {
     }
 }
 
+// ========== INITIAL STATS ==========
+// Find users without roles
+$sql_roles = "SELECT COUNT(u.id)
+        FROM {user} u
+        LEFT JOIN {role_assignments} ra ON ra.userid = u.id
+        WHERE u.deleted = 0
+        AND ra.id IS NULL";
+$users_no_roles_count = $DB->count_records_sql($sql_roles);
+
+// Find users without local_learning_users
+$sql_llu = "SELECT COUNT(u.id)
+        FROM {user} u
+        LEFT JOIN {local_learning_users} llu ON llu.userid = u.id
+        WHERE u.deleted = 0
+        AND u.id != 1
+        AND llu.id IS NULL";
+$users_no_llu_count = $DB->count_records_sql($sql_llu);
+
 // ========== NOW SETUP PAGE (AFTER FILE OPERATIONS) ==========
 admin_externalpage_setup('grupomakro_core_manage_courses');
 
@@ -158,11 +176,11 @@ echo $OUTPUT->header();
                     <div class="grid grid-cols-1 gap-4">
                         <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 border-l-4 border-l-red-500">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin Roles</p>
-                            <div class="text-3xl font-black text-slate-800"><?php echo count($users_no_roles); ?></div>
+                            <div class="text-3xl font-black text-slate-800"><?php echo $users_no_roles_count; ?></div>
                         </div>
                         <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 border-l-4 border-l-amber-500">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin Plan (llu)</p>
-                            <div class="text-3xl font-black text-slate-800"><?php echo count($users_no_llu); ?></div>
+                            <div class="text-3xl font-black text-slate-800"><?php echo $users_no_llu_count; ?></div>
                         </div>
                     </div>
                     <p class="text-[11px] text-slate-400 mt-4 leading-relaxed italic">
@@ -364,14 +382,27 @@ createApp({
                 // Convert to JSON
                 const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
                 
-                // Remove header (Username, Nombre Completo, Email, ID Number, Plan de Aprendizaje)
-                const header = rawRows.shift();
+                // Remove header
+                rawRows.shift();
                 
+                // Function to normalize strings for matching (remove accents, lowercase, trim)
+                const normalize = (str) => {
+                    if (!str) return '';
+                    return String(str)
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase()
+                        .trim();
+                };
+
                 this.rows = rawRows
-                    .filter(r => r[0] && r[0] !== 'INSTRUCCIONES:')
+                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:')
                     .map(r => {
-                        const planName = r[4] ? r[4].trim() : '';
-                        const plan = this.plans.find(p => p.name.toLowerCase() === planName.toLowerCase());
+                        const planName = r[4] ? String(r[4]).trim() : '';
+                        const normalizedInput = normalize(planName);
+                        
+                        const plan = this.plans.find(p => normalize(p.name) === normalizedInput);
+                        
                         return {
                             username: r[0],
                             fullname: r[1],
