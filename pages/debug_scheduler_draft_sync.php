@@ -83,4 +83,34 @@ if ($currentPeriod) {
 }
 echo "</div>";
 
+// 3. ORPHAN CHECK (Are there overlaps we didn't expect?)
+echo "<div class='card'>";
+echo "<h2>3. Investigation: The 'Hidden' 55 Externals</h2>";
+echo "<p>The Planning Board says 56 externals. My SQL found only 1 (ID 125). Let's see everything that overlaps period $periodid regardless of filters.</p>";
+
+if ($currentPeriod) {
+    $sqlAllOverlaps = "SELECT c.id, c.name, c.periodid, c.initdate, c.enddate
+                       FROM {gmk_class} c
+                       WHERE c.initdate <= ? AND c.enddate >= ?
+                       ORDER BY c.id ASC";
+    $allOverlaps = $DB->get_records_sql($sqlAllOverlaps, [$pE, $pS]);
+    
+    echo "Total records overlapping dates of Period $periodid: " . count($allOverlaps) . "<br>";
+    
+    echo "<table><thead><tr><th>ID</th><th>Subject</th><th>Period</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody>";
+    foreach ($allOverlaps as $c) {
+        $isInternal = ($c->periodid == $periodid);
+        $status = $isInternal ? "INTERNAL" : "EXTERNAL";
+        if ($c->id == 125) $status .= " (ID 125)";
+        
+        $style = "";
+        if (!$isInternal) $style = " style='background: #fee2e2;'";
+        if (empty($c->periodid)) $style = " style='background: #fef3c7;'";
+        
+        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>" . ($c->periodid ?: '0') . "</td><td>" . date('Y-m-d', $c->initdate) . "</td><td>" . date('Y-m-d', $c->enddate) . "</td><td>$status</td></tr>";
+    }
+    echo "</tbody></table>";
+}
+echo "</div>";
+
 echo "</body></html>";
