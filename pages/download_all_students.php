@@ -14,6 +14,7 @@ global $DB;
 
 // SQL to get all students with their full learning configuration
 $sql = "SELECT 
+            llu.id as recordid,
             u.username, 
             u.firstname, 
             u.lastname, 
