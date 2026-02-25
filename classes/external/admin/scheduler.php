@@ -948,6 +948,10 @@ class scheduler extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
+        if (function_exists('gmk_log')) {
+            gmk_log("DEBUG: get_generated_schedules(periodid=$periodid, includeoverlaps=$includeoverlaps)");
+        }
+
         $sql = "SELECT c.id, c.courseid, c.name as subjectname, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
                        c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid,
@@ -960,19 +964,27 @@ class scheduler extends external_api {
         $params = ['periodid' => $periodid];
         
         if ($includeoverlaps) {
-            $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid], 'startdate, enddate');
+            $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid], 'id, startdate, enddate');
             if ($period) {
                 // Fetch classes from OTHER periods OR WITHOUT period that overlap in dates
                 // Intersection condition: (s1 <= e2) AND (e1 >= s2)
-                $sql .= " OR ((c.periodid != :periodid2 OR c.periodid IS NULL OR c.periodid = 0) 
+                // Using COALESCE to handle NULL periodid safely
+                $sql .= " OR (COALESCE(c.periodid, 0) != :periodid2 
                               AND c.initdate <= :enddate AND c.enddate >= :startdate)";
                 $params['periodid2'] = $periodid;
                 $params['startdate'] = $period->startdate;
                 $params['enddate'] = $period->enddate;
+                
+                if (function_exists('gmk_log')) {
+                    gmk_log("DEBUG: Overlap SQL active. Period: " . userdate($period->startdate) . " to " . userdate($period->enddate));
+                }
             }
         }
 
         $classes = $DB->get_records_sql($sql, $params);
+        if (function_exists('gmk_log')) {
+            gmk_log("DEBUG: Found " . count($classes) . " classes total.");
+        }
         $result = [];
         
         $classrooms_cache = [];
