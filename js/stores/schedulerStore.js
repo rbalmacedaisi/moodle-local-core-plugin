@@ -493,7 +493,7 @@
                     'instructorId', 'instructorid', 'teacherName', 'studentCount', 'studentIds',
                     'subperiod', 'type', 'typeLabel', 'career', 'shift',
                     'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
-                    'assignedDates', 'maxSessions'
+                    'assignedDates', 'maxSessions', 'isExternal', 'sessions'
                 ];
 
                 if (Array.isArray(schedules) && schedules.length > 0) {
@@ -547,11 +547,25 @@
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     console.log(`DEBUG Draft: Prior to merge, state had ${externalSchedules.length} externals.`);
 
-                    const draftIds = new Set(draft.map(s => Number(s.id)));
+                    // Map draft items and ensure isExternal is set if periodId doesn't match
+                    const pIdNum = Number(periodId);
+                    const processedDraft = draft.map(item => {
+                        const itemPid = Number(item.periodid);
+                        // If period ID is different, it's external (even if it's 0/NULL)
+                        if (itemPid !== pIdNum) {
+                            item.isExternal = true;
+                        } else {
+                            // Ensure it's false for current period items if it was somehow flipped
+                            item.isExternal = false;
+                        }
+                        return item;
+                    });
+
+                    const draftIds = new Set(processedDraft.map(s => Number(s.id)));
                     const uniqueExternals = externalSchedules.filter(s => !draftIds.has(Number(s.id)));
 
-                    console.log(`DEBUG Draft: Merging ${draft.length} draft items with ${uniqueExternals.length} unique externals.`);
-                    this.state.generatedSchedules = [...draft, ...uniqueExternals];
+                    console.log(`DEBUG Draft: Merging ${processedDraft.length} draft items with ${uniqueExternals.length} unique externals.`);
+                    this.state.generatedSchedules = [...processedDraft, ...uniqueExternals];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }

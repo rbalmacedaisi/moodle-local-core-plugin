@@ -15,8 +15,8 @@ window.SchedulerComponents.PlanningBoard = {
                     <div class="p-3 border-b border-gray-200 bg-white shadow-sm flex items-center justify-between">
                         <h3 class="text-sm font-bold text-slate-700">
                             Por Asignar ({{ unassignedClasses.length }})
-                            <span v-if="allClasses.filter(c => c.isExternal).length > 0" class="ml-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                {{ allClasses.filter(c => c.isExternal).length }} Externos
+                            <span class="ml-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                {{ allClasses.filter(c => c.isExternal).length }} Externos | Total: {{ allClasses.length }}
                             </span>
                         </h3>
                         <div class="relative w-32">
