@@ -10,6 +10,22 @@ $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
+// ========== HELPER FUNCTIONS ==========
+function php_normalize_field($str) {
+    if (!$str) return '';
+    $str = mb_strtolower($str, 'UTF-8');
+    if (class_exists('Normalizer')) {
+        $str = normalizer_normalize($str, Normalizer::FORM_D);
+        $str = preg_replace('/\p{Mn}/u', '', $str);
+    } else {
+        // Fallback for character replacement if intl not available
+        $str = str_replace(['á','é','í','ó','ú','ñ','Á','É','Í','Ó','Ú','Ñ'], ['a','e','i','o','u','n','a','e','i','o','u','n'], $str);
+    }
+    $str = preg_replace('/[^a-z0-9]/', ' ', $str);
+    $str = preg_replace('/\s+/', ' ', $str);
+    return trim($str);
+}
+
 // ========== AJAX HANDLERS ==========
 if ($action === 'get_plans') {
     header('Content-Type: application/json');
@@ -28,9 +44,16 @@ if ($action === 'ajax_fix') {
     try {
         $userid = optional_param('userid', 0, PARAM_INT);
         $username = optional_param('username', '', PARAM_RAW);
-        $planid = required_param('planid', PARAM_INT);
+        $planid = optional_param('planid', 0, PARAM_INT);
+        $plan_name = optional_param('plan_name', '', PARAM_RAW);
+        $level_name = optional_param('level_name', '', PARAM_RAW);
+        $subperiod_name = optional_param('subperiod_name', '', PARAM_RAW);
+        $academic_name = optional_param('academic_name', '', PARAM_RAW);
+        $groupname = optional_param('groupname', '', PARAM_RAW);
+        $status = optional_param('status', '', PARAM_ALPHA);
         $new_idnumber = optional_param('idnumber', '', PARAM_RAW);
 
+        // 1. Resolve User
         if ($userid > 0) {
             $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0]);
         } elseif (!empty($username)) {
@@ -38,22 +61,79 @@ if ($action === 'ajax_fix') {
         } else {
             throw new Exception("Identificador de usuario no proporcionado.");
         }
-
         if (!$user) throw new Exception("Usuario no encontrado.");
         $userid = $user->id;
 
-        $plan = $DB->get_record('local_learning_plans', ['id' => $planid]);
-        if (!$plan) throw new Exception("Plan no encontrado.");
+        // 2. Resolve Plan
+        if ($planid <= 0 && !empty($plan_name)) {
+            $normalized_pname = php_normalize_field($plan_name);
+            $all_plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
+            foreach ($all_plans as $p) {
+                if (php_normalize_field($p->name) === $normalized_pname) {
+                    $planid = $p->id;
+                    break;
+                }
+            }
+        }
+        if ($planid <= 0) throw new Exception("Plan no proporcionado o no encontrado: '$plan_name'");
+
+        // 3. Resolve Level (Period)
+        $current_period_id = 0;
+        if (!empty($level_name)) {
+            $normalized_lname = php_normalize_field($level_name);
+            $plan_periods = $DB->get_records('local_learning_periods', ['learningplanid' => $planid], 'id ASC', 'id, name');
+            foreach ($plan_periods as $pp) {
+                if (php_normalize_field($pp->name) === $normalized_lname) {
+                    $current_period_id = $pp->id;
+                    break;
+                }
+            }
+        }
+        if ($current_period_id <= 0) {
+            // Default to first period of the plan if none specified or found
+            $first_period = $DB->get_record_sql("SELECT id FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$planid], IGNORE_MULTIPLE);
+            $current_period_id = $first_period ? $first_period->id : 1;
+        }
+
+        // 4. Resolve Subperiod
+        $current_subperiod_id = 0;
+        if (!empty($subperiod_name)) {
+            $normalized_sname = php_normalize_field($subperiod_name);
+            $subperiods = $DB->get_records('local_learning_subperiods', ['learningplanid' => $planid, 'periodid' => $current_period_id], 'id ASC', 'id, name');
+            foreach ($subperiods as $sp) {
+                if (php_normalize_field($sp->name) === $normalized_sname) {
+                    $current_subperiod_id = $sp->id;
+                    break;
+                }
+            }
+        }
+
+        // 5. Resolve Academic Period
+        $academic_period_id = 0;
+        if (!empty($academic_name)) {
+            $normalized_aname = php_normalize_field($academic_name);
+            $all_aps = $DB->get_records('gmk_academic_periods', null, '', 'id, name');
+            foreach ($all_aps as $ap) {
+                if (php_normalize_field($ap->name) === $normalized_aname) {
+                    $academic_period_id = $ap->id;
+                    break;
+                }
+            }
+        }
+        if ($academic_period_id <= 0) {
+            $academic_period = $DB->get_record('gmk_academic_periods', ['status' => 1], 'id', IGNORE_MULTIPLE);
+            $academic_period_id = $academic_period ? $academic_period->id : 0;
+        }
 
         $transaction = $DB->start_delegated_transaction();
 
-        // 1. Update ID Number if provided
+        // Update ID Number if provided
         if (!empty($new_idnumber) && $user->idnumber !== $new_idnumber) {
             $user->idnumber = $new_idnumber;
             $DB->update_record('user', $user);
         }
 
-        // 2. Assign Student Role
+        // Assign Student Role
         $student_role = $DB->get_record('role', ['shortname' => 'student']);
         if ($student_role) {
             $context = context_system::instance();
@@ -63,35 +143,32 @@ if ($action === 'ajax_fix') {
             }
         }
 
-        // 3. Create/Update local_learning_users
+        // Create/Update local_learning_users
         $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
-        
-        // Find first period for this plan
-        $first_period = $DB->get_record_sql("SELECT id FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$planid], IGNORE_MULTIPLE);
-        $current_period_id = $first_period ? $first_period->id : 1;
-
-        // Find current academic period (status = 1)
-        $academic_period = $DB->get_record('gmk_academic_periods', ['status' => 1], 'id', IGNORE_MULTIPLE);
-        $academic_period_id = $academic_period ? $academic_period->id : 0;
+        $status = !empty($status) ? strtolower(trim($status)) : 'activo';
 
         if (!$llu) {
             $record = new stdClass();
             $record->userid = $userid;
             $record->learningplanid = $planid;
             $record->currentperiodid = $current_period_id;
+            $record->currentsubperiodid = $current_subperiod_id;
             $record->academicperiodid = $academic_period_id;
+            $record->groupname = !empty($groupname) ? trim($groupname) : '';
             $record->userrolename = 'student';
-            $record->status = 'activo';
+            $record->status = $status;
             $record->timecreated = time();
             $record->timemodified = time();
             $record->usermodified = $USER->id;
             $DB->insert_record('local_learning_users', $record);
         } else {
-            // Update existing if needed
             $llu->learningplanid = $planid;
+            $llu->currentperiodid = $current_period_id;
+            if ($current_subperiod_id > 0) $llu->currentsubperiodid = $current_subperiod_id;
+            $llu->academicperiodid = $academic_period_id;
+            if (!empty($groupname)) $llu->groupname = trim($groupname);
             $llu->userrolename = 'student';
-            $llu->status = 'activo';
-            if (empty($llu->academicperiodid)) $llu->academicperiodid = $academic_period_id;
+            $llu->status = $status;
             $llu->timemodified = time();
             $llu->usermodified = $USER->id;
             $DB->update_record('local_learning_users', $llu);
@@ -159,7 +236,10 @@ echo $OUTPUT->header();
             </div>
             <div class="flex gap-3">
                 <a href="download_fix_template.php" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2">
-                    <i data-lucide="download" class="w-4 h-4"></i> Descargar Plantilla
+                    <i data-lucide="download" class="w-4 h-4"></i> Plantilla Reparación
+                </a>
+                <a href="download_all_students.php" class="bg-slate-900 border border-slate-800 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400"></i> Exportación Maestra
                 </a>
             </div>
         </header>
@@ -220,9 +300,9 @@ echo $OUTPUT->header();
                     <div class="relative z-10">
                         <h4 class="font-bold text-lg mb-2">Instrucciones</h4>
                         <ul class="text-xs space-y-2 opacity-90 font-medium">
-                            <li class="flex gap-2"><span>1.</span><span>Descarga la plantilla con los usuarios detectados.</span></li>
-                            <li class="flex gap-2"><span>2.</span><span>Completa la columna <b>"Plan de Aprendizaje"</b>.</span></li>
-                            <li class="flex gap-2"><span>3.</span><span>Sube el archivo aquí para procesar masivamente.</span></li>
+                            <li class="flex gap-2"><span>1.</span><span>Descarga la <b>Exportación Maestra</b> para ver a todos los alumnos.</span></li>
+                            <li class="flex gap-2"><span>2.</span><span>Modifica cualquier campo: Plan, Nivel, Bloque o Estado.</span></li>
+                            <li class="flex gap-2"><span>3.</span><span>Sube el archivo aquí para aplicar los cambios masivamente.</span></li>
                         </ul>
                     </div>
                     <i data-lucide="info" class="absolute -bottom-4 -right-4 w-24 h-24 opacity-10 rotate-12"></i>
@@ -265,25 +345,43 @@ echo $OUTPUT->header();
                             <table class="w-full text-sm text-left border-collapse">
                                 <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md">
                                     <tr class="text-[10px] uppercase tracking-widest text-slate-400 font-black border-b border-slate-100">
-                                        <th class="px-6 py-4">Username</th>
-                                        <th class="px-6 py-4">Nombre</th>
-                                        <th class="px-6 py-4">Plan Detectado</th>
+                                        <th class="px-6 py-4">Usuario</th>
                                         <th class="px-6 py-4">ID Number</th>
+                                        <th class="px-6 py-4">Plan</th>
+                                        <th class="px-6 py-4">Nivel / Periodo</th>
+                                        <th class="px-6 py-4">Bloque</th>
+                                        <th class="px-6 py-4">Estado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">{{ row.username }}</td>
-                                        <td class="px-6 py-3 font-bold text-slate-700">{{ row.fullname }}</td>
                                         <td class="px-6 py-3">
-                                            <span v-if="row.plan_id" class="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                                                <i data-lucide="check" class="w-3 h-3"></i> {{ row.plan_name }}
+                                            <div class="font-bold text-slate-700">{{ row.fullname }}</div>
+                                            <div class="font-mono text-[10px] text-slate-400">{{ row.username }}</div>
+                                        </td>
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">{{ row.idnumber }}</td>
+                                        <td class="px-6 py-3">
+                                            <span v-if="row.plan_name" :class="row.plan_id ? 'text-blue-600 font-bold' : 'text-red-500 font-bold text-[10px]'">
+                                                {{ row.plan_name }}
+                                                <i v-if="!row.plan_id" data-lucide="alert-circle" class="w-3 h-3 inline ml-1"></i>
                                             </span>
-                                            <span v-else class="text-red-500 font-bold text-[10px] flex items-center gap-1">
-                                                <i data-lucide="alert-circle" class="w-3 h-3"></i> NO ENCONTRADO ({{ row.plan_name || 'Vacío' }})
+                                            <span v-else class="text-slate-300 italic">No definido</span>
+                                        </td>
+                                        <td class="px-6 py-3">
+                                            <div class="text-slate-700 font-medium">{{ row.level_name || '-' }}</div>
+                                            <div class="text-[10px] text-slate-400">{{ row.subperiod_name || '' }}</div>
+                                        </td>
+                                        <td class="px-6 py-3 text-slate-600 font-medium">{{ row.groupname || '-' }}</td>
+                                        <td class="px-6 py-3">
+                                            <span :class="{
+                                                'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider': true,
+                                                'bg-green-100 text-green-700': row.status === 'activo',
+                                                'bg-amber-100 text-amber-700': row.status === 'aplazado',
+                                                'bg-slate-100 text-slate-600': row.status === 'retirado' || row.status === 'suspendido'
+                                            }">
+                                                {{ row.status || 'activo' }}
                                             </span>
                                         </td>
-                                        <td class="px-6 py-3 text-slate-400 text-xs">{{ row.idnumber || '--' }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -434,21 +532,52 @@ createApp({
                 };
 
                 this.rows = rawRows
-                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:')
+                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:' && String(r[0]).trim() !== 'Username')
                     .map(r => {
-                        const planName = r[4] ? String(r[4]).trim() : '';
-                        const normalizedInput = normalize(planName);
+                        const isMaster = r.length > 5;
                         
+                        // Mapping based on column index
+                        const username = String(r[0]).trim();
+                        const fullname = String(r[1]).trim();
+                        const idnumber = r[2] ? String(r[2]).trim() : (r[3] ? String(r[3]).trim() : '');
+                        
+                        // Logic for Master vs Repair Template
+                        let planName, levelName, subName, academicName, groupName, statusField;
+                        
+                        if (isMaster) {
+                            // Master Columns: Username, FullName, IDNumber, Plan, Level, Sub, Academic, Group, Status
+                            planName = r[3] ? String(r[3]).trim() : '';
+                            levelName = r[4] ? String(r[4]).trim() : '';
+                            subName = r[5] ? String(r[5]).trim() : '';
+                            academicName = r[6] ? String(r[6]).trim() : '';
+                            groupName = r[7] ? String(r[7]).trim() : '';
+                            statusField = r[8] ? String(r[8]).trim() : 'activo';
+                        } else {
+                            // Repair Columns: Username, FullName, Email, IDNumber, Plan
+                            planName = r[4] ? String(r[4]).trim() : '';
+                            levelName = '';
+                            subName = '';
+                            academicName = '';
+                            groupName = '';
+                            statusField = 'activo';
+                        }
+                        
+                        const normalizedInput = normalize(planName);
                         const plan = this.plans.find(p => normalize(p.name) === normalizedInput);
                         
                         return {
-                            username: r[0],
-                            fullname: r[1],
-                            idnumber: r[3],
+                            username,
+                            fullname,
+                            idnumber,
                             plan_name: planName,
                             plan_id: plan ? plan.id : null,
+                            level_name: levelName,
+                            subperiod_name: subName,
+                            academic_name: academicName,
+                            groupname: groupName,
+                            status: statusField,
                             found: false,
-                            status: 'pending'
+                            status_ui: 'pending'
                         };
                     });
                 
@@ -493,7 +622,12 @@ createApp({
                         params: {
                             action: 'ajax_fix',
                             username: row.username,
-                            planid: row.plan_id,
+                            plan_name: row.plan_name,
+                            level_name: row.level_name,
+                            subperiod_name: row.subperiod_name,
+                            academic_name: row.academic_name,
+                            groupname: row.groupname,
+                            status: row.status,
                             idnumber: row.idnumber
                         }
                     });
