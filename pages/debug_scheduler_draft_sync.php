@@ -89,7 +89,8 @@ echo "<h2>3. Investigation: The 'Hidden' 55 Externals</h2>";
 echo "<p>The Planning Board says 56 externals. My SQL found only 1 (ID 125). Let's see everything that overlaps period $periodid regardless of filters.</p>";
 
 if ($currentPeriod) {
-    $sqlAllOverlaps = "SELECT c.id, c.name, c.periodid, c.initdate, c.enddate
+    echo "<p>Using Period ID: $periodid (Dates: " . date('Y-m-d', $pS) . " to " . date('Y-m-d', $pE) . ")</p>";
+    $sqlAllOverlaps = "SELECT c.id, c.name, c.periodid, c.courseid, c.corecourseid, c.initdate, c.enddate
                        FROM {gmk_class} c
                        WHERE c.initdate <= ? AND c.enddate >= ?
                        ORDER BY c.id ASC";
@@ -116,9 +117,35 @@ if ($currentPeriod) {
         if ($isExtSim == 'YES') $style = " style='background: #fee2e2;'";
         if (empty($c->periodid)) $style = " style='background: #fef3c7;'";
         
-        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>{$c->courseid}</td><td>N/A</td><td>" . ($c->periodid ?: '0') . "</td><td>$status</td><td>$isExtSim</td></tr>";
+        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>{$c->courseid}</td><td>{$c->corecourseid}</td><td>" . ($c->periodid ?: '0') . "</td><td>$status</td><td>$isExtSim</td></tr>";
     }
     echo "</tbody></table>";
+}
+// 4. ACTUAL FUNCTION CALL
+echo "<div class='card'>";
+echo "<h2>4. Actual Backend Output (local_grupomakro_core_scheduler::get_generated_schedules)</h2>";
+echo "<p>Let's call the function that the AJAX uses and see exactly what it returns.</p>";
+
+require_once(__DIR__ . '/../classes/external/admin/scheduler.php');
+try {
+    $realItems = \local_grupomakro_core_scheduler::get_generated_schedules($periodid, true);
+    echo "Function returned " . count($realItems) . " items.<br>";
+    
+    echo "<table><thead><tr><th>ID</th><th>subjectName</th><th>periodid</th><th>isExternal</th></tr></thead><tbody>";
+    foreach ($realItems as $item) {
+        // Show ID 125, 9114, and first 5 matches
+        $show = false;
+        if ($item['id'] == 125 || $item['id'] == 9114) $show = true;
+        
+        if ($show || count($realItems) < 10) {
+            $style = ($item['isExternal'] ? " style='background: #fee2e2;'" : "");
+            echo "<tr$style><td>{$item['id']}</td><td>{$item['subjectName']}</td><td>{$item['periodid']}</td><td>" . ($item['isExternal'] ? 'YES' : 'NO') . "</td></tr>";
+        }
+    }
+    echo "</tbody></table>";
+    echo "<p><i>(Showing only IDs 125 and 9114 for clarity)</i></p>";
+} catch (\Exception $e) {
+    echo "Error calling function: " . $e->getMessage();
 }
 echo "</div>";
 
