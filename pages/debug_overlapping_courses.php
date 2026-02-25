@@ -63,6 +63,7 @@ if ($periodid) {
                 <th>Inicio</th>
                 <th>Fin</th>
                 <th>Jornada</th>
+                <th>Horario Sesiones</th>
                 <th>Aula</th>
               </tr></thead>";
         echo "<tbody>";
@@ -85,23 +86,32 @@ if ($periodid) {
                 $stuList[] = "$s->firstname $s->lastname (" . ($s->idnumber ?: $s->id) . ")";
             }
             $stuDisplay = "<strong>" . count($stuList) . "</strong>";
-            if (count($stuList) > 0) {
-                $stuDisplay .= " <i class='fa fa-info-circle text-info' title='" . implode(", ", $stuList) . "'></i>";
-                $stuDisplay .= "<br><small class='text-muted'>" . implode("<br>", array_slice($stuList, 0, 3)) . (count($stuList) > 3 ? "..." : "") . "</small>";
+            if (!empty($stuList)) {
+                $stuDisplay .= "<div class='text-muted' style='font-size: 0.8em;'>" . implode('<br>', array_slice($stuList, 0, 5)) . (count($stuList) > 5 ? '...' : '') . "</div>";
             }
+
+            // Get sessions
+            $sessions = $DB->get_records('gmk_class_schedules', ['classid' => $c->id]);
+            $sessList = [];
+            $days = [1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles', 4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'];
+            foreach ($sessions as $s) {
+                $sessList[] = ($days[$s->day] ?? 'Desconocido') . ": " . $s->starttime . " - " . $s->endtime;
+            }
+            $sessDisplay = empty($sessList) ? "<span class='text-danger'>SIN HORARIO</span>" : implode('<br>', $sessList);
+            
+            // Resolve room
+            $room = $DB->get_field_sql("SELECT r.name FROM {gmk_class_schedules} s JOIN {gmk_classrooms} r ON r.id = s.classroomid WHERE s.classid = ?", [$c->id]);
 
             echo "<tr>";
             echo "<td>$c->id</td>";
             echo "<td>$pName</td>";
-            echo "<td>$c->name</td>";
+            echo "<td>$c->subjectname</td>";
             echo "<td>$instructor</td>";
             echo "<td>$stuDisplay</td>";
             echo "<td>" . ($c->initdate ? date('d/m/Y', $c->initdate) : 'N/A') . "</td>";
             echo "<td>" . ($c->enddate ? date('d/m/Y', $c->enddate) : 'N/A') . "</td>";
             echo "<td>$c->shift</td>";
-            
-            // Resolve room
-            $room = $DB->get_field_sql("SELECT r.name FROM {gmk_class_schedules} s JOIN {gmk_classrooms} r ON r.id = s.classroomid WHERE s.classid = ?", [$c->id]);
+            echo "<td>$sessDisplay</td>";
             echo "<td>" . ($room ?: 'Sin aula') . "</td>";
             echo "</tr>";
         }
