@@ -631,5 +631,19 @@ window.SchedulerComponents.PlanningBoard = {
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
         }
+    },
+    watch: {
+        allClasses: {
+            immediate: true,
+            handler(newVal) {
+                if (!newVal) return;
+                const externals = newVal.filter(c => c.isExternal);
+                console.log(`DEBUG PlanningBoard: allClasses updated. Length: ${newVal.length}, Externals found: ${externals.length}`);
+                if (externals.length > 0) {
+                    const first = externals[0];
+                    console.log(`DEBUG PlanningBoard: First external - ID: ${first.id}, Subject: ${first.subjectName}, Period: ${first.periodid}, Day: ${first.day}`);
+                }
+            }
+        }
     }
 };
