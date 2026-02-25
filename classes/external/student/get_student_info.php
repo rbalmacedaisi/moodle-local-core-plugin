@@ -363,7 +363,9 @@ class get_student_info extends external_api {
         
         $activeUsersCount = 0;
         foreach ($allResults as $u) {
-            if (stripos($u['status'], 'activo') !== false) {
+            $status = trim($u['status']);
+            // Precise check to avoid "Inactivo" matching "activo"
+            if (strcasecmp($status, 'Activo') === 0) {
                 $activeUsersCount++;
             }
         }
