@@ -52,6 +52,24 @@ if ($action === 'ajax_fix') {
         $groupname = optional_param('groupname', '', PARAM_RAW);
         $status = optional_param('status', '', PARAM_ALPHA);
         $new_idnumber = optional_param('idnumber', '', PARAM_RAW);
+        
+        // Identity Fields
+        $firstname = optional_param('firstname', '', PARAM_TEXT);
+        $lastname = optional_param('lastname', '', PARAM_TEXT);
+        $email = optional_param('email', '', PARAM_RAW);
+        $phone1 = optional_param('phone1', '', PARAM_RAW);
+        $phone2 = optional_param('phone2', '', PARAM_RAW);
+        $institution = optional_param('institution', '', PARAM_TEXT);
+        $department = optional_param('department', '', PARAM_TEXT);
+        $city = optional_param('city', '', PARAM_TEXT);
+        $country = optional_param('country', '', PARAM_ALPHA);
+
+        // Custom Profile Fields
+        $documenttype = optional_param('documenttype', '', PARAM_TEXT);
+        $documentnumber = optional_param('documentnumber', '', PARAM_RAW);
+        $personalemail = optional_param('personalemail', '', PARAM_RAW);
+        $accountmanager = optional_param('accountmanager', '', PARAM_RAW);
+        $usertype = optional_param('usertype', '', PARAM_TEXT);
 
         // 1. Resolve User
         if ($userid > 0) {
@@ -127,10 +145,34 @@ if ($action === 'ajax_fix') {
 
         $transaction = $DB->start_delegated_transaction();
 
-        // Update ID Number if provided
-        if (!empty($new_idnumber) && $user->idnumber !== $new_idnumber) {
-            $user->idnumber = $new_idnumber;
+        // Update Identity Fields if provided
+        $update_user = false;
+        if (!empty($firstname) && $user->firstname !== $firstname) { $user->firstname = $firstname; $update_user = true; }
+        if (!empty($lastname) && $user->lastname !== $lastname) { $user->lastname = $lastname; $update_user = true; }
+        if (!empty($email) && $user->email !== $email) { $user->email = $email; $update_user = true; }
+        if (!empty($new_idnumber) && $user->idnumber !== $new_idnumber) { $user->idnumber = $new_idnumber; $update_user = true; }
+        if (!empty($phone1)) { $user->phone1 = $phone1; $update_user = true; }
+        if (!empty($phone2)) { $user->phone2 = $phone2; $update_user = true; }
+        if (!empty($institution)) { $user->institution = $institution; $update_user = true; }
+        if (!empty($department)) { $user->department = $department; $update_user = true; }
+        if (!empty($city)) { $user->city = $city; $update_user = true; }
+        if (!empty($country)) { $user->country = $country; $update_user = true; }
+
+        if ($update_user) {
             $DB->update_record('user', $user);
+        }
+
+        // Update Custom Profile Fields
+        $custom_fields = [];
+        if (!empty($documenttype)) $custom_fields['documenttype'] = $documenttype;
+        if (!empty($documentnumber)) $custom_fields['documentnumber'] = $documentnumber;
+        if (!empty($personalemail)) $custom_fields['personalemail'] = $personalemail;
+        if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
+        if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
+        
+        if (!empty($custom_fields)) {
+            require_once($CFG->dirroot . '/user/profile/lib.php');
+            profile_save_custom_fields($userid, $custom_fields);
         }
 
         // Assign Student Role
@@ -532,51 +574,69 @@ createApp({
                 };
 
                 this.rows = rawRows
-                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:' && String(r[0]).trim() !== 'Username')
+                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:' && String(r[0]).trim() !== 'Username' && String(r[0]).trim() !== 'Username (Cédula)')
                     .map(r => {
                         const isMaster = r.length > 5;
                         
                         // Mapping based on column index
                         const username = String(r[0]).trim();
-                        const fullname = String(r[1]).trim();
-                        const idnumber = r[2] ? String(r[2]).trim() : (r[3] ? String(r[3]).trim() : '');
                         
                         // Logic for Master vs Repair Template
-                        let planName, levelName, subName, academicName, groupName, statusField;
+                        let firstname, lastname, email, idnumber, inst, dept, ph1, ph2, city, planName, levelName, subName, academicName, groupName, statusField;
+                        let docType, docNum, personalMail, manager, uType;
                         
                         if (isMaster) {
-                            // Master Columns: Username, FullName, IDNumber, Plan, Level, Sub, Academic, Group, Status
-                            planName = r[3] ? String(r[3]).trim() : '';
-                            levelName = r[4] ? String(r[4]).trim() : '';
-                            subName = r[5] ? String(r[5]).trim() : '';
-                            academicName = r[6] ? String(r[6]).trim() : '';
-                            groupName = r[7] ? String(r[7]).trim() : '';
-                            statusField = r[8] ? String(r[8]).trim() : 'activo';
+                            // Column Mapping (U index based)
+                            firstname = r[1] ? String(r[1]).trim() : '';
+                            lastname = r[2] ? String(r[2]).trim() : '';
+                            email = r[3] ? String(r[3]).trim() : '';
+                            idnumber = r[4] ? String(r[4]).trim() : '';
+                            inst = r[5] ? String(r[5]).trim() : '';
+                            dept = r[6] ? String(r[6]).trim() : '';
+                            ph1 = r[7] ? String(r[7]).trim() : '';
+                            ph2 = r[8] ? String(r[8]).trim() : '';
+                            city = r[9] ? String(r[9]).trim() : '';
+                            planName = r[10] ? String(r[10]).trim() : '';
+                            levelName = r[11] ? String(r[11]).trim() : '';
+                            subName = r[12] ? String(r[12]).trim() : '';
+                            academicName = r[13] ? String(r[13]).trim() : '';
+                            groupName = r[14] ? String(r[14]).trim() : '';
+                            statusField = r[15] ? String(r[15]).trim() : 'activo';
+                            docType = r[16] ? String(r[16]).trim() : '';
+                            docNum = r[17] ? String(r[17]).trim() : '';
+                            personalMail = r[18] ? String(r[18]).trim() : '';
+                            manager = r[19] ? String(r[19]).trim() : '';
+                            uType = r[20] ? String(r[20]).trim() : '';
                         } else {
-                            // Repair Columns: Username, FullName, Email, IDNumber, Plan
+                            // Repair Template Mapping: Username, FullName, Email, IDNumber, Plan
+                            // FullName is in r[1]
+                            const parts = String(r[1]).trim().split(' ');
+                            firstname = parts[0] || '';
+                            lastname = parts.slice(1).join(' ') || '';
+                            email = r[2] ? String(r[2]).trim() : '';
+                            idnumber = r[3] ? String(r[3]).trim() : '';
                             planName = r[4] ? String(r[4]).trim() : '';
-                            levelName = '';
-                            subName = '';
-                            academicName = '';
-                            groupName = '';
+                            
+                            // Initialize others to empty
+                            inst = dept = ph1 = ph2 = city = levelName = subName = academicName = groupName = '';
                             statusField = 'activo';
+                            docType = docNum = personalMail = manager = uType = '';
                         }
                         
                         const normalizedInput = normalize(planName);
                         const plan = this.plans.find(p => normalize(p.name) === normalizedInput);
                         
                         return {
-                            username,
-                            fullname,
-                            idnumber,
-                            plan_name: planName,
-                            plan_id: plan ? plan.id : null,
-                            level_name: levelName,
-                            subperiod_name: subName,
-                            academic_name: academicName,
-                            groupname: groupName,
+                            username, firstname, lastname, 
+                            fullname: firstname + ' ' + lastname,
+                            email, idnumber,
+                            institution: inst, department: dept, phone1: ph1, phone2: ph2, city,
+                            plan_name: planName, plan_id: plan ? plan.id : null,
+                            level_name: levelName, subperiod_name: subName,
+                            academic_name: academicName, groupname: groupName,
                             status: statusField,
-                            found: false,
+                            documenttype: docType, documentnumber: docNum,
+                            personalemail: personalMail, accountmanager: manager, usertype: uType,
                             status_ui: 'pending'
                         };
                     });
@@ -622,13 +682,26 @@ createApp({
                         params: {
                             action: 'ajax_fix',
                             username: row.username,
+                            firstname: row.firstname,
+                            lastname: row.lastname,
+                            email: row.email,
+                            idnumber: row.idnumber,
+                            institution: row.institution,
+                            department: row.department,
+                            phone1: row.phone1,
+                            phone2: row.phone2,
+                            city: row.city,
                             plan_name: row.plan_name,
                             level_name: row.level_name,
                             subperiod_name: row.subperiod_name,
                             academic_name: row.academic_name,
                             groupname: row.groupname,
                             status: row.status,
-                            idnumber: row.idnumber
+                            documenttype: row.documenttype,
+                            documentnumber: row.documentnumber,
+                            personalemail: row.personalemail,
+                            accountmanager: row.accountmanager,
+                            usertype: row.usertype
                         }
                     });
 
