@@ -52,8 +52,8 @@ if ($currentPeriod) {
             FROM {gmk_class_schedules} s
             JOIN {gmk_class} c ON c.id = s.classid
             WHERE c.periodid != ?
-              AND s.initdate <= ?
-              AND s.enddate >= ?";
+              AND c.initdate <= ?
+              AND c.enddate >= ?";
     
     $liveExternals = $DB->get_records_sql($sql, [$periodid, $pE, $pS]);
     echo "Live Externals identified: " . count($liveExternals) . "<br>";
