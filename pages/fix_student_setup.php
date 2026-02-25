@@ -1,16 +1,210 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/vendor/autoload.php');
+
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 admin_externalpage_setup('grupomakro_core_manage_courses');
 
-echo $OUTPUT->header();
 global $DB;
 
 $action = optional_param('action', '', PARAM_ALPHA);
 $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
+
+// ========== DOWNLOAD TEMPLATE ACTION ==========
+if ($action === 'download_template') {
+    // Get all users without roles
+    $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
+            FROM {user} u
+            LEFT JOIN {role_assignments} ra ON ra.userid = u.id
+            WHERE u.deleted = 0
+            AND ra.id IS NULL
+            ORDER BY u.timecreated DESC";
+
+    $users_no_roles = $DB->get_records_sql($sql);
+
+    // Get all learning plans
+    $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
+    $plan_list = implode(', ', array_map(function($p) { return $p->name; }, $plans));
+
+    // Create spreadsheet
+    $spreadsheet = new Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+
+    // Set headers
+    $sheet->setCellValue('A1', 'Username (Cédula)');
+    $sheet->setCellValue('B1', 'Nombre Completo');
+    $sheet->setCellValue('C1', 'Email');
+    $sheet->setCellValue('D1', 'ID Number (Expediente)');
+    $sheet->setCellValue('E1', 'Plan de Aprendizaje');
+
+    // Style headers
+    $headerStyle = [
+        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+        'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+        'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER]
+    ];
+    $sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+
+    // Set column widths
+    $sheet->getColumnDimension('A')->setWidth(20);
+    $sheet->getColumnDimension('B')->setWidth(30);
+    $sheet->getColumnDimension('C')->setWidth(30);
+    $sheet->getColumnDimension('D')->setWidth(20);
+    $sheet->getColumnDimension('E')->setWidth(40);
+
+    // Add data rows
+    $row = 2;
+    foreach ($users_no_roles as $user) {
+        $sheet->setCellValue('A' . $row, $user->username);
+        $sheet->setCellValue('B' . $row, $user->firstname . ' ' . $user->lastname);
+        $sheet->setCellValue('C' . $row, $user->email);
+        $sheet->setCellValue('D' . $row, $user->idnumber);
+        $sheet->setCellValue('E' . $row, ''); // Empty for user to fill
+        $row++;
+    }
+
+    // Add note sheet
+    $noteSheet = $spreadsheet->createSheet();
+    $noteSheet->setTitle('INSTRUCCIONES');
+    $noteSheet->setCellValue('A1', 'INSTRUCCIONES PARA USO DE LA PLANTILLA');
+    $noteSheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+    $noteSheet->setCellValue('A3', '1. La columna "Username (Cédula)" contiene la cédula del estudiante - NO MODIFICAR');
+    $noteSheet->setCellValue('A4', '2. La columna "Plan de Aprendizaje" debe llenarse con el NOMBRE EXACTO del plan');
+    $noteSheet->setCellValue('A5', '3. Planes disponibles:');
+    $noteSheet->setCellValue('A6', $plan_list);
+    $noteSheet->getStyle('A6')->getAlignment()->setWrapText(true);
+    $noteSheet->setCellValue('A8', '4. Una vez completada, suba el archivo en la página principal');
+    $noteSheet->getColumnDimension('A')->setWidth(100);
+
+    // Set active sheet back to data
+    $spreadsheet->setActiveSheetIndex(0);
+
+    // Output file
+    $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.xlsx';
+
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="' . $filename . '"');
+    header('Cache-Control: max-age=0');
+
+    $writer = new Xlsx($spreadsheet);
+    $writer->save('php://output');
+    exit;
+}
+
+// ========== BULK UPLOAD ACTION ==========
+if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
+    $uploadfile = $_FILES['uploadfile'];
+
+    if ($uploadfile['error'] === UPLOAD_ERR_OK) {
+        $tmpfile = $uploadfile['tmp_name'];
+
+        try {
+            $spreadsheet = IOFactory::load($tmpfile);
+            $sheet = $spreadsheet->getActiveSheet();
+            $highestRow = $sheet->getHighestRow();
+
+            $results = [
+                'success' => [],
+                'errors' => [],
+                'skipped' => []
+            ];
+
+            // Get all plans for name matching
+            $plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
+            $plan_map = [];
+            foreach ($plans as $p) {
+                $plan_map[strtolower(trim($p->name))] = $p->id;
+            }
+
+            // Process rows (skip header row 1)
+            for ($row = 2; $row <= $highestRow; $row++) {
+                $username = trim($sheet->getCell('A' . $row)->getValue());
+                $plan_name = trim($sheet->getCell('E' . $row)->getValue());
+
+                if (empty($username)) {
+                    $results['skipped'][] = "Fila $row: Username vacío";
+                    continue;
+                }
+
+                if (empty($plan_name)) {
+                    $results['errors'][] = "Fila $row ($username): Plan de aprendizaje vacío";
+                    continue;
+                }
+
+                // Find user
+                $user = $DB->get_record('user', ['username' => $username, 'deleted' => 0]);
+                if (!$user) {
+                    $results['errors'][] = "Fila $row ($username): Usuario no encontrado";
+                    continue;
+                }
+
+                // Find plan
+                $plan_name_lower = strtolower(trim($plan_name));
+                if (!isset($plan_map[$plan_name_lower])) {
+                    $results['errors'][] = "Fila $row ($username): Plan '$plan_name' no encontrado";
+                    continue;
+                }
+                $plan_id = $plan_map[$plan_name_lower];
+
+                // Step 1: Assign student role
+                $student_role = $DB->get_record('role', ['shortname' => 'student']);
+                if ($student_role) {
+                    $context = context_system::instance();
+                    $has_role = $DB->record_exists('role_assignments', ['userid' => $user->id, 'roleid' => $student_role->id]);
+
+                    if (!$has_role) {
+                        try {
+                            role_assign($student_role->id, $user->id, $context->id);
+                        } catch (Exception $e) {
+                            $results['errors'][] = "Fila $row ($username): Error asignando rol - " . $e->getMessage();
+                            continue;
+                        }
+                    }
+                }
+
+                // Step 2: Create local_learning_users record if missing
+                $llu = $DB->get_record('local_learning_users', ['userid' => $user->id]);
+                if (!$llu) {
+                    $record = new stdClass();
+                    $record->userid = $user->id;
+                    $record->learningplanid = $plan_id;
+                    $record->currentperiodid = 1;
+                    $record->timecreated = time();
+                    $record->timemodified = time();
+                    $record->usermodified = $USER->id;
+
+                    try {
+                        $DB->insert_record('local_learning_users', $record);
+                        $results['success'][] = "Fila $row ($username): Reparado exitosamente con plan '$plan_name'";
+                    } catch (Exception $e) {
+                        $results['errors'][] = "Fila $row ($username): Error creando registro - " . $e->getMessage();
+                    }
+                } else {
+                    $results['skipped'][] = "Fila $row ($username): Ya tiene registro en local_learning_users";
+                }
+            }
+
+            // Store results for display
+            $_SESSION['bulk_upload_results'] = $results;
+            redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php', ['action' => 'show_results']));
+
+        } catch (Exception $e) {
+            $_SESSION['bulk_upload_error'] = $e->getMessage();
+            redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php'));
+        }
+    } else {
+        $_SESSION['bulk_upload_error'] = 'Error al subir archivo';
+        redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php'));
+    }
+}
+
+echo $OUTPUT->header();
 
 echo "<style>
     table { border-collapse: collapse; width: 100%; margin: 20px 0; }
@@ -23,6 +217,7 @@ echo "<style>
     .section { margin: 30px 0; padding: 20px; border: 2px solid #ccc; border-radius: 5px; }
     pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
     .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; }
+    .btn:hover { opacity: 0.9; text-decoration: none; }
     .btn-primary { background-color: #007bff; color: white; }
     .btn-success { background-color: #28a745; color: white; }
     .btn-danger { background-color: #dc3545; color: white; }
@@ -33,6 +228,86 @@ echo "<style>
 </style>";
 
 echo "<h1>🔧 Reparar Configuración de Estudiantes</h1>";
+
+// ========== SHOW BULK UPLOAD RESULTS ==========
+if ($action === 'show_results' && isset($_SESSION['bulk_upload_results'])) {
+    $results = $_SESSION['bulk_upload_results'];
+    unset($_SESSION['bulk_upload_results']);
+
+    echo "<div class='section'>";
+    echo "<h2>📊 Resultados de Carga Masiva</h2>";
+
+    if (!empty($results['success'])) {
+        echo "<div class='success' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
+        echo "<h3>✅ Procesados Exitosamente (" . count($results['success']) . ")</h3>";
+        echo "<ul>";
+        foreach ($results['success'] as $msg) {
+            echo "<li>$msg</li>";
+        }
+        echo "</ul></div>";
+    }
+
+    if (!empty($results['errors'])) {
+        echo "<div class='error' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
+        echo "<h3>❌ Errores (" . count($results['errors']) . ")</h3>";
+        echo "<ul>";
+        foreach ($results['errors'] as $msg) {
+            echo "<li>$msg</li>";
+        }
+        echo "</ul></div>";
+    }
+
+    if (!empty($results['skipped'])) {
+        echo "<div class='warning' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
+        echo "<h3>⚠️ Omitidos (" . count($results['skipped']) . ")</h3>";
+        echo "<ul>";
+        foreach ($results['skipped'] as $msg) {
+            echo "<li>$msg</li>";
+        }
+        echo "</ul></div>";
+    }
+
+    echo "<a href='?' class='btn btn-primary'>Volver</a>";
+    echo "</div>";
+}
+
+// ========== SHOW BULK UPLOAD ERROR ==========
+if (isset($_SESSION['bulk_upload_error'])) {
+    echo "<div class='error' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
+    echo "❌ Error al procesar archivo: " . $_SESSION['bulk_upload_error'];
+    echo "</div>";
+    unset($_SESSION['bulk_upload_error']);
+}
+
+// ========== BULK UPLOAD FORM ==========
+echo "<div class='section info'>";
+echo "<h2>📤 Carga Masiva desde Excel</h2>";
+echo "<p>Descarga la plantilla Excel con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
+
+echo "<div style='margin: 20px 0;'>";
+echo "<a href='?action=download_template' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
+echo "⬇️ Descargar Plantilla Excel (.xlsx)";
+echo "</a>";
+echo "</div>";
+
+echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
+echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
+echo "<h3>Subir Archivo Completado</h3>";
+echo "<input type='file' name='uploadfile' accept='.xlsx' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
+echo "<br>";
+echo "<input type='submit' value='⬆️ Procesar Archivo' class='btn btn-primary' style='font-size: 16px; padding: 10px 30px; margin-top: 10px;'>";
+echo "</div>";
+echo "</form>";
+
+echo "<div class='warning' style='margin-top: 20px; padding: 15px;'>";
+echo "<strong>⚠️ Importante:</strong><ul>";
+echo "<li>La plantilla contiene SOLO los usuarios sin roles</li>";
+echo "<li>Debes completar la columna 'Plan de Aprendizaje' con el nombre EXACTO del plan</li>";
+echo "<li>NO modifiques las columnas de Username, Nombre, Email o ID Number</li>";
+echo "<li>El sistema asignará automáticamente el rol de estudiante y creará el registro en local_learning_users</li>";
+echo "</ul></div>";
+
+echo "</div>";
 
 // ========== HANDLE ACTIONS ==========
 if ($action === 'fix_single' && $userid > 0 && $confirm === 1) {
