@@ -1114,7 +1114,7 @@ class scheduler extends external_api {
                 'learningplanid' => (int)($c->learningplanid ?? 0),
                 'periodid' => (int)($academic_period_id ?: ($c->institutional_period_id ?? 0)), 
                 'sessions' => $sessArr,
-                'isExternal' => ($c->institutional_period_id != $periodid),
+                'isExternal' => ($academic_period_id != $periodid),
                 'initdate' => (int)($c->initdate ?? 0),
                 'enddate' => (int)($c->enddate ?? 0)
             ];
