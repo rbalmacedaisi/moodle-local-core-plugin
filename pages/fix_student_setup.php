@@ -573,8 +573,17 @@ createApp({
                         .trim();
                 };
 
+                // Find the header row (the one containing 'Username')
+                const headerIndex = rawRows.findIndex(r => r[0] && String(r[0]).trim() === 'Username');
+                if (headerIndex === -1) {
+                    alert('No se encontró la fila de encabezados (Username)');
+                    this.state = 'idle';
+                    return;
+                }
+
                 this.rows = rawRows
-                    .filter(r => r[0] && String(r[0]).trim() !== 'INSTRUCCIONES:' && String(r[0]).trim() !== 'Username' && String(r[0]).trim() !== 'Username (Cédula)')
+                    .slice(headerIndex + 1) // Skip headers and everything above
+                    .filter(r => r[0] && String(r[0]).trim() !== '') // Skip empty rows
                     .map(r => {
                         const isMaster = r.length > 5;
                         
