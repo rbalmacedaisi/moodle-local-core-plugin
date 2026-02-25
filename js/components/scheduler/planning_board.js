@@ -13,7 +13,12 @@ window.SchedulerComponents.PlanningBoard = {
                 <!-- Unassigned List (Left) -->
                 <div class="w-1/4 h-full flex flex-col border-r border-gray-200 bg-slate-50">
                     <div class="p-3 border-b border-gray-200 bg-white shadow-sm flex items-center justify-between">
-                        <h3 class="text-sm font-bold text-slate-700">Por Asignar ({{ unassignedClasses.length }})</h3>
+                        <h3 class="text-sm font-bold text-slate-700">
+                            Por Asignar ({{ unassignedClasses.length }})
+                            <span v-if="allClasses.filter(c => c.isExternal).length > 0" class="ml-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                {{ allClasses.filter(c => c.isExternal).length }} Externos
+                            </span>
+                        </h3>
                         <div class="relative w-32">
                              <input type="text" v-model="search" placeholder="Busca..." class="w-full pl-7 pr-2 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" />
                              <i data-lucide="search" class="absolute left-2 top-1.5 w-3 h-3 text-slate-400"></i>
@@ -107,9 +112,9 @@ window.SchedulerComponents.PlanningBoard = {
                                     
                                     <!-- Placed Events -->
                                     <div v-for="cls in getClassesForDay(day)" :key="cls.id"
-                                        class="absolute left-1 right-1 rounded border overflow-hidden p-1 shadow-sm cursor-pointer hover:shadow-md transition-all z-10 group"
+                                        class="absolute left-1 right-1 rounded border-2 overflow-hidden p-1 shadow-md cursor-pointer hover:shadow-lg transition-all z-20 group"
                                         :class="[
-                                            cls.isExternal ? 'bg-amber-50 border-amber-200' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
+                                            cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
                                         ]"
                                         :style="getEventStyle(cls)"
                                         :title="getConflictTooltip(cls)"
@@ -338,7 +343,7 @@ window.SchedulerComponents.PlanningBoard = {
     data() {
         return {
             search: '',
-            days: ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'],
+            days: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
             startHour: 7,
             endHour: 22,
             draggedClass: null,
@@ -414,13 +419,20 @@ window.SchedulerComponents.PlanningBoard = {
         if (window.lucide) window.lucide.createIcons();
     },
     methods: {
+        normalizeDay(d) {
+            if (!d) return '';
+            return d.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        },
         getClassesForDay(day) {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
             const shiftFilter = this.storeState.shiftFilter;
 
             return this.allClasses.filter(c => {
-                if (c.day !== day || !c.start || !c.end) return false;
+                const cDay = this.normalizeDay(c.day);
+                const tDay = this.normalizeDay(day);
+
+                if (cDay !== tDay || !c.start || !c.end) return false;
 
                 // External courses bypass filtering (they are read-only markers from other periods)
                 if (c.isExternal) return true;
@@ -473,9 +485,12 @@ window.SchedulerComponents.PlanningBoard = {
             };
         },
         toMins(t) {
-            if (!t) return 0;
-            const [h, m] = t.split(':').map(Number);
-            return h * 60 + m;
+            if (!t || typeof t !== 'string') return 0;
+            const parts = t.trim().split(':');
+            if (parts.length < 2) return 0;
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            return (h * 60) + m;
         },
         getConflicts(cls) {
             if (!window.SchedulerAlgorithm || !window.SchedulerAlgorithm.detectConflicts) return [];
