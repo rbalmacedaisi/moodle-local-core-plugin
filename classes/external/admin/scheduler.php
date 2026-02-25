@@ -948,7 +948,7 @@ class scheduler extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-        $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
+        $sql = "SELECT c.id, c.courseid, c.name as subjectname, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
                        c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid,
                        c.initdate, c.enddate, c.inittime, c.endtime, c.classdays
@@ -1074,7 +1074,7 @@ class scheduler extends external_api {
                 }
             }
 
-            $subjectName = $c->subjectname ?? $c->name ?? ('Materia ' . $c->courseid);
+            $subjectName = $c->subjectname ?? ('Materia ' . $c->courseid);
 
             $result[] = [
                 'id' => (int)$c->id,
