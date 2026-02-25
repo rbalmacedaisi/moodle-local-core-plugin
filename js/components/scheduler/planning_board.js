@@ -369,6 +369,9 @@ window.SchedulerComponents.PlanningBoard = {
                 const isUnassigned = c.day === 'N/A' || !c.day;
                 if (!isUnassigned) return false;
 
+                // External courses bypass filtering (they are read-only markers from other periods)
+                if (c.isExternal) return true;
+
                 // Career filter (Robust check)
                 if (careerFilter) {
                     const inList = c.careerList && c.careerList.includes(careerFilter);
@@ -418,6 +421,9 @@ window.SchedulerComponents.PlanningBoard = {
 
             return this.allClasses.filter(c => {
                 if (c.day !== day || !c.start || !c.end) return false;
+
+                // External courses bypass filtering (they are read-only markers from other periods)
+                if (c.isExternal) return true;
 
                 // Career filter (Robust check)
                 if (careerFilter) {

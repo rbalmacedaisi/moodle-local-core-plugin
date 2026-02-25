@@ -216,19 +216,24 @@
                         }
                     }
 
-                    // Career filter (Robust check)
-                    if (careerFilter) {
-                        const inList = sched.careerList && sched.careerList.includes(careerFilter);
-                        const inString = sched.career && sched.career.includes(careerFilter);
-                        if (!inList && !inString) return;
-                    }
+                    // External courses bypass filtering (they are read-only markers from other periods)
+                    if (sched.isExternal) {
+                        // Keep going to generate sessions
+                    } else {
+                        // Career filter (Robust check)
+                        if (careerFilter) {
+                            const inList = sched.careerList && sched.careerList.includes(careerFilter);
+                            const inString = sched.career && sched.career.includes(careerFilter);
+                            if (!inList && !inString) return;
+                        }
 
-                    // Shift filter
-                    if (shiftFilter && sched.shift !== shiftFilter) return;
+                        // Shift filter
+                        if (shiftFilter && sched.shift !== shiftFilter) return;
 
-                    // Filter by subperiod
-                    if (store.state.subperiodFilter !== 0 && sched.subperiod !== 0) {
-                        if (sched.subperiod !== store.state.subperiodFilter) return;
+                        // Filter by subperiod
+                        if (store.state.subperiodFilter !== 0 && sched.subperiod !== 0) {
+                            if (sched.subperiod !== store.state.subperiodFilter) return;
+                        }
                     }
 
                     // Range for this schedule based on subperiod
