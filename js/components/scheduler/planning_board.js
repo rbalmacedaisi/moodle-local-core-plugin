@@ -614,16 +614,23 @@ window.SchedulerComponents.PlanningBoard = {
                 this.saving = false;
             }
         },
-        viewStudents(cls) {
-            if (!window.schedulerStore || !cls.studentIds) {
-                this.currentStudents = [];
-                this.studentsDialog = true;
-                return;
+        async viewStudents(cls) {
+            if (!window.schedulerStore) return;
+
+            // For external courses or if we suspect local list is incomplete, fetch from backend
+            if (cls.isExternal || !cls.studentIds || cls.studentIds.length === 0 || (cls.studentCount > 0 && (!this.storeState.students || this.storeState.students.length === 0))) {
+                // If the class has students but we don't have metadata, fetch specifically for this class
+                const fetched = await window.schedulerStore.fetchClassStudents(cls.id);
+                if (fetched && fetched.length > 0) {
+                    this.currentStudents = fetched;
+                    this.studentsDialog = true;
+                    return;
+                }
             }
 
+            // Fallback to local filter if fetch failed or if it's internal and we have the data
             const allStudents = window.schedulerStore.state.students || [];
-            // Filter students whose id is in cls.studentIds
-            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id || s.dbId));
+            this.currentStudents = allStudents.filter(s => (cls.studentIds || []).includes(s.id || s.dbId));
             this.studentsDialog = true;
         },
         viewAuditLog(cls) {

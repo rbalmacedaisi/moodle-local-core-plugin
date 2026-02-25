@@ -1229,6 +1229,7 @@ function get_class_participants($class)
     $classParticipants->enroledStudents =  $DB->get_records('groups_members', ['groupid' => $class->groupid]);
     $classParticipants->preRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
     $classParticipants->queuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+    $classParticipants->progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
     return $classParticipants;
 }
 
@@ -1617,6 +1618,17 @@ function get_course_students_by_class_schedule($classId)
         $student->profilePicture = get_user_picture_url($studentInfo ? $studentInfo->id : 0);
         return $student;
     }, $classStudents->queuedStudents);
+
+    $classStudents->progreStudents = array_map(function ($student) use ($resolveUser) {
+        $studentInfo = $resolveUser($student->userid);
+        if ($studentInfo) {
+            $student->email = $studentInfo->email;
+            $student->firstname = $studentInfo->firstname;
+            $student->lastname = $studentInfo->lastname;
+        }
+        $student->profilePicture = get_user_picture_url($studentInfo ? $studentInfo->id : 0);
+        return $student;
+    }, $classStudents->progreStudents);
 
     return $classStudents;
 }

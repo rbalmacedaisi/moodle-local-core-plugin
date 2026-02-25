@@ -705,6 +705,42 @@
             }
         },
 
+        async fetchClassStudents(classId) {
+            try {
+                const res = await this._fetch('local_grupomakro_get_course_students_by_class_schedule', { classId: String(classId) });
+                if (res && res.status === 1 && res.classStudents) {
+                    const raw = JSON.parse(res.classStudents);
+                    // Flatten groups: enroledStudents, preRegisteredStudents, queuedStudents, progreStudents
+                    const flat = [];
+                    const types = ['enroledStudents', 'preRegisteredStudents', 'queuedStudents', 'progreStudents'];
+                    const seen = new Set();
+
+                    types.forEach(type => {
+                        if (raw[type] && Array.isArray(raw[type])) {
+                            raw[type].forEach(s => {
+                                // Map to the format PlanningBoard expects: { id, name, career }
+                                // In the backend, 'userid' is the DB ID.
+                                if (!seen.has(s.userid)) {
+                                    flat.push({
+                                        id: s.idnumber || s.userid,
+                                        dbId: s.userid,
+                                        name: `${s.firstname} ${s.lastname}`,
+                                        career: s.career || 'N/A'
+                                    });
+                                    seen.add(s.userid);
+                                }
+                            });
+                        }
+                    });
+                    return flat;
+                }
+                return [];
+            } catch (e) {
+                console.error("Error fetching class students", e);
+                return [];
+            }
+        },
+
         // --- Utils ---
 
         async _fetch(action, params = {}) {
