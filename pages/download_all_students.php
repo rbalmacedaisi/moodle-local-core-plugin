@@ -16,8 +16,8 @@ global $DB;
 
 // SQL to get all students with their core data and academic configuration
 $sql = "SELECT 
-            u.id as userid,
             llu.id as recordid,
+            u.id as userid,
             u.username, 
             u.firstname, 
             u.lastname, 
@@ -49,7 +49,11 @@ $students = $DB->get_records_sql($sql);
 
 if (!empty($students)) {
     // Fetch ALL custom profile fields for these users in one query
-    $user_ids = array_keys($students);
+    $user_ids = [];
+    foreach ($students as $s) {
+        $user_ids[$s->userid] = $s->userid;
+    }
+    
     list($insql, $inparams) = $DB->get_in_or_equal($user_ids);
     $custom_data_sql = "SELECT d.id, d.userid, f.shortname, d.data
                         FROM {user_info_data} d
@@ -58,9 +62,12 @@ if (!empty($students)) {
     $custom_records = $DB->get_records_sql($custom_data_sql, $inparams);
     
     foreach ($custom_records as $cr) {
-        if (isset($students[$cr->userid])) {
-            $fieldname = 'profile_field_' . $cr->shortname;
-            $students[$cr->userid]->$fieldname = $cr->data;
+        // Find all student records for this userid and apply the custom field
+        foreach ($students as $recordid => $s) {
+            if ($s->userid == $cr->userid) {
+                $fieldname = 'profile_field_' . $cr->shortname;
+                $students[$recordid]->$fieldname = $cr->data;
+            }
         }
     }
 }
