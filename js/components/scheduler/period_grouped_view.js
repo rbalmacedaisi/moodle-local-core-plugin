@@ -47,7 +47,10 @@ window.SchedulerComponents.PeriodGroupedView = {
                                     class="p-2 rounded border text-xs relative group hover:shadow-md transition-all"
                                     :class="getCardClass(cls)"
                                 >
-                                    <div class="font-bold leading-tight mb-1">{{ cls.subjectName }}</div>
+                                    <div class="font-bold leading-tight mb-1">
+                                        {{ cls.subjectName }}
+                                        <span v-if="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
+                                    </div>
                                     <div class="flex justify-between items-center text-[10px] opacity-80">
                                         <span>{{ cls.start }} - {{ cls.end }}</span>
                                     </div>
@@ -61,6 +64,7 @@ window.SchedulerComponents.PeriodGroupedView = {
                                      <!-- Tooltip on Hover -->
                                     <div class="absolute inset-0 bg-white/95 opacity-0 group-hover:opacity-100 transition-opacity p-2 flex flex-col justify-center items-center text-center border-2 border-blue-500 rounded z-10">
                                         <span class="font-bold text-blue-700">{{ cls.room || 'Sin aula' }}</span>
+                                        <span v-if="cls.isExternal" class="text-[9px] text-amber-600 font-bold uppercase mt-1">Periodo Externo</span>
                                         <span class="text-[9px] text-slate-500 italic mt-1">{{ cls.shift }}</span>
                                         <span class="text-[10px] text-slate-600 block mb-2">{{ cls.subperiod === 0 ? 'Semestral' : (cls.subperiod === 1 ? 'Bloque 1' : 'Bloque 2') }}</span>
                                         <button @click.stop="viewStudents(cls)" class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold hover:bg-blue-200 pointer-events-auto">

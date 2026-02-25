@@ -2756,8 +2756,9 @@ try {
 
         case 'local_grupomakro_get_generated_schedules':
             $periodid = required_param('periodid', PARAM_INT);
+            $includeoverlaps = optional_param('includeoverlaps', 0, PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
-            $data = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid);
+            $data = \local_grupomakro_core\external\admin\scheduler::get_generated_schedules($periodid, $includeoverlaps);
             $response = ['status' => 'success', 'data' => $data];
             break;
 

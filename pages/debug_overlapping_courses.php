@@ -59,6 +59,7 @@ if ($periodid) {
                 <th>Periodo Original</th>
                 <th>Materia</th>
                 <th>Instructor</th>
+                <th>Estudiantes</th>
                 <th>Inicio</th>
                 <th>Fin</th>
                 <th>Jornada</th>
@@ -68,11 +69,30 @@ if ($periodid) {
         foreach ($overlappingClasses as $c) {
             $instructor = $c->firstname ? "$c->firstname $c->lastname" : "Sin asignar";
             $pName = $c->period_name ?: "<span class='badge badge-danger'>SIN PERIODO</span>";
+            
+            // Get students
+            $students = $DB->get_records_sql("
+                SELECT u.id, u.idnumber, u.firstname, u.lastname 
+                FROM {user} u
+                JOIN {gmk_class_queue} q ON q.userid = u.id
+                WHERE q.classid = ?", [$c->id]);
+            
+            $stuList = [];
+            foreach ($students as $s) {
+                $stuList[] = "$s->firstname $s->lastname (" . ($s->idnumber ?: $s->id) . ")";
+            }
+            $stuDisplay = "<strong>" . count($stuList) . "</strong>";
+            if (count($stuList) > 0) {
+                $stuDisplay .= " <i class='fa fa-info-circle text-info' title='" . implode(", ", $stuList) . "'></i>";
+                $stuDisplay .= "<br><small class='text-muted'>" . implode("<br>", array_slice($stuList, 0, 3)) . (count($stuList) > 3 ? "..." : "") . "</small>";
+            }
+
             echo "<tr>";
             echo "<td>$c->id</td>";
             echo "<td>$pName</td>";
             echo "<td>$c->name</td>";
             echo "<td>$instructor</td>";
+            echo "<td>$stuDisplay</td>";
             echo "<td>" . ($c->initdate ? date('d/m/Y', $c->initdate) : 'N/A') . "</td>";
             echo "<td>" . ($c->enddate ? date('d/m/Y', $c->enddate) : 'N/A') . "</td>";
             echo "<td>$c->shift</td>";

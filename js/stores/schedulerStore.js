@@ -100,7 +100,10 @@
         async loadGeneratedSchedules(periodId) {
             this.state.loading = true;
             try {
-                const res = await this._fetch('local_grupomakro_get_generated_schedules', { periodid: periodId });
+                const res = await this._fetch('local_grupomakro_get_generated_schedules', {
+                    periodid: periodId,
+                    includeoverlaps: 1
+                });
                 const rawData = Array.isArray(res) ? res : (res.data || []);
 
                 // Normalize data (Ensure careerList exists for filtering)

@@ -942,7 +942,7 @@ class scheduler extends external_api {
         ]);
     }
 
-    public static function get_generated_schedules($periodid) {
+    public static function get_generated_schedules($periodid, $includeoverlaps = false) {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -950,13 +950,29 @@ class scheduler extends external_api {
 
         $sql = "SELECT c.id, c.courseid, c.name as subjectName, c.instructorid, u.firstname, u.lastname,
                        lp.name as career, c.type, c.typelabel, c.subperiodid as subperiod, c.groupid as subGroup, c.learningplanid,
-                       c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid
+                       c.shift, c.level_label, c.career_label, c.periodid as institutional_period_id, c.corecourseid,
+                       c.initdate, c.enddate
                 FROM {gmk_class} c
                 LEFT JOIN {user} u ON u.id = c.instructorid
                 LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
                 WHERE c.periodid = :periodid";
         
-        $classes = $DB->get_records_sql($sql, ['periodid' => $periodid]);
+        $params = ['periodid' => $periodid];
+        
+        if ($includeoverlaps) {
+            $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid], 'startdate, enddate');
+            if ($period) {
+                // Fetch classes from OTHER periods OR WITHOUT period that overlap in dates
+                // Intersection condition: (s1 <= e2) AND (e1 >= s2)
+                $sql .= " OR ((c.periodid != :periodid2 OR c.periodid IS NULL OR c.periodid = 0) 
+                              AND c.initdate <= :enddate AND c.enddate >= :startdate)";
+                $params['periodid2'] = $periodid;
+                $params['startdate'] = $period->startdate;
+                $params['enddate'] = $period->enddate;
+            }
+        }
+
+        $classes = $DB->get_records_sql($sql, $params);
         $result = [];
         
         $classrooms_cache = [];
@@ -1065,7 +1081,10 @@ class scheduler extends external_api {
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
                 'periodid' => (int)($academic_period_id ?: ($c->institutional_period_id ?? 0)), 
-                'sessions' => $sessArr
+                'sessions' => $sessArr,
+                'isExternal' => ($c->institutional_period_id != $periodid),
+                'initdate' => (int)($c->initdate ?? 0),
+                'enddate' => (int)($c->enddate ?? 0)
             ];
         }
 

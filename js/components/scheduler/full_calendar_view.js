@@ -137,32 +137,35 @@
                         const props = arg.event.extendedProps;
                         const isExcluded = props.isExcluded;
                         const isHoliday = props.isHoliday;
+                        const isExternal = props.isExternal;
 
-                        let bgColor = isExcluded ? (isHoliday ? 'bg-slate-100' : 'bg-red-50') : 'bg-blue-600';
-                        let borderColor = isExcluded ? (isHoliday ? 'border-slate-200' : 'border-red-200') : 'border-blue-700';
-                        let textColor = isExcluded ? (isHoliday ? 'text-slate-500' : 'text-red-700') : 'text-white';
-                        let dotColor = isExcluded ? (isHoliday ? 'bg-slate-400' : 'bg-red-500') : 'bg-blue-200';
+                        let bgColor = isExcluded ? (isHoliday ? 'bg-slate-100' : 'bg-red-50') : (isExternal ? 'bg-amber-50' : 'bg-blue-600');
+                        let borderColor = isExcluded ? (isHoliday ? 'border-slate-200' : 'border-red-200') : (isExternal ? 'border-amber-200' : 'border-blue-700');
+                        let textColor = isExcluded ? (isHoliday ? 'text-slate-500' : 'text-red-700') : (isExternal ? 'text-amber-800' : 'text-white');
+                        let dotColor = isExcluded ? (isHoliday ? 'bg-slate-400' : 'bg-red-500') : (isExternal ? 'bg-amber-400' : 'bg-blue-200');
 
                         let statusBadge = '';
                         if (isHoliday) {
                             statusBadge = '<span class="text-[7px] font-black uppercase text-slate-600 bg-white px-1 rounded border border-slate-100 shadow-sm">FESTIVO</span>';
                         } else if (isExcluded) {
                             statusBadge = '<span class="text-[7px] font-black uppercase text-red-600 bg-white px-1 rounded border border-red-100 shadow-sm">LIBERADO</span>';
+                        } else if (isExternal) {
+                            statusBadge = '<span class="text-[7px] font-black uppercase text-amber-600 bg-white px-1 rounded border border-amber-100 shadow-sm">EXTERNO</span>';
                         }
 
                         return {
                             html: `
-                                <div class="p-1 px-1.5 rounded flex flex-col gap-0.5 border ${borderColor} ${bgColor} overflow-hidden shadow-sm">
-                                    <div class="flex items-center gap-1.5 overflow-hidden">
-                                        <div class="w-1.5 h-1.5 rounded-full ${dotColor} shrink-0"></div>
-                                        <span class="text-[9px] font-extrabold truncate ${textColor} uppercase">${arg.event.title}</span>
-                                    </div>
-                                    <div class="flex justify-between items-center px-0.5">
-                                        <span class="text-[8px] font-medium opacity-80 ${textColor}">${arg.event.extendedProps.timeStr || ''}</span>
-                                        ${statusBadge}
-                                    </div>
+                            <div class="p-1 px-1.5 rounded flex flex-col gap-0.5 border ${borderColor} ${bgColor} overflow-hidden shadow-sm">
+                                <div class="flex items-center gap-1.5 overflow-hidden">
+                                    <div class="w-1.5 h-1.5 rounded-full ${dotColor} shrink-0"></div>
+                                    <span class="text-[9px] font-extrabold truncate ${textColor} uppercase">${arg.event.title}</span>
                                 </div>
-                            `
+                                <div class="flex justify-between items-center px-0.5">
+                                    <span class="text-[8px] font-medium opacity-80 ${textColor}">${arg.event.extendedProps.timeStr || ''}</span>
+                                    ${statusBadge}
+                                </div>
+                            </div>
+                        `
                         };
                     }
                 });
@@ -293,11 +296,12 @@
                                 title: sched.subjectName,
                                 start: `${dateStr}T${session.start}`,
                                 end: `${dateStr}T${session.end}`,
-                                color: sched.subperiod === 2 ? '#0d9488' : '#2563eb', // Teal for P-II, Blue for P-I
+                                color: sched.isExternal ? '#f59e0b' : (sched.subperiod === 2 ? '#0d9488' : '#2563eb'), // Amber for External, Teal for P-II, Blue for P-I
                                 extendedProps: {
                                     isExcluded: isEffectiveExcluded,
                                     isHoliday: isHoliday,
                                     isManualExcluded: isExcluded,
+                                    isExternal: sched.isExternal,
                                     schedIdx: schedIdx,
                                     sessionIdx: sessionIdx,
                                     dateStr: dateStr,
@@ -330,7 +334,7 @@
 
             const handleEventClick = (info) => {
                 const props = info.event.extendedProps;
-                if (props.isHoliday) return;
+                if (props.isHoliday || props.isExternal) return;
 
                 const sched = store.state.generatedSchedules[props.schedIdx];
                 const session = sched.sessions[props.sessionIdx];

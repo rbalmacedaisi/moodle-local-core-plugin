@@ -108,15 +108,18 @@ window.SchedulerComponents.PlanningBoard = {
                                     <!-- Placed Events -->
                                     <div v-for="cls in getClassesForDay(day)" :key="cls.id"
                                         class="absolute left-1 right-1 rounded border overflow-hidden p-1 shadow-sm cursor-pointer hover:shadow-md transition-all z-10 group"
-                                        :class="getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'"
+                                        :class="[
+                                            cls.isExternal ? 'bg-amber-50 border-amber-200' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
+                                        ]"
                                         :style="getEventStyle(cls)"
                                         :title="getConflictTooltip(cls)"
-                                        draggable="true"
+                                        :draggable="!cls.isExternal"
                                         @dragstart="onDragStart($event, cls)"
                                         @click="editClass(cls)"
                                     >
-                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800'">
+                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="cls.isExternal ? 'text-amber-800' : (getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800')">
                                             {{ cls.subjectName }}
+                                            <span v-if="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
                                             <span v-if="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
                                                 {{ cls.excluded_dates.length }}
                                             </span>
@@ -155,11 +158,15 @@ window.SchedulerComponents.PlanningBoard = {
              <!-- Edit Modal (Tailwind) -->
              <div v-if="editDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="editDialog = false">
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200" v-if="selectedClass">
-                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                         <h4 class="font-bold text-slate-800">Editar Clase</h4>
-                         <button @click="editDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
-                    </div>
-                    <div class="p-4 space-y-3">
+                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                          <h4 class="font-bold text-slate-800">{{ selectedClass.isExternal ? 'Detalles de Clase Externa' : 'Editar Clase' }}</h4>
+                          <button @click="editDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                     </div>
+                     <div class="p-4 space-y-3" :class="{'opacity-80': selectedClass.isExternal}">
+                        <div v-if="selectedClass.isExternal" class="bg-amber-50 border border-amber-200 p-2 rounded-lg flex items-center gap-2 mb-2">
+                            <i data-lucide="info" class="w-4 h-4 text-amber-600"></i>
+                            <span class="text-[10px] font-bold text-amber-700 uppercase">Clase de otro periodo. Solo lectura.</span>
+                        </div>
                         <div class="mb-3">
                             <h3 class="font-bold text-lg text-slate-800 leading-tight">{{ selectedClass.subjectName }}</h3>
                             <p class="text-xs text-slate-500 mt-1">{{ selectedClass.career }} &bull; {{ selectedClass.levelDisplay }}</p>
@@ -172,7 +179,8 @@ window.SchedulerComponents.PlanningBoard = {
                                     @input="onTeacherChange"
                                     @focus="showTeacherList = true"
                                     @blur="hideTeacherList"
-                                    class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" 
+                                    :disabled="selectedClass.isExternal"
+                                    class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed" 
                                     placeholder="Buscar docente o 'Sin asignar'..." />
                                 
                                 <div v-if="showTeacherList && filteredInstructors.length > 0" 
@@ -202,7 +210,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Tipo de Clase</label>
-                                <select v-model="selectedClass.type" @change="onTypeChange" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                                <select v-model="selectedClass.type" @change="onTypeChange" :disabled="selectedClass.isExternal" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed">
                                     <option :value="1">Virtual</option>
                                     <option :value="0">Presencial</option>
                                     <option :value="2">Mixta</option>
@@ -210,22 +218,22 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
-                                <input type="text" v-model="selectedClass.room" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="E.g. A-101" />
+                                <input type="text" v-model="selectedClass.room" :disabled="selectedClass.isExternal" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed" placeholder="E.g. A-101" />
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Inicio</label>
-                                <input type="time" v-model="selectedClass.start" class="w-full px-2 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                                <input type="time" v-model="selectedClass.start" :disabled="selectedClass.isExternal" class="w-full px-2 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed" />
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fin</label>
-                                <input type="time" v-model="selectedClass.end" class="w-full px-2 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                                <input type="time" v-model="selectedClass.end" :disabled="selectedClass.isExternal" class="w-full px-2 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed" />
                             </div>
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Bloque / Sub-Periodo</label>
-                            <select v-model="selectedClass.subperiod" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                            <select v-model="selectedClass.subperiod" :disabled="selectedClass.isExternal" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed">
                                 <option :value="0">Ambos / Todo el periodo</option>
                                 <option :value="1">P-I (Bloque 1)</option>
                                 <option :value="2">P-II (Bloque 2)</option>
@@ -235,7 +243,7 @@ window.SchedulerComponents.PlanningBoard = {
                               <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
                               </button>
-                             <button @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
+                             <button v-if="!selectedClass.isExternal" @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
                                 Desasignar (Mover a Lista)
                              </button>
                         </div>
