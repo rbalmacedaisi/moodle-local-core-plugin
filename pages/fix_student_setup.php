@@ -17,9 +17,6 @@ $confirm = optional_param('confirm', 0, PARAM_INT);
 
 // ========== DOWNLOAD TEMPLATE ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'download_template') {
-    require_login();
-    require_capability('moodle/site:config', context_system::instance());
-
     // Get all users without roles
     $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
             FROM {user} u
@@ -69,9 +66,6 @@ if ($action === 'download_template') {
 
 // ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
-    require_login();
-    require_capability('moodle/site:config', context_system::instance());
-
     $uploadfile = $_FILES['uploadfile'];
 
     if ($uploadfile['error'] === UPLOAD_ERR_OK) {
