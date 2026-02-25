@@ -36,16 +36,37 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
                 $plan_map[strtolower(trim($p->name))] = $p->id;
             }
 
-            // Read CSV file
-            $fp = fopen($tmpfile, 'r');
-            $row_num = 0;
+            // Detect file type and read accordingly
+            $file_extension = strtolower(pathinfo($uploadfile['name'], PATHINFO_EXTENSION));
+            $data_rows = [];
 
-            while (($data = fgetcsv($fp)) !== false) {
+            if ($file_extension === 'xlsx') {
+                // Read Excel file
+                $spreadsheet = IOFactory::load($tmpfile);
+                $sheet = $spreadsheet->getActiveSheet();
+                $data_rows = $sheet->toArray(null, true, true, true);
+
+                // Remove header row
+                array_shift($data_rows);
+            } else {
+                // Read CSV file
+                $fp = fopen($tmpfile, 'r');
+                while (($data = fgetcsv($fp)) !== false) {
+                    $data_rows[] = $data;
+                }
+                fclose($fp);
+
+                // Remove header row
+                array_shift($data_rows);
+            }
+
+            $row_num = 1; // Start from 1 (after header)
+            foreach ($data_rows as $data) {
                 $row_num++;
 
-                // Skip header row
-                if ($row_num === 1) {
-                    continue;
+                // For Excel, convert from associative array (A, B, C...) to indexed
+                if ($file_extension === 'xlsx') {
+                    $data = array_values($data);
                 }
 
                 // Stop at instructions section
@@ -118,8 +139,6 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
                     $results['skipped'][] = "Fila $row_num ($username): Ya tiene registro en local_learning_users";
                 }
             }
-
-            fclose($fp);
 
             // Store results for display
             $_SESSION['bulk_upload_results'] = $results;
@@ -215,12 +234,12 @@ if (isset($_SESSION['bulk_upload_error'])) {
 
 // ========== BULK UPLOAD FORM ==========
 echo "<div class='section info'>";
-echo "<h2>📤 Carga Masiva desde CSV</h2>";
-echo "<p>Descarga la plantilla CSV con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
+echo "<h2>📤 Carga Masiva desde Excel</h2>";
+echo "<p>Descarga la plantilla Excel con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
 
 echo "<div style='margin: 20px 0;'>";
 echo "<a href='download_fix_template.php' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
-echo "⬇️ Descargar Plantilla CSV";
+echo "⬇️ Descargar Plantilla Excel";
 echo "</a>";
 echo "</div>";
 
@@ -228,7 +247,7 @@ echo "</div>";
 echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
 echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
 echo "<h3>Subir Archivo Completado</h3>";
-echo "<input type='file' name='uploadfile' accept='.csv' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
+echo "<input type='file' name='uploadfile' accept='.xlsx,.csv' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
 echo "<br>";
 echo "<input type='submit' value='⬆️ Procesar Archivo' class='btn btn-primary' style='font-size: 16px; padding: 10px 30px; margin-top: 10px;'>";
 echo "</div>";
@@ -240,7 +259,7 @@ echo "<li>La plantilla contiene SOLO los usuarios sin roles</li>";
 echo "<li>Debes completar la columna 'Plan de Aprendizaje' con el nombre EXACTO del plan</li>";
 echo "<li>NO modifiques las columnas de Username, Nombre, Email o ID Number</li>";
 echo "<li>El sistema asignará automáticamente el rol de estudiante y creará el registro en local_learning_users</li>";
-echo "<li>Puedes editar el CSV en Excel, Google Sheets o cualquier editor de texto</li>";
+echo "<li>Puedes editar el archivo en Excel, guardar y subirlo (acepta .xlsx o .csv)</li>";
 echo "</ul></div>";
 
 echo "</div>";
