@@ -1233,6 +1233,32 @@ function get_class_participants($class)
     return $classParticipants;
 }
 
+function get_enrolled_students_by_courseid($corecourseid)
+{
+    global $DB;
+
+    $sql = "SELECT u.id, u.firstname, u.lastname, u.email, u.username
+            FROM {user} u
+            JOIN {user_enrolments} ue ON u.id = ue.userid
+            JOIN {enrol} e ON ue.enrolid = e.id
+            WHERE e.courseid = :courseid
+            AND u.deleted = 0
+            ORDER BY u.lastname, u.firstname";
+
+    $users = $DB->get_records_sql($sql, ['courseid' => $corecourseid]);
+
+    // Format to match existing structure
+    return array_map(function ($u) {
+        return (object)[
+            'id' => $u->id,
+            'firstname' => $u->firstname,
+            'lastname' => $u->lastname,
+            'email' => $u->email,
+            'username' => $u->username
+        ];
+    }, $users);
+}
+
 function check_course_alternative_schedules($selectedClass, $userId)
 {
     global $DB;
@@ -1570,10 +1596,36 @@ function deleteStudentFromClassSchedule($deletedStudents)
     return;
 }
 
-function get_course_students_by_class_schedule($classId)
+function get_course_students_by_class_schedule($classId, $activePeriodId = null)
 {
     global $DB;
-    $classStudents = get_class_participants($DB->get_record('gmk_class', ['id' => $classId]));
+    $class = $DB->get_record('gmk_class', ['id' => $classId]);
+
+    // Determine if external class
+    $isExternal = false;
+    if ($activePeriodId && $class->periodid != $activePeriodId) {
+        $isExternal = true;
+    }
+
+    // EXTERNAL CLASS: Get Moodle enrollments
+    if ($isExternal && $class->corecourseid) {
+        $students = get_enrolled_students_by_courseid($class->corecourseid);
+
+        // Format to match expected structure
+        $classStudents = new stdClass();
+        $classStudents->enroledStudents = array_map(function ($student) {
+            $student->profilePicture = get_user_picture_url($student->id);
+            return $student;
+        }, $students);
+        $classStudents->preRegisteredStudents = [];
+        $classStudents->queuedStudents = [];
+        $classStudents->progreStudents = [];
+
+        return $classStudents;
+    }
+
+    // NORMAL CLASS: Use existing logic
+    $classStudents = get_class_participants($class);
 
     // Helper function to resolve a userid that might be an idnumber string
     $resolveUser = function($userid) use ($DB) {

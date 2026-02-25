@@ -707,7 +707,10 @@
 
         async fetchClassStudents(classId) {
             try {
-                const res = await this._fetch('local_grupomakro_get_course_students_by_class_schedule', { classId: String(classId) });
+                const res = await this._fetch('local_grupomakro_get_course_students_by_class_schedule', {
+                    classid: String(classId),  // Fix: lowercase
+                    periodid: String(this.state.activePeriod || 0)  // Add: active period
+                });
                 if (res && res.status === 1 && res.classStudents) {
                     const raw = JSON.parse(res.classStudents);
                     // Flatten groups: enroledStudents, preRegisteredStudents, queuedStudents, progreStudents
@@ -719,15 +722,16 @@
                         if (raw[type] && Array.isArray(raw[type])) {
                             raw[type].forEach(s => {
                                 // Map to the format PlanningBoard expects: { id, name, career }
-                                // In the backend, 'userid' is the DB ID.
-                                if (!seen.has(s.userid)) {
+                                // In the backend, 'userid' is the DB ID, or for external classes, 'id' directly
+                                const userId = s.userid || s.id;
+                                if (userId && !seen.has(userId)) {
                                     flat.push({
-                                        id: s.idnumber || s.userid,
-                                        dbId: s.userid,
+                                        id: s.idnumber || userId,
+                                        dbId: userId,
                                         name: `${s.firstname} ${s.lastname}`,
                                         career: s.career || 'N/A'
                                     });
-                                    seen.add(s.userid);
+                                    seen.add(userId);
                                 }
                             });
                         }

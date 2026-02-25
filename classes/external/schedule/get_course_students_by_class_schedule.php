@@ -56,7 +56,8 @@ class get_course_students_by_class_schedule extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters(
             [
-                'classId' => new external_value(PARAM_TEXT, 'Course ID', VALUE_REQUIRED)
+                'classId' => new external_value(PARAM_TEXT, 'Course ID', VALUE_REQUIRED),
+                'periodId' => new external_value(PARAM_INT, 'Active Period ID', VALUE_DEFAULT, 0)
             ]
         );
     }
@@ -68,16 +69,18 @@ class get_course_students_by_class_schedule extends external_api {
      * @return mixed TODO document
      */
     public static function execute(
-            string $classId
+            string $classId,
+            int $periodId = 0
         ) {
 
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId' => $classId,
+            'periodId' => $periodId
         ]);
         try{
-            
-            $classStudents = get_course_students_by_class_schedule($params['classId']);
+
+            $classStudents = get_course_students_by_class_schedule($params['classId'], $params['periodId']);
 
             // Return the result.
             return ['status' => 1, 'classStudents'=>json_encode($classStudents)];
@@ -85,7 +88,7 @@ class get_course_students_by_class_schedule extends external_api {
         catch (Exception $e) {
             return ['status' => -1, 'message' => $e->getMessage()];
         }
-        
+
     }
 
 
