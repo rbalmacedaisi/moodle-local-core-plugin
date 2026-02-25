@@ -5,7 +5,7 @@ require_once($CFG->libdir . '/adminlib.php');
 global $DB;
 
 // Get parameters BEFORE any page setup
-$action = optional_param('action', '', PARAM_ALPHA);
+$action = optional_param('action', '', PARAM_ALPHANUMEXT);
 $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
@@ -203,7 +203,11 @@ echo $OUTPUT->header();
                                 <i data-lucide="copy" class="w-3 h-3"></i>
                             </button>
                         </div>
-                        <div v-if="!plans.length" class="text-slate-400 text-xs italic">Cargando planes...</div>
+                        <div v-if="!plans.length && !hasError" class="text-slate-400 text-xs italic">Cargando planes...</div>
+                        <div v-if="hasError" class="text-red-500 text-[10px] font-bold bg-red-50 p-2 rounded-lg border border-red-100 flex flex-col gap-1">
+                            <span>Error al obtener planes</span>
+                            <button @click="fetchPlans" class="text-red-700 underline text-left">Reintentar</button>
+                        </div>
                     </div>
                     <div class="mt-4 pt-4 border-t border-slate-50">
                         <button @click="fetchPlans" class="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
@@ -367,7 +371,8 @@ createApp({
             logs: [],
             isFinished: false,
             isCancelled: false,
-            currentXhr: null
+            currentXhr: null,
+            hasError: false
         }
     },
     computed: {
@@ -383,13 +388,20 @@ createApp({
     },
     methods: {
         async fetchPlans() {
+            this.hasError = false;
             try {
-                const res = await axios.get(window.location.href + '?action=get_plans');
+                const url = window.location.pathname;
+                const res = await axios.get(url, { params: { action: 'get_plans' } });
                 if (res.data.status === 'success') {
                     this.plans = res.data.plans;
+                } else {
+                    this.hasError = true;
+                    console.error("Backend error fetching plans:", res.data.message);
                 }
             } catch (e) {
-                console.error("Error fetching plans", e);
+                this.hasError = true;
+                console.error("Network/Server error fetching plans:", e);
+                this.addLog('error', 'Error al cargar listado de planes de capacitación.');
             }
         },
         handleFile(e) {
@@ -476,8 +488,10 @@ createApp({
                     
                     // Let's assume we match by username. I'll tweak the backend now to handle 'username' param too.
                     
-                    const res = await axios.post(window.location.href + '?action=ajax_fix', null, {
+                    const url = window.location.pathname;
+                    const res = await axios.post(url, null, {
                         params: {
+                            action: 'ajax_fix',
                             username: row.username,
                             planid: row.plan_id,
                             idnumber: row.idnumber
