@@ -1114,15 +1114,15 @@ class scheduler extends external_api {
                 'learningplanid' => (int)($c->learningplanid ?? 0),
                 'periodid' => (int)($academic_period_id ?: ($c->institutional_period_id ?? 0)), 
                 'sessions' => $sessArr,
-                'isExternal' => ($academic_period_id != $periodid),
+                'isExternal' => ((int)$academic_period_id != (int)$periodid),
                 'initdate' => (int)($c->initdate ?? 0),
                 'enddate' => (int)($c->enddate ?? 0)
             ];
-        }
-        if (function_exists('gmk_log') && $includeoverlaps) {
-            foreach ($result as $item) {
-                if ($item['isExternal'] || $item['id'] == 125) {
-                    gmk_log("DEBUG Class: ID=" . $item['id'] . ", isExternal=" . ($item['isExternal'] ? 'YES' : 'NO') . ", Period=" . $item['periodid'] . ", Day=" . $item['day'] . ", Time=" . $item['start'] . "-" . $item['end']);
+
+            if ($includeoverlaps && function_exists('gmk_log')) {
+                $isExt = ((int)$academic_period_id != (int)$periodid) ? 'YES' : 'NO';
+                if ($isExt == 'YES' || $c->id == 9114) {
+                    gmk_log("DEBUG isExternal: ID={$c->id}, HealedPeriod={$academic_period_id}, TargetPeriod={$periodid}, Result={$isExt}, DBPeriod=".($c->institutional_period_id ?? 'NULL'));
                 }
             }
         }

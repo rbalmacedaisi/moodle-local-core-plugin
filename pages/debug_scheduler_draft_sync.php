@@ -97,17 +97,25 @@ if ($currentPeriod) {
     
     echo "Total records overlapping dates of Period $periodid: " . count($allOverlaps) . "<br>";
     
-    echo "<table><thead><tr><th>ID</th><th>Subject</th><th>Period</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody>";
+    echo "<table><thead><tr><th>ID</th><th>Subject</th><th>courseid</th><th>coreid</th><th>PeriodCol</th><th>Status</th><th>isExtSim</th></tr></thead><tbody>";
     foreach ($allOverlaps as $c) {
         $isInternal = ($c->periodid == $periodid);
         $status = $isInternal ? "INTERNAL" : "EXTERNAL";
         if ($c->id == 125) $status .= " (ID 125)";
         
+        // Simulate Healing logic
+        $healedPeriod = $c->periodid;
+        if (empty($healedPeriod)) {
+            $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'periodid');
+            if ($subj) $healedPeriod = $subj->periodid;
+        }
+        $isExtSim = ($healedPeriod != $periodid) ? 'YES' : 'NO';
+
         $style = "";
-        if (!$isInternal) $style = " style='background: #fee2e2;'";
+        if ($isExtSim == 'YES') $style = " style='background: #fee2e2;'";
         if (empty($c->periodid)) $style = " style='background: #fef3c7;'";
         
-        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>" . ($c->periodid ?: '0') . "</td><td>" . date('Y-m-d', $c->initdate) . "</td><td>" . date('Y-m-d', $c->enddate) . "</td><td>$status</td></tr>";
+        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>{$c->courseid}</td><td>{$c->corecourseid}</td><td>" . ($c->periodid ?: '0') . "</td><td>$status</td><td>$isExtSim</td></tr>";
     }
     echo "</tbody></table>";
 }
