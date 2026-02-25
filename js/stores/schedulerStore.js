@@ -210,6 +210,7 @@
          * Trigger Algorithm
          */
         async generateSchedules() {
+            console.trace("DEBUG: generateSchedules called by:");
             if (!window.SchedulerAlgorithm) {
                 this.state.error = "Algoritmo no cargado";
                 return;
