@@ -1119,7 +1119,13 @@ class scheduler extends external_api {
                 'enddate' => (int)($c->enddate ?? 0)
             ];
         }
-
+        if (function_exists('gmk_log') && $includeoverlaps) {
+            foreach ($result as $item) {
+                if ($item['isExternal'] || $item['id'] == 125) {
+                    gmk_log("DEBUG Class: ID=" . $item['id'] . ", isExternal=" . ($item['isExternal'] ? 'YES' : 'NO') . ", Period=" . $item['periodid'] . ", Day=" . $item['day'] . ", Time=" . $item['start'] . "-" . $item['end']);
+                }
+            }
+        }
         return $result;
     }
 
