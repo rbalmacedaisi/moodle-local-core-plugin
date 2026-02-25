@@ -139,13 +139,13 @@
                         });
                     }
 
-                    // Force isExternal to boolean
-                    cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES');
+                    // Standardize isExternal flag
+                    cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES' || cls.periodid != periodId);
 
                     return cls;
                 });
                 const externalCount = this.state.generatedSchedules.filter(s => s.isExternal).length;
-                console.log(`DEBUG Store: Loaded ${this.state.generatedSchedules.length} schedules. Externals found: ${externalCount}`);
+                console.log(`DEBUG Store: Loaded ${this.state.generatedSchedules.length} schedules from DB. Externals identified: ${externalCount}`);
             } catch (e) {
                 console.error("Load Error", e);
                 this.state.error = e.message;
@@ -545,27 +545,31 @@
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
                     // Preserve external courses fetched from live DB (they shouldn't be overwritten by draft)
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
-                    console.log(`DEBUG Draft: Prior to merge, state had ${externalSchedules.length} externals.`);
+                    const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
+                    console.log(`DEBUG Draft: Prior to merge, state had ${externalSchedules.length} externals. IDs: ${JSON.stringify([...externalIds])}`);
 
-                    // Map draft items and ensure isExternal is set if periodId doesn't match
                     const pIdNum = Number(periodId);
-                    const processedDraft = draft.map(item => {
+
+                    // CRITICAL: Purge draft of any ID that we already know is external from the live DB.
+                    // This prevents "zombie" internal versions in the draft from shadowing the truth.
+                    const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
+
+                    if (draft.length !== cleanedDraft.length) {
+                        console.log(`DEBUG Draft: Purged ${draft.length - cleanedDraft.length} shadowing items from draft.`);
+                    }
+
+                    const processedDraft = cleanedDraft.map(item => {
                         const itemPid = Number(item.periodid);
-                        // If period ID is different, it's external (even if it's 0/NULL)
                         if (itemPid !== pIdNum) {
                             item.isExternal = true;
                         } else {
-                            // Ensure it's false for current period items if it was somehow flipped
                             item.isExternal = false;
                         }
                         return item;
                     });
 
-                    const draftIds = new Set(processedDraft.map(s => Number(s.id)));
-                    const uniqueExternals = externalSchedules.filter(s => !draftIds.has(Number(s.id)));
-
-                    console.log(`DEBUG Draft: Merging ${processedDraft.length} draft items with ${uniqueExternals.length} unique externals.`);
-                    this.state.generatedSchedules = [...processedDraft, ...uniqueExternals];
+                    console.log(`DEBUG Draft: Final Merge -> ${processedDraft.length} draft items + ${externalSchedules.length} DB externals.`);
+                    this.state.generatedSchedules = [...processedDraft, ...externalSchedules];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
