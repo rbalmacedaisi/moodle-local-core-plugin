@@ -87,21 +87,16 @@ if ($action === 'download_template') {
     // Set active sheet back to data
     $spreadsheet->setActiveSheetIndex(0);
 
-    // Clean any output buffers
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
-
-    // Output file
+    // Save to temp file
+    $tempdir = make_temp_directory('grupomakro_excel');
     $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.xlsx';
-
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment;filename="' . $filename . '"');
-    header('Cache-Control: max-age=0');
-    header('Pragma: public');
+    $filepath = $tempdir . '/' . $filename;
 
     $writer = new Xlsx($spreadsheet);
-    $writer->save('php://output');
+    $writer->save($filepath);
+
+    // Send file using Moodle's function
+    send_temp_file($filepath, $filename);
     die();
 }
 
