@@ -48,10 +48,10 @@ if ($currentPeriod) {
     $pS = $currentPeriod->startdate;
     $pE = $currentPeriod->enddate;
 
-    $sql = "SELECT DISTINCT s.id, s.classid, c.subjectname, c.institutional_period_id as periodid
+    $sql = "SELECT DISTINCT s.id, s.classid, c.name as subjectname, c.periodid
             FROM {gmk_class_schedules} s
             JOIN {gmk_class} c ON c.id = s.classid
-            WHERE c.institutional_period_id != ?
+            WHERE c.periodid != ?
               AND s.initdate <= ?
               AND s.enddate >= ?";
     
