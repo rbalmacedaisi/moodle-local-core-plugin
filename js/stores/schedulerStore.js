@@ -140,7 +140,8 @@
                     }
 
                     // Standardize isExternal flag
-                    cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES' || cls.periodid != periodId);
+                    const itemPid = Number(cls.periodid) || Number(periodId); // Fallback 0 to current
+                    cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES' || itemPid !== Number(periodId));
 
                     return cls;
                 });
@@ -561,7 +562,7 @@
                     }
 
                     const processedDraft = cleanedDraft.map(item => {
-                        const itemPid = Number(item.periodid);
+                        const itemPid = Number(item.periodid) || pIdNum; // Treat 0 as internal
                         if (itemPid !== pIdNum) {
                             item.isExternal = true;
                         } else {
