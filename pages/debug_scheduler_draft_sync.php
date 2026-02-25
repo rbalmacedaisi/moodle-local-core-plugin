@@ -103,19 +103,20 @@ if ($currentPeriod) {
         $status = $isInternal ? "INTERNAL" : "EXTERNAL";
         if ($c->id == 125) $status .= " (ID 125)";
         
-        // Simulate Healing logic
-        $healedPeriod = $c->periodid;
-        if (empty($healedPeriod)) {
+        // Simulate Healing logic (exactly like scheduler.php fix)
+        $academic_period_id = (int)($c->periodid ?? 0);
+        if (empty($academic_period_id) && !empty($c->courseid)) {
             $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'periodid');
-            if ($subj) $healedPeriod = $subj->periodid;
+            if ($subj) $academic_period_id = $subj->periodid;
         }
-        $isExtSim = ($healedPeriod != $periodid) ? 'YES' : 'NO';
+        $finalPeriodId = (int)$academic_period_id;
+        $isExtSim = ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0) ? 'YES' : 'NO';
 
         $style = "";
         if ($isExtSim == 'YES') $style = " style='background: #fee2e2;'";
         if (empty($c->periodid)) $style = " style='background: #fef3c7;'";
         
-        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>{$c->courseid}</td><td>{$c->corecourseid}</td><td>" . ($c->periodid ?: '0') . "</td><td>$status</td><td>$isExtSim</td></tr>";
+        echo "<tr$style><td>{$c->id}</td><td>{$c->name}</td><td>{$c->courseid}</td><td>N/A</td><td>" . ($c->periodid ?: '0') . "</td><td>$status</td><td>$isExtSim</td></tr>";
     }
     echo "</tbody></table>";
 }

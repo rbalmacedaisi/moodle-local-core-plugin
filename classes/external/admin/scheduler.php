@@ -1032,7 +1032,7 @@ class scheduler extends external_api {
         }
             
             // Derive Academic Level from Subject ID (courseid) if missing
-            $academic_period_id = 0;
+            $academic_period_id = (int)($c->institutional_period_id ?? 0);
             
             // HEALING: If courseid is missing but we have metadata, try to resolve it
             if (empty($c->courseid) || $c->courseid == "0") {
@@ -1087,6 +1087,7 @@ class scheduler extends external_api {
             }
 
             $subjectName = $c->subjectname ?? ('Materia ' . $c->courseid);
+            $finalPeriodId = (int)($academic_period_id ?: ($c->institutional_period_id ?? 0));
 
             $result[] = [
                 'id' => (int)$c->id,
@@ -1112,17 +1113,16 @@ class scheduler extends external_api {
                 'type' => (int)($c->type ?? 0),
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
-                'periodid' => (int)($academic_period_id ?: ($c->institutional_period_id ?? 0)), 
-                'sessions' => $sessArr,
-                'isExternal' => ((int)$academic_period_id != (int)$periodid),
+                'periodid' => $finalPeriodId,
+                'isExternal' => ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0),
                 'initdate' => (int)($c->initdate ?? 0),
                 'enddate' => (int)($c->enddate ?? 0)
             ];
 
             if ($includeoverlaps && function_exists('gmk_log')) {
-                $isExt = ((int)$academic_period_id != (int)$periodid) ? 'YES' : 'NO';
-                if ($isExt == 'YES' || $c->id == 9114) {
-                    gmk_log("DEBUG isExternal: ID={$c->id}, HealedPeriod={$academic_period_id}, TargetPeriod={$periodid}, Result={$isExt}, DBPeriod=".($c->institutional_period_id ?? 'NULL'));
+                $isExtFlag = ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0) ? 'YES' : 'NO';
+                if ($isExtFlag == 'YES' || $c->id == 9114) {
+                    gmk_log("DEBUG isExternal: ID={$c->id}, FinalPeriod={$finalPeriodId}, TargetPeriod={$periodid}, Result={$isExtFlag}, DBPeriod=".($c->institutional_period_id ?? 'NULL'));
                 }
             }
         }
