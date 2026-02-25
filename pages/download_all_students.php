@@ -89,6 +89,7 @@ $sheet->getStyle('A1:U1')->applyFromArray($headerStyle);
 $row = 2;
 foreach ($students as $s) {
     // Load custom profile fields
+    $s->id = $s->userid; // Ensure the object has the 'id' property for core functions
     profile_load_custom_fields($s);
     
     $sheet->setCellValue('A' . $row, $s->username);
