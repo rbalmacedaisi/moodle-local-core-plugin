@@ -64,12 +64,19 @@ if ($action === 'ajax_fix') {
         $city = optional_param('city', '', PARAM_TEXT);
         $country = optional_param('country', '', PARAM_ALPHA);
 
-        // Custom Profile Fields
+        // Custom Profile Fields from Screenshot
+        $usertype = optional_param('usertype', '', PARAM_TEXT);
+        $accountmanager = optional_param('accountmanager', '', PARAM_RAW);
+        $birthday = optional_param('birthday', '', PARAM_RAW);
         $documenttype = optional_param('documenttype', '', PARAM_TEXT);
         $documentnumber = optional_param('documentnumber', '', PARAM_RAW);
+        $needfirsttuition = optional_param('needfirsttuition', '', PARAM_ALPHA);
         $personalemail = optional_param('personalemail', '', PARAM_RAW);
-        $accountmanager = optional_param('accountmanager', '', PARAM_RAW);
-        $usertype = optional_param('usertype', '', PARAM_TEXT);
+        $studentstatus = optional_param('studentstatus', '', PARAM_ALPHA);
+        $gender = optional_param('gender', '', PARAM_ALPHA);
+        $journey = optional_param('journey', '', PARAM_ALPHA);
+        $personalmobile = optional_param('personalmobile', '', PARAM_RAW);
+        $admissionperiod = optional_param('admissionperiod', '', PARAM_RAW);
 
         // 1. Resolve User
         if ($userid > 0) {
@@ -164,11 +171,18 @@ if ($action === 'ajax_fix') {
 
         // Update Custom Profile Fields
         $custom_fields = [];
+        if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
+        if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
+        if (!empty($birthday)) $custom_fields['birthday'] = $birthday;
         if (!empty($documenttype)) $custom_fields['documenttype'] = $documenttype;
         if (!empty($documentnumber)) $custom_fields['documentnumber'] = $documentnumber;
+        if (!empty($needfirsttuition)) $custom_fields['needfirsttuition'] = $needfirsttuition;
         if (!empty($personalemail)) $custom_fields['personalemail'] = $personalemail;
-        if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
-        if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
+        if (!empty($studentstatus)) $custom_fields['studentstatus'] = $studentstatus;
+        if (!empty($gender)) $custom_fields['gender'] = $gender;
+        if (!empty($journey)) $custom_fields['journey'] = $journey;
+        if (!empty($personalmobile)) $custom_fields['personalmobile'] = $personalmobile;
+        if (!empty($admissionperiod)) $custom_fields['admissionperiod'] = $admissionperiod;
         
         if (!empty($custom_fields)) {
             require_once($CFG->dirroot . '/user/profile/lib.php');
@@ -591,8 +605,7 @@ createApp({
                         const username = String(r[0]).trim();
                         
                         // Logic for Master vs Repair Template
-                        let firstname, lastname, email, idnumber, inst, dept, ph1, ph2, city, planName, levelName, subName, academicName, groupName, statusField;
-                        let docType, docNum, personalMail, manager, uType;
+                        let docType, docNum, firstPay, personalMail, sStatus, gender, journey, pMobile, aPeriod, manager, uType, bDay;
                         
                         if (isMaster) {
                             // Column Mapping (U index based)
@@ -611,14 +624,22 @@ createApp({
                             academicName = r[13] ? String(r[13]).trim() : '';
                             groupName = r[14] ? String(r[14]).trim() : '';
                             statusField = r[15] ? String(r[15]).trim() : 'activo';
-                            docType = r[16] ? String(r[16]).trim() : '';
-                            docNum = r[17] ? String(r[17]).trim() : '';
-                            personalMail = r[18] ? String(r[18]).trim() : '';
-                            manager = r[19] ? String(r[19]).trim() : '';
-                            uType = r[20] ? String(r[20]).trim() : '';
+                            
+                            // 12 Custom Fields
+                            uType = r[16] ? String(r[16]).trim() : '';
+                            manager = r[17] ? String(r[17]).trim() : '';
+                            bDay = r[18] ? String(r[18]).trim() : '';
+                            docType = r[19] ? String(r[19]).trim() : '';
+                            docNum = r[20] ? String(r[20]).trim() : '';
+                            firstPay = r[21] ? String(r[21]).trim() : '';
+                            personalMail = r[22] ? String(r[22]).trim() : '';
+                            sStatus = r[23] ? String(r[23]).trim() : '';
+                            gender = r[24] ? String(r[24]).trim() : '';
+                            journey = r[25] ? String(r[25]).trim() : '';
+                            pMobile = r[26] ? String(r[26]).trim() : '';
+                            aPeriod = r[27] ? String(r[27]).trim() : '';
                         } else {
                             // Repair Template Mapping: Username, FullName, Email, IDNumber, Plan
-                            // FullName is in r[1]
                             const parts = String(r[1]).trim().split(' ');
                             firstname = parts[0] || '';
                             lastname = parts.slice(1).join(' ') || '';
@@ -626,10 +647,9 @@ createApp({
                             idnumber = r[3] ? String(r[3]).trim() : '';
                             planName = r[4] ? String(r[4]).trim() : '';
                             
-                            // Initialize others to empty
                             inst = dept = ph1 = ph2 = city = levelName = subName = academicName = groupName = '';
                             statusField = 'activo';
-                            docType = docNum = personalMail = manager = uType = '';
+                            uType = manager = bDay = docType = docNum = firstPay = personalMail = sStatus = gender = journey = pMobile = aPeriod = '';
                         }
                         
                         const normalizedInput = normalize(planName);
@@ -644,8 +664,13 @@ createApp({
                             level_name: levelName, subperiod_name: subName,
                             academic_name: academicName, groupname: groupName,
                             status: statusField,
+                            
+                            usertype: uType, accountmanager: manager, birthday: bDay,
                             documenttype: docType, documentnumber: docNum,
-                            personalemail: personalMail, accountmanager: manager, usertype: uType,
+                            needfirsttuition: firstPay, personalemail: personalMail,
+                            studentstatus: sStatus, gender: gender, journey: journey,
+                            personalmobile: pMobile, admissionperiod: aPeriod,
+                            
                             status_ui: 'pending'
                         };
                     });
@@ -706,11 +731,19 @@ createApp({
                             academic_name: row.academic_name,
                             groupname: row.groupname,
                             status: row.status,
+                            
+                            usertype: row.usertype,
+                            accountmanager: row.accountmanager,
+                            birthday: row.birthday,
                             documenttype: row.documenttype,
                             documentnumber: row.documentnumber,
+                            needfirsttuition: row.needfirsttuition,
                             personalemail: row.personalemail,
-                            accountmanager: row.accountmanager,
-                            usertype: row.usertype
+                            studentstatus: row.studentstatus,
+                            gender: row.gender,
+                            journey: row.journey,
+                            personalmobile: row.personalmobile,
+                            admissionperiod: row.admissionperiod
                         }
                     });
 

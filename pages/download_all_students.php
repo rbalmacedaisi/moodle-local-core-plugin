@@ -34,7 +34,7 @@ $sql = "SELECT
             sub.name as subperiod_name,
             ap.name as academic_name,
             llu.groupname,
-            llu.status
+            llu.status as academic_status
         FROM {user} u
         JOIN {local_learning_users} llu ON llu.userid = u.id
         LEFT JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
@@ -57,6 +57,9 @@ $academic_names = array_map(function($a) { return $a->name; }, $available_academ
 $valid_statuses = ['activo', 'aplazado', 'retirado', 'suspendido'];
 $doc_types = ['Cédula de Ciudadanía', 'Cédula de Extranjería', 'Pasaporte'];
 $user_types = ['Estudiante', 'Acudiente / Codeudor'];
+$genders = ['Masculino', 'Femenino', 'Otro'];
+$journeys = ['Diurna', 'Nocturna', 'Sabatina', 'Virtual'];
+$yes_no = ['si', 'no'];
 
 // Create spreadsheet
 $spreadsheet = new Spreadsheet();
@@ -72,8 +75,10 @@ $help_rows = [
     ['Estado Académico', implode(', ', $valid_statuses)],
     ['Tipo Documento', implode(', ', $doc_types)],
     ['Tipo Usuario', implode(', ', $user_types)],
+    ['Género', implode(', ', $genders)],
+    ['Jornada', implode(', ', $journeys)],
+    ['Debe pagar matrícula', implode(', ', $yes_no)],
     ['Plan de Aprendizaje', 'Cualquiera de: ' . implode(' | ', $plan_names)],
-    ['Periodo Académico', implode(', ', $academic_names)],
     ['Regla General', 'Respete mayúsculas, minúsculas y tildes de las opciones de arriba.'],
     ['Nota', 'No modifique el nombre de las columnas ni el orden de la tabla de datos inferior.']
 ];
@@ -95,7 +100,10 @@ $headers = [
     'Username', 'Nombres', 'Apellidos', 'Email Moodle', 'ID Number (Expediente)', 
     'Institución', 'Facultad/Depto', 'Teléfono 1', 'Teléfono 2', 'Ciudad',
     'Plan de Aprendizaje', 'Nivel (Periodo)', 'Subperiodo', 'Periodo Académico', 'Bloque (Grupo)', 
-    'Estado Académico', 'Tipo Documento', 'Número Documento', 'Email Personal', 'Gestor/Cuenta', 'Tipo Usuario'
+    'Estado Académico', 
+    'Tipo Usuario', 'Asesor Comercial', 'Fecha Nacimiento', 'Tipo Documento', 'Número Documento', 
+    'Paga Matrícula', 'Correo Personal', 'Estado Estudiante', 'Género', 'Jornada', 
+    'Movil Personalizado', 'Periodo Ingreso'
 ];
 $sheet->fromArray($headers, null, 'A' . $data_start_row);
 
@@ -106,7 +114,8 @@ $headerStyle = [
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
     'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]]
 ];
-$head_range = 'A' . $data_start_row . ':U' . $data_start_row;
+$last_col = 'AB'; // Calculated based on number of headers
+$head_range = 'A' . $data_start_row . ':' . $last_col . $data_start_row;
 $sheet->getStyle($head_range)->applyFromArray($headerStyle);
 
 // Add data rows
@@ -131,20 +140,28 @@ foreach ($students as $s) {
     $sheet->setCellValue('M' . $curr_row, $s->subperiod_name);
     $sheet->setCellValue('N' . $curr_row, $s->academic_name);
     $sheet->setCellValue('O' . $curr_row, $s->groupname);
-    $sheet->setCellValue('P' . $curr_row, $s->status);
+    $sheet->setCellValue('P' . $curr_row, $s->academic_status);
     
-    // Custom Fields
-    $sheet->setCellValue('Q' . $curr_row, $s->profile_field_documenttype ?? '');
-    $sheet->setCellValue('R' . $curr_row, $s->profile_field_documentnumber ?? '');
-    $sheet->setCellValue('S' . $curr_row, $s->profile_field_personalemail ?? '');
-    $sheet->setCellValue('T' . $curr_row, $s->profile_field_accountmanager ?? '');
-    $sheet->setCellValue('U' . $curr_row, $s->profile_field_usertype ?? '');
+    // Custom Fields from Screenshot
+    $sheet->setCellValue('Q' . $curr_row, $s->profile_field_usertype ?? '');
+    $sheet->setCellValue('R' . $curr_row, $s->profile_field_accountmanager ?? '');
+    $sheet->setCellValue('S' . $curr_row, $s->profile_field_birthday ?? '');
+    $sheet->setCellValue('T' . $curr_row, $s->profile_field_documenttype ?? '');
+    $sheet->setCellValue('U' . $curr_row, $s->profile_field_documentnumber ?? '');
+    $sheet->setCellValue('V' . $curr_row, $s->profile_field_needfirsttuition ?? '');
+    $sheet->setCellValue('W' . $curr_row, $s->profile_field_personalemail ?? '');
+    $sheet->setCellValue('X' . $curr_row, $s->profile_field_studentstatus ?? '');
+    $sheet->setCellValue('Y' . $curr_row, $s->profile_field_gender ?? '');
+    $sheet->setCellValue('Z' . $curr_row, $s->profile_field_journey ?? '');
+    $sheet->setCellValue('AA' . $curr_row, $s->profile_field_personalmobile ?? '');
+    $sheet->setCellValue('AB' . $curr_row, $s->profile_field_admissionperiod ?? '');
     
     $curr_row++;
 }
 
 // Auto-size columns
-foreach (range('A', 'U') as $col) {
+for ($i = 0; $i < 28; $i++) {
+    $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1);
     $sheet->getColumnDimension($col)->setAutoSize(true);
 }
 
@@ -154,7 +171,7 @@ while (ob_get_level()) {
 }
 
 // Output file
-$filename = 'exportacion_maestra_estudiantes_' . date('Y-m-d_His') . '.xlsx';
+$filename = 'exportacion_total_estudiantes_' . date('Y-m-d_His') . '.xlsx';
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
