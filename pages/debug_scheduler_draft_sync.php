@@ -2,7 +2,7 @@
 require_once(__DIR__ . '/../../../config.php');
 global $DB;
 
-$periodid = required_param('periodid', PARAM_INT);
+$periodid = optional_param('periodid', 0, PARAM_INT);
 
 echo "<html><head><title>Debug Draft Sync</title><style>
     body { font-family: sans-serif; padding: 20px; background: #f8fafc; color: #334155; }
@@ -12,7 +12,20 @@ echo "<html><head><title>Debug Draft Sync</title><style>
     th, td { text-align: left; padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
     th { background: #f8fafc; font-weight: bold; }
     .external { color: #b45309; font-weight: bold; }
+    select, button { padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
 </style></head><body>";
+
+if (!$periodid) {
+    $periods = $DB->get_records('gmk_academic_periods', null, 'id DESC');
+    echo "<h1>Debug Scheduler Data - Select Period</h1>";
+    echo "<form method='GET'><select name='periodid'>";
+    foreach ($periods as $p) {
+        echo "<option value='{$p->id}'>{$p->name} (ID: {$p->id})</option>";
+    }
+    echo "</select> <button type='submit'>Analyze</button></form>";
+    echo "</body></html>";
+    exit;
+}
 
 echo "<h1>Debug Scheduler Data - Period $periodid</h1>";
 
