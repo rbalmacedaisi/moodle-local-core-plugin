@@ -188,6 +188,30 @@ echo $OUTPUT->header();
                     </p>
                 </div>
 
+                <!-- Plan Debug Section -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <i data-lucide="list" class="text-emerald-500 w-4 h-4"></i> Planes Disponibles
+                    </h3>
+                    <div class="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                        <div v-for="plan in plans" :key="plan.id" class="p-2 bg-slate-50 rounded-lg text-[10px] border border-slate-100 flex justify-between items-center group">
+                            <div class="flex flex-col">
+                                <span class="font-bold text-slate-700">{{ plan.name }}</span>
+                                <span class="text-slate-400 font-mono">ID: {{ plan.id }}</span>
+                            </div>
+                            <button @click="copyToClipboard(plan.name)" class="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-white rounded-md text-slate-400 hover:text-blue-500 transition-all shadow-sm border border-transparent hover:border-slate-100" title="Copiar nombre">
+                                <i data-lucide="copy" class="w-3 h-3"></i>
+                            </button>
+                        </div>
+                        <div v-if="!plans.length" class="text-slate-400 text-xs italic">Cargando planes...</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-50">
+                        <button @click="fetchPlans" class="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="rotate-cw" class="w-3 h-3"></i> Actualizar Listado
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bg-blue-600 p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
                     <div class="relative z-10">
                         <h4 class="font-bold text-lg mb-2">Instrucciones</h4>
@@ -390,8 +414,10 @@ createApp({
                     if (!str) return '';
                     return String(str)
                         .normalize("NFD")
-                        .replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[\u0300-\u036f]/g, "") // Remove accents
                         .toLowerCase()
+                        .replace(/[^a-z0-9]/g, " ") // Replace non-alphanumeric with spaces
+                        .replace(/\s+/g, " ") // Collapse spaces
                         .trim();
                 };
 
@@ -481,6 +507,11 @@ createApp({
             });
             // Auto update icons if needed
             setTimeout(() => lucide.createIcons(), 50);
+        },
+        copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Nombre copiado: ' + text);
+            });
         },
         cancel() {
             this.isCancelled = true;
