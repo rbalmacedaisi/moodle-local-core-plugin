@@ -15,73 +15,6 @@ $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
-// ========== DOWNLOAD TEMPLATE ACTION (BEFORE ANY OUTPUT) ==========
-if ($action === 'download_template') {
-    error_log("DEBUG: Entrando a download_template action");
-    error_log("DEBUG: Output buffering level: " . ob_get_level());
-    error_log("DEBUG: Headers sent: " . (headers_sent($file, $line) ? "YES at $file:$line" : "NO"));
-
-    // Get all users without roles
-    $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
-            FROM {user} u
-            LEFT JOIN {role_assignments} ra ON ra.userid = u.id
-            WHERE u.deleted = 0
-            AND ra.id IS NULL
-            ORDER BY u.timecreated DESC";
-
-    $users_no_roles = $DB->get_records_sql($sql);
-    error_log("DEBUG: Encontrados " . count($users_no_roles) . " usuarios sin roles");
-
-    // Get all learning plans
-    $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
-    $plan_names = array_map(function($p) { return $p->name; }, $plans);
-
-    $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.csv';
-    error_log("DEBUG: Archivo a generar: " . $filename);
-
-    // CRITICAL: Clean ALL output buffers before sending file
-    while (ob_get_level() > 0) {
-        ob_end_clean();
-    }
-
-    error_log("DEBUG: Enviando headers");
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Pragma: no-cache');
-    header('Expires: 0');
-
-    error_log("DEBUG: Abriendo php://output");
-    $fp = fopen('php://output', 'w');
-    fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
-    error_log("DEBUG: BOM escrito");
-
-    // Headers
-    fputcsv($fp, ['Username (Cédula)', 'Nombre Completo', 'Email', 'ID Number (Expediente)', 'Plan de Aprendizaje']);
-
-    // Data rows
-    foreach ($users_no_roles as $user) {
-        fputcsv($fp, [
-            $user->username,
-            $user->firstname . ' ' . $user->lastname,
-            $user->email,
-            $user->idnumber,
-            '' // Empty for user to fill
-        ]);
-    }
-
-    // Add instructions as comments
-    fputcsv($fp, []);
-    fputcsv($fp, ['INSTRUCCIONES:']);
-    fputcsv($fp, ['1. Complete la columna "Plan de Aprendizaje" con el nombre EXACTO del plan']);
-    fputcsv($fp, ['2. NO modifique las otras columnas']);
-    fputcsv($fp, ['3. Planes disponibles: ' . implode(', ', $plan_names)]);
-
-    error_log("DEBUG: CSV completado, cerrando archivo");
-    fclose($fp);
-    error_log("DEBUG: Ejecutando exit");
-    exit;
-}
-
 // ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
     $uploadfile = $_FILES['uploadfile'];
@@ -286,36 +219,11 @@ echo "<h2>📤 Carga Masiva desde CSV</h2>";
 echo "<p>Descarga la plantilla CSV con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
 
 echo "<div style='margin: 20px 0;'>";
-echo "<a href='?action=download_template' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;' id='download-btn'>";
+echo "<a href='download_fix_template.php' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
 echo "⬇️ Descargar Plantilla CSV";
 echo "</a>";
 echo "</div>";
 
-echo "<script>
-document.getElementById('download-btn').addEventListener('click', function(e) {
-    console.log('=== CLICK EN DESCARGAR PLANTILLA ===');
-    console.log('URL destino:', this.href);
-    console.log('Tipo de elemento:', this.tagName);
-    console.log('Window location antes:', window.location.href);
-
-    // Guardar en sessionStorage para persistir después del reload
-    sessionStorage.setItem('download_click_log', JSON.stringify({
-        timestamp: new Date().toISOString(),
-        url: this.href,
-        location: window.location.href
-    }));
-});
-
-// Mostrar log si existe
-window.addEventListener('DOMContentLoaded', function() {
-    const log = sessionStorage.getItem('download_click_log');
-    if (log) {
-        console.log('=== LOG DE DESCARGA ANTERIOR ===');
-        console.log(JSON.parse(log));
-        sessionStorage.removeItem('download_click_log');
-    }
-});
-</script>";
 
 echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
 echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
