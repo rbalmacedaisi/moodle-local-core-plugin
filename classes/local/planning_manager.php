@@ -55,7 +55,7 @@ class planning_manager {
                 LEFT JOIN {local_learning_subperiods} sp ON sp.id = llu.currentsubperiodid
                 $jornadaJoin
                 $piJoin
-                WHERE u.deleted = 0 AND u.suspended = 0
+                WHERE u.deleted = 0 AND u.suspended = 0 AND llu.status = 'activo'
                 ORDER BY llu.id ASC"; // Order by ID to process older first, so newer overwrites older in loop
 
         $subscriptionsRaw = $DB->get_records_sql($sql);
@@ -96,6 +96,9 @@ class planning_manager {
         
         // 2d. Get All Failed Courses per Student (Explicit Status 5)
         $failedCourses = self::get_all_failed_courses();
+
+        // 2e. Get All Courses Currently In Progress per Student (Status 2)
+        $inProgressCourses = self::get_all_in_progress_courses();
 
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
@@ -161,11 +164,12 @@ class planning_manager {
             // Get student Grades
             $studentGrades = $allUserGrades[$u->id] ?? [];
             $studentApproved = $approvedCourses[$u->id] ?? [];
-            
+            $studentInProgress = $inProgressCourses[$u->id] ?? [];
+
             // 1. Determine student's TARGET Level for the period being planned
             $currentLevel = self::parse_semester_number($u->periodname);
             $isBimestre2 = self::is_bimestre_two($u->subperiodname);
-            
+
             // If they just finished Bimestre 2, their target for planning IS the next level.
             // If they are in Bimestre 1, they stay in same level but move to Bimestre 2.
             $targetLevel = $isBimestre2 ? ($currentLevel + 1) : $currentLevel;
@@ -174,8 +178,10 @@ class planning_manager {
             foreach ($planStructure as $course) {
                 $grade = isset($studentGrades[$course->id]) ? $studentGrades[$course->id] : null;
                 $isApproved = isset($studentApproved[$course->id]);
-                
-                if (!$isApproved) {
+                $isInProgress = isset($studentInProgress[$course->id]);
+
+                // Exclude courses that are approved OR currently in progress (status=2)
+                if (!$isApproved && !$isInProgress) {
                     // Check Prerequisites
                     $isPreRequisiteMet = true;
                     $missingPrereqs = [];
@@ -426,6 +432,24 @@ class planning_manager {
         // Status 5 = Reprobada (Failed).
         $sqlFailed = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 5";
         $records = $DB->get_records_sql($sqlFailed);
+        foreach ($records as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            $map[$r->userid][$r->courseid] = true;
+        }
+        return $map;
+    }
+
+    /**
+     * Helper: Get All Courses Currently In Progress for All Students.
+     * Status 2 = COURSE_IN_PROGRESS (En Curso)
+     * returns [ userid => [ courseId1, courseId2... ] ]
+     */
+    private static function get_all_in_progress_courses() {
+        global $DB;
+        $map = [];
+        // Status 2 = En Curso (COURSE_IN_PROGRESS).
+        $sqlInProgress = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 2";
+        $records = $DB->get_records_sql($sqlInProgress);
         foreach ($records as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
             $map[$r->userid][$r->courseid] = true;
