@@ -55,6 +55,96 @@ if ($action === 'get_plans') {
     }
 }
 
+if ($action === 'get_current_state') {
+    header('Content-Type: application/json');
+    try {
+        $usernames = optional_param_array('usernames', [], PARAM_RAW);
+        if (empty($usernames)) {
+            echo json_encode(['status' => 'success', 'data' => (object)[]]);
+            exit;
+        }
+
+        list($insql, $inparams) = $DB->get_in_or_equal($usernames);
+        
+        $sql = "SELECT 
+                    u.id as userid,
+                    u.username, u.firstname, u.lastname, u.email, u.idnumber,
+                    u.institution, u.department, u.phone1, u.phone2, u.city,
+                    llu.id as recordid,
+                    lp.name as plan_name_db,
+                    per.name as level_name_db,
+                    sub.name as subperiod_name_db,
+                    ap.name as academic_name_db,
+                    llu.groupname as groupname_db,
+                    llu.status as academic_status_db
+                FROM {user} u
+                LEFT JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
+                LEFT JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
+                LEFT JOIN {local_learning_periods} per ON llu.currentperiodid = per.id
+                LEFT JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
+                LEFT JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
+                WHERE u.username $insql AND u.deleted = 0";
+
+        $records = $DB->get_records_sql($sql, $inparams);
+        
+        $user_ids = [];
+        foreach ($records as $r) { $user_ids[$r->userid] = $r->userid; }
+        
+        $custom_data = [];
+        if (!empty($user_ids)) {
+            list($uinsql, $uinparams) = $DB->get_in_or_equal(array_values($user_ids));
+            $custom_sql = "SELECT d.userid, f.shortname, d.data
+                           FROM {user_info_data} d
+                           JOIN {user_info_field} f ON d.fieldid = f.id
+                           WHERE d.userid $uinsql";
+            $c_records = $DB->get_records_sql($custom_sql, $uinparams);
+            foreach ($c_records as $cr) {
+                $val = $cr->data;
+                if ($cr->shortname === 'birthdate' && is_numeric($val) && $val > 0) {
+                    $val = date('Y-m-d', $val);
+                }
+                $custom_data[$cr->userid][$cr->shortname] = (string)$val;
+            }
+        }
+
+        $result = [];
+        foreach ($records as $r) {
+            $user_key = $r->username;
+            $user_info = [
+                'firstname' => (string)$r->firstname,
+                'lastname' => (string)$r->lastname,
+                'email' => (string)$r->email,
+                'idnumber' => (string)$r->idnumber,
+                'institution' => (string)$r->institution,
+                'department' => (string)$r->department,
+                'phone1' => (string)$r->phone1,
+                'phone2' => (string)$r->phone2,
+                'city' => (string)$r->city,
+                'plan_name' => (string)$r->plan_name_db,
+                'level_name' => (string)$r->level_name_db,
+                'subperiod_name' => (string)$r->subperiod_name_db,
+                'academic_name' => (string)$r->academic_name_db,
+                'groupname' => (string)$r->groupname_db,
+                'status' => (string)$r->academic_status_db,
+            ];
+            
+            if (isset($custom_data[$r->userid])) {
+                foreach ($custom_data[$r->userid] as $k => $v) {
+                    $user_info[$k] = $v;
+                }
+            }
+            
+            $result[$user_key] = $user_info;
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $result]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
 if ($action === 'ajax_fix') {
     header('Content-Type: application/json');
     try {
@@ -294,6 +384,12 @@ echo $OUTPUT->header();
     .progress-bar { transition: width 0.3s ease; }
     .log-enter-active, .log-leave-active { transition: all 0.3s ease; }
     .log-enter-from { opacity: 0; transform: translateY(-10px); }
+    .diff-new {
+        @apply bg-amber-50 text-amber-700 font-bold px-1 rounded ring-1 ring-amber-100;
+    }
+    .diff-match {
+        @apply opacity-60;
+    }
 </style>
 
 <div id="fix-setup-app" v-cloak class="bg-slate-50 min-h-screen p-6 font-sans text-slate-800">
@@ -429,28 +525,41 @@ echo $OUTPUT->header();
                                     <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors whitespace-nowrap">
                                         <!-- Column 1: Identidad -->
                                         <td class="px-6 py-4 bg-slate-50/30">
-                                            <div class="font-bold text-slate-700 leading-tight text-xs">{{ row.fullname }}</div>
+                                            <div class="font-bold text-slate-700 leading-tight text-xs" :class="getDiffClass(row, 'fullname')">{{ row.fullname }}</div>
                                             <div class="font-mono text-[10px] text-slate-400 italic">User: {{ row.username }}</div>
-                                            <div class="mt-2 text-[11px] font-bold text-slate-600">ID: {{ row.idnumber }}</div>
-                                            <div class="text-[9px] text-slate-400">{{ row.documenttype }}: {{ row.documentnumber }}</div>
-                                            <div class="mt-1 text-[9px]"><span class="font-bold text-slate-500">Género:</span> {{ row.gmkgenre || '-' }} | <span class="font-bold text-slate-500">Nac:</span> {{ row.birthdate || '-' }}</div>
+                                            <div class="mt-2 text-[11px] font-bold text-slate-600" :class="getDiffClass(row, 'idnumber')">ID: {{ row.idnumber }}</div>
+                                            <div class="text-[9px] text-slate-400">
+                                                <span :class="getDiffClass(row, 'documenttype')">{{ row.documenttype }}</span>: 
+                                                <span :class="getDiffClass(row, 'documentnumber')">{{ row.documentnumber }}</span>
+                                            </div>
+                                            <div class="mt-1 text-[9px]">
+                                                <span class="font-bold text-slate-500">Género:</span> <span :class="getDiffClass(row, 'gmkgenre')">{{ row.gmkgenre || '-' }}</span> | 
+                                                <span class="font-bold text-slate-500">Nac:</span> <span :class="getDiffClass(row, 'birthdate')">{{ row.birthdate || '-' }}</span>
+                                            </div>
                                         </td>
                                         
                                         <!-- Column 2: Académico -->
                                         <td class="px-6 py-4">
-                                            <div class="text-[11px] font-bold" :class="row.plan_id ? 'text-blue-700' : 'text-red-500'">
+                                            <div class="text-[11px] font-bold" :class="row.plan_id ? (isDiff(row, 'plan_name') ? 'diff-new' : 'text-blue-700') : 'text-red-500'">
                                                 {{ row.plan_name }}
                                                 <i v-if="!row.plan_id" data-lucide="alert-circle" class="w-3 h-3 inline ml-1"></i>
                                             </div>
-                                            <div class="text-[10px] text-slate-600 mt-0.5"><span class="font-bold text-slate-400">Niv/Per:</span> {{ row.level_name || '-' }} / {{ row.academic_name || '-' }}</div>
-                                            <div class="text-[10px] text-slate-600"><span class="font-bold text-slate-400">Sub/Bloq:</span> {{ row.subperiod_name || '-' }} / {{ row.groupname || '-' }}</div>
+                                            <div class="text-[10px] text-slate-600 mt-0.5">
+                                                <span class="font-bold text-slate-400">Niv/Per:</span> 
+                                                <span :class="getDiffClass(row, 'level_name')">{{ row.level_name || '-' }}</span> / 
+                                                <span :class="getDiffClass(row, 'academic_name')">{{ row.academic_name || '-' }}</span>
+                                            </div>
+                                            <div class="text-[10px] text-slate-600">
+                                                <span class="font-bold text-slate-400">Sub/Bloq:</span> 
+                                                <span :class="getDiffClass(row, 'subperiod_name')">{{ row.subperiod_name || '-' }}</span> / 
+                                                <span :class="getDiffClass(row, 'groupname')">{{ row.groupname || '-' }}</span>
+                                            </div>
                                             <div class="mt-2">
-                                                <span :class="{
-                                                    'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider': true,
-                                                    'bg-green-100 text-green-700': row.status === 'activo',
-                                                    'bg-amber-100 text-amber-700': row.status === 'aplazado',
-                                                    'bg-slate-100 text-slate-600': row.status === 'retirado' || row.status === 'suspendido'
-                                                }">
+                                                <span :class="[
+                                                    'px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider',
+                                                    row.status === 'activo' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700',
+                                                    isDiff(row, 'status') ? 'ring-2 ring-blue-400 ring-offset-1' : ''
+                                                ]">
                                                     {{ row.status || 'activo' }}
                                                 </span>
                                             </div>
@@ -458,31 +567,34 @@ echo $OUTPUT->header();
 
                                         <!-- Column 3: Contacto -->
                                         <td class="px-6 py-4 bg-slate-50/30">
-                                            <div class="text-[11px] text-blue-600 font-medium">{{ row.email || '-' }}</div>
-                                            <div class="text-[10px] text-slate-500 italic">{{ row.personalemail || '-' }}</div>
+                                            <div class="text-[11px] text-blue-600 font-medium" :class="getDiffClass(row, 'email')">{{ row.email || '-' }}</div>
+                                            <div class="text-[10px] text-slate-500 italic" :class="getDiffClass(row, 'personalemail')">{{ row.personalemail || '-' }}</div>
                                             <div class="mt-2 text-[10px] flex flex-col gap-0.5">
-                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 1:</span> {{ row.phone1 || '-' }}</div>
-                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 2:</span> {{ row.phone2 || '-' }}</div>
-                                                <div><span class="font-bold text-slate-400 text-[9px]">MÓVIL:</span> {{ row.custom_phone || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 1:</span> <span :class="getDiffClass(row, 'phone1')">{{ row.phone1 || '-' }}</span></div>
+                                                <div><span class="font-bold text-slate-400 text-[9px]">TEL 2:</span> <span :class="getDiffClass(row, 'phone2')">{{ row.phone2 || '-' }}</span></div>
+                                                <div><span class="font-bold text-slate-400 text-[9px]">MÓVIL:</span> <span :class="getDiffClass(row, 'custom_phone')">{{ row.custom_phone || '-' }}</span></div>
                                             </div>
-                                            <div class="mt-1 text-[10px] font-bold text-slate-600">Ciudad: {{ row.city || '-' }}</div>
+                                            <div class="mt-1 text-[10px] font-bold text-slate-600">Ciudad: <span :class="getDiffClass(row, 'city')">{{ row.city || '-' }}</span></div>
                                         </td>
 
                                         <!-- Column 4: Institucional & Otros -->
                                         <td class="px-6 py-4">
-                                            <div class="text-[11px] font-bold text-slate-700">{{ row.usertype || 'Estudiante' }}</div>
-                                            <div class="text-[10px] font-medium text-slate-500 mb-2">{{ row.gmkjourney || '-' }}</div>
+                                            <div class="text-[11px] font-bold text-slate-700" :class="getDiffClass(row, 'usertype')">{{ row.usertype || 'Estudiante' }}</div>
+                                            <div class="text-[10px] font-medium text-slate-500 mb-2" :class="getDiffClass(row, 'gmkjourney')">{{ row.gmkjourney || '-' }}</div>
                                             
                                             <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px]">
-                                                <div><span class="font-bold text-slate-400">Asesor:</span> {{ row.accountmanager || '-' }}</div>
-                                                <div><span class="font-bold text-slate-400">Ingreso:</span> {{ row.periodo_ingreso || '-' }}</div>
-                                                <div><span class="font-bold text-slate-400">Estado Est:</span> {{ row.studentstatus || '-' }}</div>
-                                                <div><span class="font-bold text-slate-400">Paga:</span> {{ row.needfirsttuition || '-' }}</div>
+                                                <div><span class="font-bold text-slate-400">Asesor:</span> <span :class="getDiffClass(row, 'accountmanager')">{{ row.accountmanager || '-' }}</span></div>
+                                                <div><span class="font-bold text-slate-400">Ingreso:</span> <span :class="getDiffClass(row, 'periodo_ingreso')">{{ row.periodo_ingreso || '-' }}</span></div>
+                                                <div><span class="font-bold text-slate-400">Estado Est:</span> <span :class="getDiffClass(row, 'studentstatus')">{{ row.studentstatus || '-' }}</span></div>
+                                                <div><span class="font-bold text-slate-400">Paga:</span> <span :class="getDiffClass(row, 'needfirsttuition')">{{ row.needfirsttuition || '-' }}</span></div>
                                             </div>
                                             
                                             <div class="mt-2 pt-2 border-t border-slate-100">
                                                 <div class="text-[9px] font-bold text-slate-400 uppercase">Empresa / Depto</div>
-                                                <div class="text-[10px] text-slate-600">{{ row.institution || '-' }} / {{ row.department || '-' }}</div>
+                                                <div class="text-[10px] text-slate-600">
+                                                    <span :class="getDiffClass(row, 'institution')">{{ row.institution || '-' }}</span> / 
+                                                    <span :class="getDiffClass(row, 'department')">{{ row.department || '-' }}</span>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -573,7 +685,8 @@ createApp({
             isFinished: false,
             isCancelled: false,
             currentXhr: null,
-            hasError: false
+            hasError: false,
+            originalData: {}
         }
     },
     computed: {
@@ -604,6 +717,37 @@ createApp({
                 console.error("Network/Server error fetching plans:", e);
                 this.addLog('error', 'Error al cargar listado de planes de capacitación.');
             }
+        },
+        async fetchCurrentState() {
+            if (!this.rows.length) return;
+            const usernames = this.rows.map(r => r.username);
+            try {
+                const url = window.location.pathname;
+                const res = await axios.post(url + '?action=get_current_state', 
+                    new URLSearchParams({ 'usernames[]': usernames })
+                );
+                if (res.data.status === 'success') {
+                    this.originalData = res.data.data;
+                }
+            } catch (e) {
+                console.error("Error fetching current state:", e);
+            }
+        },
+        isDiff(row, field) {
+            if (!this.originalData || !this.originalData[row.username]) return false;
+            const current = this.originalData[row.username];
+            let newVal = String(row[field] || '').trim().toLowerCase();
+            let oldVal = String(current[field] || '').trim().toLowerCase();
+            
+            // Normalize special cases
+            if (field === 'fullname') {
+                oldVal = (String(current.firstname || '') + ' ' + String(current.lastname || '')).trim().toLowerCase();
+            }
+            
+            return newVal !== oldVal;
+        },
+        getDiffClass(row, field) {
+            return this.isDiff(row, field) ? 'diff-new' : 'diff-match';
         },
         handleFile(e) {
             const file = e.target.files[0];
@@ -724,6 +868,7 @@ createApp({
                     });
                 
                 this.state = 'preview';
+                this.fetchCurrentState();
             };
             reader.readAsBinaryString(file);
         },
