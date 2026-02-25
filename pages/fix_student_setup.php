@@ -1,11 +1,6 @@
 <?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
-require_once($CFG->dirroot . '/vendor/autoload.php');
-
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\IOFactory;
 
 global $DB;
 
@@ -15,142 +10,100 @@ $userid = optional_param('userid', 0, PARAM_INT);
 $planid = optional_param('planid', 0, PARAM_INT);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
-// ========== BULK UPLOAD ACTION (BEFORE ANY OUTPUT) ==========
-if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
-    $uploadfile = $_FILES['uploadfile'];
+// ========== AJAX HANDLERS ==========
+if ($action === 'get_plans') {
+    header('Content-Type: application/json');
+    try {
+        $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
+        echo json_encode(['status' => 'success', 'plans' => array_values($plans)]);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
+    }
+}
 
-    if ($uploadfile['error'] === UPLOAD_ERR_OK) {
-        $tmpfile = $uploadfile['tmp_name'];
+if ($action === 'ajax_fix') {
+    header('Content-Type: application/json');
+    try {
+        $userid = optional_param('userid', 0, PARAM_INT);
+        $username = optional_param('username', '', PARAM_RAW);
+        $planid = required_param('planid', PARAM_INT);
+        $new_idnumber = optional_param('idnumber', '', PARAM_RAW);
 
-        try {
-            $results = [
-                'success' => [],
-                'errors' => [],
-                'skipped' => []
-            ];
-
-            // Get all plans for name matching
-            $plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
-            $plan_map = [];
-            foreach ($plans as $p) {
-                $plan_map[strtolower(trim($p->name))] = $p->id;
-            }
-
-            // Detect file type and read accordingly
-            $file_extension = strtolower(pathinfo($uploadfile['name'], PATHINFO_EXTENSION));
-            $data_rows = [];
-
-            if ($file_extension === 'xlsx') {
-                // Read Excel file
-                $spreadsheet = IOFactory::load($tmpfile);
-                $sheet = $spreadsheet->getActiveSheet();
-                $data_rows = $sheet->toArray(null, true, true, true);
-
-                // Remove header row
-                array_shift($data_rows);
-            } else {
-                // Read CSV file
-                $fp = fopen($tmpfile, 'r');
-                while (($data = fgetcsv($fp)) !== false) {
-                    $data_rows[] = $data;
-                }
-                fclose($fp);
-
-                // Remove header row
-                array_shift($data_rows);
-            }
-
-            $row_num = 1; // Start from 1 (after header)
-            foreach ($data_rows as $data) {
-                $row_num++;
-
-                // For Excel, convert from associative array (A, B, C...) to indexed
-                if ($file_extension === 'xlsx') {
-                    $data = array_values($data);
-                }
-
-                // Stop at instructions section
-                if (empty($data[0]) || $data[0] === 'INSTRUCCIONES:') {
-                    break;
-                }
-
-                $username = trim($data[0]);
-                $plan_name = isset($data[4]) ? trim($data[4]) : '';
-
-                if (empty($username)) {
-                    $results['skipped'][] = "Fila $row_num: Username vacío";
-                    continue;
-                }
-
-                if (empty($plan_name)) {
-                    $results['errors'][] = "Fila $row_num ($username): Plan de aprendizaje vacío";
-                    continue;
-                }
-
-                // Find user
-                $user = $DB->get_record('user', ['username' => $username, 'deleted' => 0]);
-                if (!$user) {
-                    $results['errors'][] = "Fila $row_num ($username): Usuario no encontrado";
-                    continue;
-                }
-
-                // Find plan
-                $plan_name_lower = strtolower(trim($plan_name));
-                if (!isset($plan_map[$plan_name_lower])) {
-                    $results['errors'][] = "Fila $row_num ($username): Plan '$plan_name' no encontrado";
-                    continue;
-                }
-                $plan_id = $plan_map[$plan_name_lower];
-
-                // Step 1: Assign student role
-                $student_role = $DB->get_record('role', ['shortname' => 'student']);
-                if ($student_role) {
-                    $context = context_system::instance();
-                    $has_role = $DB->record_exists('role_assignments', ['userid' => $user->id, 'roleid' => $student_role->id]);
-
-                    if (!$has_role) {
-                        try {
-                            role_assign($student_role->id, $user->id, $context->id);
-                        } catch (Exception $e) {
-                            $results['errors'][] = "Fila $row_num ($username): Error asignando rol - " . $e->getMessage();
-                            continue;
-                        }
-                    }
-                }
-
-                // Step 2: Create local_learning_users record if missing
-                $llu = $DB->get_record('local_learning_users', ['userid' => $user->id]);
-                if (!$llu) {
-                    $record = new stdClass();
-                    $record->userid = $user->id;
-                    $record->learningplanid = $plan_id;
-                    $record->currentperiodid = 1;
-                    $record->timecreated = time();
-                    $record->timemodified = time();
-                    $record->usermodified = $USER->id;
-
-                    try {
-                        $DB->insert_record('local_learning_users', $record);
-                        $results['success'][] = "Fila $row_num ($username): Reparado exitosamente con plan '$plan_name'";
-                    } catch (Exception $e) {
-                        $results['errors'][] = "Fila $row_num ($username): Error creando registro - " . $e->getMessage();
-                    }
-                } else {
-                    $results['skipped'][] = "Fila $row_num ($username): Ya tiene registro en local_learning_users";
-                }
-            }
-
-            // Store results for display
-            $_SESSION['bulk_upload_results'] = $results;
-            redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php', ['action' => 'show_results']));
-
-        } catch (Exception $e) {
-            $_SESSION['bulk_upload_error'] = $e->getMessage();
-            redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php'));
+        if ($userid > 0) {
+            $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0]);
+        } elseif (!empty($username)) {
+            $user = $DB->get_record('user', ['username' => trim($username), 'deleted' => 0]);
+        } else {
+            throw new Exception("Identificador de usuario no proporcionado.");
         }
-    } else {
-        $_SESSION['bulk_upload_error'] = 'Error al subir archivo';
-        redirect(new moodle_url('/local/grupomakro_core/pages/fix_student_setup.php'));
+
+        if (!$user) throw new Exception("Usuario no encontrado.");
+        $userid = $user->id;
+
+        $plan = $DB->get_record('local_learning_plans', ['id' => $planid]);
+        if (!$plan) throw new Exception("Plan no encontrado.");
+
+        $transaction = $DB->start_delegated_transaction();
+
+        // 1. Update ID Number if provided
+        if (!empty($new_idnumber) && $user->idnumber !== $new_idnumber) {
+            $user->idnumber = $new_idnumber;
+            $DB->update_record('user', $user);
+        }
+
+        // 2. Assign Student Role
+        $student_role = $DB->get_record('role', ['shortname' => 'student']);
+        if ($student_role) {
+            $context = context_system::instance();
+            $has_role = $DB->record_exists('role_assignments', ['userid' => $userid, 'roleid' => $student_role->id]);
+            if (!$has_role) {
+                role_assign($student_role->id, $userid, $context->id);
+            }
+        }
+
+        // 3. Create/Update local_learning_users
+        $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
+        
+        // Find first period for this plan
+        $first_period = $DB->get_record_sql("SELECT id FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC", [$planid], IGNORE_MULTIPLE);
+        $current_period_id = $first_period ? $first_period->id : 1;
+
+        // Find current academic period (status = 1)
+        $academic_period = $DB->get_record('gmk_academic_periods', ['status' => 1], 'id', IGNORE_MULTIPLE);
+        $academic_period_id = $academic_period ? $academic_period->id : 0;
+
+        if (!$llu) {
+            $record = new stdClass();
+            $record->userid = $userid;
+            $record->learningplanid = $planid;
+            $record->currentperiodid = $current_period_id;
+            $record->academicperiodid = $academic_period_id;
+            $record->userrolename = 'student';
+            $record->status = 'activo';
+            $record->timecreated = time();
+            $record->timemodified = time();
+            $record->usermodified = $USER->id;
+            $DB->insert_record('local_learning_users', $record);
+        } else {
+            // Update existing if needed
+            $llu->learningplanid = $planid;
+            $llu->userrolename = 'student';
+            $llu->status = 'activo';
+            if (empty($llu->academicperiodid)) $llu->academicperiodid = $academic_period_id;
+            $llu->timemodified = time();
+            $llu->usermodified = $USER->id;
+            $DB->update_record('local_learning_users', $llu);
+        }
+
+        $transaction->allow_commit();
+        echo json_encode(['status' => 'success']);
+        exit;
+    } catch (Exception $e) {
+        if (isset($transaction)) $transaction->rollback($e);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
     }
 }
 
@@ -158,325 +111,362 @@ if ($action === 'bulk_upload' && isset($_FILES['uploadfile'])) {
 admin_externalpage_setup('grupomakro_core_manage_courses');
 
 echo $OUTPUT->header();
+?>
 
-echo "<style>
-    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; font-weight: bold; }
-    .warning { background-color: #fff3cd; }
-    .error { background-color: #f8d7da; }
-    .success { background-color: #d4edda; }
-    .info { background-color: #d1ecf1; }
-    .section { margin: 30px 0; padding: 20px; border: 2px solid #ccc; border-radius: 5px; }
-    pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
-    .btn { padding: 10px 20px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; }
-    .btn:hover { opacity: 0.9; text-decoration: none; }
-    .btn-primary { background-color: #007bff; color: white; }
-    .btn-success { background-color: #28a745; color: white; }
-    .btn-danger { background-color: #dc3545; color: white; }
-    .btn-warning { background-color: #ffc107; color: black; }
-    .stat-box { display: inline-block; padding: 15px 25px; margin: 10px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff; }
-    .stat-number { font-size: 32px; font-weight: bold; color: #007bff; }
-    .stat-label { font-size: 14px; color: #666; margin-top: 5px; }
-</style>";
+<!-- Tailwind, Vue, Axios, Lucide, XLSX -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-echo "<h1>🔧 Reparar Configuración de Estudiantes</h1>";
+<style>
+    [v-cloak] { display: none; }
+    .progress-bar { transition: width 0.3s ease; }
+    .log-enter-active, .log-leave-active { transition: all 0.3s ease; }
+    .log-enter-from { opacity: 0; transform: translateY(-10px); }
+</style>
 
-// ========== SHOW BULK UPLOAD RESULTS ==========
-if ($action === 'show_results' && isset($_SESSION['bulk_upload_results'])) {
-    $results = $_SESSION['bulk_upload_results'];
-    unset($_SESSION['bulk_upload_results']);
+<div id="fix-setup-app" v-cloak class="bg-slate-50 min-h-screen p-6 font-sans text-slate-800">
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-end">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                    <span class="p-2 bg-blue-100 rounded-xl text-blue-600"><i data-lucide="wrench" class="w-6 h-6"></i></span>
+                    Reparar Configuración de Estudiantes
+                </h1>
+                <p class="text-slate-500 mt-2">Módulo de solución masiva para asignación de planes y sincronización de roles.</p>
+            </div>
+            <div class="flex gap-3">
+                <a href="download_fix_template.php" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center gap-2">
+                    <i data-lucide="download" class="w-4 h-4"></i> Descargar Plantilla
+                </a>
+            </div>
+        </header>
 
-    echo "<div class='section'>";
-    echo "<h2>📊 Resultados de Carga Masiva</h2>";
+        <!-- Main Cards -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left: Stats & problematic users -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <i data-lucide="activity" class="text-blue-500 w-4 h-4"></i> Diagnóstico Actual
+                    </h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 border-l-4 border-l-red-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin Roles</p>
+                            <div class="text-3xl font-black text-slate-800"><?php echo count($users_no_roles); ?></div>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 border-l-4 border-l-amber-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sin Plan (llu)</p>
+                            <div class="text-3xl font-black text-slate-800"><?php echo count($users_no_llu); ?></div>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-4 leading-relaxed italic">
+                        * Estos datos corresponden a la carga inicial de la página.
+                    </p>
+                </div>
 
-    if (!empty($results['success'])) {
-        echo "<div class='success' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
-        echo "<h3>✅ Procesados Exitosamente (" . count($results['success']) . ")</h3>";
-        echo "<ul>";
-        foreach ($results['success'] as $msg) {
-            echo "<li>$msg</li>";
+                <div class="bg-blue-600 p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h4 class="font-bold text-lg mb-2">Instrucciones</h4>
+                        <ul class="text-xs space-y-2 opacity-90 font-medium">
+                            <li class="flex gap-2"><span>1.</span><span>Descarga la plantilla con los usuarios detectados.</span></li>
+                            <li class="flex gap-2"><span>2.</span><span>Completa la columna <b>"Plan de Aprendizaje"</b>.</span></li>
+                            <li class="flex gap-2"><span>3.</span><span>Sube el archivo aquí para procesar masivamente.</span></li>
+                        </ul>
+                    </div>
+                    <i data-lucide="info" class="absolute -bottom-4 -right-4 w-24 h-24 opacity-10 rotate-12"></i>
+                </div>
+            </div>
+
+            <!-- Middle/Right: Processor -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- File Upload / Progress Card -->
+                <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                    
+                    <!-- Upload State -->
+                    <div v-if="state === 'idle'" class="p-12 flex flex-col items-center justify-center text-center">
+                        <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-6">
+                            <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-slate-800 mb-2">Subir Archivo de Reparación</h2>
+                        <p class="text-slate-500 text-sm max-w-sm mb-8">Arrastre su archivo Excel (.xlsx) o CSV aquí para iniciar el proceso de validación.</p>
+                        
+                        <input type="file" ref="fileInput" class="hidden" accept=".xlsx,.csv" @change="handleFile">
+                        <button @click="$refs.fileInput.click()" class="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all flex items-center gap-3 active:scale-95">
+                            Seleccionar Archivo
+                        </button>
+                    </div>
+
+                    <!-- Preview State -->
+                    <div v-if="state === 'preview'" class="p-0 flex flex-col">
+                        <div class="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-slate-800">Previsualización de Carga</h3>
+                                <p class="text-xs text-slate-500">{{ rows.length }} registros detectados</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="reset" class="px-4 py-2 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all">Cancelar</button>
+                                <button @click="startProcess" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold shadow-md transition-all">Confirmar y Procesar</button>
+                            </div>
+                        </div>
+                        <div class="max-h-[500px] overflow-y-auto w-full">
+                            <table class="w-full text-sm text-left border-collapse">
+                                <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md">
+                                    <tr class="text-[10px] uppercase tracking-widest text-slate-400 font-black border-b border-slate-100">
+                                        <th class="px-6 py-4">Username</th>
+                                        <th class="px-6 py-4">Nombre</th>
+                                        <th class="px-6 py-4">Plan Detectado</th>
+                                        <th class="px-6 py-4">ID Number</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(row, idx) in rows" :key="idx" class="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                        <td class="px-6 py-3 font-mono text-xs text-slate-600">{{ row.username }}</td>
+                                        <td class="px-6 py-3 font-bold text-slate-700">{{ row.fullname }}</td>
+                                        <td class="px-6 py-3">
+                                            <span v-if="row.plan_id" class="inline-flex items-center gap-1.5 text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                                                <i data-lucide="check" class="w-3 h-3"></i> {{ row.plan_name }}
+                                            </span>
+                                            <span v-else class="text-red-500 font-bold text-[10px] flex items-center gap-1">
+                                                <i data-lucide="alert-circle" class="w-3 h-3"></i> NO ENCONTRADO ({{ row.plan_name || 'Vacío' }})
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-3 text-slate-400 text-xs">{{ row.idnumber || '--' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Processing State -->
+                    <div v-if="state === 'processing'" class="p-12 space-y-10">
+                        <div class="text-center">
+                            <div class="inline-flex items-center justify-center p-3 bg-blue-50 text-blue-600 rounded-2xl mb-4 animate-bounce">
+                                <i data-lucide="refresh-cw" class="w-8 h-8"></i>
+                            </div>
+                            <h2 class="text-2xl font-black text-slate-800">Procesando Reparación...</h2>
+                            <p class="text-slate-500 text-sm mt-1">Sincronizando registros y roles en segundo plano.</p>
+                        </div>
+
+                        <!-- Progress Section -->
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-end">
+                                <span class="text-sm font-black text-slate-800">{{ progress }}% Completado</span>
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{{ processedCount }} / {{ rows.length }} registros</span>
+                            </div>
+                            <div class="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                                <div class="h-full bg-blue-600 progress-bar" :style="{ width: progress + '%' }"></div>
+                            </div>
+                            <div class="flex justify-center">
+                                <button v-if="!isFinished && !isCancelled" @click="cancel" class="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-xs font-black border border-red-100 hover:bg-red-100 transition-all flex items-center gap-2">
+                                    <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cancelar Proceso
+                                </button>
+                                <button v-if="isFinished" @click="reset" class="bg-green-600 text-white px-8 py-3 rounded-xl text-sm font-bold shadow-lg shadow-green-200 transition-all active:scale-95">
+                                    Finalizar y Ver Estadísticas
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Mini Logs -->
+                        <div class="bg-slate-900 rounded-2xl p-6 shadow-2xl">
+                             <div class="flex items-center gap-2 mb-4 text-white/50 text-[10px] font-bold uppercase tracking-widest">
+                                <i data-lucide="terminal" class="w-3 h-3"></i> Actividad del Servidor
+                             </div>
+                             <div class="space-y-1.5 max-h-40 overflow-y-auto font-mono text-[10px] scrollbar-hide">
+                                 <div v-for="(log, lidx) in logs" :key="lidx" :class="log.type === 'error' ? 'text-red-400' : (log.type === 'warning' ? 'text-amber-400' : 'text-emerald-400')" class="flex gap-2">
+                                     <span class="opacity-30">[{{ log.time }}]</span>
+                                     <span class="font-bold">[{{ log.type.toUpperCase() }}]</span>
+                                     <span>{{ log.msg }}</span>
+                                 </div>
+                                 <div v-if="!logs.length" class="text-white/20 italic italic">Esperando transacciones...</div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="state === 'idle'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 flex gap-4 items-start">
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-xl"><i data-lucide="alert-triangle" class="w-5 h-5"></i></div>
+                        <div>
+                            <h5 class="font-bold text-slate-800 text-sm">Validación de Rol</h5>
+                            <p class="text-xs text-slate-500 mt-1">El sistema verificará si el usuario ya tiene el rol asignado para evitar duplicados.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 flex gap-4 items-start">
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="database" class="w-5 h-5"></i></div>
+                        <div>
+                            <h5 class="font-bold text-slate-800 text-sm">Tracking Académico</h5>
+                            <p class="text-xs text-slate-500 mt-1">Se creará el registro en local_learning_users necesario para el motor de proyecciones.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            state: 'idle', // idle, preview, processing
+            plans: [],
+            rows: [],
+            processedCount: 0,
+            logs: [],
+            isFinished: false,
+            isCancelled: false,
+            currentXhr: null
         }
-        echo "</ul></div>";
-    }
-
-    if (!empty($results['errors'])) {
-        echo "<div class='error' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
-        echo "<h3>❌ Errores (" . count($results['errors']) . ")</h3>";
-        echo "<ul>";
-        foreach ($results['errors'] as $msg) {
-            echo "<li>$msg</li>";
+    },
+    computed: {
+        progress() {
+            if (!this.rows.length) return 0;
+            return Math.round((this.processedCount / this.rows.length) * 100);
         }
-        echo "</ul></div>";
-    }
-
-    if (!empty($results['skipped'])) {
-        echo "<div class='warning' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
-        echo "<h3>⚠️ Omitidos (" . count($results['skipped']) . ")</h3>";
-        echo "<ul>";
-        foreach ($results['skipped'] as $msg) {
-            echo "<li>$msg</li>";
-        }
-        echo "</ul></div>";
-    }
-
-    echo "<a href='?' class='btn btn-primary'>Volver</a>";
-    echo "</div>";
-}
-
-// ========== SHOW BULK UPLOAD ERROR ==========
-if (isset($_SESSION['bulk_upload_error'])) {
-    echo "<div class='error' style='padding: 15px; margin: 10px 0; border-radius: 5px;'>";
-    echo "❌ Error al procesar archivo: " . $_SESSION['bulk_upload_error'];
-    echo "</div>";
-    unset($_SESSION['bulk_upload_error']);
-}
-
-// ========== BULK UPLOAD FORM ==========
-echo "<div class='section info'>";
-echo "<h2>📤 Carga Masiva desde Excel</h2>";
-echo "<p>Descarga la plantilla Excel con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
-
-echo "<div style='margin: 20px 0;'>";
-echo "<a href='download_fix_template.php' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
-echo "⬇️ Descargar Plantilla Excel";
-echo "</a>";
-echo "</div>";
-
-
-echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
-echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
-echo "<h3>Subir Archivo Completado</h3>";
-echo "<input type='file' name='uploadfile' accept='.xlsx,.csv' required style='padding: 10px; font-size: 14px; margin: 10px 0;'>";
-echo "<br>";
-echo "<input type='submit' value='⬆️ Procesar Archivo' class='btn btn-primary' style='font-size: 16px; padding: 10px 30px; margin-top: 10px;'>";
-echo "</div>";
-echo "</form>";
-
-echo "<div class='warning' style='margin-top: 20px; padding: 15px;'>";
-echo "<strong>⚠️ Importante:</strong><ul>";
-echo "<li>La plantilla contiene SOLO los usuarios sin roles</li>";
-echo "<li>Debes completar la columna 'Plan de Aprendizaje' con el nombre EXACTO del plan</li>";
-echo "<li>NO modifiques las columnas de Username, Nombre, Email o ID Number</li>";
-echo "<li>El sistema asignará automáticamente el rol de estudiante y creará el registro en local_learning_users</li>";
-echo "<li>Puedes editar el archivo en Excel, guardar y subirlo (acepta .xlsx o .csv)</li>";
-echo "</ul></div>";
-
-echo "</div>";
-
-// ========== HANDLE ACTIONS ==========
-if ($action === 'fix_single' && $userid > 0 && $confirm === 1) {
-    echo "<div class='section info'>";
-    echo "<h2>🔧 Reparando Usuario ID: $userid</h2>";
-
-    $user = $DB->get_record('user', ['id' => $userid], '*');
-    if (!$user) {
-        echo "<div class='error' style='padding: 10px;'>❌ Usuario no encontrado</div>";
-    } else {
-        $success_steps = [];
-        $error_steps = [];
-
-        // Step 1: Assign student role
-        $student_role = $DB->get_record('role', ['shortname' => 'student']);
-        if ($student_role) {
-            $context = context_system::instance();
-            $has_role = $DB->record_exists('role_assignments', ['userid' => $userid, 'roleid' => $student_role->id]);
-
-            if (!$has_role) {
-                try {
-                    role_assign($student_role->id, $userid, $context->id);
-                    $success_steps[] = "✅ Rol de estudiante asignado";
-                } catch (Exception $e) {
-                    $error_steps[] = "❌ Error asignando rol: " . $e->getMessage();
+    },
+    mounted() {
+        this.fetchPlans();
+        // Init Lucide
+        setTimeout(() => lucide.createIcons(), 100);
+    },
+    methods: {
+        async fetchPlans() {
+            try {
+                const res = await axios.get(window.location.href + '?action=get_plans');
+                if (res.data.status === 'success') {
+                    this.plans = res.data.plans;
                 }
-            } else {
-                $success_steps[] = "✅ Ya tiene rol de estudiante";
+            } catch (e) {
+                console.error("Error fetching plans", e);
             }
-        }
+        },
+        handleFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        // Step 2: Create local_learning_users record if missing
-        $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
-        if (!$llu && $planid > 0) {
-            $plan = $DB->get_record('local_learning_plans', ['id' => $planid]);
-            if ($plan) {
-                $record = new stdClass();
-                $record->userid = $userid;
-                $record->learningplanid = $planid;
-                $record->currentperiodid = 1; // Default to period 1, adjust if needed
-                $record->timecreated = time();
-                $record->timemodified = time();
-                $record->usermodified = $USER->id;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                
+                // Convert to JSON
+                const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                
+                // Remove header (Username, Nombre Completo, Email, ID Number, Plan de Aprendizaje)
+                const header = rawRows.shift();
+                
+                this.rows = rawRows
+                    .filter(r => r[0] && r[0] !== 'INSTRUCCIONES:')
+                    .map(r => {
+                        const planName = r[4] ? r[4].trim() : '';
+                        const plan = this.plans.find(p => p.name.toLowerCase() === planName.toLowerCase());
+                        return {
+                            username: r[0],
+                            fullname: r[1],
+                            idnumber: r[3],
+                            plan_name: planName,
+                            plan_id: plan ? plan.id : null,
+                            found: false,
+                            status: 'pending'
+                        };
+                    });
+                
+                this.state = 'preview';
+            };
+            reader.readAsBinaryString(file);
+        },
+        async startProcess() {
+            this.state = 'processing';
+            this.processedCount = 0;
+            this.logs = [];
+            this.isFinished = false;
+            this.isCancelled = false;
+
+            for (let i = 0; i < this.rows.length; i++) {
+                if (this.isCancelled) {
+                    this.addLog('warning', 'Proceso cancelado por el usuario.');
+                    break;
+                }
+
+                const row = this.rows[i];
+                if (!row.plan_id) {
+                    this.addLog('error', `${row.username}: Saltado - Plan no encontrado.`);
+                    this.processedCount++;
+                    continue;
+                }
 
                 try {
-                    $DB->insert_record('local_learning_users', $record);
-                    $success_steps[] = "✅ Registro en local_learning_users creado con plan: {$plan->name}";
-                } catch (Exception $e) {
-                    $error_steps[] = "❌ Error creando registro: " . $e->getMessage();
+                    // Start individual fix via AJAX
+                    const formData = new FormData();
+                    formData.append('userid_search', row.username); // We'll search by username on backend if possible, or we need to find ID first
+                    
+                    // Actually, let's look for user ID first to make handled cleaner
+                    // For simplicity, let's assume we can pass username to ajax_fix and it resolves it
+                    // I will update the backend to handle userid_str (username) if possible, 
+                    // or I should have fetched IDs during preview.
+                    
+                    // Let's assume we match by username. I'll tweak the backend now to handle 'username' param too.
+                    
+                    const res = await axios.post(window.location.href + '?action=ajax_fix', null, {
+                        params: {
+                            username: row.username,
+                            planid: row.plan_id,
+                            idnumber: row.idnumber
+                        }
+                    });
+
+                    if (res.data.status === 'success') {
+                        this.addLog('success', `${row.username}: Reparado exitosamente.`);
+                    } else {
+                        this.addLog('error', `${row.username}: Error - ${res.data.message}`);
+                    }
+                } catch (e) {
+                    this.addLog('error', `${row.username}: Error de red o servidor.`);
                 }
-            } else {
-                $error_steps[] = "❌ Plan de aprendizaje no encontrado (ID: $planid)";
+                
+                this.processedCount++;
             }
-        } elseif ($llu) {
-            $success_steps[] = "✅ Ya tiene registro en local_learning_users";
-        } else {
-            $error_steps[] = "⚠️ No se especificó plan de aprendizaje";
-        }
 
-        // Show results
-        if (!empty($success_steps)) {
-            echo "<div class='success' style='padding: 15px; margin: 10px 0;'>";
-            echo "<strong>Pasos completados:</strong><ul>";
-            foreach ($success_steps as $step) {
-                echo "<li>$step</li>";
-            }
-            echo "</ul></div>";
-        }
-
-        if (!empty($error_steps)) {
-            echo "<div class='error' style='padding: 15px; margin: 10px 0;'>";
-            echo "<strong>Errores encontrados:</strong><ul>";
-            foreach ($error_steps as $step) {
-                echo "<li>$step</li>";
-            }
-            echo "</ul></div>";
-        }
-
-        echo "<a href='debug_student_visibility.php?search={$user->username}' class='btn btn-primary'>Ver Resultado</a> ";
-        echo "<a href='?' class='btn btn-primary'>Volver</a>";
-    }
-
-    echo "</div>";
-}
-
-// ========== IDENTIFY PROBLEMATIC USERS ==========
-echo "<div class='section'>";
-echo "<h2>📊 Usuarios con Problemas</h2>";
-
-// Find users without roles
-$sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
-        FROM {user} u
-        LEFT JOIN {role_assignments} ra ON ra.userid = u.id
-        WHERE u.deleted = 0
-        AND ra.id IS NULL
-        ORDER BY u.timecreated DESC";
-
-$users_no_roles = $DB->get_records_sql($sql);
-
-// Find users without local_learning_users
-$sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
-        FROM {user} u
-        LEFT JOIN {local_learning_users} llu ON llu.userid = u.id
-        WHERE u.deleted = 0
-        AND u.id != 1
-        AND llu.id IS NULL
-        ORDER BY u.timecreated DESC";
-
-$users_no_llu = $DB->get_records_sql($sql);
-
-// Users with wrong idnumber - NOT NEEDED, both are correct
-$users_wrong_idnumber = [];
-
-echo "<div>";
-echo "<div class='stat-box' style='border-left-color: #dc3545;'>";
-echo "<div class='stat-number' style='color: #dc3545;'>" . count($users_no_roles) . "</div>";
-echo "<div class='stat-label'>Sin Roles Asignados</div>";
-echo "</div>";
-
-echo "<div class='stat-box' style='border-left-color: #dc3545;'>";
-echo "<div class='stat-number' style='color: #dc3545;'>" . count($users_no_llu) . "</div>";
-echo "<div class='stat-label'>Sin local_learning_users</div>";
-echo "</div>";
-
-echo "</div>";
-
-echo "</div>";
-
-// ========== USERS WITHOUT ROLES ==========
-if (!empty($users_no_roles)) {
-    echo "<div class='section error'>";
-    echo "<h2>❌ Usuarios Sin Roles Asignados (" . count($users_no_roles) . ")</h2>";
-    echo "<p>Estos usuarios no tienen ningún rol asignado, por lo que no aparecen en el sistema.</p>";
-
-    echo "<table>";
-    echo "<tr><th>ID</th><th>Username</th><th>Nombre</th><th>Email</th><th>ID Number</th><th>Creado</th><th>Acciones</th></tr>";
-
-    $plans = $DB->get_records('local_learning_plans', null, 'name ASC');
-
-    foreach ($users_no_roles as $user) {
-        $created = date('Y-m-d', $user->timecreated);
-        echo "<tr>";
-        echo "<td>{$user->id}</td>";
-        echo "<td>{$user->username}</td>";
-        echo "<td>{$user->firstname} {$user->lastname}</td>";
-        echo "<td>{$user->email}</td>";
-        echo "<td>{$user->idnumber}</td>";
-        echo "<td>$created</td>";
-        echo "<td>";
-        echo "<select id='plan_{$user->id}' style='padding: 5px;'>";
-        echo "<option value=''>Plan...</option>";
-        foreach ($plans as $plan) {
-            echo "<option value='{$plan->id}'>{$plan->name}</option>";
-        }
-        echo "</select> ";
-        echo "<button onclick='fixUser({$user->id})' class='btn btn-success' style='padding: 5px 10px;'>Reparar</button>";
-        echo "</td>";
-        echo "</tr>";
-    }
-
-    echo "</table>";
-
-    echo "<script>
-    function fixUser(userid) {
-        const planid = document.getElementById('plan_' + userid).value;
-        if (!planid) {
-            alert('Por favor selecciona un plan de aprendizaje');
-            return;
-        }
-        if (confirm('¿Confirmas reparar este usuario?\\n\\nSe realizará:\\n- Asignar rol de estudiante\\n- Crear registro en local_learning_users\\n- Corregir ID Number si es necesario')) {
-            window.location.href = '?action=fix_single&userid=' + userid + '&planid=' + planid + '&confirm=1';
+            this.isFinished = true;
+            this.addLog('success', 'PROCESO FINALIZADO.');
+        },
+        addLog(type, msg) {
+            this.logs.unshift({
+                time: new Date().toLocaleTimeString(),
+                type,
+                msg
+            });
+            // Auto update icons if needed
+            setTimeout(() => lucide.createIcons(), 50);
+        },
+        cancel() {
+            this.isCancelled = true;
+        },
+        reset() {
+            this.state = 'idle';
+            this.rows = [];
+            this.processedCount = 0;
+            this.logs = [];
+            this.isFinished = false;
+            this.isCancelled = false;
+            if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+            setTimeout(() => lucide.createIcons(), 100);
         }
     }
-    </script>";
+}).mount('#fix-setup-app');
+</script>
 
-    echo "</div>";
-}
-
-// ========== USERS WITHOUT LOCAL_LEARNING_USERS ==========
-if (!empty($users_no_llu)) {
-    $users_only_llu = array_filter($users_no_llu, function($u) use ($users_no_roles) {
-        foreach ($users_no_roles as $ur) {
-            if ($ur->id === $u->id) return false;
-        }
-        return true;
-    });
-
-    if (!empty($users_only_llu)) {
-        echo "<div class='section warning'>";
-        echo "<h2>⚠️ Usuarios Sin local_learning_users (pero con roles) (" . count($users_only_llu) . ")</h2>";
-        echo "<p>Estos usuarios tienen roles pero no están en local_learning_users.</p>";
-
-        echo "<table>";
-        echo "<tr><th>ID</th><th>Username</th><th>Nombre</th><th>Email</th><th>Acciones</th></tr>";
-
-        foreach (array_slice($users_only_llu, 0, 20) as $user) {
-            echo "<tr>";
-            echo "<td>{$user->id}</td>";
-            echo "<td>{$user->username}</td>";
-            echo "<td>{$user->firstname} {$user->lastname}</td>";
-            echo "<td>{$user->email}</td>";
-            echo "<td><a href='debug_student_visibility.php?search={$user->username}' class='btn btn-primary' style='padding: 5px 10px;'>Ver Detalles</a></td>";
-            echo "</tr>";
-        }
-
-        echo "</table>";
-
-        if (count($users_only_llu) > 20) {
-            echo "<p><em>Mostrando primeros 20 de " . count($users_only_llu) . " usuarios</em></p>";
-        }
-
-        echo "</div>";
-    }
-}
-
-
+<?php
 echo $OUTPUT->footer();
