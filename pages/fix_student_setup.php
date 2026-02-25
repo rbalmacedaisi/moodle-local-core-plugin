@@ -18,6 +18,8 @@ $confirm = optional_param('confirm', 0, PARAM_INT);
 // ========== DOWNLOAD TEMPLATE ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'download_template') {
     error_log("DEBUG: Entrando a download_template action");
+    error_log("DEBUG: Output buffering level: " . ob_get_level());
+    error_log("DEBUG: Headers sent: " . (headers_sent($file, $line) ? "YES at $file:$line" : "NO"));
 
     // Get all users without roles
     $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
@@ -284,9 +286,27 @@ echo "</div>";
 
 echo "<script>
 document.getElementById('download-btn').addEventListener('click', function(e) {
-    console.log('Click en descargar plantilla');
+    console.log('=== CLICK EN DESCARGAR PLANTILLA ===');
     console.log('URL destino:', this.href);
-    console.log('Evento:', e);
+    console.log('Tipo de elemento:', this.tagName);
+    console.log('Window location antes:', window.location.href);
+
+    // Guardar en sessionStorage para persistir después del reload
+    sessionStorage.setItem('download_click_log', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        url: this.href,
+        location: window.location.href
+    }));
+});
+
+// Mostrar log si existe
+window.addEventListener('DOMContentLoaded', function() {
+    const log = sessionStorage.getItem('download_click_log');
+    if (log) {
+        console.log('=== LOG DE DESCARGA ANTERIOR ===');
+        console.log(JSON.parse(log));
+        sessionStorage.removeItem('download_click_log');
+    }
 });
 </script>";
 
