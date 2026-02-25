@@ -1237,7 +1237,7 @@ function get_enrolled_students_by_courseid($corecourseid)
 {
     global $DB;
 
-    $sql = "SELECT u.id, u.firstname, u.lastname, u.email, u.username
+    $sql = "SELECT u.id, u.firstname, u.lastname, u.email, u.username, u.idnumber
             FROM {user} u
             JOIN {user_enrolments} ue ON u.id = ue.userid
             JOIN {enrol} e ON ue.enrolid = e.id
@@ -1247,14 +1247,16 @@ function get_enrolled_students_by_courseid($corecourseid)
 
     $users = $DB->get_records_sql($sql, ['courseid' => $corecourseid]);
 
-    // Format to match existing structure
+    // Format to match existing structure (with userid field for compatibility)
     return array_map(function ($u) {
         return (object)[
             'id' => $u->id,
+            'userid' => $u->id,  // Add userid for compatibility with existing frontend code
             'firstname' => $u->firstname,
             'lastname' => $u->lastname,
             'email' => $u->email,
-            'username' => $u->username
+            'username' => $u->username,
+            'idnumber' => $u->idnumber
         ];
     }, $users);
 }
