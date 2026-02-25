@@ -1076,7 +1076,8 @@ class scheduler extends external_api {
                 if ($meta) {
                     // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
                     if (empty($c->learningplanid)) $c->learningplanid = $meta->learningplanid;
-                    $academic_period_id = $meta->periodid;
+                    if (empty($academic_period_id)) $academic_period_id = $meta->periodid;
+                    
                     // If the stored courseid was a corecourseid (Moodle ID), heal it to Subject ID (Link ID)
                     if ($c->courseid == $meta->courseid && $c->courseid != $meta->id) {
                         $c->courseid = (int)$meta->id;
