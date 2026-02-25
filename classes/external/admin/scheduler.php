@@ -1102,10 +1102,11 @@ class scheduler extends external_api {
                 'room' => empty($sessArr) ? 'Sin aula' : $sessArr[0]['roomName'],
                 'corecourseid' => (int)($c->corecourseid ?? 0),
                 'studentCount' => (int)($DB->count_records('gmk_class_queue', ['classid' => $c->id]) + $DB->count_records('gmk_course_progre', ['classid' => $c->id])),
-                'studentIds' => array_values(array_unique(array_merge(
-                    $DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = ?', [$c->id]),
-                    $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = ?', [$c->id])
-                ))),
+                'studentIds' => array_values(array_unique(array_filter(array_merge(
+                    // Get idnumbers (document numbers) instead of userids for consistent student identification
+                    $DB->get_fieldset_sql("SELECT u.idnumber FROM {user} u JOIN {gmk_class_queue} q ON u.id = q.userid WHERE q.classid = ? AND u.deleted = 0", [$c->id]),
+                    $DB->get_fieldset_sql("SELECT u.idnumber FROM {user} u JOIN {gmk_course_progre} p ON u.id = p.userid WHERE p.classid = ? AND u.deleted = 0", [$c->id])
+                )))),
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
                 'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
                 'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
