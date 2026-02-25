@@ -1,7 +1,11 @@
-<?php
-require_once('../config.php');
-global $DB;
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/adminlib.php');
 
+admin_externalpage_setup('grupomakro_core_manage_courses');
+
+echo $OUTPUT->header();
+
+global $DB, $CFG;
 $classid = optional_param('classid', 125, PARAM_INT);
 
 echo "<h1>Detalles de Clase $classid</h1>";
@@ -41,3 +45,5 @@ echo "<p>Conteo: " . count($progre) . "</p>";
 
 echo "<hr>";
 echo "<p>Use ?classid=XXX para ver otra clase.</p>";
+
+echo $OUTPUT->footer();
