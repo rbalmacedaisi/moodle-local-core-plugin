@@ -17,6 +17,8 @@ $confirm = optional_param('confirm', 0, PARAM_INT);
 
 // ========== DOWNLOAD TEMPLATE ACTION (BEFORE ANY OUTPUT) ==========
 if ($action === 'download_template') {
+    error_log("DEBUG: Entrando a download_template action");
+
     // Get all users without roles
     $sql = "SELECT u.id, u.username, u.firstname, u.lastname, u.email, u.idnumber, u.timecreated
             FROM {user} u
@@ -26,18 +28,23 @@ if ($action === 'download_template') {
             ORDER BY u.timecreated DESC";
 
     $users_no_roles = $DB->get_records_sql($sql);
+    error_log("DEBUG: Encontrados " . count($users_no_roles) . " usuarios sin roles");
 
     // Get all learning plans
     $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
     $plan_names = array_map(function($p) { return $p->name; }, $plans);
 
     $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.csv';
+    error_log("DEBUG: Archivo a generar: " . $filename);
 
+    error_log("DEBUG: Enviando headers");
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
 
+    error_log("DEBUG: Abriendo php://output");
     $fp = fopen('php://output', 'w');
     fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+    error_log("DEBUG: BOM escrito");
 
     // Headers
     fputcsv($fp, ['Username (Cédula)', 'Nombre Completo', 'Email', 'ID Number (Expediente)', 'Plan de Aprendizaje']);
@@ -60,7 +67,9 @@ if ($action === 'download_template') {
     fputcsv($fp, ['2. NO modifique las otras columnas']);
     fputcsv($fp, ['3. Planes disponibles: ' . implode(', ', $plan_names)]);
 
+    error_log("DEBUG: CSV completado, cerrando archivo");
     fclose($fp);
+    error_log("DEBUG: Ejecutando exit");
     exit;
 }
 
@@ -268,10 +277,18 @@ echo "<h2>📤 Carga Masiva desde CSV</h2>";
 echo "<p>Descarga la plantilla CSV con los usuarios sin roles, completa la columna 'Plan de Aprendizaje' y sube el archivo para procesamiento masivo.</p>";
 
 echo "<div style='margin: 20px 0;'>";
-echo "<a href='?action=download_template' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;'>";
+echo "<a href='?action=download_template' class='btn btn-success' style='font-size: 16px; padding: 15px 30px;' id='download-btn'>";
 echo "⬇️ Descargar Plantilla CSV";
 echo "</a>";
 echo "</div>";
+
+echo "<script>
+document.getElementById('download-btn').addEventListener('click', function(e) {
+    console.log('Click en descargar plantilla');
+    console.log('URL destino:', this.href);
+    console.log('Evento:', e);
+});
+</script>";
 
 echo "<form method='post' enctype='multipart/form-data' action='?action=bulk_upload' style='margin-top: 20px;'>";
 echo "<div style='background: white; padding: 20px; border-radius: 5px; border: 2px dashed #ccc;'>";
