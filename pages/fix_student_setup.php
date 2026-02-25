@@ -39,9 +39,16 @@ if ($action === 'download_template') {
     $filename = 'plantilla_reparacion_estudiantes_' . date('Y-m-d_His') . '.csv';
     error_log("DEBUG: Archivo a generar: " . $filename);
 
+    // CRITICAL: Clean ALL output buffers before sending file
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     error_log("DEBUG: Enviando headers");
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
 
     error_log("DEBUG: Abriendo php://output");
     $fp = fopen('php://output', 'w');
