@@ -6,8 +6,68 @@
  */
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php'); // For sync_student_progress
 
 admin_externalpage_setup('grupomakro_core_manage_courses');
+
+// -------------------------------------------------------------
+// AJAX Handler for Enrollment
+// -------------------------------------------------------------
+$ajax = optional_param('ajax', '', PARAM_ALPHA);
+if ($ajax === 'enroll') {
+    header('Content-Type: application/json');
+    try {
+        require_sesskey();
+        
+        $userid = required_param('userid', PARAM_INT);
+        $planid = required_param('planid', PARAM_INT);
+        $roleid = required_param('roleid', PARAM_INT); // student role ID
+
+        global $DB;
+
+        // 1. Check if user already enrolled
+        if ($DB->record_exists('local_learning_users', ['userid' => $userid, 'learningplanid' => $planid])) {
+            echo json_encode(['status' => 'error', 'message' => 'El estudiante ya está matriculado en este plan.']);
+            die();
+        }
+
+        // 2. Insert into local_learning_users
+        $record = new stdClass();
+        $record->learningplanid = $planid;
+        $record->userid = $userid;
+        $record->userrolename = 'student';
+        $record->timecreated = time();
+        $record->timemodified = time();
+        
+        // Find default academic period (if any) or leave blank for now
+        $academicperiod = $DB->get_record('gmk_academic_periods', ['status' => 1], '*', IGNORE_MULTIPLE);
+        if ($academicperiod) {
+            $record->academicperiodid = $academicperiod->id;
+        }
+
+        $DB->insert_record('local_learning_users', $record);
+
+        // 3. Assign role in learning plan context
+        $plan_context = context_module::instance($DB->get_field('course_modules', 'id', ['instance' => $planid, 'module' => $DB->get_field('modules', 'id', ['name' => 'learningplan'])]));
+        
+        if ($plan_context) {
+             role_assign($roleid, $userid, $plan_context->id);
+        } else {
+             // Fallback to system or ignore if context not found (plugin specific logic)
+        }
+
+        // 4. Initialize progress grid
+        if (function_exists('sync_student_progress')) {
+            sync_student_progress($userid);
+        }
+
+        echo json_encode(['status' => 'success', 'message' => 'Estudiante matriculado y malla inicializada correctamente.']);
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    die();
+}
+// -------------------------------------------------------------
 
 echo $OUTPUT->header();
 
@@ -38,6 +98,13 @@ if ($days_filter > 0) {
     $sql_where .= " AND u.timecreated >= :cutoff ";
     $params['cutoff'] = $cutoff;
 }
+
+// Subquery to exclude users who have editingteacher or teacher roles anywhere in the system
+$sql_where .= " AND NOT EXISTS (
+    SELECT 1 FROM {role_assignments} ra2 
+    JOIN {role} r2 ON ra2.roleid = r2.id 
+    WHERE ra2.userid = u.id AND r2.shortname IN ('editingteacher', 'teacher')
+) ";
 
 // Ensure they have the student role if filter is selected. 
 // Standard student role in moodle is usually shortname 'student'
@@ -101,30 +168,87 @@ if (empty($users)) {
             <th>ID Number</th>
             <th>Email</th>
             <th>Nombre Completo</th>
-            <th>Usuario</th>
             <th>Autenticación</th>
             <th>Fecha Registro</th>
-            <th>Último Acceso</th>
+            <th><i class='fa fa-graduation-cap'></i> Matricular a Plan</th>
             <th>Acciones</th>
           </tr></thead>";
     echo "<tbody>";
+
+    // Fetch learning plans for dropdown
+    $learning_plans = $DB->get_records('local_learning_plans', ['active' => 1], 'name ASC', 'id, name');
+    
+    // Get student role id
+    $student_role = $DB->get_record('role', ['shortname' => 'student']);
+    $roleid = $student_role ? $student_role->id : 5;
+
     foreach ($users as $u) {
         $profileurl = new moodle_url('/user/profile.php', ['id' => $u->id]);
         
-        echo "<tr>";
+        echo "<tr id='row_{$u->id}'>";
         echo "<td>{$u->id}</td>";
         echo "<td>" . ($u->idnumber ? "<strong>{$u->idnumber}</strong>" : '<span class="text-muted">No tiene</span>') . "</td>";
         echo "<td>{$u->email}</td>";
         echo "<td>{$u->firstname} {$u->lastname}</td>";
-        echo "<td>{$u->username}</td>";
         echo "<td><span class='badge badge-secondary'>{$u->auth}</span></td>";
-        echo "<td>" . userdate($u->timecreated, '%d/%m/%Y %H:%M') . "</td>";
-        echo "<td>" . ($u->lastaccess ? userdate($u->lastaccess, '%d/%m/%Y %H:%M') : '<span class="text-muted">Nunca</span>') . "</td>";
-        echo "<td><a href='{$profileurl}' target='_blank' class='btn btn-sm btn-info'>Ver Perfil Moodle</a></td>";
+        echo "<td>" . userdate($u->timecreated, '%d/%m/%Y') . "</td>";
+        
+        // Enrollment cell
+        echo "<td>";
+        echo "<div class='d-flex align-items-center' style='gap:5px;'>";
+        echo "<select id='plan_{$u->id}' class='form-control form-control-sm' style='max-width:200px;'>";
+        echo "<option value=''>-- Seleccione Plan --</option>";
+        foreach ($learning_plans as $lp) {
+            echo "<option value='{$lp->id}'>" . shorten_text($lp->name, 40) . "</option>";
+        }
+        echo "</select>";
+        echo "<button class='btn btn-sm btn-success' onclick='enrollStudent({$u->id}, {$roleid})'><i class='fa fa-plus'></i> Matricular</button>";
+        echo "</div>";
+        echo "</td>";
+
+        echo "<td><a href='{$profileurl}' target='_blank' class='btn btn-sm btn-info'>Perfil</a></td>";
         echo "</tr>";
     }
     echo "</tbody></table>";
     echo "</div>";
+    
+    // JS for enrollment
+    echo "<script>
+    function enrollStudent(userid, roleid) {
+        const planSelect = document.getElementById('plan_' + userid);
+        const planid = planSelect.value;
+        if (!planid) {
+            alert('Por favor, selecciona un plan de aprendizaje.');
+            return;
+        }
+
+        const btn = event.target.closest('button');
+        btn.disabled = true;
+        btn.innerHTML = '<i class=\"fa fa-spinner fa-spin\"></i>';
+
+        fetch('debug_unassigned_students.php?ajax=enroll&sesskey=" . sesskey() . "&userid=' + userid + '&planid=' + planid + '&roleid=' + roleid, {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const row = document.getElementById('row_' + userid);
+                row.style.backgroundColor = '#d4edda';
+                const cell = btn.closest('td');
+                cell.innerHTML = '<span class=\"text-success\"><i class=\"fa fa-check\"></i> Matriculado</span>';
+            } else {
+                alert('Error: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class=\"fa fa-plus\"></i> Matricular';
+            }
+        })
+        .catch(error => {
+            alert('Error de red: ' + error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class=\"fa fa-plus\"></i> Matricular';
+        });
+    }
+    </script>";
 }
 
 echo $OUTPUT->footer();
