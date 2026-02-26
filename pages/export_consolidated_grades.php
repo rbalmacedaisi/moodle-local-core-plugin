@@ -34,7 +34,8 @@ $statusLabels = [
     4 => 'Aprobada',
     5 => 'Reprobada',
     6 => 'Pendiente Revalida',
-    7 => 'Revalidando curso'
+    7 => 'Revalidando curso',
+    99 => 'Migración Pendiente'
 ];
 
 $fieldStatus = $DB->get_record('user_info_field', ['shortname' => 'studentstatus']);

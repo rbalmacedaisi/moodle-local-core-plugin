@@ -152,6 +152,14 @@ if ($action === 'ajax_import_grade') {
             }
         }
 
+        if (!$plan) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => "Plan de aprendizaje no encontrado: $carrera"
+            ]);
+            exit;
+        }
+
         // Map status
         $status_code = map_course_status_to_code($estado_curso);
         if ($status_code === null) {
@@ -162,16 +170,31 @@ if ($action === 'ajax_import_grade') {
             exit;
         }
 
-        // Get current period (optional - can be null)
-        $current_period = $DB->get_record_sql(
-            "SELECT id FROM {gmk_academic_periods} WHERE startdate <= ? AND enddate >= ? ORDER BY id DESC LIMIT 1",
-            [time(), time()]
-        );
+        // Find period by name within the learning plan
+        $period = null;
+        if (!empty($cuatrimestre)) {
+            $periods = $DB->get_records('local_learning_periods', ['learningplanid' => $plan->id], '', 'id, name');
+            foreach ($periods as $per) {
+                if (php_normalize_field($per->name) === php_normalize_field($cuatrimestre)) {
+                    $period = $per;
+                    break;
+                }
+            }
+        }
 
-        // Check if record exists
+        // Fallback: get first period if not found
+        if (!$period) {
+            $period = $DB->get_record_sql(
+                "SELECT id FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC LIMIT 1",
+                [$plan->id]
+            );
+        }
+
+        // Check if record exists for this specific user + course + learning plan
         $existing = $DB->get_record('gmk_course_progre', [
             'userid' => $user->id,
-            'courseid' => $course->id
+            'courseid' => $course->id,
+            'learningplanid' => $plan->id
         ]);
 
         $transaction = $DB->start_delegated_transaction();
@@ -180,20 +203,33 @@ if ($action === 'ajax_import_grade') {
             // Update existing record
             $existing->grade = $nota;
             $existing->status = $status_code;
+            if ($period) {
+                $existing->periodid = $period->id;
+            }
             $existing->timemodified = time();
             $existing->usermodified = $USER->id;
 
             $DB->update_record('gmk_course_progre', $existing);
             $action_taken = 'updated';
         } else {
-            // Create new record
+            // Create new record with all required fields
             $record = new stdClass();
             $record->userid = $user->id;
             $record->courseid = $course->id;
+            $record->learningplanid = $plan->id;
             $record->grade = $nota;
             $record->status = $status_code;
-            $record->periodid = $current_period ? $current_period->id : 0;
+            $record->periodid = $period ? $period->id : 0;
+            $record->periodname = $period ? mb_substr($period->name, 0, 64, 'UTF-8') : 'Unnamed Period';
             $record->classid = 0; // Migration doesn't have classid
+            $record->groupid = 0;
+            $record->progress = 0;
+            $record->coursename = mb_substr($course->fullname, 0, 255, 'UTF-8');
+            $record->prerequisites = '[]';
+            $record->credits = 0;
+            $record->tc = 0;
+            $record->practicalhours = 0;
+            $record->teoricalhours = 0;
             $record->timecreated = time();
             $record->timemodified = time();
             $record->usermodified = $USER->id;
@@ -207,7 +243,14 @@ if ($action === 'ajax_import_grade') {
         echo json_encode([
             'status' => 'success',
             'action' => $action_taken,
-            'message' => "Registro $action_taken correctamente"
+            'message' => "Registro $action_taken correctamente",
+            'details' => [
+                'user' => $user->username,
+                'course' => $course->shortname,
+                'plan' => $plan->name,
+                'grade' => $nota,
+                'status' => $status_code
+            ]
         ]);
 
     } catch (Exception $e) {
