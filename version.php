@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260224000;         // Added draft_schedules column to academic periods.
+$plugin->version   = 20260226000;         // Expanded coursename field to 255 chars.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

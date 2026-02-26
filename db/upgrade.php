@@ -1551,6 +1551,21 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260224000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260226000) {
+
+        // Define field coursename to be expanded in gmk_course_progre.
+        $table = new xmldb_table('gmk_course_progre');
+        $field = new xmldb_field('coursename', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, 'unnamed', 'courseid');
+
+        // Conditionally expand field coursename from 64 to 255 characters.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->change_field_precision($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260226000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

@@ -327,7 +327,7 @@
         <FIELD NAME="periodid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="periodname" TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="unnamed" SEQUENCE="false"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="coursename" TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="unnamed" SEQUENCE="false"/>
+        <FIELD NAME="coursename" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="unnamed" SEQUENCE="false"/>
         <FIELD NAME="progress" TYPE="number" LENGTH="5" NOTNULL="false" DEFAULT="0.0" SEQUENCE="false" DECIMALS="2"/>
         <FIELD NAME="grade" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0.0" SEQUENCE="false" DECIMALS="2"/>
         <FIELD NAME="credits" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

@@ -39,18 +39,24 @@ if ($action === 'fix') {
 
     foreach ($records as $record) {
         try {
+            $coursename = null;
+
             if (!empty($record->fullname)) {
-                // Update with the full course name
-                $DB->set_field('gmk_course_progre', 'coursename', $record->fullname, ['id' => $record->id]);
-                $fixed++;
+                // Truncate to 64 characters (max length of coursename field)
+                $coursename = mb_substr($record->fullname, 0, 64, 'UTF-8');
             } else if (!empty($record->shortname)) {
                 // Fallback to shortname if fullname is not available
-                $DB->set_field('gmk_course_progre', 'coursename', $record->shortname, ['id' => $record->id]);
-                $fixed++;
+                $coursename = mb_substr($record->shortname, 0, 64, 'UTF-8');
             } else {
                 // Course doesn't exist in Moodle
                 $errors[] = "Record ID {$record->id}: Course ID {$record->courseid} not found in Moodle";
+                continue;
             }
+
+            // Update the course name
+            $DB->set_field('gmk_course_progre', 'coursename', $coursename, ['id' => $record->id]);
+            $fixed++;
+
         } catch (Exception $e) {
             $errors[] = "Record ID {$record->id}: " . $e->getMessage();
         }
