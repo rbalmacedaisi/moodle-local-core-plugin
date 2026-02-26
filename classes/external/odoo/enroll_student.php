@@ -10,7 +10,6 @@ use external_function_parameters;
 use external_value;
 use external_single_structure;
 use context_system;
-use context_system;
 use moodle_exception;
 use stdClass;
 
