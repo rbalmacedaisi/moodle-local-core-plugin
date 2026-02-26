@@ -174,7 +174,6 @@ class get_student_info extends external_api {
         $activeUsersCount = 0;
         
         $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
-        $fieldAcademic = $DB->get_record('user_info_field', array('shortname' => 'academicstatus'));
         $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
         $fieldJourney = $DB->get_record('user_info_field', array('shortname' => 'gmkjourney'));
 

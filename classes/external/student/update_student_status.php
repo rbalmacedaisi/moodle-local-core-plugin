@@ -94,35 +94,68 @@ class update_student_status extends external_api {
             // Validate user exists
             $user = $DB->get_record('user', ['id' => $params['userid']], '*', MUST_EXIST);
 
-            // Get the profile field
-            $fieldRecord = $DB->get_record('user_info_field', ['shortname' => $params['field']]);
+            if ($params['field'] === 'studentstatus') {
+                // Update custom profile field
+                $fieldRecord = $DB->get_record('user_info_field', ['shortname' => 'studentstatus']);
 
-            if (!$fieldRecord) {
-                return [
-                    'status' => 'error',
-                    'message' => "Profile field '{$params['field']}' not found"
-                ];
-            }
+                if (!$fieldRecord) {
+                    return [
+                        'status' => 'error',
+                        'message' => "Profile field 'studentstatus' not found"
+                    ];
+                }
 
-            // Check if data exists for this user/field
-            $existingData = $DB->get_record('user_info_data', [
-                'userid' => $params['userid'],
-                'fieldid' => $fieldRecord->id
-            ]);
+                // Check if data exists for this user/field
+                $existingData = $DB->get_record('user_info_data', [
+                    'userid' => $params['userid'],
+                    'fieldid' => $fieldRecord->id
+                ]);
 
-            if ($existingData) {
-                // Update existing
-                $existingData->data = $params['value'];
-                $existingData->dataformat = 0;
-                $DB->update_record('user_info_data', $existingData);
-            } else {
-                // Insert new
-                $newData = new \stdClass();
-                $newData->userid = $params['userid'];
-                $newData->fieldid = $fieldRecord->id;
-                $newData->data = $params['value'];
-                $newData->dataformat = 0;
-                $DB->insert_record('user_info_data', $newData);
+                if ($existingData) {
+                    // Update existing
+                    $existingData->data = $params['value'];
+                    $existingData->dataformat = 0;
+                    $DB->update_record('user_info_data', $existingData);
+                } else {
+                    // Insert new
+                    $newData = new \stdClass();
+                    $newData->userid = $params['userid'];
+                    $newData->fieldid = $fieldRecord->id;
+                    $newData->data = $params['value'];
+                    $newData->dataformat = 0;
+                    $DB->insert_record('user_info_data', $newData);
+                }
+
+            } else { // academicstatus
+                // Update local_learning_users.status field
+                // Validate value
+                $validStatuses = ['activo', 'aplazado', 'retirado', 'suspendido'];
+                $valueLower = strtolower($params['value']);
+
+                if (!in_array($valueLower, $validStatuses)) {
+                    return [
+                        'status' => 'error',
+                        'message' => "Invalid status. Allowed values: " . implode(', ', $validStatuses)
+                    ];
+                }
+
+                // Update ALL enrollment records for this user
+                $enrollments = $DB->get_records('local_learning_users', ['userid' => $params['userid']]);
+
+                if (empty($enrollments)) {
+                    return [
+                        'status' => 'error',
+                        'message' => 'No enrollment records found for this user'
+                    ];
+                }
+
+                $updated = 0;
+                foreach ($enrollments as $enrollment) {
+                    $enrollment->status = $valueLower;
+                    $enrollment->timemodified = time();
+                    $DB->update_record('local_learning_users', $enrollment);
+                    $updated++;
+                }
             }
 
             // Log the change
