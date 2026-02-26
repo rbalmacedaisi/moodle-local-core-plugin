@@ -95,12 +95,9 @@ class sync_progress extends external_api {
                     // This now also handles Moodle native completion.
                     local_grupomakro_progress_manager::update_course_progress($record->courseid, $record->userid, $record->learningplanid, $logFile);
 
-                    // Sync Period (once per user/plan)
-                    $userPlanKey = $record->userid . '_' . $record->learningplanid;
-                    if (!isset($syncedUserPlans[$userPlanKey])) {
-                        local_grupomakro_progress_manager::sync_student_period($record->userid, $record->learningplanid, $logFile);
-                        $syncedUserPlans[$userPlanKey] = true;
-                    }
+                    // NOTE: Period/Level synchronization has been DISABLED per user request.
+                    // The system will NO LONGER automatically update currentperiodid.
+                    // Periods must be managed manually through the UI or other tools.
 
                     $result['count']++;
                     if ($current % 5 == 0 || $current == $total) {

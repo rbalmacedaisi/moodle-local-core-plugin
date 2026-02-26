@@ -46,10 +46,6 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-sync</v-icon>
                                     Sincronizar Progreso
                                 </v-btn>
-                                <v-btn v-if="isSuperAdmin" color="warning" @click="syncMigratedPeriods" :loading="syncing" :disabled="syncing">
-                                    <v-icon left>mdi-account-arrow-right</v-icon>
-                                    Asignar Periodos (Migrados)
-                                </v-btn>
                                 <v-btn v-if="isSuperAdmin" color="purple" dark @click="syncFinancialBulk" :loading="syncing" :disabled="syncing">
                                     <v-icon left>mdi-cash-sync</v-icon>
                                     Actualizar Financiero (Lote)
@@ -697,49 +693,6 @@ Vue.component('studenttable', {
             } catch (error) {
                 console.error(error);
                 alert('Error de ejecución.');
-            } finally {
-                clearInterval(logInterval);
-                this.syncing = false;
-                await this.pollLog();
-            }
-        },
-        async syncMigratedPeriods() {
-            if (!confirm('Esta acción recalculará los periodos de TODOS los estudiantes migrados basándose en el conteo de materias aprobadas. ¿Continuar?')) return;
-
-            this.syncing = true;
-            this.syncLog = 'Iniciando sincronización por bloques...';
-            const logInterval = setInterval(() => this.pollLog(), 3000);
-
-            let offset = 0;
-            let finished = false;
-
-            const syncBatch = async () => {
-                try {
-                    const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_migrated_periods&offset=${offset}`);
-                    if (response.data.status === 'success') {
-                        offset = response.data.offset;
-                        finished = response.data.finished;
-                        if (!finished) {
-                            await syncBatch(); // Regresive call for next batch
-                        }
-                    } else {
-                        throw new Error(response.data.message || 'Error en bloque');
-                    }
-                } catch (error) {
-                    console.error('Batch error:', error);
-                    alert('Error en el proceso de sincronización: ' + error.message);
-                    finished = true;
-                }
-            };
-
-            try {
-                await syncBatch();
-                if (finished) {
-                    alert('Sincronización completada con éxito.');
-                    await this.getDataFromApi();
-                }
-            } catch (error) {
-                console.error(error);
             } finally {
                 clearInterval(logInterval);
                 this.syncing = false;

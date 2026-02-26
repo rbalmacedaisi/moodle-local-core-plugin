@@ -575,10 +575,14 @@ class local_grupomakro_progress_manager
     }
 
     /**
+     * DEPRECATED: This function is no longer used as of the user's request.
+     * Period synchronization is now managed manually through the UI.
+     *
      * Synchronize the current period of a student based on the COUNT of completed courses.
-     * Specific logic for migrated students: 
+     * Specific logic for migrated students:
      * If plan has 7 courses per period and user has 8, move to Period 2.
      *
+     * @deprecated This function should not be called anymore
      * @param int $userId Moodle user ID
      * @param int $learningPlanId Learning Plan ID
      * @param string|null $logFile Path to log file
