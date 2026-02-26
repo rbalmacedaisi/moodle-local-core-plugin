@@ -50,9 +50,9 @@ Vue.component('studenttable', {
                                     <v-icon left>mdi-cash-sync</v-icon>
                                     Actualizar Financiero (Lote)
                                 </v-btn>
-                                <v-btn v-if="isSuperAdmin" color="info" dark @click="openPeriodModal">
-                                    <v-icon left>mdi-calendar-sync</v-icon>
-                                    Gestión Periodos
+                                <v-btn v-if="isSuperAdmin" color="orange" dark :href="dataPruningUrl">
+                                    <v-icon left>mdi-database-cog</v-icon>
+                                    Data Pruning
                                 </v-btn>
                                 <v-btn color="primary" @click="openFilterDialog">
                                     <v-icon left>mdi-filter-variant</v-icon>
@@ -60,65 +60,7 @@ Vue.component('studenttable', {
                                 </v-btn>
                             </v-col>
                         </v-row>
-                        
 
-
-                        <!-- Period Management Dialog -->
-                        <v-dialog v-model="periodModal" max-width="700px">
-                            <v-card>
-                                <v-card-title class="headline grey lighten-2">
-                                    Gestión Masiva de Periodos
-                                </v-card-title>
-                                <v-card-text class="pt-4">
-                                    <v-row>
-                                        <v-col cols="12">
-                                            <v-alert type="info" dense text>
-                                                Utilice esta herramienta para actualizar el bimestre (periodo) de los estudiantes masivamente.
-                                                <br>1. Exporte la plantilla (se aplican los filtros actuales).
-                                                <br>2. Modifique la columna 'Bloque'.
-                                                <br>3. Importe el archivo modificado.
-                                            </v-alert>
-                                        </v-col>
-                                        <v-col cols="12" class="text-center">
-                                            <v-btn color="primary" outlined @click="exportPeriodTemplate">
-                                                <v-icon left>mdi-download</v-icon>
-                                                Descargar Plantilla Excel
-                                            </v-btn>
-                                        </v-col>
-                                        <v-col cols="12">
-                                            <v-divider class="my-3"></v-divider>
-                                            <div class="text-subtitle-1 mb-2">Importar Actualización (Excel)</div>
-                                            <v-file-input
-                                                v-model="periodImportFile"
-                                                accept=".xlsx, .xls"
-                                                label="Seleccionar archivo Excel modificado"
-                                                outlined
-                                                dense
-                                            ></v-file-input>
-                                        </v-col>
-                                    </v-row>
-                                    
-                                    <v-expand-transition>
-                                        <div v-if="periodImportLog">
-                                            <v-alert type="info" outlined class="text-caption" style="white-space: pre-wrap; font-family: monospace; max-height: 200px; overflow-y: auto;">
-                                                {{ periodImportLog }}
-                                            </v-alert>
-                                        </div>
-                                    </v-expand-transition>
-
-                                </v-card-text>
-                                <v-divider></v-divider>
-                                <v-card-actions class="pa-4">
-                                    <v-btn text @click="periodModal = false">Cerrar</v-btn>
-                                    <v-spacer></v-spacer>
-                                    <v-btn color="success" @click="importPeriodFile" :disabled="!periodImportFile || syncing" :loading="syncing">
-                                        <v-icon left>mdi-upload</v-icon>
-                                        Procesar Importación
-                                    </v-btn>
-                                </v-card-actions>
-                            </v-card>
-                        </v-dialog>
-                        
                         <!-- Filter Dialog -->
                         <v-dialog v-model="filterDialog" max-width="500px">
                             <v-card>
@@ -396,9 +338,6 @@ Vue.component('studenttable', {
             filterDialog: false,
             studentsGrades: false,
             studentGradeSelected: {},
-            periodModal: false,
-            periodImportFile: null,
-            periodImportLog: '',
             allAcademicPeriods: [], // Global list
             loadingAcademicPeriods: false,
         };
@@ -409,6 +348,7 @@ Vue.component('studenttable', {
         token() { return window.userToken; },
         isAdmin() { return window.isAdmin || false; },
         isSuperAdmin() { return window.isSuperAdmin || false; },
+        dataPruningUrl() { return window.location.origin + '/local/grupomakro_core/pages/fix_student_setup.php'; },
         headers() {
             const lang = this.lang;
             const headers = [
@@ -936,56 +876,6 @@ Vue.component('studenttable', {
                 }
             } finally {
                 this.syncing = false;
-            }
-        },
-        openPeriodModal() {
-            this.periodModal = true;
-            this.periodImportLog = '';
-            this.periodImportFile = null;
-        },
-        exportPeriodTemplate() {
-            let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_student_periods.php?`;
-
-            const p = new URLSearchParams();
-            if (this.filters.planid && this.filters.planid.length > 0) p.append('planid', this.filters.planid.join(','));
-            if (this.filters.periodid && this.filters.periodid.length > 0) p.append('periodid', this.filters.periodid.join(','));
-            if (this.filters.status) p.append('status', this.filters.status);
-            if (this.options.search) p.append('search', this.options.search);
-
-            window.open(url + p.toString(), '_blank');
-        },
-        async importPeriodFile() {
-            if (!this.periodImportFile) return;
-
-            this.syncing = true;
-            this.periodImportLog = 'Subiendo y procesando archivo...';
-
-            // Construct FormData for Upload
-            const formData = new FormData();
-            formData.append('action', 'local_grupomakro_bulk_update_periods_excel');
-            formData.append('sesskey', M.cfg.sesskey);
-            formData.append('import_file', this.periodImportFile);
-
-            try {
-                const response = await axios.post(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php`, formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                });
-
-                if (response.data.status === 'success') {
-                    this.periodImportLog = response.data.message + "\n\n" + (response.data.log || '');
-                    // Refresh data
-                    await this.getDataFromApi();
-                } else {
-                    this.periodImportLog = "Error: " + (response.data.message || 'Error desconocido');
-                }
-            } catch (err) {
-                console.error(err);
-                this.periodImportLog = "Error en la carga/proceso: " + err.message;
-            } finally {
-                this.syncing = false;
-                // Don't clear log immediately so user can see it
             }
         }
     }
