@@ -23,6 +23,18 @@ $userids = optional_param('userids', '', PARAM_RAW); // Comma-separated user IDs
 admin_externalpage_setup('grupomakro_core_manage_courses');
 echo $OUTPUT->header();
 
+// DEBUG: Show received parameters
+if (!empty($action)) {
+    echo "<div style='background-color: #fff3cd; padding: 10px; margin: 10px 0; border: 2px solid orange;'>";
+    echo "<strong>🔍 DEBUG - Parámetros Recibidos:</strong><br>";
+    echo "Action: " . htmlspecialchars($action) . "<br>";
+    echo "POST data: <pre>" . print_r($_POST, true) . "</pre>";
+    echo "GET data: <pre>" . print_r($_GET, true) . "</pre>";
+    $selected_reverse = optional_param_array('selected_users_reverse', [], PARAM_INT);
+    echo "selected_users_reverse: <pre>" . print_r($selected_reverse, true) . "</pre>";
+    echo "</div>";
+}
+
 echo "<style>
     table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 13px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
