@@ -47,14 +47,11 @@ if ($ajax === 'enroll') {
 
         $DB->insert_record('local_learning_users', $record);
 
-        // 3. Assign role in learning plan context
-        $plan_context = context_module::instance($DB->get_field('course_modules', 'id', ['instance' => $planid, 'module' => $DB->get_field('modules', 'id', ['name' => 'learningplan'])]));
-        
-        if ($plan_context) {
-             role_assign($roleid, $userid, $plan_context->id);
-        } else {
-             // Fallback to system or ignore if context not found (plugin specific logic)
-        }
+        // 3. Assign role in system context (or skip if not needed for local_learning_users)
+        // Since local_learning_plans are not standard Moodle "courses" with course_modules IDs by default,
+        // we either assign the system role or rely on the local_learning_users 'userrolename' = 'student' we just set.
+        $sys_context = context_system::instance();
+        role_assign($roleid, $userid, $sys_context->id);
 
         // 4. Initialize progress grid
         if (function_exists('sync_student_progress')) {
