@@ -3,8 +3,7 @@ namespace local_grupomakro_core\external\odoo;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->libdir . '/externallib.php');
-require_once($CFG->dirroot . '/sc_learningplans/external/user/add_learning_user.php');
+// Requirements moved inside execute() block to prevent fatal 500 crashes during route discovery
 
 use external_api;
 use external_function_parameters;
@@ -15,7 +14,7 @@ use context_system;
 use moodle_exception;
 use stdClass;
 
-require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php'); // For sync_student_progress
+// For sync_student_progress, moved inside execute() block
 
 class enroll_student extends external_api {
 
@@ -35,6 +34,26 @@ class enroll_student extends external_api {
         $logfile = $CFG->dirroot . '/local/grupomakro_core/odoo_sync_debug.log';
         $logmsg = date('Y-m-d H:i:s') . " - Enroll request: username=$username, product=$product_name, role=$role_id\n";
 
+        // Safe Includes to prevent fatal 500 during WS discovery
+        require_once($CFG->libdir . '/externallib.php');
+        
+        $add_learning_user_path_1 = $CFG->dirroot . '/local/sc_learningplans/external/user/add_learning_user.php';
+        $add_learning_user_path_2 = $CFG->dirroot . '/sc_learningplans/external/user/add_learning_user.php';
+        
+        if (file_exists($add_learning_user_path_1)) {
+            require_once($add_learning_user_path_1);
+        } elseif (file_exists($add_learning_user_path_2)) {
+            require_once($add_learning_user_path_2);
+        } else {
+            file_put_contents($logfile, $logmsg . " - ERROR: add_learning_user.php not found in typical plugin paths\n", FILE_APPEND);
+            return ['status' => 'error', 'message' => 'Missing dependency: add_learning_user.php', 'learning_user_id' => 0, 'plan_id' => 0];
+        }
+
+        $locallib_path_1 = $CFG->dirroot . '/local/grupomakro_core/locallib.php';
+        if (file_exists($locallib_path_1)) {
+            require_once($locallib_path_1);
+        }
+        
         // Validation of parameters
         try {
             $params = self::validate_parameters(self::execute_parameters(), array(
