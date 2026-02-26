@@ -113,12 +113,29 @@ if ($action === 'ajax_import_grade') {
             exit;
         }
 
-        // Find course by shortname
+        // Find course by shortname or fullname
         $course = $DB->get_record('course', ['shortname' => $curso_shortname]);
+        if (!$course) {
+            $course = $DB->get_record('course', ['fullname' => $curso_shortname]);
+        }
+
+        // Fallback: Normalized search
+        if (!$course) {
+            $normalized_search = php_normalize_field($curso_shortname);
+            $courses = $DB->get_records('course', null, '', 'id, shortname, fullname');
+            foreach ($courses as $c) {
+                if (php_normalize_field($c->fullname) === $normalized_search || 
+                    php_normalize_field($c->shortname) === $normalized_search) {
+                    $course = $c;
+                    break;
+                }
+            }
+        }
+
         if (!$course) {
             echo json_encode([
                 'status' => 'error',
-                'message' => "Curso no encontrado con shortname: $curso_shortname"
+                'message' => "Curso no encontrado con shortname o nombre: $curso_shortname"
             ]);
             exit;
         }
