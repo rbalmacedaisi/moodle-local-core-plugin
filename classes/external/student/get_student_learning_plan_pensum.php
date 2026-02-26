@@ -57,6 +57,7 @@ class get_student_learning_plan_pensum extends external_api
         5 => 'Reprobada',
         6 => 'Revalida',
         7 => 'Reprobado',
+        99 => 'Migración Pendiente',
     ];
 
     const STATUS_COLOR = [
@@ -68,6 +69,7 @@ class get_student_learning_plan_pensum extends external_api
         5 => '#ec407a',
         6 => '#ec407a',
         7 => '#ec407a',
+        99 => '#ff9800',  // Orange color for migration pending
     ];
 
     /**
