@@ -128,6 +128,10 @@ Vue.component('studenttable', {
                                         <v-icon left>mdi-file-excel</v-icon>
                                         Exportar Notas Consolidadas
                                     </v-btn>
+                                    <v-btn color="primary" block class="mb-2" @click="exportStudents">
+                                        <v-icon left>mdi-account-details</v-icon>
+                                        Exportar Listado de Estudiantes
+                                    </v-btn>
                                     <v-spacer></v-spacer>
                                 </v-card-actions>
                                 <v-card-actions class="pa-4 pt-0">
@@ -594,11 +598,22 @@ Vue.component('studenttable', {
             }
             if (this.filters.status) url += `status=${this.filters.status}&`;
             if (this.filters.financialStatus) url += `financial_status=${this.filters.financialStatus}&`;
+            if (this.options.search) url += `search=${encodeURIComponent(this.options.search)}&`;
             url += `withgrades=${this.filters.withGrades ? 1 : 0}`;
             window.open(url, '_blank');
         },
         exportStudents() {
-            window.open(window.location.origin + '/local/grupomakro_core/pages/export_students.php', '_blank');
+            let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_students.php?`;
+            if (this.filters.planid && this.filters.planid.length > 0) {
+                url += `planid=${this.filters.planid.join(',')}&`;
+            }
+            if (this.filters.periodid && this.filters.periodid.length > 0) {
+                url += `periodid=${this.filters.periodid.join(',')}&`;
+            }
+            if (this.filters.status) url += `status=${this.filters.status}&`;
+            if (this.filters.financialStatus) url += `financial_status=${this.filters.financialStatus}&`;
+            if (this.options.search) url += `search=${encodeURIComponent(this.options.search)}&`;
+            window.open(url, '_blank');
         },
         getColor(status) {
             status = status ? status.toLowerCase() : '';

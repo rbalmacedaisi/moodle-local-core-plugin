@@ -10,36 +10,54 @@ require_login();
 
 global $DB;
 
-// Query
-$query = 
-    'SELECT lpu.id, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, lp.id as planid, 
-    lp.name as career, u.id as userid, u.email as email, u.idnumber,
-    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
-    FROM {local_learning_plans} lp
-    JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
-    JOIN {user} u ON (u.id = lpu.userid)
-    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-    WHERE lpu.userrolename = :userrolename
-    ORDER BY u.firstname';
+$planid   = optional_param('planid', '', PARAM_RAW);
+$periodid = optional_param('periodid', '', PARAM_RAW);
+$status_filter = optional_param('status', '', PARAM_TEXT);
+$financial_status_filter = optional_param('financial_status', '', PARAM_TEXT); 
+$search = optional_param('search', '', PARAM_RAW);
 
-try {
-    $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
-} catch (Exception $e) {
-    // Fallback
-    $query = 
-    'SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
-    lp.name as career, u.id as userid, u.email as email, u.idnumber,
-    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
-    FROM {local_learning_plans} lp
-    JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
-    JOIN {user} u ON (u.id = lpu.userid)
-    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-    WHERE lpu.userrolename = :userrolename
-    ORDER BY u.firstname';
-    $infoUsers = $DB->get_records_sql($query, array('userrolename' => 'student'));
+$sqlParams = ['userrolename' => 'student'];
+$sqlConditions = ["lpu.userrolename = :userrolename", "u.deleted = 0"];
+
+if (!empty($planid)) {
+    $planids = array_filter(explode(',', $planid), 'is_numeric');
+    if (!empty($planids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
+        $sqlConditions[] = "lpu.learningplanid $insql";
+        $sqlParams = array_merge($sqlParams, $inparams);
+    }
+}
+if (!empty($periodid)) {
+    $periodids = array_filter(explode(',', $periodid), 'is_numeric');
+    if (!empty($periodids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
+        $sqlConditions[] = "lpu.currentperiodid $insql";
+        $sqlParams = array_merge($sqlParams, $inparams);
+    }
 }
 
-$field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
+if (!empty($financial_status_filter)) {
+    $sqlConditions[] = "fs.status = :financial_status_filter";
+    $sqlParams['financial_status_filter'] = $financial_status_filter;
+}
+
+$whereClause = "WHERE " . implode(' AND ', $sqlConditions);
+
+// Query
+$query = "
+    SELECT lpu.id as recordid, lpu.currentperiodid as periodid, lpu.currentsubperiodid as subperiodid, 
+    lp.name as career, u.id as userid, u.email as email, u.idnumber,
+    u.firstname as firstname, u.lastname as lastname, fs.status as financial_status
+    FROM {user} u
+    JOIN {local_learning_users} lpu ON (lpu.userid = u.id)
+    JOIN {local_learning_plans} lp ON (lpu.learningplanid = lp.id)
+    LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
+    $whereClause
+    ORDER BY u.firstname";
+
+$infoUsers = $DB->get_records_sql($query, $sqlParams);
+
+$fieldStatus = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
 $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
 
 // Columns
@@ -49,26 +67,46 @@ $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera
 // Prepare Iterator
 $data = [];
 foreach ($infoUsers as $user) {
+    // Status Logic
+    $status = 'Activo'; 
+    if ($fieldStatus) {
+        $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldStatus->id, 'userid' => $user->userid]);
+        if ($val !== false && !empty($val)) $status = $val;
+    }
+
+    // Filter by Status (Exact matching)
+    if (!empty($status_filter)) {
+        if (trim(strtolower($status)) !== trim(strtolower($status_filter))) {
+            continue;
+        }
+    }
+
+    // Identification Logic
+    $docNumber = '';
+    if ($fieldDoc) {
+        $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldDoc->id, 'userid' => $user->userid]);
+        if ($val !== false && !empty($val)) $docNumber = $val;
+    }
+    $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
+
+    // Search filter matching JS
+    if (!empty($search)) {
+        $fullName = $user->firstname . ' ' . $user->lastname;
+        $match = (
+            stripos($fullName, $search) !== false ||
+            stripos((string)$user->email, $search) !== false ||
+            stripos((string)$status, $search) !== false ||
+            stripos((string)$finalID, $search) !== false ||
+            stripos((string)$user->career, $search) !== false
+        );
+        if (!$match) continue;
+    }
+
     $row = new stdClass();
     $row->id = $user->userid;
     $row->fullname = $user->firstname . ' ' . $user->lastname;
     $row->email = $user->email;
-    
-    // Identification Logic
-    $docNumber = '';
-    if ($fieldDoc) {
-          $doc_data = $DB->get_record_sql("
-             SELECT d.data
-             FROM {user_info_data} d
-             WHERE d.fieldid = ? AND d.userid = ?
-         ", array($fieldDoc->id, $user->userid));
-         if ($doc_data && !empty($doc_data->data)) {
-             $docNumber = $doc_data->data;
-         }
-    }
-    $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
     $row->identification = $finalID;
-    
     $row->career = $user->career;
 
     // Period
@@ -87,22 +125,7 @@ foreach ($infoUsers as $user) {
     }
     $row->block = $subperiodname;
 
-    // Status
-    $status = 'Activo'; 
-    if ($field) {
-        $user_info_data = $DB->get_record_sql("
-            SELECT d.data
-            FROM {user_info_data} d
-            JOIN {user} u ON u.id = d.userid
-            WHERE d.fieldid = ? AND u.deleted = 0 AND d.userid = ?
-        ", array($field->id, $user->userid));
-        if ($user_info_data && !empty($user_info_data->data)) {
-            $status = $user_info_data->data;
-        }
-    }
     $row->status = $status;
-    
-    // Financial Status
     $row->financial_status = $user->financial_status ?: 'Pendiente';
 
     $data[] = $row;
@@ -111,6 +134,10 @@ foreach ($infoUsers as $user) {
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]
 $columnsWithHeaders = array_combine($columns, $headers);
+
+if (ob_get_length()) {
+    ob_clean();
+}
 
 \core\dataformat::download_data(
     'estudiantes_grupomakro_' . date('Y-m-d'),

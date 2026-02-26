@@ -23,6 +23,7 @@ $periodid = optional_param('periodid', '', PARAM_RAW);
 $status   = optional_param('status', '', PARAM_TEXT);
 $financial_status = optional_param('financial_status', '', PARAM_TEXT); 
 $withgrades = optional_param('withgrades', 1, PARAM_INT);
+$search = optional_param('search', '', PARAM_RAW);
 
 // Course Status Mapping
 $statusLabels = [
@@ -43,21 +44,22 @@ $sqlParams = [];
 
 if ($withgrades) {
     // --- MODE 1: Course-based (Granular with grades) ---
-    $sqlConditions = ["u.deleted = 0"];
+    // We base the query on local_learning_users to ensure even those without progress/class appear
+    $sqlConditions = ["u.deleted = 0", "lpu.userrolename = 'student'"];
     
     if (!empty($planid)) {
         $planids = array_filter(explode(',', $planid), 'is_numeric');
         if (!empty($planids)) {
             list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
-            $sqlConditions[] = "cp.learningplanid $insql";
+            $sqlConditions[] = "lpu.learningplanid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
     if (!empty($periodid)) {
-        $periodids = array_filter(explode(',', $periodid), 'is_numeric');
-        if (!empty($periodids)) {
-            list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
-            $sqlConditions[] = "cp.periodid $insql";
+        $periodidArray = array_filter(explode(',', $periodid), 'is_numeric');
+        if (!empty($periodidArray)) {
+            list($insql, $inparams) = $DB->get_in_or_equal($periodidArray, SQL_PARAMS_NAMED, 'period');
+            $sqlConditions[] = "lpu.currentperiodid $insql";
             $sqlParams = array_merge($sqlParams, $inparams);
         }
     }
@@ -69,16 +71,17 @@ if ($withgrades) {
 
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
     $query = "
-        SELECT cp.id, u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
+        SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
-               COALESCE(c.fullname, c.shortname, cp.coursename, 'Sin nombre') as coursename,
+               COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
                cp.grade, cp.status as coursestatus, fs.status as financial_status
-        FROM {gmk_course_progre} cp
-        JOIN {user} u ON u.id = cp.userid
-        LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
-        JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
-        JOIN {local_learning_periods} per ON per.id = cp.periodid
+        FROM {user} u
+        JOIN {local_learning_users} lpu ON lpu.userid = u.id
+        JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
+        LEFT JOIN {local_learning_periods} per ON per.id = lpu.currentperiodid
+        LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.learningplanid = lp.id)
         LEFT JOIN {course} c ON c.id = cp.courseid
+        LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
 
@@ -100,7 +103,13 @@ if ($withgrades) {
             $studentStatusCache[$cp->userid] = $sStatus;
         }
         $currentStudentStatus = $studentStatusCache[$cp->userid];
-        if (!empty($status) && stripos($currentStudentStatus, $status) === false) continue;
+        
+        // Filter by Status (Exact matching to avoid Inactivo matching Activo)
+        if (!empty($status)) {
+            if (trim(strtolower($currentStudentStatus)) !== trim(strtolower($status))) {
+                continue;
+            }
+        }
 
         $docNumber = '';
         if ($fieldDoc) {
@@ -108,6 +117,19 @@ if ($withgrades) {
             if ($val !== false && !empty($val)) $docNumber = $val;
         }
         $finalID = !empty($docNumber) ? $docNumber : $cp->idnumber;
+
+        // Search filter matching JS
+        if (!empty($search)) {
+            $fullName = $cp->firstname . ' ' . $cp->lastname;
+            $match = (
+                stripos($fullName, $search) !== false ||
+                stripos($cp->email, $search) !== false ||
+                stripos($currentStudentStatus, $search) !== false ||
+                stripos((string)$finalID, $search) !== false ||
+                stripos($cp->career, $search) !== false
+            );
+            if (!$match) continue;
+        }
 
         $row = new stdClass();
         $row->id = $cp->userid;
@@ -117,10 +139,10 @@ if ($withgrades) {
         $row->career = $cp->career;
         $row->period = $cp->periodname;
         $row->course = $cp->coursename;
-        $row->grade = number_format($cp->grade, 2);
+        $row->grade = ($cp->grade !== null) ? number_format($cp->grade, 2) : '--';
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
-        $row->course_status = $statusLabels[$cp->coursestatus] ?? 'Desconocido';
+        $row->course_status = $statusLabels[$cp->coursestatus] ?? '--';
         $data[] = $row;
     }
 } else {
@@ -173,7 +195,13 @@ if ($withgrades) {
             $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldStatus->id, 'userid' => $user->userid]);
             if ($val !== false && !empty($val)) $sStatus = $val;
         }
-        if (!empty($status) && stripos($sStatus, $status) === false) continue;
+        
+        // Filter by Status (Exact matching)
+        if (!empty($status)) {
+            if (trim(strtolower($sStatus)) !== trim(strtolower($status))) {
+                continue;
+            }
+        }
 
         $docNumber = '';
         if ($fieldDoc) {
@@ -181,6 +209,19 @@ if ($withgrades) {
             if ($val !== false && !empty($val)) $docNumber = $val;
         }
         $finalID = !empty($docNumber) ? $docNumber : $user->idnumber;
+
+        // Search filter matching JS
+        if (!empty($search)) {
+            $fullName = $user->firstname . ' ' . $user->lastname;
+            $match = (
+                stripos($fullName, $search) !== false ||
+                stripos($user->email, $search) !== false ||
+                stripos($sStatus, $search) !== false ||
+                stripos((string)$finalID, $search) !== false ||
+                stripos($user->career, $search) !== false
+            );
+            if (!$match) continue;
+        }
 
         if (!isset($userData[$user->userid])) {
             $row = new stdClass();
