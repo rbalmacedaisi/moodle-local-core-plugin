@@ -70,12 +70,15 @@ if ($withgrades) {
     $whereClause = "WHERE " . implode(' AND ', $sqlConditions);
     $query = "
         SELECT cp.id, u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
-               lp.name as career, per.name as periodname, cp.coursename, cp.grade, cp.status as coursestatus, fs.status as financial_status
+               lp.name as career, per.name as periodname,
+               COALESCE(c.fullname, c.shortname, cp.coursename, 'Sin nombre') as coursename,
+               cp.grade, cp.status as coursestatus, fs.status as financial_status
         FROM {gmk_course_progre} cp
         JOIN {user} u ON u.id = cp.userid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
         JOIN {local_learning_plans} lp ON lp.id = cp.learningplanid
         JOIN {local_learning_periods} per ON per.id = cp.periodid
+        LEFT JOIN {course} c ON c.id = cp.courseid
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
 
