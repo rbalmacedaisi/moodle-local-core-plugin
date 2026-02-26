@@ -30,19 +30,28 @@ class enroll_student extends external_api {
     }
 
     public static function execute($product_name, $username, $role_id = 5) {
-        global $DB;
+        global $DB, $CFG;
+
+        $logfile = $CFG->dirroot . '/local/grupomakro_core/odoo_sync_debug.log';
+        $logmsg = date('Y-m-d H:i:s') . " - Enroll request: username=$username, product=$product_name, role=$role_id\n";
 
         // Validation of parameters
-        $params = self::validate_parameters(self::execute_parameters(), array(
-            'product_name' => $product_name,
-            'username'     => $username,
-            'role_id'      => $role_id
-        ));
+        try {
+            $params = self::validate_parameters(self::execute_parameters(), array(
+                'product_name' => $product_name,
+                'username'     => $username,
+                'role_id'      => $role_id
+            ));
+        } catch (\Exception $e) {
+            file_put_contents($logfile, $logmsg . " - VALIDATION ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
+            throw $e;
+        }
 
         // 1. Resolve User (Moodle usernames are always lowercase)
         $lookupUsername = \core_text::strtolower($params['username']);
         $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0, 'suspended' => 0]);
         if (!$user) {
+            file_put_contents($logfile, $logmsg . " - ERROR: User not found ($lookupUsername)\n", FILE_APPEND);
             throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
         }
 
@@ -51,6 +60,7 @@ class enroll_student extends external_api {
         // We query local_learning_plans directly.
         $plan = $DB->get_record('local_learning_plans', ['name' => $params['product_name']]);
         if (!$plan) {
+            file_put_contents($logfile, $logmsg . " - ERROR: Plan not found (" . $params['product_name'] . ")\n", FILE_APPEND);
             // Try partial match or handle "Course Name" vs "Plan Name" mismatch if strictly needed.
             // For now, strict name match is assumed per requirements.
             throw new moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
@@ -61,6 +71,7 @@ class enroll_student extends external_api {
         // Logic from sc_learningplans structure: periods are linked via local_learning_periods
         $first_period = $DB->get_records('local_learning_periods', ['learningplanid' => $plan->id], 'id ASC', '*', 0, 1);
         if (!$first_period) {
+             file_put_contents($logfile, $logmsg . " - ERROR: No periods found for plan (" . $plan->id . ")\n", FILE_APPEND);
              throw new moodle_exception('noperiodsfound', 'local_grupomakro_core', '', $params['product_name']);
         }
         $current_period_id = reset($first_period)->id;
@@ -83,6 +94,8 @@ class enroll_student extends external_api {
                 sync_student_progress($user->id);
             }
             
+            file_put_contents($logfile, $logmsg . " - SUCCESS: User enrolled, learning_user_id=" . $result['id'] . "\n", FILE_APPEND);
+            
             return [
                 'status' => 'success',
                 'message' => 'User enrolled successfully',
@@ -92,6 +105,7 @@ class enroll_student extends external_api {
 
         } catch (moodle_exception $e) {
             if ($e->errorcode == 'learninguserexist') {
+                file_put_contents($logfile, $logmsg . " - WARNING: learninguserexist\n", FILE_APPEND);
                 return [
                     'status' => 'warning',
                     'message' => 'User already enrolled in this plan',
@@ -99,6 +113,10 @@ class enroll_student extends external_api {
                     'plan_id' => $plan->id
                 ];
             }
+            file_put_contents($logfile, $logmsg . " - ERROR: EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
+            throw $e;
+        } catch (\Exception $e) {
+            file_put_contents($logfile, $logmsg . " - ERROR: FATAL EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
             throw $e;
         }
     }
