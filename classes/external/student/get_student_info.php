@@ -137,7 +137,7 @@ class get_student_info extends external_api {
         $query = "
             SELECT lpu.id, lpu.currentsubperiodid as subperiodid, lpu.currentperiodid as periodid, lpu.academicperiodid, gap.name as academicperiodname, lp.id as planid, 
             lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
-            u.firstname as firstname, u.lastname as lastname $gradeSelect
+            u.firstname as firstname, u.lastname as lastname, lpu.status as academicstatus $gradeSelect
             FROM {local_learning_plans} lp
             JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
             LEFT JOIN {gmk_academic_periods} gap ON (gap.id = lpu.academicperiodid)
@@ -159,7 +159,7 @@ class get_student_info extends external_api {
                 $query = "
                     SELECT lpu.id, lpu.currentperiodid as periodid, lp.id as planid, 
                     lp.name as career, u.id as userid, u.email as email, u.idnumber, u.phone1,
-                    u.firstname as firstname, u.lastname as lastname $gradeSelect
+                    u.firstname as firstname, u.lastname as lastname, lpu.status as academicstatus $gradeSelect
                     FROM {local_learning_plans} lp
                     JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
                     JOIN {user} u ON (u.id = lpu.userid)
@@ -204,14 +204,8 @@ class get_student_info extends external_api {
                 }
             }
 
-            // Get Academic Status
-            $academicStatus = '';
-            if ($fieldAcademic) {
-                $academic_data = $DB->get_record('user_info_data', ['fieldid' => $fieldAcademic->id, 'userid' => $user->userid]);
-                if ($academic_data && !empty($academic_data->data)) {
-                    $academicStatus = $academic_data->data;
-                }
-            }
+            // Get Academic Status from db record (already fetched in the query)
+            $academicStatus = $user->academicstatus ?: 'activo'; // Default to activo if empty
 
             // Get Journey
             $journey = '';

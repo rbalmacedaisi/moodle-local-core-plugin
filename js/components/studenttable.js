@@ -287,7 +287,7 @@ Vue.component('studenttable', {
                                 </v-chip>
                             </template>
                             <v-list dense>
-                                <v-list-item v-for="academicOption in ['Regular', 'Probatorio', 'Condicional', 'Baja Temporal', 'Baja Definitiva', 'Egresado', 'Titulado']"
+                                <v-list-item v-for="academicOption in ['activo', 'aplazado', 'retirado', 'suspendido']"
                                     :key="academicOption"
                                     @click="updateStudentStatus(item, 'academicstatus', academicOption)">
                                     <v-list-item-title :class="{'primary--text font-weight-bold': academicOption == item.academicstatus}">
@@ -669,12 +669,10 @@ Vue.component('studenttable', {
         getAcademicColor(status) {
             if (!status) return 'grey';
             status = status.toLowerCase();
-            if (status === 'regular') return 'success';
-            if (status === 'probatorio') return 'warning';
-            if (status === 'condicional') return 'orange';
-            if (status === 'baja temporal') return 'error';
-            if (status === 'baja definitiva') return 'red darken-2';
-            if (status === 'egresado' || status === 'titulado') return 'primary';
+            if (status === 'activo') return 'success';
+            if (status === 'aplazado') return 'warning';
+            if (status === 'retirado') return 'red darken-2';
+            if (status === 'suspendido') return 'error';
             return 'grey';
         },
         async updateStudentStatus(student, field, newValue) {
