@@ -42,7 +42,7 @@ class enroll_student extends external_api {
                 'username'     => $username,
                 'role_id'      => $role_id
             ));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             file_put_contents($logfile, $logmsg . " - VALIDATION ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
             throw $e;
         }
@@ -120,11 +120,11 @@ class enroll_student extends external_api {
                 'learning_user_id' => 0,
                 'plan_id' => 0
             ];
-        } catch (\Exception $e) {
-            file_put_contents($logfile, $logmsg . " - ERROR: FATAL EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
+        } catch (\Throwable $e) {
+            file_put_contents($logfile, $logmsg . " - ERROR: FATAL THROWABLE " . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
             return [
                 'status' => 'error',
-                'message' => $e->getMessage(),
+                'message' => 'PHP Fatal Error: ' . $e->getMessage(),
                 'learning_user_id' => 0,
                 'plan_id' => 0
             ];
