@@ -148,6 +148,8 @@ if ($action === 'get_current_state') {
 if ($action === 'ajax_fix') {
     header('Content-Type: application/json');
     ob_start(); // Buffer any accidental output
+    require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+    require_once($CFG->dirroot . '/local/sc_learningplans/classes/event/learningplanuser_added.php');
     try {
         $userid = optional_param('userid', 0, PARAM_INT);
         $username = optional_param('username', '', PARAM_RAW);
@@ -337,6 +339,23 @@ if ($action === 'ajax_fix') {
             $llu->timemodified = time();
             $llu->usermodified = $USER->id;
             $DB->update_record('local_learning_users', $llu);
+        }
+
+        // TRIGGER PROGRESS CREATION & EVENT
+        // This ensures gmk_course_progre is populated even for manual fixes
+        try {
+            local_grupomakro_progress_manager::create_learningplan_user_progress($userid, $planid, 5);
+            
+            $event = \local_sc_learningplans\event\learningplanuser_added::create(array(
+                'context' => context_system::instance(),
+                'objectid' => $llu ? $llu->id : $record->id,
+                'relateduserid' => $userid,
+                'other' => ["learningPlanId" => $planid, "roleId" => 5]
+            ));
+            $event->trigger();
+        } catch (Exception $e) {
+            // Log but don't fail the whole transaction if it's just a progress glitch
+            error_log("Progress creation failed for user $userid: " . $e->getMessage());
         }
 
         $transaction->allow_commit();

@@ -3,6 +3,8 @@ require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
 admin_externalpage_setup('grupomakro_core_manage_courses');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
+require_once($CFG->dirroot . '/local/sc_learningplans/classes/event/learningplanuser_added.php');
 
 echo $OUTPUT->header();
 global $DB;
@@ -42,6 +44,10 @@ if ($action === 'assign_plan' && $userid > 0 && $planid > 0) {
     $plan = $DB->get_record('local_learning_plans', ['id' => $planid], 'id, name');
 
     if ($user && $plan) {
+        // Resolve Period (pick first one for simplicity or default to 0 and let system handle it later)
+        $first_period = $DB->get_record('local_learning_periods', ['learningplanid' => $planid], 'id', 'id');
+        $periodid = $first_period ? $first_period->id : 0;
+
         // Check if already exists
         $existing = $DB->get_record('local_learning_users', ['userid' => $userid]);
 
@@ -50,7 +56,7 @@ if ($action === 'assign_plan' && $userid > 0 && $planid > 0) {
             echo "<strong>⚠️ El usuario ya tiene un registro en local_learning_users</strong><br>";
             echo "Plan actual: ID {$existing->learningplanid}<br>";
             echo "¿Deseas actualizar el plan?<br><br>";
-            echo "<a href='?action=update_plan&userid=$userid&planid=$planid' class='btn btn-warning'>Actualizar Plan</a> ";
+            echo "<a href='?action=update_plan&userid=$userid&planid=$planid&periodid=$periodid' class='btn btn-warning'>Actualizar Plan</a> ";
             echo "<a href='?' class='btn btn-primary'>Cancelar</a>";
             echo "</div>";
         } else {
@@ -58,17 +64,30 @@ if ($action === 'assign_plan' && $userid > 0 && $planid > 0) {
             $record = new stdClass();
             $record->userid = $userid;
             $record->learningplanid = $planid;
-            $record->currentperiodid = 0;
+            $record->userroleid = 5; // Force student role
+            $record->userrolename = 'student';
+            $record->currentperiodid = $periodid;
             $record->timecreated = time();
             $record->timemodified = time();
             $record->usermodified = $USER->id;
 
             try {
-                $DB->insert_record('local_learning_users', $record);
+                $record->id = $DB->insert_record('local_learning_users', $record);
+                
+                // TRIGGER EVENT to create progress records
+                $event = \local_sc_learningplans\event\learningplanuser_added::create(array(
+                    'context' => context_system::instance(),
+                    'objectid' => $record->id,
+                    'relateduserid' => $userid,
+                    'other' => ["learningPlanId" => $planid, "roleId" => 5]
+                ));
+                $event->trigger();
+
                 echo "<div class='success' style='padding: 10px; border-radius: 5px; margin: 10px 0;'>";
-                echo "<strong>✅ Plan asignado exitosamente</strong><br>";
+                echo "<strong>✅ Plan asignado y Evento disparado</strong><br>";
                 echo "Usuario: {$user->firstname} {$user->lastname} ({$user->idnumber})<br>";
                 echo "Plan: {$plan->name}<br>";
+                echo "Se ha generado automáticamente la malla de progreso.<br>";
                 echo "<a href='?' class='btn btn-primary'>Volver</a>";
                 echo "</div>";
             } catch (Exception $e) {
@@ -94,13 +113,25 @@ if ($action === 'update_plan' && $userid > 0 && $planid > 0) {
     $existing = $DB->get_record('local_learning_users', ['userid' => $userid]);
     if ($existing) {
         $existing->learningplanid = $planid;
+        $existing->userroleid = 5;
+        $existing->userrolename = 'student';
         $existing->timemodified = time();
         $existing->usermodified = $USER->id;
 
         try {
             $DB->update_record('local_learning_users', $existing);
+            
+            // TRIGGER EVENT
+            $event = \local_sc_learningplans\event\learningplanuser_added::create(array(
+                'context' => context_system::instance(),
+                'objectid' => $existing->id,
+                'relateduserid' => $userid,
+                'other' => ["learningPlanId" => $planid, "roleId" => 5]
+            ));
+            $event->trigger();
+
             echo "<div class='success' style='padding: 10px; border-radius: 5px; margin: 10px 0;'>";
-            echo "✅ Plan actualizado exitosamente<br>";
+            echo "✅ Plan actualizado y malla regenerada.<br>";
             echo "<a href='?' class='btn btn-primary'>Volver</a>";
             echo "</div>";
         } catch (Exception $e) {
@@ -109,6 +140,35 @@ if ($action === 'update_plan' && $userid > 0 && $planid > 0) {
             echo "</div>";
         }
     }
+    echo "</div>";
+}
+
+if ($action === 'repair_progress' && $userid > 0) {
+    echo "<div class='section info'>";
+    echo "<h2>🛠️ Reparando Malla de Progreso</h2>";
+
+    $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
+    if ($llu) {
+        try {
+            // Force student role if missing
+            if (empty($llu->userroleid)) {
+                $llu->userroleid = 5;
+                $llu->userrolename = 'student';
+                $DB->update_record('local_learning_users', $llu);
+            }
+
+            local_grupomakro_progress_manager::create_learningplan_user_progress($userid, $llu->learningplanid, $llu->userroleid);
+            
+            echo "<div class='success' style='padding: 10px; border-radius: 5px;'>";
+            echo "✅ Malla de progreso reparada para el usuario ID: $userid";
+            echo "</div>";
+        } catch (Exception $e) {
+            echo "<div class='error' style='padding: 10px; border-radius: 5px;'>";
+            echo "❌ Error reparando: " . $e->getMessage();
+            echo "</div>";
+        }
+    }
+    echo "<a href='?' class='btn btn-primary'>Volver</a>";
     echo "</div>";
 }
 
@@ -233,6 +293,46 @@ if (empty($students_no_plan)) {
         }
     }
     </script>";
+}
+
+echo "</div>";
+
+// ========== LIST OF STUDENTS WITH MISSING PROGRESS ==========
+echo "<div class='section' style='border-color: #ffc107;'>";
+echo "<h2>⚠️ Estudiantes con Plan pero SIN Seguimiento (Gaps de API)</h2>";
+echo "<p>Estos estudiantes están inscritos en un plan pero no tienen registros en la tabla de progreso (`gmk_course_progre`).</p>";
+
+$sql = "SELECT u.id, u.username, u.firstname, u.lastname, llu.learningplanid, lp.name as planname, llu.userroleid
+        FROM {local_learning_users} llu
+        JOIN {user} u ON u.id = llu.userid
+        JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
+        LEFT JOIN {gmk_course_progre} gcp ON gcp.userid = u.id AND gcp.learningplanid = llu.learningplanid
+        WHERE u.deleted = 0
+        AND gcp.id IS NULL
+        ORDER BY llu.timecreated DESC";
+
+$students_no_progre = $DB->get_records_sql($sql);
+
+if (empty($students_no_progre)) {
+    echo "<div class='success' style='padding: 10px; border-radius: 5px;'>";
+    echo "✅ No se encontraron estudiantes con malla de progreso faltante.";
+    echo "</div>";
+} else {
+    echo "<p><strong>Total detectados:</strong> " . count($students_no_progre) . "</p>";
+    echo "<table>";
+    echo "<tr><th>ID</th><th>Nombre</th><th>Username</th><th>Plan Asignado</th><th>Rol ID</th><th>Acción</th></tr>";
+    foreach ($students_no_progre as $s) {
+        $row_class = empty($s->userroleid) ? 'error' : '';
+        echo "<tr class='$row_class'>";
+        echo "<td>{$s->id}</td>";
+        echo "<td>{$s->firstname} {$s->lastname}</td>";
+        echo "<td>{$s->username}</td>";
+        echo "<td>{$s->planname} (ID: {$s->learningplanid})</td>";
+        echo "<td>" . ($s->userroleid ?: '<b style="color:red">NULL</b>') . "</td>";
+        echo "<td><a href='?action=repair_progress&userid={$s->id}' class='btn btn-warning'>Reparar Seguimiento</a></td>";
+        echo "</tr>";
+    }
+    echo "</table>";
 }
 
 echo "</div>";
