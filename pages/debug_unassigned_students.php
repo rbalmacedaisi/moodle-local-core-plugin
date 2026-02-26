@@ -176,7 +176,7 @@ if (empty($users)) {
     echo "<tbody>";
 
     // Fetch learning plans for dropdown
-    $learning_plans = $DB->get_records('local_learning_plans', ['active' => 1], 'name ASC', 'id, name');
+    $learning_plans = $DB->get_records('local_learning_plans', [], 'name ASC', 'id, name');
     
     // Get student role id
     $student_role = $DB->get_record('role', ['shortname' => 'student']);
