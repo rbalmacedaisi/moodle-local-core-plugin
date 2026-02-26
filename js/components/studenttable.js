@@ -252,8 +252,52 @@ Vue.component('studenttable', {
                     </template>
                     
                     <template v-slot:item.status="{ item }">
-                        <v-chip :color="getColor(item.status)" dark small label class="text-uppercase text-caption font-weight-bold" style="letter-spacing: 0.05em !important;">
-                             {{ item.status }}
+                        <v-menu offset-y v-if="isAdmin">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-chip :color="getColor(item.status)" dark small label class="text-uppercase text-caption font-weight-bold"
+                                    style="letter-spacing: 0.05em !important; cursor: pointer;"
+                                    v-bind="attrs" v-on="on" :loading="item.updatingStatus">
+                                    {{ item.status || 'Activo' }}
+                                    <v-icon small right>mdi-chevron-down</v-icon>
+                                </v-chip>
+                            </template>
+                            <v-list dense>
+                                <v-list-item v-for="statusOption in ['Activo', 'Inactivo', 'Suspendido', 'Graduado', 'Egreso']"
+                                    :key="statusOption"
+                                    @click="updateStudentStatus(item, 'studentstatus', statusOption)">
+                                    <v-list-item-title :class="{'primary--text font-weight-bold': statusOption == item.status}">
+                                        {{ statusOption }}
+                                    </v-list-item-title>
+                                </v-list-item>
+                            </v-list>
+                        </v-menu>
+                        <v-chip v-else :color="getColor(item.status)" dark small label class="text-uppercase text-caption font-weight-bold" style="letter-spacing: 0.05em !important;">
+                             {{ item.status || 'Activo' }}
+                        </v-chip>
+                    </template>
+
+                    <template v-slot:item.academicstatus="{ item }">
+                        <v-menu offset-y v-if="isAdmin">
+                            <template v-slot:activator="{ on, attrs }">
+                                <v-chip :color="getAcademicColor(item.academicstatus)" dark small label class="text-uppercase text-caption font-weight-bold"
+                                    style="letter-spacing: 0.05em !important; cursor: pointer;"
+                                    v-bind="attrs" v-on="on" :loading="item.updatingAcademicStatus">
+                                    {{ item.academicstatus || '--' }}
+                                    <v-icon small right>mdi-chevron-down</v-icon>
+                                </v-chip>
+                            </template>
+                            <v-list dense>
+                                <v-list-item v-for="academicOption in ['Regular', 'Probatorio', 'Condicional', 'Baja Temporal', 'Baja Definitiva', 'Egresado', 'Titulado']"
+                                    :key="academicOption"
+                                    @click="updateStudentStatus(item, 'academicstatus', academicOption)">
+                                    <v-list-item-title :class="{'primary--text font-weight-bold': academicOption == item.academicstatus}">
+                                        {{ academicOption }}
+                                    </v-list-item-title>
+                                </v-list-item>
+                            </v-list>
+                        </v-menu>
+                        <v-chip v-else :color="getAcademicColor(item.academicstatus)" dark small label class="text-uppercase text-caption font-weight-bold" style="letter-spacing: 0.05em !important;">
+                             {{ item.academicstatus || '--' }}
                         </v-chip>
                     </template>
                     
@@ -382,7 +426,8 @@ Vue.component('studenttable', {
                 { text: lang.period || 'Nivel', value: 'periods', sortable: false, width: '150px' },
                 { text: 'Bloque', value: 'subperiods', sortable: false, width: '150px' },
                 { text: 'Periodo Lectivo', value: 'academic_period', sortable: false, width: '200px' },
-                { text: lang.status || 'Estado', value: 'status', sortable: false, },
+                { text: lang.status || 'Estado', value: 'status', sortable: false, width: '140px' },
+                { text: 'Estado Académico', value: 'academicstatus', sortable: false, width: '170px' },
             ];
 
             if (this.isAdmin) {
@@ -620,6 +665,72 @@ Vue.component('studenttable', {
             if (status === 'inactivo' || status === 'suspendido' || status === 'retirado') return 'error';
             if (status === 'graduado' || status === 'egresado') return 'primary';
             return 'grey';
+        },
+        getAcademicColor(status) {
+            if (!status) return 'grey';
+            status = status.toLowerCase();
+            if (status === 'regular') return 'success';
+            if (status === 'probatorio') return 'warning';
+            if (status === 'condicional') return 'orange';
+            if (status === 'baja temporal') return 'error';
+            if (status === 'baja definitiva') return 'red darken-2';
+            if (status === 'egresado' || status === 'titulado') return 'primary';
+            return 'grey';
+        },
+        async updateStudentStatus(student, field, newValue) {
+            // Set loading flag
+            if (field === 'studentstatus') {
+                this.$set(student, 'updatingStatus', true);
+            } else {
+                this.$set(student, 'updatingAcademicStatus', true);
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('wstoken', this.token);
+                formData.append('wsfunction', 'local_grupomakro_update_student_status');
+                formData.append('moodlewsrestformat', 'json');
+                formData.append('userid', student.userid);
+                formData.append('field', field);
+                formData.append('value', newValue);
+
+                const response = await axios.post(this.siteUrl, formData);
+                const result = response.data;
+
+                if (result.status === 'success') {
+                    // Update local data
+                    if (field === 'studentstatus') {
+                        this.$set(student, 'status', newValue);
+                    } else {
+                        this.$set(student, 'academicstatus', newValue);
+                    }
+
+                    // Show success message
+                    this.$swal.fire({
+                        icon: 'success',
+                        title: 'Actualizado',
+                        text: `Estado actualizado a: ${newValue}`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    throw new Error(result.message || 'Error desconocido');
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+                this.$swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'No se pudo actualizar el estado',
+                });
+            } finally {
+                // Remove loading flag
+                if (field === 'studentstatus') {
+                    this.$set(student, 'updatingStatus', false);
+                } else {
+                    this.$set(student, 'updatingAcademicStatus', false);
+                }
+            }
         },
         async pollLog(interval = 3000) {
             try {

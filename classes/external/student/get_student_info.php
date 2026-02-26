@@ -174,6 +174,7 @@ class get_student_info extends external_api {
         $activeUsersCount = 0;
         
         $field = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
+        $fieldAcademic = $DB->get_record('user_info_field', array('shortname' => 'academicstatus'));
         $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
         $fieldJourney = $DB->get_record('user_info_field', array('shortname' => 'gmkjourney'));
 
@@ -201,6 +202,15 @@ class get_student_info extends external_api {
                 $doc_data = $DB->get_record('user_info_data', ['fieldid' => $fieldDoc->id, 'userid' => $user->userid]);
                 if ($doc_data && !empty($doc_data->data)) {
                     $docNumber = $doc_data->data;
+                }
+            }
+
+            // Get Academic Status
+            $academicStatus = '';
+            if ($fieldAcademic) {
+                $academic_data = $DB->get_record('user_info_data', ['fieldid' => $fieldAcademic->id, 'userid' => $user->userid]);
+                if ($academic_data && !empty($academic_data->data)) {
+                    $academicStatus = $academic_data->data;
                 }
             }
 
@@ -263,9 +273,9 @@ class get_student_info extends external_api {
                     'nameuser' => $fullName,
                     'documentnumber' => $finalID,
                     'status' => $userStatus,
+                    'academicstatus' => $academicStatus,
                     'profileimage' => $profileimage,
                     'journey' => $journey,
-                    'careers' => [],
                     'careers' => [],
                     'periods' => [],
                     'subperiods' => $subperiodname,
