@@ -55,7 +55,7 @@ $query = "
     $whereClause
     ORDER BY u.firstname";
 
-$infoUsers = $DB->get_records_sql($query, $sqlParams);
+    $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
 $fieldStatus = $DB->get_record('user_info_field', array('shortname' => 'studentstatus'));
 $fieldDoc = $DB->get_record('user_info_field', array('shortname' => 'documentnumber'));
@@ -66,7 +66,7 @@ $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera
 
 // Prepare Iterator
 $data = [];
-foreach ($infoUsers as $user) {
+foreach ($recordset as $user) {
     // Status Logic
     $status = 'Activo'; 
     if ($fieldStatus) {
@@ -130,6 +130,7 @@ foreach ($infoUsers as $user) {
 
     $data[] = $row;
 }
+$recordset->close();
     
 // Correct approach for Moodle dataformat:
 // Columns should be [key => Label]

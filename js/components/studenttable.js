@@ -123,16 +123,15 @@ Vue.component('studenttable', {
                                     ></v-switch>
                                 </v-card-text>
                                 <v-divider></v-divider>
-                                <v-card-actions class="pa-4">
+                                <v-card-actions class="pa-4 flex-column">
                                     <v-btn color="success" block class="mb-2" @click="exportConsolidatedGrades">
                                         <v-icon left>mdi-file-excel</v-icon>
                                         Exportar Notas Consolidadas
                                     </v-btn>
-                                    <v-btn color="primary" block class="mb-2" @click="exportStudents">
+                                    <v-btn color="primary" block class="mx-0 mb-2" @click="exportStudents">
                                         <v-icon left>mdi-account-details</v-icon>
                                         Exportar Listado de Estudiantes
                                     </v-btn>
-                                    <v-spacer></v-spacer>
                                 </v-card-actions>
                                 <v-card-actions class="pa-4 pt-0">
                                     <v-btn color="primary" @click="applyFilters">Aplicar a la Tabla</v-btn>

@@ -85,7 +85,7 @@ if ($withgrades) {
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
 
-    $records = $DB->get_records_sql($query, $sqlParams);
+    $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
     $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status'];
     $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso'];
@@ -93,7 +93,7 @@ if ($withgrades) {
     $data = [];
     $studentStatusCache = [];
 
-    foreach ($records as $cp) {
+    foreach ($recordset as $cp) {
         if (!isset($studentStatusCache[$cp->userid])) {
             $sStatus = 'Activo';
             if ($fieldStatus) {
@@ -145,6 +145,7 @@ if ($withgrades) {
         $row->course_status = $statusLabels[$cp->coursestatus] ?? '--';
         $data[] = $row;
     }
+    $recordset->close();
 } else {
     // --- MODE 2: Student-based (Consolidated WITHOUT grades, matching Panel) ---
     $sqlConditions = ["lpu.userrolename = :userrolename", "u.deleted = 0"];
@@ -186,10 +187,10 @@ if ($withgrades) {
         $whereClause
         ORDER BY u.firstname, lp.name";
 
-    $records = $DB->get_records_sql($query, $sqlParams);
+    $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
     $userData = [];
-    foreach ($records as $user) {
+    foreach ($recordset as $user) {
         $sStatus = 'Activo';
         if ($fieldStatus) {
             $val = $DB->get_field('user_info_data', 'data', ['fieldid' => $fieldStatus->id, 'userid' => $user->userid]);
@@ -239,6 +240,7 @@ if ($withgrades) {
         $userData[$user->userid]->careers[] = $user->career;
         $userData[$user->userid]->periods[] = ($user->periodname ?: '--');
     }
+    $recordset->close();
 
     $data = [];
     foreach ($userData as $row) {
