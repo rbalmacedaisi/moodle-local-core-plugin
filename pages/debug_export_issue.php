@@ -1,28 +1,34 @@
 <?php
 /**
  * Página de diagnóstico para el problema de exportación "(Sin curso activo)"
+ * Versión enfocado estrictamente en ESTUDIANTES.
  */
 
 require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->libdir . '/enrollib.php');
 
-// Solo administradores o directores académicos (ajustar según sea necesario)
+// Solo administradores o directores académicos
 require_login();
 $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_export_issue.php'));
 $PAGE->set_context($context);
-$PAGE->set_title('Diagnóstico de Exportación');
-$PAGE->set_heading('Diagnóstico: Estudiantes "(Sin curso activo)"');
+$PAGE->set_title('Diagnóstico de Exportación - Estudiantes');
+$PAGE->set_heading('Diagnóstico: Estudiantes con "(Sin curso activo)"');
 
 echo $OUTPUT->header();
 
-echo $OUTPUT->notification('Esta página ayuda a identificar por qué algunos estudiantes aparecen sin cursos en las exportaciones.', 'info');
-
 global $DB;
 
-// 1. Estudiantes inscritos en Planes de Aprendizaje pero sin registros en gmk_course_progre
+// 1. Obtener el ID del rol de estudiante
+$studentrole = $DB->get_record('role', ['shortname' => 'student'], 'id', MUST_EXIST);
+$studentroleid = $studentrole->id;
+
+echo $OUTPUT->notification("Buscando fallos solo para el Rol ID: $studentroleid (student).", 'info');
+
+// 2. Estudiantes (Rol ID 5) inscritos en Planes de Aprendizaje pero sin registros en gmk_course_progre
 $sql = "SELECT 
             lpu.id as lpuid,
             lpu.userid, 
@@ -31,36 +37,63 @@ $sql = "SELECT
             u.username,
             lp.id as planid, 
             lp.name as planname,
-            lpu.userroleid,
-            r.shortname as rolename,
-            lpu.timecreated as enrollment_date,
-            (SELECT COUNT(*) FROM {local_learning_courses} llc WHERE llc.learningplanid = lp.id) as course_count
+            lpu.timecreated as enrollment_date
         FROM {local_learning_users} lpu
         JOIN {user} u ON u.id = lpu.userid
         JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
-        JOIN {role} r ON r.id = lpu.userroleid
         LEFT JOIN {gmk_course_progre} gcp ON (gcp.userid = lpu.userid AND gcp.learningplanid = lpu.learningplanid)
-        WHERE gcp.id IS NULL
+        WHERE lpu.userroleid = :roleid 
+          AND gcp.id IS NULL
         ORDER BY lpu.timecreated DESC";
 
-$missing_students = $DB->get_records_sql($sql);
+$missing_students = $DB->get_records_sql($sql, ['roleid' => $studentroleid]);
 
-echo html_writer::tag('h3', 'Estudiantes con registros de progreso faltantes (gmk_course_progre)');
+echo html_writer::tag('h3', 'Estudiantes sin registros de progreso (gmk_course_progre)');
 
 if (empty($missing_students)) {
-    echo $OUTPUT->notification('No se encontraron estudiantes con registros faltantes en esta consulta.', 'success');
+    echo $OUTPUT->notification('No se encontraron estudiantes con registros faltantes para el rol "student".', 'success');
 } else {
     $table = new html_table();
-    $table->head = ['ID Usuario', 'Nombre', 'Username', 'Plan de Aprendizaje', 'Rol ID', 'Nombre Rol', 'Cursos en Plan', 'Fecha Inscripción', 'Posible Causa'];
+    $table->head = [
+        'ID Usuario', 
+        'Nombre Completo', 
+        'Username', 
+        'Plan (ID)', 
+        'Cursos en Plan', 
+        'Matriculado en Moodle?', 
+        'Fecha LP Enroll', 
+        'Diagnóstico sugerido'
+    ];
     
     foreach ($missing_students as $s) {
-        $cause = 'Desconocida';
-        if ($s->userroleid != 5) {
-            $cause = '<b>Rol incorrecto:</b> El sistema solo inicializa progreso para Rol ID 5 (student).';
-        } else if ($s->course_count == 0) {
-            $cause = '<b>Plan vacío:</b> El plan de aprendizaje no tiene cursos asociados.';
+        // Obtener cursos del plan
+        $plan_courses = $DB->get_records('local_learning_courses', ['learningplanid' => $s->planid], '', 'courseid');
+        $course_count = count($plan_courses);
+        
+        $moodle_enrolled_count = 0;
+        if ($course_count > 0) {
+            foreach ($plan_courses as $pc) {
+                if (is_enrolled(context_course::instance($pc->courseid), $s->userid)) {
+                    $moodle_enrolled_count++;
+                }
+            }
+        }
+        
+        $diag = "Desconocido";
+        $enrolled_status = "N/A (Sin cursos)";
+        
+        if ($course_count == 0) {
+            $diag = "<span style='color:orange'>Plan sin materias. No hay nada que exportar.</span>";
+            $enrolled_status = "0";
+        } else if ($moodle_enrolled_count == 0) {
+            $diag = "<span style='color:red'><b>ERROR CRÍTICO:</b> Inscrito en LP pero NO matriculado en los cursos de Moodle. Falló `enrol_user_in_learningplan_courses`.</span>";
+            $enrolled_status = "<span style='color:red'>NO (0/$course_count)</span>";
+        } else if ($moodle_enrolled_count < $course_count) {
+            $diag = "<span style='color:orange'>Inscripción parcial en Moodle. Faltan materias por enrolar.</span>";
+            $enrolled_status = "Parcial ($moodle_enrolled_count/$course_count)";
         } else {
-            $cause = '<b>Fallo de evento:</b> El disparador no se ejecutó o falló silenciosamente.';
+            $diag = "<span style='color:blue'>Matriculado en Moodle pero sin `gmk_course_progre`. Falló el trigger `learningplanuser_added`.</span>";
+            $enrolled_status = "SÍ ($moodle_enrolled_count/$course_count)";
         }
         
         $table->data[] = [
@@ -68,28 +101,22 @@ if (empty($missing_students)) {
             fullname($s),
             $s->username,
             $s->planname . " ({$s->planid})",
-            $s->userroleid,
-            $s->rolename,
-            $s->course_count,
+            $course_count,
+            $enrolled_status,
             userdate($s->enrollment_date),
-            $cause
+            $diag
         ];
     }
     echo html_writer::table($table);
 }
 
-// 2. Verificación de Roles
-echo html_writer::tag('h3', 'Verificación de Roles en el Sistema');
-$roles = $DB->get_records('role', [], '', 'id, shortname, name');
-$role_table = new html_table();
-$role_table->head = ['ID', 'Shortname', 'Name'];
-foreach ($roles as $r) {
-    $row = [$r->id, $r->shortname, $r->name];
-    if ($r->id == 5 && $r->shortname != 'student') {
-        $row[1] = "<span style='color:red'>{$r->shortname} (¡Atención! Se esperaba 'student')</span>";
-    }
-    $role_table->data[] = $row;
+// 3. Resumen de cursos del plan para un caso de ejemplo (parámetro opcional)
+$sample_userid = optional_param('checkuser', 0, PARAM_INT);
+$sample_planid = optional_param('checkplan', 0, PARAM_INT);
+
+if ($sample_userid && $sample_planid) {
+    echo html_writer::tag('h3', "Análisis Detallado para Usuario $sample_userid en Plan $sample_planid");
+    // ... (Podría añadir más detalle aquí si el usuario lo requiere)
 }
-echo html_writer::table($role_table);
 
 echo $OUTPUT->footer();
