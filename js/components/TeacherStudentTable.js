@@ -556,7 +556,10 @@ Vue.component('teacher-student-table', {
                 const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
                 if (response.data.status === 'success') {
                     await this.getDataFromApi();
-                    alert('Sincronización completada. ' + response.data.count + ' registros.');
+                    const unlockedMsg = response.data.unlocked > 0
+                        ? `\n${response.data.unlocked} cursos desbloqueados (prerrequisitos cumplidos).`
+                        : '';
+                    alert('Sincronización completada. ' + response.data.count + ' registros procesados.' + unlockedMsg);
                 } else {
                     alert('Error: ' + (response.data.message || 'Error desconocido'));
                 }

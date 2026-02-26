@@ -633,20 +633,58 @@ Vue.component('studenttable', {
         },
         async syncProgress() {
             this.syncing = true;
-            this.syncLog = 'Iniciando...';
+            this.syncLog = 'Iniciando sincronización resiliente...';
             const logInterval = setInterval(() => this.pollLog(), 3000);
 
             try {
-                const response = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress`);
-                if (response.data.status === 'success') {
-                    await this.getDataFromApi();
-                    alert('Sincronización completada. ' + response.data.count + ' registros.');
+                // Phase 1: INIT
+                this.syncLog = 'Fase 1/3: Inicializando datos y reparando roles...';
+                const initRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress&phase=init`);
+
+                if (initRes.data.status !== 'success') throw new Error(initRes.data.message);
+
+                const total = initRes.data.total;
+                const limit = 50;
+                let offset = 0;
+
+                if (total === 0) {
+                    this.syncLog = 'No se encontraron registros para sincronizar.';
                 } else {
-                    alert('Error: ' + (response.data.message || 'Error desconocido'));
+                    // Phase 2: PROCESS (Chunks)
+                    this.syncLog = `Fase 2/3: Iniciando procesamiento de ${total} registros...`;
+
+                    while (offset < total) {
+                        const procRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress&phase=process&offset=${offset}&limit=${limit}`);
+                        if (procRes.data.status !== 'success') throw new Error(procRes.data.message);
+
+                        const processedInChunk = procRes.data.processed;
+                        offset += processedInChunk;
+
+                        const pct = Math.round((offset / total) * 100);
+                        this.syncLog = `Fase 2/3: Procesando ${offset}/${total} registros (${pct}%)...`;
+
+                        // Break if we are not moving forward to avoid infinite loop
+                        if (procRes.data.finished || processedInChunk === 0) break;
+                    }
                 }
+
+                // Phase 3: FINAL
+                this.syncLog = 'Fase 3/3: Finalizando y recalculando disponibilidad...';
+                const finalRes = await axios.get(`${M.cfg.wwwroot}/local/grupomakro_core/ajax.php?action=local_grupomakro_sync_progress&phase=final`);
+                if (finalRes.data.status !== 'success') throw new Error(finalRes.data.message);
+
+                this.syncLog = '✅ Sincronización completada exitosamente.';
+                await this.getDataFromApi();
+
+                const unlockedMsg = finalRes.data.unlocked > 0
+                    ? `\n${finalRes.data.unlocked} cursos desbloqueados por prerrequisitos.`
+                    : '';
+                alert('Sincronización completada exitosamente.' + unlockedMsg);
+
             } catch (error) {
                 console.error(error);
-                alert('Error de ejecución.');
+                this.syncLog = '❌ Error en la sincronización: ' + error.message;
+                alert('Error: ' + error.message);
             } finally {
                 clearInterval(logInterval);
                 this.syncing = false;

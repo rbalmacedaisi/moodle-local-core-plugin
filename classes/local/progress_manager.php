@@ -962,4 +962,163 @@ class local_grupomakro_progress_manager
             }
         }
     }
+
+    /**
+     * Recalculates course availability based on completed prerequisites.
+     * Updates courses from "No disponible" (0) to "Disponible" (1) when:
+     * - All prerequisites are approved (status 3 or 4)
+     * - The course belongs to the student's current period or earlier
+     *
+     * @param int $userId User ID to recalculate availability for
+     * @param int $learningPlanId Learning plan ID (optional, if null processes all plans)
+     * @param resource $logFile Optional log file handle for debugging
+     * @return array Statistics: ['checked' => int, 'unlocked' => int, 'details' => array]
+     */
+    public static function recalculate_course_availability($userId, $learningPlanId = null, $logFile = null) {
+        global $DB;
+
+        $stats = ['checked' => 0, 'unlocked' => 0, 'details' => []];
+
+        try {
+            // Get user's learning plan info to know current period
+            $conditions = ['userid' => $userId];
+            if ($learningPlanId) {
+                $conditions['learningplanid'] = $learningPlanId;
+            }
+
+            $userPlans = $DB->get_records('local_learning_users', $conditions);
+            if (empty($userPlans)) {
+                if ($logFile) file_put_contents($logFile, "[AVISO] No se encontraron planes de aprendizaje para User: $userId\n", FILE_APPEND);
+                return $stats;
+            }
+
+            foreach ($userPlans as $userPlan) {
+                // Get all courses for this user and learning plan
+                $sql = "SELECT cp.*, llp.periodorder
+                        FROM {gmk_course_progre} cp
+                        LEFT JOIN {local_learning_periods} llp ON llp.id = cp.periodid
+                        WHERE cp.userid = :userid
+                        AND cp.learningplanid = :learningplanid
+                        ORDER BY llp.periodorder ASC, cp.id ASC";
+
+                $userCourses = $DB->get_records_sql($sql, [
+                    'userid' => $userId,
+                    'learningplanid' => $userPlan->learningplanid
+                ]);
+
+                if (empty($userCourses)) {
+                    continue;
+                }
+
+                // Create lookup map: courseid => course progress record
+                $coursesById = [];
+                foreach ($userCourses as $course) {
+                    $coursesById[$course->courseid] = $course;
+                }
+
+                // Get current period order for comparison
+                $currentPeriodOrder = null;
+                if ($userPlan->currentperiodid) {
+                    $currentPeriod = $DB->get_record('local_learning_periods', ['id' => $userPlan->currentperiodid], 'periodorder');
+                    $currentPeriodOrder = $currentPeriod ? $currentPeriod->periodorder : null;
+                }
+
+                // Process each course with status "No disponible" (0)
+                foreach ($userCourses as $course) {
+                    $stats['checked']++;
+
+                    // Only process courses with status = 0 (No disponible)
+                    // Skip migration status (99) and other special statuses
+                    if ($course->status != COURSE_NO_AVAILABLE) {
+                        continue;
+                    }
+
+                    // Check if course is in current period or earlier
+                    $isInValidPeriod = false;
+                    if ($currentPeriodOrder !== null && $course->periodorder !== null) {
+                        $isInValidPeriod = ($course->periodorder <= $currentPeriodOrder);
+                    } else {
+                        // Fallback: If no period order, only unlock if it's the current period
+                        $isInValidPeriod = ($course->periodid == $userPlan->currentperiodid);
+                    }
+
+                    if (!$isInValidPeriod) {
+                        if ($logFile) file_put_contents($logFile, "[DEBUG] Curso {$course->courseid} no está en período válido (orden: {$course->periodorder}, actual: $currentPeriodOrder)\n", FILE_APPEND);
+                        continue;
+                    }
+
+                    // Parse prerequisites
+                    $prerequisites = [];
+                    if (!empty($course->prerequisites)) {
+                        $prereqData = json_decode($course->prerequisites, true);
+                        if (is_array($prereqData)) {
+                            foreach ($prereqData as $prereq) {
+                                if (isset($prereq['id'])) {
+                                    $prerequisites[] = $prereq['id'];
+                                }
+                            }
+                        }
+                    }
+
+                    // If no prerequisites, unlock immediately
+                    if (empty($prerequisites)) {
+                        $course->status = COURSE_AVAILABLE;
+                        if ($DB->update_record('gmk_course_progre', $course)) {
+                            $stats['unlocked']++;
+                            $courseName = $DB->get_field('course', 'fullname', ['id' => $course->courseid]) ?: "ID {$course->courseid}";
+                            $stats['details'][] = "Desbloqueado (sin prerrequisitos): $courseName";
+                            if ($logFile) file_put_contents($logFile, "[INFO] Desbloqueado curso sin prerrequisitos - User: $userId, Course: {$course->courseid}\n", FILE_APPEND);
+                        }
+                        continue;
+                    }
+
+                    // Check if ALL prerequisites are approved
+                    $allPrereqsMet = true;
+                    $missingPrereqs = [];
+
+                    foreach ($prerequisites as $prereqCourseId) {
+                        if (!isset($coursesById[$prereqCourseId])) {
+                            // Prerequisite doesn't exist in student's courses (edge case)
+                            $allPrereqsMet = false;
+                            $missingPrereqs[] = $prereqCourseId;
+                            continue;
+                        }
+
+                        $prereqCourse = $coursesById[$prereqCourseId];
+
+                        // Consider approved if status is:
+                        // 3 = COURSE_COMPLETED
+                        // 4 = COURSE_APPROVED
+                        // 99 = Custom migration status (assume completed from old system)
+                        if (!in_array($prereqCourse->status, [COURSE_COMPLETED, COURSE_APPROVED, 99])) {
+                            $allPrereqsMet = false;
+                            $missingPrereqs[] = $prereqCourseId;
+                        }
+                    }
+
+                    // If all prerequisites are met, unlock the course
+                    if ($allPrereqsMet) {
+                        $course->status = COURSE_AVAILABLE;
+                        if ($DB->update_record('gmk_course_progre', $course)) {
+                            $stats['unlocked']++;
+                            $courseName = $DB->get_field('course', 'fullname', ['id' => $course->courseid]) ?: "ID {$course->courseid}";
+                            $stats['details'][] = "Desbloqueado: $courseName";
+                            if ($logFile) file_put_contents($logFile, "[INFO] Desbloqueado curso con prerrequisitos cumplidos - User: $userId, Course: {$course->courseid}\n", FILE_APPEND);
+                        }
+                    } else {
+                        if ($logFile) {
+                            $missing = implode(', ', $missingPrereqs);
+                            file_put_contents($logFile, "[DEBUG] Curso {$course->courseid} aún bloqueado. Prerrequisitos faltantes: $missing\n", FILE_APPEND);
+                        }
+                    }
+                }
+            }
+
+            return $stats;
+
+        } catch (Exception $e) {
+            if ($logFile) file_put_contents($logFile, "[ERROR] Exception en recalculate_course_availability ($userId): " . $e->getMessage() . "\n", FILE_APPEND);
+            return $stats;
+        }
+    }
 }

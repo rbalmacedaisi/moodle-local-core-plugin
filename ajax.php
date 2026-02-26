@@ -68,7 +68,10 @@ try {
     switch ($action) {
         case 'local_grupomakro_sync_progress':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/sync_progress.php');
-            $response = \local_grupomakro_core\external\student\sync_progress::execute();
+            $phase = optional_param('phase', 'init', PARAM_ALPHA);
+            $offset = optional_param('offset', 0, PARAM_INT);
+            $limit = optional_param('limit', 50, PARAM_INT);
+            $response = \local_grupomakro_core\external\student\sync_progress::execute($phase, $offset, $limit);
             break;
         
         case 'local_grupomakro_update_student_status':
