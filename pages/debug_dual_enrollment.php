@@ -42,7 +42,7 @@ echo "<style>
     .checkbox { width: 20px; height: 20px; }
 </style>";
 
-echo "<h1>🔍 Debug: Matrícula Dual (Soldadura → Buceo Comercial)</h1>";
+echo "<h1>🔍 Debug: Matrícula Dual Bidireccional (Soldadura ↔ Buceo Comercial)</h1>";
 
 // ========== SECTION 1: Find Learning Plans ==========
 echo "<div class='section'>";
@@ -177,7 +177,93 @@ if (!empty($alreadyEnrolled)) {
 
 echo "</div>";
 
-// ========== SECTION 3: Process Enrollment ==========
+// ========== SECTION 2B: Identify Students in Buceo without Soldadura ==========
+echo "<div class='section'>";
+echo "<h2>👥 Paso 2B: Estudiantes en Buceo sin Soldadura (Validación Inversa)</h2>";
+
+// Get all students enrolled in Buceo
+$sql = "SELECT u.id as userid, u.firstname, u.lastname, u.email, u.username,
+               llu.id as enrollment_id, llu.currentperiodid, per.name as current_period
+        FROM {user} u
+        JOIN {local_learning_users} llu ON llu.userid = u.id
+        LEFT JOIN {local_learning_periods} per ON per.id = llu.currentperiodid
+        WHERE llu.learningplanid = :buceo_plan
+        AND llu.userroleid = :student_role
+        AND u.deleted = 0
+        ORDER BY u.lastname, u.firstname";
+
+$buceoStudents = $DB->get_records_sql($sql, [
+    'buceo_plan' => $buceoPlan->id,
+    'student_role' => $studentRoleId
+]);
+
+echo "<div class='info'><strong>Total estudiantes en Buceo Comercial:</strong> " . count($buceoStudents) . "</div>";
+
+// Check which ones are NOT in Soldadura
+$missingInSoldadura = [];
+$alreadyInSoldadura = [];
+
+foreach ($buceoStudents as $student) {
+    $soldaduraEnrollment = $DB->get_record('local_learning_users', [
+        'userid' => $student->userid,
+        'learningplanid' => $soldaduraPlan->id,
+        'userroleid' => $studentRoleId
+    ]);
+
+    if (!$soldaduraEnrollment) {
+        $missingInSoldadura[] = $student;
+    } else {
+        $alreadyInSoldadura[] = $student;
+    }
+}
+
+echo "<div class='warning'><strong>⚠️ Estudiantes SIN matrícula en Soldadura:</strong> " . count($missingInSoldadura) . "</div>";
+echo "<div class='success'><strong>✓ Estudiantes YA matriculados en Soldadura:</strong> " . count($alreadyInSoldadura) . "</div>";
+
+if (!empty($missingInSoldadura)) {
+    echo "<form method='post' id='enrollFormReverse'>";
+    echo "<input type='hidden' name='action' value='enroll_reverse'>";
+    echo "<table>";
+    echo "<tr>";
+    echo "<th><input type='checkbox' id='selectAllReverse' onclick='toggleAllReverse(this)'></th>";
+    echo "<th>ID Usuario</th><th>Nombre Completo</th><th>Email</th><th>Username</th><th>Período Actual (Buceo)</th>";
+    echo "</tr>";
+
+    foreach ($missingInSoldadura as $student) {
+        echo "<tr class='missing'>";
+        echo "<td><input type='checkbox' name='selected_users_reverse[]' value='{$student->userid}' class='student-checkbox-reverse'></td>";
+        echo "<td>{$student->userid}</td>";
+        echo "<td>{$student->firstname} {$student->lastname}</td>";
+        echo "<td>{$student->email}</td>";
+        echo "<td>{$student->username}</td>";
+        echo "<td>{$student->current_period}</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+
+    echo "<div style='margin-top: 20px;'>";
+    echo "<button type='submit' class='btn btn-success' onclick=\"return confirm('¿Matricular a los estudiantes seleccionados en {$soldaduraPlan->name}?');\">✓ Matricular Seleccionados en Soldadura</button>";
+    echo "</div>";
+    echo "</form>";
+}
+
+if (!empty($alreadyInSoldadura)) {
+    echo "<h3>Estudiantes Ya Matriculados en Soldadura</h3>";
+    echo "<table>";
+    echo "<tr><th>ID Usuario</th><th>Nombre Completo</th><th>Email</th></tr>";
+    foreach ($alreadyInSoldadura as $student) {
+        echo "<tr class='complete'>";
+        echo "<td>{$student->userid}</td>";
+        echo "<td>{$student->firstname} {$student->lastname}</td>";
+        echo "<td>{$student->email}</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+}
+
+echo "</div>";
+
+// ========== SECTION 3: Process Enrollment (Soldadura -> Buceo) ==========
 if ($action === 'enroll') {
     echo "<div class='section'>";
     echo "<h2>🔄 Paso 3: Procesando Matrículas</h2>";
@@ -275,44 +361,164 @@ if ($action === 'enroll') {
     echo "</div>";
 }
 
+// ========== SECTION 3B: Process Reverse Enrollment (Buceo -> Soldadura) ==========
+if ($action === 'enroll_reverse') {
+    echo "<div class='section'>";
+    echo "<h2>🔄 Paso 3B: Procesando Matrículas Inversas (Buceo → Soldadura)</h2>";
+
+    $selectedUsersReverse = optional_param_array('selected_users_reverse', [], PARAM_INT);
+
+    if (empty($selectedUsersReverse)) {
+        echo "<div class='warning'>⚠️ No se seleccionaron estudiantes.</div>";
+    } else {
+        echo "<div class='info'>Procesando " . count($selectedUsersReverse) . " estudiantes...</div>";
+
+        $success = 0;
+        $errors = [];
+
+        // Get first period of Soldadura plan
+        $firstSoldaduraPeriod = $DB->get_record_sql(
+            "SELECT id, name FROM {local_learning_periods} WHERE learningplanid = ? ORDER BY id ASC",
+            [$soldaduraPlan->id],
+            IGNORE_MULTIPLE
+        );
+
+        if (!$firstSoldaduraPeriod) {
+            echo "<div class='warning'><strong>ERROR:</strong> No se encontró período inicial para {$soldaduraPlan->name}</div>";
+        } else {
+            echo "<div class='info'><strong>Período inicial de Soldadura:</strong> {$firstSoldaduraPeriod->name} (ID: {$firstSoldaduraPeriod->id})</div>";
+
+            foreach ($selectedUsersReverse as $userid) {
+                try {
+                    $user = $DB->get_record('user', ['id' => $userid], 'id, firstname, lastname, email');
+                    if (!$user) {
+                        $errors[] = "Usuario ID $userid no encontrado";
+                        continue;
+                    }
+
+                    // 1. Check if already enrolled (double-check)
+                    $existingEnrollment = $DB->get_record('local_learning_users', [
+                        'userid' => $userid,
+                        'learningplanid' => $soldaduraPlan->id
+                    ]);
+
+                    if ($existingEnrollment) {
+                        $errors[] = "{$user->firstname} {$user->lastname}: Ya matriculado";
+                        continue;
+                    }
+
+                    // 2. Create enrollment in local_learning_users
+                    $enrollment = new stdClass();
+                    $enrollment->userid = $userid;
+                    $enrollment->learningplanid = $soldaduraPlan->id;
+                    $enrollment->userroleid = $studentRoleId;
+                    $enrollment->userrolename = 'student';
+                    $enrollment->currentperiodid = $firstSoldaduraPeriod->id;
+                    $enrollment->currentsubperiodid = 0;
+                    $enrollment->timecreated = time();
+                    $enrollment->timemodified = time();
+
+                    $enrollmentId = $DB->insert_record('local_learning_users', $enrollment);
+
+                    // 3. Create progress matrix (gmk_course_progre) for all courses in the plan
+                    local_grupomakro_progress_manager::create_learningplan_user_progress(
+                        $userid,
+                        $soldaduraPlan->id,
+                        $studentRoleId
+                    );
+
+                    echo "<div class='success'>✓ {$user->firstname} {$user->lastname}: Matriculado exitosamente en Soldadura (Enrollment ID: $enrollmentId)</div>";
+                    $success++;
+
+                } catch (Exception $e) {
+                    $errors[] = "Usuario ID $userid: " . $e->getMessage();
+                }
+            }
+
+            echo "<div class='info' style='margin-top: 20px;'>";
+            echo "<strong>Resumen:</strong><br>";
+            echo "✓ Exitosos: $success<br>";
+            echo "✗ Errores: " . count($errors);
+            echo "</div>";
+
+            if (!empty($errors)) {
+                echo "<div class='warning'>";
+                echo "<strong>Errores encontrados:</strong><br>";
+                foreach ($errors as $error) {
+                    echo "• " . htmlspecialchars($error) . "<br>";
+                }
+                echo "</div>";
+            }
+        }
+    }
+
+    echo "<div style='margin-top: 20px;'>";
+    echo "<a href='debug_dual_enrollment.php' class='btn btn-primary'>↻ Recargar Página</a>";
+    echo "</div>";
+
+    echo "</div>";
+}
+
 // ========== SECTION 4: Technical Details ==========
 echo "<div class='section'>";
 echo "<h2>🔧 Detalles Técnicos</h2>";
 
 echo "<h3>Consultas SQL Utilizadas</h3>";
 echo "<pre>";
-echo "-- Estudiantes en Soldadura:\n";
+echo "-- Estudiantes en Soldadura sin Buceo:\n";
 echo "SELECT u.id, u.firstname, u.lastname
 FROM mdl_user u
 JOIN mdl_local_learning_users llu ON llu.userid = u.id
 WHERE llu.learningplanid = {$soldaduraPlan->id}
-AND llu.userroleid = $studentRoleId\n\n";
+AND llu.userroleid = $studentRoleId
+AND NOT EXISTS (
+    SELECT 1 FROM mdl_local_learning_users llu2
+    WHERE llu2.userid = u.id
+    AND llu2.learningplanid = {$buceoPlan->id}
+    AND llu2.userroleid = $studentRoleId
+)\n\n";
 
-echo "-- Verificar matrícula en Buceo:\n";
-echo "SELECT id FROM mdl_local_learning_users
-WHERE userid = [USER_ID]
-AND learningplanid = {$buceoPlan->id}
-AND userroleid = $studentRoleId\n\n";
+echo "-- Estudiantes en Buceo sin Soldadura (Validación Inversa):\n";
+echo "SELECT u.id, u.firstname, u.lastname
+FROM mdl_user u
+JOIN mdl_local_learning_users llu ON llu.userid = u.id
+WHERE llu.learningplanid = {$buceoPlan->id}
+AND llu.userroleid = $studentRoleId
+AND NOT EXISTS (
+    SELECT 1 FROM mdl_local_learning_users llu2
+    WHERE llu2.userid = u.id
+    AND llu2.learningplanid = {$soldaduraPlan->id}
+    AND llu2.userroleid = $studentRoleId
+)\n\n";
 
-echo "-- Primer período de Buceo:\n";
+echo "-- Obtener primer período:\n";
 echo "SELECT id, name FROM mdl_local_learning_periods
-WHERE learningplanid = {$buceoPlan->id}
+WHERE learningplanid = [PLAN_ID]
 ORDER BY id ASC LIMIT 1\n";
 echo "</pre>";
 
-echo "<h3>Proceso de Matrícula</h3>";
+echo "<h3>Proceso de Matrícula Dual</h3>";
 echo "<ol>";
-echo "<li><strong>Crear registro en local_learning_users:</strong> Asocia usuario con learning plan</li>";
+echo "<li><strong>Validación bidireccional:</strong> Se verifica en ambas direcciones (Soldadura↔Buceo)</li>";
+echo "<li><strong>Crear registro en local_learning_users:</strong> Asocia usuario con learning plan faltante</li>";
 echo "<li><strong>Asignar rol de estudiante:</strong> userroleid = $studentRoleId</li>";
-echo "<li><strong>Asignar período inicial:</strong> currentperiodid = primer período del plan</li>";
+echo "<li><strong>Asignar período inicial:</strong> currentperiodid = primer período del plan destino</li>";
 echo "<li><strong>Crear malla de progreso:</strong> create_learningplan_user_progress() genera registros en gmk_course_progre</li>";
 echo "</ol>";
+
+echo "<h3>Regla de Negocio</h3>";
+echo "<p><strong>Matrícula Dual Obligatoria:</strong> Los estudiantes matriculados en <em>Soldadura Subacuática</em> DEBEN estar matriculados también en <em>Buceo Comercial</em>, y viceversa. Esta herramienta identifica y corrige inconsistencias en ambas direcciones.</p>";
 
 echo "</div>";
 
 echo "<script>
 function toggleAll(source) {
     const checkboxes = document.querySelectorAll('.student-checkbox');
+    checkboxes.forEach(cb => cb.checked = source.checked);
+}
+
+function toggleAllReverse(source) {
+    const checkboxes = document.querySelectorAll('.student-checkbox-reverse');
     checkboxes.forEach(cb => cb.checked = source.checked);
 }
 </script>";
