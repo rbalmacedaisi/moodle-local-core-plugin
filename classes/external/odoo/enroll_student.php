@@ -48,9 +48,9 @@ class enroll_student extends external_api {
             return ['status' => 'error', 'message' => 'Missing dependency: add_learning_user.php', 'learning_user_id' => 0, 'plan_id' => 0];
         }
 
-        $locallib_path_1 = $CFG->dirroot . '/local/grupomakro_core/locallib.php';
-        if (file_exists($locallib_path_1)) {
-            require_once($locallib_path_1);
+        $progress_manager_path = $CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php';
+        if (file_exists($progress_manager_path)) {
+            require_once($progress_manager_path);
         }
         
         // Validation of parameters
@@ -107,9 +107,12 @@ class enroll_student extends external_api {
                 '' // Group name (optional)
             );
             
-            // 5. Explicitly initialize the progress grid because event-driven sometimes fails or misses periods
-            if (function_exists('sync_student_progress')) {
-                sync_student_progress($user->id);
+            // 5. Explicitly initialize the progress grid via the new progress_manager architecture
+            if (class_exists('local_grupomakro_progress_manager')) {
+                \local_grupomakro_progress_manager::create_learningplan_user_progress($user->id, $plan->id, $params['role_id']);
+                file_put_contents($logfile, $logmsg . " - SUCCESS: Progress grid initialized\n", FILE_APPEND);
+            } else {
+                file_put_contents($logfile, $logmsg . " - WARNING: local_grupomakro_progress_manager not found, grid might be empty\n", FILE_APPEND);
             }
             
             file_put_contents($logfile, $logmsg . " - SUCCESS: User enrolled, learning_user_id=" . $result['id'] . "\n", FILE_APPEND);
