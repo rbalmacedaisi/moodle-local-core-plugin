@@ -113,11 +113,21 @@ class enroll_student extends external_api {
                     'plan_id' => $plan->id
                 ];
             }
-            file_put_contents($logfile, $logmsg . " - ERROR: EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
-            throw $e;
+            file_put_contents($logfile, $logmsg . " - ERROR: MOODLE EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'learning_user_id' => 0,
+                'plan_id' => 0
+            ];
         } catch (\Exception $e) {
             file_put_contents($logfile, $logmsg . " - ERROR: FATAL EXCEPTION " . $e->getMessage() . "\n", FILE_APPEND);
-            throw $e;
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'learning_user_id' => 0,
+                'plan_id' => 0
+            ];
         }
     }
 
