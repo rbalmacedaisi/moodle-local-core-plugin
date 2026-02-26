@@ -102,6 +102,7 @@ if ($action === 'ajax_import_grade') {
         $estado_curso = $data['estado_curso'] ?? '';
         $carrera = $data['carrera'] ?? '';
         $cuatrimestre = $data['cuatrimestre'] ?? '';
+        $feedback = $data['feedback'] ?? '';
 
         // Find user by username (identificacion/cedula)
         $user = $DB->get_record('user', ['username' => $identificacion, 'deleted' => 0]);
@@ -238,6 +239,38 @@ if ($action === 'ajax_import_grade') {
             $action_taken = 'created';
         }
 
+        // Save feedback to Moodle gradebook if provided
+        if (!empty($feedback)) {
+            require_once($CFG->libdir . '/gradelib.php');
+
+            // Get the course grade item (final grade)
+            $grade_item = grade_item::fetch([
+                'courseid' => $course->id,
+                'itemtype' => 'course'
+            ]);
+
+            if ($grade_item) {
+                // Get or create the grade for this user
+                $grade_grade = new grade_grade([
+                    'itemid' => $grade_item->id,
+                    'userid' => $user->id
+                ], false);
+
+                // Set the feedback
+                $grade_grade->feedback = $feedback;
+                $grade_grade->feedbackformat = FORMAT_PLAIN;
+
+                // Update or insert
+                if ($grade_grade->id) {
+                    $grade_grade->update();
+                } else {
+                    // If creating new grade, also set the grade value
+                    $grade_grade->finalgrade = $nota;
+                    $grade_grade->insert();
+                }
+            }
+        }
+
         $transaction->allow_commit();
 
         echo json_encode([
@@ -249,7 +282,8 @@ if ($action === 'ajax_import_grade') {
                 'course' => $course->shortname,
                 'plan' => $plan->name,
                 'grade' => $nota,
-                'status' => $status_code
+                'status' => $status_code,
+                'feedback' => $feedback
             ]
         ]);
 
@@ -338,6 +372,7 @@ echo $OUTPUT->header();
                         <li><strong>Estado Estudiante:</strong> Estado del estudiante (activo, suspendido, etc.)</li>
                         <li><strong>Estado Financiero:</strong> Estado de pago</li>
                         <li><strong>Estado Curso:</strong> No Disponible, Disponible, Cursando, Completado, Aprobada, Reprobada, <strong>Migración Pendiente</strong></li>
+                        <li><strong>Feedback:</strong> Observación/comentario sobre la calificación (opcional)</li>
                     </ul>
                 </div>
             </div>
@@ -421,6 +456,7 @@ echo $OUTPUT->header();
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Curso</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nota</th>
                             <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Feedback</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
@@ -436,6 +472,7 @@ echo $OUTPUT->header();
                                     {{ row.estado_curso }}
                                 </span>
                             </td>
+                            <td class="px-3 py-2 text-sm text-gray-600">{{ row.feedback || '-' }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -561,7 +598,8 @@ echo $OUTPUT->header();
                                 nota: row[7] || '',
                                 estado_estudiante: row[8] || '',
                                 estado_financiero: row[9] || '',
-                                estado_curso: row[10] || ''
+                                estado_curso: row[10] || '',
+                                feedback: row[11] || ''
                             });
                         }
 

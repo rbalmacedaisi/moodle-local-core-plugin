@@ -75,7 +75,8 @@ if ($withgrades) {
         SELECT u.id as userid, u.firstname, u.lastname, u.email, u.idnumber,
                lp.name as career, per.name as periodname,
                COALESCE(c.fullname, c.shortname, cp.coursename, '(Sin curso activo)') as coursename,
-               cp.grade, cp.status as coursestatus, fs.status as financial_status
+               cp.grade, cp.status as coursestatus, fs.status as financial_status,
+               cp.courseid, gg.feedback
         FROM {user} u
         JOIN {local_learning_users} lpu ON lpu.userid = u.id
         JOIN {local_learning_plans} lp ON lp.id = lpu.learningplanid
@@ -83,13 +84,15 @@ if ($withgrades) {
         LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.learningplanid = lp.id)
         LEFT JOIN {course} c ON c.id = cp.courseid
         LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
+        LEFT JOIN {grade_items} gi ON (gi.courseid = c.id AND gi.itemtype = 'course')
+        LEFT JOIN {grade_grades} gg ON (gg.itemid = gi.id AND gg.userid = u.id)
         $whereClause
         ORDER BY lp.name, per.id, u.firstname";
 
     $recordset = $DB->get_recordset_sql($query, $sqlParams);
 
-    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status'];
-    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso'];
+    $columns = ['id', 'fullname', 'email', 'identification', 'career', 'period', 'course', 'grade', 'student_status', 'financial_status', 'course_status', 'feedback'];
+    $headers = ['ID Moodle', 'Nombre Completo', 'Email', 'Identificación', 'Carrera', 'Cuatrimestre', 'Curso', 'Nota', 'Estado Estudiante', 'Estado Financiero', 'Estado Curso', 'Feedback'];
     
     $data = [];
     $studentStatusCache = [];
@@ -144,6 +147,7 @@ if ($withgrades) {
         $row->student_status = $currentStudentStatus;
         $row->financial_status = $cp->financial_status ?: 'Pendiente';
         $row->course_status = $statusLabels[$cp->coursestatus] ?? '--';
+        $row->feedback = $cp->feedback ?: '';
         $data[] = $row;
     }
     $recordset->close();
