@@ -11,8 +11,11 @@ use external_function_parameters;
 use external_value;
 use external_single_structure;
 use context_system;
+use context_system;
 use moodle_exception;
 use stdClass;
+
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php'); // For sync_student_progress
 
 class enroll_student extends external_api {
 
@@ -74,6 +77,11 @@ class enroll_student extends external_api {
                 $current_period_id,
                 '' // Group name (optional)
             );
+            
+            // 5. Explicitly initialize the progress grid because event-driven sometimes fails or misses periods
+            if (function_exists('sync_student_progress')) {
+                sync_student_progress($user->id);
+            }
             
             return [
                 'status' => 'success',
