@@ -994,12 +994,11 @@ class local_grupomakro_progress_manager
 
             foreach ($userPlans as $userPlan) {
                 // Get all courses for this user and learning plan
-                $sql = "SELECT cp.*, llp.periodorder
+                $sql = "SELECT cp.*
                         FROM {gmk_course_progre} cp
-                        LEFT JOIN {local_learning_periods} llp ON llp.id = cp.periodid
                         WHERE cp.userid = :userid
                         AND cp.learningplanid = :learningplanid
-                        ORDER BY llp.periodorder ASC, cp.id ASC";
+                        ORDER BY cp.periodid ASC, cp.id ASC";
 
                 $userCourses = $DB->get_records_sql($sql, [
                     'userid' => $userId,
@@ -1016,12 +1015,8 @@ class local_grupomakro_progress_manager
                     $coursesById[$course->courseid] = $course;
                 }
 
-                // Get current period order for comparison
-                $currentPeriodOrder = null;
-                if ($userPlan->currentperiodid) {
-                    $currentPeriod = $DB->get_record('local_learning_periods', ['id' => $userPlan->currentperiodid], 'periodorder');
-                    $currentPeriodOrder = $currentPeriod ? $currentPeriod->periodorder : null;
-                }
+                // Get current period ID for comparison (periods are ordered by ID)
+                $currentPeriodId = $userPlan->currentperiodid;
 
                 // Process each course with status "No disponible" (0)
                 foreach ($userCourses as $course) {
@@ -1034,16 +1029,17 @@ class local_grupomakro_progress_manager
                     }
 
                     // Check if course is in current period or earlier
+                    // Since periods are ordered by ID, we compare IDs directly
                     $isInValidPeriod = false;
-                    if ($currentPeriodOrder !== null && $course->periodorder !== null) {
-                        $isInValidPeriod = ($course->periodorder <= $currentPeriodOrder);
+                    if ($currentPeriodId && $course->periodid) {
+                        $isInValidPeriod = ($course->periodid <= $currentPeriodId);
                     } else {
                         // Fallback: If no period order, only unlock if it's the current period
                         $isInValidPeriod = ($course->periodid == $userPlan->currentperiodid);
                     }
 
                     if (!$isInValidPeriod) {
-                        if ($logFile) file_put_contents($logFile, "[DEBUG] Curso {$course->courseid} no está en período válido (orden: {$course->periodorder}, actual: $currentPeriodOrder)\n", FILE_APPEND);
+                        if ($logFile) file_put_contents($logFile, "[DEBUG] Curso {$course->courseid} no está en período válido (período: {$course->periodid}, actual: $currentPeriodId)\n", FILE_APPEND);
                         continue;
                     }
 
