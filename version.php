@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260226000;         // Expanded coursename field to 255 chars.
+$plugin->version   = 20260226001;         // Expansion of status field in gmk_course_progre.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

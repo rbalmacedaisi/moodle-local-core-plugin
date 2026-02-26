@@ -1566,6 +1566,20 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260226000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260226001) {
+        // Define field status to be expanded in gmk_course_progre.
+        $table = new xmldb_table('gmk_course_progre');
+        $field = new xmldb_field('status', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'learningplanid');
+
+        // Conditionally expand field status from 1 to 2 digits.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->change_field_precision($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260226001, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 
