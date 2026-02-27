@@ -240,7 +240,7 @@ if ($action === 'ajax_import_grade') {
         }
 
         // Save feedback to Moodle gradebook if provided
-        if (!empty($feedback)) {
+        if (!empty($feedback) || !empty($nota)) {
             require_once($CFG->libdir . '/gradelib.php');
 
             // Get the course grade item (final grade)
@@ -250,23 +250,39 @@ if ($action === 'ajax_import_grade') {
             ]);
 
             if ($grade_item) {
-                // Get or create the grade for this user
-                $grade_grade = new grade_grade([
+                // FIRST: Try to fetch existing grade_grade record
+                $grade_grade = grade_grade::fetch([
                     'itemid' => $grade_item->id,
                     'userid' => $user->id
-                ], false);
+                ]);
 
-                // Set the feedback
-                $grade_grade->feedback = $feedback;
-                $grade_grade->feedbackformat = FORMAT_PLAIN;
-
-                // Update or insert
-                if ($grade_grade->id) {
-                    $grade_grade->update();
+                if ($grade_grade) {
+                    // UPDATE existing record
+                    if (!empty($feedback)) {
+                        $grade_grade->feedback = $feedback;
+                        $grade_grade->feedbackformat = FORMAT_PLAIN;
+                    }
+                    if (!empty($nota)) {
+                        $grade_grade->finalgrade = $nota;
+                        $grade_grade->rawgrade = $nota;
+                    }
+                    $grade_grade->update('import');
                 } else {
-                    // If creating new grade, also set the grade value
-                    $grade_grade->finalgrade = $nota;
-                    $grade_grade->insert();
+                    // CREATE new record
+                    $grade_grade = new grade_grade();
+                    $grade_grade->itemid = $grade_item->id;
+                    $grade_grade->userid = $user->id;
+                    $grade_grade->rawgrademax = $grade_item->grademax;
+                    $grade_grade->rawgrademin = $grade_item->grademin;
+                    if (!empty($nota)) {
+                        $grade_grade->finalgrade = $nota;
+                        $grade_grade->rawgrade = $nota;
+                    }
+                    if (!empty($feedback)) {
+                        $grade_grade->feedback = $feedback;
+                        $grade_grade->feedbackformat = FORMAT_PLAIN;
+                    }
+                    $grade_grade->insert('import');
                 }
             }
         }
