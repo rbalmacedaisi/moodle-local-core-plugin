@@ -92,26 +92,47 @@ if ($action === 'get_current_state') {
 if ($action === 'ajax_import_grade') {
     header('Content-Type: application/json');
 
+    // Enable error capturing
+    ob_start();
+
     try {
         $data = json_decode(file_get_contents('php://input'), true);
 
+        // Validate JSON parsing
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception('Error parsing JSON: ' . json_last_error_msg());
+        }
+
+        if (!$data || !is_array($data)) {
+            throw new Exception('Invalid request data format');
+        }
+
         // Extract fields from request
-        $identificacion = $data['identificacion'] ?? '';
-        $curso_shortname = $data['curso_shortname'] ?? '';
-        $nota = $data['nota'] ?? null;
-        $estado_curso = $data['estado_curso'] ?? '';
-        $carrera = $data['carrera'] ?? '';
-        $cuatrimestre = $data['cuatrimestre'] ?? '';
-        $feedback = $data['feedback'] ?? '';
+        $identificacion = isset($data['identificacion']) ? trim($data['identificacion']) : '';
+        $curso_shortname = isset($data['curso_shortname']) ? trim($data['curso_shortname']) : '';
+        $nota = isset($data['nota']) && $data['nota'] !== '' ? $data['nota'] : null;
+        $estado_curso = isset($data['estado_curso']) ? trim($data['estado_curso']) : '';
+        $carrera = isset($data['carrera']) ? trim($data['carrera']) : '';
+        $cuatrimestre = isset($data['cuatrimestre']) ? trim($data['cuatrimestre']) : '';
+        $feedback = isset($data['feedback']) ? trim($data['feedback']) : '';
+
+        // Validate required fields
+        if (empty($identificacion)) {
+            throw new Exception("Campo 'identificacion' es requerido");
+        }
+
+        if (empty($curso_shortname)) {
+            throw new Exception("Campo 'curso_shortname' es requerido");
+        }
+
+        if (empty($carrera)) {
+            throw new Exception("Campo 'carrera' es requerido");
+        }
 
         // Find user by username (identificacion/cedula)
         $user = $DB->get_record('user', ['username' => $identificacion, 'deleted' => 0]);
         if (!$user) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => "Usuario no encontrado con identificación: $identificacion"
-            ]);
-            exit;
+            throw new Exception("Usuario no encontrado: $identificacion");
         }
 
         // Find course by shortname or fullname
@@ -134,41 +155,37 @@ if ($action === 'ajax_import_grade') {
         }
 
         if (!$course) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => "Curso no encontrado con shortname o nombre: $curso_shortname"
-            ]);
-            exit;
+            throw new Exception("Curso no encontrado: '$curso_shortname'");
         }
 
         // Find learning plan by name
         $plan = null;
-        if (!empty($carrera)) {
-            $plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
-            foreach ($plans as $p) {
-                if (php_normalize_field($p->name) === php_normalize_field($carrera)) {
-                    $plan = $p;
-                    break;
-                }
+        $plans = $DB->get_records('local_learning_plans', null, '', 'id, name');
+
+        if (empty($plans)) {
+            throw new Exception("No hay planes de aprendizaje en el sistema");
+        }
+
+        foreach ($plans as $p) {
+            if (php_normalize_field($p->name) === php_normalize_field($carrera)) {
+                $plan = $p;
+                break;
             }
         }
 
         if (!$plan) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => "Plan de aprendizaje no encontrado: $carrera"
-            ]);
-            exit;
+            // List available plans for debugging
+            $available_plans = array_map(function($p) { return $p->name; }, $plans);
+            error_log("Planes disponibles: " . implode(', ', $available_plans));
+            error_log("Plan buscado: '$carrera'");
+            error_log("Plan normalizado: '" . php_normalize_field($carrera) . "'");
+            throw new Exception("Plan de aprendizaje no encontrado: '$carrera' (verificar mayúsculas/minúsculas y caracteres especiales)");
         }
 
         // Map status
         $status_code = map_course_status_to_code($estado_curso);
         if ($status_code === null) {
-            echo json_encode([
-                'status' => 'error',
-                'message' => "Estado de curso desconocido: $estado_curso"
-            ]);
-            exit;
+            throw new Exception("Estado de curso desconocido: '$estado_curso' (valores permitidos: Aprobado, Reprobado, Cursando, etc.)");
         }
 
         // Find period by name within the learning plan
@@ -329,21 +346,70 @@ if ($action === 'ajax_import_grade') {
         ]);
 
     } catch (Exception $e) {
+        // Capture any output that might have been generated
+        $output_buffer = ob_get_clean();
+
         // Log the full error for debugging
         error_log("ERROR en import_grades.php - ajax_import_grade:");
         error_log("Usuario: " . ($identificacion ?? 'N/A'));
         error_log("Curso: " . ($curso_shortname ?? 'N/A'));
+        error_log("Carrera: " . ($carrera ?? 'N/A'));
         error_log("Error: " . $e->getMessage());
+        error_log("Error code: " . $e->getCode());
+        error_log("File: " . $e->getFile());
+        error_log("Line: " . $e->getLine());
         error_log("Stack trace: " . $e->getTraceAsString());
+
+        if ($output_buffer) {
+            error_log("Output buffer content: " . $output_buffer);
+        }
+
+        // Build detailed error message
+        $error_message = $e->getMessage();
+
+        // Add context to common errors
+        if (strpos($error_message, 'Duplicate entry') !== false) {
+            $error_message = "Registro duplicado en la base de datos: " . $error_message;
+        } elseif (strpos($error_message, 'not found') !== false || strpos($error_message, 'no encontrado') !== false) {
+            $error_message = $error_message; // Keep as is
+        } elseif (empty($error_message)) {
+            $error_message = "Error desconocido - revisar logs del servidor";
+        }
 
         echo json_encode([
             'status' => 'error',
-            'message' => $e->getMessage(),
+            'message' => $error_message,
             'error_details' => [
                 'file' => basename($e->getFile()),
                 'line' => $e->getLine(),
+                'code' => $e->getCode(),
                 'user' => $identificacion ?? 'N/A',
-                'course' => $curso_shortname ?? 'N/A'
+                'course' => $curso_shortname ?? 'N/A',
+                'plan' => $carrera ?? 'N/A'
+            ]
+        ]);
+    } catch (Throwable $t) {
+        // Catch PHP 7+ errors (like type errors, etc.)
+        $output_buffer = ob_get_clean();
+
+        error_log("THROWABLE ERROR en import_grades.php:");
+        error_log("Type: " . get_class($t));
+        error_log("Message: " . $t->getMessage());
+        error_log("File: " . $t->getFile());
+        error_log("Line: " . $t->getLine());
+        error_log("Stack trace: " . $t->getTraceAsString());
+
+        if ($output_buffer) {
+            error_log("Output buffer: " . $output_buffer);
+        }
+
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Error fatal: ' . $t->getMessage(),
+            'error_details' => [
+                'type' => get_class($t),
+                'file' => basename($t->getFile()),
+                'line' => $t->getLine()
             ]
         ]);
     }
