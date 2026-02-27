@@ -120,21 +120,39 @@ class enroll_student extends external_api {
         }
 
         // 3.1 Fallback to Active Period in Course (within first 2 months / 60 days)
-        if (!$current_period_id) {
-            $now = time();
-            $twomonths = 60 * 24 * 3600;
-            $sql_active = "SELECT name FROM {gmk_academic_periods} WHERE status = 1 AND startdate <= ? AND ? <= (startdate + ?) ORDER BY startdate DESC";
-            $active_acad_period = $DB->get_records_sql($sql_active, [$now, $now, $twomonths], 0, 1);
+        $academic_period_id = 0;
+        
+        // Find academic period by name if provided (e.g., 2026-I)
+        if (!empty($params['period_name'])) {
+            $acad = $DB->get_record('gmk_academic_periods', ['name' => trim($params['period_name'])]);
+            if ($acad) {
+                $academic_period_id = $acad->id;
+            }
+        }
+
+        $now = time();
+        $twomonths = 60 * 24 * 3600;
+        $sql_active = "SELECT * FROM {gmk_academic_periods} WHERE status = 1 AND startdate <= ? AND ? <= (startdate + ?) ORDER BY startdate DESC";
+        $active_acad_period = $DB->get_records_sql($sql_active, [$now, $now, $twomonths], 0, 1);
+        $active_name = '';
+
+        if ($active_acad_period) {
+            $active_record = reset($active_acad_period);
+            $active_name = $active_record->name;
             
-            if ($active_acad_period) {
-                $active_name = reset($active_acad_period)->name;
-                $sql = "SELECT id FROM {local_learning_periods} WHERE learningplanid = ? AND LOWER(name) = LOWER(?)";
-                $active_period = $DB->get_record_sql($sql, [$plan->id, \core_text::strtolower(trim($active_name))]);
-                
-                if ($active_period) {
-                    $current_period_id = $active_period->id;
-                    file_put_contents($logfile, $logmsg . " - INFO: Handled active fallback period (" . $active_name . ") with ID $current_period_id\n", FILE_APPEND);
-                }
+            // If we didn't find the academic period by the requested name, fallback to the active one
+            if (!$academic_period_id) {
+                $academic_period_id = $active_record->id;
+            }
+        }
+
+        if (!$current_period_id && $active_name) {
+            $sql = "SELECT id FROM {local_learning_periods} WHERE learningplanid = ? AND LOWER(name) = LOWER(?)";
+            $active_period = $DB->get_record_sql($sql, [$plan->id, \core_text::strtolower(trim($active_name))]);
+            
+            if ($active_period) {
+                $current_period_id = $active_period->id;
+                file_put_contents($logfile, $logmsg . " - INFO: Handled active fallback period (" . $active_name . ") with ID $current_period_id\n", FILE_APPEND);
             }
         }
 
@@ -170,16 +188,22 @@ class enroll_student extends external_api {
                 file_put_contents($logfile, $logmsg . " - WARNING: local_grupomakro_progress_manager not found, grid might be empty\n", FILE_APPEND);
             }
 
-            // 6. Explicitly set currentsubperiodid to the first subperiod (Bimestre 1)
+            // 6. Explicitly set currentsubperiodid to the first subperiod (Bimestre 1) and academicperiodid
             $first_subperiod = $DB->get_records('local_learning_subperiods', ['learningplanid' => $plan->id], 'position ASC, id ASC', '*', 0, 1);
-            if ($first_subperiod) {
-                $subperiod = reset($first_subperiod);
-                $llu_record = $DB->get_record('local_learning_users', ['id' => $result['id']]);
-                if ($llu_record) {
+            $llu_record = $DB->get_record('local_learning_users', ['id' => $result['id']]);
+            if ($llu_record) {
+                if ($first_subperiod) {
+                    $subperiod = reset($first_subperiod);
                     $llu_record->currentsubperiodid = $subperiod->id;
-                    $DB->update_record('local_learning_users', $llu_record);
                     file_put_contents($logfile, $logmsg . " - SUCCESS: Assigned subperiod " . $subperiod->name . " (ID: $subperiod->id)\n", FILE_APPEND);
                 }
+                
+                if ($academic_period_id) {
+                    $llu_record->academicperiodid = $academic_period_id;
+                    file_put_contents($logfile, $logmsg . " - SUCCESS: Assigned academic period $academic_period_id\n", FILE_APPEND);
+                }
+                
+                $DB->update_record('local_learning_users', $llu_record);
             }
             
             file_put_contents($logfile, $logmsg . " - SUCCESS: User enrolled, learning_user_id=" . $result['id'] . "\n", FILE_APPEND);
