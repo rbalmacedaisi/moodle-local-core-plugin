@@ -340,10 +340,36 @@ if ($action === 'get_initial_data') {
                 LEFT JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
                 LEFT JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
                 WHERE u.deleted = 0 AND llu.id IS NOT NULL
-                ORDER BY RAND()
+                ORDER BY u.id ASC
                 LIMIT 10";
 
         $students = $DB->get_records_sql($sql);
+
+        if (empty($students)) {
+            // If no students with llu, get any students
+            $sql_fallback = "SELECT
+                        u.id as userid,
+                        u.username,
+                        u.firstname,
+                        u.lastname,
+                        0 as llu_id,
+                        0 as learningplanid,
+                        0 as currentperiodid,
+                        0 as currentsubperiodid,
+                        0 as academicperiodid,
+                        '' as plan_name,
+                        '' as level_name,
+                        '' as subperiod_name,
+                        '' as academic_name,
+                        '' as groupname,
+                        '' as academic_status
+                    FROM {user} u
+                    WHERE u.deleted = 0 AND u.id > 1
+                    ORDER BY u.id ASC
+                    LIMIT 10";
+            $students = $DB->get_records_sql($sql_fallback);
+        }
+
         $data['sample_students'] = array_values($students);
 
         // Get all plans
@@ -474,6 +500,12 @@ echo $OUTPUT->header();
         <div v-if="loading" class="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
             <div class="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
             <p class="text-slate-600 font-bold">Cargando y analizando datos automáticamente...</p>
+        </div>
+
+        <!-- Error Display -->
+        <div v-if="globalError" class="bg-red-50 border-2 border-red-500 p-6 rounded-2xl">
+            <h2 class="text-xl font-bold text-red-900 mb-2">❌ Error al Cargar</h2>
+            <div class="bg-white p-4 rounded-lg font-mono text-sm text-red-800">{{ globalError }}</div>
         </div>
 
         <!-- Main Content - All Sections Visible -->
@@ -682,7 +714,8 @@ createApp({
             allStudents: [],
             studentsError: null,
             initialData: null,
-            loading: true
+            loading: true,
+            globalError: null
         }
     },
     mounted() {
@@ -691,23 +724,32 @@ createApp({
     methods: {
         async loadInitialData() {
             this.loading = true;
+            this.globalError = null;
             try {
                 const url = window.location.pathname;
+                console.log('Fetching initial data from:', url);
+
                 const res = await axios.get(url, {
                     params: { action: 'get_initial_data' }
                 });
 
+                console.log('Response:', res.data);
+
                 if (res.data.status === 'success') {
                     this.initialData = res.data.data;
+                    console.log('Initial data loaded:', this.initialData);
 
                     // Auto-select first student and debug
-                    if (this.initialData.sample_students.length > 0) {
+                    if (this.initialData.sample_students && this.initialData.sample_students.length > 0) {
                         this.studentUsername = this.initialData.sample_students[0].username;
+                        console.log('Auto-debugging student:', this.studentUsername);
                         await this.debugStudent();
+                    } else {
+                        this.globalError = 'No hay estudiantes en el sistema';
                     }
 
                     // Auto-fill test params with first student data
-                    if (this.initialData.sample_students.length > 0) {
+                    if (this.initialData.sample_students && this.initialData.sample_students.length > 0) {
                         const first = this.initialData.sample_students[0];
                         this.testParams.plan_name = first.plan_name || '';
                         this.testParams.level_name = first.level_name || '';
@@ -715,15 +757,20 @@ createApp({
                         this.testParams.academic_name = first.academic_name || '';
                         this.testParams.status = first.academic_status || '';
 
+                        console.log('Auto-executing test resolution');
                         // Auto-execute test resolution
                         await this.testResolution();
                     }
 
                     // Auto-load all students
+                    console.log('Loading all students');
                     await this.loadAllStudents();
+                } else {
+                    this.globalError = 'Error del servidor: ' + (res.data.message || 'Respuesta inválida');
                 }
             } catch (e) {
                 console.error('Error loading initial data:', e);
+                this.globalError = 'Error de red: ' + e.message + '\n\nStack: ' + e.stack;
             } finally {
                 this.loading = false;
             }
