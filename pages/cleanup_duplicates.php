@@ -10,11 +10,17 @@ require_capability('moodle/site:config', context_system::instance());
 $action = optional_param('action', '', PARAM_ALPHA);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
-// Log for debugging
+// Log for debugging - also check $_GET directly
 error_log("cleanup_duplicates.php - Action recibido: '$action'");
+error_log("cleanup_duplicates.php - \$_GET: " . json_encode($_GET));
+error_log("cleanup_duplicates.php - \$_REQUEST: " . json_encode($_REQUEST));
 
 // ========== AJAX HANDLER: FIND DUPLICATES ==========
-if ($action === 'find_duplicates') {
+// Also try with $_GET directly in case optional_param has issues
+$action_alt = isset($_GET['action']) ? $_GET['action'] : '';
+error_log("Action alternativo desde \$_GET: '$action_alt'");
+
+if ($action === 'find_duplicates' || $action_alt === 'find_duplicates') {
     error_log("Entrando al handler find_duplicates");
 
     // Clear any output buffers and set JSON header
@@ -64,7 +70,7 @@ if ($action === 'find_duplicates') {
 }
 
 // ========== AJAX HANDLER: DELETE DUPLICATE ==========
-if ($action === 'delete_duplicate') {
+if ($action === 'delete_duplicate' || $action_alt === 'delete_duplicate') {
     error_log("Entrando al handler delete_duplicate");
 
     // Clear any output buffers and set JSON header
