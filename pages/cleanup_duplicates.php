@@ -15,7 +15,8 @@ if ($action === 'find_duplicates') {
     header('Content-Type: application/json');
     try {
         // Find users with multiple local_learning_users records with userrolename='student'
-        $sql = "SELECT userid, COUNT(*) as count
+        // Use MIN(id) as first column to ensure uniqueness
+        $sql = "SELECT MIN(id) as min_id, userid, COUNT(*) as count
                 FROM {local_learning_users}
                 WHERE userrolename = 'student'
                 GROUP BY userid
@@ -35,7 +36,7 @@ if ($action === 'find_duplicates') {
                     'userid' => $dup->userid,
                     'username' => $user->username,
                     'fullname' => $user->firstname . ' ' . $user->lastname,
-                    'count' => $dup->count,
+                    'count' => (int)$dup->count,
                     'records' => array_values($records)
                 ];
             }
@@ -44,6 +45,8 @@ if ($action === 'find_duplicates') {
         echo json_encode(['status' => 'success', 'duplicates' => $result]);
         exit;
     } catch (Exception $e) {
+        error_log("Error en find_duplicates: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
         exit;
     }
@@ -140,6 +143,14 @@ echo $OUTPUT->header();
             <p class="font-bold text-green-900 text-lg">✅ No se encontraron duplicados</p>
         </div>
 
+        <!-- Error Display -->
+        <div v-if="errorMessage" class="bg-red-50 border-2 border-red-500 p-6 rounded-xl">
+            <h3 class="font-bold text-red-900 text-lg mb-2">❌ Error</h3>
+            <div class="bg-white p-4 rounded-lg">
+                <p class="text-red-800 font-mono text-sm">{{ errorMessage }}</p>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -151,7 +162,8 @@ createApp({
         return {
             duplicates: [],
             loading: false,
-            searched: false
+            searched: false,
+            errorMessage: null
         }
     },
     mounted() {
@@ -162,22 +174,33 @@ createApp({
         async findDuplicates() {
             this.loading = true;
             this.searched = false;
+            this.errorMessage = null;
             try {
                 const url = window.location.pathname;
+                console.log('Buscando duplicados en:', url);
+
                 const res = await axios.get(url, {
                     params: { action: 'find_duplicates' }
                 });
 
+                console.log('Respuesta recibida:', res);
+
                 if (res.data && res.data.status === 'success') {
                     this.duplicates = res.data.duplicates || [];
                     this.searched = true;
+                    console.log('Duplicados encontrados:', this.duplicates.length);
                 } else {
-                    const errorMsg = (res.data && res.data.message) ? res.data.message : 'Error desconocido';
-                    alert('Error: ' + errorMsg);
+                    const errorMsg = (res.data && res.data.message) ? res.data.message : 'Error desconocido - sin mensaje del servidor';
+                    console.error('Error del servidor:', errorMsg);
+                    this.errorMessage = errorMsg;
                 }
             } catch (e) {
                 console.error('Error completo:', e);
-                alert('Error: ' + (e.message || 'Error de conexión'));
+                console.error('Response:', e.response);
+                const errorDetail = e.response ?
+                    `Status: ${e.response.status} - ${e.response.statusText}\nData: ${JSON.stringify(e.response.data)}` :
+                    e.message;
+                this.errorMessage = 'Error de conexión: ' + errorDetail;
             } finally {
                 this.loading = false;
             }
