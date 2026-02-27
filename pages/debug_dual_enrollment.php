@@ -24,7 +24,7 @@ if ($ajax === 'enroll') {
 
     try {
         $userid = required_param('userid', PARAM_INT);
-        $direction = required_param('direction', PARAM_ALPHA); // 'to_buceo' or 'to_soldadura'
+        $direction = required_param('direction', PARAM_ALPHANUMEXT); // 'to_buceo' or 'to_soldadura'
 
         $studentRoleId = $DB->get_field('role', 'id', ['shortname' => 'student']);
 
