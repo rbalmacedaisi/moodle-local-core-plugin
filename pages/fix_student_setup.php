@@ -331,9 +331,9 @@ if ($action === 'ajax_fix') {
         } else {
             $llu->learningplanid = $planid;
             $llu->currentperiodid = $current_period_id;
-            if ($current_subperiod_id > 0) $llu->currentsubperiodid = $current_subperiod_id;
+            $llu->currentsubperiodid = $current_subperiod_id;  // Actualizado: ahora se actualiza siempre, incluso si es 0
             $llu->academicperiodid = $academic_period_id;
-            if (!empty($groupname)) $llu->groupname = trim($groupname);
+            $llu->groupname = !empty($groupname) ? trim($groupname) : '';  // Actualizado: ahora se puede limpiar
             $llu->userrolename = 'student';
             $llu->status = $status;
             $llu->timemodified = time();
