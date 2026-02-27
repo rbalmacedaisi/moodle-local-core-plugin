@@ -692,7 +692,7 @@ Vue.component('studenttable', {
                 formData.append('wstoken', this.token);
                 formData.append('wsfunction', 'local_grupomakro_update_student_status');
                 formData.append('moodlewsrestformat', 'json');
-                formData.append('userid', student.userid);
+                formData.append('userid', student.id);
                 formData.append('field', field);
                 formData.append('value', newValue);
 
