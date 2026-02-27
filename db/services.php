@@ -683,14 +683,6 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
-    'local_grupomakro_update_student_status' => [
-        'classname' => 'local_grupomakro_core\external\student\update_status',
-        'methodname' => 'execute',
-        'description' => 'Update student financial status',
-        'type'        => 'write',
-        'ajax'        => true,
-        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
-    ],
     // Academic Planning
     'local_grupomakro_get_demand_analysis' => [
         'classname' => 'local_grupomakro_core\external\admin\planning',
