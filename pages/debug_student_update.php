@@ -473,64 +473,16 @@ echo $OUTPUT->header();
         <!-- Loading Indicator -->
         <div v-if="loading" class="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
             <div class="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p class="text-slate-600 font-bold">Cargando datos iniciales...</p>
+            <p class="text-slate-600 font-bold">Cargando y analizando datos automáticamente...</p>
         </div>
 
-        <!-- Tab Navigation -->
-        <div v-if="!loading" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="flex border-b border-slate-200">
-                <button
-                    v-for="tab in tabs"
-                    :key="tab.id"
-                    @click="activeTab = tab.id"
-                    :class="[
-                        'px-6 py-4 font-bold text-sm transition-all',
-                        activeTab === tab.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white text-slate-600 hover:bg-slate-50'
-                    ]"
-                >
-                    {{ tab.label }}
-                </button>
-            </div>
+        <!-- Main Content - All Sections Visible -->
+        <div v-if="!loading" class="space-y-6">
 
-            <!-- TAB 1: Debug Estudiante Individual -->
-            <div v-show="activeTab === 'student'" class="p-6">
-                <h2 class="text-xl font-bold text-slate-800 mb-4">🎯 Debug Estudiante Individual</h2>
-                <p class="text-sm text-slate-600 mb-6">Selecciona un estudiante de la muestra o ingresa un username manualmente</p>
-
-                <!-- Sample Students Quick Select -->
-                <div v-if="initialData && initialData.sample_students.length > 0" class="mb-6">
-                    <h3 class="text-sm font-bold text-slate-700 mb-3">📋 Estudiantes de Muestra (Click para analizar)</h3>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button
-                            v-for="s in initialData.sample_students"
-                            :key="s.userid"
-                            @click="selectStudent(s.username)"
-                            class="p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg text-left transition-all"
-                        >
-                            <div class="font-bold text-sm text-slate-800">{{ s.firstname }} {{ s.lastname }}</div>
-                            <div class="text-xs text-slate-500 font-mono">{{ s.username }}</div>
-                            <div class="text-xs text-blue-600 mt-1">{{ s.plan_name || '(sin plan)' }}</div>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 mb-6">
-                    <input
-                        v-model="studentUsername"
-                        @keyup.enter="debugStudent"
-                        type="text"
-                        placeholder="O ingresa username manualmente"
-                        class="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                    <button
-                        @click="debugStudent"
-                        class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all"
-                    >
-                        Analizar
-                    </button>
-                </div>
+            <!-- SECTION 1: Debug Estudiante Individual -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-4">🎯 Debug Estudiante Individual (Primer estudiante analizado automáticamente)</h2>
+                <p class="text-sm text-slate-600 mb-6">Análisis completo del primer estudiante del sistema</p>
 
                 <div v-if="studentDebugData" class="space-y-4">
                     <!-- Summary Cards -->
@@ -562,68 +514,23 @@ echo $OUTPUT->header();
                 </div>
             </div>
 
-            <!-- TAB 2: Test Resolución de Parámetros -->
-            <div v-show="activeTab === 'resolution'" class="p-6">
-                <h2 class="text-xl font-bold text-slate-800 mb-4">🔬 Test Resolución de Parámetros</h2>
-                <p class="text-sm text-slate-600 mb-6">Simula cómo el sistema resuelve los nombres a IDs (tal como lo hace fix_student_setup.php)</p>
+            <!-- SECTION 2: Test Resolución de Parámetros -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-4">🔬 Test Resolución de Parámetros (Ejecutado automáticamente)</h2>
+                <p class="text-sm text-slate-600 mb-6">Muestra cómo el sistema resuelve los nombres a IDs usando datos del primer estudiante</p>
 
-                <!-- Quick Fill from Sample -->
-                <div v-if="initialData && initialData.sample_students.length > 0" class="mb-6 bg-purple-50 border border-purple-200 p-4 rounded-xl">
-                    <h3 class="text-sm font-bold text-purple-800 mb-3">⚡ Llenar Rápido (datos de muestra)</h3>
-                    <div class="flex gap-2 flex-wrap">
-                        <button
-                            v-for="s in initialData.sample_students.slice(0, 5)"
-                            :key="'quick-'+s.userid"
-                            @click="fillFromSample(s)"
-                            class="px-3 py-2 bg-white hover:bg-purple-100 border border-purple-300 rounded-lg text-xs font-bold text-purple-700 transition-all"
-                        >
-                            {{ s.username }}
-                        </button>
+                <!-- Show the params being tested -->
+                <div v-if="testParams.plan_name" class="mb-6 bg-purple-50 border border-purple-200 p-4 rounded-xl">
+                    <h3 class="text-sm font-bold text-purple-800 mb-3">📋 Parámetros de Prueba (del primer estudiante)</h3>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div><span class="font-bold">Plan:</span> {{ testParams.plan_name || '-' }}</div>
+                        <div><span class="font-bold">Nivel:</span> {{ testParams.level_name || '-' }}</div>
+                        <div><span class="font-bold">Subperiodo:</span> {{ testParams.subperiod_name || '-' }}</div>
+                        <div><span class="font-bold">Periodo Acad:</span> {{ testParams.academic_name || '-' }}</div>
+                        <div><span class="font-bold">Estado Acad:</span> {{ testParams.status || '-' }}</div>
+                        <div><span class="font-bold">Estado Est:</span> {{ testParams.studentstatus || '-' }}</div>
                     </div>
                 </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Plan de Aprendizaje</label>
-                        <input v-model="testParams.plan_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Licenciatura en...">
-                        <datalist id="plans-list">
-                            <option v-for="p in (initialData ? initialData.unique_values.plans : [])" :key="p" :value="p">
-                        </datalist>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Nivel (Periodo)</label>
-                        <input v-model="testParams.level_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Primer Semestre">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Subperiodo</label>
-                        <input v-model="testParams.subperiod_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Bloque 1">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Periodo Académico</label>
-                        <input v-model="testParams.academic_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: 2024-I">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Estado Académico</label>
-                        <select v-model="testParams.status" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
-                            <option value="">Seleccionar...</option>
-                            <option value="activo">activo</option>
-                            <option value="aplazado">aplazado</option>
-                            <option value="retirado">retirado</option>
-                            <option value="suspendido">suspendido</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold text-slate-700 mb-2">Estado Estudiante</label>
-                        <input v-model="testParams.studentstatus" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: regular">
-                    </div>
-                </div>
-
-                <button
-                    @click="testResolution"
-                    class="w-full px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all mb-6"
-                >
-                    🧪 Ejecutar Test de Resolución
-                </button>
 
                 <div v-if="resolutionData" class="space-y-4">
                     <!-- Input Normalization -->
@@ -694,16 +601,10 @@ echo $OUTPUT->header();
                 </div>
             </div>
 
-            <!-- TAB 3: Vista Estudiantes -->
-            <div v-show="activeTab === 'students'" class="p-6">
+            <!-- SECTION 3: Vista Estudiantes -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <h2 class="text-xl font-bold text-slate-800 mb-4">👥 Estudiantes en Sistema (Primeros 50)</h2>
-
-                <button
-                    @click="loadAllStudents"
-                    class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all mb-6"
-                >
-                    📊 Cargar Estudiantes
-                </button>
+                <p class="text-sm text-slate-600 mb-6">Tabla completa de estudiantes cargada automáticamente</p>
 
                 <div v-if="allStudents.length > 0" class="overflow-x-auto">
                     <table class="w-full text-sm border-collapse">
@@ -739,7 +640,7 @@ echo $OUTPUT->header();
                                 </td>
                                 <td class="px-3 py-2 text-center">
                                     <button
-                                        @click="studentUsername = s.username; activeTab = 'student'; debugStudent()"
+                                        @click="studentUsername = s.username; debugStudent(); scrollToTop()"
                                         class="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs rounded font-bold"
                                     >
                                         🔍
@@ -765,12 +666,6 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
-            activeTab: 'student',
-            tabs: [
-                { id: 'student', label: '🎯 Debug Individual' },
-                { id: 'resolution', label: '🔬 Test Resolución' },
-                { id: 'students', label: '👥 Ver Estudiantes' }
-            ],
             studentUsername: '',
             studentDebugData: null,
             studentDebugError: null,
@@ -805,7 +700,7 @@ createApp({
                 if (res.data.status === 'success') {
                     this.initialData = res.data.data;
 
-                    // Auto-select first student
+                    // Auto-select first student and debug
                     if (this.initialData.sample_students.length > 0) {
                         this.studentUsername = this.initialData.sample_students[0].username;
                         await this.debugStudent();
@@ -819,7 +714,13 @@ createApp({
                         this.testParams.subperiod_name = first.subperiod_name || '';
                         this.testParams.academic_name = first.academic_name || '';
                         this.testParams.status = first.academic_status || '';
+
+                        // Auto-execute test resolution
+                        await this.testResolution();
                     }
+
+                    // Auto-load all students
+                    await this.loadAllStudents();
                 }
             } catch (e) {
                 console.error('Error loading initial data:', e);
@@ -906,6 +807,9 @@ createApp({
             } catch (e) {
                 this.studentsError = e.message;
             }
+        },
+        scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
 }).mount('#debug-app');
