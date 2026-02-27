@@ -318,6 +318,7 @@ if ($action === 'get_initial_data') {
 
         // Get 10 random students with complete data
         $sql = "SELECT
+                    llu.id as record_id,
                     u.id as userid,
                     u.username,
                     u.firstname,
@@ -348,6 +349,7 @@ if ($action === 'get_initial_data') {
         if (empty($students)) {
             // If no students with llu, get any students
             $sql_fallback = "SELECT
+                        u.id as record_id,
                         u.id as userid,
                         u.username,
                         u.firstname,
@@ -393,21 +395,7 @@ if ($action === 'get_initial_data') {
             ];
         }
 
-        // Get unique values from students
-        $sql_unique = "SELECT DISTINCT
-                        lp.name as plan_name,
-                        per.name as level_name,
-                        sub.name as subperiod_name,
-                        ap.name as academic_name,
-                        llu.status as academic_status
-                    FROM {local_learning_users} llu
-                    LEFT JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
-                    LEFT JOIN {local_learning_periods} per ON llu.currentperiodid = per.id
-                    LEFT JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
-                    LEFT JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
-                    WHERE llu.userrolename = 'student'";
-
-        $unique = $DB->get_records_sql($sql_unique);
+        // Get unique values from students - using get_recordset_sql to avoid duplicate key errors
         $unique_sets = [
             'plans' => [],
             'levels' => [],
@@ -416,23 +404,69 @@ if ($action === 'get_initial_data') {
             'statuses' => []
         ];
 
-        foreach ($unique as $u) {
-            if (!empty($u->plan_name) && !in_array($u->plan_name, $unique_sets['plans'])) {
-                $unique_sets['plans'][] = $u->plan_name;
-            }
-            if (!empty($u->level_name) && !in_array($u->level_name, $unique_sets['levels'])) {
-                $unique_sets['levels'][] = $u->level_name;
-            }
-            if (!empty($u->subperiod_name) && !in_array($u->subperiod_name, $unique_sets['subperiods'])) {
-                $unique_sets['subperiods'][] = $u->subperiod_name;
-            }
-            if (!empty($u->academic_name) && !in_array($u->academic_name, $unique_sets['academic_periods'])) {
-                $unique_sets['academic_periods'][] = $u->academic_name;
-            }
-            if (!empty($u->academic_status) && !in_array($u->academic_status, $unique_sets['statuses'])) {
-                $unique_sets['statuses'][] = $u->academic_status;
+        // Get unique plans
+        $plans_sql = "SELECT DISTINCT lp.id, lp.name
+                      FROM {local_learning_users} llu
+                      JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
+                      WHERE llu.userrolename = 'student' AND lp.name IS NOT NULL";
+        $plans_rs = $DB->get_recordset_sql($plans_sql);
+        foreach ($plans_rs as $p) {
+            if (!in_array($p->name, $unique_sets['plans'])) {
+                $unique_sets['plans'][] = $p->name;
             }
         }
+        $plans_rs->close();
+
+        // Get unique levels
+        $levels_sql = "SELECT DISTINCT per.id, per.name
+                       FROM {local_learning_users} llu
+                       JOIN {local_learning_periods} per ON llu.currentperiodid = per.id
+                       WHERE llu.userrolename = 'student' AND per.name IS NOT NULL";
+        $levels_rs = $DB->get_recordset_sql($levels_sql);
+        foreach ($levels_rs as $l) {
+            if (!in_array($l->name, $unique_sets['levels'])) {
+                $unique_sets['levels'][] = $l->name;
+            }
+        }
+        $levels_rs->close();
+
+        // Get unique subperiods
+        $sub_sql = "SELECT DISTINCT sub.id, sub.name
+                    FROM {local_learning_users} llu
+                    JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
+                    WHERE llu.userrolename = 'student' AND sub.name IS NOT NULL";
+        $sub_rs = $DB->get_recordset_sql($sub_sql);
+        foreach ($sub_rs as $s) {
+            if (!in_array($s->name, $unique_sets['subperiods'])) {
+                $unique_sets['subperiods'][] = $s->name;
+            }
+        }
+        $sub_rs->close();
+
+        // Get unique academic periods
+        $ap_sql = "SELECT DISTINCT ap.id, ap.name
+                   FROM {local_learning_users} llu
+                   JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
+                   WHERE llu.userrolename = 'student' AND ap.name IS NOT NULL";
+        $ap_rs = $DB->get_recordset_sql($ap_sql);
+        foreach ($ap_rs as $a) {
+            if (!in_array($a->name, $unique_sets['academic_periods'])) {
+                $unique_sets['academic_periods'][] = $a->name;
+            }
+        }
+        $ap_rs->close();
+
+        // Get unique statuses
+        $status_sql = "SELECT DISTINCT llu.status
+                       FROM {local_learning_users} llu
+                       WHERE llu.userrolename = 'student' AND llu.status IS NOT NULL AND llu.status != ''";
+        $status_rs = $DB->get_recordset_sql($status_sql);
+        foreach ($status_rs as $st) {
+            if (!in_array($st->status, $unique_sets['statuses'])) {
+                $unique_sets['statuses'][] = $st->status;
+            }
+        }
+        $status_rs->close();
 
         $data['unique_values'] = $unique_sets;
 
