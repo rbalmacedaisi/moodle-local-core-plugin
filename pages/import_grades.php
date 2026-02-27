@@ -198,10 +198,21 @@ if ($action === 'ajax_import_grade') {
             'learningplanid' => $plan->id
         ]);
 
+        // LOG: Debug info before transaction
+        error_log("=== IMPORT GRADE DEBUG ===");
+        error_log("Usuario: {$user->username} (ID: {$user->id})");
+        error_log("Curso: {$course->shortname} (ID: {$course->id})");
+        error_log("Plan: {$plan->name} (ID: {$plan->id})");
+        error_log("Nota: " . ($nota ?? 'NULL'));
+        error_log("Estado: $estado_curso -> $status_code");
+        error_log("Period: " . ($period ? "{$period->name} (ID: {$period->id})" : 'NULL'));
+        error_log("Existing record: " . ($existing ? "SÍ (ID: {$existing->id})" : 'NO'));
+
         $transaction = $DB->start_delegated_transaction();
 
         if ($existing) {
             // Update existing record
+            error_log("ACTUALIZANDO registro existente ID: {$existing->id}");
             $existing->grade = $nota;
             $existing->status = $status_code;
             if ($period) {
@@ -211,9 +222,11 @@ if ($action === 'ajax_import_grade') {
             $existing->usermodified = $USER->id;
 
             $DB->update_record('gmk_course_progre', $existing);
+            error_log("✓ gmk_course_progre actualizado");
             $action_taken = 'updated';
         } else {
             // Create new record with all required fields
+            error_log("CREANDO nuevo registro");
             $record = new stdClass();
             $record->userid = $user->id;
             $record->courseid = $course->id;
@@ -235,12 +248,14 @@ if ($action === 'ajax_import_grade') {
             $record->timemodified = time();
             $record->usermodified = $USER->id;
 
-            $DB->insert_record('gmk_course_progre', $record);
+            $new_id = $DB->insert_record('gmk_course_progre', $record);
+            error_log("✓ gmk_course_progre creado con ID: $new_id");
             $action_taken = 'created';
         }
 
         // Save feedback to Moodle gradebook if provided
         if (!empty($feedback) || !empty($nota)) {
+            error_log("Procesando gradebook: feedback=" . ($feedback ?? 'NULL') . ", nota=" . ($nota ?? 'NULL'));
             require_once($CFG->libdir . '/gradelib.php');
 
             // Get the course grade item (final grade)
@@ -250,6 +265,8 @@ if ($action === 'ajax_import_grade') {
             ]);
 
             if ($grade_item) {
+                error_log("Grade item encontrado: ID={$grade_item->id}");
+
                 // FIRST: Try to fetch existing grade_grade record
                 $grade_grade = grade_grade::fetch([
                     'itemid' => $grade_item->id,
@@ -258,6 +275,7 @@ if ($action === 'ajax_import_grade') {
 
                 if ($grade_grade) {
                     // UPDATE existing record
+                    error_log("ACTUALIZANDO grade_grade existente ID: {$grade_grade->id}");
                     if (!empty($feedback)) {
                         $grade_grade->feedback = $feedback;
                         $grade_grade->feedbackformat = FORMAT_PLAIN;
@@ -267,8 +285,10 @@ if ($action === 'ajax_import_grade') {
                         $grade_grade->rawgrade = $nota;
                     }
                     $grade_grade->update('import');
+                    error_log("✓ grade_grade actualizado");
                 } else {
                     // CREATE new record
+                    error_log("CREANDO nuevo grade_grade");
                     $grade_grade = new grade_grade();
                     $grade_grade->itemid = $grade_item->id;
                     $grade_grade->userid = $user->id;
@@ -283,8 +303,13 @@ if ($action === 'ajax_import_grade') {
                         $grade_grade->feedbackformat = FORMAT_PLAIN;
                     }
                     $grade_grade->insert('import');
+                    error_log("✓ grade_grade creado");
                 }
+            } else {
+                error_log("⚠ No se encontró grade_item para el curso {$course->id}");
             }
+        } else {
+            error_log("No hay feedback ni nota para guardar en gradebook");
         }
 
         $transaction->allow_commit();
@@ -304,9 +329,22 @@ if ($action === 'ajax_import_grade') {
         ]);
 
     } catch (Exception $e) {
+        // Log the full error for debugging
+        error_log("ERROR en import_grades.php - ajax_import_grade:");
+        error_log("Usuario: " . ($identificacion ?? 'N/A'));
+        error_log("Curso: " . ($curso_shortname ?? 'N/A'));
+        error_log("Error: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
+
         echo json_encode([
             'status' => 'error',
-            'message' => $e->getMessage()
+            'message' => $e->getMessage(),
+            'error_details' => [
+                'file' => basename($e->getFile()),
+                'line' => $e->getLine(),
+                'user' => $identificacion ?? 'N/A',
+                'course' => $curso_shortname ?? 'N/A'
+            ]
         ]);
     }
     exit;
@@ -681,13 +719,31 @@ echo $OUTPUT->header();
                     });
 
                     if (response.data.status === 'success') {
-                        this.addLog('success', `✅ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message}`);
+                        this.addLog('success', `✅ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message || 'Procesado exitosamente'}`);
                     } else {
-                        this.addLog('error', `❌ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message}`);
+                        const errorMsg = response.data.message || response.data.error || 'Error desconocido del servidor';
+                        this.addLog('error', `❌ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${errorMsg}`);
                     }
 
                 } catch (err) {
-                    this.addLog('error', `❌ [${index + 1}] Error: ${err.message}`);
+                    let errorDetail = err.message || 'Error de conexión';
+
+                    // Try to extract more details from the error
+                    if (err.response) {
+                        if (err.response.data) {
+                            if (typeof err.response.data === 'string') {
+                                errorDetail = err.response.data.substring(0, 200); // Limit length
+                            } else if (err.response.data.message) {
+                                errorDetail = err.response.data.message;
+                            } else if (err.response.data.error) {
+                                errorDetail = err.response.data.error;
+                            }
+                        } else {
+                            errorDetail = `HTTP ${err.response.status}: ${err.response.statusText}`;
+                        }
+                    }
+
+                    this.addLog('error', `❌ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${errorDetail}`);
                 }
 
                 this.processedCount++;
