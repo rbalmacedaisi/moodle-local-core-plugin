@@ -129,7 +129,7 @@ class update_student_status extends external_api {
             } else { // academicstatus
                 // Update local_learning_users.status field
                 // Validate value
-                $validStatuses = ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor'];
+                $validStatuses = ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
                 $valueLower = strtolower($params['value']);
 
                 if (!in_array($valueLower, $validStatuses)) {

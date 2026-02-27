@@ -262,7 +262,7 @@ Vue.component('studenttable', {
                                 </v-chip>
                             </template>
                             <v-list dense>
-                                <v-list-item v-for="statusOption in ['Activo', 'Inactivo', 'Suspendido', 'Graduado', 'Egreso']"
+                                <v-list-item v-for="statusOption in ['Activo', 'Inactivo']"
                                     :key="statusOption"
                                     @click="updateStudentStatus(item, 'studentstatus', statusOption)">
                                     <v-list-item-title :class="{'primary--text font-weight-bold': statusOption == item.status}">
@@ -287,7 +287,7 @@ Vue.component('studenttable', {
                                 </v-chip>
                             </template>
                             <v-list dense>
-                                <v-list-item v-for="academicOption in ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor']"
+                                <v-list-item v-for="academicOption in ['activo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado']"
                                     :key="academicOption"
                                     @click="updateStudentStatus(item, 'academicstatus', academicOption)">
                                     <v-list-item-title :class="{'primary--text font-weight-bold': academicOption == item.academicstatus}">
@@ -675,6 +675,8 @@ Vue.component('studenttable', {
             if (status === 'retirado') return 'red darken-2';
             if (status === 'suspendido') return 'error';
             if (status === 'desertor') return 'deep-orange darken-3';
+            if (status === 'graduado') return 'primary';
+            if (status === 'egresado') return 'blue darken-1';
             return 'grey';
         },
         async updateStudentStatus(student, field, newValue) {
