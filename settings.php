@@ -88,6 +88,11 @@ if ($hassiteconfig) {
         'Gestor de Sesiones Virtuales',
         new moodle_url('/local/grupomakro_core/pages/manage_meetings.php')
     );
+    $fixAcademicStatusPage = new admin_externalpage(
+        'grupomakro_core_fix_academic_status',
+        '🔧 Inicializar Estados Académicos',
+        new moodle_url('/local/grupomakro_core/pages/fix_academic_status.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -100,6 +105,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $bulkDeletePage);
     $ADMIN->add('grupomakrocore_plugin', $manageCoursesPage);
     $ADMIN->add('grupomakrocore_plugin', $manageMeetingsPage);
+    $ADMIN->add('grupomakrocore_plugin', $fixAcademicStatusPage);
     
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
