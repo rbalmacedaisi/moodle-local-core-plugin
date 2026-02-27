@@ -316,7 +316,7 @@ if ($action === 'ajax_fix') {
         }
 
         // Create/Update local_learning_users
-        $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
+        $llu = $DB->get_record('local_learning_users', ['userid' => $userid, 'userrolename' => 'student']);
         $status = !empty($status) ? strtolower(trim($status)) : 'activo';
 
         // LOG: Debug info
