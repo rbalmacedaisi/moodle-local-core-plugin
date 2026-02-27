@@ -305,6 +305,119 @@ if ($action === 'get_all_students') {
     }
 }
 
+// ========== AJAX HANDLER: GET INITIAL DATA ==========
+if ($action === 'get_initial_data') {
+    header('Content-Type: application/json');
+    try {
+        $data = [
+            'sample_students' => [],
+            'plans' => [],
+            'academic_periods' => [],
+            'unique_values' => []
+        ];
+
+        // Get 10 random students with complete data
+        $sql = "SELECT
+                    u.id as userid,
+                    u.username,
+                    u.firstname,
+                    u.lastname,
+                    llu.id as llu_id,
+                    llu.learningplanid,
+                    llu.currentperiodid,
+                    llu.currentsubperiodid,
+                    llu.academicperiodid,
+                    lp.name as plan_name,
+                    per.name as level_name,
+                    sub.name as subperiod_name,
+                    ap.name as academic_name,
+                    llu.groupname,
+                    llu.status as academic_status
+                FROM {user} u
+                JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
+                LEFT JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
+                LEFT JOIN {local_learning_periods} per ON llu.currentperiodid = per.id
+                LEFT JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
+                LEFT JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
+                WHERE u.deleted = 0 AND llu.id IS NOT NULL
+                ORDER BY RAND()
+                LIMIT 10";
+
+        $students = $DB->get_records_sql($sql);
+        $data['sample_students'] = array_values($students);
+
+        // Get all plans
+        $plans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name');
+        foreach ($plans as $p) {
+            $data['plans'][] = [
+                'id' => $p->id,
+                'name' => $p->name,
+                'normalized' => php_normalize_field($p->name)
+            ];
+        }
+
+        // Get all academic periods
+        $academic = $DB->get_records('gmk_academic_periods', null, 'name ASC', 'id, name, status');
+        foreach ($academic as $ap) {
+            $data['academic_periods'][] = [
+                'id' => $ap->id,
+                'name' => $ap->name,
+                'status' => $ap->status,
+                'normalized' => php_normalize_field($ap->name)
+            ];
+        }
+
+        // Get unique values from students
+        $sql_unique = "SELECT DISTINCT
+                        lp.name as plan_name,
+                        per.name as level_name,
+                        sub.name as subperiod_name,
+                        ap.name as academic_name,
+                        llu.status as academic_status
+                    FROM {local_learning_users} llu
+                    LEFT JOIN {local_learning_plans} lp ON llu.learningplanid = lp.id
+                    LEFT JOIN {local_learning_periods} per ON llu.currentperiodid = per.id
+                    LEFT JOIN {local_learning_subperiods} sub ON llu.currentsubperiodid = sub.id
+                    LEFT JOIN {gmk_academic_periods} ap ON llu.academicperiodid = ap.id
+                    WHERE llu.userrolename = 'student'";
+
+        $unique = $DB->get_records_sql($sql_unique);
+        $unique_sets = [
+            'plans' => [],
+            'levels' => [],
+            'subperiods' => [],
+            'academic_periods' => [],
+            'statuses' => []
+        ];
+
+        foreach ($unique as $u) {
+            if (!empty($u->plan_name) && !in_array($u->plan_name, $unique_sets['plans'])) {
+                $unique_sets['plans'][] = $u->plan_name;
+            }
+            if (!empty($u->level_name) && !in_array($u->level_name, $unique_sets['levels'])) {
+                $unique_sets['levels'][] = $u->level_name;
+            }
+            if (!empty($u->subperiod_name) && !in_array($u->subperiod_name, $unique_sets['subperiods'])) {
+                $unique_sets['subperiods'][] = $u->subperiod_name;
+            }
+            if (!empty($u->academic_name) && !in_array($u->academic_name, $unique_sets['academic_periods'])) {
+                $unique_sets['academic_periods'][] = $u->academic_name;
+            }
+            if (!empty($u->academic_status) && !in_array($u->academic_status, $unique_sets['statuses'])) {
+                $unique_sets['statuses'][] = $u->academic_status;
+            }
+        }
+
+        $data['unique_values'] = $unique_sets;
+
+        echo json_encode(['status' => 'success', 'data' => $data], JSON_PRETTY_PRINT);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
+    }
+}
+
 // ========== PAGE SETUP ==========
 admin_externalpage_setup('grupomakro_core_manage_courses');
 
@@ -339,10 +452,32 @@ echo $OUTPUT->header();
         <header class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <h1 class="text-3xl font-bold text-slate-900 mb-2">🔍 Debug: Actualización de Estudiantes</h1>
             <p class="text-slate-600">Herramienta de diagnóstico para analizar el flujo de datos de actualización masiva</p>
+
+            <!-- Stats -->
+            <div v-if="initialData" class="mt-4 flex gap-4">
+                <div class="bg-blue-50 px-4 py-2 rounded-lg">
+                    <span class="text-xs font-bold text-blue-600">PLANES:</span>
+                    <span class="ml-2 text-lg font-black text-blue-900">{{ initialData.plans.length }}</span>
+                </div>
+                <div class="bg-green-50 px-4 py-2 rounded-lg">
+                    <span class="text-xs font-bold text-green-600">PERIODOS ACAD:</span>
+                    <span class="ml-2 text-lg font-black text-green-900">{{ initialData.academic_periods.length }}</span>
+                </div>
+                <div class="bg-purple-50 px-4 py-2 rounded-lg">
+                    <span class="text-xs font-bold text-purple-600">ESTUDIANTES MUESTRA:</span>
+                    <span class="ml-2 text-lg font-black text-purple-900">{{ initialData.sample_students.length }}</span>
+                </div>
+            </div>
         </header>
 
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center">
+            <div class="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p class="text-slate-600 font-bold">Cargando datos iniciales...</p>
+        </div>
+
         <!-- Tab Navigation -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div v-if="!loading" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="flex border-b border-slate-200">
                 <button
                     v-for="tab in tabs"
@@ -362,14 +497,31 @@ echo $OUTPUT->header();
             <!-- TAB 1: Debug Estudiante Individual -->
             <div v-show="activeTab === 'student'" class="p-6">
                 <h2 class="text-xl font-bold text-slate-800 mb-4">🎯 Debug Estudiante Individual</h2>
-                <p class="text-sm text-slate-600 mb-6">Ingresa un username para ver todos sus datos actuales en la base de datos</p>
+                <p class="text-sm text-slate-600 mb-6">Selecciona un estudiante de la muestra o ingresa un username manualmente</p>
+
+                <!-- Sample Students Quick Select -->
+                <div v-if="initialData && initialData.sample_students.length > 0" class="mb-6">
+                    <h3 class="text-sm font-bold text-slate-700 mb-3">📋 Estudiantes de Muestra (Click para analizar)</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button
+                            v-for="s in initialData.sample_students"
+                            :key="s.userid"
+                            @click="selectStudent(s.username)"
+                            class="p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded-lg text-left transition-all"
+                        >
+                            <div class="font-bold text-sm text-slate-800">{{ s.firstname }} {{ s.lastname }}</div>
+                            <div class="text-xs text-slate-500 font-mono">{{ s.username }}</div>
+                            <div class="text-xs text-blue-600 mt-1">{{ s.plan_name || '(sin plan)' }}</div>
+                        </button>
+                    </div>
+                </div>
 
                 <div class="flex gap-3 mb-6">
                     <input
                         v-model="studentUsername"
                         @keyup.enter="debugStudent"
                         type="text"
-                        placeholder="Ingresa username (ej: estudiante001)"
+                        placeholder="O ingresa username manualmente"
                         class="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                     <button
@@ -381,6 +533,24 @@ echo $OUTPUT->header();
                 </div>
 
                 <div v-if="studentDebugData" class="space-y-4">
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+                            <div class="text-xs font-bold text-blue-600 mb-1">USUARIO</div>
+                            <div class="text-lg font-black text-blue-900">{{ studentDebugData.user_basic.username }}</div>
+                            <div class="text-sm text-blue-700">{{ studentDebugData.user_basic.firstname }} {{ studentDebugData.user_basic.lastname }}</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 p-4 rounded-xl">
+                            <div class="text-xs font-bold text-green-600 mb-1">PLAN</div>
+                            <div class="text-sm font-bold text-green-900">{{ studentDebugData.plan_info ? studentDebugData.plan_info.name : '(sin plan)' }}</div>
+                        </div>
+                        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                            <div class="text-xs font-bold text-amber-600 mb-1">ESTADO ACADÉMICO</div>
+                            <div class="text-lg font-black text-amber-900">{{ studentDebugData.local_learning_users ? studentDebugData.local_learning_users.status : '-' }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Full JSON -->
                     <div class="bg-slate-900 p-4 rounded-xl">
                         <h3 class="text-white font-bold mb-2">📋 Datos Completos (JSON)</h3>
                         <div class="code-block">{{ JSON.stringify(studentDebugData, null, 2) }}</div>
@@ -397,30 +567,54 @@ echo $OUTPUT->header();
                 <h2 class="text-xl font-bold text-slate-800 mb-4">🔬 Test Resolución de Parámetros</h2>
                 <p class="text-sm text-slate-600 mb-6">Simula cómo el sistema resuelve los nombres a IDs (tal como lo hace fix_student_setup.php)</p>
 
+                <!-- Quick Fill from Sample -->
+                <div v-if="initialData && initialData.sample_students.length > 0" class="mb-6 bg-purple-50 border border-purple-200 p-4 rounded-xl">
+                    <h3 class="text-sm font-bold text-purple-800 mb-3">⚡ Llenar Rápido (datos de muestra)</h3>
+                    <div class="flex gap-2 flex-wrap">
+                        <button
+                            v-for="s in initialData.sample_students.slice(0, 5)"
+                            :key="'quick-'+s.userid"
+                            @click="fillFromSample(s)"
+                            class="px-3 py-2 bg-white hover:bg-purple-100 border border-purple-300 rounded-lg text-xs font-bold text-purple-700 transition-all"
+                        >
+                            {{ s.username }}
+                        </button>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Plan de Aprendizaje</label>
-                        <input v-model="testParams.plan_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <input v-model="testParams.plan_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Licenciatura en...">
+                        <datalist id="plans-list">
+                            <option v-for="p in (initialData ? initialData.unique_values.plans : [])" :key="p" :value="p">
+                        </datalist>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Nivel (Periodo)</label>
-                        <input v-model="testParams.level_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <input v-model="testParams.level_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Primer Semestre">
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Subperiodo</label>
-                        <input v-model="testParams.subperiod_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <input v-model="testParams.subperiod_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: Bloque 1">
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Periodo Académico</label>
-                        <input v-model="testParams.academic_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <input v-model="testParams.academic_name" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: 2024-I">
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Estado Académico</label>
-                        <input v-model="testParams.status" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <select v-model="testParams.status" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                            <option value="">Seleccionar...</option>
+                            <option value="activo">activo</option>
+                            <option value="aplazado">aplazado</option>
+                            <option value="retirado">retirado</option>
+                            <option value="suspendido">suspendido</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Estado Estudiante</label>
-                        <input v-model="testParams.studentstatus" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg">
+                        <input v-model="testParams.studentstatus" type="text" class="w-full px-4 py-2 border border-slate-300 rounded-lg" placeholder="Ej: regular">
                     </div>
                 </div>
 
@@ -591,10 +785,60 @@ createApp({
             resolutionData: null,
             resolutionError: null,
             allStudents: [],
-            studentsError: null
+            studentsError: null,
+            initialData: null,
+            loading: true
         }
     },
+    mounted() {
+        this.loadInitialData();
+    },
     methods: {
+        async loadInitialData() {
+            this.loading = true;
+            try {
+                const url = window.location.pathname;
+                const res = await axios.get(url, {
+                    params: { action: 'get_initial_data' }
+                });
+
+                if (res.data.status === 'success') {
+                    this.initialData = res.data.data;
+
+                    // Auto-select first student
+                    if (this.initialData.sample_students.length > 0) {
+                        this.studentUsername = this.initialData.sample_students[0].username;
+                        await this.debugStudent();
+                    }
+
+                    // Auto-fill test params with first student data
+                    if (this.initialData.sample_students.length > 0) {
+                        const first = this.initialData.sample_students[0];
+                        this.testParams.plan_name = first.plan_name || '';
+                        this.testParams.level_name = first.level_name || '';
+                        this.testParams.subperiod_name = first.subperiod_name || '';
+                        this.testParams.academic_name = first.academic_name || '';
+                        this.testParams.status = first.academic_status || '';
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading initial data:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+        selectStudent(username) {
+            this.studentUsername = username;
+            this.debugStudent();
+        },
+        fillFromSample(student) {
+            this.testParams.plan_name = student.plan_name || '';
+            this.testParams.level_name = student.level_name || '';
+            this.testParams.subperiod_name = student.subperiod_name || '';
+            this.testParams.academic_name = student.academic_name || '';
+            this.testParams.status = student.academic_status || '';
+            this.testResolution();
+        },
         async debugStudent() {
             this.studentDebugData = null;
             this.studentDebugError = null;

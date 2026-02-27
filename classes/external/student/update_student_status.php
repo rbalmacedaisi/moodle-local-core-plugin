@@ -34,6 +34,7 @@ use Exception;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/user/profile/lib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 /**
  * External function 'local_grupomakro_update_student_status' implementation.
