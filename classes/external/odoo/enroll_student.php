@@ -23,15 +23,16 @@ class enroll_student extends external_api {
                 'product_name' => new external_value(PARAM_TEXT, 'The name of the Odoo Product (Moodle Learning Plan Name)', VALUE_REQUIRED),
                 'username'     => new external_value(PARAM_RAW, 'The username of the student', VALUE_REQUIRED),
                 'role_id'      => new external_value(PARAM_INT, 'The Role ID (default to student)', VALUE_DEFAULT, 5),
+                'period_name'  => new external_value(PARAM_TEXT, 'The name of the enrollment period (optional)', VALUE_DEFAULT, ''),
             )
         );
     }
 
-    public static function execute($product_name, $username, $role_id = 5) {
+    public static function execute($product_name, $username, $role_id = 5, $period_name = '') {
         global $DB, $CFG;
 
         $logfile = $CFG->dirroot . '/local/grupomakro_core/odoo_sync_debug.log';
-        $logmsg = date('Y-m-d H:i:s') . " - Enroll request: username=$username, product=$product_name, role=$role_id\n";
+        $logmsg = date('Y-m-d H:i:s') . " - Enroll request: username=$username, product=$product_name, role=$role_id, period=$period_name\n";
 
         // Safe Includes to prevent fatal 500 during WS discovery
         require_once($CFG->libdir . '/externallib.php');
@@ -58,19 +59,39 @@ class enroll_student extends external_api {
             $params = self::validate_parameters(self::execute_parameters(), array(
                 'product_name' => $product_name,
                 'username'     => $username,
-                'role_id'      => $role_id
+                'role_id'      => $role_id,
+                'period_name'  => $period_name
             ));
         } catch (\Throwable $e) {
             file_put_contents($logfile, $logmsg . " - VALIDATION ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
             throw $e;
         }
 
-        // 1. Resolve User (Moodle usernames are always lowercase)
         $lookupUsername = \core_text::strtolower($params['username']);
         $user = $DB->get_record('user', ['username' => $lookupUsername, 'deleted' => 0, 'suspended' => 0]);
         if (!$user) {
             file_put_contents($logfile, $logmsg . " - ERROR: User not found ($lookupUsername)\n", FILE_APPEND);
             throw new moodle_exception('invaliduser', 'error', '', $params['username'] . " (mapped to $lookupUsername)");
+        }
+
+        // 1.1 Save the incoming period as "periodo_ingreso" custom profile field
+        if (!empty($params['period_name'])) {
+            $fieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'periodo_ingreso']);
+            if ($fieldid) {
+                $existingdata = $DB->get_record('user_info_data', ['userid' => $user->id, 'fieldid' => $fieldid]);
+                if ($existingdata) {
+                    $existingdata->data = trim($params['period_name']);
+                    $DB->update_record('user_info_data', $existingdata);
+                } else {
+                    $newdata = new \stdClass();
+                    $newdata->userid = $user->id;
+                    $newdata->fieldid = $fieldid;
+                    $newdata->data = trim($params['period_name']);
+                    $newdata->dataformat = 0; // plain text
+                    $DB->insert_record('user_info_data', $newdata);
+                }
+                file_put_contents($logfile, $logmsg . " - SUCCESS: Updated profile field periodo_ingreso for user $user->id\n", FILE_APPEND);
+            }
         }
 
         // 2. Resolve Learning Plan
@@ -84,15 +105,49 @@ class enroll_student extends external_api {
             throw new moodle_exception('invalidlearningplan', 'local_grupomakro_core', '', $params['product_name']);
         }
 
-        // 3. Resolve Period (Default to first period of the plan)
-        // We pick the first period associated with this plan.
-        // Logic from sc_learningplans structure: periods are linked via local_learning_periods
-        $first_period = $DB->get_records('local_learning_periods', ['learningplanid' => $plan->id], 'id ASC', '*', 0, 1);
-        if (!$first_period) {
-             file_put_contents($logfile, $logmsg . " - ERROR: No periods found for plan (" . $plan->id . ")\n", FILE_APPEND);
-             throw new moodle_exception('noperiodsfound', 'local_grupomakro_core', '', $params['product_name']);
+        // 3. Resolve Period (Try to match period_name if provided)
+        $current_period_id = 0;
+        if (!empty($params['period_name'])) {
+            // Check if period name exists (case insensitive)
+            $sql = "SELECT id FROM {local_learning_periods} WHERE learningplanid = ? AND LOWER(name) = LOWER(?)";
+            $named_period = $DB->get_record_sql($sql, [$plan->id, \core_text::strtolower(trim($params['period_name']))]);
+            if ($named_period) {
+                $current_period_id = $named_period->id;
+                file_put_contents($logfile, $logmsg . " - SUCCESS: Matched requested period (" . $params['period_name'] . ") with ID $current_period_id\n", FILE_APPEND);
+            } else {
+                file_put_contents($logfile, $logmsg . " - WARNING: Requested period (" . $params['period_name'] . ") not found for plan $plan->id. Falling back to active period.\n", FILE_APPEND);
+            }
         }
-        $current_period_id = reset($first_period)->id;
+
+        // 3.1 Fallback to Active Period in Course (within first 2 months / 60 days)
+        if (!$current_period_id) {
+            $now = time();
+            $twomonths = 60 * 24 * 3600;
+            $sql_active = "SELECT name FROM {gmk_academic_periods} WHERE status = 1 AND startdate <= ? AND ? <= (startdate + ?) ORDER BY startdate DESC";
+            $active_acad_period = $DB->get_records_sql($sql_active, [$now, $now, $twomonths], 0, 1);
+            
+            if ($active_acad_period) {
+                $active_name = reset($active_acad_period)->name;
+                $sql = "SELECT id FROM {local_learning_periods} WHERE learningplanid = ? AND LOWER(name) = LOWER(?)";
+                $active_period = $DB->get_record_sql($sql, [$plan->id, \core_text::strtolower(trim($active_name))]);
+                
+                if ($active_period) {
+                    $current_period_id = $active_period->id;
+                    file_put_contents($logfile, $logmsg . " - INFO: Handled active fallback period (" . $active_name . ") with ID $current_period_id\n", FILE_APPEND);
+                }
+            }
+        }
+
+        // 3.2 Ultimate Fallback: First period of the plan
+        if (!$current_period_id) {
+            $first_period = $DB->get_records('local_learning_periods', ['learningplanid' => $plan->id], 'id ASC', '*', 0, 1);
+            if (!$first_period) {
+                file_put_contents($logfile, $logmsg . " - ERROR: No periods found for plan (" . $plan->id . ")\n", FILE_APPEND);
+                throw new moodle_exception('noperiodsfound', 'local_grupomakro_core', '', $params['product_name']);
+            }
+            $current_period_id = reset($first_period)->id;
+            file_put_contents($logfile, $logmsg . " - INFO: Handled default first period with ID $current_period_id\n", FILE_APPEND);
+        }
 
         // 4. Enroll User using sc_learningplans logic
         // This ensures all event triggers (progress creation, etc.) happen correctly.
