@@ -169,6 +169,18 @@ class enroll_student extends external_api {
             } else {
                 file_put_contents($logfile, $logmsg . " - WARNING: local_grupomakro_progress_manager not found, grid might be empty\n", FILE_APPEND);
             }
+
+            // 6. Explicitly set currentsubperiodid to the first subperiod (Bimestre 1)
+            $first_subperiod = $DB->get_records('local_learning_subperiods', ['learningplanid' => $plan->id], 'position ASC, id ASC', '*', 0, 1);
+            if ($first_subperiod) {
+                $subperiod = reset($first_subperiod);
+                $llu_record = $DB->get_record('local_learning_users', ['id' => $result['id']]);
+                if ($llu_record) {
+                    $llu_record->currentsubperiodid = $subperiod->id;
+                    $DB->update_record('local_learning_users', $llu_record);
+                    file_put_contents($logfile, $logmsg . " - SUCCESS: Assigned subperiod " . $subperiod->name . " (ID: $subperiod->id)\n", FILE_APPEND);
+                }
+            }
             
             file_put_contents($logfile, $logmsg . " - SUCCESS: User enrolled, learning_user_id=" . $result['id'] . "\n", FILE_APPEND);
             
