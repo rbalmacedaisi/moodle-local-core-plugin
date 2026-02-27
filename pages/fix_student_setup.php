@@ -282,7 +282,7 @@ if ($action === 'ajax_fix') {
         $custom_fields = [];
         if (!empty($usertype)) $custom_fields['usertype'] = $usertype;
         if (!empty($accountmanager)) $custom_fields['accountmanager'] = $accountmanager;
-        
+
         $bdate_ts = php_parse_date($birthdate);
         if ($bdate_ts > 0) $custom_fields['birthdate'] = $bdate_ts;
         if (!empty($documenttype)) $custom_fields['documenttype'] = $documenttype;
@@ -294,10 +294,15 @@ if ($action === 'ajax_fix') {
         if (!empty($gmkjourney)) $custom_fields['gmkjourney'] = $gmkjourney;
         if (!empty($custom_phone)) $custom_fields['custom_phone'] = $custom_phone;
         if (!empty($periodo_ingreso)) $custom_fields['periodo_ingreso'] = $periodo_ingreso;
-        
+
+        error_log("Custom fields a actualizar: " . json_encode($custom_fields));
+
         if (!empty($custom_fields)) {
             require_once($CFG->dirroot . '/user/profile/lib.php');
             profile_save_custom_fields($userid, $custom_fields);
+            error_log("Custom fields guardados exitosamente");
+        } else {
+            error_log("No hay custom fields para actualizar");
         }
 
         // Assign Student Role
@@ -314,7 +319,19 @@ if ($action === 'ajax_fix') {
         $llu = $DB->get_record('local_learning_users', ['userid' => $userid]);
         $status = !empty($status) ? strtolower(trim($status)) : 'activo';
 
+        // LOG: Debug info
+        error_log("=== FIX STUDENT DEBUG ===");
+        error_log("Usuario: $username (ID: $userid)");
+        error_log("Plan ID resuelto: $planid");
+        error_log("Period ID resuelto: $current_period_id");
+        error_log("Subperiod ID resuelto: $current_subperiod_id");
+        error_log("Academic Period ID resuelto: $academic_period_id");
+        error_log("Grupo: '$groupname'");
+        error_log("Status: '$status'");
+        error_log("LLU existe: " . ($llu ? 'SÍ (ID: '.$llu->id.')' : 'NO'));
+
         if (!$llu) {
+            error_log("CREANDO nuevo registro en local_learning_users");
             $record = new stdClass();
             $record->userid = $userid;
             $record->learningplanid = $planid;
@@ -327,18 +344,26 @@ if ($action === 'ajax_fix') {
             $record->timecreated = time();
             $record->timemodified = time();
             $record->usermodified = $USER->id;
-            $DB->insert_record('local_learning_users', $record);
+            $new_id = $DB->insert_record('local_learning_users', $record);
+            error_log("Registro creado con ID: $new_id");
         } else {
+            error_log("ACTUALIZANDO registro existente ID: " . $llu->id);
+            error_log("ANTES - Plan: {$llu->learningplanid}, Period: {$llu->currentperiodid}, Subperiod: {$llu->currentsubperiodid}, Academic: {$llu->academicperiodid}, Grupo: '{$llu->groupname}', Status: '{$llu->status}'");
+
             $llu->learningplanid = $planid;
             $llu->currentperiodid = $current_period_id;
-            $llu->currentsubperiodid = $current_subperiod_id;  // Actualizado: ahora se actualiza siempre, incluso si es 0
+            $llu->currentsubperiodid = $current_subperiod_id;
             $llu->academicperiodid = $academic_period_id;
-            $llu->groupname = !empty($groupname) ? trim($groupname) : '';  // Actualizado: ahora se puede limpiar
+            $llu->groupname = !empty($groupname) ? trim($groupname) : '';
             $llu->userrolename = 'student';
             $llu->status = $status;
             $llu->timemodified = time();
             $llu->usermodified = $USER->id;
+
+            error_log("DESPUÉS - Plan: {$llu->learningplanid}, Period: {$llu->currentperiodid}, Subperiod: {$llu->currentsubperiodid}, Academic: {$llu->academicperiodid}, Grupo: '{$llu->groupname}', Status: '{$llu->status}'");
+
             $DB->update_record('local_learning_users', $llu);
+            error_log("Registro actualizado exitosamente");
         }
 
         // TRIGGER PROGRESS CREATION & EVENT
