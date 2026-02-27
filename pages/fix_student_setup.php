@@ -316,13 +316,19 @@ if ($action === 'ajax_fix') {
         }
 
         // Create/Update local_learning_users
-        $llu = $DB->get_record('local_learning_users', ['userid' => $userid, 'userrolename' => 'student']);
+        // CRITICAL: Must search by userid + learningplanid + userrolename to handle students in multiple plans
+        $llu = $DB->get_record('local_learning_users', [
+            'userid' => $userid,
+            'learningplanid' => $planid,
+            'userrolename' => 'student'
+        ]);
         $status = !empty($status) ? strtolower(trim($status)) : 'activo';
 
         // LOG: Debug info
         error_log("=== FIX STUDENT DEBUG ===");
         error_log("Usuario: $username (ID: $userid)");
         error_log("Plan ID resuelto: $planid");
+        error_log("Buscando registro: userid=$userid, learningplanid=$planid, userrolename=student");
         error_log("Period ID resuelto: $current_period_id");
         error_log("Subperiod ID resuelto: $current_subperiod_id");
         error_log("Academic Period ID resuelto: $academic_period_id");

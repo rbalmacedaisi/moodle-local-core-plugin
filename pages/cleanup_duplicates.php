@@ -30,12 +30,12 @@ if ($action === 'find_duplicates' || $action_alt === 'find_duplicates') {
     header('Content-Type: application/json');
 
     try {
-        // Find users with multiple local_learning_users records with userrolename='student'
-        // Use MIN(id) as first column to ensure uniqueness
-        $sql = "SELECT MIN(id) as min_id, userid, COUNT(*) as count
+        // Find users with ACTUAL duplicates: same userid + same learningplanid + userrolename='student'
+        // This is different from users in multiple plans (which is legitimate)
+        $sql = "SELECT MIN(id) as min_id, userid, learningplanid, COUNT(*) as count
                 FROM {local_learning_users}
                 WHERE userrolename = 'student'
-                GROUP BY userid
+                GROUP BY userid, learningplanid
                 HAVING COUNT(*) > 1";
 
         $duplicates = $DB->get_records_sql($sql);
@@ -43,15 +43,19 @@ if ($action === 'find_duplicates' || $action_alt === 'find_duplicates') {
         $result = [];
         foreach ($duplicates as $dup) {
             $user = $DB->get_record('user', ['id' => $dup->userid], 'id, username, firstname, lastname');
-            if ($user) {
+            $plan = $DB->get_record('local_learning_plans', ['id' => $dup->learningplanid], 'id, name');
+
+            if ($user && $plan) {
                 $records = $DB->get_records('local_learning_users',
-                    ['userid' => $dup->userid, 'userrolename' => 'student'],
+                    ['userid' => $dup->userid, 'learningplanid' => $dup->learningplanid, 'userrolename' => 'student'],
                     'id ASC');
 
                 $result[] = [
                     'userid' => $dup->userid,
                     'username' => $user->username,
                     'fullname' => $user->firstname . ' ' . $user->lastname,
+                    'planid' => $dup->learningplanid,
+                    'planname' => $plan->name,
                     'count' => (int)$dup->count,
                     'records' => array_values($records)
                 ];
@@ -134,9 +138,10 @@ echo $OUTPUT->header();
                 <p class="font-bold text-amber-900">⚠️ Se encontraron {{ duplicates.length }} usuarios con registros duplicados</p>
             </div>
 
-            <div v-for="dup in duplicates" :key="dup.userid" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div v-for="dup in duplicates" :key="`${dup.userid}-${dup.planid}`" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <h3 class="font-bold text-lg mb-2">{{ dup.fullname }} ({{ dup.username }})</h3>
-                <p class="text-sm text-slate-600 mb-4">{{ dup.count }} registros encontrados</p>
+                <p class="text-sm text-slate-600 mb-1"><span class="font-bold">Plan:</span> {{ dup.planname }}</p>
+                <p class="text-sm text-slate-600 mb-4">{{ dup.count }} registros duplicados para este mismo plan</p>
 
                 <div class="space-y-2">
                     <div
