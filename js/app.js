@@ -53,6 +53,13 @@ function initVueApp() {
         return;
       }
 
+      // Add SweetAlert2 to Vue prototype
+      if (typeof Swal !== 'undefined') {
+        window.Vue.prototype.$swal = Swal;
+      } else {
+        console.warn('SweetAlert2 is not loaded. Alerts will not work.');
+      }
+
       // Create a Vue instance for the application.
       const app = new window.Vue({
         el: '#gmk-app',
