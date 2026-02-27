@@ -93,15 +93,10 @@ echo $OUTPUT->header();
             <p class="text-slate-600">Encuentra y elimina registros duplicados en local_learning_users</p>
         </header>
 
-        <!-- Actions -->
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
-            <button
-                @click="findDuplicates"
-                :disabled="loading"
-                class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
-            >
-                {{ loading ? 'Buscando...' : '🔍 Buscar Duplicados' }}
-            </button>
+        <!-- Loading Indicator -->
+        <div v-if="loading" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mb-6 text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p class="text-slate-600 font-medium">🔍 Buscando registros duplicados...</p>
         </div>
 
         <!-- Results -->
@@ -159,6 +154,10 @@ createApp({
             searched: false
         }
     },
+    mounted() {
+        // Auto-load duplicates when page loads
+        this.findDuplicates();
+    },
     methods: {
         async findDuplicates() {
             this.loading = true;
@@ -169,14 +168,16 @@ createApp({
                     params: { action: 'find_duplicates' }
                 });
 
-                if (res.data.status === 'success') {
-                    this.duplicates = res.data.duplicates;
+                if (res.data && res.data.status === 'success') {
+                    this.duplicates = res.data.duplicates || [];
                     this.searched = true;
                 } else {
-                    alert('Error: ' + res.data.message);
+                    const errorMsg = (res.data && res.data.message) ? res.data.message : 'Error desconocido';
+                    alert('Error: ' + errorMsg);
                 }
             } catch (e) {
-                alert('Error: ' + e.message);
+                console.error('Error completo:', e);
+                alert('Error: ' + (e.message || 'Error de conexión'));
             } finally {
                 this.loading = false;
             }
@@ -195,15 +196,17 @@ createApp({
                     }
                 });
 
-                if (res.data.status === 'success') {
+                if (res.data && res.data.status === 'success') {
                     alert('Registro eliminado exitosamente');
                     // Refresh the list
-                    this.findDuplicates();
+                    await this.findDuplicates();
                 } else {
-                    alert('Error: ' + res.data.message);
+                    const errorMsg = (res.data && res.data.message) ? res.data.message : 'Error desconocido';
+                    alert('Error: ' + errorMsg);
                 }
             } catch (e) {
-                alert('Error: ' + e.message);
+                console.error('Error completo:', e);
+                alert('Error: ' + (e.message || 'Error de conexión'));
             }
         }
     }
