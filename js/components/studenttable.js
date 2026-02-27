@@ -536,6 +536,7 @@ Vue.component('studenttable', {
                                 updatingPeriod: null,
                                 revalidate: (element.revalidate && element.revalidate.length > 0) ? element.revalidate : '--',
                                 status: element.status,
+                                academicstatus: element.academicstatus,
                                 img: element.profileimage,
                                 currentgrade: element.currentgrade || '--',
                                 financial_status: element.financial_status || 'none',
