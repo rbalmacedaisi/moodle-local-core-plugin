@@ -10,9 +10,19 @@ require_capability('moodle/site:config', context_system::instance());
 $action = optional_param('action', '', PARAM_ALPHA);
 $confirm = optional_param('confirm', 0, PARAM_INT);
 
+// Log for debugging
+error_log("cleanup_duplicates.php - Action recibido: '$action'");
+
 // ========== AJAX HANDLER: FIND DUPLICATES ==========
 if ($action === 'find_duplicates') {
+    error_log("Entrando al handler find_duplicates");
+
+    // Clear any output buffers and set JSON header
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
     header('Content-Type: application/json');
+
     try {
         // Find users with multiple local_learning_users records with userrolename='student'
         // Use MIN(id) as first column to ensure uniqueness
@@ -42,19 +52,27 @@ if ($action === 'find_duplicates') {
             }
         }
 
+        error_log("Retornando " . count($result) . " duplicados");
         echo json_encode(['status' => 'success', 'duplicates' => $result]);
-        exit;
+        die(); // Use die() instead of exit for safety
     } catch (Exception $e) {
         error_log("Error en find_duplicates: " . $e->getMessage());
         error_log("Stack trace: " . $e->getTraceAsString());
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
-        exit;
+        die();
     }
 }
 
 // ========== AJAX HANDLER: DELETE DUPLICATE ==========
 if ($action === 'delete_duplicate') {
+    error_log("Entrando al handler delete_duplicate");
+
+    // Clear any output buffers and set JSON header
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
     header('Content-Type: application/json');
+
     try {
         $record_id = required_param('record_id', PARAM_INT);
 
@@ -65,11 +83,13 @@ if ($action === 'delete_duplicate') {
 
         $DB->delete_records('local_learning_users', ['id' => $record_id]);
 
+        error_log("Registro $record_id eliminado exitosamente");
         echo json_encode(['status' => 'success', 'message' => 'Registro eliminado']);
-        exit;
+        die();
     } catch (Exception $e) {
+        error_log("Error en delete_duplicate: " . $e->getMessage());
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
-        exit;
+        die();
     }
 }
 
