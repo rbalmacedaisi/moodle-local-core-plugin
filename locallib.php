@@ -1692,29 +1692,45 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
 function get_scheduleless_students($params)
 {
     global $DB;
-    $periods = explode(",", $params['periodIds']);
-    $usersInPeriods = [];
 
-    $usersInPeriods = array_merge(...array_map(function ($period) use ($DB) {
-        return $DB->get_records("local_learning_users", ['currentperiodid' => $period]);
-    }, $periods));
+    // Get all students who have this course in their learning plan with specific statuses:
+    // Status 0 = No Disponible (Prerequisites not met)
+    // Status 1 = Disponible (Available to take)
+    // Status 5 = Reprobada (Failed - needs to retake)
+    // Status 99 = Migración Pendiente (Migration Pending)
+    $sql = "SELECT DISTINCT gcp.userid, gcp.status
+            FROM {gmk_course_progre} gcp
+            WHERE gcp.courseid = :courseid
+              AND gcp.status IN (0, 1, 5, 99)
+              AND NOT EXISTS (
+                  SELECT 1 FROM {gmk_class_pre_registration} pr
+                  WHERE pr.userid = gcp.userid AND pr.courseid = :courseid_pr
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM {gmk_class_queue} q
+                  WHERE q.userid = gcp.userid AND q.courseid = :courseid_q
+              )";
 
-    $schedulelessUsers = array_filter($usersInPeriods, function ($user) use ($DB, $params) {
-        if (!!$DB->get_record('gmk_class_pre_registration', ['userid' => $user->userid, 'courseid' => $params['courseId']]) || !!$DB->get_record('gmk_class_queue', ['userid' => $user->userid, 'courseid' => $params['courseId']])) {
-            return;
-        }
-        return $user;
-    });
-    $schedulelessUsers = array_map(function ($user) {
-        $studentInfo = user_get_users_by_id([$user->userid])[$user->userid];
+    $params_sql = [
+        'courseid' => $params['courseId'],
+        'courseid_pr' => $params['courseId'],
+        'courseid_q' => $params['courseId']
+    ];
+
+    $usersWithCourseStatus = $DB->get_records_sql($sql, $params_sql);
+
+    // Format the results
+    $schedulelessUsers = array_map(function ($record) {
+        $studentInfo = user_get_users_by_id([$record->userid])[$record->userid];
         $student = new stdClass();
-        $student->id = $user->userid;
+        $student->id = $record->userid;
         $student->email = $studentInfo->email;
         $student->firstname = $studentInfo->firstname;
         $student->lastname = $studentInfo->lastname;
         $student->profilePicture = get_user_picture_url($student->id);
+        $student->course_status = $record->status; // Include status for debugging if needed
         return $student;
-    }, $schedulelessUsers);
+    }, $usersWithCourseStatus);
 
     return $schedulelessUsers;
 }
