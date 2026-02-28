@@ -336,15 +336,42 @@ class local_grupomakro_progress_manager
 
     public static function assign_class_to_course_progress($userId, $class)
     {
-        global $DB;
-        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
+        global $DB, $USER;
+
+        $courseProgress = $DB->get_record('gmk_course_progre', [
+            'userid' => $userId,
+            'courseid' => $class->corecourseid,
+            'learningplanid' => $class->learningplanid
+        ]);
+
+        // If no progress record exists, create one
+        if (!$courseProgress) {
+            $courseProgress = new \stdClass();
+            $courseProgress->userid = $userId;
+            $courseProgress->courseid = $class->corecourseid;
+            $courseProgress->learningplanid = $class->learningplanid;
+            $courseProgress->classid = $class->id;
+            $courseProgress->groupid = $class->groupid;
+            $courseProgress->progress = 0;
+            $courseProgress->grade = 0;
+            $courseProgress->status = COURSE_IN_PROGRESS;
+            $courseProgress->timecreated = time();
+            $courseProgress->timemodified = time();
+            $courseProgress->usermodified = $USER->id;
+
+            return $DB->insert_record('gmk_course_progre', $courseProgress);
+        }
+
+        // Update existing progress record
         $courseProgress->classid = $class->id;
         $courseProgress->groupid = $class->groupid;
         $courseProgress->progress = 0;
         $courseProgress->grade = 0;
         $courseProgress->status = COURSE_IN_PROGRESS;
+        $courseProgress->timemodified = time();
+        $courseProgress->usermodified = $USER->id;
 
-        return $DB->update_record('gmk_course_progre', $courseProgress);;
+        return $DB->update_record('gmk_course_progre', $courseProgress);
     }
 
     public static function unassign_class_from_course_progress($userId, $class)
