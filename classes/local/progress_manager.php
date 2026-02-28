@@ -220,14 +220,22 @@ class local_grupomakro_progress_manager
                 $oldStatus = $userCourseProgress->status;
                 $oldProgress = $userCourseProgress->progress;
 
-                if ($userGrade >= 70) {
+                // FIX: Correct status based on grade
+                // - Grade >= 71 → APPROVED (status 4)
+                // - Grade < 71 → FAILED (status 5) only if student finished the course
+                if ($userGrade >= 71) {
                     $userCourseProgress->progress = 100;
-                    $userCourseProgress->status = COURSE_COMPLETED;
-                } else if ($userCourseProgress->progress >= 100) {
-                    $userCourseProgress->status = COURSE_COMPLETED;
+                    $userCourseProgress->status = COURSE_APPROVED;  // Status 4
+                } else if ($userGrade > 0 && $userGrade < 71 && $userCourseProgress->progress >= 100) {
+                    // Student completed all activities but grade is below passing
+                    $userCourseProgress->status = COURSE_FAILED;  // Status 5
+                } else if ($userCourseProgress->progress >= 100 && $userGrade == 0) {
+                    // Activities completed but no grade yet
+                    $userCourseProgress->status = COURSE_COMPLETED;  // Status 3
                 }
 
-                if ($userCourseProgress->status == COURSE_COMPLETED) {
+                // Mark as completed if approved
+                if ($userCourseProgress->status == COURSE_APPROVED || $userCourseProgress->status == COURSE_COMPLETED) {
                     $anyCompleted = true;
                 }
 
