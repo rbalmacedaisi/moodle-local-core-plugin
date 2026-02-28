@@ -528,12 +528,24 @@ window.Vue.component('editclass', {
                 this.checkingRescheduling = false;
                 let { status, message, exception } = data
                 if (status === -1) {
-                    throw new Error(JSON.parse(message));
+                    // Try to parse message as JSON, fallback to plain message
+                    try {
+                        const errors = JSON.parse(message);
+                        throw new Error(Array.isArray(errors) ? errors.join('\n') : message);
+                    } catch (parseError) {
+                        throw new Error(message);
+                    }
                 }
                 else if (exception) {
                     throw new Error(message);
                 }
-                this.rescheduleMessage = JSON.parse(message).join('\n');
+                // Try to parse reschedule message as JSON array
+                try {
+                    const parsed = JSON.parse(message);
+                    this.rescheduleMessage = Array.isArray(parsed) ? parsed.join('\n') : message;
+                } catch (parseError) {
+                    this.rescheduleMessage = message;
+                }
                 this.showRescheduleDialog = true;
             }
             catch (error) {
@@ -552,7 +564,13 @@ window.Vue.component('editclass', {
                 let { data } = await window.axios.get(wsurl, { params: this.rescheduleActivityParameters });
                 let { status, message, exception } = data
                 if (status === -1) {
-                    throw new Error(JSON.parse(message));
+                    // Try to parse message as JSON, fallback to plain message
+                    try {
+                        const errors = JSON.parse(message);
+                        throw new Error(Array.isArray(errors) ? errors.join('\n') : message);
+                    } catch (parseError) {
+                        throw new Error(message);
+                    }
                 }
                 else if (exception) {
                     throw new Error(message);

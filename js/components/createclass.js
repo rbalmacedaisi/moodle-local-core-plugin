@@ -361,7 +361,14 @@ window.Vue.component('createclass', {
                 let { data } = await window.axios.get(wsurl, { params: this.saveClassParameters });
                 let { status, message, exception } = data;
                 if (status === -1) {
-                    throw new Error(JSON.parse(message).join('\n'));
+                    // Try to parse message as JSON array, fallback to plain message
+                    try {
+                        const errors = JSON.parse(message);
+                        throw new Error(Array.isArray(errors) ? errors.join('\n') : message);
+                    } catch (parseError) {
+                        // If JSON parsing fails, use the message as-is
+                        throw new Error(message);
+                    }
                 }
                 else if (exception) {
                     throw new Error(message);
