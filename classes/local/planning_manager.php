@@ -430,9 +430,11 @@ class planning_manager {
         $map = [];
 
         // 1. Check Custom Progress Table (gmk_course_progre)
-        // Status 3 = Completed, 4 = Approved.
+        // Status 3 = Completed (100% but no grade yet)
+        // Status 4 = Approved (grade >= 71)
         // FIX: Use 'id' as first column (key) to prevent deduplication by userid
-        // FIX: Only include status 3 and 4, NOT 5+ (failed, revalid, etc)
+        // NOTE: We include status 3 for prerequisite validation, but it should be temporary
+        //       (courses should move from 3 → 4 or 5 once graded)
         $sqlProgre = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status IN (3, 4)";
         $recordsProgre = $DB->get_records_sql($sqlProgre);
         
