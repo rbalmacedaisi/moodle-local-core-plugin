@@ -188,6 +188,23 @@ if ($action === 'ajax_import_grade') {
             throw new Exception("Estado de curso desconocido: '$estado_curso' (valores permitidos: Aprobado, Reprobado, Cursando, etc.)");
         }
 
+        // VALIDATE AND OVERRIDE STATUS BASED ON GRADE
+        // This ensures status matches the actual grade, regardless of what Excel says
+        if ($nota >= 71) {
+            // Grade is passing - MUST be status 4 (APROBADA)
+            if ($status_code != 4) {
+                error_log("⚠️ CORRECCIÓN AUTOMÁTICA: Estado Excel='$estado_curso' (status=$status_code) pero nota=$nota >= 71. Forzando status=4 (APROBADA)");
+                $status_code = 4; // COURSE_APPROVED
+            }
+        } elseif ($nota > 0 && $nota < 71) {
+            // Grade is failing - MUST be status 5 (REPROBADA)
+            if ($status_code != 5) {
+                error_log("⚠️ CORRECCIÓN AUTOMÁTICA: Estado Excel='$estado_curso' (status=$status_code) pero nota=$nota < 71. Forzando status=5 (REPROBADA)");
+                $status_code = 5; // COURSE_FAILED
+            }
+        }
+        // If nota is 0 or null, keep the original status from Excel (could be Cursando, Disponible, etc.)
+
         // Find period by name within the learning plan
         $period = null;
         if (!empty($cuatrimestre)) {
