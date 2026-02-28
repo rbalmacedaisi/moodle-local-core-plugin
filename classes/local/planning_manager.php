@@ -103,6 +103,10 @@ class planning_manager {
         // 2f. Get All Courses Pending Migration per Student (Status 99)
         $migrationPendingCourses = self::get_all_migration_pending_courses();
 
+        // 2g. Get All Courses with Status 0 (No Disponible) and Status 1 (Disponible)
+        $noAvailableCourses = self::get_all_no_available_courses();
+        $availableCourses = self::get_all_available_courses();
+
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
         
@@ -169,6 +173,8 @@ class planning_manager {
             $studentApproved = $approvedCourses[$u->id] ?? [];
             $studentInProgress = $inProgressCourses[$u->id] ?? [];
             $studentMigrationPending = $migrationPendingCourses[$u->id] ?? [];
+            $studentNoAvailable = $noAvailableCourses[$u->id] ?? [];
+            $studentAvailable = $availableCourses[$u->id] ?? [];
 
             // 1. Determine student's TARGET Level for the period being planned
             $currentLevel = self::parse_semester_number($u->periodname);
@@ -184,48 +190,67 @@ class planning_manager {
                 $isApproved = isset($studentApproved[$course->id]);
                 $isInProgress = isset($studentInProgress[$course->id]);
                 $isMigrationPending = isset($studentMigrationPending[$course->id]);
+                $isReprobada = isset($failedCourses[$u->id][$course->id]);
 
-                // Exclude courses that are:
-                // - Approved (aprobada)
-                // - Currently in progress (cursando - status=2)
-                // - Pending migration (migración pendiente - status=99)
-                if (!$isApproved && !$isInProgress && !$isMigrationPending) {
-                    // Check Prerequisites
-                    $isPreRequisiteMet = true;
-                    $missingPrereqs = [];
-                    if (!empty($course->prereqs)) {
-                        foreach ($course->prereqs as $prereqId) {
-                            if (!isset($studentApproved[$prereqId])) {
-                                $isPreRequisiteMet = false;
-                                // Find prereq name in current plan or all subjects
-                                $prereqName = "ID: " . $prereqId;
-                                if (isset($planStructure[$prereqId])) {
-                                    $prereqName = $planStructure[$prereqId]->fullname;
-                                } elseif (isset($allSubjects[$prereqId])) {
-                                    $prereqName = $allSubjects[$prereqId]['name'];
-                                }
-                                $missingPrereqs[] = $prereqName;
+                // NEW: Check if course has explicit status 0 or 1
+                $isExplicitlyNoAvailable = isset($studentNoAvailable[$course->id]);
+                $isExplicitlyAvailable = isset($studentAvailable[$course->id]);
+
+                // EXCLUDE courses that are:
+                // - Approved (status 3 or 4)
+                // - Currently in progress (status 2)
+                // - Pending migration (status 99)
+                // - Failed/Reprobada (status 5) - NO incluir porque no es seguro que puedan cursarla
+                if ($isApproved || $isInProgress || $isMigrationPending || $isReprobada) {
+                    continue;  // SKIP this course
+                }
+
+                // Check if course has a status record (0, 1, 2, 3, 4, 5, 99, etc)
+                $hasStatusRecord = $isApproved || $isInProgress || $isMigrationPending ||
+                                   $isReprobada || $isExplicitlyNoAvailable || $isExplicitlyAvailable;
+
+                // ONLY INCLUDE if:
+                // - Has explicit status 0 (No Disponible) OR
+                // - Has explicit status 1 (Disponible) OR
+                // - Has NO status record (assume pending/available if no record exists)
+                if ($hasStatusRecord && !$isExplicitlyNoAvailable && !$isExplicitlyAvailable) {
+                    continue;  // Has status record but is NOT 0 or 1, skip it
+                }
+
+                // Check Prerequisites
+                $isPreRequisiteMet = true;
+                $missingPrereqs = [];
+                if (!empty($course->prereqs)) {
+                    foreach ($course->prereqs as $prereqId) {
+                        if (!isset($studentApproved[$prereqId])) {
+                            $isPreRequisiteMet = false;
+                            // Find prereq name in current plan or all subjects
+                            $prereqName = "ID: " . $prereqId;
+                            if (isset($planStructure[$prereqId])) {
+                                $prereqName = $planStructure[$prereqId]->fullname;
+                            } elseif (isset($allSubjects[$prereqId])) {
+                                $prereqName = $allSubjects[$prereqId]['name'];
                             }
+                            $missingPrereqs[] = $prereqName;
                         }
                     }
-
-                    // A course is "Pending" if it's not approved.
-                    $isReprobada = isset($failedCourses[$u->id][$course->id]);
-                    
-                    // PARITY FIX: A subject is P-I ONLY if prereqs are met AND Level <= Target Level
-                    $isPriority = ($isPreRequisiteMet && $course->semester_num <= $targetLevel);
-
-                    $pending[] = [
-                        'id' => $course->id,
-                        'name' => $course->fullname,
-                        'semester' => $course->semester_num, // Normalized numeric level
-                        'semesterName' => $course->semester_name,
-                        'isPriority' => $isPriority, 
-                        'isPreRequisiteMet' => $isPreRequisiteMet,
-                        'isReprobada' => $isReprobada,
-                        'missingPrereqs' => $missingPrereqs
-                    ];
                 }
+
+                // A subject is P-I (Priority) ONLY if:
+                // - Prerequisites are met
+                // - Level <= Target Level
+                $isPriority = ($isPreRequisiteMet && $course->semester_num <= $targetLevel);
+
+                $pending[] = [
+                    'id' => $course->id,
+                    'name' => $course->fullname,
+                    'semester' => $course->semester_num, // Normalized numeric level
+                    'semesterName' => $course->semester_name,
+                    'isPriority' => $isPriority,
+                    'isPreRequisiteMet' => $isPreRequisiteMet,
+                    'isReprobada' => false,  // Ya no incluimos reprobadas
+                    'missingPrereqs' => $missingPrereqs
+                ];
             }
 
             // Determine Student's Theoretical Level 
@@ -406,10 +431,9 @@ class planning_manager {
 
         // 1. Check Custom Progress Table (gmk_course_progre)
         // Status 3 = Completed, 4 = Approved.
-        // 1. Check Custom Progress Table (gmk_course_progre)
-        // Status 3 = Completed, 4 = Approved.
         // FIX: Use 'id' as first column (key) to prevent deduplication by userid
-        $sqlProgre = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status >= 3";
+        // FIX: Only include status 3 and 4, NOT 5+ (failed, revalid, etc)
+        $sqlProgre = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status IN (3, 4)";
         $recordsProgre = $DB->get_records_sql($sqlProgre);
         
         foreach ($recordsProgre as $r) {
@@ -477,6 +501,40 @@ class planning_manager {
         // Status 99 = Migración Pendiente (MIGRATION_PENDING).
         $sqlMigration = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 99";
         $records = $DB->get_records_sql($sqlMigration);
+        foreach ($records as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            $map[$r->userid][$r->courseid] = true;
+        }
+        return $map;
+    }
+
+    /**
+     * Helper: Get All Courses with Status 0 (No Disponible - prerequisitos no cumplidos).
+     * These should be INCLUDED in pending list but marked as NOT priority.
+     * returns [ userid => [ courseId1, courseId2... ] ]
+     */
+    private static function get_all_no_available_courses() {
+        global $DB;
+        $map = [];
+        $sql = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 0";
+        $records = $DB->get_records_sql($sql);
+        foreach ($records as $r) {
+            if (!isset($map[$r->userid])) $map[$r->userid] = [];
+            $map[$r->userid][$r->courseid] = true;
+        }
+        return $map;
+    }
+
+    /**
+     * Helper: Get All Courses with Status 1 (Disponible - puede cursarla).
+     * These should be INCLUDED in pending list and marked as priority if level matches.
+     * returns [ userid => [ courseId1, courseId2... ] ]
+     */
+    private static function get_all_available_courses() {
+        global $DB;
+        $map = [];
+        $sql = "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 1";
+        $records = $DB->get_records_sql($sql);
         foreach ($records as $r) {
             if (!isset($map[$r->userid])) $map[$r->userid] = [];
             $map[$r->userid][$r->courseid] = true;
