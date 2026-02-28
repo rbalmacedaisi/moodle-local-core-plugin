@@ -890,6 +890,10 @@ Vue.component('scheduleapproval', {
          * @param '{string}'' message - The approval message to be sent.
          */
         sendMessage(message) {
+            console.log('DEBUG sendMessage called with message:', message);
+            console.log('DEBUG schedulesAproveds:', this.schedulesAproveds);
+            console.log('DEBUG params before:', JSON.parse(JSON.stringify(this.params)));
+
             // Iterate through the 'schedulesAproveds' array.
             for (let i = 0; i < this.schedulesAproveds.length; i++) {
                 const schedule = this.schedulesAproveds[i];
@@ -897,6 +901,11 @@ Vue.component('scheduleapproval', {
                 // Set the 'approvalMessage' parameter for each class schedule with the provided 'message'.
                 this.params[`approvingSchedules[${i}][approvalMessage]`] = message;
             }
+
+            console.log('DEBUG params after:', JSON.parse(JSON.stringify(this.params)));
+
+            // Close the approval dialog before sending the request
+            this.approveusers = false;
 
             // Trigger the 'approvedClass' method with the approval parameters.
             this.approvedClass(this.params)
