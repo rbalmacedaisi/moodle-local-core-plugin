@@ -1488,28 +1488,44 @@ function approve_course_schedules($approvingSchedules)
 
     $approveResults = [];
     foreach ($approvingSchedules as $schedule) {
-        $class = $DB->get_record('gmk_class', ['id' => $schedule['classId']]);
+        // Get the class record with all fields
+        $class = $DB->get_record('gmk_class', ['id' => $schedule['classId']], '*', MUST_EXIST);
+
         if ($class->approved) {
             throw new Exception('Class already approved');
         }
+
         $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $schedule['classId']]);
         $scheduleQueuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $schedule['classId']]);
 
         $enrolmentResults = enrolApprovedScheduleStudents(array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents), $class);
 
+        // Make sure the id field is set before updating
+        if (!isset($class->id)) {
+            throw new Exception('Class ID is missing from the record');
+        }
+
         $class->approved = 1;
         $classApproved = $DB->update_record('gmk_class', $class);
 
-        $classApprovedMessage = new stdClass();
-        $classApprovedMessage->classid = $schedule['classId'];
-        $classApprovedMessage->approvalmessage = $schedule['approvalMessage'];
-        $classApprovedMessage->usermodified = $USER->id;
-        $classApprovedMessage->timecreated = time();
-        $classApprovedMessage->timemodified = time();
+        // Only insert approval message if one was provided
+        $approvalMessageSaved = false;
+        if (!empty($schedule['approvalMessage'])) {
+            $classApprovedMessage = new stdClass();
+            $classApprovedMessage->classid = $schedule['classId'];
+            $classApprovedMessage->approvalmessage = $schedule['approvalMessage'];
+            $classApprovedMessage->usermodified = $USER->id;
+            $classApprovedMessage->timecreated = time();
+            $classApprovedMessage->timemodified = time();
 
-        $classApprovedMessage->id = $DB->insert_record('gmk_class_approval_message', $classApprovedMessage);
+            $approvalMessageSaved = !!$DB->insert_record('gmk_class_approval_message', $classApprovedMessage);
+        }
 
-        $approveResults[$schedule['classId']] = ["enrolmentResults" => $enrolmentResults, 'classApproved' => $classApproved, 'approvalMessageSaved' => !!$classApprovedMessage->id];
+        $approveResults[$schedule['classId']] = [
+            "enrolmentResults" => $enrolmentResults,
+            'classApproved' => $classApproved,
+            'approvalMessageSaved' => $approvalMessageSaved
+        ];
     }
     return $approveResults;
 }
