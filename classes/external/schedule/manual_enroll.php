@@ -58,6 +58,15 @@ class manual_enroll extends external_api {
              return ['status' => 'warning', 'message' => 'User is already in this class group.'];
         }
 
+        // Before adding to group, ensure user is enrolled in the core course
+        $enrolplugin = enrol_get_plugin('manual');
+        $courseInstance = get_manual_enroll($class->corecourseid);
+        $studentRoleId = $DB->get_record('role', ['shortname' => 'student'])->id;
+        
+        if ($courseInstance && $enrolplugin && $studentRoleId) {
+            $enrolplugin->enrol_user($courseInstance, $params['userId'], $studentRoleId);
+        }
+
         $added = groups_add_member($class->groupid, $params['userId']);
         
         if ($added) {

@@ -193,6 +193,16 @@ Vue.component('scheduleapproval', {
                                             <v-icon>mdi-account-check</v-icon>
                                             {{lang.userlist}}
                                         </v-btn>
+                                        <v-btn
+                                          class="ma-2 rounded text-capitalize"
+                                          color="warning"
+                                          small
+                                          outlined
+                                          @click="revertApproval(item)"
+                                        >
+                                            <v-icon>mdi-undo-variant</v-icon>
+                                            Reabrir
+                                        </v-btn>
                                     </v-card-actions>
                                 </v-card>
                             </v-col>
@@ -1166,6 +1176,43 @@ Vue.component('scheduleapproval', {
 
             // Open the dialog
             this.availableschedulesdialog = true;
+        },
+        /**
+         * Reverts the approval of a class schedule.
+         * @param {Object} item - The item to revert approval for.
+         */
+        revertApproval(item) {
+            if (!confirm('¿Está seguro de que desea reabrir este grupo? Esto desmatriculará a los estudiantes del grupo actual en Moodle y los pasará a pre-inscripción.')) {
+                return;
+            }
+
+            this.overlay = true;
+            const url = this.siteUrl;
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_revert_approval',
+                classId: item.clasId
+            };
+
+            window.axios.post(url, null, { params })
+                .then(response => {
+                    this.overlay = false;
+                    if (response.data.status === 'error' || response.data.status === 'warning') {
+                        alert('Error: ' + response.data.message);
+                    } else {
+                        // Refresh the generic data
+                        alert('Grupo reabierto exitosamente.');
+                        // Clear items and refresh
+                        this.items = [];
+                        this.getData();
+                    }
+                })
+                .catch(error => {
+                    this.overlay = false;
+                    console.error('Error reverting approval:', error);
+                    alert('Errorured while trying to revert approval.');
+                });
         },
     },
     computed: {

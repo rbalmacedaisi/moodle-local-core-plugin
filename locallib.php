@@ -1532,8 +1532,18 @@ function approve_course_schedules($approvingSchedules)
 
 function enrolApprovedScheduleStudents($students, $class)
 {
+    global $DB;
     $enrolmentResults = [];
+    $studentRoleId = $DB->get_record('role', ['shortname' => 'student'])->id;
+    $enrolplugin = enrol_get_plugin('manual');
+    $courseInstance = get_manual_enroll($class->corecourseid);
+
     foreach ($students as $student) {
+        // Enrol user in Moodle course first to avoid groups_add_member failure
+        if ($courseInstance && $enrolplugin && $studentRoleId) {
+            $enrolplugin->enrol_user($courseInstance, $student->userid, $studentRoleId);
+        }
+
         $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
         if ($enrolmentResults[$student->userid]) {
             local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class);
