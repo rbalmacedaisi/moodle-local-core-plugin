@@ -890,9 +890,16 @@ Vue.component('scheduleapproval', {
          * @param '{string}'' message - The approval message to be sent.
          */
         sendMessage(message) {
+            const debugInfo = {
+                timestamp: new Date().toISOString(),
+                message: message,
+                schedulesAproveds: this.schedulesAproveds,
+                paramsBeforeMessage: JSON.parse(JSON.stringify(this.params))
+            };
+
             console.log('DEBUG sendMessage called with message:', message);
             console.log('DEBUG schedulesAproveds:', this.schedulesAproveds);
-            console.log('DEBUG params before:', JSON.parse(JSON.stringify(this.params)));
+            console.log('DEBUG params before:', debugInfo.paramsBeforeMessage);
 
             // Iterate through the 'schedulesAproveds' array.
             for (let i = 0; i < this.schedulesAproveds.length; i++) {
@@ -902,7 +909,12 @@ Vue.component('scheduleapproval', {
                 this.params[`approvingSchedules[${i}][approvalMessage]`] = message;
             }
 
-            console.log('DEBUG params after:', JSON.parse(JSON.stringify(this.params)));
+            debugInfo.paramsAfterMessage = JSON.parse(JSON.stringify(this.params));
+            console.log('DEBUG params after:', debugInfo.paramsAfterMessage);
+
+            // Save debug info to localStorage so we can check it after page reload
+            localStorage.setItem('scheduleApprovalDebug', JSON.stringify(debugInfo));
+            console.log('DEBUG info saved to localStorage. After page reload, check: localStorage.getItem("scheduleApprovalDebug")');
 
             // Close the approval dialog before sending the request
             this.approveusers = false;
@@ -920,16 +932,41 @@ Vue.component('scheduleapproval', {
          * @param {object} params - The parameters for approving class schedules.
          */
         approvedClass(params) {
+            console.log('DEBUG approvedClass: Sending request with params:', params);
+
             // Send an HTTP GET request to the specified URL with the provided parameters.
             window.axios.get(wsUrl, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
+                    console.log('DEBUG approvedClass: Response received:', response);
+
+                    // Save response to localStorage for debugging
+                    const debugResponse = {
+                        timestamp: new Date().toISOString(),
+                        status: response.status,
+                        data: response.data,
+                        params: params
+                    };
+                    localStorage.setItem('scheduleApprovalResponse', JSON.stringify(debugResponse));
+                    console.log('DEBUG Response saved to localStorage');
+
                     // Reload the page after successful approval.
                     location.reload();
                 })
                 // If the request fails, log an error to the console.
                 .catch(error => {
+                    console.error('DEBUG approvedClass: Error occurred:', error);
+
+                    // Save error to localStorage
+                    const debugError = {
+                        timestamp: new Date().toISOString(),
+                        error: error.message,
+                        response: error.response ? error.response.data : null,
+                        params: params
+                    };
+                    localStorage.setItem('scheduleApprovalError', JSON.stringify(debugError));
                     console.error(error);
+                    alert('Error al aprobar: ' + (error.response?.data?.message || error.message));
                 });
         },
         /**
