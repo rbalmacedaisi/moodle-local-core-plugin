@@ -63,7 +63,9 @@ class local_grupomakro_progress_manager
 
             foreach ($learningPlanCourses as $learningPlanCourse) {
                 try {
-                    $courseProgressRecord = $DB->record_exists('gmk_course_progre', array('userid' => $learningPlanUserId, 'periodid' => $learningPlanCourse->periodid, 'courseid' => $learningPlanCourse->courseid, 'learningplanid' => $learningPlanCourse->learningplanid));
+                    // FIX: Check duplicates using userid + courseid + learningplanid ONLY (not periodid)
+                    // Including periodid caused duplicates when plans were restructured or students re-enrolled
+                    $courseProgressRecord = $DB->record_exists('gmk_course_progre', array('userid' => $learningPlanUserId, 'courseid' => $learningPlanCourse->courseid, 'learningplanid' => $learningPlanCourse->learningplanid));
                     if ($courseProgressRecord) {
                         continue;
                     }
