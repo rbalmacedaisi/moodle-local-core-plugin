@@ -878,26 +878,73 @@ echo $OUTPUT->header();
 
     <!-- STUDENT LIST MODAL -->
     <div v-if="showStudentModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                 <h4 class="font-bold text-slate-800">{{ studentModalData.title }}</h4>
                 <button @click="showStudentModal = false" class="p-1 hover:bg-slate-200 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5 text-slate-400"></i></button>
             </div>
             <div class="p-4 max-h-[60vh] overflow-y-auto">
+                <div v-if="studentModalLoading" class="py-6 text-center text-slate-400 text-sm">Cargando documentos...</div>
                 <div class="space-y-2">
                     <div v-for="stu in studentModalData.students" :key="stu.id" class="p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-all flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
                             {{ stu.name.charAt(0) }}
                         </div>
-                        <div>
+                        <div class="flex-1 min-w-0">
                             <p class="text-sm font-bold text-slate-700 leading-tight">{{ stu.name }}</p>
                             <p class="text-[10px] text-slate-400 font-mono">{{ stu.id }}</p>
+                            <p v-if="stu.documentnumber" class="text-[10px] text-blue-600 font-medium">Cédula: {{ stu.documentnumber }}</p>
                         </div>
+                        <button @click="openGradesModal(stu)" class="shrink-0 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-colors border border-indigo-200" title="Ver notas">
+                            Notas
+                        </button>
                     </div>
                 </div>
             </div>
             <div class="p-4 bg-slate-50 border-t border-slate-200 text-center">
                 <button @click="showStudentModal = false" class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-bold transition-colors">Volver</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRADES MODAL -->
+    <div v-if="showGradesModal" class="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div class="p-4 border-b border-slate-200 bg-indigo-50 flex justify-between items-center">
+                <div>
+                    <h4 class="font-bold text-indigo-900">Notas: {{ gradesStudent ? gradesStudent.name : '' }}</h4>
+                    <p class="text-xs text-indigo-600">{{ gradesStudent ? gradesStudent.id : '' }} <span v-if="gradesStudent && gradesStudent.documentnumber"> — Cédula: {{ gradesStudent.documentnumber }}</span></p>
+                </div>
+                <button @click="showGradesModal = false" class="p-1 hover:bg-indigo-200 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5 text-indigo-400"></i></button>
+            </div>
+            <div class="p-4 max-h-[60vh] overflow-y-auto">
+                <div v-if="gradesLoading" class="py-10 text-center text-slate-400 text-sm">Cargando notas...</div>
+                <div v-else-if="gradesData.length === 0" class="py-10 text-center text-slate-400 text-sm">No se encontraron notas o el estudiante no tiene plan activo.</div>
+                <table v-else class="w-full text-xs text-left">
+                    <thead class="bg-slate-50 sticky top-0 font-bold uppercase text-slate-500">
+                        <tr>
+                            <th class="p-2 border-b">Asignatura</th>
+                            <th class="p-2 border-b text-center">Nivel</th>
+                            <th class="p-2 border-b text-center">Nota</th>
+                            <th class="p-2 border-b text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr v-for="g in gradesData" :key="g.courseid" class="hover:bg-slate-50">
+                            <td class="p-2">{{ g.coursename || g.name }}</td>
+                            <td class="p-2 text-center">{{ g.semester || g.level || '-' }}</td>
+                            <td class="p-2 text-center font-bold" :class="parseFloat(g.grade || g.finalgrade || 0) >= 71 ? 'text-green-700' : 'text-red-600'">{{ g.grade || g.finalgrade || '-' }}</td>
+                            <td class="p-2 text-center">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="g.status === 'Aprobado' || g.status === 'approved' ? 'bg-green-100 text-green-800' : g.status === 'En curso' || g.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'">
+                                    {{ g.status || 'Sin estado' }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-200 text-center">
+                <button @click="showGradesModal = false" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors">Cerrar</button>
             </div>
         </div>
     </div>
@@ -970,6 +1017,13 @@ const app = createApp({
             // Modals
             const showStudentModal = ref(false);
             const studentModalData = ref({ title: '', students: [] });
+            const studentModalLoading = ref(false);
+            
+            // Grades Modal
+            const showGradesModal = ref(false);
+            const gradesStudent = ref(null);
+            const gradesData = ref([]);
+            const gradesLoading = ref(false);
             
             // Student Filter
             const studentStatusFilter = ref('Todos');
@@ -1796,21 +1850,104 @@ const app = createApp({
             nextTick(() => lucide.createIcons());
         };
 
-        const onViewStudents = (cohortKey, students) => {
+        const onViewStudents = async (cohortKey, students) => {
             console.log("Vue Planning App: onViewStudents()", cohortKey);
+            const parsedStudents = students.map(s => {
+                // students is array of strings: "Name (ID)"
+                const parts = s.match(/(.*) \((.*)\)/);
+                return {
+                    name: parts ? parts[1] : s,
+                    id: parts ? parts[2] : '',
+                    documentnumber: ''
+                };
+            });
+            
             studentModalData.value = {
                 title: `Estudiantes: ${cohortKey}`,
-                students: students.map(s => {
-                    // students is array of strings: "Name (ID)"
-                    const parts = s.match(/(.*) \((.*)\)/);
-                    return {
-                        name: parts ? parts[1] : s,
-                        id: parts ? parts[2] : ''
-                    };
-                })
+                students: parsedStudents
             };
             showStudentModal.value = true;
             showBreakdownPopover.value = false;
+            
+            // Fetch document numbers asynchronously
+            const usernames = parsedStudents.map(s => s.id).filter(id => id).join(',');
+            if (usernames) {
+                studentModalLoading.value = true;
+                try {
+                    const docRes = await callMoodle('local_grupomakro_get_student_documents', { usernames });
+                    if (docRes && typeof docRes === 'object') {
+                        parsedStudents.forEach(s => {
+                            if (docRes[s.id]) {
+                                s.documentnumber = docRes[s.id];
+                            }
+                        });
+                        // Trigger reactivity
+                        studentModalData.value = { ...studentModalData.value, students: [...parsedStudents] };
+                    }
+                } catch (e) {
+                    console.error('Error fetching document numbers:', e);
+                } finally {
+                    studentModalLoading.value = false;
+                }
+            }
+            nextTick(() => lucide.createIcons());
+        };
+        
+        const openGradesModal = async (stu) => {
+            console.log("Vue Planning App: openGradesModal()", stu.id);
+            gradesStudent.value = stu;
+            gradesData.value = [];
+            gradesLoading.value = true;
+            showGradesModal.value = true;
+            
+            try {
+                // Look up Moodle user ID and learning plan from analysis data
+                const allStudents = analysis.value.students || {};
+                let moodleUserId = null;
+                let learningPlanId = null;
+                
+                // Find the student by their username (stu.id) in analysed students
+                for (const [key, stuData] of Object.entries(allStudents)) {
+                    if (stuData.id === stu.id || String(stuData.dbId) === stu.id) {
+                        moodleUserId = stuData.dbId || stuData.userId || key;
+                        learningPlanId = stuData.planId || stuData.learningPlanId;
+                        break;
+                    }
+                }
+                
+                if (moodleUserId && learningPlanId) {
+                    const res = await callMoodle('local_grupomakro_get_student_learning_plan_pensum', { 
+                        userId: moodleUserId, 
+                        learningPlanId: learningPlanId 
+                    });
+                    if (res && Array.isArray(res)) {
+                        gradesData.value = res;
+                    } else if (res && res.courses) {
+                        gradesData.value = res.courses;
+                    } else if (res && typeof res === 'object') {
+                        // Try to extract data from various formats
+                        gradesData.value = Object.values(res).flat().filter(x => x && typeof x === 'object');
+                    }
+                } else {
+                    // Fallback: use get_student_info to search by username
+                    const infoRes = await callMoodle('local_grupomakro_get_student_info', {
+                        search: stu.id,
+                        page: 0,
+                        resultsperpage: 1
+                    });
+                    if (infoRes && infoRes.students && infoRes.students.length > 0) {
+                        const foundStu = infoRes.students[0];
+                        if (foundStu.courses) {
+                            gradesData.value = foundStu.courses;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error fetching grades:', e);
+            } finally {
+                gradesLoading.value = false;
+                nextTick(() => lucide.createIcons());
+            }
         };
 
         // --- CALENDAR LOGIC ---
@@ -1989,7 +2126,8 @@ const app = createApp({
                 // Popover
                 openPopover, activePopover, showBreakdownPopover, popoverData,
                 // Modals
-                showStudentModal, studentModalData, onViewStudents,
+                showStudentModal, studentModalData, studentModalLoading, onViewStudents,
+                showGradesModal, gradesStudent, gradesData, gradesLoading, openGradesModal,
                 // Calendar
                 calendarYear, monthsLabels, calendarRows,
                 getPeriodsForMonth, getPeriodStyle, 

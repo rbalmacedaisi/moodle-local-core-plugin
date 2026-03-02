@@ -2642,6 +2642,26 @@ try {
             $response = ['data' => $data, 'error' => false];
             break;
 
+        case 'local_grupomakro_get_student_documents':
+            $usernames = required_param('usernames', PARAM_RAW);
+            $usernameList = array_filter(array_map('trim', explode(',', $usernames)));
+            
+            $results = [];
+            if (!empty($usernameList)) {
+                $fieldDoc = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']);
+                if ($fieldDoc) {
+                    foreach ($usernameList as $uname) {
+                        $user = $DB->get_record('user', ['username' => strtolower($uname), 'deleted' => 0], 'id, username');
+                        if ($user) {
+                            $docData = $DB->get_record('user_info_data', ['userid' => $user->id, 'fieldid' => $fieldDoc->id], 'data');
+                            $results[$uname] = $docData ? $docData->data : '';
+                        }
+                    }
+                }
+            }
+            $response = ['status' => 'success', 'data' => $results];
+            break;
+
         case 'local_grupomakro_get_scheduler_context':
             $periodid = required_param('periodid', PARAM_INT);
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/planning_manager.php');
