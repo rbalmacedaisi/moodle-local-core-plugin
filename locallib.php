@@ -1142,6 +1142,11 @@ function update_class($classParams)
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
 
+    // Update classroom capacity if provided (non-zero means explicitly set)
+    if (isset($classParams["classroomCapacity"]) && $classParams["classroomCapacity"] > 0) {
+        $class->classroomcapacity = $classParams["classroomCapacity"];
+    }
+
     $class = fill_computed_class_values($class, $classParams);
 
     $classUpdated = $DB->update_record('gmk_class', $class);

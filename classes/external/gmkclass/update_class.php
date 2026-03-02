@@ -67,8 +67,7 @@ class update_class extends external_api {
                 'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'classDays' => new external_value(PARAM_TEXT, 'The days when the class will have sessions, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
-                // 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
-                // 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
+                'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity', VALUE_DEFAULT, 0),
             ]
         );
     }
@@ -91,9 +90,8 @@ class update_class extends external_api {
         string $endTime,
         string $initDate = '',
         string $endDate = '',
-        string $classDays
-        // string $classroomId,
-        // int $classroomCapacity
+        string $classDays,
+        int $classroomCapacity = 0
         ) {
 
 
@@ -110,9 +108,8 @@ class update_class extends external_api {
             'endTime'=>$endTime,
             'initDate'=>$initDate,
             'endDate'=>$endDate,
-            'classDays'=>$classDays
-            // 'classroomId'=>$classroomId,
-            // 'classroomCapacity'=>$classroomCapacity
+            'classDays'=>$classDays,
+            'classroomCapacity'=>$classroomCapacity
         ]);
         
         try{

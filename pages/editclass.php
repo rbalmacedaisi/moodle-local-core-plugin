@@ -198,6 +198,7 @@ $templatedata = json_encode([
     'initDate'=> $class->initdate ? date('Y-m-d', $class->initdate) : null,
     'endDate'=> $class->enddate ? date('Y-m-d', $class->enddate) : null,
     'classDays'=>$classDays,
+    'classroomCapacity'=>$class->classroomcapacity ?? 40,
     'reschedulingActivity' => $reschedulingActivity,
     'moduleId'=>$activityInfo?$moduleId : null,
     'sessionId'=>$activityInfo?$sessionId : null,

@@ -77,6 +77,11 @@ window.Vue.component('editclass', {
                             </select>
                         </div>
                         
+                        <div id="capacity-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classCapacity">Cupos</label>
+                            <input v-model.number="classData.classroomCapacity" ref="classCapacity" type="number" min="1" class="form-control" id="classCapacity" placeholder="Ej: 40" required>
+                        </div>
+
                         <div class="col-sm-12 pb-0">
                             <v-divider></v-divider>
                             <h6 class="mt-6">{{lang.class_date_time}}</h6>
@@ -267,6 +272,7 @@ window.Vue.component('editclass', {
                 teacherIndex: undefined,
                 initDate: undefined,
                 endDate: undefined,
+                classroomCapacity: 40,
                 initTime: undefined,
                 endTime: undefined,
                 classDays: {
@@ -359,6 +365,7 @@ window.Vue.component('editclass', {
             this.classData.endTime = rawTemplatedata.endTime;
             this.classData.initDate = rawTemplatedata.initDate;
             this.classData.endDate = rawTemplatedata.endDate;
+            this.classData.classroomCapacity = rawTemplatedata.classroomCapacity || 40;
 
             this.classData.classDays = classDays;
 
@@ -673,7 +680,7 @@ window.Vue.component('editclass', {
             }
         },
         saveClassParameters() {
-            const { id, name, type, learningPlanId, periodId, courseId, initTime, endTime } = this.classData
+            const { id, name, type, learningPlanId, periodId, courseId, initTime, endTime, classroomCapacity } = this.classData
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_update_class',
@@ -689,6 +696,7 @@ window.Vue.component('editclass', {
                 initDate: this.classData.initDate,
                 endDate: this.classData.endDate,
                 classDays: this.classDaysString,
+                classroomCapacity: classroomCapacity || 40,
             }
         },
         classDaysString() {
