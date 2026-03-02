@@ -773,4 +773,12 @@ $functions = array(
         'ajax'        => true,
         'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
     ],
+    'local_grupomakro_update_class_quota' => [
+        'classname' => 'local_grupomakro_core\external\schedule\update_class_quota',
+        'methodname' => 'execute',
+        'description' => 'Update class quota and promote queue students',
+        'type'        => 'write',
+        'ajax'        => true,
+        'services'    => [MOODLE_OFFICIAL_MOBILE_SERVICE, 'local_grupomakro_core'],
+    ],
 );

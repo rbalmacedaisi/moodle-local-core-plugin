@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260226002;         // Added update_student_status web service for inline editing.
+$plugin->version   = 20260302001;         // Added update_class_quota web service for quota editing and queue promotion.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;

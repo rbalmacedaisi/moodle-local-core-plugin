@@ -128,7 +128,12 @@ Vue.component('scheduleapproval', {
                                             
                                             <v-col cols="6" class="py-2">
                                                 <span class="d-block text--disabled  text-subtitle-2">{{ lang.quotas_enabled }}</span>
-                                                <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.quotas }}</p>
+                                                <div class="d-flex align-center">
+                                                    <p class="text-subtitle-2 font-weight-medium mb-0">{{ item.quotas }}</p>
+                                                    <v-btn icon x-small class="ml-1" @click="openQuotaDialog(item)">
+                                                        <v-icon small>mdi-pencil</v-icon>
+                                                    </v-btn>
+                                                </div>
                                             </v-col>
                                             
                                             <v-col v-if="item.isApprove < 1" cols="6" class="py-2">
@@ -382,6 +387,31 @@ Vue.component('scheduleapproval', {
             <approveusers v-if="approveusers" :itemapprove="usersapprove" @send-message="sendMessage" @close-approve="closeapprove"></approveusers>
             
             <userslist v-if="userslis" :classId="usersClasId" @close-list="closeList"></userslist>
+
+            <v-dialog v-model="quotaDialog" max-width="400" persistent>
+                <v-card>
+                    <v-card-title>Modificar Cupos</v-card-title>
+                    <v-card-subtitle v-if="quotaEditItem">{{ quotaEditItem.name }}</v-card-subtitle>
+                    <v-card-text>
+                        <v-text-field
+                            v-model.number="quotaNewValue"
+                            label="Nuevo cupo"
+                            type="number"
+                            min="1"
+                            outlined
+                            dense
+                        ></v-text-field>
+                        <p class="text-caption text--secondary" v-if="quotaEditItem">
+                            Inscritos: {{ quotaEditItem.users }} | En espera: {{ quotaEditItem.waitingusers }}
+                        </p>
+                    </v-card-text>
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="quotaDialog = false">Cancelar</v-btn>
+                        <v-btn color="primary" @click="saveQuota" :loading="quotaSaving">Guardar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </v-row>
     `,
     data() {
@@ -430,7 +460,11 @@ Vue.component('scheduleapproval', {
             selectedStudents: [],
             selectedStudent: undefined,
             showDeleteUserConfirmationDialog: false,
-            selectedUser: null
+            selectedUser: null,
+            quotaDialog: false,
+            quotaEditItem: null,
+            quotaNewValue: 40,
+            quotaSaving: false
         }
     },
     props: {},
@@ -1201,9 +1235,7 @@ Vue.component('scheduleapproval', {
                     if (response.data.status === 'error' || response.data.status === 'warning') {
                         alert('Error: ' + response.data.message);
                     } else {
-                        // Refresh the generic data
                         alert('Grupo reabierto exitosamente.');
-                        // Clear items and refresh
                         this.items = [];
                         this.getData();
                     }
@@ -1211,7 +1243,52 @@ Vue.component('scheduleapproval', {
                 .catch(error => {
                     this.overlay = false;
                     console.error('Error reverting approval:', error);
-                    alert('Errorured while trying to revert approval.');
+                    alert('Error al intentar reabrir el grupo.');
+                });
+        },
+        /**
+         * Opens the quota edit dialog for a class.
+         */
+        openQuotaDialog(item) {
+            this.quotaEditItem = item;
+            this.quotaNewValue = item.quotas;
+            this.quotaDialog = true;
+        },
+        /**
+         * Saves the new quota via the update_class_quota API.
+         */
+        saveQuota() {
+            if (!this.quotaEditItem || this.quotaNewValue < 1) {
+                alert('El cupo debe ser al menos 1.');
+                return;
+            }
+            this.quotaSaving = true;
+            const url = this.siteUrl;
+            const params = {
+                wstoken: this.token,
+                moodlewsrestformat: 'json',
+                wsfunction: 'local_grupomakro_update_class_quota',
+                classId: this.quotaEditItem.clasId,
+                newQuota: this.quotaNewValue
+            };
+
+            window.axios.post(url, null, { params })
+                .then(response => {
+                    this.quotaSaving = false;
+                    this.quotaDialog = false;
+                    if (response.data.status === 'error') {
+                        alert('Error: ' + response.data.message);
+                    } else {
+                        alert(response.data.message);
+                        // Refresh data
+                        this.items = [];
+                        this.getData();
+                    }
+                })
+                .catch(error => {
+                    this.quotaSaving = false;
+                    console.error('Error updating quota:', error);
+                    alert('Error al actualizar el cupo.');
                 });
         },
     },
