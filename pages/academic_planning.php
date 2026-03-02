@@ -1529,11 +1529,12 @@ const app = createApp({
                          if (!subjectsMap[s.name]) return;
                          
                          // Count only students in this cohort who actually have this course as pending
+                         // AND whose prerequisites are met (approved/completed)
                          // (Backend already excluded migration pending, approved, in-progress, etc.)
                          let matchingStudents = [];
                          Object.values(studentsMap).forEach(stu => {
                              if (stu.cohortKey !== coh.key) return;
-                             const hasPending = (stu.pendingSubjects || []).some(ps => ps.name === s.name);
+                             const hasPending = (stu.pendingSubjects || []).some(ps => ps.name === s.name && ps.isPreRequisiteMet);
                              if (hasPending) {
                                  matchingStudents.push(`${stu.name} (${stu.id})`);
                              }
