@@ -1528,21 +1528,34 @@ const app = createApp({
                     targetSubjets.forEach(s => {
                          if (!subjectsMap[s.name]) return;
                          
+                         // Count only students in this cohort who actually have this course as pending
+                         // (Backend already excluded migration pending, approved, in-progress, etc.)
+                         let matchingStudents = [];
+                         Object.values(studentsMap).forEach(stu => {
+                             if (stu.cohortKey !== coh.key) return;
+                             const hasPending = (stu.pendingSubjects || []).some(ps => ps.name === s.name);
+                             if (hasPending) {
+                                 matchingStudents.push(`${stu.name} (${stu.id})`);
+                             }
+                         });
+                         
+                         if (matchingStudents.length === 0) return; // No students need this course
+                         
                          // Check for manual deferrals
                          let deferKey = `${s.name}_${coh.key}`;
                          let actualPeriod = deferredGroups[deferKey] !== undefined ? deferredGroups[deferKey] : pIdx;
                          
                          let pKey = 'countP' + (actualPeriod + 1);
                          if (subjectsMap[s.name][pKey] !== undefined) {
-                             subjectsMap[s.name][pKey] += coh.studentCount;
+                             subjectsMap[s.name][pKey] += matchingStudents.length;
                          }
                          
                          let gKey = 'groupsP' + (actualPeriod + 1);
                          if (!subjectsMap[s.name][gKey][coh.key]) {
                              subjectsMap[s.name][gKey][coh.key] = { count: 0, students: [] };
                          }
-                         subjectsMap[s.name][gKey][coh.key].count += coh.studentCount;
-                         subjectsMap[s.name][gKey][coh.key].students = [...coh.studentNames];
+                         subjectsMap[s.name][gKey][coh.key].count += matchingStudents.length;
+                         subjectsMap[s.name][gKey][coh.key].students = matchingStudents;
                          
                          // Add to Cohort View
                          if (coh.subjectsByPeriod[actualPeriod] && !coh.subjectsByPeriod[actualPeriod].includes(s.name)) {
