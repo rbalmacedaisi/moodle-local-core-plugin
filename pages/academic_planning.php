@@ -1902,18 +1902,14 @@ const app = createApp({
             
             try {
                 // Look up Moodle user ID and learning plan from analysis data
+                // The studentsMap key IS stu.id (the idnumber/username)
                 const allStudents = analysis.value.students || {};
-                let moodleUserId = null;
-                let learningPlanId = null;
+                const stuData = allStudents[stu.id];
                 
-                // Find the student by their username (stu.id) in analysed students
-                for (const [key, stuData] of Object.entries(allStudents)) {
-                    if (stuData.id === stu.id || String(stuData.dbId) === stu.id) {
-                        moodleUserId = stuData.dbId || stuData.userId || key;
-                        learningPlanId = stuData.planId || stuData.learningPlanId;
-                        break;
-                    }
-                }
+                let moodleUserId = stuData ? stuData.dbId : null;
+                let learningPlanId = stuData ? stuData.planid : null;
+                
+                console.log("Vue Planning App: openGradesModal() moodleUserId:", moodleUserId, "learningPlanId:", learningPlanId);
                 
                 if (moodleUserId && learningPlanId) {
                     const res = await callMoodle('local_grupomakro_get_student_learning_plan_pensum', { 
@@ -1925,22 +1921,10 @@ const app = createApp({
                     } else if (res && res.courses) {
                         gradesData.value = res.courses;
                     } else if (res && typeof res === 'object') {
-                        // Try to extract data from various formats
                         gradesData.value = Object.values(res).flat().filter(x => x && typeof x === 'object');
                     }
                 } else {
-                    // Fallback: use get_student_info to search by username
-                    const infoRes = await callMoodle('local_grupomakro_get_student_info', {
-                        search: stu.id,
-                        page: 0,
-                        resultsperpage: 1
-                    });
-                    if (infoRes && infoRes.students && infoRes.students.length > 0) {
-                        const foundStu = infoRes.students[0];
-                        if (foundStu.courses) {
-                            gradesData.value = foundStu.courses;
-                        }
-                    }
+                    console.warn("Vue Planning App: Could not find moodleUserId/learningPlanId for", stu.id, "in analysis.value.students keys:", Object.keys(allStudents).slice(0, 5));
                 }
             } catch (e) {
                 console.error('Error fetching grades:', e);
