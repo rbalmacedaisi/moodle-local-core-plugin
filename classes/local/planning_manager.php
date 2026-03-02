@@ -201,6 +201,9 @@ class planning_manager {
                 // - Currently in progress (status 2)
                 // - Pending migration (status 99)
                 // - Failed/Reprobada (status 5) - NO incluir porque no es seguro que puedan cursarla
+                if ($isMigrationPending) {
+                    error_log("PLANNING_DEBUG: EXCLUDING migration pending course {$course->id} ({$course->fullname}) for user {$u->id}");
+                }
                 if ($isApproved || $isInProgress || $isMigrationPending || $isReprobada) {
                     continue;  // SKIP this course
                 }
