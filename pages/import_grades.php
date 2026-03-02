@@ -808,7 +808,7 @@ echo $OUTPUT->header();
                     if (response.data.status === 'success') {
                         this.addLog('success', `✅ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${response.data.message || 'Procesado exitosamente'}`);
                     } else {
-                        const errorMsg = response.data.message || response.data.error || 'Error desconocido del servidor';
+                        const errorMsg = response.data.message || response.data.error || (typeof response.data === 'string' ? response.data.substring(0, 200) : JSON.stringify(response.data).substring(0, 200));
                         this.addLog('error', `❌ [${index + 1}] ${row.identificacion} - ${row.curso_shortname}: ${errorMsg}`);
                     }
 
