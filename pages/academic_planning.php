@@ -1916,12 +1916,28 @@ const app = createApp({
                         userId: moodleUserId, 
                         learningPlanId: learningPlanId 
                     });
-                    if (res && Array.isArray(res)) {
+                    console.log("Vue Planning App: pensum response:", res);
+                    
+                    if (res && res.pensum) {
+                        // pensum comes as a JSON string with periods containing courses
+                        let pensumData = typeof res.pensum === 'string' ? JSON.parse(res.pensum) : res.pensum;
+                        // pensumData is { periodId: { id, periodName, courses: [...] }, ... }
+                        let allCourses = [];
+                        Object.values(pensumData).forEach(period => {
+                            if (period.courses && Array.isArray(period.courses)) {
+                                period.courses.forEach(c => {
+                                    allCourses.push({
+                                        ...c,
+                                        level: period.periodName || '-'
+                                    });
+                                });
+                            }
+                        });
+                        gradesData.value = allCourses;
+                    } else if (res && Array.isArray(res)) {
                         gradesData.value = res;
                     } else if (res && res.courses) {
                         gradesData.value = res.courses;
-                    } else if (res && typeof res === 'object') {
-                        gradesData.value = Object.values(res).flat().filter(x => x && typeof x === 'object');
                     }
                 } else {
                     console.warn("Vue Planning App: Could not find moodleUserId/learningPlanId for", stu.id, "in analysis.value.students keys:", Object.keys(allStudents).slice(0, 5));
