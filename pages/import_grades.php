@@ -230,11 +230,26 @@ if ($action === 'ajax_import_grade') {
         }
 
         // Check if record exists for this specific user + course + learning plan
-        $existing = $DB->get_record('gmk_course_progre', [
+        // Use get_records to handle possible duplicates gracefully
+        $existingRecords = $DB->get_records('gmk_course_progre', [
             'userid' => $user->id,
             'courseid' => $course->id,
             'learningplanid' => $plan->id
-        ]);
+        ], 'id ASC');
+
+        $existing = null;
+        if (!empty($existingRecords)) {
+            $existing = reset($existingRecords); // Take the first (oldest)
+            // Clean up duplicates if any
+            if (count($existingRecords) > 1) {
+                $first = true;
+                foreach ($existingRecords as $rec) {
+                    if ($first) { $first = false; continue; }
+                    $DB->delete_records('gmk_course_progre', ['id' => $rec->id]);
+                    error_log("🧹 Eliminado registro duplicado gmk_course_progre ID: {$rec->id} (user={$user->id}, course={$course->id})");
+                }
+            }
+        }
 
         // LOG: Debug info before transaction
         error_log("=== IMPORT GRADE DEBUG ===");
