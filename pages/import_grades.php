@@ -39,9 +39,13 @@ function map_course_status_to_code($statusText) {
         'no disponible' => 0,
         'disponible' => 1,
         'cursando' => 2,           // En Curso
+        'en curso' => 2,
         'completado' => 3,
-        'aprobada' => 4,           // Aprobado/Aprobada
-        'reprobada' => 5,          // Reprobado/Reprobada
+        'completada' => 3,
+        'aprobado' => 4,           // Aprobado (masculine)
+        'aprobada' => 4,           // Aprobada (feminine)
+        'reprobado' => 5,          // Reprobado (masculine)
+        'reprobada' => 5,          // Reprobada (feminine)
         'migracion pendiente' => 99  // NEW STATUS - for migration process
     ];
 
