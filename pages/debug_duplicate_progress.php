@@ -22,7 +22,7 @@ $cleanLog = [];
 if ($action === 'clean') {
     require_sesskey();
     
-    $sql = "SELECT userid, courseid, learningplanid, COUNT(*) as cnt, MIN(id) as keep_id
+    $sql = "SELECT CONCAT(userid, '-', courseid, '-', learningplanid) as ukey, userid, courseid, learningplanid, COUNT(*) as cnt, MIN(id) as keep_id
             FROM {gmk_course_progre}
             GROUP BY userid, courseid, learningplanid
             HAVING COUNT(*) > 1";
@@ -44,7 +44,7 @@ if ($action === 'clean') {
 }
 
 // Query: Find all duplicates
-$sql = "SELECT userid, courseid, learningplanid, COUNT(*) as duplicate_count
+$sql = "SELECT CONCAT(userid, '-', courseid, '-', learningplanid) as ukey, userid, courseid, learningplanid, COUNT(*) as duplicate_count
         FROM {gmk_course_progre}
         GROUP BY userid, courseid, learningplanid
         HAVING COUNT(*) > 1
