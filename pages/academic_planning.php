@@ -935,8 +935,14 @@ echo $OUTPUT->header();
                             <td class="p-2 text-center">{{ g.semester || g.level || '-' }}</td>
                             <td class="p-2 text-center font-bold" :class="parseFloat(g.grade || g.finalgrade || 0) >= 71 ? 'text-green-700' : 'text-red-600'">{{ g.grade || g.finalgrade || '-' }}</td>
                             <td class="p-2 text-center">
-                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="g.status === 'Aprobado' || g.status === 'approved' ? 'bg-green-100 text-green-800' : g.status === 'En curso' || g.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'">
-                                    {{ g.status || 'Sin estado' }}
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold" :class="{
+                                    'bg-green-100 text-green-800': String(g.status) === '4' || String(g.status) === '3',
+                                    'bg-blue-100 text-blue-800': String(g.status) === '2',
+                                    'bg-yellow-100 text-yellow-800': String(g.status) === '1' || String(g.status) === '0',
+                                    'bg-red-100 text-red-800': String(g.status) === '5',
+                                    'bg-purple-100 text-purple-800': String(g.status) === '99'
+                                }">
+                                    {{ {0:'No Disponible', 1:'Disponible', 2:'Cursando', 3:'Completado', 4:'Aprobado', 5:'Reprobado', 99:'Migración Pend.'}[String(g.status)] || g.status }}
                                 </span>
                             </td>
                         </tr>
