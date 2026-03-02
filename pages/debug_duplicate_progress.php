@@ -177,29 +177,71 @@ echo $OUTPUT->header();
 
     <!-- Detail Table -->
     <?php if (!empty($summary)): ?>
-    <h3 style="margin-top: 32px; font-size: 16px; font-weight: 600;">📊 Detalle por Curso</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Estudiante</th>
-                <th>Curso</th>
-                <th>Plan</th>
-                <th style="text-align:center">Total Registros</th>
-                <th style="text-align:center">Sobrantes</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($summary as $s): ?>
-            <tr>
-                <td><?php echo htmlspecialchars($s['user']); ?></td>
-                <td><?php echo htmlspecialchars($s['course']); ?></td>
-                <td><?php echo htmlspecialchars($s['plan']); ?></td>
-                <td style="text-align:center; font-weight:600"><?php echo $s['count']; ?></td>
-                <td style="text-align:center; font-weight:600; color:#dc2626"><?php echo $s['extra']; ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+    <h3 style="margin-top: 32px; font-size: 16px; font-weight: 600;">📊 Detalle por Curso (Registros individuales)</h3>
+    <?php 
+    $statusLabels = [0 => 'No Disponible', 1 => 'Disponible', 2 => 'Cursando', 3 => 'Completado', 4 => 'Aprobado', 5 => 'Reprobado', 99 => 'Migración Pend.'];
+    foreach ($summary as $s): 
+        $records = $DB->get_records('gmk_course_progre', [
+            'userid' => $s['userid'], 
+            'courseid' => $s['courseid'], 
+            'learningplanid' => $DB->get_field('local_learning_plans', 'id', ['name' => $s['plan']]) ?: 0
+        ], 'id ASC');
+        if (empty($records)) {
+            // Fallback: search without plan name lookup
+            $records = $DB->get_records_select('gmk_course_progre',
+                'userid = ? AND courseid = ?',
+                [$s['userid'], $s['courseid']], 'id ASC');
+        }
+        $firstId = !empty($records) ? reset($records)->id : 0;
+    ?>
+    <div style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+        <div style="background: #f1f5f9; padding: 10px 14px; font-weight: 600; font-size: 13px;">
+            👤 <?php echo htmlspecialchars($s['user']); ?> — 📘 <?php echo htmlspecialchars($s['course']); ?> — 🎓 <?php echo htmlspecialchars($s['plan']); ?>
+        </div>
+        <table style="margin: 0;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Estado</th>
+                    <th>Nota</th>
+                    <th>Periodo</th>
+                    <th>Clase</th>
+                    <th>Creado</th>
+                    <th>Modificado</th>
+                    <th style="text-align:center">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($records as $rec): 
+                    $isKeep = ($rec->id == $firstId);
+                    $statusLabel = isset($statusLabels[$rec->status]) ? $statusLabels[$rec->status] : "#{$rec->status}";
+                ?>
+                <tr style="<?php echo $isKeep ? '' : 'background:#fef2f2;'; ?>">
+                    <td style="font-family: monospace; font-weight:600"><?php echo $rec->id; ?></td>
+                    <td><span style="padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; <?php 
+                        echo $rec->status == 4 ? 'background:#d1fae5;color:#065f46' : 
+                            ($rec->status == 99 ? 'background:#ede9fe;color:#5b21b6' : 
+                            ($rec->status == 2 ? 'background:#dbeafe;color:#1e40af' : 
+                            ($rec->status == 5 ? 'background:#fee2e2;color:#991b1b' : 'background:#f1f5f9;color:#475569'))); 
+                    ?>"><?php echo $statusLabel; ?></span></td>
+                    <td style="font-weight:600"><?php echo $rec->grade ?? '-'; ?></td>
+                    <td><?php echo $rec->periodid ?? '-'; ?></td>
+                    <td><?php echo $rec->classid ?? '-'; ?></td>
+                    <td style="font-size:11px"><?php echo $rec->timecreated ? date('Y-m-d H:i', $rec->timecreated) : '-'; ?></td>
+                    <td style="font-size:11px"><?php echo $rec->timemodified ? date('Y-m-d H:i', $rec->timemodified) : '-'; ?></td>
+                    <td style="text-align:center; font-weight:700; font-size:12px">
+                        <?php if ($isKeep): ?>
+                            <span style="color:#059669">✅ CONSERVAR</span>
+                        <?php else: ?>
+                            <span style="color:#dc2626">🗑️ ELIMINAR</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endforeach; ?>
     <?php endif; ?>
 </div>
 
