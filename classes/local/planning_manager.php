@@ -107,6 +107,11 @@ class planning_manager {
         $noAvailableCourses = self::get_all_no_available_courses();
         $availableCourses = self::get_all_available_courses();
 
+        // DEBUG: Log migration pending data
+        $migPendTotal = 0;
+        foreach ($migrationPendingCourses as $uid => $courses) { $migPendTotal += count($courses); }
+        \gmk_log("PLANNING_DEBUG: Migration pending records found: {$migPendTotal} users=" . count($migrationPendingCourses));
+
         // Flatten ALL subjects from ALL plans into a master list for the Frontend Matrix
         $allSubjects = [];
         
@@ -202,7 +207,7 @@ class planning_manager {
                 // - Pending migration (status 99)
                 // - Failed/Reprobada (status 5) - NO incluir porque no es seguro que puedan cursarla
                 if ($isMigrationPending) {
-                    error_log("PLANNING_DEBUG: EXCLUDING migration pending course {$course->id} ({$course->fullname}) for user {$u->id}");
+                    \gmk_log("PLANNING_DEBUG: EXCLUDING migration pending course {$course->id} ({$course->fullname}) for user {$u->id}");
                 }
                 if ($isApproved || $isInProgress || $isMigrationPending || $isReprobada) {
                     continue;  // SKIP this course
