@@ -665,18 +665,19 @@ class planning_manager {
         // el quórum orgánico como fallback para no bloquear el flujo.
 
         $openSubjects = []; // [courseId => true]
-        $hasSavedProjections = !empty($planningData['planning_projections']);
 
-        if ($hasSavedProjections) {
-            // Usar los registros guardados como fuente de verdad
+        // Try the saved projections first (status=1 = confirmed to open by coordinator)
+        if (!empty($planningData['planning_projections'])) {
             foreach ($planningData['planning_projections'] as $pp) {
                 if ($pp->status == 1) {
-                    // status=1 = confirmada para abrir (set by save_planning when isOpen=true or count>0)
                     $openSubjects[$pp->courseid] = true;
                 }
             }
-        } else {
-            // Fallback: no hay proyecciones guardadas aún → calcular quórum orgánico
+        }
+
+        // Fallback: if no status=1 records exist (period not saved yet, or only old status=0 records),
+        // calculate organic quorum so the scheduler is never empty.
+        if (empty($openSubjects)) {
             $realCountP1 = [];
             foreach ($students as $stu) {
                 $career = $stu['career'] ?: 'General';

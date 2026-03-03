@@ -258,8 +258,9 @@
                             const semData = demand[career][shift][sem];
                             for (const [courseId, val] of Object.entries(semData.course_counts)) {
                                 const subperiodId = val.subperiod || 0;
-                                // Include `sem` (level/cohort key) so each cohort level generates its own class group
-                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${sem}|${subperiodId}` : `${courseId}|${shift}|${sem}|${subperiodId}`;
+                                // Group by courseId + shift (+ career if isolated). No sem: students from
+                                // all cohort levels taking the same subject go into the same class group.
+                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
 
                                 if (!aggregatedDemand[aggKey]) {
                                     aggregatedDemand[aggKey] = {
@@ -267,6 +268,7 @@
                                         shift: shift,
                                         subperiod: subperiodId,
                                         students: [],
+                                        _studentSet: new Set(),
                                         careers: new Set(),
                                         levels: new Set(),
                                         plan_map: {},
@@ -276,7 +278,14 @@
 
                                 const studentIds = val.students || [];
                                 if (studentIds.length > 0) {
-                                    aggregatedDemand[aggKey].students.push(...studentIds);
+                                    // Deduplicate: a student can appear in multiple sem buckets for the
+                                    // same subject (shouldn't happen after isPriority filter, but guard anyway)
+                                    for (const sid of studentIds) {
+                                        if (!aggregatedDemand[aggKey]._studentSet.has(sid)) {
+                                            aggregatedDemand[aggKey]._studentSet.add(sid);
+                                            aggregatedDemand[aggKey].students.push(sid);
+                                        }
+                                    }
                                 }
 
                                 aggregatedDemand[aggKey].careers.add(career);
