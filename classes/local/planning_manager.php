@@ -672,9 +672,9 @@ class planning_manager {
         }
 
         // --- Paso 3: Construir árbol de demanda ---
-        // Se incluye toda asignatura con demanda real (≥1 estudiante en P-I, isPriority,
-        // prereqs cumplidos, no diferida, no omitida). El quórum es solo un indicador
-        // visual en el frontend, no un criterio de exclusión.
+        // Se incluye todo estudiante cuya asignatura tenga prereqs cumplidos, no esté omitida
+        // y no esté diferida para su cohorte. El quórum y el isPriority son indicadores
+        // visuales en el frontend, no criterios de exclusión aquí.
 
         foreach ($students as $stu) {
             $career     = $stu['career'] ?: 'General';
@@ -686,10 +686,7 @@ class planning_manager {
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Solo asignaturas del periodo actual del estudiante (isPriority)
-                if (empty($subj['isPriority'])) continue;
-
-                // Prerequisitos no cumplidos
+                // Prerequisitos no cumplidos — exclusión dura
                 if (empty($subj['isPreRequisiteMet'])) continue;
 
                 $courseId = $subj['id'];
@@ -740,7 +737,6 @@ class planning_manager {
                  $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
 
                  // Aplicar los mismos filtros que en el loop de construcción
-                 if (empty($subj['isPriority'])) continue;
                  if (empty($subj['isPreRequisiteMet'])) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
                  if ($targetIdx !== 0) continue;
