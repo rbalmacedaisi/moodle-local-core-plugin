@@ -364,73 +364,136 @@ echo $OUTPUT->header();
               <div class="flex flex-col items-center justify-center py-10 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div class="bg-sky-50 p-4 rounded-full mb-4"><span><i data-lucide="search" class="w-8 h-8 text-sky-500"></i></span></div>
                   <h3 class="text-lg font-bold text-slate-800 mb-2">Buscador de Estudiantes</h3>
-                  <div class="flex gap-2 w-full max-w-md px-4">
-                      <input
-                          type="text"
-                          placeholder="Ingrese Nombre o Cédula..."
-                          class="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm"
-                          v-model="studentSearchQuery"
-                          @keydown.enter="handleStudentSearch"
-                      />
-                      <button @click="handleStudentSearch" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-sm">Buscar</button>
+                  <div class="relative w-full max-w-md px-4">
+                      <div class="flex gap-2">
+                          <input
+                              type="text"
+                              placeholder="Ingrese Nombre o Cédula..."
+                              class="flex-1 p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none text-sm"
+                              v-model="studentSearchQuery"
+                              @keydown.enter="handleStudentSearch"
+                              @input="updateSearchSuggestions"
+                          />
+                          <button @click="handleStudentSearch" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-bold text-sm">Buscar</button>
+                      </div>
+                      <!-- Autocomplete dropdown -->
+                      <div v-if="searchSuggestions.length > 0" class="absolute left-4 right-4 top-10 bg-white border border-slate-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                          <button
+                              v-for="sug in searchSuggestions" :key="sug.id"
+                              @click="selectSuggestion(sug)"
+                              class="w-full text-left px-3 py-2 hover:bg-sky-50 text-sm border-b border-slate-100 last:border-0">
+                              <span class="font-medium text-slate-800">{{ sug.name }}</span>
+                              <span class="text-xs text-slate-400 ml-2 font-mono">{{ sug.id }}</span>
+                          </button>
+                      </div>
                   </div>
               </div>
 
-              <div v-if="searchedStudent" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 border-t-4 border-t-sky-500 animate-in fade-in duration-300">
-                  <div class="flex flex-col md:flex-row justify-between items-start mb-6 border-b border-slate-100 pb-4 gap-4">
-                      <div>
-                          <h2 class="text-2xl font-bold text-slate-800">{{ searchedStudent.name }}</h2>
-                          <p class="text-slate-500 font-mono text-sm">{{ searchedStudent.id || searchedStudent.dbId }}</p>
-                          <div class="flex flex-wrap gap-2 mt-2">
-                              <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.career }}</span>
-                              <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.shift }}</span>
-                              <span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">Nivel {{ searchedStudent.currentSemConfig }}</span>
-                              <span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full text-xs font-bold">Ingreso: {{ searchedStudent.entry_period || 'Sin Definir' }}</span>
+              <div v-if="searchedStudent" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-sky-500">
+                  <!-- Header -->
+                  <div class="p-6 border-b border-slate-100">
+                      <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                          <div>
+                              <h2 class="text-2xl font-bold text-slate-800">{{ searchedStudent.name }}</h2>
+                              <p class="text-slate-500 font-mono text-sm">{{ searchedStudent.id || searchedStudent.dbId }}</p>
+                              <div class="flex flex-wrap gap-2 mt-2">
+                                  <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.career }}</span>
+                                  <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.shift }}</span>
+                                  <span class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">Nivel {{ searchedStudent.currentSemConfig }}</span>
+                                  <span v-if="searchedStudent.currentSubperiodConfig" class="bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full text-xs font-bold">{{ searchedStudent.currentSubperiodConfig }}</span>
+                                  <span class="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full text-xs font-bold">Ingreso: {{ searchedStudent.entry_period || 'Sin Definir' }}</span>
+                                  <span v-if="searchedStudent.isGraduating" class="bg-purple-600 text-white px-2 py-0.5 rounded-full text-xs font-bold">Último Semestre</span>
+                                  <span v-if="searchedStudent.isGradRisk" class="bg-red-600 text-white px-2 py-0.5 rounded-full text-xs font-bold">RIESGO GRADO</span>
+                              </div>
+                          </div>
+                          <!-- Summary cards -->
+                          <div class="flex gap-3 shrink-0">
+                              <div class="text-center bg-slate-50 rounded-lg p-3 border border-slate-200 min-w-[70px]">
+                                  <div class="text-xl font-bold text-slate-800">{{ searchedStudent.pendingSubjects ? searchedStudent.pendingSubjects.filter(s => s.isPriority).length : 0 }}</div>
+                                  <div class="text-[10px] text-slate-500 uppercase font-bold">Pendientes</div>
+                              </div>
+                              <div :class="['text-center rounded-lg p-3 border min-w-[70px]', searchedStudent.loadCount > 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200']">
+                                  <div :class="['text-xl font-bold', searchedStudent.loadCount > 0 ? 'text-green-700' : 'text-red-700']">{{ searchedStudent.loadCount }}</div>
+                                  <div class="text-[10px] text-slate-500 uppercase font-bold">Abiertas</div>
+                              </div>
+                              <div class="text-center bg-red-50 rounded-lg p-3 border border-red-200 min-w-[70px]">
+                                  <div class="text-xl font-bold text-red-700">{{ searchedStudent.missingSubjects ? searchedStudent.missingSubjects.length : 0 }}</div>
+                                  <div class="text-[10px] text-slate-500 uppercase font-bold">Bloqueadas</div>
+                              </div>
                           </div>
                       </div>
-                      <button @click="handleExportStudentSchedule" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors text-sm">
-                          <span><i data-lucide="download" class="w-4 h-4"></i></span> Exportar Info
-                      </button>
+                      <div class="mt-4 flex justify-end">
+                          <button @click="handleExportStudentSchedule" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors text-sm">
+                              <span><i data-lucide="download" class="w-4 h-4"></i></span> Exportar a Excel
+                          </button>
+                      </div>
                   </div>
 
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <!-- PENDING SUBJECTS -->
-                      <div>
+                  <!-- 3 columns: Priority Pending / Open for student / Blocked -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+                      <!-- COL 1: Pending Priority subjects (all, not filtered by open) -->
+                      <div class="p-5">
                           <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                              <span><i data-lucide="book-open" class="text-sky-500 w-4 h-4"></i></span>
-                              Materias Pendientes (Prioridad)
+                              <span><i data-lucide="book-open" class="text-blue-500 w-4 h-4"></i></span>
+                              Materias Pendientes
+                              <span class="ml-auto bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ searchedStudent.pendingSubjects ? searchedStudent.pendingSubjects.filter(s => s.isPriority).length : 0 }}</span>
                           </h4>
-                          <div class="space-y-2">
-                               <div v-for="(subj, sIdx) in searchedStudent.pendingSubjects.filter(s => s.isPriority)" :key="sIdx" class="p-3 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
-                                  <span class="text-sm text-slate-700 font-medium">{{ subj.name }}</span>
-                                  <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Nivel {{ subj.semester }}</span>
+                          <div class="space-y-1.5">
+                              <div v-for="(subj, sIdx) in (searchedStudent.pendingSubjects || []).filter(s => s.isPriority)" :key="sIdx"
+                                   class="p-2.5 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
+                                  <span class="text-xs text-slate-700 font-medium">{{ subj.name }}</span>
+                                  <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold shrink-0 ml-1">Nv. {{ subj.semester }}</span>
                               </div>
-                              <p v-if="searchedStudent.pendingSubjects.length === 0" class="text-sm text-slate-400 italic">No hay materias pendientes.</p>
+                              <p v-if="!(searchedStudent.pendingSubjects || []).filter(s => s.isPriority).length" class="text-xs text-slate-400 italic">Sin materias pendientes.</p>
+                          </div>
+                          <!-- Non-priority pending -->
+                          <div v-if="(searchedStudent.pendingSubjects || []).filter(s => !s.isPriority).length > 0" class="mt-4">
+                              <h5 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Futuras (sin prioridad)</h5>
+                              <div class="space-y-1">
+                                  <div v-for="(subj, sIdx) in (searchedStudent.pendingSubjects || []).filter(s => !s.isPriority)" :key="'np'+sIdx"
+                                       class="p-2 bg-slate-50/50 rounded border border-dashed border-slate-200 flex justify-between items-center">
+                                      <span class="text-xs text-slate-500">{{ subj.name }}</span>
+                                      <span class="text-[10px] text-slate-400 shrink-0 ml-1">Nv. {{ subj.semester }}</span>
+                                  </div>
+                              </div>
                           </div>
                       </div>
 
-                      <!-- CONTEXT INFO -->
-                      <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                          <h4 class="font-bold text-slate-700 text-sm mb-3">Información Académica</h4>
-                          <div class="space-y-3">
-                              <div class="flex justify-between border-b border-slate-200 pb-2">
-                                  <span class="text-xs text-slate-500">Plan de Estudios</span>
-                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.career }}</span>
+                      <!-- COL 2: Open (projected) subjects for this student -->
+                      <div class="p-5">
+                          <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                              <span><i data-lucide="check-circle" class="text-green-500 w-4 h-4"></i></span>
+                              Se Abren (P-I)
+                              <span class="ml-auto bg-green-100 text-green-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ searchedStudent.projectedSubjects ? searchedStudent.projectedSubjects.length : 0 }}</span>
+                          </h4>
+                          <div class="space-y-1.5">
+                              <div v-for="(subj, sIdx) in (searchedStudent.projectedSubjects || [])" :key="sIdx"
+                                   class="p-2.5 bg-green-50 rounded border border-green-200 flex items-center gap-2">
+                                  <span><i data-lucide="check-circle" class="w-3 h-3 text-green-500 shrink-0"></i></span>
+                                  <span class="text-xs text-green-800 font-medium">{{ subj.name }}</span>
                               </div>
-                              <div class="flex justify-between border-b border-slate-200 pb-2">
-                                  <span class="text-xs text-slate-500">Periodo Actual</span>
-                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.currentSemConfig }}</span>
+                              <p v-if="!(searchedStudent.projectedSubjects || []).length" class="text-xs text-slate-400 italic">Ninguna materia disponible para P-I.</p>
+                          </div>
+                      </div>
+
+                      <!-- COL 3: Blocked subjects -->
+                      <div class="p-5 bg-red-50/20">
+                          <h4 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                              <span><i data-lucide="lock" class="text-red-500 w-4 h-4"></i></span>
+                              Bloqueadas
+                              <span class="ml-auto bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ searchedStudent.missingSubjects ? searchedStudent.missingSubjects.length : 0 }}</span>
+                          </h4>
+                          <div class="space-y-1.5">
+                              <div v-for="(subj, sIdx) in (searchedStudent.missingSubjects || [])" :key="sIdx"
+                                   class="p-2.5 bg-white rounded border border-red-200">
+                                  <div class="flex items-center gap-2">
+                                      <span><i data-lucide="lock" class="w-3 h-3 text-red-400 shrink-0"></i></span>
+                                      <span class="text-xs text-red-800 font-medium">{{ subj.name }}</span>
+                                  </div>
+                                  <div class="text-[10px] text-red-400 mt-1 ml-5 font-medium">Baja Demanda / Quórum insuficiente</div>
                               </div>
-                              <div class="flex justify-between border-b border-slate-200 pb-2">
-                                  <span class="text-xs text-slate-500">Bimestre Actual</span>
-                                  <span class="text-xs font-bold text-slate-700">{{ searchedStudent.currentSubperiodConfig }}</span>
-                              </div>
-                              <div class="flex justify-between">
-                                  <span class="text-xs text-slate-500">Estado de Carga (P-I)</span>
-                                  <span :class="['text-xs font-bold', searchedStudent.loadCount > 0 ? 'text-green-600' : 'text-red-500']">
-                                      {{ searchedStudent.loadCount }} Materias Asignadas
-                                  </span>
-                              </div>
+                              <p v-if="!(searchedStudent.missingSubjects || []).length" class="text-xs text-slate-400 italic">Sin materias bloqueadas.</p>
                           </div>
                       </div>
                   </div>
@@ -455,13 +518,30 @@ echo $OUTPUT->header();
 
              <!-- FILTERS -->
              <div class="flex flex-wrap gap-2 mb-4">
-                <button @click="studentStatusFilter = 'Todos'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all', studentStatusFilter === 'Todos' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600']">Todos</button>
-                <button @click="studentStatusFilter = 'GradRisk'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all', studentStatusFilter === 'GradRisk' ? 'bg-red-600 text-white border-red-600' : 'bg-white border-slate-200 text-red-600']">Riesgo Grado</button>
-                <button @click="studentStatusFilter = 'Critical'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all', studentStatusFilter === 'Critical' ? 'bg-red-500 text-white border-red-500' : 'bg-white border-slate-200 text-red-500']">Sin Asignación</button>
-                
-                <div class="ml-auto relative w-full md:w-64">
-                    <span><i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i></span>
-                    <input type="text" v-model="searchTerm" placeholder="Buscar..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <button @click="studentStatusFilter = 'Todos'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all flex items-center gap-1.5', studentStatusFilter === 'Todos' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600']">
+                    Todos <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.length }})</span>
+                </button>
+                <button @click="studentStatusFilter = 'GradRisk'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all flex items-center gap-1.5', studentStatusFilter === 'GradRisk' ? 'bg-red-600 text-white border-red-600' : 'bg-white border-slate-200 text-red-600']">
+                    Riesgo Grado <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.filter(s => s.isGradRisk).length }})</span>
+                </button>
+                <button @click="studentStatusFilter = 'Critical'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all flex items-center gap-1.5', studentStatusFilter === 'Critical' ? 'bg-red-500 text-white border-red-500' : 'bg-white border-slate-200 text-red-500']">
+                    Sin Asignación <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.filter(s => s.status === 'critical').length }})</span>
+                </button>
+                <button @click="studentStatusFilter = 'Low'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all flex items-center gap-1.5', studentStatusFilter === 'Low' ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-white border-slate-200 text-yellow-600']">
+                    Carga Baja <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.filter(s => s.status === 'low').length }})</span>
+                </button>
+                <button @click="studentStatusFilter = 'Overload'" :class="['px-4 py-2 rounded-full text-sm font-bold border transition-all flex items-center gap-1.5', studentStatusFilter === 'Overload' ? 'bg-purple-600 text-white border-purple-600' : 'bg-white border-slate-200 text-purple-600']">
+                    Sobrecarga <span class="text-[10px] font-normal opacity-70">({{ analysis.studentList.filter(s => s.status === 'overload').length }})</span>
+                </button>
+
+                <div class="ml-auto flex items-center gap-2">
+                    <div class="relative w-full md:w-72">
+                        <span><i data-lucide="search" class="absolute left-3 top-2.5 text-slate-400 w-4 h-4"></i></span>
+                        <input type="text" v-model="searchTerm" placeholder="Buscar por nombre o cédula..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <button @click="handleExportImpactList" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full text-sm font-bold transition-colors shrink-0">
+                        <span><i data-lucide="download" class="w-4 h-4"></i></span> Excel
+                    </button>
                 </div>
              </div>
 
@@ -478,19 +558,26 @@ echo $OUTPUT->header();
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 text-sm">
-                            <tr v-for="student in filteredStudents" :key="student.id" :class="['hover:bg-slate-50 transition-colors', student.isGradRisk ? 'bg-red-50/20' : '']">
+                            <tr v-for="student in filteredStudents" :key="student.id" :class="['hover:bg-slate-50 transition-colors', student.isGradRisk ? 'bg-red-50/30' : '']">
                                 <td class="p-4 align-top">
                                     <div class="font-bold text-slate-800">{{ student.name }}</div>
                                     <div class="text-xs text-slate-500 font-mono mb-1">{{ student.id }}</div>
+                                    <div class="text-[10px] text-slate-400 mb-1">{{ student.career }} &bull; {{ student.shift }}</div>
                                     <div class="flex flex-wrap gap-1">
                                         <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">Nivel {{ student.currentSemConfig }}</span>
-                                        <span v-if="student.isGradRisk" class="bg-red-600 text-white px-2 py-0.5 rounded-full text-xs font-bold">RIESGO</span>
+                                        <span v-if="student.currentSubperiodConfig" :class="['px-2 py-0.5 rounded-full text-xs font-bold', (student.currentSubperiodConfig || '').toLowerCase().includes('ii') || (student.currentSubperiodConfig || '').includes('2') ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-600']">
+                                            {{ student.currentSubperiodConfig }}
+                                        </span>
+                                        <span v-if="student.isGraduating" class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">Último Semestre</span>
+                                        <span v-if="student.isGradRisk" class="bg-red-600 text-white px-2 py-0.5 rounded-full text-xs font-bold">RIESGO GRADO</span>
                                     </div>
                                 </td>
                                 <td class="p-4 align-top text-center">
                                     <span v-if="student.status === 'critical'" class="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-xs font-bold">0 Materias</span>
-                                    <span v-else-if="student.status === 'low'" class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs font-bold">1 Materia</span>
+                                    <span v-else-if="student.status === 'low'" class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs font-bold">Carga Baja (1)</span>
+                                    <span v-else-if="student.status === 'overload'" class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs font-bold">Sobrecarga ({{ student.loadCount }})</span>
                                     <span v-else class="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs font-bold">OK ({{ student.loadCount }})</span>
+                                    <div v-if="student.status === 'overload'" class="text-[10px] text-purple-600 mt-1">⚠ Revisar carga</div>
                                 </td>
                                 <td class="p-4 align-top">
                                     <ul v-if="student.projectedSubjects.length > 0" class="space-y-1">
@@ -499,15 +586,19 @@ echo $OUTPUT->header();
                                             <span>{{ s.name }}</span>
                                         </li>
                                     </ul>
-                                    <span v-else class="text-xs text-slate-400 italic">Nada para ver</span>
+                                    <span v-else class="text-xs text-slate-400 italic">Ninguna materia disponible</span>
                                 </td>
                                 <td class="p-4 align-top bg-red-50/30 border-l border-red-50">
-                                    <ul v-if="student.missingSubjects.length > 0" class="space-y-1">
-                                        <li v-for="s in student.missingSubjects" :key="s.name" class="flex items-start gap-1.5 text-xs text-red-700/80">
-                                            <span><i data-lucide="lock" class="w-3 h-3 text-red-400 mt-0.5 shrink-0"></i></span>
-                                            <span>{{ s.name }}</span>
+                                    <ul v-if="student.missingSubjects.length > 0" class="space-y-1.5">
+                                        <li v-for="s in student.missingSubjects" :key="s.name" class="text-xs">
+                                            <div class="flex items-start gap-1.5 text-red-700/80">
+                                                <span><i data-lucide="lock" class="w-3 h-3 text-red-400 mt-0.5 shrink-0"></i></span>
+                                                <span>{{ s.name }}</span>
+                                            </div>
+                                            <div class="ml-4 mt-0.5 text-[10px] text-red-400 font-medium">Baja Demanda / Quórum insuficiente</div>
                                         </li>
                                     </ul>
+                                    <span v-else class="text-xs text-slate-400 italic">Sin bloqueos</span>
                                 </td>
                             </tr>
                         </tbody>
@@ -1041,6 +1132,7 @@ const app = createApp({
             const expandedPeriod = ref(null);
             const studentSearchQuery = ref('');
             const searchedStudent = ref(null);
+            const searchSuggestions = ref([]);
     
             
             // Calendar State
@@ -1596,7 +1688,21 @@ const app = createApp({
 
             // 5. Build Student Status Lists
             const openSubjectsSet = new Set(subjectsArray.filter(s => s.isOpen).map(s => s.name));
-            
+
+            // Calculate max semester per career from allSubjectsList
+            const maxSemPerCareer = {};
+            allSubjectsList.forEach(s => {
+                const semNum = parseInt(s.semester_num) || 0;
+                if (!s.careers) return;
+                s.careers.forEach(c => {
+                    const cName = (typeof c === 'object' && c !== null) ? c.name : c;
+                    if (!cName) return;
+                    if (!maxSemPerCareer[cName] || semNum > maxSemPerCareer[cName]) {
+                        maxSemPerCareer[cName] = semNum;
+                    }
+                });
+            });
+
             const studentAnalysisList = Object.values(students).map(stu => {
                 const priority = (stu.pendingSubjects || []).filter(s => s.isPriority);
                 const projected = priority.filter(s => {
@@ -1604,15 +1710,22 @@ const app = createApp({
                      let pIndex = deferredGroups[deferKey] || 0;
                      return openSubjectsSet.has(s.name) && pIndex === 0;
                 });
-                
+
                 const missing = priority.filter(s => !openSubjectsSet.has(s.name));
-                
+
+                // isGraduating: student is in the last or second-to-last level of their career
+                const maxLvl = maxSemPerCareer[stu.career] || 99;
+                const isGraduating = stu.planningLevel >= (maxLvl - 1);
+
+                // isGradRisk: graduating student with blocked subjects
+                const isGradRisk = isGraduating && missing.length > 0;
+
                 let status = 'normal';
-                if (projected.length === 0) status = 'critical';
+                if (projected.length === 0 && priority.length > 0) status = 'critical';
                 else if (projected.length === 1) status = 'low';
                 else if (projected.length > 3) status = 'overload';
-                
-                return { ...stu, projectedSubjects: projected, missingSubjects: missing, status, loadCount: projected.length };
+
+                return { ...stu, projectedSubjects: projected, missingSubjects: missing, status, loadCount: projected.length, isGraduating, isGradRisk };
             });
 
             try {
@@ -1672,8 +1785,15 @@ const app = createApp({
         
         const filteredStudents = computed(() => {
              return analysis.value.studentList.filter(s => {
-                 if (searchTerm.value && !s.name.toLowerCase().includes(searchTerm.value.toLowerCase())) return false;
+                 if (searchTerm.value) {
+                     const term = searchTerm.value.toLowerCase();
+                     const matchName = s.name.toLowerCase().includes(term);
+                     const matchId = s.id && String(s.id).toLowerCase().includes(term);
+                     if (!matchName && !matchId) return false;
+                 }
                  if (studentStatusFilter.value === 'Critical' && s.status !== 'critical') return false;
+                 if (studentStatusFilter.value === 'Low' && s.status !== 'low') return false;
+                 if (studentStatusFilter.value === 'Overload' && s.status !== 'overload') return false;
                  if (studentStatusFilter.value === 'GradRisk' && !s.isGradRisk) return false;
                  return true;
              });
@@ -2068,20 +2188,35 @@ const app = createApp({
         };
 
         const handleStudentSearch = () => {
+            searchSuggestions.value = [];
             if (!analysis.value || !studentSearchQuery.value) return;
             const term = studentSearchQuery.value.toLowerCase();
             const student = analysis.value.studentList.find(s =>
                 String(s.name).toLowerCase().includes(term) || String(s.dbId).toLowerCase().includes(term) || (s.id && String(s.id).toLowerCase().includes(term))
             );
-
             if (student) {
-                // For now, we don't have generatedSchedules here in the main view readily linked,
-                // but we can show basic info. If schedulerView generates them, they are in the store.
                 searchedStudent.value = student;
             } else {
                 alert("Estudiante no encontrado.");
                 searchedStudent.value = null;
             }
+        };
+
+        const updateSearchSuggestions = () => {
+            const term = (studentSearchQuery.value || '').toLowerCase().trim();
+            if (!term || term.length < 2 || !analysis.value) {
+                searchSuggestions.value = [];
+                return;
+            }
+            searchSuggestions.value = analysis.value.studentList
+                .filter(s => String(s.name).toLowerCase().includes(term) || (s.id && String(s.id).toLowerCase().includes(term)))
+                .slice(0, 8);
+        };
+
+        const selectSuggestion = (sug) => {
+            studentSearchQuery.value = sug.name;
+            searchedStudent.value = sug;
+            searchSuggestions.value = [];
         };
 
         const loadUploadMessage = Vue.ref('');
@@ -2103,14 +2238,90 @@ const app = createApp({
         };
 
         const handleExportStudentSchedule = () => {
-            if (!searchedStudent.value || !window.XLSX) {
-                alert("XLSX library not loaded or student not selected.");
-                return;
-            }
-            // Implementation depends on availability of schedules in searchedStudent
-            alert("Exportar a Excel no implementado en esta vista. Use la pestaña de Horarios para reportes avanzados.");
+            if (!searchedStudent.value) return;
+            if (!window.XLSX) { alert("Librería XLSX no cargada."); return; }
+            const stu = searchedStudent.value;
+            const rows = [];
+
+            // Pending priority subjects
+            (stu.pendingSubjects || []).filter(s => s.isPriority).forEach(s => {
+                rows.push({
+                    Tipo: 'Pendiente (Prioridad)',
+                    Asignatura: s.name,
+                    Nivel: s.semester,
+                    Abre_PI: (stu.projectedSubjects || []).some(p => p.name === s.name) ? 'SI' : 'NO',
+                    Bloqueada: (stu.missingSubjects || []).some(m => m.name === s.name) ? 'SI (Quórum)' : 'NO'
+                });
+            });
+
+            // Non-priority pending
+            (stu.pendingSubjects || []).filter(s => !s.isPriority).forEach(s => {
+                rows.push({
+                    Tipo: 'Pendiente (Futura)',
+                    Asignatura: s.name,
+                    Nivel: s.semester,
+                    Abre_PI: 'NO',
+                    Bloqueada: 'NO aplica'
+                });
+            });
+
+            if (rows.length === 0) { alert("No hay materias para exportar."); return; }
+
+            const ws = window.XLSX.utils.json_to_sheet(rows);
+            const wb = window.XLSX.utils.book_new();
+            window.XLSX.utils.book_append_sheet(wb, ws, 'Materias');
+
+            // Summary sheet
+            const summaryRows = [{
+                ID: stu.id || stu.dbId,
+                Nombre: stu.name,
+                Carrera: stu.career,
+                Jornada: stu.shift,
+                Nivel_Actual: stu.currentSemConfig,
+                Bimestre: stu.currentSubperiodConfig,
+                Periodo_Ingreso: stu.entry_period || '',
+                Es_Graduando: stu.isGraduating ? 'SI' : 'NO',
+                Riesgo_Grado: stu.isGradRisk ? 'SI' : 'NO',
+                Materias_Pendientes: (stu.pendingSubjects || []).filter(s => s.isPriority).length,
+                Materias_Abiertas_PI: (stu.projectedSubjects || []).length,
+                Materias_Bloqueadas: (stu.missingSubjects || []).length
+            }];
+            const wsSummary = window.XLSX.utils.json_to_sheet(summaryRows);
+            window.XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+
+            window.XLSX.writeFile(wb, `Estudiante_${(stu.id || stu.dbId || 'export').replace(/[^a-z0-9]/gi,'_')}.xlsx`);
         };
 
+
+        const handleExportImpactList = () => {
+            if (!window.XLSX) { alert("Librería XLSX no cargada."); return; }
+            const list = filteredStudents.value;
+            if (!list || list.length === 0) { alert("No hay estudiantes para exportar."); return; }
+
+            const rows = list.map(stu => ({
+                ID: stu.id || stu.dbId,
+                Nombre: stu.name,
+                Carrera: stu.career,
+                Jornada: stu.shift,
+                Periodo_Ingreso: stu.entry_period || '',
+                Nivel_Actual: stu.currentSemConfig,
+                Bimestre: stu.currentSubperiodConfig || '',
+                Estado_Impacto: stu.status === 'critical' ? 'Sin Asignación' :
+                                stu.status === 'low'      ? 'Carga Baja' :
+                                stu.status === 'overload' ? 'Sobrecarga' : 'Normal',
+                Es_Graduando: stu.isGraduating ? 'SI' : 'NO',
+                Riesgo_Grado: stu.isGradRisk ? 'SI' : 'NO',
+                Asignaturas_Abiertas_PI: (stu.projectedSubjects || []).map(s => s.name).join('; '),
+                Asignaturas_Bloqueadas: (stu.missingSubjects || []).map(s => s.name).join('; '),
+                Total_Abiertas: (stu.projectedSubjects || []).length,
+                Total_Bloqueadas: (stu.missingSubjects || []).length
+            }));
+
+            const ws = window.XLSX.utils.json_to_sheet(rows);
+            const wb = window.XLSX.utils.book_new();
+            window.XLSX.utils.book_append_sheet(wb, ws, 'Impacto_Estudiantes');
+            window.XLSX.writeFile(wb, 'Reporte_Impacto_Estudiantes.xlsx');
+        };
 
         onMounted(() => {
             loadInitial();
@@ -2157,7 +2368,7 @@ const app = createApp({
                 openPeriodModal, savePeriod, deletePeriod, getPlanName,
                 // New Tabs Logic
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
-                studentSearchQuery, searchedStudent, handleStudentSearch, handleExportStudentSchedule,
+                studentSearchQuery, searchedStudent, searchSuggestions, handleStudentSearch, updateSearchSuggestions, selectSuggestion, handleExportStudentSchedule, handleExportImpactList,
                 handleLoadUpload, loadUploadMessage, loadUploadError,
                 configSubTab, store
             };
