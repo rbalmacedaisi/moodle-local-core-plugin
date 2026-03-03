@@ -661,10 +661,7 @@ class planning_manager {
         foreach ($students as $stu) {
             $career    = $stu['career'] ?: 'General';
             $shift     = $stu['shift']  ?: 'Sin Jornada';
-            $lvlLabel  = $stu['currentSemConfig'] ?: '';
-            $subLbl    = $stu['currentSubperiodConfig'] ?: '';
-            $lvlKey    = $subLbl ? "$lvlLabel - $subLbl" : $lvlLabel;
-            $cohKey    = "{$career} - {$shift} - {$lvlKey}";
+            $cohKey    = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
                 if (empty($subj['isPreRequisiteMet'])) continue;
@@ -707,13 +704,13 @@ class planning_manager {
         // --- Paso 3: Construir árbol de demanda solo con asignaturas que abren en P-I ---
 
         foreach ($students as $stu) {
-            $career  = $stu['career'] ?: 'General';
-            $shift   = $stu['shift']  ?: 'Sin Jornada';
-            $planId  = $stu['planid'];
+            $career     = $stu['career'] ?: 'General';
+            $shift      = $stu['shift']  ?: 'Sin Jornada';
+            $planId     = $stu['planid'];
             $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
-            $cohortKey  = "{$career} - {$shift} - {$levelKey}";
+            $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
                 // Filtro: prerequisitos no cumplidos
@@ -762,7 +759,7 @@ class planning_manager {
              $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
              $subLabel   = $stu['currentSubperiodConfig'] ?: '';
              $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
-             $cohortKey  = "{$career} - {$shift} - {$levelKey}";
+             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
              $levelsSeen = [];
 
              foreach ($stu['pendingSubjects'] as $subj) {
@@ -790,6 +787,46 @@ class planning_manager {
             'subjects'      => $planningData['all_subjects'] ?? [],
             'open_subjects' => array_keys($openSubjects),
         ];
+    }
+
+    /**
+     * Build the cohort key exactly as the frontend does in academic_planning.php.
+     *
+     * Frontend format: "${career} - ${shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre} [${entryP}]"
+     * where planningLevel/Bimestre account for the "end of Bimestre II → next level Bimestre I" transition.
+     *
+     * @param string $career
+     * @param string $shift
+     * @param array  $stu   Student array from get_planning_data() with keys:
+     *                      currentSemConfig, currentSubperiodConfig, entry_period
+     * @return string
+     */
+    public static function build_cohort_key($career, $shift, $stu) {
+        $levelConfig = $stu['currentSemConfig'] ?? '';
+        $subConfig   = $stu['currentSubperiodConfig'] ?? '';
+
+        // Extract numeric level from config string (e.g. "Nivel 3" → 3)
+        $levelNum = 0;
+        if (preg_match('/\d+/', $levelConfig, $m)) {
+            $levelNum = (int)$m[0];
+        } elseif (stripos($levelConfig, 'I') !== false) {
+            $levelNum = 1;
+        }
+
+        $subLower   = strtolower($subConfig);
+        $isBimestre2 = (strpos($subLower, 'ii') !== false || strpos($subConfig, '2') !== false);
+
+        if ($isBimestre2) {
+            $planningLevel   = $levelNum + 1;
+            $planningBimestre = 'I';
+        } else {
+            $planningLevel   = $levelNum;
+            $planningBimestre = 'II';
+        }
+
+        $entryP = !empty($stu['entry_period']) ? $stu['entry_period'] : 'Sin Definir';
+
+        return "{$career} - {$shift} - Nivel {$planningLevel} - Bimestre {$planningBimestre} [{$entryP}]";
     }
 
     /**
