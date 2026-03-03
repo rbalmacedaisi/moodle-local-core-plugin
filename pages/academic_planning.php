@@ -112,12 +112,25 @@ echo $OUTPUT->header();
                     </select>
                 </div>
 
-                <div class="flex flex-col flex-1">
+                <div class="flex flex-col flex-1 relative" style="min-width:280px">
                      <label class="text-xs text-slate-500 font-bold mb-1">Carrera / Plan</label>
-                    <select v-model="selectedCareer" class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full">
-                        <option value="Todas">Todas las Carreras</option>
-                        <option v-for="c in careers" :key="c" :value="c">{{ c }}</option>
-                    </select>
+                     <button @click="showCareerDropdown = !showCareerDropdown" type="button"
+                         class="bg-slate-100 border-none rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 w-full text-left flex items-center justify-between">
+                         <span class="truncate">{{ selectedCareers.length === 0 ? 'Todas las Carreras' : selectedCareers.length === 1 ? selectedCareers[0] : selectedCareers.length + ' carreras seleccionadas' }}</span>
+                         <svg class="w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform" :class="{'rotate-180': showCareerDropdown}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                     </button>
+                     <div v-if="showCareerDropdown" class="fixed inset-0 z-20" @click="showCareerDropdown = false"></div>
+                     <div v-if="showCareerDropdown" class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-64 overflow-y-auto">
+                         <button @click="selectedCareers = []; showCareerDropdown = false" type="button"
+                             class="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 font-bold"
+                             :class="selectedCareers.length === 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-600'">
+                             ✓ Todas las Carreras
+                         </button>
+                         <label v-for="c in careers" :key="c" class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-0">
+                             <input type="checkbox" :value="c" v-model="selectedCareers" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                             <span class="truncate" :class="selectedCareers.includes(c) ? 'font-semibold text-slate-800' : 'text-slate-600'">{{ c }}</span>
+                         </label>
+                     </div>
                 </div>
 
                 <div class="flex flex-col">
@@ -1095,7 +1108,8 @@ const app = createApp({
             const activeTab = ref(urlParams.get('tab') || 'planning');
         
             // State for filters
-            const selectedCareer = ref('Todas');
+            const selectedCareers = ref([]);
+            const showCareerDropdown = ref(false);
             const selectedShift = ref('Todas');
             
             // Configuration State
@@ -1235,10 +1249,10 @@ const app = createApp({
                           let targetPlanId = 0;
                           let targetPeriodId = 0;
                           
-                          if (selectedCareer.value !== 'Todas') {
+                          if (selectedCareers.value.length > 0) {
                               const found = s.careers.find(c => {
-                                  if (typeof c === 'object' && c !== null) return c.name === selectedCareer.value;
-                                  return c === selectedCareer.value;
+                                  if (typeof c === 'object' && c !== null) return selectedCareers.value.includes(c.name);
+                                  return selectedCareers.value.includes(c);
                               });
                               if (found && typeof found === 'object') {
                                   targetPlanId = found.id;
@@ -1395,7 +1409,7 @@ const app = createApp({
             if (!Array.isArray(filtered)) filtered = [];
 
             // Filter Source Data
-            if (selectedCareer.value !== 'Todas') filtered = filtered.filter(s => s.career === selectedCareer.value);
+            if (selectedCareers.value.length > 0) filtered = filtered.filter(s => selectedCareers.value.includes(s.career));
             if (selectedShift.value !== 'Todas') filtered = filtered.filter(s => s.shift === selectedShift.value);
 
             const subjectsMap = {}; 
@@ -1676,12 +1690,12 @@ const app = createApp({
                 return { ...s, totalP1, isOpen, suggestion, manual, countP1: s.countP1 };
             });
 
-            if (selectedCareer.value !== 'Todas') {
+            if (selectedCareers.value.length > 0) {
                 subjectsArray = subjectsArray.filter(s => {
                     if (!s.careers || !Array.isArray(s.careers)) return false;
                     return s.careers.some(c => {
                         const careerName = (typeof c === 'object' && c !== null) ? c.name : c;
-                        return careerName === selectedCareer.value;
+                        return selectedCareers.value.includes(careerName);
                     });
                 });
             }
@@ -2128,7 +2142,7 @@ const app = createApp({
                     const lpName = lpInfo ? lpInfo.name : `Plan ${lpid}`;
 
                     // Filter by career if selected
-                    if (selectedCareer.value !== 'Todas' && lpName !== selectedCareer.value) {
+                    if (selectedCareers.value.length > 0 && !selectedCareers.value.includes(lpName)) {
                         return;
                     }
 
@@ -2345,7 +2359,7 @@ const app = createApp({
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
                 ignoredSubjects, isOrderLocked, updateProjection, periodMappings,
                 // Filters
-                selectedCareer, selectedShift, careers, shifts,
+                selectedCareers, showCareerDropdown, selectedShift, careers, shifts,
                 activeTab,
                 // Tables
                 manualProjections, filteredStudents, studentStatusFilter, searchTerm,
