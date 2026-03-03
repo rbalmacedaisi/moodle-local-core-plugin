@@ -270,13 +270,17 @@ echo $OUTPUT->header();
                                            placeholder="0">
                                 </td>
                                 <td class="px-2 py-3 text-center border-l border-blue-100 font-bold text-base">
-                                     <button @click="openPopover(subj, 0, $event)" :class="['px-3 py-1 rounded transition-all border border-transparent hover:scale-105', subj.isOpen ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200']">
+                                     <button @click="openPopover(subj, 0, $event)" :class="['px-3 py-1 rounded transition-all border border-transparent hover:scale-105 inline-flex items-center gap-1', subj.isOpen ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200']">
                                         {{ subj.totalP1 }}
+                                        <span v-if="matrixAlerts[subj.name + '_0'] === 'critico'" class="text-red-500 text-[10px]" title="Algún cohorte está fuera de su ventana de graduación">⚠</span>
+                                        <span v-else-if="matrixAlerts[subj.name + '_0'] === 'tardio'" class="text-yellow-500 text-[10px]" title="Algún cohorte está con retraso respecto a su periodo natural">⏱</span>
                                     </button>
                                 </td>
                                 <td v-for="i in 5" :key="i" class="px-2 py-3 text-center border-l border-slate-100 text-slate-600 text-xs">
-                                    <button @click="openPopover(subj, i, $event)" class="hover:bg-slate-200 px-2 py-1 rounded transition-colors" v-if="subj['countP'+(i+1)] > 0">
+                                    <button @click="openPopover(subj, i, $event)" class="hover:bg-slate-200 px-2 py-1 rounded transition-colors inline-flex items-center gap-1" v-if="subj['countP'+(i+1)] > 0">
                                         {{ subj['countP'+(i+1)] }}
+                                        <span v-if="matrixAlerts[subj.name + '_' + i] === 'critico'" class="text-red-500 text-[10px]" title="Algún cohorte está fuera de su ventana de graduación">⚠</span>
+                                        <span v-else-if="matrixAlerts[subj.name + '_' + i] === 'tardio'" class="text-yellow-500 text-[10px]" title="Algún cohorte está con retraso respecto a su periodo natural">⏱</span>
                                     </button>
                                     <span v-else>-</span>
                                 </td>
@@ -937,11 +941,27 @@ echo $OUTPUT->header();
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-tighter block mb-1">Cohorte / Grupo</span>
                             <span class="text-sm font-bold text-slate-700 leading-snug">{{ key }}</span>
                         </div>
-                        <button @click="onViewStudents(key, group.students)" 
+                        <button @click="onViewStudents(key, group.students)"
                                 class="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-bold hover:bg-blue-100 transition-colors">
                             <i data-lucide="users" class="w-3.5 h-3.5"></i>
                             {{ group.count }}
                         </button>
+                    </div>
+
+                    <!-- Graduation timeline context banner -->
+                    <div v-if="getCohortGradInfo(key, popoverData.subject)"
+                         class="mb-3 px-2.5 py-2 rounded-lg text-[11px] flex items-start gap-2 leading-snug"
+                         :class="getCohortGradInfo(key, popoverData.subject).periodosRestantes <= 2
+                             ? 'bg-red-50 text-red-700 border border-red-200'
+                             : getCohortGradInfo(key, popoverData.subject).periodosRestantes <= 4
+                                 ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                 : 'bg-slate-50 text-slate-500 border border-slate-100'">
+                        <span><i data-lucide="clock" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i></span>
+                        <span>
+                            Le quedan <strong>{{ getCohortGradInfo(key, popoverData.subject).periodosRestantes }}</strong> periodo(s) para graduarse.
+                            Periodo natural de esta materia: <strong>{{ getPeriodLabel(getCohortGradInfo(key, popoverData.subject).periodoNatural) }}</strong>.
+                            Máximo sin riesgo: <strong>{{ getPeriodLabel(getCohortGradInfo(key, popoverData.subject).periodoMaximo) }}</strong>.
+                        </span>
                     </div>
 
                     <!-- Movement Controls -->
@@ -951,13 +971,25 @@ echo $OUTPUT->header();
                             <button v-for="i in 6" :key="i"
                                     @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1); deferralVersion++"
                                     :class="[
-                                        'px-1 py-2 rounded text-[10px] font-bold transition-all border',
-                                        (deferredGroups[popoverData.subject.name + '_' + key] !== undefined ? deferredGroups[popoverData.subject.name + '_' + key] : popoverData.period) === (i-1)
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105' 
-                                            : 'bg-white text-slate-400 border-slate-100 hover:border-blue-200 hover:text-blue-500'
+                                        'px-1 py-2 rounded text-[10px] font-bold transition-all border flex flex-col items-center justify-center',
+                                        isActivePeriod(key, i-1)
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-105'
+                                            : getPeriodRisk(key, popoverData.subject, i-1) === 'critico'
+                                                ? 'bg-red-100 text-red-600 border-red-300 hover:bg-red-200'
+                                                : getPeriodRisk(key, popoverData.subject, i-1) === 'tardio'
+                                                    ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200'
+                                                    : 'bg-white text-slate-400 border-slate-100 hover:border-blue-200 hover:text-blue-500'
                                     ]">
                                 {{ getPeriodLabel(i-1) }}
+                                <span v-if="!isActivePeriod(key, i-1) && getPeriodRisk(key, popoverData.subject, i-1) === 'critico'" class="text-[8px] leading-none">⚠</span>
+                                <span v-else-if="!isActivePeriod(key, i-1) && getPeriodRisk(key, popoverData.subject, i-1) === 'tardio'" class="text-[8px] leading-none">⏱</span>
                             </button>
+                        </div>
+                        <!-- Risk legend -->
+                        <div class="flex gap-3 mt-2 text-[9px] text-slate-400">
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-300 inline-block"></span> Fuera de ventana</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-yellow-300 inline-block"></span> Con retraso</span>
+                            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-slate-100 border border-slate-200 inline-block"></span> En tiempo</span>
                         </div>
                     </div>
                 </div>
@@ -1534,6 +1566,7 @@ const app = createApp({
                       id: subj.id,
                       name: subj.name,
                       semesterNum: parseInt(subj.semester_num) || 0,
+                      bimestre: parseInt(subj.bimestre) || 1,
                       countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
                       groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
                       entryPeriodCounts: {},
@@ -1551,6 +1584,7 @@ const app = createApp({
                                   id: subj.id,
                                   name: subj.name,
                                   semesterNum: parseInt(subj.semester) || 0,
+                                  bimestre: 1, // unknown from pending, default to 1
                                   countP1: 0, countP2: 0, countP3: 0, countP4: 0, countP5: 0, countP6: 0,
                                   groupsP1: {}, groupsP2: {}, groupsP3: {}, groupsP4: {}, groupsP5: {}, groupsP6: {},
                                   entryPeriodCounts: {},
@@ -1760,7 +1794,9 @@ const app = createApp({
                     populationTree,
                     totalStudents: filtered.length,
                     sortedEntryPeriods: Array.from(entryPeriodsSet).sort(),
-                    students: studentsMap
+                    students: studentsMap,
+                    cohortMap: cohorts,
+                    maxSemPerCareer
                 };
 
             } catch (err) {
@@ -1823,6 +1859,82 @@ const app = createApp({
              return map[num] || num;
         };
         const getPeriodLabel = (idx) => idx === 0 ? 'P-I' : `P-${toRoman(idx+1)}`;
+
+        // -- Graduation Risk Helpers --
+
+        /**
+         * Returns graduation timeline info for a (cohortKey, subject) pair.
+         * subject must have { semesterNum, bimestre }.
+         * Returns: { periodosRestantes, periodoNatural, periodoMaximo } or null.
+         */
+        const getCohortGradInfo = (cohortKey, subject) => {
+            if (!analysis.value || !cohortKey || !subject) return null;
+            const coh = analysis.value.cohortMap && analysis.value.cohortMap[cohortKey];
+            if (!coh) return null;
+            const maxSemPerCareer = analysis.value.maxSemPerCareer || {};
+            const maxLvl = maxSemPerCareer[coh.career] || 0;
+            if (!maxLvl) return null;
+
+            const isBimII = coh.bimestreLabel && (coh.bimestreLabel.toLowerCase().includes('ii') || coh.bimestreLabel.includes('2'));
+            const cohBimAbs = (coh.levelNum - 1) * 2 + (isBimII ? 2 : 1);
+            const totalBim  = maxLvl * 2;
+            const periodosRestantes = totalBim - cohBimAbs;
+
+            const subjSemNum = parseInt(subject.semesterNum) || 0;
+            const subjBim    = parseInt(subject.bimestre) || 1;
+            const subjBimAbs = (subjSemNum - 1) * 2 + subjBim;
+            const periodoNatural = subjBimAbs - cohBimAbs; // 0-based (0 = P-I)
+            const periodoMaximo  = periodosRestantes - 1;  // last period within graduation window
+
+            return { periodosRestantes, periodoNatural, periodoMaximo };
+        };
+
+        /**
+         * Returns risk level for assigning a cohort to a specific period index.
+         * 'ok' | 'tardio' | 'critico'
+         */
+        const getPeriodRisk = (cohortKey, subject, targetIdx) => {
+            const info = getCohortGradInfo(cohortKey, subject);
+            if (!info) return 'ok';
+            if (targetIdx > info.periodoMaximo) return 'critico';
+            if (targetIdx > info.periodoNatural) return 'tardio';
+            return 'ok';
+        };
+
+        /**
+         * Returns true if targetIdx is the currently selected period for this cohort+subject.
+         * Used in the popover period buttons.
+         */
+        const isActivePeriod = (cohortKey, targetIdx) => {
+            if (!popoverData.value || !popoverData.value.subject) return false;
+            const stored = deferredGroups[popoverData.value.subject.name + '_' + cohortKey];
+            return (stored !== undefined ? stored : popoverData.value.period) === targetIdx;
+        };
+
+        /**
+         * Computed: scans all subject groups in the matrix and returns the worst risk
+         * for each cell: { "subjectName_pIndex": 'tardio'|'critico' }
+         */
+        const matrixAlerts = computed(() => {
+            const alerts = {};
+            if (!analysis.value || !analysis.value.subjectList) return alerts;
+            for (let pIdx = 0; pIdx <= 5; pIdx++) {
+                const gKey = 'groupsP' + (pIdx + 1);
+                analysis.value.subjectList.forEach(subj => {
+                    const groups = subj[gKey] || {};
+                    let worst = 'ok';
+                    Object.keys(groups).forEach(cohortKey => {
+                        const risk = getPeriodRisk(cohortKey, subj, pIdx);
+                        if (risk === 'critico') worst = 'critico';
+                        else if (risk === 'tardio' && worst !== 'critico') worst = 'tardio';
+                    });
+                    if (worst !== 'ok') {
+                        alerts[`${subj.name}_${pIdx}`] = worst;
+                    }
+                });
+            }
+            return alerts;
+        });
         
         const getSuggestionBadgeClass = (sug) => {
              if (sug.includes('ABRIR')) return 'bg-green-100 text-green-800 px-2 py-1 rounded font-bold text-xs';
@@ -2389,7 +2501,9 @@ const app = createApp({
                 expandedCareer, expandedPeriod, toggleCareer, togglePeriod,
                 studentSearchQuery, searchedStudent, searchSuggestions, handleStudentSearch, updateSearchSuggestions, selectSuggestion, handleExportStudentSchedule, handleExportImpactList,
                 handleLoadUpload, loadUploadMessage, loadUploadError,
-                configSubTab, store
+                configSubTab, store,
+                // Graduation risk helpers
+                getCohortGradInfo, getPeriodRisk, isActivePeriod, matrixAlerts
             };
 
         } catch (setupError) {
