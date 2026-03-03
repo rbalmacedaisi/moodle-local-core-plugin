@@ -586,11 +586,42 @@
         return issues;
     };
 
+    /**
+     * Return all non-holiday dates within the period that fall on `day` (e.g. "Lunes").
+     * Optionally filtered by subperiod range.
+     * @param {string} day - Day name matching dayMap (e.g. "Lunes", "Martes")
+     * @param {object} context - { period: { start, end, subperiods }, holidays }
+     * @param {number} subperiod - 0=all, 1=subperiod1, 2=subperiod2
+     * @returns {string[]} Array of ISO date strings
+     */
+    const getDatesForDay = (day, context, subperiod = 0) => {
+        if (!day || day === 'N/A' || !context?.period?.start || !context?.period?.end) return [];
+        const holidays = context.holidays || context.configSettings?.holidays || [];
+        const holidaySet = new Set(holidays.map(h => h.formatted_date || h.date));
+        const dayMap = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+        const dates = [];
+        let tempD = new Date(context.period.start);
+        const tempEnd = new Date(context.period.end);
+        while (tempD <= tempEnd) {
+            const dStr = tempD.toISOString().split('T')[0];
+            if (!holidaySet.has(dStr) && dayMap[tempD.getUTCDay()] === day) {
+                dates.push(dStr);
+            }
+            tempD.setUTCDate(tempD.getUTCDate() + 1);
+        }
+        if (subperiod && context.period?.subperiods?.[subperiod]) {
+            const range = context.period.subperiods[subperiod];
+            return dates.filter(d => d >= range.start && d <= range.end);
+        }
+        return dates;
+    };
+
     window.SchedulerAlgorithm = {
         autoAssign,
         autoPlace,
         getSuggestions,
         detectConflicts,
+        getDatesForDay,
         toMins,
         formatTime,
         parseTimeRange,

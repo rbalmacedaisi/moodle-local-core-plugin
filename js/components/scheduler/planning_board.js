@@ -551,6 +551,16 @@ window.SchedulerComponents.PlanningBoard = {
                 this.draggedClass.classdays = mask.join('/');
             }
 
+            // Recalculate assignedDates for the new day so conflict detection stays accurate
+            if (window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
+                const newDates = window.SchedulerAlgorithm.getDatesForDay(
+                    day,
+                    this.storeState.context,
+                    this.draggedClass.subperiod || 0
+                );
+                this.draggedClass.assignedDates = newDates.length ? newDates : undefined;
+            }
+
             this.draggedClass = null;
         },
         editClass(cls) {
