@@ -672,9 +672,8 @@ class planning_manager {
         }
 
         // --- Paso 3: Construir árbol de demanda ---
-        // Se incluye todo estudiante cuya asignatura tenga prereqs cumplidos, no esté omitida
-        // y no esté diferida para su cohorte. El quórum y el isPriority son indicadores
-        // visuales en el frontend, no criterios de exclusión aquí.
+        // Solo estudiantes cuya asignatura es isPriority (del periodo actual),
+        // con prereqs cumplidos, no omitida, y no diferida para su cohorte.
 
         foreach ($students as $stu) {
             $career     = $stu['career'] ?: 'General';
@@ -686,7 +685,10 @@ class planning_manager {
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Prerequisitos no cumplidos — exclusión dura
+                // Solo asignaturas del periodo actual (isPriority = prereqs met + nivel <= targetLevel)
+                if (empty($subj['isPriority'])) continue;
+
+                // Prerequisitos no cumplidos
                 if (empty($subj['isPreRequisiteMet'])) continue;
 
                 $courseId = $subj['id'];
@@ -696,7 +698,10 @@ class planning_manager {
 
                 // Diferida a periodo futuro para este cohorte
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
-                if ($targetIdx !== 0) continue;
+                if ($targetIdx !== 0) {
+                    \gmk_log("DEMAND_SKIP: stu={$stu['id']} course={$courseId}({$subj['name']}) cohortKey=[{$cohortKey}] targetIdx={$targetIdx} — diferida");
+                    continue;
+                }
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
@@ -737,6 +742,7 @@ class planning_manager {
                  $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
 
                  // Aplicar los mismos filtros que en el loop de construcción
+                 if (empty($subj['isPriority'])) continue;
                  if (empty($subj['isPreRequisiteMet'])) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
                  if ($targetIdx !== 0) continue;
