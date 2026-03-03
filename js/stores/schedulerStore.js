@@ -258,7 +258,8 @@
                             const semData = demand[career][shift][sem];
                             for (const [courseId, val] of Object.entries(semData.course_counts)) {
                                 const subperiodId = val.subperiod || 0;
-                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${subperiodId}` : `${courseId}|${shift}|${subperiodId}`;
+                                // Include `sem` (level/cohort key) so each cohort level generates its own class group
+                                const aggKey = isIsolated ? `${courseId}|${shift}|${career}|${sem}|${subperiodId}` : `${courseId}|${shift}|${sem}|${subperiodId}`;
 
                                 if (!aggregatedDemand[aggKey]) {
                                     aggregatedDemand[aggKey] = {
