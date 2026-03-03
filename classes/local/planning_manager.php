@@ -687,7 +687,7 @@ class planning_manager {
             foreach ($stu['pendingSubjects'] as $subj) {
                 // Solo asignaturas del periodo actual (isPriority = prereqs met + nivel <= targetLevel)
                 if (empty($subj['isPriority'])) {
-                    \gmk_log("DEMAND_SKIP: stu={$stu['id']} course={$subj['id']}({$subj['name']}) — not isPriority");
+                    \gmk_log("DEMAND_SKIP: stu={$stu['id']} course={$subj['id']}({$subj['name']}) — not isPriority semConfig=[{$stu['currentSemConfig']}] subConfig=[{$stu['currentSubperiodConfig']}] courseSem={$subj['semester']}");
                     continue;
                 }
 
