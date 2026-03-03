@@ -686,7 +686,10 @@ class planning_manager {
 
             foreach ($stu['pendingSubjects'] as $subj) {
                 // Solo asignaturas del periodo actual (isPriority = prereqs met + nivel <= targetLevel)
-                if (empty($subj['isPriority'])) continue;
+                if (empty($subj['isPriority'])) {
+                    \gmk_log("DEMAND_SKIP: stu={$stu['id']} course={$subj['id']}({$subj['name']}) — not isPriority");
+                    continue;
+                }
 
                 // Prerequisitos no cumplidos
                 if (empty($subj['isPreRequisiteMet'])) continue;
@@ -702,6 +705,7 @@ class planning_manager {
                     \gmk_log("DEMAND_SKIP: stu={$stu['id']} course={$courseId}({$subj['name']}) cohortKey=[{$cohortKey}] targetIdx={$targetIdx} — diferida");
                     continue;
                 }
+                \gmk_log("DEMAND_INCLUDE: stu={$stu['id']} course={$courseId}({$subj['name']}) cohortKey=[{$cohortKey}]");
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
