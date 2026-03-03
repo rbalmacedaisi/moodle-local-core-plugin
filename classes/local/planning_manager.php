@@ -624,13 +624,17 @@ class planning_manager {
      * - subjects: Catalog of subjects
      */
     public static function get_demand_data($periodId) {
+        global $DB;
+
         // Reuse the Planning Engine to get the raw projection of students/subjects
         $planningData = self::get_planning_data($periodId);
-        
+
         $students = $planningData['students'];
         $tree = [];
 
-        // Build a GLOBAL ignore map for subjects in this period
+        // --- Paso 1: Pre-cargar ignorados (status=2) y deferrals del periodo ---
+
+        // Mapa courseid => true para subjects marcados como "Omitir Auto"
         $globalIgnoredMap = [];
         if (!empty($planningData['planning_projections'])) {
             foreach ($planningData['planning_projections'] as $pp) {
@@ -640,49 +644,103 @@ class planning_manager {
             }
         }
 
+        // Mapa courseid => [ cohortKey => targetPeriodIndex ] para deferrals guardados
+        $deferralsByCourse = [];
+        $rawDeferrals = $DB->get_records('gmk_academic_deferrals', ['academicperiodid' => $periodId]);
+        foreach ($rawDeferrals as $d) {
+            $dCohortKey = "{$d->career} - {$d->shift} - {$d->current_level}";
+            if (!isset($deferralsByCourse[$d->courseid])) {
+                $deferralsByCourse[$d->courseid] = [];
+            }
+            $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
+        }
+
+        // --- Paso 2: Pre-calcular quórum real en P-I por asignatura ---
+
+        $realCountP1 = []; // [courseId => count de estudiantes en P-I sin deferral]
         foreach ($students as $stu) {
-            $career = $stu['career'] ?: 'General';
-            $shift = $stu['shift'] ?: 'Sin Jornada'; 
-            $planId = $stu['planid'];
-            
-            // Iterate Pending Subjects to build demand
+            $career    = $stu['career'] ?: 'General';
+            $shift     = $stu['shift']  ?: 'Sin Jornada';
+            $lvlLabel  = $stu['currentSemConfig'] ?: '';
+            $subLbl    = $stu['currentSubperiodConfig'] ?: '';
+            $lvlKey    = $subLbl ? "$lvlLabel - $subLbl" : $lvlLabel;
+            $cohKey    = "{$career} - {$shift} - {$lvlKey}";
+
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Check if this subject is marked to be ignored GLOBALLY in this period
-                if (!empty($globalIgnoredMap[$subj['id']])) {
-                    continue;
+                if (empty($subj['isPreRequisiteMet'])) continue;
+                $cId = $subj['id'];
+                if (!empty($globalIgnoredMap[$cId])) continue;
+                // Solo cuenta si está en P-I (targetIndex = 0 o sin deferral)
+                $tIdx = $deferralsByCourse[$cId][$cohKey] ?? 0;
+                if ($tIdx === 0) {
+                    if (!isset($realCountP1[$cId])) $realCountP1[$cId] = 0;
+                    $realCountP1[$cId]++;
                 }
+            }
+        }
 
-                // If subject is NOT Priority (e.g. unmet prerequisites), maybe we shouldn't schedule it automatically?
-                // For now, "Wave" logic usually schedules everything pending.
-                // Let's stick to including it.
-                
-                // UPDATE: For demand analysis, we ONLY want to show subjects the student CAN take.
-                // Include both Status 0 (Pending) and Status 5 (Failed/Reprobada) as per user's latest request.
-                if (empty($subj['isPreRequisiteMet'])) {
-                    continue; 
+        // Proyecciones manuales adicionales por asignatura
+        $manualProjections = [];
+        if (!empty($planningData['planning_projections'])) {
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ($pp->projected_students > 0) {
+                    $manualProjections[$pp->courseid] = (int)$pp->projected_students;
                 }
-                
-                // Normalized Level Key for sorting
-                // OLD LOGIC: Group by SUBJECT SEMESTER
-                // $levelKey = $subj['semesterName'] ?: ('Nivel ' . $subj['semester']);
+            }
+        }
 
-                // NEW LOGIC (Requested Refactor): Group by STUDENT CURRENT LEVEL AND BLOCK
-                $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
-                $subLabel = $stu['currentSubperiodConfig'] ?: '';
-                $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
+        // Conjunto de asignaturas que cumplen quórum >= 12 en P-I
+        $openSubjects = []; // [courseId => true]
+        foreach ($realCountP1 as $cId => $cnt) {
+            $manual = $manualProjections[$cId] ?? 0;
+            if (($cnt + $manual) >= 12) {
+                $openSubjects[$cId] = true;
+            }
+        }
+        // También incluir subjects cuya proyección manual sola alcanza quórum
+        foreach ($manualProjections as $cId => $manual) {
+            if (!isset($openSubjects[$cId]) && $manual >= 12) {
+                $openSubjects[$cId] = true;
+            }
+        }
+
+        // --- Paso 3: Construir árbol de demanda solo con asignaturas que abren en P-I ---
+
+        foreach ($students as $stu) {
+            $career  = $stu['career'] ?: 'General';
+            $shift   = $stu['shift']  ?: 'Sin Jornada';
+            $planId  = $stu['planid'];
+            $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+            $subLabel   = $stu['currentSubperiodConfig'] ?: '';
+            $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
+            $cohortKey  = "{$career} - {$shift} - {$levelKey}";
+
+            foreach ($stu['pendingSubjects'] as $subj) {
+                // Filtro: prerequisitos no cumplidos
+                if (empty($subj['isPreRequisiteMet'])) continue;
+
+                $courseId = $subj['id'];
+
+                // Filtro: subject omitido (status=2)
+                if (!empty($globalIgnoredMap[$courseId])) continue;
+
+                // Filtro: subject diferido a periodo futuro para este cohorte
+                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
+                if ($targetIdx !== 0) continue;
+
+                // Filtro: quórum insuficiente en P-I (< 12 estudiantes)
+                if (empty($openSubjects[$courseId])) continue;
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
                     $tree[$career][$shift][$levelKey] = [
                         'semester_name' => $levelKey,
-                        'student_count' => 0, // Unique students in this bucket? Or total seats?
-                        // 'student_ids' => [],
+                        'student_count' => 0,
                         'course_counts' => []
                     ];
                 }
 
                 // Increment Course
-                $courseId = $subj['id'];
                 if (!isset($tree[$career][$shift][$levelKey]['course_counts'][$courseId])) {
                      $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
                          'count' => 0,
@@ -690,40 +748,32 @@ class planning_manager {
                          'plan_map' => []
                      ];
                 }
-                
-                // Populate plan mapping metadata
-                if (isset($structures[$planId][$courseId])) {
-                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['plan_map'][$planId] = [
-                        'subjectid' => $structures[$planId][$courseId]->subjectid,
-                        'levelid' => $structures[$planId][$courseId]->levelid
-                    ];
-                }
 
                 $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id']; // Use 'id' which matches the student_list key
+                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
             }
         }
-        
-        // Post-processing: Calculate student_count per bucket (approximate or exact?)
-        // In the loop above, we can't easily count unique students per level unless we track IDs.
-        // Let's do a second pass or use a set.
-        
-        // Re-loop for student counts
+
+        // --- Paso 4: Re-loop para calcular student_count único por bucket ---
+
         foreach ($students as $stu) {
-             $career = $stu['career'] ?: 'General';
-             $shift = $stu['shift'] ?: 'Sin Jornada';
-             
-             // Track which levels this student hits
+             $career     = $stu['career'] ?: 'General';
+             $shift      = $stu['shift']  ?: 'Sin Jornada';
+             $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
+             $subLabel   = $stu['currentSubperiodConfig'] ?: '';
+             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
+             $cohortKey  = "{$career} - {$shift} - {$levelKey}";
              $levelsSeen = [];
-             
+
              foreach ($stu['pendingSubjects'] as $subj) {
-                 // Match the grouping logic used above
-                 $levelLabel = $stu['currentSemConfig'] ?: 'Sin Nivel';
-                 $subLabel = $stu['currentSubperiodConfig'] ?: '';
-                 $levelKey = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
-                 
-                 // Initialize tree path if not exists (handling edge case where student has no subjects but we want to count them? No, only demand matters)
-                 // But wait, if tree node created above, it exists.
+                 $courseId  = $subj['id'];
+                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
+
+                 // Aplicar los mismos filtros que en el loop de construcción
+                 if (!empty($globalIgnoredMap[$courseId])) continue;
+                 if ($targetIdx !== 0) continue;
+                 if (empty($openSubjects[$courseId])) continue;
+
                  if (isset($tree[$career][$shift][$levelKey])) {
                      if (!isset($levelsSeen[$levelKey])) {
                          $levelsSeen[$levelKey] = true;
@@ -734,10 +784,11 @@ class planning_manager {
         }
 
         return [
-            'demand_tree' => $tree,
-            'student_list' => $planningData['students'],
-            'projections' => $planningData['planning_projections'], // Use the planning projections (manual overrides)
-            'subjects' => isset($planningData['all_subjects']) ? $planningData['all_subjects'] : [] 
+            'demand_tree'   => $tree,
+            'student_list'  => $planningData['students'],
+            'projections'   => $planningData['planning_projections'],
+            'subjects'      => $planningData['all_subjects'] ?? [],
+            'open_subjects' => array_keys($openSubjects),
         ];
     }
 
