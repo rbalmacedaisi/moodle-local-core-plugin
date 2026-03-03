@@ -684,31 +684,26 @@ class planning_manager {
             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
-            // Nivel real del estudiante: el MÍNIMO semestre pendiente con prereqs cumplidos.
-            // Esto equivale al "próximo nivel a cursar" — igual que isPriority pero sin depender
-            // del semConfig posiblemente desactualizado en la DB.
-            // Solo se incluyen asignaturas de ese nivel exacto (===) para no mezclar niveles.
-            $effectiveLevel = PHP_INT_MAX;
-            foreach ($stu['pendingSubjects'] as $s) {
-                if (!empty($s['isPreRequisiteMet']) && isset($s['semester']) && (int)$s['semester'] > 0) {
-                    $effectiveLevel = min($effectiveLevel, (int)$s['semester']);
-                }
-            }
-            if ($effectiveLevel === PHP_INT_MAX) $effectiveLevel = 0;
-
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Solo asignaturas del próximo nivel a cursar (mínimo con prereqs cumplidos)
+                // Prerequisitos no cumplidos — siempre excluir
                 if (empty($subj['isPreRequisiteMet'])) continue;
-                if ((int)$subj['semester'] !== $effectiveLevel) continue;
 
                 $courseId = $subj['id'];
 
                 // Omitida (status=2) — única exclusión explícita del coordinador
                 if (!empty($globalIgnoredMap[$courseId])) continue;
 
-                // Diferida a periodo futuro para este cohorte
-                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
-                if ($targetIdx !== 0) continue;
+                // Ver si este cohorte tiene deferral explícito para esta asignatura
+                $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
+
+                // Excluir si diferida a periodo futuro
+                if ($targetIdx > 0) continue;
+
+                // Incluir si:
+                // a) isPriority=true (asignatura del nivel actual según semConfig), O
+                // b) tiene deferral explícito a P-I (targetIdx=0) — el coordinador lo movió a P-I
+                $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                if (!$hasPriorityOrDeferredToP1) continue;
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
@@ -744,24 +739,16 @@ class planning_manager {
              $cohortKey  = self::build_cohort_key($career, $shift, $stu);
              $levelsSeen = [];
 
-             // Mismo cálculo de nivel real que en el Paso 3
-             $effectiveLevel = PHP_INT_MAX;
-             foreach ($stu['pendingSubjects'] as $s) {
-                 if (!empty($s['isPreRequisiteMet']) && isset($s['semester']) && (int)$s['semester'] > 0) {
-                     $effectiveLevel = min($effectiveLevel, (int)$s['semester']);
-                 }
-             }
-             if ($effectiveLevel === PHP_INT_MAX) $effectiveLevel = 0;
-
              foreach ($stu['pendingSubjects'] as $subj) {
                  $courseId  = $subj['id'];
-                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
+                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? -1;
 
-                 // Aplicar los mismos filtros que en el Paso 3
+                 // Mismos filtros que en el Paso 3
                  if (empty($subj['isPreRequisiteMet'])) continue;
-                 if ((int)$subj['semester'] !== $effectiveLevel) continue;
+                 if ($targetIdx > 0) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
-                 if ($targetIdx !== 0) continue;
+                 $hasPriorityOrDeferredToP1 = !empty($subj['isPriority']) || ($targetIdx === 0);
+                 if (!$hasPriorityOrDeferredToP1) continue;
 
                  if (isset($tree[$career][$shift][$levelKey])) {
                      if (!isset($levelsSeen[$levelKey])) {
