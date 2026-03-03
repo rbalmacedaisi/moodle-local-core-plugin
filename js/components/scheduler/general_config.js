@@ -37,15 +37,29 @@ window.SchedulerComponents.GeneralConfig = {
                 <div class="space-y-6">
                     <!-- Interval and Global Bounds -->
                     <div class="grid grid-cols-2 gap-4 pb-4 border-b border-slate-100">
-                        <div>
-                            <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Intervalo (min)</label>
-                            <input
-                                type="number"
-                                v-model.number="localConfig.intervalMinutes"
-                                class="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-orange-200 outline-none"
-                                min="5"
-                                step="5"
-                            />
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Intervalo (min)</label>
+                                <input
+                                    type="number"
+                                    v-model.number="localConfig.intervalMinutes"
+                                    class="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-orange-200 outline-none"
+                                    min="5"
+                                    step="5"
+                                />
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Duración de clase (min)</label>
+                                <input
+                                    type="number"
+                                    v-model.number="localConfig.sessionDuration"
+                                    class="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-orange-200 outline-none"
+                                    min="30"
+                                    step="30"
+                                    placeholder="120"
+                                />
+                                <p class="text-[10px] text-slate-400 mt-1">Duración por sesión al ubicar fichas. Default: 120 min.</p>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
@@ -161,6 +175,7 @@ window.SchedulerComponents.GeneralConfig = {
         return {
             localConfig: {
                 intervalMinutes: 30,
+                sessionDuration: 120,
                 startTime: '07:00',
                 endTime: '22:00',
                 lunchStart: '12:00',
@@ -170,7 +185,7 @@ window.SchedulerComponents.GeneralConfig = {
                     Nocturna: { start: '18:00', end: '22:00' },
                     Sabatina: { start: '07:00', end: '17:00' }
                 },
-                isolatedCareers: [] // Array of career names
+                isolatedCareers: []
             }
         };
     },

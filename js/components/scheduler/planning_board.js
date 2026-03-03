@@ -533,7 +533,13 @@ window.SchedulerComponents.PlanningBoard = {
             const newStartHour = this.startHour + hourOffset;
             const start = `${newStartHour.toString().padStart(2, '0')}:${minOffset.toString().padStart(2, '0')}`;
 
-            const currentDuration = this.draggedClass.end ? (this.toMins(this.draggedClass.end) - this.toMins(this.draggedClass.start)) : 120;
+            // Use configured session duration when placing a card for the first time (day was N/A),
+            // or keep the existing duration if the card was already placed and is being moved.
+            const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
+            const isFirstPlacement = !this.draggedClass.day || this.draggedClass.day === 'N/A';
+            const currentDuration = isFirstPlacement
+                ? configDuration
+                : (this.draggedClass.end ? (this.toMins(this.draggedClass.end) - this.toMins(this.draggedClass.start)) : configDuration);
             const endMins = this.toMins(start) + currentDuration;
             const endH = Math.floor(endMins / 60);
             const endM = endMins % 60;
