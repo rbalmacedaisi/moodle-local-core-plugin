@@ -696,17 +696,9 @@ class planning_manager {
             if ($effectiveLevel === PHP_INT_MAX) $effectiveLevel = 0;
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Solo asignaturas del nivel actual real del estudiante.
-                // Un estudiante está "en" el nivel de su asignatura pendiente más baja (effectiveLevel).
-                // Incluimos también asignaturas del mismo nivel para no perder compañeros de grupo.
-                if (!empty($subj['isPreRequisiteMet']) && (int)$subj['semester'] !== $effectiveLevel) {
-                    continue;
-                }
-                // Si no tiene prereqs met, excluir directamente
+                // Solo asignaturas con prereqs cumplidos del nivel real del estudiante
                 if (empty($subj['isPreRequisiteMet'])) continue;
-
-                // Prerequisitos no cumplidos
-                if (empty($subj['isPreRequisiteMet'])) continue;
+                if ((int)$subj['semester'] !== $effectiveLevel) continue;
 
                 $courseId = $subj['id'];
 
