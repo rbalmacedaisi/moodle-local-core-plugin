@@ -949,7 +949,7 @@ echo $OUTPUT->header();
                         <span class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Mover a Periodo:</span>
                         <div class="grid grid-cols-6 gap-1">
                             <button v-for="i in 6" :key="i"
-                                    @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1)"
+                                    @click="deferredGroups[popoverData.subject.name + '_' + key] = (i-1); deferralVersion++"
                                     :class="[
                                         'px-1 py-2 rounded text-[10px] font-bold transition-all border',
                                         (deferredGroups[popoverData.subject.name + '_' + key] !== undefined ? deferredGroups[popoverData.subject.name + '_' + key] : popoverData.period) === (i-1)
@@ -1118,6 +1118,7 @@ const app = createApp({
             const isOrderLocked = ref(false);
             const manualProjections = reactive({}); // { SubjectName: Count }
             const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
+            const deferralVersion = ref(0); // Increment to force computed recalculation
             const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
             
             // Popover
@@ -1407,6 +1408,9 @@ const app = createApp({
 
             let filtered = Array.isArray(rawData.value) ? rawData.value : (rawData.value.students || []);
             if (!Array.isArray(filtered)) filtered = [];
+
+            // Force dependency on deferral changes (Vue 3 reactive proxy may not track new dynamic keys)
+            const _dv = deferralVersion.value;
 
             // Filter Source Data
             if (selectedCareers.value.length > 0) filtered = filtered.filter(s => selectedCareers.value.includes(s.career));
@@ -1850,6 +1854,7 @@ const app = createApp({
                  // Update Deferral
                  let key = `${data.subj}_${targetCKey}`;
                  deferredGroups[key] = targetPIdx;
+                 deferralVersion.value++;
             }
         };
 
@@ -2367,7 +2372,7 @@ const app = createApp({
                 toRoman, getPeriodLabel, getSuggestionBadgeClass, 
                 getSubjectsForCohortPeriod, getSubjectCount,
                 // Drag
-                handleDragStart, handleDrop, deferredGroups,
+                handleDragStart, handleDrop, deferredGroups, deferralVersion,
                 // Popover
                 openPopover, activePopover, showBreakdownPopover, popoverData,
                 // Modals
