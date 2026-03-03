@@ -655,52 +655,26 @@ class planning_manager {
             $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
         }
 
-        // --- Paso 2: Determinar asignaturas confirmadas para abrir en este periodo ---
+        // --- Paso 2: Asignaturas confirmadas para abrir (status=1) y omitidas (status=2) ---
         //
-        // La fuente de verdad es gmk_academic_planning con status=1 (confirmadas por el
-        // coordinador al guardar la matriz de proyección). Solo estas asignaturas deben
-        // aparecer en el planificador de horarios.
-        //
-        // Si el periodo aún no tiene ningún registro guardado (primera vez), se calcula
-        // el quórum orgánico como fallback para no bloquear el flujo.
+        // $confirmedSubjects: set de courseIds con status=1 guardados por el coordinador.
+        // Se usa para incluir asignaturas SIN estudiantes reales pero con proyección manual.
+        // NO se usa para excluir asignaturas con demanda real — el coordinador puede abrir
+        // cualquier asignatura con al menos 1 estudiante por decisión administrativa.
 
-        $openSubjects = []; // [courseId => true]
-
-        // Try the saved projections first (status=1 = confirmed to open by coordinator)
+        $confirmedSubjects = []; // [courseId => true]  status=1 en gmk_academic_planning
         if (!empty($planningData['planning_projections'])) {
             foreach ($planningData['planning_projections'] as $pp) {
                 if ($pp->status == 1) {
-                    $openSubjects[$pp->courseid] = true;
+                    $confirmedSubjects[$pp->courseid] = true;
                 }
             }
         }
 
-        // Fallback: if no status=1 records exist (period not saved yet, or only old status=0 records),
-        // calculate organic quorum so the scheduler is never empty.
-        if (empty($openSubjects)) {
-            $realCountP1 = [];
-            foreach ($students as $stu) {
-                $career = $stu['career'] ?: 'General';
-                $shift  = $stu['shift']  ?: 'Sin Jornada';
-                $cohKey = self::build_cohort_key($career, $shift, $stu);
-                foreach ($stu['pendingSubjects'] as $subj) {
-                    if (empty($subj['isPriority'])) continue;
-                    if (empty($subj['isPreRequisiteMet'])) continue;
-                    $cId = $subj['id'];
-                    if (!empty($globalIgnoredMap[$cId])) continue;
-                    $tIdx = $deferralsByCourse[$cId][$cohKey] ?? 0;
-                    if ($tIdx === 0) {
-                        if (!isset($realCountP1[$cId])) $realCountP1[$cId] = 0;
-                        $realCountP1[$cId]++;
-                    }
-                }
-            }
-            foreach ($realCountP1 as $cId => $cnt) {
-                if ($cnt >= 12) $openSubjects[$cId] = true;
-            }
-        }
-
-        // --- Paso 3: Construir árbol de demanda solo con asignaturas que abren en P-I ---
+        // --- Paso 3: Construir árbol de demanda ---
+        // Se incluye toda asignatura con demanda real (≥1 estudiante en P-I, isPriority,
+        // prereqs cumplidos, no diferida, no omitida). El quórum es solo un indicador
+        // visual en el frontend, no un criterio de exclusión.
 
         foreach ($students as $stu) {
             $career     = $stu['career'] ?: 'General';
@@ -712,24 +686,20 @@ class planning_manager {
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Filtro: solo asignaturas del periodo actual del estudiante (isPriority)
-                // Excluye asignaturas de niveles futuros que aparecen en P-II..P-VI de la matriz
+                // Solo asignaturas del periodo actual del estudiante (isPriority)
                 if (empty($subj['isPriority'])) continue;
 
-                // Filtro: prerequisitos no cumplidos
+                // Prerequisitos no cumplidos
                 if (empty($subj['isPreRequisiteMet'])) continue;
 
                 $courseId = $subj['id'];
 
-                // Filtro: subject omitido (status=2)
+                // Omitida (status=2) — única exclusión explícita del coordinador
                 if (!empty($globalIgnoredMap[$courseId])) continue;
 
-                // Filtro: subject diferido a periodo futuro para este cohorte
+                // Diferida a periodo futuro para este cohorte
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
                 if ($targetIdx !== 0) continue;
-
-                // Filtro: asignatura no confirmada para abrir en P-I
-                if (empty($openSubjects[$courseId])) continue;
 
                 // Init Path
                 if (!isset($tree[$career][$shift][$levelKey])) {
@@ -774,7 +744,6 @@ class planning_manager {
                  if (empty($subj['isPreRequisiteMet'])) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
                  if ($targetIdx !== 0) continue;
-                 if (empty($openSubjects[$courseId])) continue;
 
                  if (isset($tree[$career][$shift][$levelKey])) {
                      if (!isset($levelsSeen[$levelKey])) {
@@ -786,11 +755,11 @@ class planning_manager {
         }
 
         return [
-            'demand_tree'   => $tree,
-            'student_list'  => $planningData['students'],
-            'projections'   => $planningData['planning_projections'],
-            'subjects'      => $planningData['all_subjects'] ?? [],
-            'open_subjects' => array_keys($openSubjects),
+            'demand_tree'        => $tree,
+            'student_list'       => $planningData['students'],
+            'projections'        => $planningData['planning_projections'],
+            'subjects'           => $planningData['all_subjects'] ?? [],
+            'confirmed_subjects' => array_keys($confirmedSubjects),
         ];
     }
 
