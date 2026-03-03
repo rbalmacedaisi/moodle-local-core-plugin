@@ -495,8 +495,29 @@
         const checkOverlap = (other) => {
             if (other.id === schedule.id) return false;
             const oDates = other.assignedDates || [];
-            if (schedule.assignedDates && other.assignedDates) {
+            if (schedule.assignedDates?.length && other.assignedDates?.length) {
+                // Both have specific dates: conflict only if they share at least one date
                 if (!oDates.some(d => sDates.has(d))) return false;
+            } else if (schedule.assignedDates?.length && !other.assignedDates?.length) {
+                // schedule has dates, other has only a day: conflict if other.day appears in schedule's dates
+                const dayName = other.day;
+                if (!dayName || dayName === 'N/A') return false;
+                const hasMatchingDate = [...sDates].some(d => {
+                    const dow = new Date(d + 'T00:00:00').toLocaleDateString('es-PA', { weekday: 'long' });
+                    return dow.toLowerCase() === dayName.toLowerCase() ||
+                           dow.charAt(0).toUpperCase() + dow.slice(1) === dayName;
+                });
+                if (!hasMatchingDate) return false;
+            } else if (!schedule.assignedDates?.length && other.assignedDates?.length) {
+                // other has dates, schedule has only a day: conflict if schedule.day appears in other's dates
+                const dayName = schedule.day;
+                if (!dayName || dayName === 'N/A') return false;
+                const hasMatchingDate = oDates.some(d => {
+                    const dow = new Date(d + 'T00:00:00').toLocaleDateString('es-PA', { weekday: 'long' });
+                    return dow.toLowerCase() === dayName.toLowerCase() ||
+                           dow.charAt(0).toUpperCase() + dow.slice(1) === dayName;
+                });
+                if (!hasMatchingDate) return false;
             } else if (other.day !== schedule.day) return false;
 
             const subOverlap = (other.subperiod === 0) || (schedule.subperiod === 0) || (other.subperiod === schedule.subperiod);
@@ -542,9 +563,7 @@
             let conflictingStudents = [];
 
             allSchedules.some(s => {
-                const subOverlap = (s.subperiod === 0) || (schedule.subperiod === 0) || (s.subperiod === schedule.subperiod);
-                if (!subOverlap || s.id === schedule.id || s.day !== schedule.day) return false;
-                if (Math.max(sStart, toMins(s.start) - intervalMins) >= Math.min(sEnd, toMins(s.end) + intervalMins)) return false;
+                if (!checkOverlap(s)) return false;
 
                 const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
                 if (overlaps.length > 0) {
