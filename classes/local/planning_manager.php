@@ -684,20 +684,22 @@ class planning_manager {
             $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
-            // Nivel real del estudiante: el máximo semestre pendiente con prereqs cumplidos.
-            // Un estudiante puede estar en nivel 1 según semConfig pero tener prereqs de nivel 3
-            // cumplidos — en ese caso su nivel real es 3 y debe incluirse en la demanda de nivel 3.
-            $effectiveLevel = 0;
+            // Nivel real del estudiante: el MÍNIMO semestre pendiente con prereqs cumplidos.
+            // Esto equivale al "próximo nivel a cursar" — igual que isPriority pero sin depender
+            // del semConfig posiblemente desactualizado en la DB.
+            // Solo se incluyen asignaturas de ese nivel exacto (===) para no mezclar niveles.
+            $effectiveLevel = PHP_INT_MAX;
             foreach ($stu['pendingSubjects'] as $s) {
-                if (!empty($s['isPreRequisiteMet']) && isset($s['semester'])) {
-                    $effectiveLevel = max($effectiveLevel, (int)$s['semester']);
+                if (!empty($s['isPreRequisiteMet']) && isset($s['semester']) && (int)$s['semester'] > 0) {
+                    $effectiveLevel = min($effectiveLevel, (int)$s['semester']);
                 }
             }
+            if ($effectiveLevel === PHP_INT_MAX) $effectiveLevel = 0;
 
             foreach ($stu['pendingSubjects'] as $subj) {
-                // Solo asignaturas con prereqs cumplidos y nivel <= nivel real del estudiante
+                // Solo asignaturas del próximo nivel a cursar (mínimo con prereqs cumplidos)
                 if (empty($subj['isPreRequisiteMet'])) continue;
-                if ((int)$subj['semester'] > $effectiveLevel) continue;
+                if ((int)$subj['semester'] !== $effectiveLevel) continue;
 
                 $courseId = $subj['id'];
 
@@ -743,12 +745,13 @@ class planning_manager {
              $levelsSeen = [];
 
              // Mismo cálculo de nivel real que en el Paso 3
-             $effectiveLevel = 0;
+             $effectiveLevel = PHP_INT_MAX;
              foreach ($stu['pendingSubjects'] as $s) {
-                 if (!empty($s['isPreRequisiteMet']) && isset($s['semester'])) {
-                     $effectiveLevel = max($effectiveLevel, (int)$s['semester']);
+                 if (!empty($s['isPreRequisiteMet']) && isset($s['semester']) && (int)$s['semester'] > 0) {
+                     $effectiveLevel = min($effectiveLevel, (int)$s['semester']);
                  }
              }
+             if ($effectiveLevel === PHP_INT_MAX) $effectiveLevel = 0;
 
              foreach ($stu['pendingSubjects'] as $subj) {
                  $courseId  = $subj['id'];
@@ -756,7 +759,7 @@ class planning_manager {
 
                  // Aplicar los mismos filtros que en el Paso 3
                  if (empty($subj['isPreRequisiteMet'])) continue;
-                 if ((int)$subj['semester'] > $effectiveLevel) continue;
+                 if ((int)$subj['semester'] !== $effectiveLevel) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
                  if ($targetIdx !== 0) continue;
 
