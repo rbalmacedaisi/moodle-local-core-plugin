@@ -655,49 +655,47 @@ class planning_manager {
             $deferralsByCourse[$d->courseid][$dCohortKey] = (int)$d->target_period_index;
         }
 
-        // --- Paso 2: Pre-calcular quórum real en P-I por asignatura ---
+        // --- Paso 2: Determinar asignaturas confirmadas para abrir en este periodo ---
+        //
+        // La fuente de verdad es gmk_academic_planning con status=1 (confirmadas por el
+        // coordinador al guardar la matriz de proyección). Solo estas asignaturas deben
+        // aparecer en el planificador de horarios.
+        //
+        // Si el periodo aún no tiene ningún registro guardado (primera vez), se calcula
+        // el quórum orgánico como fallback para no bloquear el flujo.
 
-        $realCountP1 = []; // [courseId => count de estudiantes en P-I sin deferral]
-        foreach ($students as $stu) {
-            $career    = $stu['career'] ?: 'General';
-            $shift     = $stu['shift']  ?: 'Sin Jornada';
-            $cohKey    = self::build_cohort_key($career, $shift, $stu);
-
-            foreach ($stu['pendingSubjects'] as $subj) {
-                if (empty($subj['isPreRequisiteMet'])) continue;
-                $cId = $subj['id'];
-                if (!empty($globalIgnoredMap[$cId])) continue;
-                // Solo cuenta si está en P-I (targetIndex = 0 o sin deferral)
-                $tIdx = $deferralsByCourse[$cId][$cohKey] ?? 0;
-                if ($tIdx === 0) {
-                    if (!isset($realCountP1[$cId])) $realCountP1[$cId] = 0;
-                    $realCountP1[$cId]++;
-                }
-            }
-        }
-
-        // Proyecciones manuales adicionales por asignatura
-        $manualProjections = [];
-        if (!empty($planningData['planning_projections'])) {
-            foreach ($planningData['planning_projections'] as $pp) {
-                if ($pp->projected_students > 0) {
-                    $manualProjections[$pp->courseid] = (int)$pp->projected_students;
-                }
-            }
-        }
-
-        // Conjunto de asignaturas que cumplen quórum >= 12 en P-I
         $openSubjects = []; // [courseId => true]
-        foreach ($realCountP1 as $cId => $cnt) {
-            $manual = $manualProjections[$cId] ?? 0;
-            if (($cnt + $manual) >= 12) {
-                $openSubjects[$cId] = true;
+        $hasSavedProjections = !empty($planningData['planning_projections']);
+
+        if ($hasSavedProjections) {
+            // Usar los registros guardados como fuente de verdad
+            foreach ($planningData['planning_projections'] as $pp) {
+                if ($pp->status == 1) {
+                    // status=1 = confirmada para abrir (set by save_planning when isOpen=true or count>0)
+                    $openSubjects[$pp->courseid] = true;
+                }
             }
-        }
-        // También incluir subjects cuya proyección manual sola alcanza quórum
-        foreach ($manualProjections as $cId => $manual) {
-            if (!isset($openSubjects[$cId]) && $manual >= 12) {
-                $openSubjects[$cId] = true;
+        } else {
+            // Fallback: no hay proyecciones guardadas aún → calcular quórum orgánico
+            $realCountP1 = [];
+            foreach ($students as $stu) {
+                $career = $stu['career'] ?: 'General';
+                $shift  = $stu['shift']  ?: 'Sin Jornada';
+                $cohKey = self::build_cohort_key($career, $shift, $stu);
+                foreach ($stu['pendingSubjects'] as $subj) {
+                    if (empty($subj['isPriority'])) continue;
+                    if (empty($subj['isPreRequisiteMet'])) continue;
+                    $cId = $subj['id'];
+                    if (!empty($globalIgnoredMap[$cId])) continue;
+                    $tIdx = $deferralsByCourse[$cId][$cohKey] ?? 0;
+                    if ($tIdx === 0) {
+                        if (!isset($realCountP1[$cId])) $realCountP1[$cId] = 0;
+                        $realCountP1[$cId]++;
+                    }
+                }
+            }
+            foreach ($realCountP1 as $cId => $cnt) {
+                if ($cnt >= 12) $openSubjects[$cId] = true;
             }
         }
 
@@ -713,6 +711,10 @@ class planning_manager {
             $cohortKey  = self::build_cohort_key($career, $shift, $stu);
 
             foreach ($stu['pendingSubjects'] as $subj) {
+                // Filtro: solo asignaturas del periodo actual del estudiante (isPriority)
+                // Excluye asignaturas de niveles futuros que aparecen en P-II..P-VI de la matriz
+                if (empty($subj['isPriority'])) continue;
+
                 // Filtro: prerequisitos no cumplidos
                 if (empty($subj['isPreRequisiteMet'])) continue;
 
@@ -725,7 +727,7 @@ class planning_manager {
                 $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
                 if ($targetIdx !== 0) continue;
 
-                // Filtro: quórum insuficiente en P-I (< 12 estudiantes)
+                // Filtro: asignatura no confirmada para abrir en P-I
                 if (empty($openSubjects[$courseId])) continue;
 
                 // Init Path
@@ -767,6 +769,8 @@ class planning_manager {
                  $targetIdx = $deferralsByCourse[$courseId][$cohortKey] ?? 0;
 
                  // Aplicar los mismos filtros que en el loop de construcción
+                 if (empty($subj['isPriority'])) continue;
+                 if (empty($subj['isPreRequisiteMet'])) continue;
                  if (!empty($globalIgnoredMap[$courseId])) continue;
                  if ($targetIdx !== 0) continue;
                  if (empty($openSubjects[$courseId])) continue;

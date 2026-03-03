@@ -1276,9 +1276,11 @@ const app = createApp({
                       // We send it if:
                       // 1. It has a manual count > 0
                       // 2. It is marked as ignored
-                      // 3. It was PREVIOUSLY saved (even if now count is 0 and not ignored, we need to update/delete it)
-                      
-                      if (count > 0 || isIgnored || wasSaved) {
+                      // 3. It was PREVIOUSLY saved (so we can update/delete it)
+                      // 4. It is projected to open organically (isOpen=true) — saved as status=1
+                      //    so the scheduler only includes subjects confirmed for this period
+
+                      if (count > 0 || isIgnored || wasSaved || s.isOpen) {
                           let targetPlanId = 0;
                           let targetPeriodId = 0;
                           
@@ -1312,7 +1314,7 @@ const app = createApp({
                                   periodid: targetPeriodId, 
                                   count: count,
                                   ignored: isIgnored,
-                                  checked: (count > 0 || isIgnored) // If BOTH are 0/false, it means we want to delete/disable
+                                  checked: (count > 0 || isIgnored || s.isOpen) // false = delete record
                               });
                           }
                       }
