@@ -1580,6 +1580,18 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260226001, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260304000) {
+        // Add assigned_dates column to gmk_class_schedules to store planning-board session dates.
+        $table = new xmldb_table('gmk_class_schedules');
+        $field = new xmldb_field('assigned_dates', XMLDB_TYPE_TEXT, null, null, null, null, null, 'excluded_dates');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Grupomakro_core savepoint reached.
+        upgrade_plugin_savepoint(true, 20260304000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

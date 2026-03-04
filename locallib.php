@@ -673,46 +673,106 @@ function create_class_activities($class, $updating = false)
         $attendanceGradeItem->set_parent($classGradeCategory->id);
     }
 
-    $initDate = $class->initdate ? date('Y-m-d', $class->initdate) : date('Y-m-d');
-    $endDate = $class->enddate ? date('Y-m-d', $class->enddate) : date('Y-m-d', strtotime('+2 months'));
-    
-    //Get the period start date in seconds and the day name
-    $startDateTS = strtotime($initDate . ' ' . $class->inittime . ':00');
-
-    //Get the period end date timestamp(seconds)
-    $endDateTS = strtotime($endDate . ' ' . $class->endtime . ':00');
-
-    //Format the class days
-    $classDaysNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    $classDaysList = array_combine($classDaysNames, explode('/', $class->classdays));
-
-    //Define some needed constants
-    $currentDateTS = $startDateTS;
-
     $BBBModuleId = $DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
     $BBBCourseModulesInfo = [];
+    $attendanceSessions = [];
 
-    // Start looping from the startDate to the endDate
-    while ($currentDateTS < $endDateTS) {
-        $day =  $classDaysList[date('l', $currentDateTS)];
-
-        if ($day === '1') {
-
-            $BBBCourseModuleInfo = null;
-
-            if ($class->type !== 0) {
-                // Create Big Blue Button activity
-                $activityEndTS = $currentDateTS + (int)$class->classduration;
-                $BBBCourseModuleInfo = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
-                $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
-            }
-            // Create attendance session
-            $attendanceSession = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
-            $attendanceSessions[] = $attendanceSession;
+    // Build holiday set for fast lookup (YYYY-MM-DD strings).
+    $holidaySet = [];
+    if (!empty($class->periodid)) {
+        $periodHolidays = $DB->get_records('gmk_holidays', ['academicperiodid' => $class->periodid], '', 'date');
+        foreach ($periodHolidays as $h) {
+            $holidaySet[date('Y-m-d', $h->date)] = true;
         }
-        $dateTime = new DateTime('@' . $currentDateTS);
-        $dateTime->modify('+1 day');
-        $currentDateTS = $dateTime->getTimestamp();
+    }
+
+    // Try to use planning-board session records (assigned_dates + excluded_dates).
+    $scheduleRecords = $DB->get_records('gmk_class_schedules', ['classid' => $class->id], 'id ASC');
+
+    if (!empty($scheduleRecords)) {
+        // --- Precise path: use gmk_class_schedules rows ---
+        foreach ($scheduleRecords as $sched) {
+            $sessionDuration = (int)$class->classduration;
+            // If session has its own start/end times, compute duration from those.
+            if (!empty($sched->start_time) && !empty($sched->end_time)) {
+                $startSecs = strtotime('1970-01-01 ' . $sched->start_time . ':00 UTC');
+                $endSecs   = strtotime('1970-01-01 ' . $sched->end_time   . ':00 UTC');
+                if ($endSecs > $startSecs) {
+                    $sessionDuration = $endSecs - $startSecs;
+                }
+            }
+            $sessionStartTime = !empty($sched->start_time) ? $sched->start_time : $class->inittime;
+
+            // Build candidate date list: use assigned_dates when present, else fall back to bitmask.
+            $assignedDates  = (!empty($sched->assigned_dates))  ? json_decode($sched->assigned_dates,  true) : null;
+            $excludedDates  = (!empty($sched->excluded_dates))  ? json_decode($sched->excluded_dates,  true) : [];
+            $excludedSet    = array_flip(is_array($excludedDates) ? $excludedDates : []);
+
+            if (!empty($assignedDates) && is_array($assignedDates)) {
+                $candidateDates = $assignedDates;
+            } else {
+                // Fallback: generate all matching weekdays in the class date range.
+                $candidateDates = [];
+                $dayNameMap = [
+                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'Miércoles' => 'Wednesday',
+                    'Miercoles' => 'Wednesday', 'Jueves' => 'Thursday', 'Viernes' => 'Friday',
+                    'Sábado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
+                ];
+                $targetEnglishDay = $dayNameMap[$sched->day] ?? null;
+                if ($targetEnglishDay) {
+                    $initDate  = $class->initdate ? date('Y-m-d', $class->initdate) : date('Y-m-d');
+                    $endDate   = $class->enddate  ? date('Y-m-d', $class->enddate)  : date('Y-m-d', strtotime('+2 months'));
+                    $cur = new DateTime($initDate);
+                    $end = new DateTime($endDate);
+                    while ($cur <= $end) {
+                        if ($cur->format('l') === $targetEnglishDay) {
+                            $candidateDates[] = $cur->format('Y-m-d');
+                        }
+                        $cur->modify('+1 day');
+                    }
+                }
+            }
+
+            foreach ($candidateDates as $dateStr) {
+                if (isset($excludedSet[$dateStr])) continue;   // Manually excluded
+                if (isset($holidaySet[$dateStr]))  continue;   // Public holiday
+
+                $sessionDateTS = strtotime($dateStr . ' ' . $sessionStartTime . ':00');
+                $BBBCourseModuleInfo = null;
+                if ($class->type !== 0) {
+                    $activityEndTS = $sessionDateTS + $sessionDuration;
+                    $BBBCourseModuleInfo = create_big_blue_button_activity($class, $sessionDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
+                    $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                }
+                $attendanceSessions[] = create_attendance_session_object($class, $sessionDateTS, $sessionDuration, $BBBCourseModuleInfo);
+            }
+        }
+    } else {
+        // --- Legacy path: no schedule records, iterate by classdays bitmask ---
+        $initDate  = $class->initdate ? date('Y-m-d', $class->initdate) : date('Y-m-d');
+        $endDate   = $class->enddate  ? date('Y-m-d', $class->enddate)  : date('Y-m-d', strtotime('+2 months'));
+        $startDateTS  = strtotime($initDate . ' ' . $class->inittime . ':00');
+        $endDateTS    = strtotime($endDate  . ' ' . $class->endtime  . ':00');
+        $classDaysNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $classDaysList  = array_combine($classDaysNames, explode('/', $class->classdays));
+        $currentDateTS  = $startDateTS;
+
+        while ($currentDateTS < $endDateTS) {
+            $day     = $classDaysList[date('l', $currentDateTS)];
+            $dateStr = date('Y-m-d', $currentDateTS);
+            if ($day === '1' && !isset($holidaySet[$dateStr])) {
+                $BBBCourseModuleInfo = null;
+                if ($class->type !== 0) {
+                    $activityEndTS = $currentDateTS + (int)$class->classduration;
+                    $BBBCourseModuleInfo = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
+                    $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                }
+                $attendanceSessions[] = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
+            }
+            $dateTime = new DateTime('@' . $currentDateTS);
+            $dateTime->modify('+1 day');
+            $currentDateTS = $dateTime->getTimestamp();
+        }
     }
 
     $class->bbbmoduleids = count($BBBCourseModulesInfo) > 0 ? implode(",", array_map(function ($BBBCourseModuleInfo) {
@@ -1512,6 +1572,12 @@ function approve_course_schedules($approvingSchedules)
 
         $class->approved = 1;
         $classApproved = $DB->update_record('gmk_class', $class);
+
+        // Create Moodle attendance & BBB activities if not yet created.
+        // Guard with attendancemoduleid to avoid duplicates if cron ran first.
+        if (empty($class->attendancemoduleid)) {
+            create_class_activities($class);
+        }
 
         // Only insert approval message if one was provided
         $approvalMessageSaved = false;

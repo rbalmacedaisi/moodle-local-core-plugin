@@ -863,7 +863,16 @@ class scheduler extends external_api {
                 $DB->delete_records('gmk_class_schedules', ['classid' => $classid]);
                 $sessionsToSave = [];
                 
-                if (isset($cls['sessions']) && is_array($cls['sessions'])) {
+                // assignedDates lives on the root schedule object (not per-session),
+                // so we capture it once and propagate it to every session record.
+                $rootAssignedDates = null;
+                if (!empty($cls['assignedDates']) && is_array($cls['assignedDates'])) {
+                    $rootAssignedDates = json_encode(array_values($cls['assignedDates']));
+                } else if (!empty($cls['assignedDates']) && is_string($cls['assignedDates'])) {
+                    $rootAssignedDates = $cls['assignedDates'];
+                }
+
+                if (isset($cls['sessions']) && is_array($cls['sessions']) && count($cls['sessions']) > 0) {
                     $sessionsToSave = $cls['sessions'];
                 } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
                     $sessionsToSave[] = [
@@ -874,15 +883,15 @@ class scheduler extends external_api {
                         'excluded_dates' => $cls['excluded_dates'] ?? null
                     ];
                 }
-                
+
                 foreach ($sessionsToSave as $sess) {
                     $sLink = new stdClass();
                     $sLink->classid = $classid;
                     $sLink->day = $sess['day'];
-                    $sLink->start_time = $sess['start']; 
+                    $sLink->start_time = $sess['start'];
                     $sLink->end_time = $sess['end'];
                     $sLink->classroomid = null;
-                    
+
                     $cid = $sess['classroomid'] ?? null;
                     if (!empty($cid)) {
                         if (is_numeric($cid)) {
@@ -897,10 +906,16 @@ class scheduler extends external_api {
                         }
                     }
                     $sLink->excluded_dates = !empty($sess['excluded_dates']) ? (is_array($sess['excluded_dates']) ? json_encode($sess['excluded_dates']) : $sess['excluded_dates']) : null;
+                    // Per-session assignedDates override root; fall back to root schedule's assignedDates
+                    if (!empty($sess['assignedDates'])) {
+                        $sLink->assigned_dates = is_array($sess['assignedDates']) ? json_encode(array_values($sess['assignedDates'])) : $sess['assignedDates'];
+                    } else {
+                        $sLink->assigned_dates = $rootAssignedDates;
+                    }
                     $sLink->usermodified = $GLOBALS['USER']->id;
                     $sLink->timecreated = time();
                     $sLink->timemodified = time();
-                    
+
                     $DB->insert_record('gmk_class_schedules', $sLink);
                 }
             }
@@ -1010,7 +1025,8 @@ class scheduler extends external_api {
                     'end' => $s->end_time,
                     'classroomid' => $s->classroomid,
                     'roomName' => $roomName,
-                    'excluded_dates' => !empty($s->excluded_dates) ? json_decode($s->excluded_dates, true) : []
+                    'excluded_dates' => !empty($s->excluded_dates) ? json_decode($s->excluded_dates, true) : [],
+                    'assignedDates'  => !empty($s->assigned_dates)  ? json_decode($s->assigned_dates,  true) : null
                 ];
             }
 
@@ -1118,7 +1134,13 @@ class scheduler extends external_api {
                 'periodid' => $finalPeriodId,
                 'isExternal' => ($finalPeriodId !== (int)$periodid && $finalPeriodId !== 0),
                 'initdate' => (int)($c->initdate ?? 0),
-                'enddate' => (int)($c->enddate ?? 0)
+                'enddate' => (int)($c->enddate ?? 0),
+                'sessions' => $sessArr,
+                // assignedDates: use the first session's assigned_dates as the root value
+                // (all sessions of the same class share the same set when generated from the planner)
+                'assignedDates' => (!empty($sessArr) && !empty($sessArr[0]['assignedDates']))
+                    ? $sessArr[0]['assignedDates']
+                    : null
             ];
 
             if ($includeoverlaps && function_exists('gmk_log')) {
