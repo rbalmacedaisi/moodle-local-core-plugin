@@ -505,6 +505,9 @@ window.SchedulerComponents.PlanningBoard = {
         },
 
         // Overlap layout cache: { id -> { top, height, left, width, zIndex } }
+        // Column-packing sweep (Google Calendar style) — cards never visually overlap:
+        // 1. Assign each card the first free column (greedy, sorted by start time).
+        // 2. Expand each card rightward to fill empty adjacent columns within its time range.
         eventStyleMap() {
             const pixelsPerHour = 56;
             const dayStartMins = this.startHour * 60;
@@ -512,32 +515,49 @@ window.SchedulerComponents.PlanningBoard = {
             const styleMap = {};
 
             for (const [, dayClasses] of Object.entries(this.classesByDay)) {
-                // Build overlap groups using a sweep
-                const assigned = new Set();
-                for (let i = 0; i < dayClasses.length; i++) {
-                    if (assigned.has(dayClasses[i].id)) continue;
-                    // Find all classes overlapping with dayClasses[i]
-                    const group = [];
-                    const si = mMap[dayClasses[i].id].start;
-                    const ei = mMap[dayClasses[i].id].end;
-                    for (let j = 0; j < dayClasses.length; j++) {
-                        const sj = mMap[dayClasses[j].id].start;
-                        const ej = mMap[dayClasses[j].id].end;
-                        if (Math.max(si, sj) < Math.min(ei, ej)) group.push(dayClasses[j]);
+                if (dayClasses.length === 0) continue;
+
+                // --- Pass 1: assign column index to each card ---
+                // colEnds[col] = end time of the last card placed in that column
+                const colEnds = [];
+                const cardCol = {};
+
+                for (const c of dayClasses) {
+                    const sm = mMap[c.id].start;
+                    const em = mMap[c.id].end;
+                    let placed = -1;
+                    for (let col = 0; col < colEnds.length; col++) {
+                        if (colEnds[col] <= sm) { placed = col; colEnds[col] = em; break; }
                     }
-                    const count = group.length;
-                    group.forEach((c, idx) => {
-                        const sm = mMap[c.id].start;
-                        const em = mMap[c.id].end;
-                        styleMap[c.id] = {
-                            top:    `${((sm - dayStartMins) / 60) * pixelsPerHour}px`,
-                            height: `${((em - sm) / 60) * pixelsPerHour}px`,
-                            left:   `${(idx / count) * 95 + 2}%`,
-                            width:  `${100 / count - 4}%`,
-                            zIndex: 10 + idx
-                        };
-                        assigned.add(c.id);
-                    });
+                    if (placed === -1) { placed = colEnds.length; colEnds.push(em); }
+                    cardCol[c.id] = placed;
+                }
+
+                const totalCols = colEnds.length;
+
+                // --- Pass 2: compute how many columns each card can span ---
+                // A card at col C can expand right up to (but not including) the nearest
+                // column that has a card whose time range overlaps with this card.
+                const ivs = dayClasses.map(c => ({
+                    id: c.id, s: mMap[c.id].start, e: mMap[c.id].end, col: cardCol[c.id]
+                }));
+
+                for (const iv of ivs) {
+                    let spanEnd = totalCols;
+                    for (const other of ivs) {
+                        if (other.col <= iv.col) continue;
+                        if (Math.max(iv.s, other.s) < Math.min(iv.e, other.e)) {
+                            spanEnd = Math.min(spanEnd, other.col);
+                        }
+                    }
+                    const colW = 96 / totalCols;
+                    styleMap[iv.id] = {
+                        top:    `${((iv.s - dayStartMins) / 60) * pixelsPerHour}px`,
+                        height: `${((iv.e - iv.s)        / 60) * pixelsPerHour}px`,
+                        left:   `${iv.col * colW + 1}%`,
+                        width:  `${(spanEnd - iv.col) * colW - 2}%`,
+                        zIndex: 10 + iv.col
+                    };
                 }
             }
             return styleMap;
