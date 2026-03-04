@@ -709,9 +709,23 @@ window.SchedulerComponents.PlanningBoard = {
 
             // Recalculate assignedDates
             if (window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
-                const newDates = window.SchedulerAlgorithm.getDatesForDay(
+                let newDates = window.SchedulerAlgorithm.getDatesForDay(
                     day, this.storeState.context, this.draggedClass.subperiod || 0
                 );
+                // Apply course load limit (total_hours / session_duration)
+                const loads = this.storeState.context?.loads || [];
+                const loadData = loads.find(l =>
+                    (l.subjectname || l.subjectName) === this.draggedClass.subjectName
+                );
+                if (loadData && newDates.length > 0) {
+                    const totalHours = parseFloat(loadData.total_hours || loadData.totalHours || 0);
+                    const sessionHours = currentDuration / 60;
+                    if (totalHours > 0 && sessionHours > 0) {
+                        const maxSessions = Math.ceil(totalHours / sessionHours);
+                        newDates = newDates.slice(0, maxSessions);
+                        this.draggedClass.maxSessions = maxSessions;
+                    }
+                }
                 this.draggedClass.assignedDates = newDates.length ? newDates : undefined;
             }
 
@@ -738,6 +752,28 @@ window.SchedulerComponents.PlanningBoard = {
                 cls.end = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
             };
             const onUp = () => {
+                // Recalculate assignedDates with new duration after resize
+                if (this.resizingClass && window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
+                    const resized = this.resizingClass;
+                    let newDates = window.SchedulerAlgorithm.getDatesForDay(
+                        resized.day, this.storeState.context, resized.subperiod || 0
+                    );
+                    const loads = this.storeState.context?.loads || [];
+                    const loadData = loads.find(l =>
+                        (l.subjectname || l.subjectName) === resized.subjectName
+                    );
+                    if (loadData && newDates.length > 0) {
+                        const totalHours = parseFloat(loadData.total_hours || loadData.totalHours || 0);
+                        const newDuration = this.toMins(resized.end) - this.toMins(resized.start);
+                        const sessionHours = newDuration / 60;
+                        if (totalHours > 0 && sessionHours > 0) {
+                            const maxSessions = Math.ceil(totalHours / sessionHours);
+                            newDates = newDates.slice(0, maxSessions);
+                            resized.maxSessions = maxSessions;
+                        }
+                    }
+                    resized.assignedDates = newDates.length ? newDates : undefined;
+                }
                 this.resizingClass = null;
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);

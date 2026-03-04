@@ -271,17 +271,28 @@
                             return;
                         }
 
-                        let current = new Date(startDate);
-                        // Find first occurrence
-                        let safety = 0;
-                        while (current.getDay() !== targetDay && safety < 8) {
-                            current.setDate(current.getDate() + 1);
-                            safety++;
+                        // Build the list of candidate dates for this session
+                        // If the schedule has assignedDates (set when manually placed or generated with load limits),
+                        // use those directly — they already encode the course load limit.
+                        // Otherwise fall back to all occurrences in the period.
+                        let candidateDates;
+                        if (Array.isArray(sched.assignedDates) && sched.assignedDates.length > 0) {
+                            candidateDates = sched.assignedDates;
+                        } else {
+                            candidateDates = [];
+                            let current = new Date(startDate);
+                            let safety = 0;
+                            while (current.getDay() !== targetDay && safety < 8) {
+                                current.setDate(current.getDate() + 1);
+                                safety++;
+                            }
+                            while (current <= endDate) {
+                                candidateDates.push(current.toISOString().split('T')[0]);
+                                current.setDate(current.getDate() + 7);
+                            }
                         }
 
-                        while (current <= endDate) {
-                            const dateStr = current.toISOString().split('T')[0];
-
+                        candidateDates.forEach(dateStr => {
                             // Check exclusions
                             const isExcluded = session.excluded_dates && session.excluded_dates.includes(dateStr);
                             // HOLIDAY CHECK: Automatically mark as excluded if it's a holiday
@@ -318,9 +329,7 @@
                                     timeStr: `${session.start} - ${session.end}`
                                 }
                             });
-
-                            current.setDate(current.getDate() + 7);
-                        }
+                        });
                     });
                 });
 
