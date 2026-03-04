@@ -108,23 +108,35 @@ window.SchedulerComponents.PlanningBoard = {
                                 </div>
                                 
                                 <!-- Day Columns -->
-                                <div v-for="day in days" :key="day" 
+                                <div v-for="day in days" :key="day"
                                     class="flex-1 border-r border-slate-200 last:border-0 relative min-h-[900px] bg-slate-50/10"
-                                    @dragover.prevent
+                                    @dragover.prevent="onDragOver($event, day)"
+                                    @dragleave="onDragLeave(day)"
                                     @drop="onDrop($event, day)"
                                 >
-                                    <!-- Grid Lines -->
-                                    <div v-for="t in timeSlots" :key="t" class="h-14 border-b border-slate-100 border-dashed"></div>
-                                    
+                                    <!-- Grid Lines (half-hour marks) -->
+                                    <template v-for="t in timeSlots" :key="t">
+                                        <div class="h-7 border-b border-slate-100 border-dashed"></div>
+                                        <div class="h-7 border-b border-slate-200"></div>
+                                    </template>
+
+                                    <!-- Ghost Preview (shown while dragging over this column) -->
+                                    <div v-if="ghost && ghost.day === day"
+                                        class="absolute left-1 right-1 rounded border-2 border-dashed border-blue-400 bg-blue-100/60 z-30 pointer-events-none flex items-center justify-center"
+                                        :style="{ top: ghost.top + 'px', height: ghost.height + 'px' }"
+                                    >
+                                        <span class="text-[11px] font-bold text-blue-700 bg-white/80 px-2 py-0.5 rounded shadow">{{ ghost.start }} – {{ ghost.end }}</span>
+                                    </div>
+
                                     <!-- Placed Events -->
                                     <div v-for="cls in getClassesForDay(day)" :key="cls.id"
-                                        class="absolute left-1 right-1 rounded border-2 overflow-hidden p-1 shadow-md cursor-pointer hover:shadow-lg transition-all z-20 group"
+                                        class="absolute left-1 right-1 rounded border-2 overflow-visible p-1 shadow-md cursor-grab hover:shadow-lg transition-all z-20 group select-none"
                                         :class="[
                                             cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
                                         ]"
                                         :style="getEventStyle(cls)"
                                         :title="getConflictTooltip(cls)"
-                                        :draggable="!cls.isExternal"
+                                        :draggable="!cls.isExternal && !resizingClass"
                                         @dragstart="onDragStart($event, cls)"
                                         @click="editClass(cls)"
                                     >
@@ -146,17 +158,26 @@ window.SchedulerComponents.PlanningBoard = {
                                                 </span>
                                             </div>
                                         </div>
-                                        
+
                                         <!-- Actions -->
-                                        <div class="absolute bottom-1 right-1 flex gap-1">
+                                        <div class="absolute bottom-5 right-1 flex gap-1">
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
                                         </div>
-                                        
+
                                         <!-- Conflict Indicator -->
                                         <div v-if="getConflicts(cls).length > 0" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
                                             <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                        </div>
+
+                                        <!-- Resize Handle (bottom edge) -->
+                                        <div v-if="!cls.isExternal"
+                                            class="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center group/resize"
+                                            @mousedown.stop="onResizeStart($event, cls)"
+                                            title="Arrastrar para cambiar duración"
+                                        >
+                                            <div class="w-8 h-1 rounded-full bg-blue-300 group-hover/resize:bg-blue-500 transition-colors"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -353,6 +374,12 @@ window.SchedulerComponents.PlanningBoard = {
             startHour: 7,
             endHour: 22,
             draggedClass: null,
+            // Ghost preview shown while dragging over a column
+            ghost: null,      // { day, start, end, top, height } — null when not dragging
+            // Resize state
+            resizingClass: null,
+            resizeStartY: 0,
+            resizeStartEnd: '',
             editDialog: false,
             selectedClass: null,
             saving: false,
@@ -518,30 +545,58 @@ window.SchedulerComponents.PlanningBoard = {
             if (issues.length === 0) return cls.subjectName;
             return issues.map(i => `[${i.type.toUpperCase()}] ${i.message}`).join('\n');
         },
+        // Convert Y position (pixels from top of column) to snapped time string
+        yToTime(y) {
+            const pixelsPerHour = 56;
+            const totalMins = (y / pixelsPerHour) * 60;
+            const snapped = Math.round(totalMins / 5) * 5; // snap to 5-min grid
+            const absoluteMins = this.startHour * 60 + snapped;
+            const h = Math.floor(absoluteMins / 60);
+            const m = absoluteMins % 60;
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        },
         onDragStart(e, cls) {
             this.draggedClass = cls;
+            this.ghost = null;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', cls.id);
         },
+        onDragOver(e, day) {
+            if (!this.draggedClass) return;
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const y = Math.max(0, e.clientY - rect.top);
+            const start = this.yToTime(y);
+
+            const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
+            const isFirstPlacement = !this.draggedClass.day || this.draggedClass.day === 'N/A';
+            const duration = isFirstPlacement
+                ? configDuration
+                : (this.draggedClass.end ? (this.toMins(this.draggedClass.end) - this.toMins(this.draggedClass.start)) : configDuration);
+
+            const endMins = this.toMins(start) + duration;
+            const endH = Math.floor(endMins / 60);
+            const endM = endMins % 60;
+            const end = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+            const pixelsPerHour = 56;
+            const dayStartMins = this.startHour * 60;
+            const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
+            const height = (duration / 60) * pixelsPerHour;
+
+            this.ghost = { day, start, end, top, height };
+        },
+        onDragLeave(day) {
+            if (this.ghost && this.ghost.day === day) this.ghost = null;
+        },
         onDrop(e, day) {
             if (!this.draggedClass) return;
+            this.ghost = null;
 
             const rect = e.currentTarget.getBoundingClientRect();
-            const y = e.clientY - rect.top;
+            const y = Math.max(0, e.clientY - rect.top);
+            const start = this.yToTime(y);
 
-            // 56px per hour (h-14)
-            const pixelsPerHour = 56;
-
-            const hourOffset = Math.floor(y / pixelsPerHour);
-            // Remainder for minutes
-            const remainder = y % pixelsPerHour;
-            const minOffset = Math.floor(remainder / (pixelsPerHour / 2)) * 30; // Snap to 30m
-
-            const newStartHour = this.startHour + hourOffset;
-            const start = `${newStartHour.toString().padStart(2, '0')}:${minOffset.toString().padStart(2, '0')}`;
-
-            // Use configured session duration when placing a card for the first time (day was N/A),
-            // or keep the existing duration if the card was already placed and is being moved.
             const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
             const isFirstPlacement = !this.draggedClass.day || this.draggedClass.day === 'N/A';
             const currentDuration = isFirstPlacement
@@ -564,17 +619,43 @@ window.SchedulerComponents.PlanningBoard = {
                 this.draggedClass.classdays = mask.join('/');
             }
 
-            // Recalculate assignedDates for the new day so conflict detection stays accurate
+            // Recalculate assignedDates
             if (window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
                 const newDates = window.SchedulerAlgorithm.getDatesForDay(
-                    day,
-                    this.storeState.context,
-                    this.draggedClass.subperiod || 0
+                    day, this.storeState.context, this.draggedClass.subperiod || 0
                 );
                 this.draggedClass.assignedDates = newDates.length ? newDates : undefined;
             }
 
             this.draggedClass = null;
+        },
+        onResizeStart(e, cls) {
+            if (cls.isExternal) return;
+            e.preventDefault();
+            this.resizingClass = cls;
+            this.resizeStartY = e.clientY;
+            this.resizeStartEnd = cls.end;
+
+            const onMove = (ev) => {
+                const deltaY = ev.clientY - this.resizeStartY;
+                const pixelsPerHour = 56;
+                const deltaMins = (deltaY / pixelsPerHour) * 60;
+                const baseEndMins = this.toMins(this.resizeStartEnd);
+                const newEndMins = Math.round((baseEndMins + deltaMins) / 5) * 5; // snap 5 min
+                const minDuration = 15;
+                const startMins = this.toMins(cls.start);
+                const clampedEnd = Math.max(startMins + minDuration, newEndMins);
+                const h = Math.floor(clampedEnd / 60);
+                const m = clampedEnd % 60;
+                cls.end = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            };
+            const onUp = () => {
+                this.resizingClass = null;
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
         },
         editClass(cls) {
             this.selectedClass = cls;
@@ -697,5 +778,13 @@ window.SchedulerComponents.PlanningBoard = {
                 }
             }
         }
+    },
+    mounted() {
+        // Clear ghost if drag ends outside any drop zone (e.g. user releases over left panel)
+        this._onDragEnd = () => { this.ghost = null; this.draggedClass = null; };
+        document.addEventListener('dragend', this._onDragEnd);
+    },
+    unmounted() {
+        document.removeEventListener('dragend', this._onDragEnd);
     }
 };
