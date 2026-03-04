@@ -150,9 +150,9 @@ if (!empty($searchQuery)) {
         }
         // Also fetch shortnames for prereq raw value display
         $allCourseShortnames = $DB->get_records_sql(
-            "SELECT id, shortname, fullname FROM {course} WHERE id IN (
-                SELECT DISTINCT courseid FROM {local_learning_plan_courses} WHERE learningplanid = :planid
-            )",
+            "SELECT c.id, c.shortname, c.fullname FROM {course} c
+             JOIN {local_learning_courses} llc ON llc.courseid = c.id
+             WHERE llc.learningplanid = :planid",
             ['planid' => $student->planid]
         );
         $idToShortname = [];
