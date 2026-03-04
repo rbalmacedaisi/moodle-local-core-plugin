@@ -624,6 +624,9 @@
             const isolatedCareers = new Set(configSettings.isolatedCareers || []);
 
             // Build current demand map: aggKey -> { students[], careers, levels, courseid, subperiod, shift, plan_map, plan_scores }
+            // NOTE: subperiod is NOT included in the aggKey because the backend demand does not populate
+            // val.subperiod — it is always 0. Using only courseId|shift (+ career if isolated) ensures
+            // draft items match demand entries regardless of subperiod value.
             const demandMap = {};
             for (const career of Object.keys(demand)) {
                 const isIsolated = isolatedCareers.has(career);
@@ -633,8 +636,8 @@
                         for (const [courseId, val] of Object.entries(semData.course_counts || {})) {
                             const subperiodId = val.subperiod || 0;
                             const aggKey = isIsolated
-                                ? `${courseId}|${shift}|${career}|${subperiodId}`
-                                : `${courseId}|${shift}|${subperiodId}`;
+                                ? `${courseId}|${shift}|${career}`
+                                : `${courseId}|${shift}`;
 
                             if (!demandMap[aggKey]) {
                                 demandMap[aggKey] = {
@@ -674,20 +677,18 @@
                 return draftItems;
             }
 
-            // Helper: build aggKey from a draft item (external items are skipped)
+            // Helper: build aggKey from a draft item — must match demandMap keys (no subperiod)
             const aggKeyOf = (item) => {
                 const cid = String(item.corecourseid || item.courseid || '');
                 const shift = item.shift || '';
-                const subperiod = item.subperiod || 0;
-                // Determine if isolated: item.career is a single career string for isolated items
                 const isIsolated = item.careerList
                     ? (item.careerList.length === 1 && isolatedCareers.has(item.careerList[0]))
                     : (item.career && isolatedCareers.has(item.career));
                 if (isIsolated) {
                     const career = item.careerList ? item.careerList[0] : item.career;
-                    return `${cid}|${shift}|${career}|${subperiod}`;
+                    return `${cid}|${shift}|${career}`;
                 }
-                return `${cid}|${shift}|${subperiod}`;
+                return `${cid}|${shift}`;
             };
 
             // Track which aggKeys are already covered by draft items
@@ -702,10 +703,20 @@
 
                 const key = aggKeyOf(item);
                 const currentDemand = demandMap[key];
+                const isPlaced = (item.day && item.day !== 'N/A') ||
+                                 (Array.isArray(item.sessions) && item.sessions.length > 0);
 
                 if (!currentDemand || currentDemand.students.length === 0) {
-                    // Subject no longer has demand in this period — drop from draft
-                    console.log(`DEBUG Reconcile: Removing draft item "${item.subjectName}" (${key}) — no current demand.`);
+                    if (isPlaced) {
+                        // Ficha ubicada manualmente — mantenerla aunque no haya match de demanda,
+                        // el coordinador la colocó intencionalmente.
+                        console.log(`DEBUG Reconcile: Keeping placed item "${item.subjectName}" (${key}) — no demand match but already scheduled.`);
+                        result.push({ ...item });
+                        coveredKeys.add(key);
+                    } else {
+                        // Ficha sin asignar sin demanda — eliminar
+                        console.log(`DEBUG Reconcile: Removing unplaced item "${item.subjectName}" (${key}) — no current demand.`);
+                    }
                     continue;
                 }
 
