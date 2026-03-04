@@ -718,16 +718,24 @@ class planning_manager {
                      $tree[$career][$shift][$levelKey]['course_counts'][$courseId] = [
                          'count' => 0,
                          'students' => [],
+                         '_studentDbIds' => [], // Track real DB IDs to avoid multi-plan duplicates
                          'plan_map' => []
                      ];
                 }
 
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
-                $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
+                // Deduplicate by real user DB ID (a student in 2 plans must count once per subject)
+                $dbId = $stu['dbId'];
+                if (!in_array($dbId, $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['_studentDbIds'])) {
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['_studentDbIds'][] = $dbId;
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['count']++;
+                    $tree[$career][$shift][$levelKey]['course_counts'][$courseId]['students'][] = $stu['id'];
+                }
             }
         }
 
         // --- Paso 4: Re-loop para calcular student_count único por bucket ---
+        // Tracks [career][shift][levelKey] => [dbId => true] to avoid counting multi-plan students twice
+        $bucketStudentsSeen = [];
 
         foreach ($students as $stu) {
              $career     = $stu['career'] ?: 'General';
@@ -736,7 +744,7 @@ class planning_manager {
              $subLabel   = $stu['currentSubperiodConfig'] ?: '';
              $levelKey   = $subLabel ? "$levelLabel - $subLabel" : $levelLabel;
              $cohortKey  = self::build_cohort_key($career, $shift, $stu);
-             $levelsSeen = [];
+             $dbId       = $stu['dbId'];
 
              foreach ($stu['pendingSubjects'] as $subj) {
                  $courseId  = $subj['id'];
@@ -750,11 +758,13 @@ class planning_manager {
                  if (!$hasPriorityOrDeferredToP1) continue;
 
                  if (isset($tree[$career][$shift][$levelKey])) {
-                     if (!isset($levelsSeen[$levelKey])) {
-                         $levelsSeen[$levelKey] = true;
+                     // Deduplicar: un estudiante en 2 planes solo cuenta una vez por bucket
+                     if (!isset($bucketStudentsSeen[$career][$shift][$levelKey][$dbId])) {
+                         $bucketStudentsSeen[$career][$shift][$levelKey][$dbId] = true;
                          $tree[$career][$shift][$levelKey]['student_count']++;
                      }
                  }
+                 break; // Ya encontramos una asignatura válida en este bucket — basta para contar al estudiante
              }
         }
 
