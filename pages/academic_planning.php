@@ -1507,15 +1507,27 @@ const app = createApp({
                  const entryP = stu.entry_period || 'Sin Definir';
                  const cohortKey = `${stu.career} - ${stu.shift} - Nivel ${planningLevel} - Bimestre ${planningBimestre} [${entryP}]`;
                  
-                 // Init Student Object
-                 studentsMap[stu.id] = {
-                     ...stu,
-                     planningLevel,
-                     planningBimestre,
-                     cohortKey,
-                     isGradRisk: false 
-                 };
-                 
+                 // Init Student Object — if student is in multiple plans, merge pendingSubjects
+                 // instead of overwriting, to avoid losing courses from the first plan.
+                 const isExistingStudent = !!studentsMap[stu.id];
+                 if (isExistingStudent) {
+                     // Merge pendingSubjects: add any subjects from this plan not already in the list
+                     const existingIds = new Set((studentsMap[stu.id].pendingSubjects || []).map(s => s.id));
+                     (stu.pendingSubjects || []).forEach(s => {
+                         if (!existingIds.has(s.id)) {
+                             studentsMap[stu.id].pendingSubjects.push(s);
+                         }
+                     });
+                 } else {
+                     studentsMap[stu.id] = {
+                         ...stu,
+                         planningLevel,
+                         planningBimestre,
+                         cohortKey,
+                         isGradRisk: false
+                     };
+                 }
+
                  // Init Cohort
                  if (!cohorts[cohortKey]) {
                      cohorts[cohortKey] = {
@@ -1531,16 +1543,19 @@ const app = createApp({
                          subjectsByPeriod: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [] }
                      };
                  }
-                 
+
                  // Init Semester Map
                  if (!studentsInSem[planningLevel]) studentsInSem[planningLevel] = {};
                  if (!studentsInSem[planningLevel][cohortKey]) studentsInSem[planningLevel][cohortKey] = { count: 0, students: [] };
-                 
+
                   studentsMap[stu.id].cohortKey = cohortKey;
-                  cohorts[cohortKey].studentCount++;
-                  cohorts[cohortKey].studentNames.push(`${stu.name} (${stu.id})`);
-                  studentsInSem[planningLevel][cohortKey].count++;
-                  studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
+                  // Only count/register the student once per cohort (avoid double-counting multi-plan students)
+                  if (!isExistingStudent) {
+                      cohorts[cohortKey].studentCount++;
+                      cohorts[cohortKey].studentNames.push(`${stu.name} (${stu.id})`);
+                      studentsInSem[planningLevel][cohortKey].count++;
+                      studentsInSem[planningLevel][cohortKey].students.push(studentsMap[stu.id]);
+                  }
 
                   // Population Tree Logic
                   entryPeriodsSet.add(entryP);
