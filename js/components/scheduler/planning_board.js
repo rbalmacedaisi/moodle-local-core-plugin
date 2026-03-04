@@ -447,7 +447,123 @@ window.SchedulerComponents.PlanningBoard = {
             return instructors.filter(i =>
                 (i.instructorName || '').toLowerCase().includes(s)
             ).slice(0, 50);
-        }
+        },
+
+        // --- Cached computed maps (recalculated only when allClasses changes) ---
+
+        // Normalized day name per class id: { id -> 'LUNES' }
+        normalizedDayMap() {
+            const map = {};
+            for (const c of this.allClasses) {
+                map[c.id] = c.day ? c.day.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : '';
+            }
+            return map;
+        },
+
+        // toMins cache per class id: { id -> { start, end } }
+        classMinsMap() {
+            const map = {};
+            for (const c of this.allClasses) {
+                map[c.id] = { start: this._toMins(c.start), end: this._toMins(c.end) };
+            }
+            return map;
+        },
+
+        // Classes grouped by normalized day, pre-filtered and pre-sorted
+        // { 'LUNES' -> [...], 'MARTES' -> [...], ... }
+        classesByDay() {
+            const filter = this.storeState.subperiodFilter;
+            const careerFilter = this.storeState.careerFilter;
+            const shiftFilter = this.storeState.shiftFilter;
+            const ndMap = this.normalizedDayMap;
+            const mMap = this.classMinsMap;
+            const result = {};
+
+            for (const c of this.allClasses) {
+                const nd = ndMap[c.id];
+                if (!nd || nd === 'N/A' || !c.start || !c.end) continue;
+
+                if (!c.isExternal) {
+                    if (careerFilter) {
+                        const inList = c.careerList && c.careerList.includes(careerFilter);
+                        const inString = c.career && c.career.includes(careerFilter);
+                        if (!inList && !inString) continue;
+                    }
+                    if (shiftFilter && c.shift !== shiftFilter) continue;
+                    if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) continue;
+                }
+
+                if (!result[nd]) result[nd] = [];
+                result[nd].push(c);
+            }
+
+            // Pre-sort each day by start time
+            for (const nd of Object.keys(result)) {
+                result[nd].sort((a, b) => mMap[a.id].start - mMap[b.id].start);
+            }
+            return result;
+        },
+
+        // Overlap layout cache: { id -> { top, height, left, width, zIndex } }
+        eventStyleMap() {
+            const pixelsPerHour = 56;
+            const dayStartMins = this.startHour * 60;
+            const mMap = this.classMinsMap;
+            const styleMap = {};
+
+            for (const [, dayClasses] of Object.entries(this.classesByDay)) {
+                // Build overlap groups using a sweep
+                const assigned = new Set();
+                for (let i = 0; i < dayClasses.length; i++) {
+                    if (assigned.has(dayClasses[i].id)) continue;
+                    // Find all classes overlapping with dayClasses[i]
+                    const group = [];
+                    const si = mMap[dayClasses[i].id].start;
+                    const ei = mMap[dayClasses[i].id].end;
+                    for (let j = 0; j < dayClasses.length; j++) {
+                        const sj = mMap[dayClasses[j].id].start;
+                        const ej = mMap[dayClasses[j].id].end;
+                        if (Math.max(si, sj) < Math.min(ei, ej)) group.push(dayClasses[j]);
+                    }
+                    const count = group.length;
+                    group.forEach((c, idx) => {
+                        const sm = mMap[c.id].start;
+                        const em = mMap[c.id].end;
+                        styleMap[c.id] = {
+                            top:    `${((sm - dayStartMins) / 60) * pixelsPerHour}px`,
+                            height: `${((em - sm) / 60) * pixelsPerHour}px`,
+                            left:   `${(idx / count) * 95 + 2}%`,
+                            width:  `${100 / count - 4}%`,
+                            zIndex: 10 + idx
+                        };
+                        assigned.add(c.id);
+                    });
+                }
+            }
+            return styleMap;
+        },
+
+        // Conflict cache: { id -> conflict[] }
+        // Only computed when not dragging (ghost === null) to avoid thrashing at 60fps
+        conflictMap() {
+            if (this.ghost !== null) return this._lastConflictMap || {};
+            if (!window.SchedulerAlgorithm?.detectConflicts) return {};
+            const context = {
+                ...this.storeState.context,
+                instructors: this.storeState.instructors,
+                students: this.storeState.students
+            };
+            const map = {};
+            for (const c of this.allClasses) {
+                if (c.day && c.day !== 'N/A') {
+                    map[c.id] = window.SchedulerAlgorithm.detectConflicts(c, this.allClasses, context);
+                } else {
+                    map[c.id] = [];
+                }
+            }
+            this._lastConflictMap = map;
+            return map;
+        },
     },
     updated() {
         if (window.lucide) window.lucide.createIcons();
@@ -457,88 +573,40 @@ window.SchedulerComponents.PlanningBoard = {
             if (!d) return '';
             return d.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
         },
-        getClassesForDay(day) {
-            const filter = this.storeState.subperiodFilter;
-            const careerFilter = this.storeState.careerFilter;
-            const shiftFilter = this.storeState.shiftFilter;
-
-            return this.allClasses.filter(c => {
-                const cDay = this.normalizeDay(c.day);
-                const tDay = this.normalizeDay(day);
-
-                if (cDay !== tDay || !c.start || !c.end) return false;
-
-                // External courses bypass filtering (they are read-only markers from other periods)
-                if (c.isExternal) return true;
-
-                // Career filter (Robust check)
-                if (careerFilter) {
-                    const inList = c.careerList && c.careerList.includes(careerFilter);
-                    const inString = c.career && c.career.includes(careerFilter);
-                    if (!inList && !inString) return false;
-                }
-
-                // Shift filter
-                if (shiftFilter && c.shift !== shiftFilter) return false;
-
-                if (filter === 0) return true;
-                return c.subperiod === 0 || c.subperiod === filter;
-            });
-        },
-        getEventStyle(cls) {
-            const startMins = this.toMins(cls.start);
-            const duration = (this.toMins(cls.end) - startMins);
-            const dayStartMins = this.startHour * 60;
-            const pixelsPerHour = 56;
-
-            const top = ((startMins - dayStartMins) / 60) * pixelsPerHour;
-            const height = (duration / 60) * pixelsPerHour;
-
-            // Cascading/Overlap Logic
-            const dayClasses = this.getClassesForDay(cls.day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
-            const overlaps = dayClasses.filter(c => {
-                const s1 = this.toMins(c.start);
-                const e1 = this.toMins(c.end);
-                const s2 = this.toMins(cls.start);
-                const e2 = this.toMins(cls.end);
-                return Math.max(s1, s2) < Math.min(e1, e2);
-            });
-
-            const index = overlaps.findIndex(c => c.id === cls.id);
-            const count = overlaps.length;
-
-            const left = (index / count) * 95;
-            const width = 100 / count;
-
-            return {
-                top: `${top}px`,
-                height: `${height}px`,
-                left: `${left + 2}%`,
-                width: `${width - 4}%`,
-                zIndex: 10 + index
-            };
-        },
-        toMins(t) {
+        // Internal toMins — used by computed maps (not reactive, just pure util)
+        _toMins(t) {
             if (!t || typeof t !== 'string') return 0;
             const parts = t.trim().split(':');
             if (parts.length < 2) return 0;
-            const h = parseInt(parts[0], 10) || 0;
-            const m = parseInt(parts[1], 10) || 0;
-            return (h * 60) + m;
+            return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+        },
+        getClassesForDay(day) {
+            const nd = this.normalizeDay(day);
+            return this.classesByDay[nd] || [];
+        },
+        getEventStyle(cls) {
+            // Use pre-computed style — fall back to inline calculation if not cached yet
+            if (this.eventStyleMap[cls.id]) return this.eventStyleMap[cls.id];
+            // Fallback (first render before computed settles)
+            const pixelsPerHour = 56;
+            const sm = this._toMins(cls.start);
+            const em = this._toMins(cls.end);
+            const dayStartMins = this.startHour * 60;
+            return {
+                top: `${((sm - dayStartMins) / 60) * pixelsPerHour}px`,
+                height: `${((em - sm) / 60) * pixelsPerHour}px`,
+                left: '2%', width: '92%', zIndex: 10
+            };
+        },
+        toMins(t) {
+            return this._toMins(t);
         },
         getConflicts(cls) {
-            if (!window.SchedulerAlgorithm || !window.SchedulerAlgorithm.detectConflicts) return [];
-            const context = {
-                ...this.storeState.context,
-                instructors: this.storeState.instructors,
-                students: this.storeState.students
-            };
-            return window.SchedulerAlgorithm.detectConflicts(cls, this.allClasses, context);
+            return this.conflictMap[cls.id] || [];
         },
         getTeacherConflicts(cls) {
             if (!cls) return [];
-            const issues = this.getConflicts(cls);
-            return issues.filter(i => ['teacher', 'availability', 'competency'].includes(i.type));
+            return this.getConflicts(cls).filter(i => ['teacher', 'availability', 'competency'].includes(i.type));
         },
         getConflictTooltip(cls) {
             const issues = this.getConflicts(cls);
