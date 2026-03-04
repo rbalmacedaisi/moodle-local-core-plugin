@@ -265,15 +265,16 @@ if (!empty($searchQuery)) {
 
             $finallyExcluded = $excluded || $excludedByStatus;
 
-            // Check prerequisites — same logic as planning_manager.php lines 236-238:
-            // met = approved (3,4) OR in-progress (2) OR migration-pending (99)
+            // Check prerequisites — same logic as planning_manager.php:
+            // met = approved (3,4) OR in-progress (2) OR migration-pending (99) OR failed (5)
             $prereqsMet = true;
             $missingPrereqs = [];
             if (!empty($course->prereqs)) {
                 foreach ($course->prereqs as $prereqId) {
                     $prereqMet = isset($studentApproved[$prereqId])
                               || isset($studentInProgress[$prereqId])
-                              || isset($studentMigration[$prereqId]);
+                              || isset($studentMigration[$prereqId])
+                              || isset($studentFailed[$prereqId]);
                     if (!$prereqMet) {
                         $prereqsMet = false;
                         $missingPrereqs[] = $prereqId;
@@ -337,12 +338,14 @@ if (!empty($searchQuery)) {
                     $isPrereqApproved  = isset($studentApproved[$prereqId]);
                     $isPrereqInProg    = isset($studentInProgress[$prereqId]);
                     $isPrereqMigration = isset($studentMigration[$prereqId]);
-                    $prereqOk = $isPrereqApproved || $isPrereqInProg || $isPrereqMigration;
+                    $isPrereqFailed    = isset($studentFailed[$prereqId]);
+                    $prereqOk = $isPrereqApproved || $isPrereqInProg || $isPrereqMigration || $isPrereqFailed;
                     $prereqName = $courseInfoMap[$prereqId] ?? "ID:{$prereqId}";
                     $reason = [];
-                    if ($isPrereqApproved) $reason[] = 'Aprobada';
-                    if ($isPrereqInProg)   $reason[] = 'En Curso';
+                    if ($isPrereqApproved)  $reason[] = 'Aprobada';
+                    if ($isPrereqInProg)    $reason[] = 'En Curso';
                     if ($isPrereqMigration) $reason[] = 'Migración';
+                    if ($isPrereqFailed)    $reason[] = 'Reprobada';
                     $reasonStr = $prereqOk ? implode('+', $reason) : '—no cumplida—';
                     $color = $prereqOk ? '#28a745' : '#dc3545';
                     echo "<div style='margin-left:8px; color:{$color};'>↳ " . htmlspecialchars($prereqName) . " [{$reasonStr}]</div>";
@@ -395,12 +398,13 @@ if (!empty($searchQuery)) {
             $courseId2 = $course->id;
             if (!isset($studentNoAvailable[$courseId2])) continue; // must be status 0
 
-            // Check if prereqs are met
+            // Check if prereqs are met (same relaxed logic: failed also counts)
             $prereqsMetHere = true;
             foreach ($course->prereqs as $prereqId) {
                 $prereqMet2 = isset($studentApproved[$prereqId])
                            || isset($studentInProgress[$prereqId])
-                           || isset($studentMigration[$prereqId]);
+                           || isset($studentMigration[$prereqId])
+                           || isset($studentFailed[$prereqId]);
                 if (!$prereqMet2) { $prereqsMetHere = false; break; }
             }
 

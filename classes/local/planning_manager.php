@@ -225,17 +225,19 @@ class planning_manager {
                 }
 
                 // Check Prerequisites
-                // A prerequisite is considered met if the course is:
+                // A prerequisite is considered met if the student has interacted with the course in any way:
                 // - Approved/Completed (status 3 or 4)
                 // - Currently in progress / Cursando (status 2)
                 // - Migration Pending (status 99)
+                // - Failed/Reprobada (status 5) — student already attempted the course, do not block next subjects
                 $isPreRequisiteMet = true;
                 $missingPrereqs = [];
                 if (!empty($course->prereqs)) {
                     foreach ($course->prereqs as $prereqId) {
-                        $prereqMet = isset($studentApproved[$prereqId]) 
-                                  || isset($studentInProgress[$prereqId]) 
-                                  || isset($studentMigrationPending[$prereqId]);
+                        $prereqMet = isset($studentApproved[$prereqId])
+                                  || isset($studentInProgress[$prereqId])
+                                  || isset($studentMigrationPending[$prereqId])
+                                  || isset($failedCourses[$u->id][$prereqId]);
                         if (!$prereqMet) {
                             $isPreRequisiteMet = false;
                             // Find prereq name in current plan or all subjects
