@@ -768,9 +768,20 @@ class planning_manager {
              }
         }
 
+        // Deduplicar student_list por dbId — estudiantes en 2 planes no deben aparecer dos veces
+        $seenDbIds = [];
+        $uniqueStudentList = [];
+        foreach ($planningData['students'] as $stu) {
+            $dbId = $stu['dbId'];
+            if (!isset($seenDbIds[$dbId])) {
+                $seenDbIds[$dbId] = true;
+                $uniqueStudentList[] = $stu;
+            }
+        }
+
         return [
             'demand_tree'        => $tree,
-            'student_list'       => $planningData['students'],
+            'student_list'       => $uniqueStudentList,
             'projections'        => $planningData['planning_projections'],
             'subjects'           => $planningData['all_subjects'] ?? [],
             'confirmed_subjects' => array_keys($confirmedSubjects),
