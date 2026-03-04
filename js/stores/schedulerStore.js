@@ -588,39 +588,186 @@
                 const draft = await this._fetch('local_grupomakro_load_draft', { periodid: periodId });
                 if (draft && Array.isArray(draft)) {
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
-                    // Preserve external courses fetched from live DB (they shouldn't be overwritten by draft)
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
-                    console.log(`DEBUG Draft: Prior to merge, state had ${externalSchedules.length} externals. IDs: ${JSON.stringify([...externalIds])}`);
-
                     const pIdNum = Number(periodId);
 
-                    // CRITICAL: Purge draft of any ID that we already know is external from the live DB.
-                    // This prevents "zombie" internal versions in the draft from shadowing the truth.
+                    // Purge draft items that are actually live DB externals
                     const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
-
-                    if (draft.length !== cleanedDraft.length) {
-                        console.log(`DEBUG Draft: Purged ${draft.length - cleanedDraft.length} shadowing items from draft.`);
-                    }
-
                     const processedDraft = cleanedDraft.map(item => {
-                        const itemPid = Number(item.periodid) || pIdNum; // Treat 0 as internal
-                        if (itemPid !== pIdNum) {
-                            item.isExternal = true;
-                        } else {
-                            item.isExternal = false;
-                        }
+                        item.isExternal = (Number(item.periodid) || pIdNum) !== pIdNum;
                         return item;
                     });
 
-                    console.log(`DEBUG Draft: Final Merge -> ${processedDraft.length} draft items + ${externalSchedules.length} DB externals.`);
-                    this.state.generatedSchedules = [...processedDraft, ...externalSchedules];
+                    // --- Reconcile draft with current demand ---
+                    const reconciled = this._reconcileDraftWithDemand(processedDraft);
+                    console.log(`DEBUG Draft: After reconciliation -> ${reconciled.length} items (was ${processedDraft.length}).`);
+
+                    this.state.generatedSchedules = [...reconciled, ...externalSchedules];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
             } catch (e) {
                 console.error("Load generation error:", e);
             }
+        },
+
+        /**
+         * Reconcile a saved draft against the current demand data.
+         * - Updates studentIds/studentCount on existing draft items from current demand.
+         * - Removes draft items whose subject+shift+subperiod no longer has any students.
+         * - Adds new unassigned items for demand that has no draft item yet.
+         */
+        _reconcileDraftWithDemand(draftItems) {
+            const demand = this.state.demand || {};
+            const configSettings = this.state.context?.configSettings || {};
+            const isolatedCareers = new Set(configSettings.isolatedCareers || []);
+
+            // Build current demand map: aggKey -> { students[], careers, levels, courseid, subperiod, shift, plan_map, plan_scores }
+            const demandMap = {};
+            for (const career of Object.keys(demand)) {
+                const isIsolated = isolatedCareers.has(career);
+                for (const shift of Object.keys(demand[career] || {})) {
+                    for (const sem of Object.keys(demand[career][shift] || {})) {
+                        const semData = demand[career][shift][sem];
+                        for (const [courseId, val] of Object.entries(semData.course_counts || {})) {
+                            const subperiodId = val.subperiod || 0;
+                            const aggKey = isIsolated
+                                ? `${courseId}|${shift}|${career}|${subperiodId}`
+                                : `${courseId}|${shift}|${subperiodId}`;
+
+                            if (!demandMap[aggKey]) {
+                                demandMap[aggKey] = {
+                                    courseid: courseId,
+                                    shift,
+                                    subperiod: subperiodId,
+                                    students: [],
+                                    _studentSet: new Set(),
+                                    careers: new Set(),
+                                    levels: new Set(),
+                                    plan_map: {},
+                                    plan_scores: {}
+                                };
+                            }
+                            for (const sid of (val.students || [])) {
+                                if (!demandMap[aggKey]._studentSet.has(sid)) {
+                                    demandMap[aggKey]._studentSet.add(sid);
+                                    demandMap[aggKey].students.push(sid);
+                                }
+                            }
+                            demandMap[aggKey].careers.add(career);
+                            demandMap[aggKey].levels.add(semData.semester_name);
+                            if (val.plan_map) {
+                                Object.entries(val.plan_map).forEach(([pid, meta]) => {
+                                    demandMap[aggKey].plan_map[pid] = meta;
+                                    demandMap[aggKey].plan_scores[pid] = (demandMap[aggKey].plan_scores[pid] || 0) + (val.count || 0);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (Object.keys(demandMap).length === 0) {
+                // No demand data yet — return draft as-is (demand may not be loaded yet)
+                console.log('DEBUG Reconcile: No demand data available, skipping reconciliation.');
+                return draftItems;
+            }
+
+            // Helper: build aggKey from a draft item (external items are skipped)
+            const aggKeyOf = (item) => {
+                const cid = String(item.corecourseid || item.courseid || '');
+                const shift = item.shift || '';
+                const subperiod = item.subperiod || 0;
+                // Determine if isolated: item.career is a single career string for isolated items
+                const isIsolated = item.careerList
+                    ? (item.careerList.length === 1 && isolatedCareers.has(item.careerList[0]))
+                    : (item.career && isolatedCareers.has(item.career));
+                if (isIsolated) {
+                    const career = item.careerList ? item.careerList[0] : item.career;
+                    return `${cid}|${shift}|${career}|${subperiod}`;
+                }
+                return `${cid}|${shift}|${subperiod}`;
+            };
+
+            // Track which aggKeys are already covered by draft items
+            const coveredKeys = new Set();
+            const result = [];
+
+            for (const item of draftItems) {
+                if (item.isExternal) {
+                    result.push(item);
+                    continue;
+                }
+
+                const key = aggKeyOf(item);
+                const currentDemand = demandMap[key];
+
+                if (!currentDemand || currentDemand.students.length === 0) {
+                    // Subject no longer has demand in this period — drop from draft
+                    console.log(`DEBUG Reconcile: Removing draft item "${item.subjectName}" (${key}) — no current demand.`);
+                    continue;
+                }
+
+                // Update students and count from current demand
+                const updatedItem = { ...item };
+                updatedItem.studentIds = currentDemand.students;
+                updatedItem.studentCount = currentDemand.students.length;
+                updatedItem.career = Array.from(currentDemand.careers).join(', ');
+                updatedItem.careerList = Array.from(currentDemand.careers);
+                updatedItem.levelDisplay = Array.from(currentDemand.levels).join(', ');
+                updatedItem.levelList = Array.from(currentDemand.levels);
+
+                result.push(updatedItem);
+                coveredKeys.add(key);
+            }
+
+            // Add new demand items that have no draft item yet
+            const subjectNames = this.state.subjects || {};
+            let newIdCounter = Date.now(); // Unique enough for temp IDs
+            for (const [key, demandData] of Object.entries(demandMap)) {
+                if (coveredKeys.has(key) || demandData.students.length === 0) continue;
+
+                const courseName = subjectNames[demandData.courseid]
+                    ? subjectNames[demandData.courseid].name
+                    : `Materia: ${demandData.courseid}`;
+
+                // Determine plan for this item
+                let planId = 0;
+                let maxScore = -1;
+                for (const [pid, score] of Object.entries(demandData.plan_scores)) {
+                    if (score > maxScore) { maxScore = score; planId = parseInt(pid); }
+                }
+                let resolvedSubjectId = 0;
+                if (demandData.plan_map[planId]) resolvedSubjectId = demandData.plan_map[planId].subjectid;
+
+                console.log(`DEBUG Reconcile: Adding new draft item "${courseName}" (${key}) — ${demandData.students.length} students.`);
+                result.push({
+                    id: `rec-${newIdCounter++}`,
+                    courseid: resolvedSubjectId || demandData.courseid,
+                    corecourseid: demandData.courseid,
+                    learningplanid: planId,
+                    subjectName: courseName,
+                    day: 'N/A',
+                    start: '00:00',
+                    end: '00:00',
+                    room: 'Sin aula',
+                    studentCount: demandData.students.length,
+                    studentIds: demandData.students,
+                    career: Array.from(demandData.careers).join(', '),
+                    careerList: Array.from(demandData.careers),
+                    shift: demandData.shift,
+                    levelDisplay: Array.from(demandData.levels).join(', '),
+                    levelList: Array.from(demandData.levels),
+                    subperiod: demandData.subperiod || 1,
+                    type: 0,
+                    typeLabel: 'Presencial',
+                    classdays: '0/0/0/0/0/0/0',
+                    isExternal: false
+                });
+            }
+
+            return result;
         },
 
         async saveConfigSettings(periodId, settings) {
