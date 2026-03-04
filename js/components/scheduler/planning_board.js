@@ -38,6 +38,15 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="text-[10px] flex flex-wrap gap-1 items-center text-slate-500">
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
                                 <span>{{ cls.shift }}</span>
+                                <span v-if="loadsMap[cls.subjectName]"
+                                    class="flex items-center gap-0.5 bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-semibold"
+                                    :title="'Carga horaria: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales · intensidad: ' + (loadsMap[cls.subjectName].intensity) + 'h/ses'">
+                                    <i data-lucide="clock" class="w-2.5 h-2.5"></i>
+                                    {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
+                                </span>
+                                <span v-else class="flex items-center gap-0.5 text-slate-300 italic" title="Sin carga horaria definida">
+                                    <i data-lucide="clock" class="w-2.5 h-2.5"></i> def.
+                                </span>
                                 <div class="ml-auto flex gap-1">
                                     <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
                                         <i data-lucide="users" class="w-3 h-3"></i>
@@ -156,6 +165,18 @@ window.SchedulerComponents.PlanningBoard = {
                                                 <span v-if="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
+                                            </div>
+                                            <!-- Course load indicator -->
+                                            <div v-if="loadsMap[cls.subjectName]" class="mt-0.5 flex items-center gap-1 text-violet-700">
+                                                <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
+                                                <span class="font-semibold" :title="'Carga detectada: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales'">
+                                                    {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
+                                                    <template v-if="cls.assignedDates"> · {{ cls.assignedDates.length }} ses.</template>
+                                                </span>
+                                            </div>
+                                            <div v-else-if="!cls.isExternal" class="mt-0.5 flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
+                                                <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
+                                                <span class="italic">defecto</span>
                                             </div>
                                         </div>
 
@@ -432,6 +453,15 @@ window.SchedulerComponents.PlanningBoard = {
                 c.subjectName.toLowerCase().includes(s) ||
                 c.levelDisplay.toLowerCase().includes(s)
             );
+        },
+        loadsMap() {
+            const loads = this.storeState.context?.loads || [];
+            const map = {};
+            loads.forEach(l => {
+                const name = l.subjectname || l.subjectName;
+                if (name) map[name] = l;
+            });
+            return map;
         },
         timeSlots() {
             const slots = [];
