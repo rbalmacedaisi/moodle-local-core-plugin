@@ -196,6 +196,30 @@
 
                 console.log("DEBUG Calendar: Generating events for", schedules.length, "schedules. Period:", period);
 
+                // Palette for consecutive same-day groups (beyond the default blue)
+                // Index 0 = default (handled by subperiod/external logic), 1..N = alternate groups
+                const groupPalette = ['#2563eb', '#7c3aed', '#0891b2', '#b45309', '#059669', '#dc2626'];
+
+                // Build consecutive-group color map: schedIdx → color
+                // Groups = schedules sharing same subjectName + day + start that have non-overlapping assignedDates
+                const consecutiveColorMap = {};
+                const slotGroups = {}; // key: subjectName|day|start → [schedIdx array in order of first assignedDate]
+                schedules.forEach((sched, idx) => {
+                    if (!sched.day || sched.day === 'N/A' || sched.isExternal) return;
+                    const session0 = (sched.sessions && sched.sessions[0]) || { day: sched.day, start: sched.start };
+                    const slotKey = `${sched.subjectName}|${session0.day}|${session0.start}`;
+                    if (!slotGroups[slotKey]) slotGroups[slotKey] = [];
+                    slotGroups[slotKey].push({ idx, firstDate: sched.assignedDates?.[0] || null });
+                });
+                Object.values(slotGroups).forEach(group => {
+                    if (group.length < 2) return; // Only palette-color when multiple groups share slot
+                    // Sort by first assignedDate so colors are consistent
+                    group.sort((a, b) => (a.firstDate || '') < (b.firstDate || '') ? -1 : 1);
+                    group.forEach(({ idx }, colorIdx) => {
+                        consecutiveColorMap[idx] = groupPalette[colorIdx % groupPalette.length];
+                    });
+                });
+
                 // Robust filtering matching PlanningBoard.js
                 const careerFilter = store.state.careerFilter;
                 const shiftFilter = store.state.shiftFilter;
@@ -307,12 +331,24 @@
                             // FINAL EXCLUSION STATUS: Manual exclusion OR holiday
                             const isEffectiveExcluded = isExcluded || isHoliday;
 
+                            // Determine color: external=amber, consecutive-group uses palette, P-II=teal, default=blue
+                            let eventColor;
+                            if (sched.isExternal) {
+                                eventColor = '#f59e0b';
+                            } else if (consecutiveColorMap[schedIdx] !== undefined) {
+                                eventColor = consecutiveColorMap[schedIdx];
+                            } else if (sched.subperiod === 2) {
+                                eventColor = '#0d9488';
+                            } else {
+                                eventColor = '#2563eb';
+                            }
+
                             events.push({
                                 id: `sess-${schedIdx}-${sessionIdx}-${dateStr}`,
                                 title: sched.subjectName,
                                 start: `${dateStr}T${session.start}`,
                                 end: `${dateStr}T${session.end}`,
-                                color: sched.isExternal ? '#f59e0b' : (sched.subperiod === 2 ? '#0d9488' : '#2563eb'), // Amber for External, Teal for P-II, Blue for P-I
+                                color: eventColor,
                                 extendedProps: {
                                     isExcluded: isEffectiveExcluded,
                                     isHoliday: isHoliday,

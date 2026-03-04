@@ -292,6 +292,30 @@ window.SchedulerComponents.PlanningBoard = {
                                 <option :value="2">P-II (Bloque 2)</option>
                             </select>
                         </div>
+                        <!-- Session info + Optimize button -->
+                        <div v-if="!selectedClass.isExternal && selectedClass.day && selectedClass.day !== 'N/A'" class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-1.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Sesiones programadas</span>
+                                <button @click="openOptimize(selectedClass)" class="flex items-center gap-1 px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded text-[10px] font-bold transition-colors">
+                                    <i data-lucide="sparkles" class="w-3 h-3"></i> Optimizar
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-600">
+                                <div class="flex items-center gap-1">
+                                    <i data-lucide="calendar" class="w-3 h-3 text-slate-400 shrink-0"></i>
+                                    <span class="font-medium">{{ selectedClass.assignedDates ? selectedClass.assignedDates.length : '?' }} sesiones</span>
+                                </div>
+                                <div v-if="loadsMap[selectedClass.subjectName]" class="flex items-center gap-1">
+                                    <i data-lucide="clock" class="w-3 h-3 text-violet-400 shrink-0"></i>
+                                    <span class="text-violet-700 font-medium">{{ loadsMap[selectedClass.subjectName].total_hours || loadsMap[selectedClass.subjectName].totalHours }}h carga</span>
+                                </div>
+                                <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex items-center gap-1 col-span-2">
+                                    <i data-lucide="arrow-right" class="w-3 h-3 text-slate-400 shrink-0"></i>
+                                    <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="pt-2 flex flex-col gap-2">
                               <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
@@ -339,6 +363,80 @@ window.SchedulerComponents.PlanningBoard = {
                     </div>
                      <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
                         <button @click="studentsDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Cerrar</button>
+                    </div>
+                </div>
+             </div>
+
+             <!-- Optimize Modal -->
+             <div v-if="optimizeDialog && selectedClass" class="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm" @click.self="optimizeDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                    <div class="p-4 border-b border-slate-200 bg-violet-50 flex justify-between items-center">
+                        <div>
+                            <h4 class="font-bold text-violet-900 flex items-center gap-2">
+                                <i data-lucide="sparkles" class="w-4 h-4"></i> Optimizar Sesiones
+                            </h4>
+                            <p class="text-[10px] text-violet-600 mt-0.5">{{ selectedClass.subjectName }}</p>
+                        </div>
+                        <button @click="optimizeDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <!-- Current state summary -->
+                        <div class="bg-slate-50 rounded-lg p-3 text-xs space-y-1 text-slate-600">
+                            <div class="flex justify-between">
+                                <span class="font-medium text-slate-700">Día programado:</span>
+                                <span>{{ selectedClass.day }} {{ selectedClass.start }} – {{ selectedClass.end }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-slate-700">Duración sesión:</span>
+                                <span>{{ selectedClassDuration }} min</span>
+                            </div>
+                            <div class="flex justify-between" v-if="loadsMap[selectedClass.subjectName]">
+                                <span class="font-medium text-slate-700">Carga horaria:</span>
+                                <span class="text-violet-700 font-bold">{{ loadsMap[selectedClass.subjectName].total_hours || loadsMap[selectedClass.subjectName].totalHours }}h totales</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-medium text-slate-700">Sesiones actuales:</span>
+                                <span :class="(selectedClass.assignedDates || []).length === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
+                                    {{ (selectedClass.assignedDates || []).length }}
+                                    <template v-if="optimalSessions">(óptimo: {{ optimalSessions }})</template>
+                                </span>
+                            </div>
+                            <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex justify-between">
+                                <span class="font-medium text-slate-700">Rango actual:</span>
+                                <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Suggestions list -->
+                        <div v-if="optimizeSuggestions.length > 0">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Sugerencias</p>
+                            <div class="space-y-2">
+                                <div v-for="(sug, idx) in optimizeSuggestions" :key="idx"
+                                    class="border rounded-lg p-3 cursor-pointer transition-all hover:shadow-md"
+                                    :class="sug.type === 'adjust' ? 'border-violet-200 bg-violet-50 hover:border-violet-400' : 'border-blue-200 bg-blue-50 hover:border-blue-400'"
+                                    @click="applySuggestion(sug)">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="flex-1">
+                                            <p class="text-xs font-bold" :class="sug.type === 'adjust' ? 'text-violet-800' : 'text-blue-800'">{{ sug.label }}</p>
+                                            <p class="text-[10px] mt-0.5" :class="sug.type === 'adjust' ? 'text-violet-600' : 'text-blue-600'">{{ sug.description }}</p>
+                                            <p v-if="sug.dateRange" class="text-[10px] mt-1 font-medium text-slate-500">
+                                                {{ sug.dateRange }}
+                                            </p>
+                                        </div>
+                                        <span class="shrink-0 px-2 py-1 rounded text-[10px] font-bold uppercase"
+                                            :class="sug.type === 'adjust' ? 'bg-violet-200 text-violet-800' : 'bg-blue-200 text-blue-800'">
+                                            Aplicar
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div v-else class="text-center text-slate-400 text-xs py-4 italic">
+                            No hay sugerencias disponibles — la configuración ya es óptima.
+                        </div>
+                    </div>
+                    <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                        <button @click="optimizeDialog = false" class="px-4 py-1.5 bg-slate-200 text-slate-700 rounded text-sm font-bold hover:bg-slate-300">Cerrar</button>
                     </div>
                 </div>
              </div>
@@ -410,7 +508,9 @@ window.SchedulerComponents.PlanningBoard = {
             logDialog: false,
             currentLog: [],
             teacherSearch: '',
-            showTeacherList: false
+            showTeacherList: false,
+            optimizeDialog: false,
+            optimizeSuggestions: []
         };
     },
     computed: {
@@ -462,6 +562,19 @@ window.SchedulerComponents.PlanningBoard = {
                 if (name) map[name] = l;
             });
             return map;
+        },
+        selectedClassDuration() {
+            if (!this.selectedClass?.start || !this.selectedClass?.end) return 0;
+            return this.toMins(this.selectedClass.end) - this.toMins(this.selectedClass.start);
+        },
+        optimalSessions() {
+            if (!this.selectedClass) return null;
+            const load = this.loadsMap[this.selectedClass.subjectName];
+            if (!load) return null;
+            const totalH = parseFloat(load.total_hours || load.totalHours || 0);
+            const durH = this.selectedClassDuration / 60;
+            if (totalH > 0 && durH > 0) return Math.ceil(totalH / durH);
+            return null;
         },
         timeSlots() {
             const slots = [];
@@ -810,6 +923,154 @@ window.SchedulerComponents.PlanningBoard = {
             };
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
+        },
+        formatDate(isoStr) {
+            if (!isoStr) return '';
+            const [y, m, d] = isoStr.split('-');
+            return `${d}/${m}/${y}`;
+        },
+        openOptimize(cls) {
+            this.selectedClass = cls;
+            this.optimizeSuggestions = this._buildOptimizeSuggestions(cls);
+            this.optimizeDialog = true;
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        _buildOptimizeSuggestions(cls) {
+            if (!cls.day || cls.day === 'N/A' || !window.SchedulerAlgorithm?.getDatesForDay) return [];
+
+            const context = this.storeState.context;
+            const load = this.loadsMap[cls.subjectName];
+            const allDates = window.SchedulerAlgorithm.getDatesForDay(cls.day, context, cls.subperiod || 0);
+            const durMins = this.toMins(cls.end) - this.toMins(cls.start);
+            const durH = durMins / 60;
+
+            if (allDates.length === 0) return [];
+
+            const suggestions = [];
+
+            // --- Suggestion type A: Adjust sessions to match load ---
+            if (load) {
+                const totalH = parseFloat(load.total_hours || load.totalHours || 0);
+                if (totalH > 0 && durH > 0) {
+                    const optimal = Math.ceil(totalH / durH);
+                    const current = (cls.assignedDates || allDates).length;
+
+                    if (current !== optimal) {
+                        const dates = allDates.slice(0, optimal);
+                        const label = current > optimal
+                            ? `Reducir a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`
+                            : `Ampliar a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`;
+                        suggestions.push({
+                            type: 'adjust',
+                            label,
+                            description: `Ajusta las sesiones exactamente a la carga horaria de ${totalH}h.`,
+                            dateRange: dates.length > 0 ? `${this.formatDate(dates[0])} → ${this.formatDate(dates[dates.length - 1])}` : '',
+                            dates,
+                            targetClass: cls
+                        });
+                    }
+
+                    // --- Suggestion type B: Split into N consecutive blocks ---
+                    // If optimal < allDates.length, we can offer split options
+                    // so multiple groups cover the same day consecutively
+                    const siblings = this.allClasses.filter(c =>
+                        c.id !== cls.id &&
+                        c.subjectName === cls.subjectName &&
+                        c.day && c.day !== 'N/A'
+                    );
+
+                    if (optimal < allDates.length && siblings.length > 0) {
+                        // There are sibling classes on other days — just suggest adjusting
+                    } else if (optimal < allDates.length) {
+                        // No siblings — offer to split into 2 consecutive blocks on the same day
+                        const half = Math.ceil(optimal / 2);
+                        if (half >= 1 && half < allDates.length) {
+                            const blockA = allDates.slice(0, half);
+                            const blockB = allDates.slice(half, half * 2 <= allDates.length ? half * 2 : allDates.length);
+                            if (blockB.length > 0) {
+                                suggestions.push({
+                                    type: 'split',
+                                    label: `Dividir en 2 bloques consecutivos (${half} ses. c/u)`,
+                                    description: `Bloque A: primeras ${half} semanas. Bloque B: siguientes ${blockB.length} semanas en el mismo día y hora.`,
+                                    dateRange: `Bloque A: ${this.formatDate(blockA[0])} → ${this.formatDate(blockA[blockA.length-1])} | Bloque B: ${this.formatDate(blockB[0])} → ${this.formatDate(blockB[blockB.length-1])}`,
+                                    dates: blockA,
+                                    datesB: blockB,
+                                    targetClass: cls
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Suggestion type C: consecutive sibling detection ---
+            // Find classes with same subjectName placed on same day — suggest they use consecutive date windows
+            const sameSubjectSameDay = this.allClasses.filter(c =>
+                c.id !== cls.id &&
+                c.subjectName === cls.subjectName &&
+                c.day === cls.day &&
+                c.start === cls.start &&
+                c.end === cls.end
+            );
+
+            if (sameSubjectSameDay.length > 0 && load) {
+                const totalH = parseFloat(load.total_hours || load.totalHours || 0);
+                if (totalH > 0 && durH > 0) {
+                    const optimal = Math.ceil(totalH / durH);
+                    const allSiblings = [cls, ...sameSubjectSameDay];
+                    const hasOverlap = allSiblings.some(s =>
+                        s.assignedDates && cls.assignedDates &&
+                        s.id !== cls.id &&
+                        s.assignedDates.some(d => cls.assignedDates.includes(d))
+                    );
+
+                    if (hasOverlap || !cls.assignedDates) {
+                        const windows = [];
+                        let offset = 0;
+                        for (const sib of allSiblings) {
+                            windows.push(allDates.slice(offset, offset + optimal));
+                            offset += optimal;
+                        }
+                        if (windows[0]?.length > 0) {
+                            const myIdx = allSiblings.findIndex(s => s.id === cls.id);
+                            suggestions.push({
+                                type: 'consecutive',
+                                label: `Distribuir consecutivamente con ${sameSubjectSameDay.length} ficha(s) hermana(s)`,
+                                description: `Asigna ventanas de ${optimal} sesiones sin solapamiento a cada grupo en el mismo día/hora.`,
+                                dateRange: windows[myIdx]?.length > 0 ? `Esta ficha: ${this.formatDate(windows[myIdx][0])} → ${this.formatDate(windows[myIdx][windows[myIdx].length-1])}` : '',
+                                windows,
+                                siblings: allSiblings,
+                                targetClass: cls
+                            });
+                        }
+                    }
+                }
+            }
+
+            return suggestions;
+        },
+        applySuggestion(sug) {
+            if (sug.type === 'adjust') {
+                sug.targetClass.assignedDates = sug.dates;
+                sug.targetClass.maxSessions = sug.dates.length;
+            } else if (sug.type === 'split') {
+                // Apply block A to this class; block B requires a sibling — just apply A for now
+                sug.targetClass.assignedDates = sug.dates;
+                sug.targetClass.maxSessions = sug.dates.length;
+            } else if (sug.type === 'consecutive') {
+                // Apply each window to each sibling
+                sug.siblings.forEach((sib, i) => {
+                    if (sug.windows[i] && sug.windows[i].length > 0) {
+                        sib.assignedDates = sug.windows[i];
+                        sib.maxSessions = sug.windows[i].length;
+                    }
+                });
+            }
+            this.optimizeDialog = false;
+            // Rebuild suggestions for updated state
+            if (this.selectedClass) {
+                this.optimizeSuggestions = this._buildOptimizeSuggestions(this.selectedClass);
+            }
         },
         editClass(cls) {
             this.selectedClass = cls;
