@@ -76,10 +76,16 @@ window.SchedulerComponents.PlanningBoard = {
                          <div class="flex gap-2">
                              <button class="px-3 py-1 text-xs font-bold bg-slate-100 text-slate-700 rounded hover:bg-slate-200 transition-colors">Semana</button>
                          </div>
-                         <button @click="saveChanges" :disabled="saving" class="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors">
-                            <i data-lucide="save" class="w-3 h-3"></i>
-                            {{ saving ? 'Guardando...' : 'Guardar Cambios' }}
-                         </button>
+                         <div class="flex gap-2">
+                             <button @click="saveChanges" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50">
+                                <i data-lucide="save" class="w-3 h-3"></i>
+                                {{ saving ? 'Guardando...' : 'Guardar Borrador' }}
+                             </button>
+                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en Gestión de Clases">
+                                <i data-lucide="send" class="w-3 h-3"></i>
+                                {{ publishing ? 'Publicando...' : 'Publicar Horarios' }}
+                             </button>
+                         </div>
                     </div>
                     
                     <div class="flex-1 overflow-auto relative bg-white">
@@ -350,6 +356,7 @@ window.SchedulerComponents.PlanningBoard = {
             editDialog: false,
             selectedClass: null,
             saving: false,
+            publishing: false,
             studentsDialog: false,
             currentStudents: [],
             logDialog: false,
@@ -628,6 +635,28 @@ window.SchedulerComponents.PlanningBoard = {
                 alert("Error saving: " + e.message);
             } finally {
                 this.saving = false;
+            }
+        },
+        async publishSchedules() {
+            if (!window.schedulerStore) return;
+            const assignedCount = this.allClasses.filter(c => c.day && c.day !== 'N/A').length;
+            if (assignedCount === 0) {
+                alert('No hay clases asignadas para publicar. Ubica al menos una ficha en el calendario antes de publicar.');
+                return;
+            }
+            if (!confirm(`¿Publicar ${assignedCount} clase(s) programada(s)? Esto creará o actualizará los registros en Gestión de Clases y los estudiantes quedarán asignados.`)) return;
+            this.publishing = true;
+            try {
+                const periodId = window.schedulerStore.state.activePeriod;
+                // First save draft to ensure latest state is in DB
+                await window.schedulerStore.saveGeneration(periodId, this.allClasses);
+                // Then commit to live classes
+                await window.schedulerStore.publishGeneration(periodId, this.allClasses);
+                alert('Horarios publicados correctamente. Las clases ya están disponibles en Gestión de Clases.');
+            } catch (e) {
+                alert('Error al publicar: ' + e.message);
+            } finally {
+                this.publishing = false;
             }
         },
         async viewStudents(cls) {

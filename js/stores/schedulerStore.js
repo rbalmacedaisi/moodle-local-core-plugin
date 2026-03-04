@@ -548,6 +548,39 @@
             }
         },
 
+        async publishGeneration(periodId, schedules) {
+            if (!periodId || !schedules) return;
+            this.state.loading = true;
+            try {
+                const essentialKeys = [
+                    'id', 'courseid', 'corecourseid', 'learningplanid', 'periodid',
+                    'subjectName', 'day', 'start', 'end', 'room',
+                    'instructorId', 'instructorid', 'teacherName', 'studentCount', 'studentIds',
+                    'subperiod', 'type', 'typeLabel', 'career', 'shift',
+                    'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
+                    'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
+                ];
+                const optimized = Array.isArray(schedules) ? schedules.map(s => {
+                    const clean = {};
+                    essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
+                    return clean;
+                }) : schedules;
+
+                await this._fetch('local_grupomakro_save_generation_result', {
+                    periodid: periodId,
+                    schedules: JSON.stringify(optimized)
+                });
+
+                this.state.successMessage = 'Horarios publicados correctamente';
+            } catch (e) {
+                console.error('Publish generation error', e);
+                this.state.error = e.message;
+                throw e;
+            } finally {
+                this.state.loading = false;
+            }
+        },
+
         async loadGeneration(periodId) {
             if (!periodId) return;
             console.log(`DEBUG: Attempting to load draft for period ${periodId}...`);
