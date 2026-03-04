@@ -691,45 +691,66 @@
                 return `${cid}|${shift}`;
             };
 
-            // Track which aggKeys are already covered by draft items
-            const coveredKeys = new Set();
+            // Group draft items by aggKey to correctly handle subdivisions (>40 students → N groups).
+            // Items with the same key are sibling groups of the same subject+shift that must share
+            // the total student pool, not each receive the full list.
+            const draftByKey = {};   // aggKey -> item[]  (internal items only)
             const result = [];
-
             for (const item of draftItems) {
-                if (item.isExternal) {
-                    result.push(item);
-                    continue;
-                }
-
+                if (item.isExternal) { result.push(item); continue; }
                 const key = aggKeyOf(item);
+                if (!draftByKey[key]) draftByKey[key] = [];
+                draftByKey[key].push(item);
+            }
+
+            const coveredKeys = new Set();
+
+            for (const [key, items] of Object.entries(draftByKey)) {
                 const currentDemand = demandMap[key];
-                const isPlaced = (item.day && item.day !== 'N/A') ||
-                                 (Array.isArray(item.sessions) && item.sessions.length > 0);
 
                 if (!currentDemand || currentDemand.students.length === 0) {
-                    if (isPlaced) {
-                        // Ficha ubicada manualmente — mantenerla aunque no haya match de demanda,
-                        // el coordinador la colocó intencionalmente.
-                        console.log(`DEBUG Reconcile: Keeping placed item "${item.subjectName}" (${key}) — no demand match but already scheduled.`);
-                        result.push({ ...item });
-                        coveredKeys.add(key);
-                    } else {
-                        // Ficha sin asignar sin demanda — eliminar
-                        console.log(`DEBUG Reconcile: Removing unplaced item "${item.subjectName}" (${key}) — no current demand.`);
+                    // No demand match — keep placed items, drop unplaced ones
+                    for (const item of items) {
+                        const isPlaced = (item.day && item.day !== 'N/A') ||
+                                         (Array.isArray(item.sessions) && item.sessions.length > 0);
+                        if (isPlaced) {
+                            console.log(`DEBUG Reconcile: Keeping placed "${item.subjectName}" (${key}) — no demand match.`);
+                            result.push({ ...item });
+                        } else {
+                            console.log(`DEBUG Reconcile: Removing unplaced "${item.subjectName}" (${key}) — no demand.`);
+                        }
                     }
+                    coveredKeys.add(key);
                     continue;
                 }
 
-                // Update students and count from current demand
-                const updatedItem = { ...item };
-                updatedItem.studentIds = currentDemand.students;
-                updatedItem.studentCount = currentDemand.students.length;
-                updatedItem.career = Array.from(currentDemand.careers).join(', ');
-                updatedItem.careerList = Array.from(currentDemand.careers);
-                updatedItem.levelDisplay = Array.from(currentDemand.levels).join(', ');
-                updatedItem.levelList = Array.from(currentDemand.levels);
+                // Distribute current students evenly across all sibling groups for this key.
+                // This preserves subdivisions created by the algorithm for >40-student subjects.
+                const allStudents = currentDemand.students;
+                const numGroups = items.length;
+                const baseSize = Math.floor(allStudents.length / numGroups);
+                const remainder = allStudents.length % numGroups;
+                let offset = 0;
 
-                result.push(updatedItem);
+                const sharedMeta = {
+                    career: Array.from(currentDemand.careers).join(', '),
+                    careerList: Array.from(currentDemand.careers),
+                    levelDisplay: Array.from(currentDemand.levels).join(', '),
+                    levelList: Array.from(currentDemand.levels),
+                };
+
+                for (let i = 0; i < numGroups; i++) {
+                    const groupSize = baseSize + (i < remainder ? 1 : 0);
+                    const groupStudents = allStudents.slice(offset, offset + groupSize);
+                    offset += groupSize;
+
+                    result.push({
+                        ...items[i],
+                        ...sharedMeta,
+                        studentIds: groupStudents,
+                        studentCount: groupStudents.length,
+                    });
+                }
                 coveredKeys.add(key);
             }
 
