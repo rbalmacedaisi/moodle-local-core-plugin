@@ -59,12 +59,11 @@ class planning_manager {
                 ORDER BY llu.id ASC"; // Order by ID to process older first, so newer overwrites older in loop
 
         $subscriptionsRaw = $DB->get_records_sql($sql);
-        
-        // Deduplicate students, keeping the latest subscription (highest ID)
-        $studentsRaw = [];
-        foreach ($subscriptionsRaw as $sub) {
-            $studentsRaw[$sub->id] = $sub; // $sub->id is user ID here
-        }
+
+        // Keep ALL subscriptions — a student enrolled in 2 plans must appear once per plan
+        // so that pending subjects from both plans are processed independently.
+        // The SQL uses llu.id (subscription ID) as the unique key, so each row is distinct.
+        $studentsRaw = array_values($subscriptionsRaw);
         $studentList = [];
 
         // 2. Fetch Progress (Grades) to determine Pending Subjects
