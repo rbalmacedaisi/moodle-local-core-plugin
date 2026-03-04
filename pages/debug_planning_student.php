@@ -67,11 +67,12 @@ echo $OUTPUT->header();
 $searchQuery = $_GET['search'] ?? '';
 
 if (!empty($searchQuery)) {
-    // Search for student
+    // Search for student — all active plan enrollments (student may be in multiple plans)
     $sql = "SELECT u.id, u.firstname, u.lastname, u.idnumber, u.email,
                    lp.id as planid, lp.name as planname,
                    p.id as periodid, p.name as periodname,
-                   sp.id as subperiodid, sp.name as subperiodname
+                   sp.id as subperiodid, sp.name as subperiodname,
+                   llu.id as lluid
             FROM {user} u
             JOIN {local_learning_users} llu ON llu.userid = u.id AND llu.userrolename = 'student'
             JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
@@ -80,34 +81,41 @@ if (!empty($searchQuery)) {
             WHERE u.deleted = 0
               AND llu.status = 'activo'
               AND (CONCAT(u.firstname, ' ', u.lastname) LIKE :name
-                   OR u.idnumber LIKE :idnumber)
-            LIMIT 1";
+                   OR u.idnumber LIKE :idnumber)";
 
     $params = [
         'name' => '%' . $searchQuery . '%',
         'idnumber' => '%' . $searchQuery . '%'
     ];
 
-    $student = $DB->get_record_sql($sql, $params);
+    $allEnrollments = $DB->get_records_sql($sql, $params);
+    $student = !empty($allEnrollments) ? reset($allEnrollments) : null;
 
     if ($student) {
+        // Show all plans if multiple
+        if (count($allEnrollments) > 1) {
+            echo "<div class='section' style='background:#fff3cd; border-left:4px solid #ffc107;'>";
+            echo "<h3>⚠️ Estudiante con Múltiples Planes de Aprendizaje</h3>";
+            echo "<p style='font-size:12px;'>Este estudiante está activo en <strong>" . count($allEnrollments) . " planes</strong>. Se analizará cada plan por separado.</p>";
+            echo "<ul style='font-size:12px;'>";
+            foreach ($allEnrollments as $enr) {
+                echo "<li><strong>" . htmlspecialchars($enr->planname) . "</strong> — Nivel: " . htmlspecialchars($enr->periodname ?: '—') . " / Bimestre: " . htmlspecialchars($enr->subperiodname ?: '—') . "</li>";
+            }
+            echo "</ul></div>";
+        }
         echo "<div class='student-info'>";
         echo "<h2>👤 Estudiante Encontrado</h2>";
         echo "<strong>Nombre:</strong> {$student->firstname} {$student->lastname}<br>";
         echo "<strong>Cédula/ID:</strong> " . ($student->idnumber ?: $student->id) . "<br>";
         echo "<strong>Email:</strong> {$student->email}<br>";
-        echo "<strong>Plan:</strong> {$student->planname}<br>";
-        echo "<strong>Nivel Actual:</strong> {$student->periodname}<br>";
-        echo "<strong>Bimestre Actual:</strong> {$student->subperiodname}<br>";
         echo "</div>";
 
-        // Get plan structure using reflection
+        // ── Cargar datos globales una sola vez (comunes a todos los planes) ──
         $reflectionClass = new ReflectionClass('\local_grupomakro_core\local\planning_manager');
 
         $methodStructure = $reflectionClass->getMethod('get_all_plans_structure');
         $methodStructure->setAccessible(true);
         $structures = $methodStructure->invoke(null);
-        $planStructure = $structures[$student->planid] ?? [];
 
         $methodApproved = $reflectionClass->getMethod('get_all_approved_courses');
         $methodApproved->setAccessible(true);
@@ -133,37 +141,20 @@ if (!empty($searchQuery)) {
         $methodAvailable->setAccessible(true);
         $availableCourses = $methodAvailable->invoke(null);
 
-        $studentApproved = $approvedCourses[$student->id] ?? [];
-        $studentInProgress = $inProgressCourses[$student->id] ?? [];
-        $studentFailed = $failedCourses[$student->id] ?? [];
-        $studentMigration = $migrationCourses[$student->id] ?? [];
+        // Student-level data (same across all plans)
+        $studentApproved    = $approvedCourses[$student->id] ?? [];
+        $studentInProgress  = $inProgressCourses[$student->id] ?? [];
+        $studentFailed      = $failedCourses[$student->id] ?? [];
+        $studentMigration   = $migrationCourses[$student->id] ?? [];
         $studentNoAvailable = $noAvailableCourses[$student->id] ?? [];
-        $studentAvailable = $availableCourses[$student->id] ?? [];
+        $studentAvailable   = $availableCourses[$student->id] ?? [];
 
-        // Get raw status records from DB
+        // Raw status records from DB (same across all plans)
         $rawStatuses = $DB->get_records('gmk_course_progre', ['userid' => $student->id], '', 'courseid, status, grade');
 
-        // Build courseId -> fullname + shortname map for all courses in plan (for prereq display)
-        $courseInfoMap = [];
-        foreach ($planStructure as $c) {
-            $courseInfoMap[$c->id] = $c->fullname;
-        }
-        // Also fetch shortnames for prereq raw value display
-        $allCourseShortnames = $DB->get_records_sql(
-            "SELECT c.id, c.shortname, c.fullname FROM {course} c
-             JOIN {local_learning_courses} llc ON llc.courseid = c.id
-             WHERE llc.learningplanid = :planid",
-            ['planid' => $student->planid]
-        );
-        $idToShortname = [];
-        foreach ($allCourseShortnames as $cs) {
-            $idToShortname[$cs->id] = $cs->shortname;
-            $courseInfoMap[$cs->id] = $cs->fullname; // fill any gaps
-        }
-
-        // Read raw prereq_shortnames from customfield_data for display
+        // Raw prereq customfield data (same across all plans)
         $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
-        $prereqRawMap = []; // courseId => raw string from customfield
+        $prereqRawMap = [];
         if ($preFieldId) {
             $rawPrereqData = $DB->get_records_sql(
                 "SELECT cfd.instanceid as courseid, cfd.value FROM {customfield_data} cfd WHERE cfd.fieldid = :fid",
@@ -175,6 +166,40 @@ if (!empty($searchQuery)) {
                 }
             }
         }
+
+        // ── Analizar cada plan del estudiante ──
+        foreach ($allEnrollments as $enrollment) {
+        $student->planid       = $enrollment->planid;
+        $student->planname     = $enrollment->planname;
+        $student->periodname   = $enrollment->periodname;
+        $student->subperiodname= $enrollment->subperiodname;
+
+        $planStructure = $structures[$enrollment->planid] ?? [];
+
+        // Build courseId -> fullname map for this plan
+        $courseInfoMap = [];
+        foreach ($planStructure as $c) {
+            $courseInfoMap[$c->id] = $c->fullname;
+        }
+        $allCourseShortnames = $DB->get_records_sql(
+            "SELECT c.id, c.shortname, c.fullname FROM {course} c
+             JOIN {local_learning_courses} llc ON llc.courseid = c.id
+             WHERE llc.learningplanid = :planid",
+            ['planid' => $enrollment->planid]
+        );
+        foreach ($allCourseShortnames as $cs) {
+            $courseInfoMap[$cs->id] = $cs->fullname;
+        }
+
+        echo "<div style='border:2px solid #007bff; border-radius:8px; margin-bottom:30px; padding:15px;'>";
+        echo "<h2 style='margin-top:0; color:#007bff;'>📋 Plan: " . htmlspecialchars($enrollment->planname) . "</h2>";
+        echo "<div class='student-info' style='margin-bottom:15px;'>";
+        echo "<strong>Nivel Actual:</strong> {$enrollment->periodname}<br>";
+        echo "<strong>Bimestre Actual:</strong> " . ($enrollment->subperiodname ?: '—') . "<br>";
+        if (empty($planStructure)) {
+            echo "<span style='color:#dc3545; font-weight:bold;'>⚠️ No hay materias configuradas en este plan (local_learning_courses vacío para planid={$enrollment->planid})</span>";
+        }
+        echo "</div>";
 
         // Calculate target level using reflection
         $methodParseSemester = $reflectionClass->getMethod('parse_semester_number');
@@ -435,30 +460,13 @@ if (!empty($searchQuery)) {
         }
         echo "</div>";
 
-        // Summary of SQL queries
+        echo "</div>"; // close plan blue border div
+
+        } // end foreach ($allEnrollments as $enrollment)
+
+        // ── Registros en gmk_course_progre (una sola vez, todos los planes) ──
         echo "<div class='section'>";
-        echo "<h3>🔍 Consultas SQL Ejecutadas</h3>";
-        echo "<div class='code-block'>";
-        echo "<strong>1. Materias Aprobadas (status 3 o 4):</strong><br>";
-        echo "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status IN (3, 4)<br><br>";
-
-        echo "<strong>2. Materias En Curso (status 2):</strong><br>";
-        echo "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 2<br><br>";
-
-        echo "<strong>3. Materias Reprobadas (status 5):</strong><br>";
-        echo "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 5<br><br>";
-
-        echo "<strong>4. Materias No Disponibles (status 0):</strong><br>";
-        echo "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 0<br><br>";
-
-        echo "<strong>5. Materias Disponibles (status 1):</strong><br>";
-        echo "SELECT id, userid, courseid FROM {gmk_course_progre} WHERE status = 1<br>";
-        echo "</div>";
-        echo "</div>";
-
-        // Show raw DB records
-        echo "<div class='section'>";
-        echo "<h3>💾 Registros en gmk_course_progre para este estudiante</h3>";
+        echo "<h3>💾 Todos los Registros en gmk_course_progre para este estudiante</h3>";
         $allRecords = $DB->get_records_sql(
             "SELECT gcp.id, gcp.courseid, c.fullname, gcp.status, gcp.grade, gcp.timemodified
              FROM {gmk_course_progre} gcp
