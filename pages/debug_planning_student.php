@@ -143,6 +143,39 @@ if (!empty($searchQuery)) {
         // Get raw status records from DB
         $rawStatuses = $DB->get_records('gmk_course_progre', ['userid' => $student->id], '', 'courseid, status, grade');
 
+        // Build courseId -> fullname + shortname map for all courses in plan (for prereq display)
+        $courseInfoMap = [];
+        foreach ($planStructure as $c) {
+            $courseInfoMap[$c->id] = $c->fullname;
+        }
+        // Also fetch shortnames for prereq raw value display
+        $allCourseShortnames = $DB->get_records_sql(
+            "SELECT id, shortname, fullname FROM {course} WHERE id IN (
+                SELECT DISTINCT courseid FROM {local_learning_plan_courses} WHERE learningplanid = :planid
+            )",
+            ['planid' => $student->planid]
+        );
+        $idToShortname = [];
+        foreach ($allCourseShortnames as $cs) {
+            $idToShortname[$cs->id] = $cs->shortname;
+            $courseInfoMap[$cs->id] = $cs->fullname; // fill any gaps
+        }
+
+        // Read raw prereq_shortnames from customfield_data for display
+        $preFieldId = $DB->get_field('customfield_field', 'id', ['shortname' => 'pre']);
+        $prereqRawMap = []; // courseId => raw string from customfield
+        if ($preFieldId) {
+            $rawPrereqData = $DB->get_records_sql(
+                "SELECT cfd.instanceid as courseid, cfd.value FROM {customfield_data} cfd WHERE cfd.fieldid = :fid",
+                ['fid' => $preFieldId]
+            );
+            foreach ($rawPrereqData as $rpd) {
+                if (!empty($rpd->value)) {
+                    $prereqRawMap[$rpd->courseid] = $rpd->value;
+                }
+            }
+        }
+
         // Calculate target level using reflection
         $methodParseSemester = $reflectionClass->getMethod('parse_semester_number');
         $methodParseSemester->setAccessible(true);
@@ -207,12 +240,16 @@ if (!empty($searchQuery)) {
 
             $finallyExcluded = $excluded || $excludedByStatus;
 
-            // Check prerequisites
+            // Check prerequisites — same logic as planning_manager.php lines 236-238:
+            // met = approved (3,4) OR in-progress (2) OR migration-pending (99)
             $prereqsMet = true;
             $missingPrereqs = [];
             if (!empty($course->prereqs)) {
                 foreach ($course->prereqs as $prereqId) {
-                    if (!isset($studentApproved[$prereqId])) {
+                    $prereqMet = isset($studentApproved[$prereqId])
+                              || isset($studentInProgress[$prereqId])
+                              || isset($studentMigration[$prereqId]);
+                    if (!$prereqMet) {
                         $prereqsMet = false;
                         $missingPrereqs[] = $prereqId;
                     }
@@ -270,8 +307,28 @@ if (!empty($searchQuery)) {
             // Filters column
             echo "<td style='font-size: 10px;'>";
             echo "Prereqs OK: <span class='flag " . ($prereqsMet ? 'yes' : 'no') . "'>" . ($prereqsMet ? 'SÍ' : 'NO') . "</span><br>";
+            if (!empty($course->prereqs)) {
+                foreach ($course->prereqs as $prereqId) {
+                    $isPrereqApproved  = isset($studentApproved[$prereqId]);
+                    $isPrereqInProg    = isset($studentInProgress[$prereqId]);
+                    $isPrereqMigration = isset($studentMigration[$prereqId]);
+                    $prereqOk = $isPrereqApproved || $isPrereqInProg || $isPrereqMigration;
+                    $prereqName = $courseInfoMap[$prereqId] ?? "ID:{$prereqId}";
+                    $reason = [];
+                    if ($isPrereqApproved) $reason[] = 'Aprobada';
+                    if ($isPrereqInProg)   $reason[] = 'En Curso';
+                    if ($isPrereqMigration) $reason[] = 'Migración';
+                    $reasonStr = $prereqOk ? implode('+', $reason) : '—no cumplida—';
+                    $color = $prereqOk ? '#28a745' : '#dc3545';
+                    echo "<div style='margin-left:8px; color:{$color};'>↳ " . htmlspecialchars($prereqName) . " [{$reasonStr}]</div>";
+                }
+            }
             if (!$prereqsMet) {
-                echo "<div class='prereq-list'>Faltan: " . implode(', ', $missingPrereqs) . "</div>";
+                // Show raw customfield value for this course to help debug shortname resolution
+                $rawPre = $prereqRawMap[$courseId] ?? null;
+                if ($rawPre) {
+                    echo "<div class='prereq-list'>Raw pre field: " . htmlspecialchars($rawPre) . "</div>";
+                }
             }
             echo "Nivel ≤ Target: <span class='flag " . (($course->semester_num <= $targetLevel) ? 'yes' : 'no') . "'>" . (($course->semester_num <= $targetLevel) ? 'SÍ' : 'NO') . "</span><br>";
             echo "isPriority: <span class='flag " . ($isPriority ? 'yes' : 'no') . "'>" . ($isPriority ? 'SÍ' : 'NO') . "</span>";
@@ -301,6 +358,81 @@ if (!empty($searchQuery)) {
         echo "</tbody>";
         echo "</table>";
         echo "<p><strong>Total Incluidas:</strong> {$includedCount} | <strong>Total Excluidas:</strong> {$excludedCount}</p>";
+        echo "</div>";
+
+        // ── Focused section: "No disponible" courses where prereqs seem met ──
+        echo "<div class='section' style='border-left: 4px solid #dc3545;'>";
+        echo "<h3>⚠️ Asignaturas 'No Disponible' con Prelaciones Aparentemente Cumplidas</h3>";
+        echo "<p style='font-size:12px; color:#6c757d;'>Estas materias tienen status 0 en BD y sus prelaciones están aprobadas/en-curso/migración, pero NO aparecen como pendientes en la planificación. Aquí se detalla por qué.</p>";
+
+        $noAvailableWithMetPrereqs = [];
+        foreach ($planStructure as $course) {
+            $courseId2 = $course->id;
+            if (!isset($studentNoAvailable[$courseId2])) continue; // must be status 0
+
+            // Check if prereqs are met
+            $prereqsMetHere = true;
+            foreach ($course->prereqs as $prereqId) {
+                $prereqMet2 = isset($studentApproved[$prereqId])
+                           || isset($studentInProgress[$prereqId])
+                           || isset($studentMigration[$prereqId]);
+                if (!$prereqMet2) { $prereqsMetHere = false; break; }
+            }
+
+            if ($prereqsMetHere) {
+                $noAvailableWithMetPrereqs[] = $course;
+            }
+        }
+
+        if (empty($noAvailableWithMetPrereqs)) {
+            echo "<p style='color:#28a745;'>✅ No se detectaron casos problemáticos: todas las asignaturas 'No Disponible' con prelaciones cumplidas están correctamente excluidas o no existen.</p>";
+        } else {
+            echo "<table>";
+            echo "<thead><tr><th>Materia</th><th>Nivel/Bim</th><th>Prelaciones</th><th>Status DB</th><th>Por qué NO es pendiente</th></tr></thead><tbody>";
+
+            foreach ($noAvailableWithMetPrereqs as $course) {
+                $courseId2 = $course->id;
+                $dbStatus2 = isset($rawStatuses[$courseId2]) ? $rawStatuses[$courseId2]->status : null;
+
+                echo "<tr style='background:#fff3cd;'>";
+                echo "<td><strong>" . htmlspecialchars($course->fullname) . "</strong><br><small style='color:#6c757d;'>ID: {$courseId2}</small></td>";
+                echo "<td>Nivel {$course->semester_num} / Bim {$course->bimestre}</td>";
+
+                // Prereq detail
+                echo "<td style='font-size:11px;'>";
+                if (empty($course->prereqs)) {
+                    echo "<em>Sin prelaciones</em>";
+                } else {
+                    foreach ($course->prereqs as $prereqId) {
+                        $pName = $courseInfoMap[$prereqId] ?? "ID:{$prereqId}";
+                        $pApproved  = isset($studentApproved[$prereqId])  ? '✅Aprobada' : '';
+                        $pInProg    = isset($studentInProgress[$prereqId]) ? '✅En Curso' : '';
+                        $pMig       = isset($studentMigration[$prereqId])  ? '✅Migración' : '';
+                        $pStatus    = $pApproved . $pInProg . $pMig ?: '❌ Sin estado aprobatorio';
+                        $pRawStatus = isset($rawStatuses[$prereqId]) ? 'DB status=' . $rawStatuses[$prereqId]->status : 'sin registro';
+                        echo htmlspecialchars($pName) . "<br><span style='color:#6c757d;'>$pStatus ($pRawStatus)</span><br>";
+                    }
+                    // Also show raw prereq customfield
+                    $rawPre2 = $prereqRawMap[$courseId2] ?? null;
+                    if ($rawPre2) {
+                        echo "<span style='color:#856404; font-style:italic;'>Raw: " . htmlspecialchars($rawPre2) . "</span>";
+                    }
+                }
+                echo "</td>";
+
+                echo "<td><span class='status-badge status-0'>0: No Disponible</span></td>";
+
+                // Reason it won't appear as pending
+                echo "<td style='font-size:11px;'>";
+                echo "Status 0 = 'No Disponible' → la materia existe en <code>get_all_no_available_courses()</code>.<br>";
+                echo "En planning_manager, status 0 excluye de <em>available</em> y <em>no_available</em> buckets.<br>";
+                echo "<strong style='color:#dc3545;'>La materia NO se agrega a pendingSubjects porque su status en DB es 0 (bloqueada).</strong><br>";
+                echo "Para que aparezca como pendiente, el status debe estar <em>sin registro</em> o en 1 (disponible).";
+                echo "</td>";
+                echo "</tr>";
+            }
+            echo "</tbody></table>";
+        }
         echo "</div>";
 
         // Summary of SQL queries
