@@ -303,7 +303,7 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-slate-600">
                                 <div class="flex items-center gap-1">
                                     <i data-lucide="calendar" class="w-3 h-3 text-slate-400 shrink-0"></i>
-                                    <span class="font-medium">{{ selectedClass.assignedDates ? selectedClass.assignedDates.length : '?' }} sesiones</span>
+                                    <span class="font-medium">{{ effectiveSessionCount }} sesiones</span>
                                 </div>
                                 <div v-if="loadsMap[selectedClass.subjectName]" class="flex items-center gap-1">
                                     <i data-lucide="clock" class="w-3 h-3 text-violet-400 shrink-0"></i>
@@ -396,8 +396,8 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                             <div class="flex justify-between">
                                 <span class="font-medium text-slate-700">Sesiones actuales:</span>
-                                <span :class="(selectedClass.assignedDates || []).length === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
-                                    {{ (selectedClass.assignedDates || []).length }}
+                                <span :class="effectiveSessionCount === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
+                                    {{ effectiveSessionCount }}
                                     <template v-if="optimalSessions">(óptimo: {{ optimalSessions }})</template>
                                 </span>
                             </div>
@@ -575,6 +575,15 @@ window.SchedulerComponents.PlanningBoard = {
             const durH = this.selectedClassDuration / 60;
             if (totalH > 0 && durH > 0) return Math.ceil(totalH / durH);
             return null;
+        },
+        effectiveSessionCount() {
+            if (!this.selectedClass) return 0;
+            const ad = this.selectedClass.assignedDates;
+            if (Array.isArray(ad) && ad.length > 0) return ad.length;
+            // assignedDates missing/empty → compute from period dates
+            if (!this.selectedClass.day || this.selectedClass.day === 'N/A' || !window.SchedulerAlgorithm?.getDatesForDay) return 0;
+            const normalizedDay = this.selectedClass.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return window.SchedulerAlgorithm.getDatesForDay(normalizedDay, this.storeState.context, this.selectedClass.subperiod || 0).length;
         },
         timeSlots() {
             const slots = [];
@@ -940,7 +949,9 @@ window.SchedulerComponents.PlanningBoard = {
 
             const context = this.storeState.context;
             const load = this.loadsMap[cls.subjectName];
-            const allDates = window.SchedulerAlgorithm.getDatesForDay(cls.day, context, cls.subperiod || 0);
+            // Normalize day: remove accents so 'Miércoles' → 'Miercoles' matches getDatesForDay's dayMap
+            const normalizedDay = cls.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const allDates = window.SchedulerAlgorithm.getDatesForDay(normalizedDay, context, cls.subperiod || 0);
             const durMins = this.toMins(cls.end) - this.toMins(cls.start);
             const durH = durMins / 60;
 
@@ -953,7 +964,9 @@ window.SchedulerComponents.PlanningBoard = {
                 const totalH = parseFloat(load.total_hours || load.totalHours || 0);
                 if (totalH > 0 && durH > 0) {
                     const optimal = Math.ceil(totalH / durH);
-                    const current = (cls.assignedDates || allDates).length;
+                    // Use assignedDates if non-empty, else fall back to all period dates
+                    const effectiveDates = (Array.isArray(cls.assignedDates) && cls.assignedDates.length > 0) ? cls.assignedDates : allDates;
+                    const current = effectiveDates.length;
 
                     if (current !== optimal) {
                         const dates = allDates.slice(0, optimal);
