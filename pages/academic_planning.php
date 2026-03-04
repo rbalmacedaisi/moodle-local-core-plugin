@@ -1173,6 +1173,9 @@ const app = createApp({
             const studentStatusFilter = ref('Todos');
             const searchTerm = ref('');
             const periodMappings = ref({});
+
+            // Placed courses: Set of corecourseid (Moodle course.id) that have a scheduled draft card
+            const placedCoursesSet = ref(new Set());
     
             // New UI State for Tabs
             const expandedCareer = ref(null);
@@ -1380,6 +1383,21 @@ const app = createApp({
                  let res = await callMoodle('local_grupomakro_get_planning_data', { periodid: selectedPeriodId.value });
                  console.log("Vue Planning App: fetchData() received data:", res ? "SUCCESS" : "EMPTY");
                  rawData.value = res || [];
+
+                 // Load placed courses from draft (and live DB classes) for Impact tab
+                 const newPlaced = new Set();
+                 try {
+                     const draft = await callMoodle('local_grupomakro_load_draft', { periodid: selectedPeriodId.value });
+                     if (Array.isArray(draft)) {
+                         draft.forEach(item => {
+                             const isPlaced = (item.day && item.day !== 'N/A') ||
+                                              (Array.isArray(item.sessions) && item.sessions.length > 0);
+                             if (isPlaced && item.corecourseid) newPlaced.add(String(item.corecourseid));
+                             if (isPlaced && item.courseid) newPlaced.add(String(item.courseid));
+                         });
+                     }
+                 } catch(e) { /* si no hay borrador, se ignora */ }
+                 placedCoursesSet.value = newPlaced;
 
                    if (res) {
                         // Reset current states
@@ -1741,7 +1759,22 @@ const app = createApp({
             }
 
             // 5. Build Student Status Lists
-            const openSubjectsSet = new Set(subjectsArray.filter(s => s.isOpen).map(s => s.name));
+            // A subject is considered "open" for Impact purposes only if it has a placed card
+            // in the draft/published schedule. If no draft data is available, fall back to quorum >= 12.
+            const placed = placedCoursesSet.value;
+            const hasDraftData = placed.size > 0;
+            const openSubjectsSet = new Set(
+                subjectsArray
+                    .filter(s => {
+                        if (hasDraftData) {
+                            // Check if this subject has a placed card (match by id)
+                            return placed.has(String(s.id));
+                        }
+                        // Fallback: use quorum threshold
+                        return s.isOpen;
+                    })
+                    .map(s => s.name)
+            );
 
             // Calculate max semester per career from allSubjectsList
             const maxSemPerCareer = {};
@@ -2462,9 +2495,25 @@ const app = createApp({
             loadAllPlans();
         });
 
-        // Watch activeTab for icons
-        watch(activeTab, () => {
+        // Watch activeTab for icons and draft refresh
+        watch(activeTab, async (newTab) => {
              nextTick(() => lucide.createIcons());
+             // When switching to the Impact tab, refresh placed courses from the current draft
+             if (newTab === 'students' && selectedPeriodId.value) {
+                 try {
+                     const draft = await callMoodle('local_grupomakro_load_draft', { periodid: selectedPeriodId.value });
+                     const newPlaced = new Set();
+                     if (Array.isArray(draft)) {
+                         draft.forEach(item => {
+                             const isPlaced = (item.day && item.day !== 'N/A') ||
+                                              (Array.isArray(item.sessions) && item.sessions.length > 0);
+                             if (isPlaced && item.corecourseid) newPlaced.add(String(item.corecourseid));
+                             if (isPlaced && item.courseid) newPlaced.add(String(item.courseid));
+                         });
+                     }
+                     placedCoursesSet.value = newPlaced;
+                 } catch(e) { /* ignorar si no hay borrador */ }
+             }
         });
 
         // Auto-load scheduler context (loads, holidays, etc.) when config sub-tabs are shown
