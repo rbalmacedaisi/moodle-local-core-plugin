@@ -139,7 +139,7 @@ window.SchedulerComponents.PlanningBoard = {
 
                                     <!-- Ghost Preview (DOM-direct, not Vue-reactive) -->
                                     <div :ref="el => registerGhostRef(el, day)"
-                                        style="display:none;position:absolute;left:4px;right:4px;border-radius:6px;border:2px dashed #60a5fa;background:rgba(191,219,254,0.6);z-index:30;pointer-events:none;align-items:center;justify-content:center;"
+                                        style="display:none;position:absolute;left:4px;right:4px;border-radius:6px;border:2px dashed #60a5fa;background:rgba(191,219,254,0.6);z-index:100;pointer-events:none;align-items:center;justify-content:center;"
                                     >
                                         <span style="font-size:11px;font-weight:700;color:#1d4ed8;background:rgba(255,255,255,0.8);padding:1px 8px;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.15)"></span>
                                     </div>
