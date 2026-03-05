@@ -223,7 +223,6 @@ echo $OUTPUT->header();
                                 <th v-for="period in analysis.sortedEntryPeriods" :key="period" class="px-1 py-3 bg-slate-100 text-[10px] text-center w-12 border-l border-slate-200">
                                     {{ period }}
                                 </th>
-                                <th class="px-2 py-3 bg-slate-50 text-center w-20">Nuevos<br/>(Man)</th>
                                 <th class="px-2 py-3 bg-blue-50 text-blue-900 text-center border-l border-blue-100 min-w-[120px]">
                                     <div class="flex flex-col items-center gap-1">
                                         <span class="whitespace-nowrap">P-I (Próximo)</span>
@@ -262,12 +261,6 @@ echo $OUTPUT->header();
                                         {{ subj.entryPeriodCounts[period] }}
                                     </button>
                                     <span v-else>-</span>
-                                </td>
-                                <td class="px-2 py-2 text-center">
-                                    <input type="number" min="0" class="w-12 p-1 text-center text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono"
-                                           :value="manualProjections[subj.name]" 
-                                           @input="updateProjection(subj.name, $event.target.value)" 
-                                           placeholder="0">
                                 </td>
                                 <td class="px-2 py-3 text-center border-l border-blue-100 font-bold text-base">
                                      <button @click="openPopover(subj, 0, $event)" :class="['px-3 py-1 rounded transition-all border border-transparent hover:scale-105 inline-flex items-center gap-1', subj.isOpen ? 'text-blue-700 bg-blue-50 hover:bg-blue-100 border-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200']">
@@ -1148,7 +1141,6 @@ const app = createApp({
             
             // Manual Adjustments
             const isOrderLocked = ref(false);
-            const manualProjections = reactive({}); // { SubjectName: Count }
             const deferredGroups = reactive({}); // { SubjectName_CohortKey: PeriodIndex (0-5) }
             const deferralVersion = ref(0); // Increment to force computed recalculation
             const ignoredSubjects = reactive({}); // { SubjectName: Boolean }
@@ -1253,37 +1245,27 @@ const app = createApp({
 
         const reloadData = () => fetchData();
 
-        const updateProjection = (name, val) => {
-            const num = parseInt(val, 10) || 0;
-            console.log(`DEBUG updateProjection: Setting '${name}' to ${num}`);
-            manualProjections[name] = num;
-        };
-
         const savePlanning = async () => {
              if (selectedPeriodId.value === 0) return;
-             
-             console.log("DEBUG manualProjections proxy:", JSON.parse(JSON.stringify(manualProjections)));
              
              saving.value = true;
              try {
                  const items = [];
-                 
+
                   analysis.value.subjectList.forEach(s => {
-                      const count = manualProjections[s.name] || 0;
                       const isIgnored = ignoredSubjects[s.name] || false;
-                      
+
                       // Check if it was previously saved in the database
-                      const wasSaved = rawData.value.planning_projections && 
+                      const wasSaved = rawData.value.planning_projections &&
                                        rawData.value.planning_projections.find(pp => pp.courseid == s.id);
-                      
+
                       // We send it if:
-                      // 1. It has a manual count > 0
-                      // 2. It is marked as ignored
-                      // 3. It was PREVIOUSLY saved (so we can update/delete it)
-                      // 4. It is projected to open organically (isOpen=true) — saved as status=1
+                      // 1. It is marked as ignored
+                      // 2. It was PREVIOUSLY saved (so we can update/delete it)
+                      // 3. It is projected to open organically (isOpen=true) — saved as status=1
                       //    so the scheduler only includes subjects confirmed for this period
 
-                      if (count > 0 || isIgnored || wasSaved || s.isOpen) {
+                      if (isIgnored || wasSaved || s.isOpen) {
                           let targetPlanId = 0;
                           let targetPeriodId = 0;
                           
@@ -1314,10 +1296,10 @@ const app = createApp({
                               items.push({
                                   planid: targetPlanId,
                                   courseid: s.id,
-                                  periodid: targetPeriodId, 
-                                  count: count,
+                                  periodid: targetPeriodId,
+                                  count: 0,
                                   ignored: isIgnored,
-                                  checked: (count > 0 || isIgnored || s.isOpen) // false = delete record
+                                  checked: (isIgnored || s.isOpen) // false = delete record
                               });
                           }
                       }
@@ -1401,14 +1383,12 @@ const app = createApp({
 
                    if (res) {
                         // Reset current states
-                        Object.keys(manualProjections).forEach(key => delete manualProjections[key]);
                         Object.keys(ignoredSubjects).forEach(key => delete ignoredSubjects[key]);
                         periodMappings.value = res.period_mappings || {};
-                        
+
                         // Guarantee reactivity by pre-defining properties for all subjects
                         if (res.all_subjects) {
                             res.all_subjects.forEach(subj => {
-                                manualProjections[subj.name] = 0;
                                 ignoredSubjects[subj.name] = false;
                             });
                         }
@@ -1416,13 +1396,8 @@ const app = createApp({
                         if (res.planning_projections) {
                             res.planning_projections.forEach(pp => {
                                 const subject = res.all_subjects ? res.all_subjects.find(s => s.id == pp.courseid) : null;
-                                if (subject) {
-                                    if (pp.projected_students > 0) {
-                                        manualProjections[subject.name] = pp.projected_students;
-                                    }
-                                    if (pp.status == 2) {
-                                        ignoredSubjects[subject.name] = true;
-                                    }
+                                if (subject && pp.status == 2) {
+                                    ignoredSubjects[subject.name] = true;
                                 }
                             });
                         }
@@ -1748,19 +1723,18 @@ const app = createApp({
             // 4. Finalize Subjects List
             let subjectsArray = Object.values(subjectsMap).map(s => {
                 const isIgnored = ignoredSubjects[s.name] || false;
-                const manual = manualProjections[s.name] || 0;
-                const totalP1 = s.countP1 + manual;
+                const totalP1 = s.countP1;
                 const isOpen = !isIgnored && totalP1 >= 12;
-                
+
                 let suggestion = isIgnored ? "OMITIDA" : "Abrir P-I";
                 let maxDemand = totalP1;
-                
+
                 if (s.countP2 > maxDemand) { maxDemand = s.countP2; suggestion = isIgnored ? "OMITIDA" : "Esperar P-II"; }
-                
+
                 if (totalP1 < 12 && maxDemand < 12) suggestion = isIgnored ? "OMITIDA" : "Baja Demanda";
                 if (isOpen && !suggestion.includes("Esperar")) suggestion = "ABRIR AHORA";
-                
-                return { ...s, totalP1, isOpen, suggestion, manual, countP1: s.countP1 };
+
+                return { ...s, totalP1, isOpen, suggestion, countP1: s.countP1 };
             });
 
             if (selectedCareers.value.length > 0) {
@@ -2540,12 +2514,12 @@ const app = createApp({
 
             return {
                 loading, selectedPeriodId, periods, uniquePeriods, reloadData, analysis, savePlanning,
-                ignoredSubjects, isOrderLocked, updateProjection, periodMappings,
+                ignoredSubjects, isOrderLocked, periodMappings,
                 // Filters
                 selectedCareers, showCareerDropdown, selectedShift, careers, shifts,
                 activeTab,
                 // Tables
-                manualProjections, filteredStudents, studentStatusFilter, searchTerm,
+                filteredStudents, studentStatusFilter, searchTerm,
                 // UI Helpers
                 toRoman, getPeriodLabel, getSuggestionBadgeClass, 
                 getSubjectsForCohortPeriod, getSubjectCount,

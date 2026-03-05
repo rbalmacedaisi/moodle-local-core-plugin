@@ -19,9 +19,14 @@ window.SchedulerComponents.PlanningBoard = {
                                 {{ allClasses.filter(c => c.isExternal).length }} Externos | Total: {{ allClasses.length }}
                             </span>
                         </h3>
-                        <div class="relative w-32">
-                             <input type="text" v-model="search" placeholder="Busca..." class="w-full pl-7 pr-2 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" />
-                             <i data-lucide="search" class="absolute left-2 top-1.5 w-3 h-3 text-slate-400"></i>
+                        <div class="flex items-center gap-2">
+                            <div class="relative w-32">
+                                 <input type="text" v-model="search" placeholder="Busca..." class="w-full pl-7 pr-2 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" />
+                                 <i data-lucide="search" class="absolute left-2 top-1.5 w-3 h-3 text-slate-400"></i>
+                            </div>
+                            <button @click="openAddSubject" class="flex items-center gap-1 px-2 py-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors" title="Añadir asignatura sin demanda real">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Añadir
+                            </button>
                         </div>
                     </div>
                     
@@ -48,6 +53,9 @@ window.SchedulerComponents.PlanningBoard = {
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i> def.
                                 </span>
                                 <div class="ml-auto flex gap-1">
+                                    <button @click.stop="openAddQuorum(cls)" class="text-slate-400 hover:text-green-600 transition-colors" title="Añadir quórum proyectado">
+                                        <i data-lucide="user-plus" class="w-3 h-3"></i>
+                                    </button>
                                     <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
                                         <i data-lucide="users" class="w-3 h-3"></i>
                                     </button>
@@ -182,6 +190,9 @@ window.SchedulerComponents.PlanningBoard = {
 
                                         <!-- Actions -->
                                         <div class="absolute bottom-5 right-1 flex gap-1">
+                                            <button @click.stop="openAddQuorum(cls)" class="p-0.5 bg-white rounded shadow hover:bg-green-50 transition-colors" title="Añadir quórum proyectado">
+                                                <i data-lucide="user-plus" class="w-3 h-3 text-slate-400 hover:text-green-600"></i>
+                                            </button>
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
@@ -484,6 +495,82 @@ window.SchedulerComponents.PlanningBoard = {
                     </div>
                 </div>
              </div>
+
+            <!-- Modal: Añadir Quórum Proyectado -->
+            <div v-if="quorumDialog"
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+                 @click.self="quorumDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl p-6 w-80">
+                    <h3 class="font-bold text-slate-800 mb-1">Añadir Quórum Proyectado</h3>
+                    <p class="text-xs text-slate-500 mb-4">
+                        Estudiantes adicionales para <strong>{{ quorumTarget?.subjectName }}</strong>.
+                        Actual: <span class="font-mono">{{ quorumTarget?.studentCount || 0 }}</span>
+                    </p>
+                    <input type="number" v-model.number="quorumAmount" min="1"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center text-lg font-mono focus:ring-2 focus:ring-green-500 outline-none mb-4"
+                           placeholder="0" />
+                    <div class="flex justify-end gap-3">
+                        <button @click="quorumDialog = false"
+                                class="px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-lg">
+                            Cancelar
+                        </button>
+                        <button @click="confirmAddQuorum"
+                                :disabled="!quorumAmount || quorumAmount < 1"
+                                class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
+                            Añadir
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal: Añadir Asignatura al Tablero -->
+            <div v-if="addSubjectDialog"
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+                 @click.self="addSubjectDialog = false">
+                <div class="bg-white rounded-xl shadow-2xl p-6 w-[480px]">
+                    <h3 class="font-bold text-slate-800 mb-1">Añadir Asignatura al Tablero</h3>
+                    <p class="text-xs text-slate-500 mb-4">
+                        Busca una asignatura del catálogo para agregar al tablero con quórum proyectado.
+                    </p>
+                    <input type="text" v-model="subjectSearch"
+                           class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none mb-2"
+                           placeholder="Buscar asignatura..." />
+                    <div class="max-h-48 overflow-y-auto border border-slate-200 rounded-lg mb-4">
+                        <div v-if="filteredSubjectList.length === 0"
+                             class="p-3 text-center text-slate-400 text-sm italic">
+                            No se encontraron asignaturas.
+                        </div>
+                        <div v-for="subj in filteredSubjectList" :key="subj.id"
+                             @click="selectSubjectToAdd(subj)"
+                             :class="['p-3 cursor-pointer border-b border-slate-100 hover:bg-green-50 transition-colors text-sm',
+                                      selectedSubjectToAdd?.id === subj.id ? 'bg-green-100 font-bold' : '']">
+                            <div class="font-medium text-slate-800">{{ subj.name }}</div>
+                            <div class="text-xs text-slate-500">
+                                {{ (subj.careers || []).map(c => c.name).join(', ') }}
+                                — {{ subj.semester_name }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Quórum proyectado</label>
+                        <input type="number" v-model.number="addSubjectCount" min="1"
+                               class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center text-lg font-mono focus:ring-2 focus:ring-green-500 outline-none"
+                               placeholder="0" />
+                    </div>
+                    <div class="flex justify-end gap-3">
+                        <button @click="addSubjectDialog = false"
+                                class="px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 rounded-lg">
+                            Cancelar
+                        </button>
+                        <button @click="confirmAddSubject"
+                                :disabled="!selectedSubjectToAdd || !addSubjectCount || addSubjectCount < 1"
+                                class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
+                            Añadir al Tablero
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     `,
     data() {
@@ -510,7 +597,16 @@ window.SchedulerComponents.PlanningBoard = {
             teacherSearch: '',
             showTeacherList: false,
             optimizeDialog: false,
-            optimizeSuggestions: []
+            optimizeSuggestions: [],
+            // Modal +Quórum (ficha existente)
+            quorumDialog: false,
+            quorumTarget: null,
+            quorumAmount: 1,
+            // Modal Añadir Asignatura
+            addSubjectDialog: false,
+            subjectSearch: '',
+            selectedSubjectToAdd: null,
+            addSubjectCount: 1,
         };
     },
     computed: {
@@ -519,6 +615,12 @@ window.SchedulerComponents.PlanningBoard = {
         },
         allClasses() {
             return this.storeState.generatedSchedules || [];
+        },
+        filteredSubjectList() {
+            const allSubjects = Object.values(this.storeState.subjects || {});
+            const q = (this.subjectSearch || '').toLowerCase().trim();
+            if (!q) return allSubjects.slice(0, 50);
+            return allSubjects.filter(s => s.name && s.name.toLowerCase().includes(q)).slice(0, 50);
         },
         unassignedClasses() {
             const filter = this.storeState.subperiodFilter;
@@ -1191,7 +1293,40 @@ window.SchedulerComponents.PlanningBoard = {
             this.selectedClass = cls;
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
-        }
+        },
+        // --- Quórum en ficha existente ---
+        openAddQuorum(cls) {
+            this.quorumTarget = cls;
+            this.quorumAmount = 1;
+            this.quorumDialog = true;
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        confirmAddQuorum() {
+            if (!this.quorumTarget || !this.quorumAmount || this.quorumAmount < 1) return;
+            window.schedulerStore.addQuorumToSchedule(this.quorumTarget.id, this.quorumAmount);
+            this.quorumDialog = false;
+            this.quorumTarget = null;
+            this.quorumAmount = 1;
+        },
+        // --- Añadir asignatura sin demanda ---
+        openAddSubject() {
+            this.subjectSearch = '';
+            this.selectedSubjectToAdd = null;
+            this.addSubjectCount = 1;
+            this.addSubjectDialog = true;
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+        selectSubjectToAdd(subj) {
+            this.selectedSubjectToAdd = subj;
+        },
+        confirmAddSubject() {
+            if (!this.selectedSubjectToAdd || !this.addSubjectCount || this.addSubjectCount < 1) return;
+            window.schedulerStore.addManualScheduleItem(this.selectedSubjectToAdd, this.addSubjectCount);
+            this.addSubjectDialog = false;
+            this.selectedSubjectToAdd = null;
+            this.subjectSearch = '';
+            this.addSubjectCount = 1;
+        },
     },
     watch: {
         allClasses: {

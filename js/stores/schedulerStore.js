@@ -208,6 +208,61 @@
         },
 
         /**
+         * Add projected (anonymous) students to an existing schedule item.
+         * Increments studentCount only — no real IDs for projected students.
+         * extraQuorum persists in the draft JSON automatically.
+         */
+        addQuorumToSchedule(scheduleId, count) {
+            const schedule = this.state.generatedSchedules.find(s => s.id == scheduleId);
+            if (!schedule) return;
+            schedule.studentCount = (schedule.studentCount || 0) + count;
+            schedule.extraQuorum  = (schedule.extraQuorum  || 0) + count;
+        },
+
+        /**
+         * Create a new unassigned schedule item for a subject that has no real demand.
+         * subjectData comes from state.subjects (all_subjects from get_demand_data).
+         */
+        addManualScheduleItem(subjectData, count) {
+            const idCounter = Date.now();
+            const careers   = (subjectData.careers || []).map(c => c.name);
+            const planId    = subjectData.careers?.[0]?.id       || 0;
+            const levelId   = subjectData.careers?.[0]?.periodid || 0;
+
+            const newItem = {
+                id:             `manual-${idCounter}`,
+                courseid:       0,
+                corecourseid:   subjectData.id,
+                learningplanid: planId,
+                periodid:       levelId,
+                subjectName:    subjectData.name,
+                teacherName:    null,
+                day:            'N/A',
+                start:          '00:00',
+                end:            '00:00',
+                room:           'Sin aula',
+                studentCount:   count,
+                extraQuorum:    count,
+                career:         careers.join(', '),
+                careerList:     careers,
+                shift:          '',
+                levelDisplay:   subjectData.semester_name || '',
+                levelList:      [subjectData.semester_name || ''],
+                subGroup:       1,
+                subperiod:      subjectData.bimestre || 1,
+                studentIds:     [],
+                type:           0,
+                typeLabel:      'Presencial',
+                classdays:      '0/0/0/0/0/0/0',
+                isExternal:     false,
+                isManual:       true,
+            };
+
+            this.state.generatedSchedules.push(newItem);
+            return newItem;
+        },
+
+        /**
          * Trigger Algorithm
          */
         async generateSchedules() {
