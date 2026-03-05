@@ -1806,7 +1806,7 @@ const app = createApp({
 
                 let status = 'normal';
                 if (projected.length === 0 && priority.length > 0) status = 'critical';
-                else if (projected.length === 1) status = 'low';
+                else if (projected.length === 1 && !(isGraduating && missing.length === 0)) status = 'low';
                 else if (projected.length > 3) status = 'overload';
 
                 return { ...stu, projectedSubjects: projected, missingSubjects: missing, status, loadCount: projected.length, isGraduating, isGradRisk };
