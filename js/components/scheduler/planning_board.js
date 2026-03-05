@@ -906,27 +906,38 @@ window.SchedulerComponents.PlanningBoard = {
         onDragOver(e, day) {
             if (!this.draggedClass) return;
             e.preventDefault();
+
+            // Capture coords immediately (before rAF, as the event object may be recycled)
+            const clientY = e.clientY;
             const rect = e.currentTarget.getBoundingClientRect();
-            const y = Math.max(0, e.clientY - rect.top);
-            const start = this.yToTime(y);
 
-            const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
-            const isFirstPlacement = !this.draggedClass.day || this.draggedClass.day === 'N/A';
-            const duration = isFirstPlacement
-                ? configDuration
-                : (this.draggedClass.end ? (this.toMins(this.draggedClass.end) - this.toMins(this.draggedClass.start)) : configDuration);
+            // Throttle ghost updates to one per animation frame to avoid thrashing Vue reactivity
+            if (this._dragRafId) return;
+            this._dragRafId = requestAnimationFrame(() => {
+                this._dragRafId = null;
+                if (!this.draggedClass) return;
 
-            const endMins = this.toMins(start) + duration;
-            const endH = Math.floor(endMins / 60);
-            const endM = endMins % 60;
-            const end = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+                const y = Math.max(0, clientY - rect.top);
+                const start = this.yToTime(y);
 
-            const pixelsPerHour = 56;
-            const dayStartMins = this.startHour * 60;
-            const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
-            const height = (duration / 60) * pixelsPerHour;
+                const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
+                const isFirstPlacement = !this.draggedClass.day || this.draggedClass.day === 'N/A';
+                const duration = isFirstPlacement
+                    ? configDuration
+                    : (this.draggedClass.end ? (this.toMins(this.draggedClass.end) - this.toMins(this.draggedClass.start)) : configDuration);
 
-            this.ghost = { day, start, end, top, height };
+                const endMins = this.toMins(start) + duration;
+                const endH = Math.floor(endMins / 60);
+                const endM = endMins % 60;
+                const end = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+                const pixelsPerHour = 56;
+                const dayStartMins = this.startHour * 60;
+                const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
+                const height = (duration / 60) * pixelsPerHour;
+
+                this.ghost = { day, start, end, top, height };
+            });
         },
         onDragLeave(day) {
             if (this.ghost && this.ghost.day === day) this.ghost = null;
@@ -1344,10 +1355,16 @@ window.SchedulerComponents.PlanningBoard = {
     },
     mounted() {
         // Clear ghost if drag ends outside any drop zone (e.g. user releases over left panel)
-        this._onDragEnd = () => { this.ghost = null; this.draggedClass = null; };
+        this._dragRafId = null;
+        this._onDragEnd = () => {
+            if (this._dragRafId) { cancelAnimationFrame(this._dragRafId); this._dragRafId = null; }
+            this.ghost = null;
+            this.draggedClass = null;
+        };
         document.addEventListener('dragend', this._onDragEnd);
     },
     unmounted() {
         document.removeEventListener('dragend', this._onDragEnd);
+        if (this._dragRafId) { cancelAnimationFrame(this._dragRafId); this._dragRafId = null; }
     }
 };
