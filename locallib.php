@@ -2625,6 +2625,11 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         
         //Get the events filtered by date range, groups and courses.
         $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $userGroupIds, $userCourseIds, true);
+
+        // Build a Set of groupIds the student actually belongs to, for post-fetch filtering.
+        // calendar_get_events returns events for ALL groups in a course when courseIds are passed,
+        // so we must filter down to only the groups the student is enrolled in.
+        $userGroupIdSet = array_flip($userGroupIds);
     }
     // If the user is null, let's get all the class events.
     else {
@@ -2658,7 +2663,15 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         if (!$eventComplete) {
             continue;
         }
-        // ...
+
+        // For student requests: filter out events from groups the student is NOT enrolled in.
+        // calendar_get_events returns events for all groups in a course, not just the student's group.
+        if ($userId && isset($userGroupIdSet) && !empty($eventComplete->groupid)) {
+            if (!isset($userGroupIdSet[$eventComplete->groupid])) {
+                continue; // Event belongs to a group the student is not part of
+            }
+        }
+
         //If the user is provided, let get the role that he plays in the event
         if ($userId) {
             $courseContext = context_course::instance($eventComplete->courseid);
