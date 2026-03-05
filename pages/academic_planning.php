@@ -1780,7 +1780,8 @@ const app = createApp({
             });
 
             const studentAnalysisList = Object.values(students).map(stu => {
-                const priority = (stu.pendingSubjects || []).filter(s => s.isPriority);
+                // Exclude subjects intentionally omitted (ignoredSubjects) from impact analysis
+                const priority = (stu.pendingSubjects || []).filter(s => s.isPriority && !ignoredSubjects[s.name]);
                 const projected = priority.filter(s => {
                      let deferKey = `${s.name}_${stu.cohortKey}`;
                      let pIndex = deferredGroups[deferKey] || 0;
