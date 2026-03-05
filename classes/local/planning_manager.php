@@ -784,7 +784,7 @@ class planning_manager {
         return [
             'demand_tree'        => $tree,
             'student_list'       => $uniqueStudentList,
-            'projections'        => $planningData['planning_projections'],
+            'projections'        => $planningData['projections'],          // New-entrant projections (gmk_academic_projections: career, shift, count)
             'subjects'           => $planningData['all_subjects'] ?? [],
             'confirmed_subjects' => array_keys($confirmedSubjects),
         ];
