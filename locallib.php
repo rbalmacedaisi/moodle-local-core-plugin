@@ -530,13 +530,70 @@ function create_class($classParams)
     return $newClass->id;
 }
 
+/**
+ * Build the Moodle group name for a class using the nomenclature:
+ * {PERIOD} ({SHIFT_INITIAL}) {SUBJECT_NAME} ({CLASS_TYPE}) {CLASSROOM}
+ * Example: 2026-I (S) INGLÉS I (PRESENCIAL) AULA Z
+ */
+function build_class_group_name($class) {
+    global $DB;
+
+    // --- Period name ---
+    $periodName = '';
+    if (!empty($class->periodid)) {
+        $periodName = $DB->get_field('gmk_academic_periods', 'name', ['id' => $class->periodid]) ?: '';
+    }
+
+    // --- Shift initial ---
+    $shift = !empty($class->shift) ? trim($class->shift) : '';
+    $shiftInitialMap = [
+        'Sabatino'  => 'S',
+        'Diurno'    => 'D',
+        'Nocturno'  => 'N',
+    ];
+    $shiftInitial = $shiftInitialMap[$shift] ?? ($shift ? strtoupper(mb_substr($shift, 0, 1)) : '');
+
+    // --- Subject name ---
+    $subjectName = !empty($class->name) ? strtoupper(trim($class->name)) : '';
+
+    // --- Class type label ---
+    $typeLabel = '';
+    if (!empty($class->typelabel)) {
+        $typeLabel = strtoupper(trim($class->typelabel));
+    } else {
+        $typeMap = [0 => 'PRESENCIAL', 1 => 'VIRTUAL', 2 => 'MIXTA'];
+        $typeLabel = $typeMap[$class->type ?? 0] ?? 'PRESENCIAL';
+    }
+
+    // --- Classroom ---
+    $classroomPart = '';
+    if (!empty($class->classroomid)) {
+        $roomName = $DB->get_field('gmk_classrooms', 'name', ['id' => $class->classroomid]);
+        if ($roomName) {
+            $classroomPart = strtoupper(trim($roomName));
+        }
+    }
+
+    // Assemble: PERIOD (SHIFT) SUBJECT (TYPE) ROOM
+    $parts = [];
+    if ($periodName) $parts[] = $periodName;
+    if ($shiftInitial) $parts[] = "($shiftInitial)";
+    if ($subjectName) $parts[] = $subjectName;
+    if ($typeLabel) $parts[] = "($typeLabel)";
+    if ($classroomPart) $parts[] = $classroomPart;
+
+    return implode(' ', $parts) ?: ($class->name . '-' . $class->id);
+}
+
 function create_class_group($class)
 {
+    $groupName = build_class_group_name($class);
+
     $newClassGroup = new stdClass();
     $newClassGroup->idnumber = $class->name . '-' . $class->id;
-    $newClassGroup->name = $class->name . '-' . $class->id;
+    $newClassGroup->name = $groupName;
     $newClassGroup->courseid = $class->corecourseid;
-    $newClassGroup->description = 'Group for the ' . $newClassGroup->name . ' class';
+    $newClassGroup->description = 'Group for the ' . ($class->name . '-' . $class->id) . ' class';
     $newClassGroup->descriptionformat = 1;
     $newClassGroup->id = groups_create_group($newClassGroup);
 
@@ -3330,42 +3387,15 @@ function create_student_user($user)
 
 function get_classrooms()
 {
-    // return [['label'=>'classroom test, Cap: 40', 'value'=>5,'capacity'=>40]];
-    // Set the request URL
-    $url = 'https://isi-panama.odoo.com//api/classrooms';
-    $curl = curl_init($url);
-    // Set the options for the cURL request
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
-        'Content-Type: application/json',
-        'Authorization: Solutto123*'
-    ));
-    try {
-        $response = curl_exec($curl);
-
-        if (curl_errno($curl)) {
-            throw new Exception(curl_error($curl));
-        }
-
-        // Close the cURL resource
-        curl_close($curl);
-
-        // Process the response
-        if (!$response = json_decode($response)) {
-            throw new Exception('Error al obtener lo salones de clases');
-        }
-        return array_map(function ($classroom) {
-            return array(
-                'label' => $classroom->name . ', Cap: ' . $classroom->capacity,
-                'value' => $classroom->id,
-                'capacity' => $classroom->capacity
-            );
-        }, $response->classrooms);
-    } catch (Exception $e) {
-        return [];
-    }
-    // Execute the cURL request and get the response
-
+    global $DB;
+    $records = $DB->get_records('gmk_classrooms', ['active' => 1], 'name ASC');
+    return array_values(array_map(function ($classroom) {
+        return [
+            'label'    => $classroom->name . ', Cap: ' . ($classroom->capacity ?? 0),
+            'value'    => (int)$classroom->id,
+            'capacity' => (int)($classroom->capacity ?? 0),
+        ];
+    }, $records));
 }
 
 function student_get_active_classes($userId, $courseId = null)
