@@ -570,9 +570,16 @@ echo $OUTPUT->header();
                         <tbody class="divide-y divide-slate-100 text-sm">
                             <tr v-for="student in filteredStudents" :key="student.id" :class="['hover:bg-slate-50 transition-colors', student.isGradRisk ? 'bg-red-50/30' : '']">
                                 <td class="p-4 align-top">
-                                    <div class="font-bold text-slate-800">{{ student.name }}</div>
-                                    <div class="text-xs text-slate-500 font-mono mb-1">{{ student.id }}</div>
-                                    <div class="text-[10px] text-slate-400 mb-1">{{ student.career }} &bull; {{ student.shift }}</div>
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="font-bold text-slate-800">{{ student.name }}</div>
+                                            <div class="text-xs text-slate-500 font-mono mb-1">{{ student.id }}</div>
+                                            <div class="text-[10px] text-slate-400 mb-1">{{ student.career }} &bull; {{ student.shift }}</div>
+                                        </div>
+                                        <button @click="openGradesModal(student)" class="shrink-0 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-colors border border-indigo-200" title="Ver notas">
+                                            Notas
+                                        </button>
+                                    </div>
                                     <div class="flex flex-wrap gap-1">
                                         <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-bold">Nivel {{ student.currentSemConfig }}</span>
                                         <span v-if="student.currentSubperiodConfig" :class="['px-2 py-0.5 rounded-full text-xs font-bold', (student.currentSubperiodConfig || '').toLowerCase().includes('ii') || (student.currentSubperiodConfig || '').includes('2') ? 'bg-teal-100 text-teal-800' : 'bg-slate-100 text-slate-600']">
