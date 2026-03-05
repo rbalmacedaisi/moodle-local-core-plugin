@@ -137,12 +137,11 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div class="h-7 border-b border-slate-200"></div>
                                     </template>
 
-                                    <!-- Ghost Preview (shown while dragging over this column) -->
-                                    <div v-if="ghost && ghost.day === day"
-                                        class="absolute left-1 right-1 rounded border-2 border-dashed border-blue-400 bg-blue-100/60 z-30 pointer-events-none flex items-center justify-center"
-                                        :style="{ top: ghost.top + 'px', height: ghost.height + 'px' }"
+                                    <!-- Ghost Preview (DOM-direct, not Vue-reactive) -->
+                                    <div :ref="el => { if (el) _ghostRefs[day] = el; }"
+                                        style="display:none;position:absolute;left:4px;right:4px;border-radius:6px;border:2px dashed #60a5fa;background:rgba(191,219,254,0.6);z-index:30;pointer-events:none;align-items:center;justify-content:center;"
                                     >
-                                        <span class="text-[11px] font-bold text-blue-700 bg-white/80 px-2 py-0.5 rounded shadow">{{ ghost.start }} – {{ ghost.end }}</span>
+                                        <span style="font-size:11px;font-weight:700;color:#1d4ed8;background:rgba(255,255,255,0.8);padding:1px 8px;border-radius:4px;box-shadow:0 1px 2px rgba(0,0,0,.15)"></span>
                                     </div>
 
                                     <!-- Placed Events -->
@@ -580,8 +579,6 @@ window.SchedulerComponents.PlanningBoard = {
             startHour: 7,
             endHour: 22,
             draggedClass: null,
-            // Ghost preview shown while dragging over a column
-            ghost: null,      // { day, start, end, top, height } — null when not dragging
             // Resize state
             resizingClass: null,
             resizeStartY: 0,
@@ -818,9 +815,9 @@ window.SchedulerComponents.PlanningBoard = {
         },
 
         // Conflict cache: { id -> conflict[] }
-        // Only computed when not dragging (ghost === null) to avoid thrashing at 60fps
+        // Only computed when not dragging to avoid thrashing at 60fps
         conflictMap() {
-            if (this.ghost !== null) return this._lastConflictMap || {};
+            if (this.draggedClass !== null) return this._lastConflictMap || {};
             if (!window.SchedulerAlgorithm?.detectConflicts) return {};
             const context = {
                 ...this.storeState.context,
@@ -899,25 +896,43 @@ window.SchedulerComponents.PlanningBoard = {
         },
         onDragStart(e, cls) {
             this.draggedClass = cls;
-            this.ghost = null;
+            this._hideAllGhosts();
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', cls.id);
+        },
+        _hideAllGhosts() {
+            for (const el of Object.values(this._ghostRefs || {})) {
+                el.style.display = 'none';
+            }
+        },
+        _showGhost(day, top, height, label) {
+            const refs = this._ghostRefs || {};
+            for (const [d, el] of Object.entries(refs)) {
+                if (d === day) {
+                    el.style.top    = top + 'px';
+                    el.style.height = height + 'px';
+                    el.style.display = 'flex';
+                    const span = el.querySelector('span');
+                    if (span) span.textContent = label;
+                } else {
+                    el.style.display = 'none';
+                }
+            }
         },
         onDragOver(e, day) {
             if (!this.draggedClass) return;
             e.preventDefault();
 
-            // Capture coords immediately (before rAF, as the event object may be recycled)
+            // Capture coords immediately (event object may be recycled after rAF)
             const clientY = e.clientY;
-            const rect = e.currentTarget.getBoundingClientRect();
+            const rectTop = e.currentTarget.getBoundingClientRect().top;
 
-            // Throttle ghost updates to one per animation frame to avoid thrashing Vue reactivity
             if (this._dragRafId) return;
             this._dragRafId = requestAnimationFrame(() => {
                 this._dragRafId = null;
                 if (!this.draggedClass) return;
 
-                const y = Math.max(0, clientY - rect.top);
+                const y = Math.max(0, clientY - rectTop);
                 const start = this.yToTime(y);
 
                 const configDuration = this.storeState.context?.configSettings?.sessionDuration || 120;
@@ -936,15 +951,16 @@ window.SchedulerComponents.PlanningBoard = {
                 const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
                 const height = (duration / 60) * pixelsPerHour;
 
-                this.ghost = { day, start, end, top, height };
+                this._showGhost(day, top, height, `${start} – ${end}`);
             });
         },
         onDragLeave(day) {
-            if (this.ghost && this.ghost.day === day) this.ghost = null;
+            const el = (this._ghostRefs || {})[day];
+            if (el) el.style.display = 'none';
         },
         onDrop(e, day) {
             if (!this.draggedClass) return;
-            this.ghost = null;
+            this._hideAllGhosts();
 
             const rect = e.currentTarget.getBoundingClientRect();
             const y = Math.max(0, e.clientY - rect.top);
@@ -1354,11 +1370,11 @@ window.SchedulerComponents.PlanningBoard = {
         }
     },
     mounted() {
-        // Clear ghost if drag ends outside any drop zone (e.g. user releases over left panel)
+        this._ghostRefs = {};   // day -> ghost DOM element (non-reactive)
         this._dragRafId = null;
         this._onDragEnd = () => {
             if (this._dragRafId) { cancelAnimationFrame(this._dragRafId); this._dragRafId = null; }
-            this.ghost = null;
+            this._hideAllGhosts();
             this.draggedClass = null;
         };
         document.addEventListener('dragend', this._onDragEnd);
