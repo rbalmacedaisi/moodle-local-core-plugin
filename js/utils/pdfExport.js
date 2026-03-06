@@ -338,8 +338,12 @@
         const DAY_DISP = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
         // ── Dibujar encabezado global (llamado en cada página) ───────────────────
-        const drawPageHeader = (levelName, groupData, pageNum, totalPages) => {
-            // Banda superior sólida (un solo rectángulo, sin degradado problemático)
+        const drawPageHeader = (groupData, pageNum, totalPages) => {
+            const entryPeriod = groupData.entryPeriod || 'Sin Definir';
+            const career      = groupData.career      || '';
+            const shift       = groupData.shift       || '';
+
+            // Banda superior sólida
             doc.setFillColor(...C.navy);
             doc.rect(0, 0, W, 26, 'F');
 
@@ -356,7 +360,7 @@
             // Subtítulo reporte
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            doc.setTextColor(199, 210, 254); // indigo-200
+            doc.setTextColor(199, 210, 254);
             doc.text('Reporte de Horarios por Período de Ingreso', 10, 17);
 
             // Info periodo académico (derecha)
@@ -373,51 +377,81 @@
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(6.5);
             doc.setTextColor(199, 210, 254);
-            doc.text(`Pág. ${pageNum} / ${totalPages}`, W - 10, 23, { align: 'right' });
+            doc.text(`Pag. ${pageNum} / ${totalPages}`, W - 10, 23, { align: 'right' });
 
-            // ── Tarjeta del período de ingreso ────────────────────────────────────
+            // ── Tarjeta: período | carrera | jornada ──────────────────────────────
             doc.setFillColor(241, 245, 249); // slate-100
-            doc.roundedRect(8, 29, W - 16, 18, 2, 2, 'F');
+            doc.roundedRect(8, 29, W - 16, 20, 2, 2, 'F');
             doc.setDrawColor(...C.border);
             doc.setLineWidth(0.3);
-            doc.roundedRect(8, 29, W - 16, 18, 2, 2, 'S');
+            doc.roundedRect(8, 29, W - 16, 20, 2, 2, 'S');
 
-            // Badge azul: período de ingreso
+            // Badge 1: Período de ingreso
             doc.setFillColor(...C.navy);
-            doc.roundedRect(12, 32, 38, 6, 1, 1, 'F');
+            doc.roundedRect(12, 31.5, 36, 5.5, 1, 1, 'F');
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(6);
+            doc.setFontSize(5.5);
             doc.setTextColor(...C.white);
-            doc.text('PERÍODO DE INGRESO', 31, 36.2, { align: 'center' });
+            doc.text('PERIODO DE INGRESO', 30, 35.1, { align: 'center' });
 
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.setTextColor(30, 41, 59); // slate-800
-            doc.text(levelName, 54, 36.5);
+            doc.setFontSize(9.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text(entryPeriod, 51, 35.5);
 
-            // Stats: asignaturas y estudiantes
+            // Badge 2: Carrera
+            doc.setFillColor(...C.accent);
+            doc.roundedRect(12, 38.5, 20, 5, 1, 1, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(5.5);
+            doc.setTextColor(...C.white);
+            doc.text('CARRERA', 22, 42, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            // Truncar carrera si es muy larga
+            const careerText = doc.splitTextToSize(career, 110)[0] || career;
+            doc.text(careerText, 35, 42);
+
+            // Badge 3: Jornada
+            const shiftColor = shift.toLowerCase().includes('noche')
+                ? [99, 102, 241]      // indigo
+                : [13, 148, 136];     // teal
+            doc.setFillColor(...shiftColor);
+            doc.roundedRect(W - 58, 31.5, 22, 5.5, 1, 1, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(5.5);
+            doc.setTextColor(...C.white);
+            doc.text('JORNADA', W - 47, 35.1, { align: 'center' });
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            doc.text(shift, W - 34, 35.5);
+
+            // Stats (derecha)
             const placedCount   = groupData.classes.filter(c => c.day && c.day !== 'N/A').length;
             const unplacedCount = groupData.classes.filter(c => !c.day || c.day === 'N/A').length;
             const totalStu      = groupData.totalPeriodStudents || 0;
             const totalHrs      = (groupData.totalHours || 0).toFixed(1);
 
             const stats = [
-                { label: 'Asignaturas con horario', value: String(placedCount)   },
-                { label: 'Sin horario asignado',    value: String(unplacedCount) },
-                { label: 'Estudiantes en período',  value: String(totalStu)      },
-                { label: 'Horas asignadas',         value: `${totalHrs} h`       },
+                { label: 'Con horario', value: String(placedCount)   },
+                { label: 'Sin horario', value: String(unplacedCount) },
+                { label: 'Estudiantes', value: String(totalStu)      },
+                { label: 'Horas',       value: `${totalHrs}h`        },
             ];
-
             stats.forEach((s, i) => {
-                const x = W - 10 - (stats.length - 1 - i) * 42;
+                const x = W - 10 - (stats.length - 1 - i) * 30;
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
                 doc.setTextColor(...C.navy);
-                doc.text(s.value, x, 35.5, { align: 'right' });
+                doc.text(s.value, x, 38, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(5.5);
                 doc.setTextColor(...C.slate);
-                doc.text(s.label, x, 39.5, { align: 'right' });
+                doc.text(s.label, x, 42, { align: 'right' });
             });
         };
 
@@ -446,16 +480,16 @@
         // ════════════════════════════════════════════════════════════════════════
         // GENERAR UNA PÁGINA POR GRUPO
         // ════════════════════════════════════════════════════════════════════════
-        groups.forEach((levelName, index) => {
+        groups.forEach((groupKey, index) => {
             if (index > 0) doc.addPage();
 
-            const groupData   = groupedSchedules[levelName];
+            const groupData   = groupedSchedules[groupKey];
             const totalPages  = groups.length;
 
-            drawPageHeader(levelName, groupData, index + 1, totalPages);
+            drawPageHeader(groupData, index + 1, totalPages);
 
             // ── Tabla de horarios semanal ─────────────────────────────────────────
-            const TABLE_START_Y = 50;
+            const TABLE_START_Y = 52;
             const tableWidth    = W - 16;
             const colW          = tableWidth / DAYS.length;
 
@@ -635,7 +669,7 @@
                 didDrawPage: (hookData) => {
                     // Redibujar header de página si autoTable crea páginas adicionales
                     if (hookData.pageNumber > 1) {
-                        drawPageHeader(levelName, groupData, index + 1 + (hookData.pageNumber - 1), totalPages);
+                        drawPageHeader(groupData, index + 1 + (hookData.pageNumber - 1), totalPages);
                     }
                     drawFooter();
                 },

@@ -29,11 +29,15 @@ window.SchedulerComponents.PeriodGroupedView = {
 
             <!-- Matrix -->
             <div class="flex-1 overflow-auto p-4">
-                <div v-for="(group, levelName) in groupedSchedules" :key="levelName" class="mb-8 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                <div v-for="(group, groupKey) in groupedSchedules" :key="groupKey" class="mb-8 border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                     <!-- Level Header -->
-                    <div class="bg-slate-100 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
-                        <h4 class="font-bold text-slate-800 text-sm">{{ levelName }}</h4>
-                        <span class="text-xs text-slate-500 font-mono">{{ group.totalHours }} horas asignadas</span>
+                    <div class="bg-slate-700 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <span class="bg-blue-600 text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wide">{{ group.entryPeriod }}</span>
+                            <span class="font-bold text-white text-sm">{{ group.career }}</span>
+                            <span class="text-[11px] text-slate-300 bg-slate-600 px-2 py-0.5 rounded">{{ group.shift }}</span>
+                        </div>
+                        <span class="text-xs text-slate-300 font-mono">{{ group.totalHours.toFixed(1) }} h · {{ group.totalPeriodStudents }} est.</span>
                     </div>
 
                     <!-- Days Grid -->
@@ -158,10 +162,8 @@ window.SchedulerComponents.PeriodGroupedView = {
             const groups = {};
             const allStudents = this.storeState.students || [];
 
-            // --- Paso 1: Consolidar fichas del mismo subjectName+shift+subperiod ---
-            // Fichas divididas por quórum (gen-1, gen-2...) se fusionan en una sola
-            // para esta vista. Se acumulan studentIds y se conservan los días/horas
-            // de la primera ficha colocada encontrada (o N/A si ninguna está colocada).
+            // ── Paso 1: Consolidar fichas del mismo subjectName+shift+subperiod+carrera ──
+            // Fichas divididas por quórum (gen-1, gen-2...) se fusionan en una sola.
             const consolidatedMap = {};
             this.allClasses.forEach(c => {
                 if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) return;
@@ -173,9 +175,8 @@ window.SchedulerComponents.PeriodGroupedView = {
                 }
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                const ck = `${c.subjectName}||${c.shift}||${c.subperiod}`;
+                const ck = `${c.subjectName}||${c.shift}||${c.subperiod}||${c.career}`;
                 if (!consolidatedMap[ck]) {
-                    // Primer representante: copia superficial, studentIds como Set mutable
                     consolidatedMap[ck] = {
                         ...c,
                         studentIds: [...(c.studentIds || [])],
@@ -184,7 +185,6 @@ window.SchedulerComponents.PeriodGroupedView = {
                     };
                 } else {
                     const existing = consolidatedMap[ck];
-                    // Acumular IDs sin duplicados
                     (c.studentIds || []).forEach(id => {
                         const sid = String(id);
                         if (!existing._sidSet.has(sid)) {
@@ -192,7 +192,6 @@ window.SchedulerComponents.PeriodGroupedView = {
                             existing.studentIds.push(id);
                         }
                     });
-                    // Si la ficha existente no está colocada pero esta sí, usar datos de horario de esta
                     if (!existing._placed && c.day && c.day !== 'N/A') {
                         existing.day   = c.day;
                         existing.start = c.start;
@@ -204,15 +203,13 @@ window.SchedulerComponents.PeriodGroupedView = {
                 }
             });
 
-            // --- Paso 2: Agrupar fichas consolidadas por período de ingreso ---
+            // ── Paso 2: Agrupar por (período de ingreso | carrera | jornada) ──
+            // Clave compuesta: "PERÍODO_INGRESO|||CARRERA|||JORNADA"
+            // Fichas externas → se procesan después en Paso 3.
             Object.values(consolidatedMap).forEach(c => {
-                // Una ficha puede tener estudiantes de distintos períodos de ingreso:
-                // debe aparecer en CADA período representado.
-                // Las fichas externas aparecen en TODOS los grupos (son compartidas).
-                let keys = ['Sin Definir'];
+                let entryPeriods = ['Sin Definir'];
                 if (c.isExternal) {
-                    // Usar los grupos ya creados, o marcar para añadirlas después
-                    keys = null; // señal: añadir a todos los grupos al final
+                    return; // externas en Paso 3
                 } else if (c.studentIds && c.studentIds.length > 0) {
                     const sidSet = new Set(c.studentIds.map(id => String(id)));
                     const classStudents = allStudents.filter(s =>
@@ -221,49 +218,53 @@ window.SchedulerComponents.PeriodGroupedView = {
                     if (classStudents.length > 0) {
                         const periodSet = new Set();
                         classStudents.forEach(s => periodSet.add(s.entry_period || 'Sin Definir'));
-                        keys = Array.from(periodSet);
+                        entryPeriods = Array.from(periodSet);
                     }
                 }
 
-                if (keys === null) return; // externas se procesan después
-
+                const career  = c.career  || 'Sin Carrera';
+                const shift   = c.shift   || 'Sin Jornada';
                 const durationHours = (c.day && c.day !== 'N/A')
                     ? (this.toMins(c.end) - this.toMins(c.start)) / 60
                     : 0;
 
-                keys.forEach(key => {
-                    if (!groups[key]) {
-                        groups[key] = {
-                            classes: [],
-                            totalHours: 0,
-                            totalPeriodStudents: allStudents.filter(s => (s.entry_period || 'Sin Definir') === key).length
-                        };
-                    }
-                    groups[key].classes.push(c);
-                    groups[key].totalHours += durationHours;
+                entryPeriods.forEach(ep => {
+                    // Normalizar: una ficha puede tener multi-carrera (careerList); crear clave por cada carrera
+                    const careers = (c.careerList && c.careerList.length > 0) ? c.careerList : [career];
+                    careers.forEach(cr => {
+                        const key = `${ep}|||${cr}|||${shift}`;
+                        if (!groups[key]) {
+                            groups[key] = {
+                                entryPeriod: ep,
+                                career: cr,
+                                shift: shift,
+                                classes: [],
+                                totalHours: 0,
+                                totalPeriodStudents: allStudents.filter(s =>
+                                    (s.entry_period || 'Sin Definir') === ep
+                                ).length,
+                            };
+                        }
+                        groups[key].classes.push(c);
+                        groups[key].totalHours += durationHours;
+                    });
                 });
             });
 
-            // --- Paso 3: Añadir fichas externas a todos los grupos existentes ---
+            // ── Paso 3: Añadir fichas externas a todos los grupos existentes ──
             const externalClasses = Object.values(consolidatedMap).filter(c => c.isExternal);
             if (externalClasses.length > 0) {
-                const existingKeys = Object.keys(groups);
-                externalClasses.forEach(c => {
-                    const durationHours = (c.day && c.day !== 'N/A')
-                        ? (this.toMins(c.end) - this.toMins(c.start)) / 60
-                        : 0;
-                    existingKeys.forEach(key => {
+                Object.keys(groups).forEach(key => {
+                    externalClasses.forEach(c => {
                         groups[key].classes.push(c);
-                        // No sumamos horas de fichas externas al total del período
                     });
                 });
             }
 
+            // Ordenar: primero por período, luego carrera, luego jornada
             const sortedKeys = Object.keys(groups).sort();
             const result = {};
-            sortedKeys.forEach(key => {
-                result[key] = groups[key];
-            });
+            sortedKeys.forEach(key => { result[key] = groups[key]; });
             return result;
         }
     },
