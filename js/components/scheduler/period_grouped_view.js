@@ -251,17 +251,28 @@ window.SchedulerComponents.PeriodGroupedView = {
                 });
             });
 
-            // ── Paso 3: Añadir fichas externas a grupos de la misma carrera ──
+            // ── Paso 3: Añadir fichas externas solo si tienen estudiantes del período del grupo ──
             const externalClasses = Object.values(consolidatedMap).filter(c => c.isExternal);
             if (externalClasses.length > 0) {
                 Object.keys(groups).forEach(key => {
-                    const groupCareer = groups[key].career;
+                    const groupCareer   = groups[key].career;
+                    const groupPeriod   = groups[key].entryPeriod;
                     externalClasses.forEach(c => {
-                        // Solo añadir si la ficha externa corresponde a la carrera del grupo
+                        // Verificar carrera
                         const careers = (c.careerList && c.careerList.length > 0) ? c.careerList : [c.career || ''];
-                        if (careers.some(cr => cr === groupCareer)) {
-                            groups[key].classes.push(c);
+                        if (!careers.some(cr => cr === groupCareer)) return;
+                        // Verificar que al menos 1 estudiante de la ficha pertenece al período del grupo
+                        if (c.studentIds && c.studentIds.length > 0) {
+                            const sidSet = new Set(c.studentIds.map(id => String(id)));
+                            const count = allStudents.filter(s =>
+                                (sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))) &&
+                                (s.entry_period || 'Sin Definir') === groupPeriod
+                            ).length;
+                            if (count === 0) return;
+                        } else {
+                            return; // sin studentIds no se puede verificar → excluir
                         }
+                        groups[key].classes.push(c);
                     });
                 });
             }
