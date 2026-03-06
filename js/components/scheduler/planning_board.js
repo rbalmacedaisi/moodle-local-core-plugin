@@ -625,6 +625,18 @@ window.SchedulerComponents.PlanningBoard = {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
             const shiftFilter = this.storeState.shiftFilter;
+            const entryPeriodFilter = this.storeState.entryPeriodFilter;
+
+            // Precompute Set of student IDs belonging to the selected entry period
+            let entryPeriodSidSet = null;
+            if (entryPeriodFilter) {
+                const allStudents = this.storeState.students || [];
+                entryPeriodSidSet = new Set(
+                    allStudents
+                        .filter(s => (s.entry_period || 'Sin Definir') === entryPeriodFilter)
+                        .flatMap(s => [String(s.dbId), String(s.id)])
+                );
+            }
 
             return this.allClasses.filter(c => {
                 const isUnassigned = c.day === 'N/A' || !c.day;
@@ -642,6 +654,12 @@ window.SchedulerComponents.PlanningBoard = {
 
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return false;
+
+                // Entry period filter: at least one student in the class belongs to selected period
+                if (entryPeriodSidSet) {
+                    const ids = c.studentIds || [];
+                    if (!ids.some(id => entryPeriodSidSet.has(String(id)))) return false;
+                }
 
                 if (filter === 0) return true;
                 return c.subperiod === 0 || c.subperiod === filter;
@@ -728,9 +746,21 @@ window.SchedulerComponents.PlanningBoard = {
             const filter = this.storeState.subperiodFilter;
             const careerFilter = this.storeState.careerFilter;
             const shiftFilter = this.storeState.shiftFilter;
+            const entryPeriodFilter = this.storeState.entryPeriodFilter;
             const ndMap = this.normalizedDayMap;
             const mMap = this.classMinsMap;
             const result = {};
+
+            // Precompute Set of student IDs belonging to the selected entry period
+            let entryPeriodSidSet = null;
+            if (entryPeriodFilter) {
+                const allStudents = this.storeState.students || [];
+                entryPeriodSidSet = new Set(
+                    allStudents
+                        .filter(s => (s.entry_period || 'Sin Definir') === entryPeriodFilter)
+                        .flatMap(s => [String(s.dbId), String(s.id)])
+                );
+            }
 
             for (const c of this.allClasses) {
                 const nd = ndMap[c.id];
@@ -744,6 +774,12 @@ window.SchedulerComponents.PlanningBoard = {
                     }
                     if (shiftFilter && c.shift !== shiftFilter) continue;
                     if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) continue;
+
+                    // Entry period filter
+                    if (entryPeriodSidSet) {
+                        const ids = c.studentIds || [];
+                        if (!ids.some(id => entryPeriodSidSet.has(String(id)))) continue;
+                    }
                 }
 
                 if (!result[nd]) result[nd] = [];

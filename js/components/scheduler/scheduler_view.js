@@ -49,6 +49,14 @@ window.SchedulerComponents.SchedulerView = {
                          </select>
                     </div>
 
+                    <div class="flex flex-col flex-1 md:w-64">
+                         <label class="text-xs text-slate-500 font-bold mb-1">Período de Ingreso</label>
+                         <select v-model="storeState.entryPeriodFilter" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option :value="null">Todos los Períodos</option>
+                            <option v-for="ep in entryPeriodList" :key="ep" :value="ep">{{ ep }}</option>
+                         </select>
+                    </div>
+
                     <button @click="refreshData" :disabled="storeState.loading" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors mt-4">
                         <i data-lucide="refresh-cw" class="w-5 h-5" :class="{'animate-spin': storeState.loading}"></i>
                     </button>
@@ -172,6 +180,14 @@ window.SchedulerComponents.SchedulerView = {
                 Object.keys(cDetails).forEach(sName => shifts.add(sName));
             });
             return Array.from(shifts).sort();
+        },
+        entryPeriodList() {
+            const students = this.storeState.students || [];
+            const periods = new Set();
+            students.forEach(s => {
+                if (s.entry_period) periods.add(s.entry_period);
+            });
+            return Array.from(periods).sort();
         }
     },
     created() {

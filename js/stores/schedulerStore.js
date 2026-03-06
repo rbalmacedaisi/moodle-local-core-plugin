@@ -28,6 +28,7 @@
             subperiodFilter: 0, // 0: Todos, 1: P-I, 2: P-II
             careerFilter: null, // Filter by career name
             shiftFilter: null, // Filter by shift name (Jornada)
+            entryPeriodFilter: null, // Filter by student entry period
             loading: false,
             error: null,
             successMessage: null
