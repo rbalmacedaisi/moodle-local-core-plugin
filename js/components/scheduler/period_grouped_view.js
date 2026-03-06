@@ -241,7 +241,9 @@ window.SchedulerComponents.PeriodGroupedView = {
                                 classes: [],
                                 totalHours: 0,
                                 totalPeriodStudents: allStudents.filter(s =>
-                                    (s.entry_period || 'Sin Definir') === ep
+                                    (s.entry_period || 'Sin Definir') === ep &&
+                                    (s.career || '') === cr &&
+                                    (s.shift  || '') === shift
                                 ).length,
                             };
                         }
@@ -277,8 +279,17 @@ window.SchedulerComponents.PeriodGroupedView = {
                 });
             }
 
-            // Ordenar: primero por período, luego carrera, luego jornada
-            const sortedKeys = Object.keys(groups).sort();
+            // Ordenar: período más reciente primero (desc), luego carrera y jornada (asc)
+            const sortedKeys = Object.keys(groups).sort((a, b) => {
+                const [epA, crA, shA] = a.split('|||');
+                const [epB, crB, shB] = b.split('|||');
+                // Período descendente
+                if (epA !== epB) return epB.localeCompare(epA);
+                // Carrera ascendente
+                if (crA !== crB) return crA.localeCompare(crB);
+                // Jornada ascendente
+                return shA.localeCompare(shB);
+            });
             const result = {};
             sortedKeys.forEach(key => { result[key] = groups[key]; });
             return result;
