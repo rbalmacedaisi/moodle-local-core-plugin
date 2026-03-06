@@ -339,64 +339,61 @@
 
         // ── Dibujar encabezado global (llamado en cada página) ───────────────────
         const drawPageHeader = (levelName, groupData, pageNum, totalPages) => {
-            // Banda superior degradada simulada con dos rectángulos
-            doc.setFillColor(...C.navyDark);
-            doc.rect(0, 0, W, 28, 'F');
+            // Banda superior sólida (un solo rectángulo, sin degradado problemático)
             doc.setFillColor(...C.navy);
-            doc.rect(0, 10, W, 18, 'F');
+            doc.rect(0, 0, W, 26, 'F');
 
-            // Línea decorativa izquierda (acento)
+            // Línea decorativa izquierda (acento violeta)
             doc.setFillColor(...C.accent);
-            doc.rect(0, 0, 4, 28, 'F');
+            doc.rect(0, 0, 4, 26, 'F');
 
             // Título institución
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(11);
             doc.setTextColor(...C.white);
-            doc.text('INSTITUTO SUPERIOR DE INGENIERÍA', 10, 11);
+            doc.text('INSTITUTO SUPERIOR DE INGENIERÍA', 10, 10);
 
             // Subtítulo reporte
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
             doc.setTextColor(199, 210, 254); // indigo-200
-            doc.text('Reporte de Horarios por Período de Ingreso', 10, 18);
+            doc.text('Reporte de Horarios por Período de Ingreso', 10, 17);
 
             // Info periodo académico (derecha)
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(7.5);
             doc.setTextColor(...C.white);
-            doc.text(`${periodLabel}  ·  ${subperiodLabel}`, W - 14, 11, { align: 'right' });
+            doc.text(`${periodLabel}  ·  ${subperiodLabel}`, W - 10, 10, { align: 'right' });
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(6.5);
             doc.setTextColor(199, 210, 254);
-            doc.text(today, W - 14, 18, { align: 'right' });
+            doc.text(today, W - 10, 17, { align: 'right' });
 
             // Paginación
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(6.5);
             doc.setTextColor(199, 210, 254);
-            doc.text(`Pág. ${pageNum} / ${totalPages}`, W - 14, 24.5, { align: 'right' });
+            doc.text(`Pág. ${pageNum} / ${totalPages}`, W - 10, 23, { align: 'right' });
 
             // ── Tarjeta del período de ingreso ────────────────────────────────────
-            // Fondo blanco con sombra simulada
             doc.setFillColor(241, 245, 249); // slate-100
-            doc.roundedRect(8, 31, W - 16, 18, 2, 2, 'F');
+            doc.roundedRect(8, 29, W - 16, 18, 2, 2, 'F');
             doc.setDrawColor(...C.border);
             doc.setLineWidth(0.3);
-            doc.roundedRect(8, 31, W - 16, 18, 2, 2, 'S');
+            doc.roundedRect(8, 29, W - 16, 18, 2, 2, 'S');
 
             // Badge azul: período de ingreso
             doc.setFillColor(...C.navy);
-            doc.roundedRect(12, 34, 38, 6, 1, 1, 'F');
+            doc.roundedRect(12, 32, 38, 6, 1, 1, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(6);
             doc.setTextColor(...C.white);
-            doc.text('PERÍODO DE INGRESO', 31, 38.2, { align: 'center' });
+            doc.text('PERÍODO DE INGRESO', 31, 36.2, { align: 'center' });
 
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(30, 41, 59); // slate-800
-            doc.text(levelName, 54, 38.5);
+            doc.text(levelName, 54, 36.5);
 
             // Stats: asignaturas y estudiantes
             const placedCount   = groupData.classes.filter(c => c.day && c.day !== 'N/A').length;
@@ -412,15 +409,15 @@
             ];
 
             stats.forEach((s, i) => {
-                const x = W - 14 - (stats.length - 1 - i) * 40;
+                const x = W - 10 - (stats.length - 1 - i) * 42;
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
                 doc.setTextColor(...C.navy);
-                doc.text(s.value, x, 37.5, { align: 'right' });
+                doc.text(s.value, x, 35.5, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(5.5);
                 doc.setTextColor(...C.slate);
-                doc.text(s.label, x, 41.5, { align: 'right' });
+                doc.text(s.label, x, 39.5, { align: 'right' });
             });
         };
 
@@ -458,7 +455,7 @@
             drawPageHeader(levelName, groupData, index + 1, totalPages);
 
             // ── Tabla de horarios semanal ─────────────────────────────────────────
-            const TABLE_START_Y = 52;
+            const TABLE_START_Y = 50;
             const tableWidth    = W - 16;
             const colW          = tableWidth / DAYS.length;
 
@@ -516,21 +513,6 @@
                     DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: bodyRow[i].styles.fillColor }])
                 ),
                 margin: { left: 8, right: 8, bottom: 18 },
-                didDrawCell: (data) => {
-                    // Primera línea de cada celda de contenido en negrita (horario)
-                    if (data.section === 'body' && data.cell.text && data.cell.text.length > 0) {
-                        const firstLine = data.cell.text[0];
-                        if (firstLine && /^\d{2}:\d{2}/.test(firstLine)) {
-                            doc.setFont('helvetica', 'bold');
-                            doc.setFontSize(7);
-                            doc.setTextColor(...C.navy);
-                            doc.text(firstLine,
-                                data.cell.x + data.cell.padding('left'),
-                                data.cell.y + data.cell.padding('top') + 4.5
-                            );
-                        }
-                    }
-                },
                 didDrawPage: () => drawFooter(),
             });
 
