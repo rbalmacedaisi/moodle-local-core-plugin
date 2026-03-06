@@ -49,7 +49,7 @@ Vue.component('scheduleapproval', {
                                     outlined
                                     style="border-color: rgb(208,208,208) !important;"
                                     width="100%"
-                                    height="420"
+                                    height="450"
                                 >
                                     <v-list flat color="transparent">
                                         <v-list-item>
@@ -162,9 +162,9 @@ Vue.component('scheduleapproval', {
                                         ></v-img>
                                     </v-card-text>
                                 
-                                    <v-card-actions v-if="item.isApprove == 0" class="justify-center">
+                                    <v-card-actions v-if="item.isApprove == 0" class="justify-center flex-wrap">
                                         <v-btn
-                                          class="ma-2 rounded text-capitalize"
+                                          class="ma-1 rounded text-capitalize"
                                           outlined
                                           color="secondary"
                                           small
@@ -173,9 +173,20 @@ Vue.component('scheduleapproval', {
                                             <v-icon>mdi-delete-forever-outline</v-icon>
                                             {{ lang.remove }}
                                         </v-btn>
-                                        
+
                                         <v-btn
-                                          class="ma-2 rounded text-capitalize"
+                                          class="ma-1 rounded text-capitalize"
+                                          outlined
+                                          color="teal"
+                                          small
+                                          @click="openBulkEnroll(item)"
+                                        >
+                                            <v-icon left small>mdi-account-arrow-right</v-icon>
+                                            Inscribir
+                                        </v-btn>
+
+                                        <v-btn
+                                          class="ma-1 rounded text-capitalize"
                                           outlined
                                           color="primary"
                                           small
@@ -412,6 +423,87 @@ Vue.component('scheduleapproval', {
                     </v-card-actions>
                 </v-card>
             </v-dialog>
+
+            <!-- ===== Modal: Inscripción Masiva ===== -->
+            <v-dialog v-model="bulkEnrollDialog" max-width="700" persistent scrollable>
+                <v-card>
+                    <v-card-title class="d-flex align-center">
+                        <v-icon left color="teal">mdi-account-arrow-right</v-icon>
+                        Inscripción Masiva
+                        <v-spacer></v-spacer>
+                        <span class="text-caption text--secondary" v-if="bulkEnrollItem">
+                            Cupo: {{ bulkEnrollItem.quotas }} &nbsp;|&nbsp; Inscritos: {{ bulkEnrollItem.enroledStudents }}
+                        </span>
+                    </v-card-title>
+                    <v-card-subtitle v-if="bulkEnrollItem">{{ bulkEnrollItem.name }}</v-card-subtitle>
+
+                    <!-- Quota exceeded warning -->
+                    <v-alert v-if="bulkEnrollOverQuotaWarning" type="warning" dense class="mx-4 mt-2" border="left">
+                        <strong>Cupo insuficiente.</strong>
+                        Al inscribir los {{ bulkEnrollSelected.length }} estudiantes seleccionados el grupo tendría
+                        <strong>{{ bulkEnrollItem.enroledStudents + bulkEnrollSelected.length }}</strong> estudiantes,
+                        superando el cupo de <strong>{{ bulkEnrollItem.quotas }}</strong>.
+                        <br>¿Desea aumentar el cupo automáticamente?
+                        <div class="mt-2">
+                            <v-btn small color="warning" @click="confirmBulkEnroll(true)">
+                                <v-icon left small>mdi-arrow-up-bold</v-icon>Aumentar cupo e inscribir
+                            </v-btn>
+                            <v-btn small text class="ml-2" @click="bulkEnrollOverQuotaWarning = false">Cancelar</v-btn>
+                        </div>
+                    </v-alert>
+
+                    <v-card-text style="max-height:420px; overflow-y:auto;">
+                        <div v-if="bulkEnrollLoading" class="text-center pa-6">
+                            <v-progress-circular indeterminate color="teal"></v-progress-circular>
+                            <div class="mt-2 text-caption">Cargando estudiantes...</div>
+                        </div>
+                        <div v-else-if="bulkEnrollStudents.length === 0" class="text-center pa-6 text--secondary">
+                            No hay estudiantes planificados para inscribir en este grupo.
+                        </div>
+                        <v-data-table
+                            v-else
+                            v-model="bulkEnrollSelected"
+                            :headers="bulkEnrollHeaders"
+                            :items="bulkEnrollStudents"
+                            item-key="userid"
+                            show-select
+                            dense
+                            :items-per-page="-1"
+                            hide-default-footer
+                        >
+                            <template v-slot:top>
+                                <div class="d-flex align-center pa-2">
+                                    <span class="text-body-2 font-weight-medium">
+                                        {{ bulkEnrollSelected.length }} de {{ bulkEnrollStudents.length }} seleccionados
+                                    </span>
+                                    <v-spacer></v-spacer>
+                                    <v-btn x-small text color="teal" @click="bulkEnrollSelected = bulkEnrollStudents.slice()">Seleccionar todos</v-btn>
+                                    <v-btn x-small text class="ml-1" @click="bulkEnrollSelected = []">Limpiar</v-btn>
+                                </div>
+                            </template>
+                            <template v-slot:item.source="{ item }">
+                                <v-chip x-small :color="item.source === 'prereg' ? 'blue lighten-4' : 'orange lighten-4'">
+                                    {{ item.source === 'prereg' ? 'Pre-reg' : 'Cola' }}
+                                </v-chip>
+                            </template>
+                        </v-data-table>
+                    </v-card-text>
+
+                    <v-card-actions>
+                        <v-spacer></v-spacer>
+                        <v-btn text @click="closeBulkEnroll">Cancelar</v-btn>
+                        <v-btn
+                            color="teal" dark
+                            :disabled="bulkEnrollSelected.length === 0 || bulkEnrollLoading"
+                            :loading="bulkEnrollSaving"
+                            @click="confirmBulkEnroll(false)"
+                        >
+                            <v-icon left small>mdi-account-check</v-icon>
+                            Inscribir ({{ bulkEnrollSelected.length }})
+                        </v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
         </v-row>
     `,
     data() {
@@ -464,7 +556,20 @@ Vue.component('scheduleapproval', {
             quotaDialog: false,
             quotaEditItem: null,
             quotaNewValue: 40,
-            quotaSaving: false
+            quotaSaving: false,
+            // Bulk enroll
+            bulkEnrollDialog: false,
+            bulkEnrollItem: null,
+            bulkEnrollStudents: [],
+            bulkEnrollSelected: [],
+            bulkEnrollLoading: false,
+            bulkEnrollSaving: false,
+            bulkEnrollOverQuotaWarning: false,
+            bulkEnrollHeaders: [
+                { text: 'Estudiante',  value: 'fullname',  sortable: true },
+                { text: 'Cédula',      value: 'idnumber',  sortable: false },
+                { text: 'Origen',      value: 'source',    sortable: false },
+            ],
         }
     },
     props: {},
@@ -1280,7 +1385,6 @@ Vue.component('scheduleapproval', {
                         alert('Error: ' + response.data.message);
                     } else {
                         alert(response.data.message);
-                        // Refresh data
                         this.items = [];
                         this.getData();
                     }
@@ -1290,6 +1394,95 @@ Vue.component('scheduleapproval', {
                     console.error('Error updating quota:', error);
                     alert('Error al actualizar el cupo.');
                 });
+        },
+
+        /**
+         * Opens the bulk-enroll modal for a class card and loads its planned students.
+         */
+        openBulkEnroll(item) {
+            this.bulkEnrollItem = item;
+            this.bulkEnrollStudents = [];
+            this.bulkEnrollSelected = [];
+            this.bulkEnrollOverQuotaWarning = false;
+            this.bulkEnrollDialog = true;
+            this.bulkEnrollLoading = true;
+
+            window.axios.post(
+                window.location.origin + '/local/grupomakro_core/ajax.php',
+                new URLSearchParams({ action: 'local_grupomakro_get_planned_students', classid: item.clasId })
+            ).then(response => {
+                this.bulkEnrollLoading = false;
+                if (response.data.status === 'success') {
+                    // Filter out students already enrolled in the group
+                    const enrolled = new Set((response.data.already_enrolled || []).map(Number));
+                    this.bulkEnrollStudents = (response.data.students || []).filter(s => !enrolled.has(s.userid));
+                    // Pre-select all by default
+                    this.bulkEnrollSelected = this.bulkEnrollStudents.slice();
+                } else {
+                    alert('Error cargando estudiantes: ' + (response.data.message || 'desconocido'));
+                    this.bulkEnrollDialog = false;
+                }
+            }).catch(err => {
+                this.bulkEnrollLoading = false;
+                console.error(err);
+                alert('Error de red al cargar estudiantes.');
+                this.bulkEnrollDialog = false;
+            });
+        },
+
+        closeBulkEnroll() {
+            this.bulkEnrollDialog = false;
+            this.bulkEnrollItem = null;
+            this.bulkEnrollStudents = [];
+            this.bulkEnrollSelected = [];
+            this.bulkEnrollOverQuotaWarning = false;
+        },
+
+        /**
+         * Executes bulk enrollment. If quota would be exceeded without force, shows warning instead.
+         * @param {boolean} forceOverQuota - true = expand quota automatically and enroll.
+         */
+        confirmBulkEnroll(forceOverQuota) {
+            if (!this.bulkEnrollItem || this.bulkEnrollSelected.length === 0) return;
+
+            const currentEnrolled = this.bulkEnrollItem.enroledStudents || 0;
+            const quota           = this.bulkEnrollItem.quotas || 40;
+            const newTotal        = currentEnrolled + this.bulkEnrollSelected.length;
+
+            if (newTotal > quota && !forceOverQuota) {
+                this.bulkEnrollOverQuotaWarning = true;
+                return;
+            }
+
+            this.bulkEnrollOverQuotaWarning = false;
+            this.bulkEnrollSaving = true;
+
+            const userids = this.bulkEnrollSelected.map(s => s.userid);
+
+            window.axios.post(
+                window.location.origin + '/local/grupomakro_core/ajax.php',
+                new URLSearchParams({
+                    action:           'local_grupomakro_bulk_enroll_students',
+                    classid:          this.bulkEnrollItem.clasId,
+                    userids:          JSON.stringify(userids),
+                    force_over_quota: forceOverQuota ? 1 : 0,
+                })
+            ).then(response => {
+                this.bulkEnrollSaving = false;
+                const data = response.data;
+                if (data.status === 'success') {
+                    alert(data.message);
+                    this.closeBulkEnroll();
+                    this.items = [];
+                    this.getData();
+                } else {
+                    alert('Error: ' + (data.message || 'desconocido'));
+                }
+            }).catch(err => {
+                this.bulkEnrollSaving = false;
+                console.error(err);
+                alert('Error de red al inscribir estudiantes.');
+            });
         },
     },
     computed: {

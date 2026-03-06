@@ -2729,6 +2729,97 @@ try {
             $response = ['status' => 'success', 'data' => $data];
             break;
 
+        case 'local_grupomakro_get_planned_students':
+            // Returns pre-registered + queued students for a class (for bulk enrollment UI).
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            $preReg = $DB->get_records('gmk_class_pre_registration', ['classid' => $classid]);
+            $queued = $DB->get_records('gmk_class_queue', ['classid' => $classid]);
+            $allStudents = array_merge(array_values($preReg), array_values($queued));
+            // Resolve user info
+            $result = [];
+            $seen = [];
+            foreach ($allStudents as $s) {
+                if (isset($seen[$s->userid])) continue;
+                $seen[$s->userid] = true;
+                $u = $DB->get_record('user', ['id' => $s->userid, 'deleted' => 0], 'id, firstname, lastname, email, idnumber');
+                if (!$u) continue;
+                $result[] = [
+                    'userid'    => (int)$u->id,
+                    'fullname'  => fullname($u),
+                    'email'     => $u->email,
+                    'idnumber'  => $u->idnumber,
+                    'source'    => isset($preReg[$s->id]) ? 'prereg' : 'queue',
+                ];
+            }
+            // Already enrolled in the group (exclude from list to avoid duplicates)
+            $alreadyEnrolled = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $class->groupid]);
+            $response = [
+                'status'           => 'success',
+                'students'         => $result,
+                'already_enrolled' => array_map('intval', $alreadyEnrolled),
+                'quota'            => (int)$class->classroomcapacity,
+            ];
+            break;
+
+        case 'local_grupomakro_bulk_enroll_students':
+            // Enrolls a selection of planned students into their class group and Moodle course.
+            // Accepts: classid, userids[] (array of user IDs), force_over_quota (0|1)
+            $classid        = required_param('classid', PARAM_INT);
+            $userids_raw    = required_param('userids', PARAM_RAW);   // JSON array
+            $force_over     = optional_param('force_over_quota', 0, PARAM_INT);
+            $userids        = json_decode($userids_raw, true);
+            if (!is_array($userids) || empty($userids)) {
+                $response = ['status' => 'error', 'message' => 'No se proporcionaron estudiantes.'];
+                break;
+            }
+            $userids = array_map('intval', $userids);
+
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+            // Count current group members
+            $currentCount = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+            $quota        = (int)$class->classroomcapacity;
+            $newTotal     = $currentCount + count($userids);
+
+            if ($newTotal > $quota && !$force_over) {
+                $response = [
+                    'status'       => 'quota_exceeded',
+                    'current'      => $currentCount,
+                    'quota'        => $quota,
+                    'requested'    => count($userids),
+                    'new_total'    => $newTotal,
+                    'message'      => "Al inscribir {$newTotal} estudiantes se superará el cupo de {$quota}. ¿Desea aumentar el cupo automáticamente?",
+                ];
+                break;
+            }
+
+            // If force_over_quota, expand classroomcapacity to fit
+            if ($force_over && $newTotal > $quota) {
+                $class->classroomcapacity = $newTotal;
+                $DB->update_record('gmk_class', $class);
+            }
+
+            // Build student objects compatible with enrolApprovedScheduleStudents()
+            $studentsToEnrol = [];
+            foreach ($userids as $uid) {
+                $obj = new stdClass();
+                $obj->userid = $uid;
+                $studentsToEnrol[] = $obj;
+            }
+
+            $results = enrolApprovedScheduleStudents($studentsToEnrol, $class);
+
+            $enrolled = count(array_filter($results));
+            $response = [
+                'status'   => 'success',
+                'enrolled' => $enrolled,
+                'total'    => count($userids),
+                'message'  => "Se inscribieron {$enrolled} de " . count($userids) . " estudiantes.",
+                'new_quota'=> (int)$class->classroomcapacity,
+            ];
+            break;
+
         case 'local_grupomakro_save_generation_result':
             $periodid = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);
