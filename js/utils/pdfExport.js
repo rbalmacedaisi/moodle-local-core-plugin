@@ -314,7 +314,8 @@
             return;
         }
 
-        const dayOrder = { 'Lunes': 1, 'Martes': 2, 'Miercoles': 3, 'Miércoles': 3, 'Jueves': 4, 'Viernes': 5, 'Sabado': 6, 'Sábado': 6, 'Domingo': 7 };
+        // Normaliza tildes para comparar nombres de día robustamente
+        const normalizeDay = s => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() : '';
 
         groups.forEach((levelName, index) => {
             if (index > 0) doc.addPage();
@@ -358,19 +359,21 @@
             doc.setLineWidth(0.5);
             doc.line(20, 56, doc.internal.pageSize.getWidth() - 20, 56);
 
-            // --- GRID DATA ---
+            // --- GRID DATA (fichas con horario asignado) ---
             const days = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
             const rowData = days.map(day => {
-                const dayClasses = groupData.classes.filter(s => s.day === day || s.day === day.replace('Miercoles', 'Miércoles'))
-                    .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+                const normDay = normalizeDay(day);
+                const dayClasses = groupData.classes
+                    .filter(s => s.day && s.day !== 'N/A' && normalizeDay(s.day) === normDay)
+                    .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
 
                 if (dayClasses.length === 0) return '';
 
                 return dayClasses.map(s => {
                     const studentCount = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
-                    return `Horario: ${s.start} - ${s.end}\nAsignatura: ${s.subjectName}\nAula: ${s.room || 'Sin aula'}\nDocente: ${s.teacherName || 'Pendiente'}\nEst. Clase: ${studentCount}\n${s.career || 'N/A'}\n${s.shift || 'N/A'}`;
-                }).join('\n\n-----------------\n\n');
+                    return `Horario: ${s.start} - ${s.end}\nAsignatura: ${s.subjectName}\nAula: ${s.room || 'Sin aula'}\nDocente: ${s.teacherName || 'Pendiente'}\nEst.: ${studentCount}\n${s.shift || 'N/A'}`;
+                }).join('\n\n---\n\n');
             });
 
             const tableWidth = doc.internal.pageSize.getWidth() - 40;
@@ -389,7 +392,7 @@
                     overflow: 'linebreak'
                 },
                 headStyles: {
-                    fillColor: [30, 64, 175], // Royal Blue
+                    fillColor: [30, 64, 175],
                     textColor: [255, 255, 255],
                     fontStyle: 'bold',
                     halign: 'center',
@@ -405,12 +408,53 @@
                 },
                 margin: { left: 20, right: 20, bottom: 20 },
                 didDrawPage: function (data) {
-                    // Footer
                     doc.setFontSize(7);
                     doc.setTextColor(150, 150, 150);
                     doc.text(`Generado automáticamente en el Tablero de Planificación - Sistema de Horarios`, 20, doc.internal.pageSize.getHeight() - 10);
                 }
             });
+
+            // --- SECCIÓN "SIN ASIGNAR" ---
+            const unplacedClasses = groupData.classes.filter(s => !s.day || s.day === 'N/A');
+            if (unplacedClasses.length > 0) {
+                const afterTableY = doc.lastAutoTable.finalY + 8;
+
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(180, 120, 0);
+                doc.text('Sin Horario Asignado:', 20, afterTableY);
+
+                const unplacedRows = unplacedClasses.map(s => {
+                    const studentCount = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
+                    return [
+                        s.subjectName || '',
+                        s.career || '',
+                        s.shift || '',
+                        `${studentCount}`,
+                        s.teacherName || 'Pendiente'
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: afterTableY + 4,
+                    head: [['Asignatura', 'Carrera', 'Jornada', 'Est.', 'Docente']],
+                    body: unplacedRows,
+                    theme: 'striped',
+                    styles: { fontSize: 7, cellPadding: 2, textColor: [50, 50, 50] },
+                    headStyles: {
+                        fillColor: [217, 119, 6],
+                        textColor: [255, 255, 255],
+                        fontStyle: 'bold',
+                        fontSize: 7
+                    },
+                    margin: { left: 20, right: 20, bottom: 20 },
+                    didDrawPage: function (data) {
+                        doc.setFontSize(7);
+                        doc.setTextColor(150, 150, 150);
+                        doc.text(`Generado automáticamente en el Tablero de Planificación - Sistema de Horarios`, 20, doc.internal.pageSize.getHeight() - 10);
+                    }
+                });
+            }
         });
 
         doc.save(`Horarios_Por_Periodo_Ingreso_${new Date().toISOString().split('T')[0]}.pdf`);
