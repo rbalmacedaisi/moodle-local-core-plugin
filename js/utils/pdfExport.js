@@ -530,156 +530,136 @@
                 return { blocks, fill };
             });
 
-            // Cada día ocupa UNA columna en autoTable.
-            // Dibujamos la tabla VACÍA (solo para crear el grid y la altura),
-            // luego en didDrawCell pintamos el contenido manualmente bloque a bloque
-            // con rectángulos de fondo sombreado alternado.
-            const FONT_SIZE   = 6.5;
-            const LINE_H_MM   = FONT_SIZE * 0.3528 * 1.3; // fontSize * pt-to-mm * lineHeight
-            const BLOCK_PAD   = 2;   // padding interno del bloque
-            const BLOCK_GAP   = 1.5; // espacio entre bloques
-            const CELL_PAD_X  = 2;
-            const CELL_PAD_TOP = 2;
+            // ── Dibujar tabla manualmente (sin autoTable para el body) ────────────
+            const FONT_SIZE  = 6.5;
+            const LINE_H     = 3.2;   // mm entre líneas de texto
+            const BLOCK_PAD  = 1.5;   // padding arriba/abajo dentro de bloque
+            const BLOCK_GAP  = 1.2;   // espacio entre bloques
+            const CELL_PAD_X = 2;
+            const CELL_PAD_T = 1.5;
+            const HEAD_H     = 8;     // altura fila encabezado días
+            const MIN_BODY_H = 18;    // altura mínima del body
+            const tableX     = 8;
 
-            // Calcular altura de cada bloque por día (considerando wrap de texto)
-            // El ancho útil del texto dentro de cada celda
-            const textWidth = colW - CELL_PAD_X * 2 - 2;
-
+            // Estimar altura de cada bloque (sin splitTextToSize para evitar loops)
+            // Asumimos ~22 chars por línea a fontSize 6.5 en colW ~43mm
+            const charsPerLine = Math.max(1, Math.floor((colW - CELL_PAD_X * 2 - 2) / 1.9));
             const measureBlock = (lines) => {
-                // Contar líneas reales tras wrap a textWidth
-                doc.setFontSize(FONT_SIZE);
                 let totalLines = 0;
                 lines.forEach(line => {
-                    const wrapped = doc.splitTextToSize(line, textWidth);
-                    totalLines += wrapped.length;
+                    totalLines += Math.max(1, Math.ceil((line || '').length / charsPerLine));
                 });
-                return BLOCK_PAD * 2 + totalLines * LINE_H_MM;
+                return BLOCK_PAD * 2 + totalLines * LINE_H;
             };
 
-            // Pre-calcular alturas para determinar la altura total de la fila
-            const dayHeights = dayDataMap.map(d =>
-                d.blocks.length === 0 ? 15 :
-                d.blocks.reduce((sum, b) => sum + measureBlock(b.lines) + BLOCK_GAP, -BLOCK_GAP) + CELL_PAD_TOP * 2
+            // Calcular altura del body
+            const bodyHeights = dayDataMap.map(d =>
+                d.blocks.length === 0
+                    ? MIN_BODY_H
+                    : d.blocks.reduce((s, b) => s + measureBlock(b.lines) + BLOCK_GAP, -BLOCK_GAP) + CELL_PAD_T * 2
             );
-            const rowHeight = Math.max(...dayHeights, 15);
+            const bodyH = Math.min(Math.max(...bodyHeights, MIN_BODY_H), H - TABLE_START_Y - 40);
 
-            doc.autoTable({
-                startY: TABLE_START_Y,
-                head: [DAY_DISP],
-                body: [DAYS.map(() => '')],
-                theme: 'plain',
-                styles: {
-                    fontSize: FONT_SIZE,
-                    cellPadding: { top: CELL_PAD_TOP, right: CELL_PAD_X, bottom: CELL_PAD_TOP, left: CELL_PAD_X },
-                    textColor: [30, 41, 59],
-                    fillColor: C.white,
-                    valign: 'top',
-                    overflow: 'linebreak',
-                    lineColor: C.border,
-                    lineWidth: 0.3,
-                    minCellHeight: rowHeight,
-                },
-                headStyles: {
-                    fillColor:   C.navy,
-                    textColor:   C.white,
-                    fontStyle:   'bold',
-                    halign:      'center',
-                    fontSize:    8,
-                    cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
-                    lineColor:   C.border,
-                    lineWidth:   0.3,
-                },
-                columnStyles: Object.fromEntries(
-                    DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: C.white }])
-                ),
-                margin: { left: 8, right: 8, bottom: 18 },
-                willDrawCell: (data) => {
-                    if (data.section !== 'body') return;
-                    // Pintar fondo blanco explícito para todas las celdas del body
-                    doc.setFillColor(...C.white);
-                    doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-                    // Borde de celda
+            // ── Fila encabezado de días ───────────────────────────────────────────
+            doc.setFillColor(...C.navy);
+            doc.rect(tableX, TABLE_START_Y, tableWidth, HEAD_H, 'F');
+            doc.setDrawColor(...C.border);
+            doc.setLineWidth(0.3);
+            doc.rect(tableX, TABLE_START_Y, tableWidth, HEAD_H, 'S');
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(...C.white);
+            DAYS.forEach((_, i) => {
+                const cx = tableX + i * colW + colW / 2;
+                doc.text(DAY_DISP[i], cx, TABLE_START_Y + HEAD_H - 2.5, { align: 'center' });
+                // separador vertical
+                if (i > 0) {
                     doc.setDrawColor(...C.border);
-                    doc.setLineWidth(0.3);
-                    doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'S');
-                },
-                didDrawCell: (data) => {
-                    if (data.section !== 'body') return;
-                    const { blocks } = dayDataMap[data.column.index];
-                    if (!blocks || blocks.length === 0) return;
+                    doc.line(tableX + i * colW, TABLE_START_Y, tableX + i * colW, TABLE_START_Y + HEAD_H);
+                }
+            });
 
-                    doc.setFontSize(FONT_SIZE);
-                    const cellX = data.cell.x;
-                    const cellW = data.cell.width;
-                    let cursorY = data.cell.y + CELL_PAD_TOP;
+            // ── Fila body ─────────────────────────────────────────────────────────
+            const bodyY = TABLE_START_Y + HEAD_H;
 
-                    // Colores alternos de fondo para bloques
-                    const blockBgs = [
-                        [239, 246, 255],  // blue-50
-                        [248, 250, 252],  // slate-50
-                    ];
+            DAYS.forEach((_, i) => {
+                const cellX = tableX + i * colW;
+                // Fondo blanco
+                doc.setFillColor(...C.white);
+                doc.rect(cellX, bodyY, colW, bodyH, 'F');
+                // Borde
+                doc.setDrawColor(...C.border);
+                doc.setLineWidth(0.3);
+                doc.rect(cellX, bodyY, colW, bodyH, 'S');
+            });
 
-                    blocks.forEach((block, bi) => {
-                        const blockH = measureBlock(block.lines);
+            // ── Contenido bloques ─────────────────────────────────────────────────
+            const blockBgs = [[239, 246, 255], [248, 250, 252]];
+            doc.setFontSize(FONT_SIZE);
 
-                        if (block.isExternal) {
-                            // Fichas externas: fondo amber claro + borde amber
-                            doc.setFillColor(254, 243, 199); // amber-100
-                            doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
-                            doc.setFillColor(217, 119, 6);   // amber-600
-                            doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+            dayDataMap.forEach((dayData, i) => {
+                if (!dayData.blocks || dayData.blocks.length === 0) return;
+                const cellX = tableX + i * colW;
+                let cursorY = bodyY + CELL_PAD_T;
+
+                dayData.blocks.forEach((block, bi) => {
+                    const blockH = measureBlock(block.lines);
+                    if (cursorY + blockH > bodyY + bodyH - 1) return; // no cabe
+
+                    // Fondo del bloque
+                    if (block.isExternal) {
+                        doc.setFillColor(254, 243, 199);
+                        doc.rect(cellX + 1, cursorY, colW - 2, blockH, 'F');
+                        doc.setFillColor(217, 119, 6);
+                        doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                    } else {
+                        doc.setFillColor(...blockBgs[bi % 2]);
+                        doc.rect(cellX + 1, cursorY, colW - 2, blockH, 'F');
+                        const accentC = block.shift && block.shift.toLowerCase().includes('noche')
+                            ? [99, 102, 241] : [59, 130, 246];
+                        doc.setFillColor(...accentC);
+                        doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                    }
+
+                    // Texto
+                    let textY = cursorY + BLOCK_PAD + LINE_H * 0.85;
+                    const textMaxW = colW - CELL_PAD_X * 2 - 1.5;
+                    block.lines.forEach((line, li) => {
+                        if (textY > bodyY + bodyH - 1) return;
+                        if (li === 0) {
+                            doc.setFont('helvetica', 'bold');
+                            doc.setTextColor(...(block.isExternal ? [146, 64, 14] : C.navy));
                         } else {
-                            // Fondo alternado normal
-                            const bgColor = blockBgs[bi % 2];
-                            doc.setFillColor(...bgColor);
-                            doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
-
-                            // Borde izquierdo de acento (shift-color)
-                            const accentColor = block.shift && block.shift.toLowerCase().includes('noche')
-                                ? [99, 102, 241]   // indigo
-                                : [59, 130, 246];  // blue
-                            doc.setFillColor(...accentColor);
-                            doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                            doc.setFont('helvetica', 'normal');
+                            doc.setTextColor(30, 41, 59);
                         }
-
-                        // Texto del bloque
-                        let textY = cursorY + BLOCK_PAD + LINE_H_MM * 0.8;
-                        block.lines.forEach((line, li) => {
-                            const wrapped = doc.splitTextToSize(line, textWidth - 1.5);
-                            if (li === 0) {
-                                doc.setFont('helvetica', 'bold');
-                                doc.setTextColor(block.isExternal ? 146 : C.navy[0], block.isExternal ? 64 : C.navy[1], block.isExternal ? 14 : C.navy[2]);
-                            } else {
-                                doc.setFont('helvetica', 'normal');
-                                doc.setTextColor(30, 41, 59);
-                            }
-                            wrapped.forEach(wl => {
-                                doc.text(wl, cellX + CELL_PAD_X + 1.5, textY);
-                                textY += LINE_H_MM;
-                            });
-                        });
-
-                        cursorY += blockH + BLOCK_GAP;
+                        // Truncar manualmente si es muy largo
+                        let txt = line || '';
+                        while (txt.length > 3 && doc.getStringUnitWidth(txt) * FONT_SIZE / doc.internal.scaleFactor > textMaxW) {
+                            txt = txt.slice(0, -1);
+                        }
+                        doc.text(txt, cellX + CELL_PAD_X + 1.5, textY);
+                        textY += LINE_H;
                     });
 
-                    // Resetear font
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(30, 41, 59);
-                },
-                didDrawPage: (hookData) => {
-                    // Redibujar header de página si autoTable crea páginas adicionales
-                    if (hookData.pageNumber > 1) {
-                        drawPageHeader(groupData, index + 1 + (hookData.pageNumber - 1), totalPages);
-                    }
-                    drawFooter();
-                },
+                    cursorY += blockH + BLOCK_GAP;
+                });
             });
+
+            // Restaurar estado
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(30, 41, 59);
+            drawFooter();
+
+            // Registrar finalY para la sección siguiente
+            const tableEndY = bodyY + bodyH;
 
             // ── Sección "Sin horario asignado" ────────────────────────────────────
             const unplaced = groupData.classes.filter(s => !s.day || s.day === 'N/A');
             if (unplaced.length === 0) return;
 
-            const afterY = (doc.lastAutoTable.finalY || TABLE_START_Y) + 6;
+            const afterY = tableEndY + 6;
 
             // Etiqueta de sección
             doc.setFillColor(...C.amberLight);
