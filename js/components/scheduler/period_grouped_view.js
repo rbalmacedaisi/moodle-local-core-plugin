@@ -251,12 +251,17 @@ window.SchedulerComponents.PeriodGroupedView = {
                 });
             });
 
-            // ── Paso 3: Añadir fichas externas a todos los grupos existentes ──
+            // ── Paso 3: Añadir fichas externas a grupos de la misma carrera ──
             const externalClasses = Object.values(consolidatedMap).filter(c => c.isExternal);
             if (externalClasses.length > 0) {
                 Object.keys(groups).forEach(key => {
+                    const groupCareer = groups[key].career;
                     externalClasses.forEach(c => {
-                        groups[key].classes.push(c);
+                        // Solo añadir si la ficha externa corresponde a la carrera del grupo
+                        const careers = (c.careerList && c.careerList.length > 0) ? c.careerList : [c.career || ''];
+                        if (careers.some(cr => cr === groupCareer)) {
+                            groups[key].classes.push(c);
+                        }
                     });
                 });
             }
