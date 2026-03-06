@@ -459,19 +459,16 @@
             const tableWidth    = W - 16;
             const colW          = tableWidth / DAYS.length;
 
-            // Construir celdas: una fila con una celda por día
-            // Cada celda contiene texto multilínea formateado
-            const buildCellContent = (day) => {
+            // Construir datos por día
+            const dayDataMap = DAYS.map(day => {
                 const normDay    = normalizeDay(day);
                 const dayClasses = groupData.classes
                     .filter(s => s.day && s.day !== 'N/A' && normalizeDay(s.day) === normDay)
                     .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
-                if (dayClasses.length === 0) return { content: '', styles: { fillColor: C.slateLight } };
+                if (dayClasses.length === 0) return { blocks: [], fill: C.slateLight };
 
-                const lines = dayClasses.map((s, idx) => {
+                const blocks = dayClasses.map(s => {
                     const totalCnt = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
-
-                    // Calcular cuántos de esos estudiantes pertenecen a este período de ingreso
                     let periodCnt = totalCnt;
                     if (allStudents.length > 0 && s.studentIds && s.studentIds.length > 0) {
                         const sidSet = new Set(s.studentIds.map(id => String(id)));
@@ -480,42 +477,77 @@
                             (st.entry_period || 'Sin Definir') === levelName
                         ).length;
                     }
-
                     const estLabel = allStudents.length > 0
                         ? `Est: ${periodCnt}/${totalCnt}`
                         : `Est: ${totalCnt}`;
+                    return {
+                        lines: [
+                            `${s.start} - ${s.end}`,
+                            s.subjectName || '',
+                            `Doc: ${s.teacherName || 'Sin docente'}`,
+                            `Aula: ${s.room || 'Sin aula'}  |  ${estLabel}`,
+                        ],
+                        shift: s.shift,
+                    };
+                });
 
-                    const separator = idx > 0 ? '────────────────\n' : '';
-                    return separator + [
-                        `${s.start} – ${s.end}`,
-                        s.subjectName || '',
-                        `Doc: ${s.teacherName || 'Sin docente'}`,
-                        `Aula: ${s.room || 'Sin aula'}  ·  ${estLabel}`,
-                    ].join('\n');
-                }).join('\n');
+                const fill = blocks.length === 1 ? shiftFill(blocks[0].shift) : C.white;
+                return { blocks, fill };
+            });
 
-                const fill = dayClasses.length === 1
-                    ? shiftFill(dayClasses[0].shift)
-                    : C.white;
+            // Cada día ocupa UNA columna en autoTable.
+            // Dibujamos la tabla VACÍA (solo para crear el grid y la altura),
+            // luego en didDrawCell pintamos el contenido manualmente bloque a bloque
+            // con rectángulos de fondo sombreado alternado.
+            const FONT_SIZE   = 6.5;
+            const LINE_H_MM   = FONT_SIZE * 0.3528 * 1.3; // fontSize * pt-to-mm * lineHeight
+            const BLOCK_PAD   = 2;   // padding interno del bloque
+            const BLOCK_GAP   = 1.5; // espacio entre bloques
+            const CELL_PAD_X  = 2;
+            const CELL_PAD_TOP = 2;
 
-                return { content: lines, styles: { fillColor: fill } };
+            // Calcular altura de cada bloque por día (considerando wrap de texto)
+            // El ancho útil del texto dentro de cada celda
+            const textWidth = colW - CELL_PAD_X * 2 - 2;
+
+            const measureBlock = (lines) => {
+                // Contar líneas reales tras wrap a textWidth
+                doc.setFontSize(FONT_SIZE);
+                let totalLines = 0;
+                lines.forEach(line => {
+                    const wrapped = doc.splitTextToSize(line, textWidth);
+                    totalLines += wrapped.length;
+                });
+                return BLOCK_PAD * 2 + totalLines * LINE_H_MM;
             };
 
-            const bodyRow = DAYS.map(d => buildCellContent(d));
+            // Pre-calcular alturas para determinar la altura total de la fila
+            const dayHeights = dayDataMap.map(d =>
+                d.blocks.length === 0 ? 15 :
+                d.blocks.reduce((sum, b) => sum + measureBlock(b.lines) + BLOCK_GAP, -BLOCK_GAP) + CELL_PAD_TOP * 2
+            );
+            const rowHeight = Math.max(...dayHeights, 15);
+
+            // Construir celdas vacías para autoTable (el contenido se dibuja en didDrawCell)
+            const emptyCells = DAYS.map((_, i) => ({
+                content: '',
+                styles: { fillColor: dayDataMap[i].fill, minCellHeight: rowHeight }
+            }));
 
             doc.autoTable({
                 startY: TABLE_START_Y,
                 head: [DAY_DISP],
-                body: [bodyRow.map(c => c.content)],
+                body: [emptyCells.map(c => ({ content: c.content, styles: c.styles }))],
                 theme: 'grid',
                 styles: {
-                    fontSize: 7,
-                    cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
+                    fontSize: FONT_SIZE,
+                    cellPadding: { top: CELL_PAD_TOP, right: CELL_PAD_X, bottom: CELL_PAD_TOP, left: CELL_PAD_X },
                     textColor: [30, 41, 59],
                     valign: 'top',
                     overflow: 'linebreak',
                     lineColor: C.border,
                     lineWidth: 0.3,
+                    minCellHeight: rowHeight,
                 },
                 headStyles: {
                     fillColor:   C.navy,
@@ -526,9 +558,65 @@
                     cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
                 },
                 columnStyles: Object.fromEntries(
-                    DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: bodyRow[i].styles.fillColor }])
+                    DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: dayDataMap[i].fill, minCellHeight: rowHeight }])
                 ),
                 margin: { left: 8, right: 8, bottom: 18 },
+                didDrawCell: (data) => {
+                    if (data.section !== 'body') return;
+                    const { blocks } = dayDataMap[data.column.index];
+                    if (!blocks || blocks.length === 0) return;
+
+                    doc.setFontSize(FONT_SIZE);
+                    const cellX = data.cell.x;
+                    const cellW = data.cell.width;
+                    let cursorY = data.cell.y + CELL_PAD_TOP;
+
+                    // Colores alternos de fondo para bloques
+                    const blockBgs = [
+                        [239, 246, 255],  // blue-50
+                        [248, 250, 252],  // slate-50
+                    ];
+
+                    blocks.forEach((block, bi) => {
+                        const blockH = measureBlock(block.lines);
+
+                        // Fondo del bloque
+                        const bgColor = blockBgs[bi % 2];
+                        doc.setFillColor(...bgColor);
+                        doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
+
+                        // Borde izquierdo de acento (shift-color)
+                        const accentColor = block.shift && block.shift.toLowerCase().includes('noche')
+                            ? [99, 102, 241]   // indigo
+                            : [59, 130, 246];  // blue
+                        doc.setFillColor(...accentColor);
+                        doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+
+                        // Texto del bloque
+                        let textY = cursorY + BLOCK_PAD + LINE_H_MM * 0.8;
+                        block.lines.forEach((line, li) => {
+                            const wrapped = doc.splitTextToSize(line, textWidth - 1.5);
+                            if (li === 0) {
+                                // Primera línea (horario) en bold azul
+                                doc.setFont('helvetica', 'bold');
+                                doc.setTextColor(...C.navy);
+                            } else {
+                                doc.setFont('helvetica', 'normal');
+                                doc.setTextColor(30, 41, 59);
+                            }
+                            wrapped.forEach(wl => {
+                                doc.text(wl, cellX + CELL_PAD_X + 1.5, textY);
+                                textY += LINE_H_MM;
+                            });
+                        });
+
+                        cursorY += blockH + BLOCK_GAP;
+                    });
+
+                    // Resetear font
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(30, 41, 59);
+                },
                 didDrawPage: () => drawFooter(),
             });
 
