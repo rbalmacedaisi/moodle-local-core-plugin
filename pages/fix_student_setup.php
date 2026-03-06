@@ -159,7 +159,7 @@ if ($action === 'ajax_fix') {
         $subperiod_name = optional_param('subperiod_name', '', PARAM_RAW);
         $academic_name = optional_param('academic_name', '', PARAM_RAW);
         $groupname = optional_param('groupname', '', PARAM_RAW);
-        $status = optional_param('status', '', PARAM_ALPHA);
+        $status = optional_param('status', '', PARAM_TEXT);
         $new_idnumber = optional_param('idnumber', '', PARAM_RAW);
         
         // Identity Fields
@@ -181,7 +181,7 @@ if ($action === 'ajax_fix') {
         $documentnumber = optional_param('documentnumber', '', PARAM_RAW);
         $needfirsttuition = optional_param('needfirsttuition', '', PARAM_ALPHA);
         $personalemail = optional_param('personalemail', '', PARAM_RAW);
-        $studentstatus = optional_param('studentstatus', '', PARAM_ALPHA);
+        $studentstatus = optional_param('studentstatus', '', PARAM_TEXT);
         $gmkgenre = optional_param('gmkgenre', '', PARAM_ALPHA);
         $gmkjourney = optional_param('gmkjourney', '', PARAM_ALPHA);
         $custom_phone = optional_param('custom_phone', '', PARAM_RAW);
@@ -322,7 +322,11 @@ if ($action === 'ajax_fix') {
             'learningplanid' => $planid,
             'userrolename' => 'student'
         ]);
-        $status = !empty($status) ? strtolower(trim($status)) : 'activo';
+        $valid_statuses = ['activo', 'inactivo', 'aplazado', 'retirado', 'suspendido', 'desertor', 'graduado', 'egresado'];
+        $status = strtolower(trim($status));
+        if (!in_array($status, $valid_statuses)) {
+            $status = 'activo';
+        }
 
         // LOG: Debug info
         error_log("=== FIX STUDENT DEBUG ===");
