@@ -158,26 +158,59 @@ window.SchedulerComponents.PeriodGroupedView = {
             const groups = {};
             const allStudents = this.storeState.students || [];
 
+            // --- Paso 1: Consolidar fichas del mismo subjectName+shift+subperiod ---
+            // Fichas divididas por quórum (gen-1, gen-2...) se fusionan en una sola
+            // para esta vista. Se acumulan studentIds y se conservan los días/horas
+            // de la primera ficha colocada encontrada (o N/A si ninguna está colocada).
+            const consolidatedMap = {};
             this.allClasses.forEach(c => {
                 if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) return;
-                // Fichas sin asignar (day === 'N/A') también se incluyen — aparecen en sección "Sin asignar"
 
-                // Career filter (Robust check)
                 if (careerFilter) {
                     const inList = c.careerList && c.careerList.includes(careerFilter);
                     const inString = c.career && c.career.includes(careerFilter);
                     if (!inList && !inString) return;
                 }
-
-                // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                // Una ficha puede tener estudiantes de distintos períodos de ingreso.
-                // Debe aparecer en CADA período que tenga al menos un estudiante representado.
-                // Bug fix: normalizar tipos (integers de BD vs strings idnumber).
+                const ck = `${c.subjectName}||${c.shift}||${c.subperiod}`;
+                if (!consolidatedMap[ck]) {
+                    // Primer representante: copia superficial, studentIds como Set mutable
+                    consolidatedMap[ck] = {
+                        ...c,
+                        studentIds: [...(c.studentIds || [])],
+                        _sidSet: new Set((c.studentIds || []).map(id => String(id))),
+                        _placed: c.day && c.day !== 'N/A',
+                    };
+                } else {
+                    const existing = consolidatedMap[ck];
+                    // Acumular IDs sin duplicados
+                    (c.studentIds || []).forEach(id => {
+                        const sid = String(id);
+                        if (!existing._sidSet.has(sid)) {
+                            existing._sidSet.add(sid);
+                            existing.studentIds.push(id);
+                        }
+                    });
+                    // Si la ficha existente no está colocada pero esta sí, usar datos de horario de esta
+                    if (!existing._placed && c.day && c.day !== 'N/A') {
+                        existing.day   = c.day;
+                        existing.start = c.start;
+                        existing.end   = c.end;
+                        existing.room  = c.room;
+                        existing._placed = true;
+                    }
+                    existing.studentCount = existing.studentIds.length;
+                }
+            });
+
+            // --- Paso 2: Agrupar fichas consolidadas por período de ingreso ---
+            Object.values(consolidatedMap).forEach(c => {
+                // Una ficha puede tener estudiantes de distintos períodos de ingreso:
+                // debe aparecer en CADA período representado.
                 let keys = ['Sin Definir'];
                 if (c.studentIds && c.studentIds.length > 0) {
-                    const sidSet = new Set((c.studentIds).map(id => String(id)));
+                    const sidSet = new Set(c.studentIds.map(id => String(id)));
                     const classStudents = allStudents.filter(s =>
                         sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))
                     );
