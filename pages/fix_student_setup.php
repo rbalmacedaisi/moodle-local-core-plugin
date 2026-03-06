@@ -328,6 +328,11 @@ if ($action === 'ajax_fix') {
             $status = 'activo';
         }
 
+        $studentstatus = strtolower(trim($studentstatus));
+        if (!empty($studentstatus) && !in_array($studentstatus, $valid_statuses)) {
+            $studentstatus = '';
+        }
+
         // LOG: Debug info
         error_log("=== FIX STUDENT DEBUG ===");
         error_log("Usuario: $username (ID: $userid)");
