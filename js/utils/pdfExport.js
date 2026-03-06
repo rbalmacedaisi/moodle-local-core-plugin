@@ -474,10 +474,10 @@
                 const lines = dayClasses.map(s => {
                     const cnt = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
                     return [
-                        `⏰ ${s.start} – ${s.end}`,
+                        `${s.start} – ${s.end}`,
                         s.subjectName || '',
-                        `👤 ${s.teacherName || 'Sin docente'}`,
-                        `🏫 ${s.room || 'Sin aula'}  ·  👥 ${cnt} est.`,
+                        `Doc: ${s.teacherName || 'Sin docente'}`,
+                        `Aula: ${s.room || 'Sin aula'}  ·  Est: ${cnt}`,
                     ].join('\n');
                 }).join('\n\n');
 
@@ -520,7 +520,7 @@
                     // Primera línea de cada celda de contenido en negrita (horario)
                     if (data.section === 'body' && data.cell.text && data.cell.text.length > 0) {
                         const firstLine = data.cell.text[0];
-                        if (firstLine && firstLine.startsWith('⏰')) {
+                        if (firstLine && /^\d{2}:\d{2}/.test(firstLine)) {
                             doc.setFont('helvetica', 'bold');
                             doc.setFontSize(7);
                             doc.setTextColor(...C.navy);
