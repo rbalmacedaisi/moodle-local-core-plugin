@@ -532,8 +532,8 @@
             doc.autoTable({
                 startY: TABLE_START_Y,
                 head: [DAY_DISP],
-                body: [DAYS.map(() => ({ content: '', styles: { minCellHeight: rowHeight } }))],
-                theme: 'grid',
+                body: [DAYS.map(() => '')],
+                theme: 'plain',
                 styles: {
                     fontSize: FONT_SIZE,
                     cellPadding: { top: CELL_PAD_TOP, right: CELL_PAD_X, bottom: CELL_PAD_TOP, left: CELL_PAD_X },
@@ -552,11 +552,23 @@
                     halign:      'center',
                     fontSize:    8,
                     cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
+                    lineColor:   C.border,
+                    lineWidth:   0.3,
                 },
                 columnStyles: Object.fromEntries(
-                    DAYS.map((_, i) => [i, { cellWidth: colW }])
+                    DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: C.white }])
                 ),
                 margin: { left: 8, right: 8, bottom: 18 },
+                willDrawCell: (data) => {
+                    if (data.section !== 'body') return;
+                    // Pintar fondo blanco explícito para todas las celdas del body
+                    doc.setFillColor(...C.white);
+                    doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+                    // Borde de celda
+                    doc.setDrawColor(...C.border);
+                    doc.setLineWidth(0.3);
+                    doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'S');
+                },
                 didDrawCell: (data) => {
                     if (data.section !== 'body') return;
                     const { blocks } = dayDataMap[data.column.index];
