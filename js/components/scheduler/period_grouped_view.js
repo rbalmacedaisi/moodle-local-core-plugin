@@ -78,8 +78,22 @@ window.SchedulerComponents.PeriodGroupedView = {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Fichas sin horario asignado -->
+                    <div v-if="group.classes.filter(c => !c.day || c.day === 'N/A').length > 0"
+                         class="border-t border-dashed border-slate-300 p-3 bg-slate-50">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Sin asignar</span>
+                        <div class="flex flex-wrap gap-2">
+                            <div v-for="cls in group.classes.filter(c => !c.day || c.day === 'N/A')" :key="'na-'+cls.id"
+                                 class="p-2 rounded border text-xs bg-amber-50 border-amber-200 text-amber-800 min-w-[120px]">
+                                <div class="font-bold leading-tight mb-0.5">{{ cls.subjectName }}</div>
+                                <div class="text-[10px] opacity-70 truncate">{{ cls.career }}</div>
+                                <div class="text-[10px] text-amber-500 font-medium">Sin horario</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
+
                 <div v-if="!groupedSchedules || Object.keys(groupedSchedules).length === 0" class="flex flex-col items-center justify-center h-full text-slate-400">
                      <i data-lucide="layout-list" class="w-12 h-12 mb-2 opacity-50"></i>
                      <p>No hay horarios asignados visibles con los filtros actuales.</p>
@@ -142,10 +156,11 @@ window.SchedulerComponents.PeriodGroupedView = {
             const careerFilter = this.storeState.careerFilter;
             const shiftFilter = this.storeState.shiftFilter;
             const groups = {};
+            const allStudents = this.storeState.students || [];
 
             this.allClasses.forEach(c => {
                 if (filter !== 0 && c.subperiod !== 0 && c.subperiod !== filter) return;
-                if (!c.day || c.day === 'N/A') return;
+                // Fichas sin asignar (day === 'N/A') también se incluyen — aparecen en sección "Sin asignar"
 
                 // Career filter (Robust check)
                 if (careerFilter) {
@@ -157,11 +172,15 @@ window.SchedulerComponents.PeriodGroupedView = {
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                // Find real entry period for this class by inspecting students
+                // Find real entry period for this class by inspecting students.
+                // Bug fix: studentIds contiene integers de BD, pero student.id puede ser idnumber (string).
+                // Normalizar ambos lados a String para que el lookup funcione correctamente.
                 let key = 'Sin Definir';
-                const allStudents = this.storeState.students || [];
                 if (c.studentIds && c.studentIds.length > 0) {
-                    const classStudents = allStudents.filter(s => c.studentIds.includes(s.id || s.dbId));
+                    const sidSet = new Set((c.studentIds).map(id => String(id)));
+                    const classStudents = allStudents.filter(s =>
+                        sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))
+                    );
                     if (classStudents.length > 0) {
                         const periodCounts = {};
                         classStudents.forEach(s => {
@@ -181,14 +200,14 @@ window.SchedulerComponents.PeriodGroupedView = {
                 }
                 groups[key].classes.push(c);
 
-                // Approx duration
-                const start = this.toMins(c.start);
-                const end = this.toMins(c.end);
-                groups[key].totalHours += (end - start) / 60;
+                // Solo sumar horas de fichas con horario asignado
+                if (c.day && c.day !== 'N/A') {
+                    const start = this.toMins(c.start);
+                    const end = this.toMins(c.end);
+                    groups[key].totalHours += (end - start) / 60;
+                }
             });
 
-            // Sort keys?
-            // Sort keys
             const sortedKeys = Object.keys(groups).sort();
             const result = {};
             sortedKeys.forEach(key => {
