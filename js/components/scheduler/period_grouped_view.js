@@ -208,8 +208,12 @@ window.SchedulerComponents.PeriodGroupedView = {
             Object.values(consolidatedMap).forEach(c => {
                 // Una ficha puede tener estudiantes de distintos períodos de ingreso:
                 // debe aparecer en CADA período representado.
+                // Las fichas externas aparecen en TODOS los grupos (son compartidas).
                 let keys = ['Sin Definir'];
-                if (c.studentIds && c.studentIds.length > 0) {
+                if (c.isExternal) {
+                    // Usar los grupos ya creados, o marcar para añadirlas después
+                    keys = null; // señal: añadir a todos los grupos al final
+                } else if (c.studentIds && c.studentIds.length > 0) {
                     const sidSet = new Set(c.studentIds.map(id => String(id)));
                     const classStudents = allStudents.filter(s =>
                         sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))
@@ -220,6 +224,8 @@ window.SchedulerComponents.PeriodGroupedView = {
                         keys = Array.from(periodSet);
                     }
                 }
+
+                if (keys === null) return; // externas se procesan después
 
                 const durationHours = (c.day && c.day !== 'N/A')
                     ? (this.toMins(c.end) - this.toMins(c.start)) / 60
@@ -237,6 +243,21 @@ window.SchedulerComponents.PeriodGroupedView = {
                     groups[key].totalHours += durationHours;
                 });
             });
+
+            // --- Paso 3: Añadir fichas externas a todos los grupos existentes ---
+            const externalClasses = Object.values(consolidatedMap).filter(c => c.isExternal);
+            if (externalClasses.length > 0) {
+                const existingKeys = Object.keys(groups);
+                externalClasses.forEach(c => {
+                    const durationHours = (c.day && c.day !== 'N/A')
+                        ? (this.toMins(c.end) - this.toMins(c.start)) / 60
+                        : 0;
+                    existingKeys.forEach(key => {
+                        groups[key].classes.push(c);
+                        // No sumamos horas de fichas externas al total del período
+                    });
+                });
+            }
 
             const sortedKeys = Object.keys(groups).sort();
             const result = {};

@@ -483,11 +483,12 @@
                     return {
                         lines: [
                             `${s.start} - ${s.end}`,
-                            s.subjectName || '',
+                            (s.isExternal ? '[Ext] ' : '') + (s.subjectName || ''),
                             `Doc: ${s.teacherName || 'Sin docente'}`,
                             `Aula: ${s.room || 'Sin aula'}  |  ${estLabel}`,
                         ],
                         shift: s.shift,
+                        isExternal: !!s.isExternal,
                     };
                 });
 
@@ -528,21 +529,16 @@
             );
             const rowHeight = Math.max(...dayHeights, 15);
 
-            // Construir celdas vacías para autoTable (el contenido se dibuja en didDrawCell)
-            const emptyCells = DAYS.map((_, i) => ({
-                content: '',
-                styles: { fillColor: dayDataMap[i].fill, minCellHeight: rowHeight }
-            }));
-
             doc.autoTable({
                 startY: TABLE_START_Y,
                 head: [DAY_DISP],
-                body: [emptyCells.map(c => ({ content: c.content, styles: c.styles }))],
+                body: [DAYS.map(() => ({ content: '', styles: { minCellHeight: rowHeight } }))],
                 theme: 'grid',
                 styles: {
                     fontSize: FONT_SIZE,
                     cellPadding: { top: CELL_PAD_TOP, right: CELL_PAD_X, bottom: CELL_PAD_TOP, left: CELL_PAD_X },
                     textColor: [30, 41, 59],
+                    fillColor: C.white,
                     valign: 'top',
                     overflow: 'linebreak',
                     lineColor: C.border,
@@ -558,7 +554,7 @@
                     cellPadding: { top: 3, right: 2, bottom: 3, left: 2 },
                 },
                 columnStyles: Object.fromEntries(
-                    DAYS.map((_, i) => [i, { cellWidth: colW, fillColor: dayDataMap[i].fill, minCellHeight: rowHeight }])
+                    DAYS.map((_, i) => [i, { cellWidth: colW }])
                 ),
                 margin: { left: 8, right: 8, bottom: 18 },
                 didDrawCell: (data) => {
@@ -580,26 +576,33 @@
                     blocks.forEach((block, bi) => {
                         const blockH = measureBlock(block.lines);
 
-                        // Fondo del bloque
-                        const bgColor = blockBgs[bi % 2];
-                        doc.setFillColor(...bgColor);
-                        doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
+                        if (block.isExternal) {
+                            // Fichas externas: fondo amber claro + borde amber
+                            doc.setFillColor(254, 243, 199); // amber-100
+                            doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
+                            doc.setFillColor(217, 119, 6);   // amber-600
+                            doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                        } else {
+                            // Fondo alternado normal
+                            const bgColor = blockBgs[bi % 2];
+                            doc.setFillColor(...bgColor);
+                            doc.roundedRect(cellX + 1, cursorY, cellW - 2, blockH, 0.8, 0.8, 'F');
 
-                        // Borde izquierdo de acento (shift-color)
-                        const accentColor = block.shift && block.shift.toLowerCase().includes('noche')
-                            ? [99, 102, 241]   // indigo
-                            : [59, 130, 246];  // blue
-                        doc.setFillColor(...accentColor);
-                        doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                            // Borde izquierdo de acento (shift-color)
+                            const accentColor = block.shift && block.shift.toLowerCase().includes('noche')
+                                ? [99, 102, 241]   // indigo
+                                : [59, 130, 246];  // blue
+                            doc.setFillColor(...accentColor);
+                            doc.rect(cellX + 1, cursorY, 1.5, blockH, 'F');
+                        }
 
                         // Texto del bloque
                         let textY = cursorY + BLOCK_PAD + LINE_H_MM * 0.8;
                         block.lines.forEach((line, li) => {
                             const wrapped = doc.splitTextToSize(line, textWidth - 1.5);
                             if (li === 0) {
-                                // Primera línea (horario) en bold azul
                                 doc.setFont('helvetica', 'bold');
-                                doc.setTextColor(...C.navy);
+                                doc.setTextColor(block.isExternal ? 146 : C.navy[0], block.isExternal ? 64 : C.navy[1], block.isExternal ? 14 : C.navy[2]);
                             } else {
                                 doc.setFont('helvetica', 'normal');
                                 doc.setTextColor(30, 41, 59);
@@ -617,7 +620,13 @@
                     doc.setFont('helvetica', 'normal');
                     doc.setTextColor(30, 41, 59);
                 },
-                didDrawPage: () => drawFooter(),
+                didDrawPage: (hookData) => {
+                    // Redibujar header de página si autoTable crea páginas adicionales
+                    if (hookData.pageNumber > 1) {
+                        drawPageHeader(levelName, groupData, index + 1 + (hookData.pageNumber - 1), totalPages);
+                    }
+                    drawFooter();
+                },
             });
 
             // ── Sección "Sin horario asignado" ────────────────────────────────────
