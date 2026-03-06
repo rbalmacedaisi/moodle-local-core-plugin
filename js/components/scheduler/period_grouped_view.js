@@ -172,40 +172,37 @@ window.SchedulerComponents.PeriodGroupedView = {
                 // Shift filter
                 if (shiftFilter && c.shift !== shiftFilter) return;
 
-                // Find real entry period for this class by inspecting students.
-                // Bug fix: studentIds contiene integers de BD, pero student.id puede ser idnumber (string).
-                // Normalizar ambos lados a String para que el lookup funcione correctamente.
-                let key = 'Sin Definir';
+                // Una ficha puede tener estudiantes de distintos períodos de ingreso.
+                // Debe aparecer en CADA período que tenga al menos un estudiante representado.
+                // Bug fix: normalizar tipos (integers de BD vs strings idnumber).
+                let keys = ['Sin Definir'];
                 if (c.studentIds && c.studentIds.length > 0) {
                     const sidSet = new Set((c.studentIds).map(id => String(id)));
                     const classStudents = allStudents.filter(s =>
                         sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))
                     );
                     if (classStudents.length > 0) {
-                        const periodCounts = {};
-                        classStudents.forEach(s => {
-                            const ep = s.entry_period || 'Sin Definir';
-                            periodCounts[ep] = (periodCounts[ep] || 0) + 1;
-                        });
-                        key = Object.keys(periodCounts).reduce((a, b) => periodCounts[a] > periodCounts[b] ? a : b);
+                        const periodSet = new Set();
+                        classStudents.forEach(s => periodSet.add(s.entry_period || 'Sin Definir'));
+                        keys = Array.from(periodSet);
                     }
                 }
 
-                if (!groups[key]) {
-                    groups[key] = {
-                        classes: [],
-                        totalHours: 0,
-                        totalPeriodStudents: allStudents.filter(s => (s.entry_period || 'Sin Definir') === key).length
-                    };
-                }
-                groups[key].classes.push(c);
+                const durationHours = (c.day && c.day !== 'N/A')
+                    ? (this.toMins(c.end) - this.toMins(c.start)) / 60
+                    : 0;
 
-                // Solo sumar horas de fichas con horario asignado
-                if (c.day && c.day !== 'N/A') {
-                    const start = this.toMins(c.start);
-                    const end = this.toMins(c.end);
-                    groups[key].totalHours += (end - start) / 60;
-                }
+                keys.forEach(key => {
+                    if (!groups[key]) {
+                        groups[key] = {
+                            classes: [],
+                            totalHours: 0,
+                            totalPeriodStudents: allStudents.filter(s => (s.entry_period || 'Sin Definir') === key).length
+                        };
+                    }
+                    groups[key].classes.push(c);
+                    groups[key].totalHours += durationHours;
+                });
             });
 
             const sortedKeys = Object.keys(groups).sort();
