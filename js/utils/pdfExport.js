@@ -361,7 +361,7 @@
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
             doc.setTextColor(199, 210, 254);
-            doc.text('Reporte de Horarios por Período de Ingreso', 10, 17);
+            doc.text('Distribución de Horarios por Período de Ingreso · Carrera · Jornada', 10, 17);
 
             // Info periodo académico (derecha)
             doc.setFont('helvetica', 'bold');
@@ -437,10 +437,10 @@
             const totalHrs      = (groupData.totalHours || 0).toFixed(1);
 
             const stats = [
-                { label: 'Con horario', value: String(placedCount)   },
-                { label: 'Sin horario', value: String(unplacedCount) },
-                { label: 'Estudiantes', value: String(totalStu)      },
-                { label: 'Horas',       value: `${totalHrs}h`        },
+                { label: 'Asignat. programadas', value: String(placedCount)   },
+                { label: 'Asignat. pendientes',  value: String(unplacedCount) },
+                { label: 'Estudiantes activos',  value: String(totalStu)      },
+                { label: 'Horas programadas',    value: `${totalHrs}h`        },
             ];
             stats.forEach((s, i) => {
                 const x = W - 10 - (stats.length - 1 - i) * 30;
@@ -672,13 +672,13 @@
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(6);
             doc.setTextColor(...C.white);
-            doc.text('SIN HORARIO ASIGNADO', 25, afterY + 4.5, { align: 'center' });
+            doc.text('ASIGNATURAS PENDIENTES', 25, afterY + 4.5, { align: 'center' });
 
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(6.5);
             doc.setTextColor(120, 53, 15); // amber-900
             doc.text(
-                `${unplaced.length} asignatura${unplaced.length > 1 ? 's' : ''} pendiente${unplaced.length > 1 ? 's' : ''} de programación`,
+                `${unplaced.length} asignatura${unplaced.length > 1 ? 's' : ''} sin horario programado para este grupo`,
                 44, afterY + 4.5
             );
 
