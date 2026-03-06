@@ -234,17 +234,19 @@ window.SchedulerComponents.PeriodGroupedView = {
                     careers.forEach(cr => {
                         const key = `${ep}|||${cr}|||${shift}`;
                         if (!groups[key]) {
+                            // Contar estudiantes por período + carrera (sin filtrar por shift,
+                            // ya que el campo shift del estudiante puede no estar siempre definido)
+                            const groupStuCount = allStudents.filter(s =>
+                                (s.entry_period || 'Sin Definir') === ep &&
+                                (s.career || '') === cr
+                            ).length;
                             groups[key] = {
                                 entryPeriod: ep,
                                 career: cr,
                                 shift: shift,
                                 classes: [],
                                 totalHours: 0,
-                                totalPeriodStudents: allStudents.filter(s =>
-                                    (s.entry_period || 'Sin Definir') === ep &&
-                                    (s.career || '') === cr &&
-                                    (s.shift  || '') === shift
-                                ).length,
+                                totalPeriodStudents: groupStuCount,
                             };
                         }
                         groups[key].classes.push(c);
