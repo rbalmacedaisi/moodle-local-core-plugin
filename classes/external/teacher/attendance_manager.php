@@ -28,10 +28,22 @@ class attendance_manager extends external_api {
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
         
         // 2. Find the Attendance Activity in this Course
-        // Check ALL attendance instances in this course to see what's going on
+        // First check the class's own local course, then fall back to the core/template course.
+
+        // Check gmk_bbb_attendance_relation for a direct mapping (most precise)
+        $mapped_attid = $DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => $classid]);
+        if ($mapped_attid) {
+            $att_record = $DB->get_record('attendance', ['id' => $mapped_attid]);
+            $all_atts = $att_record ? [$att_record->id => $att_record] : [];
+        }
+
+        // Primary: attendance in the class's own Moodle course
+        if (empty($all_atts) && !empty($class->courseid)) {
+            $all_atts = $DB->get_records('attendance', ['course' => $class->courseid]);
+        }
+
+        // Fallback: attendance in the core/template course
         if (empty($all_atts)) {
-             // FALLBACK: Check in the Core Course (Template)
-             // Often matched classes use the attendance from the parent template
              if (!empty($class->corecourseid) && $class->corecourseid != $class->courseid) {
                  $all_atts = $DB->get_records('attendance', ['course' => $class->corecourseid]);
              }

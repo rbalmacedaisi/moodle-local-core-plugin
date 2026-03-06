@@ -792,27 +792,24 @@ try {
             $tstart = strtotime('-1 month');
             $tend = strtotime('+6 months');
             
-            // calendar_get_events($tstart, $tend, $users, $groups, $courses, $withduration, $ignorehidden)
-            // Direct SQL to bypass potential API filtering issues
-            // Fetch ALL events for the course and filter in PHP (matching debug script logic)
+            // Fetch events for this class's group only (groupid = 0 means "all groups" — exclude those
+            // because in a shared template course they belong to every class and cause duplication).
             $sql = "SELECT e.*
                     FROM {event} e
                     WHERE e.courseid = :courseid
+                      AND e.groupid = :groupid
                     ORDER BY e.timestart ASC";
-            
+
             $params = [
-                'courseid' => $class->corecourseid
+                'courseid' => $class->corecourseid,
+                'groupid'  => $class->groupid,
             ];
-            
+
             $events = $DB->get_records_sql($sql, $params);
 
             // Pre-calculate attendance times for deduplication
             $attendanceTimes = [];
             foreach ($events as $e) {
-                // Apply same group filter as main loop to ensure we only track relevant attendance
-                if (!empty($e->groupid) && $e->groupid != $class->groupid) {
-                    continue;
-                }
                 if ($e->modulename === 'attendance') {
                     $attendanceTimes[] = $e->timestart;
                 }
@@ -820,15 +817,8 @@ try {
 
             $formatted_sessions = [];
             foreach ($events as $e) {
-                // Debug individual events
-                $eGroupId = isset($e->groupid) ? $e->groupid : 'NULL';
-                $cGroupId = $class->groupid;
-                
                 try {
-                // Filter by Group
-                if (!empty($e->groupid) && $e->groupid != $class->groupid) {
-                    continue;
-                }
+                // All events already filtered by groupid in SQL — no PHP re-check needed.
 
                 // Filter by Module
                 // Allow bigbluebuttonbn module (lowercase)
