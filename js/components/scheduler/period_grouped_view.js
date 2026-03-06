@@ -239,7 +239,9 @@ window.SchedulerComponents.PeriodGroupedView = {
             window.SchedulerPDF.generateIntakePeriodPDF(this.groupedSchedules, activePeriodInfo, this.storeState.subperiodFilter);
         },
         getClasses(classes, day) {
-            return classes.filter(c => c.day === day).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
+            const normalize = s => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() : '';
+            const normDay = normalize(day);
+            return classes.filter(c => normalize(c.day) === normDay).sort((a, b) => this.toMins(a.start) - this.toMins(b.start));
         },
         toMins(t) {
             if (!t || typeof t !== 'string') return 0;
@@ -268,7 +270,10 @@ window.SchedulerComponents.PeriodGroupedView = {
             }
 
             const allStudents = window.schedulerStore.state.students || [];
-            this.currentStudents = allStudents.filter(s => cls.studentIds.includes(s.id || s.dbId));
+            const sidSet = new Set((cls.studentIds).map(id => String(id)));
+            this.currentStudents = allStudents.filter(s =>
+                sidSet.has(String(s.dbId)) || sidSet.has(String(s.id))
+            );
             this.studentsDialog = true;
         }
     }
