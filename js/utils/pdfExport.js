@@ -386,51 +386,21 @@
             doc.setLineWidth(0.3);
             doc.roundedRect(8, 29, W - 16, 20, 2, 2, 'S');
 
+            // ── Fila 1: Período de ingreso (izquierda) + Stats (derecha) ─────────
             // Badge 1: Período de ingreso
             doc.setFillColor(...C.navy);
-            doc.roundedRect(12, 31.5, 36, 5.5, 1, 1, 'F');
+            doc.roundedRect(12, 31, 36, 5.5, 1, 1, 'F');
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(5.5);
             doc.setTextColor(...C.white);
-            doc.text('PERIODO DE INGRESO', 30, 35.1, { align: 'center' });
+            doc.text('PERIODO DE INGRESO', 30, 34.6, { align: 'center' });
 
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(9.5);
             doc.setTextColor(30, 41, 59);
-            doc.text(entryPeriod, 51, 35.5);
+            doc.text(entryPeriod, 51, 35);
 
-            // Badge 2: Carrera
-            doc.setFillColor(...C.accent);
-            doc.roundedRect(12, 38.5, 20, 5, 1, 1, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(5.5);
-            doc.setTextColor(...C.white);
-            doc.text('CARRERA', 22, 42, { align: 'center' });
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(30, 41, 59);
-            // Truncar carrera si es muy larga
-            const careerText = doc.splitTextToSize(career, 110)[0] || career;
-            doc.text(careerText, 35, 42);
-
-            // Badge 3: Jornada
-            const shiftColor = shift.toLowerCase().includes('noche')
-                ? [99, 102, 241]      // indigo
-                : [13, 148, 136];     // teal
-            doc.setFillColor(...shiftColor);
-            doc.roundedRect(W - 58, 31.5, 22, 5.5, 1, 1, 'F');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(5.5);
-            doc.setTextColor(...C.white);
-            doc.text('JORNADA', W - 47, 35.1, { align: 'center' });
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.setTextColor(30, 41, 59);
-            doc.text(shift, W - 34, 35.5);
-
-            // Stats (derecha)
+            // Stats (derecha, fila 1) — 4 stats con 28mm de separación
             const placedCount   = groupData.classes.filter(c => c.day && c.day !== 'N/A').length;
             const unplacedCount = groupData.classes.filter(c => !c.day || c.day === 'N/A').length;
             const totalStu      = groupData.totalPeriodStudents || 0;
@@ -442,17 +412,52 @@
                 { label: 'Estudiantes activos',  value: String(totalStu)      },
                 { label: 'Horas programadas',    value: `${totalHrs}h`        },
             ];
+            // Anclar los stats desde W-12, separación de 28mm hacia la izquierda
             stats.forEach((s, i) => {
-                const x = W - 10 - (stats.length - 1 - i) * 30;
+                const x = W - 12 - (stats.length - 1 - i) * 28;
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(9);
                 doc.setTextColor(...C.navy);
-                doc.text(s.value, x, 38, { align: 'right' });
+                doc.text(s.value, x, 34.5, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(5.5);
                 doc.setTextColor(...C.slate);
-                doc.text(s.label, x, 42, { align: 'right' });
+                doc.text(s.label, x, 38.5, { align: 'right' });
             });
+
+            // ── Fila 2: Carrera (izquierda) + Jornada (junto a carrera) ──────────
+            // Badge 2: Carrera
+            doc.setFillColor(...C.accent);
+            doc.roundedRect(12, 39, 20, 5, 1, 1, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(5.5);
+            doc.setTextColor(...C.white);
+            doc.text('CARRERA', 22, 42.5, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 41, 59);
+            // Truncar carrera si es muy larga (máx ~150mm disponibles)
+            const careerText = doc.splitTextToSize(career, 150)[0] || career;
+            doc.text(careerText, 35, 42.5);
+
+            // Badge 3: Jornada — colocado a la derecha del texto de carrera
+            const shiftColor = shift.toLowerCase().includes('noche')
+                ? [99, 102, 241]      // indigo
+                : [13, 148, 136];     // teal
+            const careerTextW = Math.min(doc.getStringUnitWidth(careerText) * 8 / doc.internal.scaleFactor, 150);
+            const shiftBadgeX = 35 + careerTextW + 4;
+            doc.setFillColor(...shiftColor);
+            doc.roundedRect(shiftBadgeX, 39, 22, 5, 1, 1, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(5.5);
+            doc.setTextColor(...C.white);
+            doc.text('JORNADA', shiftBadgeX + 11, 42.5, { align: 'center' });
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(30, 41, 59);
+            doc.text(shift, shiftBadgeX + 25, 42.5);
         };
 
         // ── Pie de página ────────────────────────────────────────────────────────
