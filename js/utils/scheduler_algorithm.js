@@ -518,7 +518,7 @@
                            dow.charAt(0).toUpperCase() + dow.slice(1) === dayName;
                 });
                 if (!hasMatchingDate) return false;
-            } else if (other.day !== schedule.day) return false;
+            } else if (removeTildes(other.day) !== removeTildes(schedule.day)) return false;
 
             const subOverlap = (other.subperiod === 0) || (schedule.subperiod === 0) || (other.subperiod === schedule.subperiod);
             if (!subOverlap) return false;
@@ -565,7 +565,8 @@
             allSchedules.some(s => {
                 if (!checkOverlap(s)) return false;
 
-                const overlaps = schedule.studentIds.filter(sid => (s.studentIds || []).includes(sid));
+                const otherSidSet = new Set((s.studentIds || []).map(id => String(id)));
+                const overlaps = schedule.studentIds.filter(sid => otherSidSet.has(String(sid)));
                 if (overlaps.length > 0) {
                     conflictSubject = s.subjectName;
                     const nameMap = new Map();

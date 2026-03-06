@@ -148,7 +148,9 @@ window.SchedulerComponents.PlanningBoard = {
                                     <div v-for="cls in getClassesForDay(day)" :key="cls.id"
                                         class="absolute left-1 right-1 rounded border-2 overflow-visible p-1 shadow-md cursor-grab hover:shadow-lg transition-all z-20 group select-none"
                                         :class="[
-                                            cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' : (getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400')
+                                            cls.isExternal && getConflicts(cls).length > 0 ? 'bg-red-50 border-red-400 ring-2 ring-red-200' :
+                                            cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' :
+                                            getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'
                                         ]"
                                         :style="getEventStyle(cls)"
                                         :title="getConflictTooltip(cls)"
@@ -156,7 +158,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         @dragstart="onDragStart($event, cls)"
                                         @click="editClass(cls)"
                                     >
-                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="cls.isExternal ? 'text-amber-800' : (getConflicts(cls).length > 0 ? 'text-red-800' : 'text-blue-800')">
+                                        <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : (cls.isExternal ? 'text-amber-800' : 'text-blue-800')">
                                             {{ cls.subjectName }}
                                             <span v-if="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
                                             <span v-if="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
