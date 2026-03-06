@@ -625,7 +625,7 @@ const ManageClass = {
         formatDate(timestamp) {
             if (!timestamp) return 'No programada';
             const date = new Date(parseInt(timestamp) * 1000);
-            return date.toLocaleDateString(undefined, {
+            return date.toLocaleDateString('es', {
                 weekday: 'long',
                 day: 'numeric',
                 month: 'long',
