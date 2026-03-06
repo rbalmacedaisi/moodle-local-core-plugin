@@ -46,8 +46,8 @@ const TeacherDashboard = {
                                     </v-chip>
                                 </v-img>
                                 <v-card-text class="pt-4">
-                                    <div class="text-overline primary--text font-weight-black mb-1">{{ classItem.course_shortname }}</div>
-                                    <div class="text-h6 font-weight-bold mb-2 line-clamp-2" style="height: 3.2em; line-height: 1.6em;">
+                                    <div class="text-overline primary--text font-weight-black mb-1" style="line-height:1.4;word-break:break-word;">{{ classItem.course_shortname }}</div>
+                                    <div class="text-subtitle-1 font-weight-bold mb-2" style="min-height:3.2em;line-height:1.6em;word-break:break-word;">
                                         {{ classItem.name || classItem.course_fullname }}
                                     </div>
                                     
