@@ -281,9 +281,32 @@ window.SchedulerComponents.PlanningBoard = {
                                     <option :value="2">Mixta</option>
                                 </select>
                             </div>
-                            <div>
+                            <div class="relative">
                                 <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Aula</label>
-                                <input type="text" v-model="selectedClass.room" :disabled="selectedClass.isExternal" class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed" placeholder="E.g. A-101" />
+                                <input type="text"
+                                    v-model="roomSearch"
+                                    @input="onRoomChange"
+                                    @focus="showRoomList = true"
+                                    @blur="hideRoomList"
+                                    :disabled="selectedClass.isExternal"
+                                    class="w-full px-3 py-1.5 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                    placeholder="Buscar aula..." />
+                                <div v-if="showRoomList && filteredRooms.length > 0"
+                                    class="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto overflow-x-hidden">
+                                    <div v-for="room in filteredRooms" :key="room.name"
+                                        @mousedown="selectRoom(room)"
+                                        class="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-100 last:border-0 flex justify-between items-center group">
+                                        <span class="font-medium text-slate-700">{{ room.name }}</span>
+                                        <span class="text-[9px] text-slate-400 group-hover:text-blue-500 font-mono">Cap. {{ room.capacity }}</span>
+                                    </div>
+                                </div>
+                                <!-- Conflictos de aula -->
+                                <div v-if="getRoomConflicts(selectedClass).length > 0" class="mt-1 space-y-1">
+                                    <div v-for="conflict in getRoomConflicts(selectedClass)" :key="conflict.type" class="text-[10px] bg-red-50 text-red-700 p-1.5 rounded border border-red-100 flex items-start gap-1">
+                                        <i data-lucide="alert-circle" class="w-3 h-3 shrink-0 mt-0.5"></i>
+                                        <span>{{ conflict.message }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
@@ -595,6 +618,8 @@ window.SchedulerComponents.PlanningBoard = {
             currentLog: [],
             teacherSearch: '',
             showTeacherList: false,
+            roomSearch: '',
+            showRoomList: false,
             optimizeDialog: false,
             optimizeSuggestions: [],
             // Modal +Quórum (ficha existente)
@@ -717,6 +742,14 @@ window.SchedulerComponents.PlanningBoard = {
             const s = this.teacherSearch.toLowerCase();
             return instructors.filter(i =>
                 (i.instructorName || '').toLowerCase().includes(s)
+            ).slice(0, 50);
+        },
+        filteredRooms() {
+            const rooms = this.storeState.context?.classrooms || [];
+            if (!this.roomSearch) return rooms.slice(0, 15);
+            const s = this.roomSearch.toLowerCase();
+            return rooms.filter(r =>
+                (r.name || '').toLowerCase().includes(s)
             ).slice(0, 50);
         },
 
@@ -916,6 +949,10 @@ window.SchedulerComponents.PlanningBoard = {
         getTeacherConflicts(cls) {
             if (!cls) return [];
             return this.getConflicts(cls).filter(i => ['teacher', 'availability', 'competency'].includes(i.type));
+        },
+        getRoomConflicts(cls) {
+            if (!cls) return [];
+            return this.getConflicts(cls).filter(i => ['room', 'capacity'].includes(i.type));
         },
         getConflictTooltip(cls) {
             const issues = this.getConflicts(cls);
@@ -1259,6 +1296,7 @@ window.SchedulerComponents.PlanningBoard = {
         editClass(cls) {
             this.selectedClass = cls;
             this.teacherSearch = cls.teacherName || '';
+            this.roomSearch = cls.room || '';
             this.editDialog = true;
             // Ensure icons are created for newly dynamic content
             this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
@@ -1291,6 +1329,19 @@ window.SchedulerComponents.PlanningBoard = {
                 this.selectedClass.teacherName = inst.instructorName;
                 this.selectedClass.instructorId = inst.instructorId || inst.id;
             }
+        },
+        hideRoomList() {
+            setTimeout(() => { this.showRoomList = false; }, 200);
+        },
+        selectRoom(room) {
+            if (!this.selectedClass) return;
+            this.selectedClass.room = room.name;
+            this.roomSearch = room.name;
+            this.showRoomList = false;
+        },
+        onRoomChange() {
+            if (!this.selectedClass) return;
+            this.selectedClass.room = this.roomSearch || null;
         },
         onTypeChange() {
             if (!this.selectedClass) return;
