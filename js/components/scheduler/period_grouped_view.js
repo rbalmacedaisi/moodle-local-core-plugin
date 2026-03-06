@@ -266,7 +266,7 @@ window.SchedulerComponents.PeriodGroupedView = {
                 ? window.schedulerStore.state.context.period
                 : '';
 
-            window.SchedulerPDF.generateIntakePeriodPDF(this.groupedSchedules, activePeriodInfo, this.storeState.subperiodFilter);
+            window.SchedulerPDF.generateIntakePeriodPDF(this.groupedSchedules, activePeriodInfo, this.storeState.subperiodFilter, this.storeState.students || []);
         },
         getClasses(classes, day) {
             const normalize = s => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() : '';

@@ -298,7 +298,7 @@
         doc.save(`Horarios_Docentes_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
-    const generateIntakePeriodPDF = (groupedSchedules, academicPeriod, subperiod = 0) => {
+    const generateIntakePeriodPDF = (groupedSchedules, academicPeriod, subperiod = 0, allStudents = []) => {
         const doc = getJsPDF();
         if (!doc) return;
 
@@ -468,15 +468,31 @@
                     .sort((a, b) => (a.start || '').localeCompare(b.start || ''));
                 if (dayClasses.length === 0) return { content: '', styles: { fillColor: C.slateLight } };
 
-                const lines = dayClasses.map(s => {
-                    const cnt = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
-                    return [
+                const lines = dayClasses.map((s, idx) => {
+                    const totalCnt = s.studentIds ? s.studentIds.length : (s.studentCount || 0);
+
+                    // Calcular cuántos de esos estudiantes pertenecen a este período de ingreso
+                    let periodCnt = totalCnt;
+                    if (allStudents.length > 0 && s.studentIds && s.studentIds.length > 0) {
+                        const sidSet = new Set(s.studentIds.map(id => String(id)));
+                        periodCnt = allStudents.filter(st =>
+                            (sidSet.has(String(st.dbId)) || sidSet.has(String(st.id))) &&
+                            (st.entry_period || 'Sin Definir') === levelName
+                        ).length;
+                    }
+
+                    const estLabel = allStudents.length > 0
+                        ? `Est: ${periodCnt}/${totalCnt}`
+                        : `Est: ${totalCnt}`;
+
+                    const separator = idx > 0 ? '────────────────\n' : '';
+                    return separator + [
                         `${s.start} – ${s.end}`,
                         s.subjectName || '',
                         `Doc: ${s.teacherName || 'Sin docente'}`,
-                        `Aula: ${s.room || 'Sin aula'}  ·  Est: ${cnt}`,
+                        `Aula: ${s.room || 'Sin aula'}  ·  ${estLabel}`,
                     ].join('\n');
-                }).join('\n\n');
+                }).join('\n');
 
                 const fill = dayClasses.length === 1
                     ? shiftFill(dayClasses[0].shift)
