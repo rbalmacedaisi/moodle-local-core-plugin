@@ -508,7 +508,7 @@
                         const sidSet = new Set(s.studentIds.map(id => String(id)));
                         periodCnt = allStudents.filter(st =>
                             (sidSet.has(String(st.dbId)) || sidSet.has(String(st.id))) &&
-                            (st.entry_period || 'Sin Definir') === levelName
+                            (st.entry_period || 'Sin Definir') === groupData.entryPeriod
                         ).length;
                     }
                     const estLabel = allStudents.length > 0
