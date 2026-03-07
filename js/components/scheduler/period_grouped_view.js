@@ -206,8 +206,13 @@ window.SchedulerComponents.PeriodGroupedView = {
             // ── Paso 2: Agrupar por (período de ingreso | carrera | jornada) ──
             // Clave compuesta: "PERÍODO_INGRESO|||CARRERA|||JORNADA"
             // Fichas externas → se procesan después en Paso 3.
+            // groupStudentSets: acumula los dbId de estudiantes reales por grupo
+            // para calcular totalPeriodStudents sin depender del match de strings career/shift
+            const groupStudentSets = {};
+
             Object.values(consolidatedMap).forEach(c => {
                 let entryPeriods = ['Sin Definir'];
+                let classStudentsByPeriod = {}; // ep -> Set de dbId
                 if (c.isExternal) {
                     return; // externas en Paso 3
                 } else if (c.studentIds && c.studentIds.length > 0) {
@@ -217,7 +222,12 @@ window.SchedulerComponents.PeriodGroupedView = {
                     );
                     if (classStudents.length > 0) {
                         const periodSet = new Set();
-                        classStudents.forEach(s => periodSet.add(s.entry_period || 'Sin Definir'));
+                        classStudents.forEach(s => {
+                            const ep = s.entry_period || 'Sin Definir';
+                            periodSet.add(ep);
+                            if (!classStudentsByPeriod[ep]) classStudentsByPeriod[ep] = new Set();
+                            classStudentsByPeriod[ep].add(String(s.dbId || s.id));
+                        });
                         entryPeriods = Array.from(periodSet);
                     }
                 }
@@ -229,30 +239,33 @@ window.SchedulerComponents.PeriodGroupedView = {
                     : 0;
 
                 entryPeriods.forEach(ep => {
-                    // Normalizar: una ficha puede tener multi-carrera (careerList); crear clave por cada carrera
                     const careers = (c.careerList && c.careerList.length > 0) ? c.careerList : [career];
                     careers.forEach(cr => {
                         const key = `${ep}|||${cr}|||${shift}`;
                         if (!groups[key]) {
-                            // Contar estudiantes por período + carrera (sin filtrar por shift,
-                            // ya que el campo shift del estudiante puede no estar siempre definido)
-                            const groupStuCount = allStudents.filter(s =>
-                                (s.entry_period || 'Sin Definir') === ep &&
-                                (s.career || '') === cr
-                            ).length;
                             groups[key] = {
                                 entryPeriod: ep,
                                 career: cr,
                                 shift: shift,
                                 classes: [],
                                 totalHours: 0,
-                                totalPeriodStudents: groupStuCount,
+                                totalPeriodStudents: 0, // se calcula al final
                             };
+                            groupStudentSets[key] = new Set();
                         }
                         groups[key].classes.push(c);
                         groups[key].totalHours += durationHours;
+                        // Acumular estudiantes del período ep en este grupo
+                        if (classStudentsByPeriod[ep]) {
+                            classStudentsByPeriod[ep].forEach(id => groupStudentSets[key].add(id));
+                        }
                     });
                 });
+            });
+
+            // Calcular totalPeriodStudents a partir de los sets acumulados
+            Object.keys(groups).forEach(key => {
+                groups[key].totalPeriodStudents = groupStudentSets[key] ? groupStudentSets[key].size : 0;
             });
 
             // ── Paso 3: Añadir fichas externas solo si tienen estudiantes del período del grupo ──
