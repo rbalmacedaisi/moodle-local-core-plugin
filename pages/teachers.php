@@ -9,6 +9,11 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/user/lib.php');
 require_once($CFG->dirroot . '/user/profile/lib.php');
 
+// Optional Autoload
+if (file_exists($CFG->dirroot . '/vendor/autoload.php')) {
+    require_once($CFG->dirroot . '/vendor/autoload.php');
+}
+
 // Permissions
 admin_externalpage_setup('grupomakro_core_teachers_management');
 
