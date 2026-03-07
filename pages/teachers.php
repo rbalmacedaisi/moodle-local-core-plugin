@@ -19,6 +19,7 @@ $PAGE->requires->jquery();
 
 // Params
 $filter_search = optional_param('search', '', PARAM_TEXT);
+$action = optional_param('action', '', PARAM_ALPHA);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = 20;
 
@@ -54,6 +55,60 @@ $query = "
     ORDER BY u.firstname, u.lastname";
 
 $total_matching = $DB->count_records_sql("SELECT COUNT(DISTINCT u.id) FROM {user} u JOIN {local_learning_users} lpu ON lpu.userid = u.id WHERE $whereSQL", $sqlParams);
+
+// EXPORT TO XLSX
+if ($action === 'export') {
+    $filename = 'reporte_docentes_' . date('Ymd_His') . '.xlsx';
+    
+    // Create Spreadsheet
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Docentes');
+    
+    // Headers
+    $headers = ['ID', 'Nombre Completo', 'Documento/Cédula', 'Teléfono', 'Correo Electrónico'];
+    $sheet->fromArray($headers, NULL, 'A1');
+    
+    // Fetch ALL matching teachers for export
+    $export_teachers = $DB->get_records_sql($query, $sqlParams);
+    
+    $row = 2;
+    $docField = $DB->get_record('user_info_field', ['shortname' => 'documentnumber']);
+    
+    foreach ($export_teachers as $t) {
+        $fullName = fullname($t);
+        
+        $docNumber = $t->idnumber;
+        if ($docField) {
+            $data = $DB->get_field('user_info_data', 'data', ['userid' => $t->id, 'fieldid' => $docField->id]);
+            if (!empty($data)) {
+                $docNumber = $data;
+            }
+        }
+
+        $sheet->setCellValue('A' . $row, $t->id);
+        $sheet->setCellValue('B' . $row, $fullName);
+        $sheet->setCellValue('C' . $row, $docNumber);
+        $sheet->setCellValue('D' . $row, $t->phone1 ?: '');
+        $sheet->setCellValue('E' . $row, $t->email);
+        $row++;
+    }
+    
+    // Auto-size columns
+    foreach(range('A','E') as $col) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    // Output headers for download
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment;filename="' . $filename . '"');
+    header('Cache-Control: max-age=0');
+    
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    $writer->save('php://output');
+    die;
+}
+
 $teachers = $DB->get_records_sql($query, $sqlParams, $page * $perpage, $perpage);
 
 echo $OUTPUT->header();
@@ -110,7 +165,8 @@ echo '     <input type="text" name="search" class="form-control border-0" placeh
 echo '   </div>';
 echo ' </div>';
 echo ' <div class="col-md-6 mb-2 d-flex justify-content-end">';
-echo '   <button type="submit" class="btn btn-material btn-material-primary">'.get_string('apply_filter', 'local_grupomakro_core').'</button>';
+echo '   <button type="submit" class="btn btn-material btn-material-primary mr-2">'.get_string('apply_filter', 'local_grupomakro_core').'</button>';
+echo '   <button type="submit" name="action" value="export" class="btn btn-success"><i class="mdi mdi-file-excel"></i> Excel</button>';
 echo ' </div>';
 echo '</form>';
 
