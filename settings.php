@@ -61,6 +61,11 @@ if ($hassiteconfig) {
         get_string('academic_director_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
     );
+    $teachersManagementPage = new admin_externalpage(
+        'grupomakro_core_teachers_management',
+        get_string('admin_teachers_management', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/teachers.php')
+    );
 
     // -- IMPORTADORES MASIVOS --
     $importUsersPage = new admin_externalpage(
@@ -100,6 +105,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $schedulesPanelPage);
     $ADMIN->add('grupomakrocore_plugin', $institutionManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $academicDirectorPanelPage);
+    $ADMIN->add('grupomakrocore_plugin', $teachersManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $importUsersPage);
     $ADMIN->add('grupomakrocore_plugin', $importGradesPage);
     $ADMIN->add('grupomakrocore_plugin', $bulkDeletePage);

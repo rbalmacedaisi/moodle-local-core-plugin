@@ -34,6 +34,8 @@ $string['availability_calendar'] = 'Calendario de disponibilidad';
 $string['schedules_panel'] = 'Panel de horarios';
 $string['institution_management'] = 'Administrar instituciones';
 $string['academic_director_panel'] = 'Panel del Director Académico';
+$string['admin_teachers_management'] = 'Administrar Docentes';
+$string['teachers'] = 'Docentes';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'Ver todas las órdenes';
