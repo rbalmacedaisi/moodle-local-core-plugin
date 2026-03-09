@@ -292,6 +292,10 @@ const ManageClass = {
                                     <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
                                         <v-icon left small color="amber darken-2">mdi-bullhorn</v-icon>
                                         {{ notice.subject }}
+                                        <v-spacer></v-spacer>
+                                        <v-btn icon small color="red lighten-1" :loading="notice._deleting" @click="deleteNotice(notice)">
+                                            <v-icon small>mdi-delete</v-icon>
+                                        </v-btn>
                                     </v-card-title>
                                     <v-card-text>
                                         <div class="body-2" v-html="notice.message"></div>
@@ -900,6 +904,26 @@ const ManageClass = {
                 console.error(e);
             } finally {
                 this.postingNotice = false;
+            }
+        },
+        async deleteNotice(notice) {
+            if (!confirm('¿Eliminar el aviso "' + notice.subject + '"? Esta acción no se puede deshacer.')) return;
+            this.$set(notice, '_deleting', true);
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_delete_forum_discussion',
+                    args: { discussionid: notice.id },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.notices = this.notices.filter(n => n.id !== notice.id);
+                } else {
+                    alert(response.data.message || 'Error al eliminar el aviso.');
+                    this.$set(notice, '_deleting', false);
+                }
+            } catch (e) {
+                alert('Error de conexión al eliminar.');
+                this.$set(notice, '_deleting', false);
             }
         },
         formatNoticeDate(timestamp) {
