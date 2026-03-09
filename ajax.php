@@ -3212,66 +3212,76 @@ try {
 
             $now = time();
 
-            // In Moodle 4.x, forum_add_discussion builds the first post from $discussion,
-            // not from $post. $discussion->message is required for the post body.
-            $discussion = new stdClass();
-            $discussion->course        = $class->corecourseid;
-            $discussion->forum         = $forum->id;
-            $discussion->name          = $subject;
-            $discussion->message       = $message;       // Required: body of the first post
-            $discussion->messageformat = FORMAT_HTML;
-            $discussion->messagetrust  = 0;
-            $discussion->intro         = $message;
-            $discussion->timestart     = 0;
-            $discussion->timeend       = 0;
-            $discussion->timelocked    = 0;
-            $discussion->pinned        = 0;
-            $discussion->timemodified  = $now;
-            $discussion->userid        = $USER->id;
-            $discussion->assumedaudit  = true;
+            $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
+            $context = context_module::instance($cm->id);
 
-            $post = new stdClass();
-            $post->userid        = $USER->id;
-            $post->subject       = $subject;
-            $post->message       = $message;
-            $post->messageformat = FORMAT_HTML;
-            $post->messagetrust  = 0;
-            $post->attachment    = 0;
-            $post->mailnow       = 0;
+            // Insert the first post directly — forum_add_discussion() ignores $post->mailnow in Moodle 4.x
+            $post_record = new stdClass();
+            $post_record->discussion    = 0; // Will update after discussion is created
+            $post_record->parent        = 0;
+            $post_record->privatereplyto = 0;
+            $post_record->userid        = $USER->id;
+            $post_record->created       = $now;
+            $post_record->modified      = $now;
+            $post_record->mailed        = 0;
+            $post_record->subject       = $subject;
+            $post_record->message       = $message;
+            $post_record->messageformat = FORMAT_HTML;
+            $post_record->messagetrust  = 0;
+            $post_record->attachment    = 0;
+            $post_record->mailnow       = 0;
+            $post_record->wordcount     = str_word_count(strip_tags($message));
+            $post_record->charcount     = mb_strlen(strip_tags($message));
 
-            $discussionid = forum_add_discussion($discussion, $post);
-            if (!$discussionid) throw new Exception("No se pudo crear la discusión en el foro.");
+            $postid = $DB->insert_record('forum_posts', $post_record);
+            if (!$postid) throw new Exception("No se pudo crear el post del aviso.");
+
+            // Insert the discussion referencing the post
+            $disc_record = new stdClass();
+            $disc_record->course       = $class->corecourseid;
+            $disc_record->forum        = $forum->id;
+            $disc_record->name         = $subject;
+            $disc_record->firstpost    = $postid;
+            $disc_record->userid       = $USER->id;
+            $disc_record->groupid      = -1;
+            $disc_record->assessed     = 0;
+            $disc_record->timemodified = $now;
+            $disc_record->usermodified = $USER->id;
+            $disc_record->timestart    = 0;
+            $disc_record->timeend      = 0;
+            $disc_record->pinned       = 0;
+            $disc_record->timelocked   = 0;
+
+            $discussionid = $DB->insert_record('forum_discussions', $disc_record);
+            if (!$discussionid) throw new Exception("No se pudo crear la discusión del aviso.");
+
+            // Link post back to discussion
+            $DB->set_field('forum_posts', 'discussion', $discussionid, ['id' => $postid]);
+
+            // Update forum last post timestamp
+            $DB->set_field('forum', 'timemodified', $now, ['id' => $forum->id]);
 
             // Handle file attachments (uploaded via multipart/form-data)
             if (!empty($_FILES)) {
                 $fs = get_file_storage();
-                // Get the post that was just created (parent=0 of the new discussion)
-                $forum_post = $DB->get_record('forum_posts',
-                    ['discussion' => $discussionid, 'parent' => 0], 'id', MUST_EXIST);
-                $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
-                $context = context_module::instance($cm->id);
-
                 $attachments_saved = 0;
-                foreach ($_FILES as $file_key => $file_info) {
+                foreach ($_FILES as $file_info) {
                     if ($file_info['error'] !== UPLOAD_ERR_OK) continue;
                     $filename = clean_filename($file_info['name']);
                     $filerecord = [
                         'contextid' => $context->id,
                         'component' => 'mod_forum',
                         'filearea'  => 'attachment',
-                        'itemid'    => $forum_post->id,
+                        'itemid'    => $postid,
                         'filepath'  => '/',
                         'filename'  => $filename,
                         'userid'    => $USER->id,
                     ];
-                    // Avoid duplicate filenames
-                    $fs->delete_area_files($context->id, 'mod_forum', 'attachment', $forum_post->id, '/', $filename);
                     $fs->create_file_from_pathname($filerecord, $file_info['tmp_name']);
                     $attachments_saved++;
                 }
-                // Mark the post as having attachments
                 if ($attachments_saved > 0) {
-                    $DB->set_field('forum_posts', 'attachment', 1, ['id' => $forum_post->id]);
+                    $DB->set_field('forum_posts', 'attachment', 1, ['id' => $postid]);
                 }
             }
 
