@@ -3237,6 +3237,7 @@ try {
             $post->messageformat = FORMAT_HTML;
             $post->messagetrust  = 0;
             $post->attachment    = 0;
+            $post->mailnow       = 0;
 
             $discussionid = forum_add_discussion($discussion, $post);
             if (!$discussionid) throw new Exception("No se pudo crear la discusión en el foro.");
