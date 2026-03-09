@@ -85,6 +85,15 @@ window.SchedulerComponents.ReportView = {
                             </button>
                         </div>
                         <button
+                            @click="exportUnassignedXLSX"
+                            :disabled="unassignedSchedules.length === 0"
+                            :title="unassignedSchedules.length === 0 ? 'No hay asignaturas pendientes' : `Exportar ${unassignedSchedules.length} asignatura(s) sin programar`"
+                            class="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg font-bold text-xs transition-all shadow-md shadow-orange-100"
+                        >
+                            <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+                            Pendientes ({{ unassignedSchedules.length }})
+                        </button>
+                        <button
                             @click="onRestoreTeachers"
                             class="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-700 px-3 py-1.5 rounded-lg font-bold text-xs transition-all border border-slate-200"
                             title="Limpia todas las asignaciones manuales en esta vista"
@@ -363,6 +372,9 @@ window.SchedulerComponents.ReportView = {
 
             return list;
         },
+        unassignedSchedules() {
+            return this.allSchedules.filter(s => !s.day || s.day === 'N/A');
+        },
         hasActiveFilters() {
             return this.showOnlyWithRoom || Object.values(this.columnFilters).some(v => v !== '');
         },
@@ -562,6 +574,28 @@ window.SchedulerComponents.ReportView = {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Horarios");
             const filename = 'Reporte_Horarios_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+            XLSX.writeFile(workbook, filename);
+        },
+        exportUnassignedXLSX() {
+            if (!this.checkXLSX()) return;
+
+            const data = this.unassignedSchedules.map(s => ({
+                'Asignatura':        s.subjectName,
+                'Docente':           s.teacherName || 'Sin asignar',
+                'Carrera':           s.career || '',
+                'Jornada':           s.shift || '',
+                'Grupo':             s.levelDisplay,
+                'Subgrupo':          s.subGroup || 1,
+                'Detalle Grupos':    (s.cohortsInvolved || []).join(', '),
+                'Aula':              (s.room && s.room !== 'SIN AULA' && s.room !== 'Por Asignar') ? s.room : 'Sin asignar',
+                'Estudiantes':       s.studentCount || 0,
+                'Carga Teórica (h)': s.totalLoad || 0,
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook  = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Pendientes");
+            const filename = 'Asignaturas_Pendientes_' + new Date().toISOString().slice(0, 10) + '.xlsx';
             XLSX.writeFile(workbook, filename);
         },
         exportStudentsXLSX() {

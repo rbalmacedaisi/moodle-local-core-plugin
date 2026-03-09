@@ -3118,6 +3118,95 @@ try {
             $response = ['status' => 'success', 'data' => ['imported' => $imported, 'skipped' => $skipped]];
             break;
 
+        case 'local_grupomakro_get_forum_posts':
+            $classid = required_param('classid', PARAM_INT);
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+
+            require_once($CFG->dirroot . '/mod/forum/lib.php');
+
+            // Try 'news' type first (Moodle announcements forum), then fallback to forum named "Avisos"
+            $forum = forum_get_course_forum($class->corecourseid, 'news');
+            if (!$forum) {
+                $forum = $DB->get_record_select('forum',
+                    "course = :courseid AND " . $DB->sql_like('name', ':name', false),
+                    ['courseid' => $class->corecourseid, 'name' => 'Avisos%']
+                );
+            }
+
+            if (!$forum) {
+                $response = ['status' => 'success', 'posts' => [], 'forum_found' => false];
+                break;
+            }
+
+            $discussions = $DB->get_records('forum_discussions',
+                ['forum' => $forum->id],
+                'timemodified DESC',
+                'id, name, userid, timemodified',
+                0, 20
+            );
+
+            $forum_posts = [];
+            foreach ($discussions as $disc) {
+                $first_post = $DB->get_record('forum_posts',
+                    ['discussion' => $disc->id, 'parent' => 0],
+                    'message, messageformat'
+                );
+                $author = $DB->get_record('user', ['id' => $disc->userid], 'firstname, lastname');
+                $forum_posts[] = [
+                    'id'           => (int)$disc->id,
+                    'subject'      => $disc->name,
+                    'message'      => $first_post ? format_text($first_post->message, $first_post->messageformat) : '',
+                    'author'       => $author ? fullname($author) : 'Desconocido',
+                    'timemodified' => (int)$disc->timemodified,
+                ];
+            }
+
+            $response = ['status' => 'success', 'posts' => $forum_posts, 'forum_found' => true];
+            break;
+
+        case 'local_grupomakro_post_forum_announcement':
+            $classid = required_param('classid', PARAM_INT);
+            $subject = required_param('subject', PARAM_TEXT);
+            $message = required_param('message', PARAM_RAW);
+
+            $class = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$class) throw new Exception("Clase no encontrada.");
+
+            require_once($CFG->dirroot . '/mod/forum/lib.php');
+
+            $forum = forum_get_course_forum($class->corecourseid, 'news');
+            if (!$forum) {
+                $forum = $DB->get_record_select('forum',
+                    "course = :courseid AND " . $DB->sql_like('name', ':name', false),
+                    ['courseid' => $class->corecourseid, 'name' => 'Avisos%']
+                );
+            }
+            if (!$forum) throw new Exception("No se encontró el foro de avisos del curso.");
+
+            $now = time();
+
+            $discussion = new stdClass();
+            $discussion->course       = $class->corecourseid;
+            $discussion->forum        = $forum->id;
+            $discussion->name         = $subject;
+            $discussion->intro        = $message;
+            $discussion->timemodified = $now;
+            $discussion->userid       = $USER->id;
+            $discussion->assumedaudit = true;
+
+            $post = new stdClass();
+            $post->userid        = $USER->id;
+            $post->subject       = $subject;
+            $post->message       = $message;
+            $post->messageformat = FORMAT_HTML;
+            $post->messagetrust  = 0;
+
+            $discussionid = forum_add_discussion($discussion, $post);
+
+            $response = ['status' => 'success', 'discussionid' => (int)$discussionid];
+            break;
+
         default:
             $response['message'] = 'Action not found: ' . $action;
             break;

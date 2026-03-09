@@ -191,6 +191,93 @@ const ManageClass = {
                              </v-card>
                         </v-tab-item>
 
+                        <!-- Avisos Tab -->
+                        <v-tab-item>
+                            <v-card flat class="transparent pa-4">
+
+                                <!-- New Notice Form (expandable) -->
+                                <v-expand-transition>
+                                    <v-card v-if="showNoticeForm" class="mb-4 rounded-xl elevation-2">
+                                        <v-card-title class="text-subtitle-1 font-weight-bold">
+                                            <v-icon left color="amber darken-2">mdi-bullhorn</v-icon>
+                                            Nuevo Aviso
+                                        </v-card-title>
+                                        <v-card-text>
+                                            <v-text-field
+                                                v-model="newNoticeSubject"
+                                                label="Asunto"
+                                                outlined dense
+                                                :disabled="postingNotice"
+                                            ></v-text-field>
+                                            <v-textarea
+                                                v-model="newNoticeMessage"
+                                                label="Mensaje"
+                                                outlined dense rows="4"
+                                                :disabled="postingNotice"
+                                            ></v-textarea>
+                                            <v-alert v-if="noticeError" type="error" dense text>{{ noticeError }}</v-alert>
+                                        </v-card-text>
+                                        <v-card-actions>
+                                            <v-btn text @click="showNoticeForm = false; noticeError = ''">Cancelar</v-btn>
+                                            <v-spacer></v-spacer>
+                                            <v-btn color="amber darken-2" dark depressed
+                                                :loading="postingNotice"
+                                                :disabled="!newNoticeSubject.trim() || !newNoticeMessage.trim()"
+                                                @click="postNotice"
+                                            >
+                                                <v-icon left>mdi-send</v-icon> Publicar
+                                            </v-btn>
+                                        </v-card-actions>
+                                    </v-card>
+                                </v-expand-transition>
+
+                                <!-- Toolbar -->
+                                <div class="d-flex align-center mb-3">
+                                    <span class="text-subtitle-2 grey--text">{{ notices.length }} aviso(s) publicado(s)</span>
+                                    <v-spacer></v-spacer>
+                                    <v-btn color="amber darken-2" dark small depressed
+                                        v-if="!showNoticeForm"
+                                        @click="showNoticeForm = true; newNoticeSubject = ''; newNoticeMessage = ''"
+                                    >
+                                        <v-icon left small>mdi-plus</v-icon> Nuevo Aviso
+                                    </v-btn>
+                                </div>
+
+                                <!-- Loading -->
+                                <div v-if="loadingNotices" class="text-center pa-4">
+                                    <v-progress-circular indeterminate color="amber"></v-progress-circular>
+                                </div>
+
+                                <!-- No forum found -->
+                                <v-alert v-else-if="!noticesForum" type="warning" text class="rounded-xl">
+                                    No se encontró el foro de avisos para este curso.
+                                </v-alert>
+
+                                <!-- Empty state -->
+                                <v-alert v-else-if="notices.length === 0 && !loadingNotices" type="info" text class="rounded-xl">
+                                    No hay avisos publicados aún. Usa "Nuevo Aviso" para comunicarte con tus estudiantes.
+                                </v-alert>
+
+                                <!-- Notice Cards -->
+                                <v-card
+                                    v-for="notice in notices" :key="notice.id"
+                                    class="mb-3 rounded-xl elevation-1"
+                                >
+                                    <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
+                                        <v-icon left small color="amber darken-2">mdi-bullhorn</v-icon>
+                                        {{ notice.subject }}
+                                    </v-card-title>
+                                    <v-card-text>
+                                        <div class="body-2" v-html="notice.message"></div>
+                                        <div class="mt-2 caption grey--text">
+                                            {{ notice.author }} · {{ formatNoticeDate(notice.timemodified) }}
+                                        </div>
+                                    </v-card-text>
+                                </v-card>
+
+                            </v-card>
+                        </v-tab-item>
+
                     </v-tabs-items>
                 </v-col>
             </v-row>
@@ -362,11 +449,20 @@ const ManageClass = {
                 { id: 'roster', name: 'Estudiantes', icon: 'mdi-account-group' },
                 { id: 'tasks', name: 'Por Calificar', icon: 'mdi-clipboard-check' },
                 { id: 'grades', name: 'Calificaciones', icon: 'mdi-grid' },
-                { id: 'content', name: 'Actividades', icon: 'mdi-folder-open' }
+                { id: 'content', name: 'Actividades', icon: 'mdi-folder-open' },
+                { id: 'notices', name: 'Avisos', icon: 'mdi-bullhorn' }
             ],
             timeline: [],
             loadingTimeline: true, // Start loading by default
             activities: [],
+            notices: [],
+            loadingNotices: false,
+            noticesForum: true,
+            showNoticeForm: false,
+            newNoticeSubject: '',
+            newNoticeMessage: '',
+            postingNotice: false,
+            noticeError: '',
             showActivityWizard: false,
             showQuizWizard: false,
             newActivityType: '',
@@ -412,6 +508,7 @@ const ManageClass = {
         this.fetchClassDetails();
         this.fetchTimeline(); // This now handles both timeline + attendance
         this.fetchActivities();
+        this.fetchNotices();
     },
     methods: {
         async fetchClassDetails() {
@@ -709,6 +806,59 @@ const ManageClass = {
             this.newActivityType = activity.modname; // Needed for wizard type context
             this.customActivityLabel = activity.name; // Temporary till loaded
             this.showActivityWizard = true;
+        },
+        async fetchNotices() {
+            this.loadingNotices = true;
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_forum_posts',
+                    args: { classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.notices = response.data.posts || [];
+                    this.noticesForum = response.data.forum_found !== false;
+                }
+            } catch (e) {
+                console.error('Error fetching notices:', e);
+            } finally {
+                this.loadingNotices = false;
+            }
+        },
+        async postNotice() {
+            this.postingNotice = true;
+            this.noticeError = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_post_forum_announcement',
+                    args: {
+                        classid: this.classId,
+                        subject: this.newNoticeSubject,
+                        message: this.newNoticeMessage
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.showNoticeForm = false;
+                    this.newNoticeSubject = '';
+                    this.newNoticeMessage = '';
+                    await this.fetchNotices();
+                } else {
+                    this.noticeError = response.data.message || 'Error al publicar el aviso.';
+                }
+            } catch (e) {
+                this.noticeError = 'Error de conexión al publicar.';
+                console.error(e);
+            } finally {
+                this.postingNotice = false;
+            }
+        },
+        formatNoticeDate(timestamp) {
+            if (!timestamp) return '';
+            return new Date(timestamp * 1000).toLocaleDateString('es', {
+                day: 'numeric', month: 'long', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
         },
         copyGuestLink(url) {
             navigator.clipboard.writeText(url).then(() => {
