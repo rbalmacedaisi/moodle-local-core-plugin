@@ -2400,6 +2400,32 @@ try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
                     $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
                 );
+
+                // Handle file upload for resource type
+                if ($type === 'resource' && !empty($result['cmid']) && !empty($_FILES)) {
+                    $new_cmid = (int)$result['cmid'];
+                    $new_cm = get_coursemodule_from_id('resource', $new_cmid, 0, false, MUST_EXIST);
+                    $new_ctx = context_module::instance($new_cm->id);
+                    $fs_new = get_file_storage();
+                    foreach ($_FILES as $fkey => $finfo) {
+                        if (strpos($fkey, 'resource_file_') !== 0) continue;
+                        if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
+                        $fname = clean_filename($finfo['name']);
+                        $dup = $fs_new->get_file($new_ctx->id, 'mod_resource', 'content', 0, '/', $fname);
+                        if ($dup) $dup->delete();
+                        $fs_new->create_file_from_pathname([
+                            'contextid' => $new_ctx->id,
+                            'component' => 'mod_resource',
+                            'filearea'  => 'content',
+                            'itemid'    => 0,
+                            'filepath'  => '/',
+                            'filename'  => $fname,
+                            'userid'    => $USER->id,
+                        ], $finfo['tmp_name']);
+                    }
+                    $DB->set_field('resource', 'revision', time(), ['id' => $new_cm->instance]);
+                }
+
                 $response = ['status' => 'success', 'data' => $result];
             } catch (Exception $e) {
                  $response = ['status' => 'error', 'message' => $e->getMessage()];
@@ -2494,21 +2520,39 @@ try {
             // Determine intro/description field (usually 'intro')
             $intro = isset($module_instance->intro) ? $module_instance->intro : '';
             
-            $response = [
-                'status' => 'success',
-                'activity' => [
-                    'id' => $cm->id,
-                    'name' => $cm->name,
-                    'modname' => $cm->modname, // For frontend logic if needed
-                    'intro' => $intro,
-                    'visible' => (bool)$cm->visible,
-                    'tags' => array_values($tagNames),
-                    'duedate' => isset($module_instance->duedate) ? (int)$module_instance->duedate : 0,
-                    'timeopen' => isset($module_instance->timeopen) ? (int)$module_instance->timeopen : 0,
-                    'timeclose' => isset($module_instance->timeclose) ? (int)$module_instance->timeclose : 0,
-                    'attempts' => isset($module_instance->attempts) ? (int)$module_instance->attempts : 0,
-                ]
+            $activity_data = [
+                'id' => $cm->id,
+                'name' => $cm->name,
+                'modname' => $cm->modname,
+                'intro' => $intro,
+                'visible' => (bool)$cm->visible,
+                'tags' => array_values($tagNames),
+                'duedate' => isset($module_instance->duedate) ? (int)$module_instance->duedate : 0,
+                'timeopen' => isset($module_instance->timeopen) ? (int)$module_instance->timeopen : 0,
+                'timeclose' => isset($module_instance->timeclose) ? (int)$module_instance->timeclose : 0,
+                'attempts' => isset($module_instance->attempts) ? (int)$module_instance->attempts : 0,
+                'files' => [],
             ];
+
+            // For resource type, include attached files
+            if ($cm->modname === 'resource') {
+                $fs_detail = get_file_storage();
+                $res_files = $fs_detail->get_area_files(
+                    $context->id, 'mod_resource', 'content', 0, 'filename', false
+                );
+                foreach ($res_files as $rf) {
+                    $activity_data['files'][] = [
+                        'filename' => $rf->get_filename(),
+                        'url'      => moodle_url::make_pluginfile_url(
+                            $context->id, 'mod_resource', 'content', 0, '/', $rf->get_filename()
+                        )->out(false),
+                        'filesize' => $rf->get_filesize(),
+                        'mimetype' => $rf->get_mimetype(),
+                    ];
+                }
+            }
+
+            $response = ['status' => 'success', 'activity' => $activity_data];
             break;
 
         case 'local_grupomakro_get_guest_meetings':
@@ -2609,9 +2653,47 @@ try {
             // Rebuild cache
             rebuild_course_cache($cm->course);
 
+            // Handle file attachments for resource activities
+            if ($cm->modname === 'resource') {
+                $fs_upd = get_file_storage();
+
+                // Delete files marked for removal
+                $delete_files = isset($_POST['delete_files']) ? (array)$_POST['delete_files'] : [];
+                foreach ($delete_files as $fname) {
+                    $fname = clean_filename(trim($fname));
+                    if ($fname === '') continue;
+                    $existing_file = $fs_upd->get_file($context->id, 'mod_resource', 'content', 0, '/', $fname);
+                    if ($existing_file) {
+                        $existing_file->delete();
+                    }
+                }
+
+                // Upload new files
+                foreach ($_FILES as $fkey => $finfo) {
+                    if (strpos($fkey, 'resource_file_') !== 0) continue;
+                    if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
+                    $fname = clean_filename($finfo['name']);
+                    // Remove existing file with same name to avoid duplicates
+                    $dup = $fs_upd->get_file($context->id, 'mod_resource', 'content', 0, '/', $fname);
+                    if ($dup) $dup->delete();
+                    $fs_upd->create_file_from_pathname([
+                        'contextid' => $context->id,
+                        'component' => 'mod_resource',
+                        'filearea'  => 'content',
+                        'itemid'    => 0,
+                        'filepath'  => '/',
+                        'filename'  => $fname,
+                        'userid'    => $USER->id,
+                    ], $finfo['tmp_name']);
+                }
+
+                // Bump revision so Moodle refreshes file delivery
+                $DB->set_field('resource', 'revision', time(), ['id' => $cm->instance]);
+            }
+
             $response = ['status' => 'success'];
             break;
-        
+
         case 'local_grupomakro_get_learning_plan_list':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/learningPlan/get_learning_plan_list.php');
             $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);

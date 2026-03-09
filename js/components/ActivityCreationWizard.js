@@ -127,6 +127,53 @@ const ActivityCreationWizard = {
                             label="Visible para estudiantes"
                             color="success"
                         ></v-switch>
+
+                        <!-- Archivos adjuntos (solo para tipo resource) -->
+                        <div v-if="isResource" class="mt-3">
+                            <div class="caption grey--text mb-2">Archivos del material</div>
+                            <input
+                                ref="resourceFileInput"
+                                type="file"
+                                multiple
+                                style="display:none"
+                                @change="onResourceFilesSelected"
+                            />
+                            <div v-if="editMode && existingFiles.length > 0" class="mb-2">
+                                <div class="caption grey--text mb-1">Archivos actuales:</div>
+                                <span v-for="f in existingFiles" :key="f.filename" class="d-inline-flex align-center mr-2 mb-1">
+                                    <v-chip
+                                        small
+                                        :color="filesToDelete.indexOf(f.filename) !== -1 ? 'red lighten-4' : ''"
+                                        :close="filesToDelete.indexOf(f.filename) === -1"
+                                        @click:close="markFileForDelete(f.filename)"
+                                    >
+                                        <v-icon left x-small>mdi-file</v-icon>
+                                        <a :href="f.url" target="_blank" class="text-decoration-none black--text">{{ f.filename }}</a>
+                                    </v-chip>
+                                    <v-btn
+                                        v-if="filesToDelete.indexOf(f.filename) !== -1"
+                                        x-small text color="red"
+                                        @click="unmarkFileForDelete(f.filename)"
+                                    >deshacer</v-btn>
+                                </span>
+                            </div>
+                            <div v-if="resourceFiles.length > 0" class="mb-2">
+                                <div class="caption grey--text mb-1">Archivos a subir:</div>
+                                <v-chip
+                                    v-for="(f, idx) in resourceFiles"
+                                    :key="idx"
+                                    small close
+                                    @click:close="removeResourceFile(idx)"
+                                    class="mr-1 mb-1"
+                                >
+                                    <v-icon left x-small>mdi-upload</v-icon>{{ f.name }}
+                                </v-chip>
+                            </div>
+                            <v-btn small outlined color="primary" @click="$refs.resourceFileInput.click()">
+                                <v-icon left small>mdi-paperclip</v-icon>
+                                {{ editMode ? 'Subir archivo nuevo' : 'Adjuntar archivos' }}
+                            </v-btn>
+                        </div>
                     </v-form>
                 </v-card-text>
                 <v-card-actions class="pa-4 pt-0">
@@ -159,7 +206,10 @@ const ActivityCreationWizard = {
                 guest: false
             },
             courseTags: [],
-            gradeCategories: []
+            gradeCategories: [],
+            resourceFiles: [],
+            existingFiles: [],
+            filesToDelete: []
         };
     },
     mounted() {
@@ -196,6 +246,9 @@ const ActivityCreationWizard = {
         },
         isBBB() {
             return this.activityType === 'bbb' || this.activityType === 'bigbluebuttonbn';
+        },
+        isResource() {
+            return this.activityType === 'resource';
         }
     },
     methods: {
@@ -209,41 +262,67 @@ const ActivityCreationWizard = {
                     ? 'local_grupomakro_update_activity'
                     : 'local_grupomakro_create_express_activity';
 
-                const args = this.editMode ? {
-                    cmid: this.editData.id,
-                    name: this.formData.name,
-                    intro: this.formData.intro,
-                    tags: this.formData.tags,
-                    visible: this.formData.visible,
-                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
-                    attempts: this.formData.attempts
-                } : {
-                    classid: this.classId,
-                    type: this.activityType,
-                    name: this.formData.name,
-                    intro: this.formData.intro,
-                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
-                    save_as_template: this.saveAsTemplate,
-                    gradecat: this.formData.gradecat,
-                    tags: this.formData.tags,
-                    guest: this.formData.guest
-                };
+                let response;
 
-                const response = await axios.post(window.wsUrl, {
-                    action: action,
-                    args: args,
-                    ...window.wsStaticParams
-                });
+                if (this.isResource) {
+                    const fd = new FormData();
+                    fd.append('action', action);
+                    fd.append('sesskey', window.wsStaticParams.sesskey);
+                    if (this.editMode) {
+                        fd.append('cmid', this.editData.id);
+                        fd.append('name', this.formData.name);
+                        fd.append('intro', this.formData.intro || '');
+                        fd.append('tags', this.formData.tags || '');
+                        fd.append('visible', this.formData.visible ? '1' : '0');
+                        this.filesToDelete.forEach(function(fname) {
+                            fd.append('delete_files[]', fname);
+                        });
+                    } else {
+                        fd.append('classid', this.classId);
+                        fd.append('type', this.activityType);
+                        fd.append('name', this.formData.name);
+                        fd.append('intro', this.formData.intro || '');
+                        fd.append('tags', this.formData.tags || '');
+                        fd.append('save_as_template', this.saveAsTemplate ? '1' : '0');
+                    }
+                    this.resourceFiles.forEach(function(f, i) {
+                        fd.append('resource_file_' + i, f, f.name);
+                    });
+                    response = await axios.post(window.wsUrl, fd, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } else {
+                    const args = this.editMode ? {
+                        cmid: this.editData.id,
+                        name: this.formData.name,
+                        intro: this.formData.intro,
+                        tags: this.formData.tags,
+                        visible: this.formData.visible,
+                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                        timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                        timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                        attempts: this.formData.attempts
+                    } : {
+                        classid: this.classId,
+                        type: this.activityType,
+                        name: this.formData.name,
+                        intro: this.formData.intro,
+                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                        timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                        timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                        save_as_template: this.saveAsTemplate,
+                        gradecat: this.formData.gradecat,
+                        tags: this.formData.tags,
+                        guest: this.formData.guest
+                    };
+                    response = await axios.post(window.wsUrl, {
+                        action: action,
+                        args: args,
+                        ...window.wsStaticParams
+                    });
+                }
 
                 if (response.data.status === 'success') {
-                    if (window.M && window.M.util && !this.editMode) {
-                        window.M.util.js_pending('assignment_created');
-                        // No logic to reload if in simple edit, but maybe refresh list?
-                    }
                     this.$emit('success');
                     this.close();
                 } else {
@@ -280,6 +359,10 @@ const ActivityCreationWizard = {
                         this.formData.timeclose = new Date(act.timeclose * 1000).toISOString().slice(0, 16);
                     }
                     this.formData.attempts = act.attempts || 1;
+
+                    if (act.files && act.files.length > 0) {
+                        this.existingFiles = act.files;
+                    }
 
                     // Fallback refresh for grade categories if it was assign but labeled assignment etc
                     if (this.isAssignment && this.gradeCategories.length === 0) {
@@ -323,6 +406,26 @@ const ActivityCreationWizard = {
             const tmp = document.createElement("DIV");
             tmp.innerHTML = html;
             return tmp.textContent || tmp.innerText || "";
+        },
+        onResourceFilesSelected(event) {
+            var selected = Array.from(event.target.files);
+            var self = this;
+            selected.forEach(function(f) { self.resourceFiles.push(f); });
+            event.target.value = '';
+        },
+        removeResourceFile(idx) {
+            this.resourceFiles.splice(idx, 1);
+        },
+        markFileForDelete(filename) {
+            if (this.filesToDelete.indexOf(filename) === -1) {
+                this.filesToDelete.push(filename);
+            }
+        },
+        unmarkFileForDelete(filename) {
+            var idx = this.filesToDelete.indexOf(filename);
+            if (idx !== -1) {
+                this.filesToDelete.splice(idx, 1);
+            }
         }
     }
 };
