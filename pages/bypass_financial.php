@@ -70,12 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && confirm_sesskey()) {
     } else if (!empty($result['success'])) {
         $estado = $enable ? 'ACTIVADO' : 'DESACTIVADO';
         $message = "Bypass financiero $estado correctamente.";
-        // Registrar en el log de Moodle
-        $event = \core\event\admin_settings_changed::create([
-            'context' => context_system::instance(),
-            'other'   => ['action' => 'bypass_financial_' . ($enable ? 'enabled' : 'disabled')]
-        ]);
-        $event->trigger();
+        // Registrar en el log del sistema
+        error_log('[grupomakro_core] Bypass financiero ' . strtolower($estado) .
+            ' por ' . fullname($USER) . ' (' . $USER->username . ') desde IP ' . getremoteaddr());
     } else {
         $error = 'Respuesta inesperada del servidor: ' . s(json_encode($result));
     }
