@@ -87,7 +87,7 @@ window.SchedulerComponents.ReportView = {
                         <button
                             @click="exportUnassignedXLSX"
                             :disabled="unassignedSchedules.length === 0"
-                            :title="unassignedSchedules.length === 0 ? 'No hay asignaturas pendientes' : `Exportar ${unassignedSchedules.length} asignatura(s) sin programar`"
+                            :title="unassignedSchedules.length === 0 ? 'No hay asignaturas pendientes' : 'Exportar ' + unassignedSchedules.length + ' asignatura(s) sin programar'"
                             class="w-full flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg font-bold text-xs transition-all shadow-md shadow-orange-100"
                         >
                             <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
