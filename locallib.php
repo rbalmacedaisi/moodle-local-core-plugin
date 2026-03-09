@@ -4603,14 +4603,69 @@ function gmk_get_course_tags($courseid) {
 function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
     global $DB;
 
-    $resolved = [];
+    // Get the tagcollid used for core/course_modules (unique key on mdl_tag is tagcollid+name)
+    $tagcollid = $DB->get_field_sql(
+        "SELECT tc.id FROM {tag_coll} tc
+         JOIN {tag_area} ta ON ta.tagcollid = tc.id
+         WHERE ta.component = 'core' AND ta.itemtype = 'course_modules'
+         LIMIT 1"
+    );
+
+    // Remove any existing tag_instance rows for this cm first (clean slate)
+    $DB->delete_records('tag_instance', [
+        'component' => 'core',
+        'itemtype'  => 'course_modules',
+        'itemid'    => $cmid,
+        'contextid' => $context->id,
+    ]);
+
+    $now = time();
     foreach ($tagnames as $raw) {
         $raw = trim($raw);
         if ($raw === '') continue;
         $normalized = core_text::strtolower($raw);
-        $existing = $DB->get_record('tag', ['name' => $normalized], 'id,rawname', IGNORE_MISSING);
-        $resolved[] = $existing ? $existing->rawname : $raw;
-    }
 
-    core_tag_tag::set_item_tags('core', 'course_modules', $cmid, $context, $resolved);
+        // Find or create the tag record safely
+        $tag = null;
+        if ($tagcollid) {
+            $tag = $DB->get_record('tag', ['tagcollid' => $tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
+        }
+        if (!$tag) {
+            $tag = $DB->get_record('tag', ['name' => $normalized], 'id', IGNORE_MISSING);
+        }
+
+        if (!$tag) {
+            // Tag doesn't exist at all — insert it safely
+            $newrec = new stdClass();
+            $newrec->isstandard   = 0;
+            $newrec->userid       = 0;
+            $newrec->timemodified = $now;
+            $newrec->tagcollid    = $tagcollid ?: 1;
+            $newrec->rawname      = $raw;
+            $newrec->name         = $normalized;
+            try {
+                $tagid = $DB->insert_record('tag', $newrec);
+            } catch (dml_write_exception $e) {
+                // Race condition: another request inserted it just now — fetch it
+                $tag = $DB->get_record('tag', ['tagcollid' => $newrec->tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
+                $tagid = $tag ? $tag->id : null;
+            }
+        } else {
+            $tagid = $tag->id;
+        }
+
+        if (!$tagid) continue;
+
+        // Insert tag_instance
+        $ti = new stdClass();
+        $ti->tagid        = $tagid;
+        $ti->component    = 'core';
+        $ti->itemtype     = 'course_modules';
+        $ti->itemid       = $cmid;
+        $ti->contextid    = $context->id;
+        $ti->ordering     = 0;
+        $ti->timecreated  = $now;
+        $ti->timemodified = $now;
+        $DB->insert_record('tag_instance', $ti);
+    }
 }
