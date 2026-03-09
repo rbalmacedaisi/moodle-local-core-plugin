@@ -2558,7 +2558,7 @@ try {
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
-            $tags = optional_param('tags', [], PARAM_DEFAULT); // Array or comma list
+            $tags = optional_param('tags', '', PARAM_RAW); // Array or comma list
             $visible = required_param('visible', PARAM_BOOL);
             
             // New optional params
@@ -3286,6 +3286,33 @@ try {
             }
 
             $response = ['status' => 'success', 'discussionid' => (int)$discussionid];
+            break;
+
+        case 'local_grupomakro_delete_forum_discussion':
+            $discussionid = required_param('discussionid', PARAM_INT);
+            $disc = $DB->get_record('forum_discussions', ['id' => $discussionid]);
+            if (!$disc) throw new Exception("Discusión no encontrada.");
+
+            // Verify the current user is the instructor of that course or site admin
+            $class_del = $DB->get_record('gmk_class', ['corecourseid' => $disc->course, 'instructorid' => $USER->id]);
+            if (!$class_del && !is_siteadmin()) {
+                throw new Exception("No tienes permiso para eliminar este aviso.");
+            }
+
+            // Delete files attached to all posts in the discussion
+            $cm_del  = get_coursemodule_from_instance('forum', $disc->forum, $disc->course, false, MUST_EXIST);
+            $ctx_del = context_module::instance($cm_del->id);
+            $fs_del  = get_file_storage();
+            $posts_del = $DB->get_records('forum_posts', ['discussion' => $discussionid]);
+            foreach ($posts_del as $p_del) {
+                $fs_del->delete_area_files($ctx_del->id, 'mod_forum', 'post',       $p_del->id);
+                $fs_del->delete_area_files($ctx_del->id, 'mod_forum', 'attachment', $p_del->id);
+            }
+
+            $DB->delete_records('forum_posts',       ['discussion' => $discussionid]);
+            $DB->delete_records('forum_discussions', ['id'         => $discussionid]);
+
+            $response = ['status' => 'success'];
             break;
 
         default:
