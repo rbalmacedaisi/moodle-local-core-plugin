@@ -98,6 +98,11 @@ if ($hassiteconfig) {
         '🔧 Inicializar Estados Académicos',
         new moodle_url('/local/grupomakro_core/pages/fix_academic_status.php')
     );
+    $bypassFinancialPage = new admin_externalpage(
+        'grupomakro_core_bypass_financial',
+        '🔓 Ignorar Estado Financiero en Login',
+        new moodle_url('/local/grupomakro_core/pages/bypass_financial.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -112,7 +117,8 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $manageCoursesPage);
     $ADMIN->add('grupomakrocore_plugin', $manageMeetingsPage);
     $ADMIN->add('grupomakrocore_plugin', $fixAcademicStatusPage);
-    
+    $ADMIN->add('grupomakrocore_plugin', $bypassFinancialPage);
+
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
      * Settings page: General Settings.
@@ -180,7 +186,25 @@ if ($hassiteconfig) {
     $settingspage = new admin_settingpage('financial_settingspage', new lang_string('financial_settingspage', 'local_grupomakro_core'));
 
     if ($ADMIN->fulltree) {
-    
+
+        // URL del servidor proxy Express (para bypass financiero)
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/odoo_proxy_url',
+            'URL del Proxy Odoo (Express Server)',
+            'URL base del servidor Express que gestiona la validación financiera. Ej: https://lms.isi.edu.pa:4000',
+            'https://lms.isi.edu.pa:4000',
+            PARAM_URL
+        ));
+
+        // Secret de administración del proxy
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/odoo_proxy_admin_secret',
+            'Secreto Admin del Proxy (Bypass Financiero)',
+            'Token secreto para autenticar solicitudes de administración al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
+            'gmk_admin_bypass_2026',
+            PARAM_TEXT
+        ));
+
         // Add the "tuitionfee" setting, which is an text field.
         $settingspage->add(new admin_setting_configtext(
             'local_grupomakro_core/tuitionfee',
