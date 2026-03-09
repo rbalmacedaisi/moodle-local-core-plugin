@@ -84,7 +84,7 @@ class create_express_activity extends external_api {
             // Handle Tags
             if (!empty($params['tags']) && !empty($result->coursemodule)) {
                 $cmcontext = \context_module::instance($result->coursemodule);
-                \core_tag_tag::set_item_tags('core', 'course_modules', $result->coursemodule, $cmcontext, $params['tags']);
+                gmk_safe_set_item_tags($result->coursemodule, $cmcontext, $params['tags']);
             }
 
             // Handle Grade Category for quizzes/assignments if created successfully

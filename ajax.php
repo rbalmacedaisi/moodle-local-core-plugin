@@ -2602,11 +2602,9 @@ try {
 
             // Update Tags
             if (!is_array($tags)) {
-                $tags = explode(',', $tags);
+                $tags = array_values(array_filter(explode(',', $tags), function($t) { return trim($t) !== ''; }));
             }
-            // Clean empty tags
-            $tags = array_filter($tags, function($t) { return trim($t) !== ''; });
-            core_tag_tag::set_item_tags('local_grupomakro_core', 'course_modules', $cm->id, $context, $tags);
+            gmk_safe_set_item_tags($cm->id, $context, $tags);
 
             // Rebuild cache
             rebuild_course_cache($cm->course);

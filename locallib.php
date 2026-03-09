@@ -4587,3 +4587,30 @@ function gmk_get_course_tags($courseid) {
     
     return $tags;
 }
+
+/**
+ * Safely assign tags to a course module, avoiding duplicate key errors.
+ *
+ * Moodle's core_tag_tag::set_item_tags calls create_if_missing → INSERT INTO mdl_tag,
+ * which throws dml_write_exception when the tag already exists (duplicate key on tagcollid+name).
+ * This wrapper pre-resolves each tag name to its existing rawname in the DB before calling
+ * set_item_tags, so no INSERT is attempted for already-existing tags.
+ *
+ * @param int    $cmid     Course module id
+ * @param object $context  context_module instance for $cmid
+ * @param array  $tagnames Array of tag raw names (strings)
+ */
+function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
+    global $DB;
+
+    $resolved = [];
+    foreach ($tagnames as $raw) {
+        $raw = trim($raw);
+        if ($raw === '') continue;
+        $normalized = core_text::strtolower($raw);
+        $existing = $DB->get_record('tag', ['name' => $normalized], 'id,rawname', IGNORE_MISSING);
+        $resolved[] = $existing ? $existing->rawname : $raw;
+    }
+
+    core_tag_tag::set_item_tags('core', 'course_modules', $cmid, $context, $resolved);
+}
