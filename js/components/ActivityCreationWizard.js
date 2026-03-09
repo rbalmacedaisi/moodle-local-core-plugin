@@ -128,8 +128,8 @@ const ActivityCreationWizard = {
                             color="success"
                         ></v-switch>
 
-                        <!-- Archivos adjuntos (solo para tipo resource) -->
-                        <div v-if="isResource" class="mt-3">
+                        <!-- Archivos adjuntos -->
+                        <div v-if="supportsFiles" class="mt-3">
                             <div class="caption grey--text mb-2">Archivos del material</div>
                             <input
                                 ref="resourceFileInput"
@@ -249,6 +249,12 @@ const ActivityCreationWizard = {
         },
         isResource() {
             return this.activityType === 'resource';
+        },
+        supportsFiles() {
+            return this.activityType === 'resource' ||
+                   this.activityType === 'assignment' || this.activityType === 'assign' ||
+                   this.activityType === 'quiz' ||
+                   this.activityType === 'forum';
         }
     },
     methods: {
@@ -264,7 +270,7 @@ const ActivityCreationWizard = {
 
                 let response;
 
-                if (this.isResource) {
+                if (this.supportsFiles) {
                     const fd = new FormData();
                     fd.append('action', action);
                     fd.append('sesskey', window.wsStaticParams.sesskey);

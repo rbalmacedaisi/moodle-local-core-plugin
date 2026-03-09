@@ -4669,3 +4669,20 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         $DB->insert_record('tag_instance', $ti);
     }
 }
+
+/**
+ * Returns the Moodle file storage component and filearea for a given module name.
+ * Used to store teacher-attached files on the activity intro/description.
+ *
+ * @param string $modname  e.g. 'resource', 'assign', 'quiz', 'forum'
+ * @return array|null  ['component' => '...', 'filearea' => '...', 'itemid' => 0] or null if unsupported
+ */
+function gmk_get_module_fileinfo(string $modname): ?array {
+    $map = [
+        'resource' => ['component' => 'mod_resource', 'filearea' => 'content',           'itemid' => 0],
+        'assign'   => ['component' => 'mod_assign',   'filearea' => 'introattachment',    'itemid' => 0],
+        'quiz'     => ['component' => 'mod_quiz',     'filearea' => 'introattachment',    'itemid' => 0],
+        'forum'    => ['component' => 'mod_forum',    'filearea' => 'attachment',         'itemid' => 0],
+    ];
+    return $map[$modname] ?? null;
+}

@@ -2401,29 +2401,37 @@ try {
                     $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
                 );
 
-                // Handle file upload for resource type
-                if ($type === 'resource' && !empty($result['cmid']) && !empty($_FILES)) {
+                // Handle file attachments for supported module types
+                $modname_create = ($type === 'assignment') ? 'assign' : $type;
+                $fileinfo_new = gmk_get_module_fileinfo($modname_create);
+                if ($fileinfo_new && !empty($result['cmid']) && !empty($_FILES)) {
                     $new_cmid = (int)$result['cmid'];
-                    $new_cm = get_coursemodule_from_id('resource', $new_cmid, 0, false, MUST_EXIST);
+                    $new_cm = get_coursemodule_from_id('', $new_cmid, 0, false, MUST_EXIST);
                     $new_ctx = context_module::instance($new_cm->id);
                     $fs_new = get_file_storage();
+                    $fi_comp = $fileinfo_new['component'];
+                    $fi_area = $fileinfo_new['filearea'];
+                    $fi_item = $fileinfo_new['itemid'];
                     foreach ($_FILES as $fkey => $finfo) {
                         if (strpos($fkey, 'resource_file_') !== 0) continue;
                         if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
                         $fname = clean_filename($finfo['name']);
-                        $dup = $fs_new->get_file($new_ctx->id, 'mod_resource', 'content', 0, '/', $fname);
+                        $dup = $fs_new->get_file($new_ctx->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
                         if ($dup) $dup->delete();
                         $fs_new->create_file_from_pathname([
                             'contextid' => $new_ctx->id,
-                            'component' => 'mod_resource',
-                            'filearea'  => 'content',
-                            'itemid'    => 0,
+                            'component' => $fi_comp,
+                            'filearea'  => $fi_area,
+                            'itemid'    => $fi_item,
                             'filepath'  => '/',
                             'filename'  => $fname,
                             'userid'    => $USER->id,
                         ], $finfo['tmp_name']);
                     }
-                    $DB->set_field('resource', 'revision', time(), ['id' => $new_cm->instance]);
+                    $cols_new = $DB->get_columns($new_cm->modname);
+                    if (isset($cols_new['revision'])) {
+                        $DB->set_field($new_cm->modname, 'revision', time(), ['id' => $new_cm->instance]);
+                    }
                 }
 
                 $response = ['status' => 'success', 'data' => $result];
@@ -2534,17 +2542,28 @@ try {
                 'files' => [],
             ];
 
-            // For resource type, include attached files
-            if ($cm->modname === 'resource') {
+            // Include attached files for supported module types
+            $fileinfo_detail = gmk_get_module_fileinfo($cm->modname);
+            if ($fileinfo_detail) {
                 $fs_detail = get_file_storage();
                 $res_files = $fs_detail->get_area_files(
-                    $context->id, 'mod_resource', 'content', 0, 'filename', false
+                    $context->id,
+                    $fileinfo_detail['component'],
+                    $fileinfo_detail['filearea'],
+                    $fileinfo_detail['itemid'],
+                    'filename',
+                    false
                 );
                 foreach ($res_files as $rf) {
                     $activity_data['files'][] = [
                         'filename' => $rf->get_filename(),
                         'url'      => moodle_url::make_pluginfile_url(
-                            $context->id, 'mod_resource', 'content', 0, '/', $rf->get_filename()
+                            $context->id,
+                            $fileinfo_detail['component'],
+                            $fileinfo_detail['filearea'],
+                            $fileinfo_detail['itemid'],
+                            '/',
+                            $rf->get_filename()
                         )->out(false),
                         'filesize' => $rf->get_filesize(),
                         'mimetype' => $rf->get_mimetype(),
@@ -2653,16 +2672,20 @@ try {
             // Rebuild cache
             rebuild_course_cache($cm->course);
 
-            // Handle file attachments for resource activities
-            if ($cm->modname === 'resource') {
+            // Handle file attachments
+            $fileinfo_upd = gmk_get_module_fileinfo($cm->modname);
+            if ($fileinfo_upd) {
                 $fs_upd = get_file_storage();
+                $fi_comp = $fileinfo_upd['component'];
+                $fi_area = $fileinfo_upd['filearea'];
+                $fi_item = $fileinfo_upd['itemid'];
 
                 // Delete files marked for removal
                 $delete_files = isset($_POST['delete_files']) ? (array)$_POST['delete_files'] : [];
                 foreach ($delete_files as $fname) {
                     $fname = clean_filename(trim($fname));
                     if ($fname === '') continue;
-                    $existing_file = $fs_upd->get_file($context->id, 'mod_resource', 'content', 0, '/', $fname);
+                    $existing_file = $fs_upd->get_file($context->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
                     if ($existing_file) {
                         $existing_file->delete();
                     }
@@ -2673,22 +2696,24 @@ try {
                     if (strpos($fkey, 'resource_file_') !== 0) continue;
                     if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
                     $fname = clean_filename($finfo['name']);
-                    // Remove existing file with same name to avoid duplicates
-                    $dup = $fs_upd->get_file($context->id, 'mod_resource', 'content', 0, '/', $fname);
+                    $dup = $fs_upd->get_file($context->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
                     if ($dup) $dup->delete();
                     $fs_upd->create_file_from_pathname([
                         'contextid' => $context->id,
-                        'component' => 'mod_resource',
-                        'filearea'  => 'content',
-                        'itemid'    => 0,
+                        'component' => $fi_comp,
+                        'filearea'  => $fi_area,
+                        'itemid'    => $fi_item,
                         'filepath'  => '/',
                         'filename'  => $fname,
                         'userid'    => $USER->id,
                     ], $finfo['tmp_name']);
                 }
 
-                // Bump revision so Moodle refreshes file delivery
-                $DB->set_field('resource', 'revision', time(), ['id' => $cm->instance]);
+                // Bump revision if supported
+                $columns_rev = $DB->get_columns($cm->modname);
+                if (isset($columns_rev['revision'])) {
+                    $DB->set_field($cm->modname, 'revision', time(), ['id' => $cm->instance]);
+                }
             }
 
             $response = ['status' => 'success'];
