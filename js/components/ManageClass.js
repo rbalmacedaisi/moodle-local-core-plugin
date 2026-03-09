@@ -215,10 +215,36 @@ const ManageClass = {
                                                 outlined dense rows="4"
                                                 :disabled="postingNotice"
                                             ></v-textarea>
-                                            <v-alert v-if="noticeError" type="error" dense text>{{ noticeError }}</v-alert>
+
+                                            <!-- File attachments -->
+                                            <div class="mt-2">
+                                                <div class="caption grey--text mb-1">Adjuntos (opcional)</div>
+                                                <input
+                                                    ref="noticeFileInput"
+                                                    type="file"
+                                                    multiple
+                                                    style="display:none"
+                                                    @change="onNoticeFilesSelected"
+                                                />
+                                                <div class="d-flex align-center flex-wrap gap-2">
+                                                    <v-btn small outlined color="grey" :disabled="postingNotice" @click="$refs.noticeFileInput.click()">
+                                                        <v-icon left small>mdi-paperclip</v-icon> Adjuntar archivos
+                                                    </v-btn>
+                                                    <v-chip
+                                                        v-for="(f, idx) in noticeFiles" :key="idx"
+                                                        small close
+                                                        @click:close="removeNoticeFile(idx)"
+                                                        class="ml-1"
+                                                    >
+                                                        <v-icon left x-small>mdi-file</v-icon>{{ f.name }}
+                                                    </v-chip>
+                                                </div>
+                                            </div>
+
+                                            <v-alert v-if="noticeError" type="error" dense text class="mt-3">{{ noticeError }}</v-alert>
                                         </v-card-text>
                                         <v-card-actions>
-                                            <v-btn text @click="showNoticeForm = false; noticeError = ''">Cancelar</v-btn>
+                                            <v-btn text @click="showNoticeForm = false; noticeError = ''; noticeFiles = []">Cancelar</v-btn>
                                             <v-spacer></v-spacer>
                                             <v-btn color="amber darken-2" dark depressed
                                                 :loading="postingNotice"
@@ -237,7 +263,7 @@ const ManageClass = {
                                     <v-spacer></v-spacer>
                                     <v-btn color="amber darken-2" dark small depressed
                                         v-if="!showNoticeForm"
-                                        @click="showNoticeForm = true; newNoticeSubject = ''; newNoticeMessage = ''"
+                                        @click="showNoticeForm = true; newNoticeSubject = ''; newNoticeMessage = ''; noticeFiles = []"
                                     >
                                         <v-icon left small>mdi-plus</v-icon> Nuevo Aviso
                                     </v-btn>
@@ -269,6 +295,15 @@ const ManageClass = {
                                     </v-card-title>
                                     <v-card-text>
                                         <div class="body-2" v-html="notice.message"></div>
+                                        <!-- Attachments -->
+                                        <div v-if="notice.attachments && notice.attachments.length > 0" class="mt-2">
+                                            <div class="caption grey--text mb-1">Adjuntos:</div>
+                                            <div v-for="att in notice.attachments" :key="att.filename" class="d-inline-block mr-2 mb-1">
+                                                <v-btn x-small outlined color="primary" :href="att.url" target="_blank">
+                                                    <v-icon left x-small>mdi-download</v-icon>{{ att.filename }}
+                                                </v-btn>
+                                            </div>
+                                        </div>
                                         <div class="mt-2 caption grey--text">
                                             {{ notice.author }} · {{ formatNoticeDate(notice.timemodified) }}
                                         </div>
@@ -463,6 +498,7 @@ const ManageClass = {
             newNoticeMessage: '',
             postingNotice: false,
             noticeError: '',
+            noticeFiles: [],
             showActivityWizard: false,
             showQuizWizard: false,
             newActivityType: '',
@@ -825,23 +861,36 @@ const ManageClass = {
                 this.loadingNotices = false;
             }
         },
+        onNoticeFilesSelected(event) {
+            const selected = Array.from(event.target.files || []);
+            selected.forEach(f => this.noticeFiles.push(f));
+            // Reset input so same file can be re-added if removed
+            event.target.value = '';
+        },
+        removeNoticeFile(idx) {
+            this.noticeFiles.splice(idx, 1);
+        },
         async postNotice() {
             this.postingNotice = true;
             this.noticeError = '';
             try {
-                const response = await axios.post(window.wsUrl, {
-                    action: 'local_grupomakro_post_forum_announcement',
-                    args: {
-                        classid: this.classId,
-                        subject: this.newNoticeSubject,
-                        message: this.newNoticeMessage
-                    },
-                    ...window.wsStaticParams
+                // Use FormData to support file attachments (multipart/form-data)
+                const fd = new FormData();
+                fd.append('action', 'local_grupomakro_post_forum_announcement');
+                fd.append('sesskey', window.wsStaticParams.sesskey);
+                fd.append('classid', this.classId);
+                fd.append('subject', this.newNoticeSubject);
+                fd.append('message', this.newNoticeMessage);
+                this.noticeFiles.forEach((f, i) => fd.append('attachment_' + i, f, f.name));
+
+                const response = await axios.post(window.wsUrl, fd, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 if (response.data.status === 'success') {
                     this.showNoticeForm = false;
                     this.newNoticeSubject = '';
                     this.newNoticeMessage = '';
+                    this.noticeFiles = [];
                     await this.fetchNotices();
                 } else {
                     this.noticeError = response.data.message || 'Error al publicar el aviso.';

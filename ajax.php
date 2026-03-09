@@ -3146,19 +3146,45 @@ try {
                 0, 20
             );
 
+            $cm_forum = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
+            $forum_context = context_module::instance($cm_forum->id);
+            $fs_read = get_file_storage();
+
             $forum_posts = [];
             foreach ($discussions as $disc) {
                 $first_post = $DB->get_record('forum_posts',
                     ['discussion' => $disc->id, 'parent' => 0],
-                    'message, messageformat'
+                    'id, message, messageformat, attachment'
                 );
                 $author = $DB->get_record('user', ['id' => $disc->userid], 'firstname, lastname');
+
+                // Resolve attachments
+                $attachments = [];
+                if ($first_post && $first_post->attachment) {
+                    $files = $fs_read->get_area_files(
+                        $forum_context->id, 'mod_forum', 'attachment',
+                        $first_post->id, 'filename', false
+                    );
+                    foreach ($files as $f) {
+                        $attachments[] = [
+                            'filename' => $f->get_filename(),
+                            'url'      => moodle_url::make_pluginfile_url(
+                                $forum_context->id, 'mod_forum', 'attachment',
+                                $first_post->id, '/', $f->get_filename()
+                            )->out(false),
+                            'mimetype' => $f->get_mimetype(),
+                            'filesize' => $f->get_filesize(),
+                        ];
+                    }
+                }
+
                 $forum_posts[] = [
                     'id'           => (int)$disc->id,
                     'subject'      => $disc->name,
                     'message'      => $first_post ? format_text($first_post->message, $first_post->messageformat) : '',
                     'author'       => $author ? fullname($author) : 'Desconocido',
                     'timemodified' => (int)$disc->timemodified,
+                    'attachments'  => $attachments,
                 ];
             }
 
@@ -3186,14 +3212,23 @@ try {
 
             $now = time();
 
+            // In Moodle 4.x, forum_add_discussion builds the first post from $discussion,
+            // not from $post. $discussion->message is required for the post body.
             $discussion = new stdClass();
-            $discussion->course       = $class->corecourseid;
-            $discussion->forum        = $forum->id;
-            $discussion->name         = $subject;
-            $discussion->intro        = $message;
-            $discussion->timemodified = $now;
-            $discussion->userid       = $USER->id;
-            $discussion->assumedaudit = true;
+            $discussion->course        = $class->corecourseid;
+            $discussion->forum         = $forum->id;
+            $discussion->name          = $subject;
+            $discussion->message       = $message;       // Required: body of the first post
+            $discussion->messageformat = FORMAT_HTML;
+            $discussion->messagetrust  = 0;
+            $discussion->intro         = $message;
+            $discussion->timestart     = 0;
+            $discussion->timeend       = 0;
+            $discussion->timelocked    = 0;
+            $discussion->pinned        = 0;
+            $discussion->timemodified  = $now;
+            $discussion->userid        = $USER->id;
+            $discussion->assumedaudit  = true;
 
             $post = new stdClass();
             $post->userid        = $USER->id;
@@ -3201,8 +3236,43 @@ try {
             $post->message       = $message;
             $post->messageformat = FORMAT_HTML;
             $post->messagetrust  = 0;
+            $post->attachment    = 0;
 
             $discussionid = forum_add_discussion($discussion, $post);
+            if (!$discussionid) throw new Exception("No se pudo crear la discusión en el foro.");
+
+            // Handle file attachments (uploaded via multipart/form-data)
+            if (!empty($_FILES)) {
+                $fs = get_file_storage();
+                // Get the post that was just created (parent=0 of the new discussion)
+                $forum_post = $DB->get_record('forum_posts',
+                    ['discussion' => $discussionid, 'parent' => 0], 'id', MUST_EXIST);
+                $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
+                $context = context_module::instance($cm->id);
+
+                $attachments_saved = 0;
+                foreach ($_FILES as $file_key => $file_info) {
+                    if ($file_info['error'] !== UPLOAD_ERR_OK) continue;
+                    $filename = clean_filename($file_info['name']);
+                    $filerecord = [
+                        'contextid' => $context->id,
+                        'component' => 'mod_forum',
+                        'filearea'  => 'attachment',
+                        'itemid'    => $forum_post->id,
+                        'filepath'  => '/',
+                        'filename'  => $filename,
+                        'userid'    => $USER->id,
+                    ];
+                    // Avoid duplicate filenames
+                    $fs->delete_area_files($context->id, 'mod_forum', 'attachment', $forum_post->id, '/', $filename);
+                    $fs->create_file_from_pathname($filerecord, $file_info['tmp_name']);
+                    $attachments_saved++;
+                }
+                // Mark the post as having attachments
+                if ($attachments_saved > 0) {
+                    $DB->set_field('forum_posts', 'attachment', 1, ['id' => $forum_post->id]);
+                }
+            }
 
             $response = ['status' => 'success', 'discussionid' => (int)$discussionid];
             break;
