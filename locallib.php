@@ -601,8 +601,10 @@ function create_class_group($class)
         throw new Exception('Error creating class group');
     }
 
-    if (!groups_add_member($newClassGroup->id, $class->instructorid)) {
-        throw new Exception('Error adding teacher to class group');
+    if (!empty($class->instructorid) && $class->instructorid > 0) {
+        if (!groups_add_member($newClassGroup->id, $class->instructorid)) {
+            throw new Exception('Error adding teacher to class group');
+        }
     }
     return $newClassGroup->id;
 }
