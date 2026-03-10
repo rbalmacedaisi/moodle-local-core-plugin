@@ -1299,27 +1299,22 @@ try {
             }
             // If no section found, $cms stays empty — avoids leaking other classes' activities
 
-            // Get excluded BBB instances (those used in timeline/attendance)
-            $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbid', 'classid = :classid AND bbbid IS NOT NULL', ['classid' => $class->id]);
-            // Ensure we have an array
-            if (!$excluded_instances) {
-                $excluded_instances = [];
-            }
-
             $activities = [];
 
             foreach ($cms as $cm) {
                 if (!$cm->uservisible) continue;
                 // Exclude label
                 if ($cm->modname === 'label') continue;
-                
-                // Exclude class BBB sessions linked to attendance
-                if ($cm->modname === 'bigbluebuttonbn' && in_array($cm->instance, $excluded_instances)) {
-                    continue;
-                }
 
-                $tags = \core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
-                $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+                // Attendance and BBB are "default" activities — always placed in General (no tags)
+                $is_general = ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn');
+
+                if ($is_general) {
+                    $tagNames = [];
+                } else {
+                    $tags = \core_tag_tag::get_item_tags('core', 'course_modules', $cm->id);
+                    $tagNames = array_map(function($t) { return $t->rawname; }, $tags);
+                }
 
                 $activities[] = [
                     'id' => $cm->id,
@@ -1327,7 +1322,8 @@ try {
                     'modname' => $cm->modname,
                     'modicon' => $cm->get_icon_url()->out(),
                     'url' => $cm->url ? $cm->url->out(false) : '',
-                    'tags' => array_values($tagNames) // Ensure array for JSON
+                    'tags' => array_values($tagNames),
+                    'is_general' => $is_general
                 ];
             }
             

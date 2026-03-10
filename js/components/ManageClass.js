@@ -151,7 +151,7 @@ const ManageClass = {
                                     <v-expansion-panel v-for="(group, name) in groupedActivities" :key="name" class="mb-2 rounded-lg transparent-panel">
                                         <v-expansion-panel-header :class="$vuetify.theme.dark ? 'grey darken-3' : 'blue-grey lighten-5'">
                                             <div class="d-flex align-center">
-                                                <v-icon left color="primary">mdi-label</v-icon> 
+                                                <v-icon left :color="name === 'General' ? 'blue-grey' : 'primary'">{{ name === 'General' ? 'mdi-folder-outline' : 'mdi-tag' }}</v-icon>
                                                 <span class="font-weight-bold text-subtitle-1">{{ name }}</span>
                                                 <v-chip x-small class="ml-2" :color="$vuetify.theme.dark ? 'grey darken-1' : 'white'">{{ group.length }}</v-chip>
                                             </div>
@@ -526,21 +526,20 @@ const ManageClass = {
     },
     computed: {
         groupedActivities() {
-            const groups = {};
-            // console.log('Calculating groupedActivities', this.activities);
             if (!this.activities || !Array.isArray(this.activities)) {
-                // console.warn('Activities is not an array:', this.activities);
                 return {};
             }
+            // Build groups — General first so it always appears at the top
+            const groups = { 'General': [] };
             this.activities.forEach(activity => {
                 const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
-                // console.log('Activity:', activity.name, 'Tags:', tags);
                 tags.forEach(tag => {
                     if (!groups[tag]) groups[tag] = [];
                     groups[tag].push(activity);
                 });
             });
-            // console.log('Grouped Activities:', groups);
+            // Remove General if empty
+            if (groups['General'].length === 0) delete groups['General'];
             return groups;
         }
     },
