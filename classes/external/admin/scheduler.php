@@ -836,7 +836,10 @@ class scheduler extends external_api {
                 $classRec->active = 1;
                 $classRec->timemodified = time();
                 $classRec->usermodified = $GLOBALS['USER']->id;
-                
+
+                // Build full class name with nomenclature: PERIOD (SHIFT) SUBJECT (TYPE) ROOM
+                $classRec->name = build_class_group_name($classRec);
+
                 if ($isUpdate) {
                     $DB->update_record('gmk_class', $classRec);
                     $classid = $classRec->id;
@@ -877,6 +880,10 @@ class scheduler extends external_api {
                             }
                         }
                     }
+
+                    // Update name now that classroomid is resolved
+                    $classRec->name = build_class_group_name($classRec);
+                    $DB->set_field('gmk_class', 'name', $classRec->name, ['id' => $classid]);
 
                     try {
                         $groupId = create_class_group($classRec);
