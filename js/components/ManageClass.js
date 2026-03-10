@@ -886,9 +886,7 @@ const ManageClass = {
                 fd.append('message', this.newNoticeMessage);
                 this.noticeFiles.forEach((f, i) => fd.append('attachment_' + i, f, f.name));
 
-                const response = await axios.post(window.wsUrl, fd, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                const response = await axios.post(window.wsUrl, fd);
                 if (response.data.status === 'success') {
                     this.showNoticeForm = false;
                     this.newNoticeSubject = '';
