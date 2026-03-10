@@ -648,8 +648,16 @@
                     const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
                     const pIdNum = Number(periodId);
 
-                    // Purge draft items that are actually live DB externals
-                    const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
+                    // All IDs already loaded from DB (published classes of this period)
+                    const dbIds = new Set(this.state.generatedSchedules.map(s => Number(s.id)).filter(Boolean));
+
+                    // Purge draft items that are already in DB (published) or are live DB externals
+                    const cleanedDraft = draft.filter(item => {
+                        const numId = Number(item.id);
+                        if (externalIds.has(numId)) return false; // is a DB external
+                        if (numId > 0 && dbIds.has(numId)) return false; // already published in DB
+                        return true;
+                    });
                     const processedDraft = cleanedDraft.map(item => {
                         item.isExternal = (Number(item.periodid) || pIdNum) !== pIdNum;
                         return item;
@@ -659,7 +667,7 @@
                     const reconciled = this._reconcileDraftWithDemand(processedDraft);
                     console.log(`DEBUG Draft: After reconciliation -> ${reconciled.length} items (was ${processedDraft.length}).`);
 
-                    this.state.generatedSchedules = [...reconciled, ...externalSchedules];
+                    this.state.generatedSchedules = [...this.state.generatedSchedules, ...reconciled.filter(r => !dbIds.has(Number(r.id)))];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
