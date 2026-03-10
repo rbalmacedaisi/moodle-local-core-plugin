@@ -888,12 +888,23 @@ class scheduler extends external_api {
                 }
 
                 // Save Students to Queue
+                // studentIds contains idnumbers (document numbers), resolve to real user ids.
                 $DB->delete_records('gmk_class_queue', ['classid' => $classid]);
                 if (!empty($cls['studentIds']) && is_array($cls['studentIds'])) {
                     foreach ($cls['studentIds'] as $uid) {
+                        // Resolve idnumber → real user id if needed
+                        if (!is_numeric($uid) || (int)$uid <= 0) {
+                            $realId = $DB->get_field('user', 'id', ['idnumber' => $uid, 'deleted' => 0]);
+                        } else {
+                            // Numeric: could be idnumber or userid; verify it's a valid userid
+                            $realId = $DB->record_exists('user', ['id' => (int)$uid, 'deleted' => 0])
+                                ? (int)$uid
+                                : $DB->get_field('user', 'id', ['idnumber' => (string)$uid, 'deleted' => 0]);
+                        }
+                        if (!$realId) continue; // Skip if user not found
                         $q = new stdClass();
                         $q->classid = $classid;
-                        $q->userid = $uid;
+                        $q->userid = (int)$realId;
                         $q->courseid = $cls['courseid'];
                         $q->timecreated = time();
                         $q->timemodified = time();
