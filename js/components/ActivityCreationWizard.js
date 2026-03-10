@@ -294,9 +294,7 @@ const ActivityCreationWizard = {
                     this.resourceFiles.forEach(function(f, i) {
                         fd.append('resource_file_' + i, f, f.name);
                     });
-                    response = await axios.post(window.wsUrl, fd, {
-                        headers: { 'Content-Type': 'multipart/form-data' }
-                    });
+                    response = await axios.post(window.wsUrl, fd);
                 } else {
                     const args = this.editMode ? {
                         cmid: this.editData.id,
