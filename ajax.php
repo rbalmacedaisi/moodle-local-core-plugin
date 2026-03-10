@@ -1282,8 +1282,23 @@ try {
             
             require_once($CFG->libdir . '/modinfolib.php');
             $modinfo = get_fast_modinfo($class->corecourseid);
-            $cms = $modinfo->get_cms();
-            
+
+            // Only show activities belonging to this class's course section
+            $cms = [];
+            if (!empty($class->coursesectionid)) {
+                $section_info = $modinfo->get_section_info_by_id($class->coursesectionid);
+                if ($section_info) {
+                    $section_num = $section_info->__get('section');
+                    $all_sections = $modinfo->get_sections();
+                    if (isset($all_sections[$section_num])) {
+                        foreach ($all_sections[$section_num] as $cmid) {
+                            $cms[] = $modinfo->get_cm($cmid);
+                        }
+                    }
+                }
+            }
+            // If no section found, $cms stays empty — avoids leaking other classes' activities
+
             // Get excluded BBB instances (those used in timeline/attendance)
             $excluded_instances = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbid', 'classid = :classid AND bbbid IS NOT NULL', ['classid' => $class->id]);
             // Ensure we have an array
@@ -1292,7 +1307,7 @@ try {
             }
 
             $activities = [];
-            
+
             foreach ($cms as $cm) {
                 if (!$cm->uservisible) continue;
                 // Exclude label
