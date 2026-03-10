@@ -166,6 +166,13 @@ if ($userId && $courseId) {
         ['uid' => $userId, 'cid' => $courseId]
     );
 
+    // Verify variable state before filtering
+    echo '<p style="background:#fffbe6;padding:8px;border:1px solid #f0c040;font-family:monospace;">'
+        . '<b>Verificación antes del filtro:</b><br>'
+        . 'studentCategoryIds = [' . implode(',', $studentCategoryIds) . '] | empty=' . (empty($studentCategoryIds) ? 'TRUE' : 'FALSE') . '<br>'
+        . 'allClassCategoryIds = [' . implode(',', $allClassCategoryIds) . '] | empty=' . (empty($allClassCategoryIds) ? 'TRUE' : 'FALSE')
+        . '</p>';
+
     $rows = [];
     foreach ($gradeItems as $gi) {
         $itemCatId = (int)$gi->categoryid;
