@@ -627,6 +627,13 @@
                     schedules: JSON.stringify(optimized)
                 });
 
+                // Clear draft and reload from DB to avoid duplicates in the board
+                await this._fetch('local_grupomakro_save_draft', {
+                    periodid: periodId,
+                    schedules: '[]'
+                });
+                await this.loadGeneratedSchedules(periodId);
+
                 this.state.successMessage = 'Horarios publicados correctamente';
             } catch (e) {
                 console.error('Publish generation error', e);
@@ -648,14 +655,14 @@
                     const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
                     const pIdNum = Number(periodId);
 
-                    // All IDs already loaded from DB (published classes of this period)
+                    // All IDs already loaded from DB for this period (published classes)
                     const dbIds = new Set(this.state.generatedSchedules.map(s => Number(s.id)).filter(Boolean));
 
-                    // Purge draft items that are already in DB (published) or are live DB externals
+                    // Purge draft items already published in DB or belonging to DB externals
                     const cleanedDraft = draft.filter(item => {
                         const numId = Number(item.id);
-                        if (externalIds.has(numId)) return false; // is a DB external
-                        if (numId > 0 && dbIds.has(numId)) return false; // already published in DB
+                        if (externalIds.has(numId)) return false;
+                        if (numId > 0 && dbIds.has(numId)) return false;
                         return true;
                     });
                     const processedDraft = cleanedDraft.map(item => {
@@ -667,7 +674,7 @@
                     const reconciled = this._reconcileDraftWithDemand(processedDraft);
                     console.log(`DEBUG Draft: After reconciliation -> ${reconciled.length} items (was ${processedDraft.length}).`);
 
-                    this.state.generatedSchedules = [...this.state.generatedSchedules, ...reconciled.filter(r => !dbIds.has(Number(r.id)))];
+                    this.state.generatedSchedules = [...this.state.generatedSchedules, ...reconciled];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
