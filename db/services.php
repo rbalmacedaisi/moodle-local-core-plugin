@@ -108,6 +108,15 @@ $functions = array(
         'ajax'          => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'local_grupomakro_get_course_announcements' => array(
+        'classname' => 'local_grupomakro_core\external\event\get_course_announcements',
+        'methodname' => 'execute',
+        'description' => 'Get announcements (news forum posts) for a course',
+        'type' => 'read',
+        'capabilities' => '',
+        'ajax'          => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'local_grupomakro_send_reschedule_message' => array(
         'classname' => 'local_grupomakro_core\external\activity\send_reschedule_message',
         'methodname' => 'execute',
