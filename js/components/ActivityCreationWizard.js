@@ -162,14 +162,18 @@ const ActivityCreationWizard = {
                                 <v-chip
                                     v-for="(f, idx) in resourceFiles"
                                     :key="idx"
-                                    small close
+                                    small
+                                    :close="!uploadingIndex || uploadingIndex !== idx"
                                     @click:close="removeResourceFile(idx)"
                                     class="mr-1 mb-1"
+                                    :color="uploadedDrafts[idx] ? 'green lighten-5' : ''"
                                 >
-                                    <v-icon left x-small>mdi-upload</v-icon>{{ f.name }}
+                                    <v-icon left x-small>{{ uploadedDrafts[idx] ? 'mdi-check-circle' : 'mdi-upload' }}</v-icon>
+                                    {{ f.name }}
+                                    <v-progress-circular v-if="uploadingIndex === idx" indeterminate size="14" width="2" class="ml-1"></v-progress-circular>
                                 </v-chip>
                             </div>
-                            <v-btn small outlined color="primary" @click="$refs.resourceFileInput.click()">
+                            <v-btn small outlined color="primary" @click="$refs.resourceFileInput.click()" :disabled="uploadingIndex !== null">
                                 <v-icon left small>mdi-paperclip</v-icon>
                                 {{ editMode ? 'Subir archivo nuevo' : 'Adjuntar archivos' }}
                             </v-btn>
@@ -179,7 +183,7 @@ const ActivityCreationWizard = {
                 <v-card-actions class="pa-4 pt-0">
                     <v-spacer></v-spacer>
                     <v-btn text @click="close">Cancelar</v-btn>
-                    <v-btn color="primary" depressed :loading="saving" @click="saveActivity" :disabled="!valid">
+                    <v-btn color="primary" depressed :loading="saving" @click="saveActivity" :disabled="!valid || uploadingIndex !== null">
                         {{ editMode ? 'Guardar Cambios' : 'Crear Actividad' }}
                     </v-btn>
                 </v-card-actions>
@@ -208,6 +212,8 @@ const ActivityCreationWizard = {
             courseTags: [],
             gradeCategories: [],
             resourceFiles: [],
+            uploadedDrafts: [],    // parallel array: { draftitemid, filename } per resourceFiles entry
+            uploadingIndex: null,  // index of file currently being uploaded, or null
             existingFiles: [],
             filesToDelete: []
         };
@@ -259,6 +265,8 @@ const ActivityCreationWizard = {
     },
     methods: {
         close() {
+            this.uploadedDrafts = [];
+            this.uploadingIndex = null;
             this.$emit('close');
         },
         async saveActivity() {
@@ -270,71 +278,45 @@ const ActivityCreationWizard = {
 
                 let response;
 
-                if (this.supportsFiles) {
-                    const fd = new FormData();
-                    fd.append('action', action);
-                    fd.append('sesskey', window.wsStaticParams.sesskey);
-                    if (this.editMode) {
-                        fd.append('cmid', this.editData.id);
-                        fd.append('name', this.formData.name);
-                        fd.append('intro', this.formData.intro || '');
-                        fd.append('tags', this.formData.tags || '');
-                        fd.append('visible', this.formData.visible ? '1' : '0');
-                        this.filesToDelete.forEach(function(fname) {
-                            fd.append('delete_files[]', fname);
-                        });
-                    } else {
-                        fd.append('classid', this.classId);
-                        fd.append('type', this.activityType);
-                        fd.append('name', this.formData.name);
-                        fd.append('intro', this.formData.intro || '');
-                        fd.append('tags', this.formData.tags || '');
-                        fd.append('save_as_template', this.saveAsTemplate ? '1' : '0');
-                    }
-                    this.resourceFiles.forEach(function(f, i) {
-                        fd.append('resource_file_' + i, f, f.name);
-                    });
-                    response = await axios.post(window.wsUrl, fd);
-                } else {
-                    const args = this.editMode ? {
-                        cmid: this.editData.id,
-                        name: this.formData.name,
-                        intro: this.formData.intro,
-                        tags: this.formData.tags,
-                        visible: this.formData.visible,
-                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                        timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                        timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
-                        attempts: this.formData.attempts
-                    } : {
-                        classid: this.classId,
-                        type: this.activityType,
-                        name: this.formData.name,
-                        intro: this.formData.intro,
-                        duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
-                        timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
-                        timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
-                        save_as_template: this.saveAsTemplate,
-                        gradecat: this.formData.gradecat,
-                        tags: this.formData.tags,
-                        guest: this.formData.guest
-                    };
-                    response = await axios.post(window.wsUrl, {
-                        action: action,
-                        args: args,
-                        ...window.wsStaticParams
-                    });
-                }
+                const draftitemids = this.uploadedDrafts.map(function(d) { return d.draftitemid; });
+                const args = this.editMode ? {
+                    cmid: this.editData.id,
+                    name: this.formData.name,
+                    intro: this.formData.intro || '',
+                    tags: this.formData.tags || '',
+                    visible: this.formData.visible ? 1 : 0,
+                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                    attempts: this.formData.attempts,
+                    delete_files: this.filesToDelete,
+                    draftitemids: draftitemids
+                } : {
+                    classid: this.classId,
+                    type: this.activityType,
+                    name: this.formData.name,
+                    intro: this.formData.intro || '',
+                    tags: this.formData.tags || '',
+                    duedate: this.formData.duedate ? Math.floor(new Date(this.formData.duedate).getTime() / 1000) : 0,
+                    timeopen: this.formData.timeopen ? Math.floor(new Date(this.formData.timeopen).getTime() / 1000) : 0,
+                    timeclose: this.formData.timeclose ? Math.floor(new Date(this.formData.timeclose).getTime() / 1000) : 0,
+                    save_as_template: this.saveAsTemplate,
+                    gradecat: this.formData.gradecat,
+                    tags: this.formData.tags,
+                    guest: this.formData.guest,
+                    draftitemids: draftitemids
+                };
+                response = await axios.post(window.wsUrl, {
+                    action: action,
+                    args: args,
+                    ...window.wsStaticParams
+                });
 
                 if (response.data.status === 'success') {
                     this.$emit('success');
                     this.close();
                 } else {
-                    var msg = response.data.message || '';
-                    if (!msg || msg === 'Action not found:') {
-                        msg = 'Error del servidor. Si subiste un archivo, verifica que pese menos de 8 MB.';
-                    }
-                    alert('Error saving activity: ' + msg);
+                    alert('Error saving activity: ' + (response.data.message || 'Error desconocido'));
                 }
             } catch (error) {
                 console.error('Error saving activity:', error);
@@ -415,21 +397,45 @@ const ActivityCreationWizard = {
             tmp.innerHTML = html;
             return tmp.textContent || tmp.innerText || "";
         },
-        onResourceFilesSelected(event) {
+        async onResourceFilesSelected(event) {
             var selected = Array.from(event.target.files);
-            var self = this;
-            var maxSize = 8 * 1024 * 1024; // 8MB = post_max_size del servidor
-            selected.forEach(function(f) {
-                if (f.size > maxSize) {
-                    alert('El archivo "' + f.name + '" pesa ' + (f.size / 1024 / 1024).toFixed(1) + ' MB y supera el límite de 8 MB permitido por el servidor.');
-                    return;
-                }
-                self.resourceFiles.push(f);
-            });
             event.target.value = '';
+            var maxSize = 20 * 1024 * 1024; // 20MB
+            for (var i = 0; i < selected.length; i++) {
+                var f = selected[i];
+                if (f.size > maxSize) {
+                    alert('El archivo "' + f.name + '" pesa ' + (f.size / 1024 / 1024).toFixed(1) + ' MB y supera el límite de 20 MB.');
+                    continue;
+                }
+                var idx = this.resourceFiles.length;
+                this.resourceFiles.push(f);
+                this.$set(this.uploadedDrafts, idx, null); // placeholder mientras sube
+                this.uploadingIndex = idx;
+                try {
+                    var fd = new FormData();
+                    fd.append('action', 'local_grupomakro_upload_draft_file');
+                    fd.append('sesskey', window.wsStaticParams.sesskey);
+                    fd.append('file', f, f.name);
+                    var resp = await axios.post(window.wsUrl, fd);
+                    if (resp.data.status === 'success') {
+                        this.$set(this.uploadedDrafts, idx, { draftitemid: resp.data.draftitemid, filename: resp.data.filename });
+                    } else {
+                        alert('Error subiendo "' + f.name + '": ' + (resp.data.message || 'Error desconocido'));
+                        this.resourceFiles.splice(idx, 1);
+                        this.uploadedDrafts.splice(idx, 1);
+                    }
+                } catch (e) {
+                    alert('Error de red subiendo "' + f.name + '": ' + e.message);
+                    this.resourceFiles.splice(idx, 1);
+                    this.uploadedDrafts.splice(idx, 1);
+                } finally {
+                    this.uploadingIndex = null;
+                }
+            }
         },
         removeResourceFile(idx) {
             this.resourceFiles.splice(idx, 1);
+            this.uploadedDrafts.splice(idx, 1);
         },
         markFileForDelete(filename) {
             if (this.filesToDelete.indexOf(filename) === -1) {

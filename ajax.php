@@ -2420,7 +2420,7 @@ try {
                 // Handle file attachments for supported module types
                 $modname_create = ($type === 'assignment') ? 'assign' : $type;
                 $fileinfo_new = gmk_get_module_fileinfo($modname_create);
-                if ($fileinfo_new && !empty($result['cmid']) && !empty($_FILES)) {
+                if ($fileinfo_new && !empty($result['cmid'])) {
                     $new_cmid = (int)$result['cmid'];
                     $new_cm = get_coursemodule_from_id('', $new_cmid, 0, false, MUST_EXIST);
                     $new_ctx = context_module::instance($new_cm->id);
@@ -2428,6 +2428,39 @@ try {
                     $fi_comp = $fileinfo_new['component'];
                     $fi_area = $fileinfo_new['filearea'];
                     $fi_item = $fileinfo_new['itemid'];
+
+                    // Draft-based uploads (new flow via local_grupomakro_upload_draft_file)
+                    $raw_drafts = isset($_POST['draftitemids']) ? $_POST['draftitemids'] : '';
+                    $draftitemids_create = [];
+                    if (is_array($raw_drafts)) {
+                        $draftitemids_create = array_map('intval', $raw_drafts);
+                    } elseif (!empty($raw_drafts)) {
+                        $draftitemids_create = array_map('intval', explode(',', (string)$raw_drafts));
+                    }
+                    if (!empty($draftitemids_create)) {
+                        $usercontext_create = context_user::instance($USER->id);
+                        foreach ($draftitemids_create as $draftid) {
+                            if (!$draftid) continue;
+                            $draft_files = $fs_new->get_area_files($usercontext_create->id, 'user', 'draft', $draftid, 'id', false);
+                            foreach ($draft_files as $draft_file) {
+                                $fname = $draft_file->get_filename();
+                                $dup = $fs_new->get_file($new_ctx->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
+                                if ($dup) $dup->delete();
+                                $fs_new->create_file_from_storedfile([
+                                    'contextid' => $new_ctx->id,
+                                    'component' => $fi_comp,
+                                    'filearea'  => $fi_area,
+                                    'itemid'    => $fi_item,
+                                    'filepath'  => '/',
+                                    'filename'  => $fname,
+                                    'userid'    => $USER->id,
+                                ], $draft_file);
+                                $draft_file->delete();
+                            }
+                        }
+                    }
+
+                    // Fallback: direct $_FILES upload (legacy/compatibility)
                     foreach ($_FILES as $fkey => $finfo) {
                         if (strpos($fkey, 'resource_file_') !== 0) continue;
                         if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
@@ -2444,6 +2477,7 @@ try {
                             'userid'    => $USER->id,
                         ], $finfo['tmp_name']);
                     }
+
                     $cols_new = $DB->get_columns($new_cm->modname);
                     if (isset($cols_new['revision'])) {
                         $DB->set_field($new_cm->modname, 'revision', time(), ['id' => $new_cm->instance]);
@@ -2712,7 +2746,38 @@ try {
                     }
                 }
 
-                // Upload new files
+                // Draft-based uploads (new flow via local_grupomakro_upload_draft_file)
+                $raw_drafts_upd = isset($_POST['draftitemids']) ? $_POST['draftitemids'] : '';
+                $draftitemids_upd = [];
+                if (is_array($raw_drafts_upd)) {
+                    $draftitemids_upd = array_map('intval', $raw_drafts_upd);
+                } elseif (!empty($raw_drafts_upd)) {
+                    $draftitemids_upd = array_map('intval', explode(',', (string)$raw_drafts_upd));
+                }
+                if (!empty($draftitemids_upd)) {
+                    $usercontext_upd = context_user::instance($USER->id);
+                    foreach ($draftitemids_upd as $draftid) {
+                        if (!$draftid) continue;
+                        $draft_files_upd = $fs_upd->get_area_files($usercontext_upd->id, 'user', 'draft', $draftid, 'id', false);
+                        foreach ($draft_files_upd as $draft_file) {
+                            $fname = $draft_file->get_filename();
+                            $dup = $fs_upd->get_file($context->id, $fi_comp, $fi_area, $fi_item, '/', $fname);
+                            if ($dup) $dup->delete();
+                            $fs_upd->create_file_from_storedfile([
+                                'contextid' => $context->id,
+                                'component' => $fi_comp,
+                                'filearea'  => $fi_area,
+                                'itemid'    => $fi_item,
+                                'filepath'  => '/',
+                                'filename'  => $fname,
+                                'userid'    => $USER->id,
+                            ], $draft_file);
+                            $draft_file->delete();
+                        }
+                    }
+                }
+
+                // Fallback: direct $_FILES upload (legacy/compatibility)
                 foreach ($_FILES as $fkey => $finfo) {
                     if (strpos($fkey, 'resource_file_') !== 0) continue;
                     if ($finfo['error'] !== UPLOAD_ERR_OK) continue;
@@ -3484,6 +3549,38 @@ try {
                 'post_max_size' => ini_get('post_max_size'),
                 'upload_max_filesize' => ini_get('upload_max_filesize'),
                 'php_input_available' => !empty(file_get_contents('php://input')) ? 'yes (json path)' : 'no',
+            ];
+            break;
+
+        case 'local_grupomakro_upload_draft_file':
+            // Sube un archivo al draft area del usuario (paso previo a crear/editar actividad)
+            if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                $upload_error = !empty($_FILES['file']) ? $_FILES['file']['error'] : 'no file received';
+                $response = ['status' => 'error', 'message' => 'No se recibió ningún archivo o hubo un error al subirlo. Error: ' . $upload_error];
+                break;
+            }
+            $draftitemid = optional_param('draftitemid', 0, PARAM_INT);
+            if (!$draftitemid) {
+                $draftitemid = file_get_unused_draft_itemid();
+            }
+            $usercontext = context_user::instance($USER->id);
+            $fs = get_file_storage();
+            $fname = clean_filename($_FILES['file']['name']);
+            $existing = $fs->get_file($usercontext->id, 'user', 'draft', $draftitemid, '/', $fname);
+            if ($existing) $existing->delete();
+            $fs->create_file_from_pathname([
+                'contextid' => $usercontext->id,
+                'component' => 'user',
+                'filearea'  => 'draft',
+                'itemid'    => $draftitemid,
+                'filepath'  => '/',
+                'filename'  => $fname,
+                'userid'    => $USER->id,
+            ], $_FILES['file']['tmp_name']);
+            $response = [
+                'status'      => 'success',
+                'draftitemid' => $draftitemid,
+                'filename'    => $fname,
             ];
             break;
 
