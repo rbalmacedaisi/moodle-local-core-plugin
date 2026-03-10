@@ -529,6 +529,7 @@ class scheduler extends external_api {
             'student_list' => new external_multiple_structure(
                 new external_single_structure([
                     'id' => new external_value(PARAM_INT, ''),
+                    'dbId' => new external_value(PARAM_INT, 'DB user id for matching with class studentIds', VALUE_OPTIONAL),
                     'name' => new external_value(PARAM_TEXT, ''),
                     'career' => new external_value(PARAM_TEXT, ''),
                     'shift' => new external_value(PARAM_TEXT, ''),
