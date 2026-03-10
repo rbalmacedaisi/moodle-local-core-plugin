@@ -122,20 +122,11 @@ class get_student_gradebook extends external_api
                     }
                 }
 
-                // For mod items in a global category: filter by course section ownership.
-                // If the activity lives in a section that belongs to another group, skip it.
-                if ($gi->itemtype === 'mod' && !empty($allClassSectionIds)) {
-                    $cm = $DB->get_record('course_modules',
-                        ['course' => $courseId, 'instance' => $gi->iteminstance,
-                         'module' => $DB->get_field('modules', 'id', ['name' => $gi->itemmodule])],
-                        'id,section');
-                    if ($cm) {
-                        $cmSection = (int)$cm->section;
-                        $sectionBelongsToAClass = in_array($cmSection, $allClassSectionIds);
-                        if ($sectionBelongsToAClass && !in_array($cmSection, $studentSectionIds)) {
-                            continue; // Activity is in another group's section
-                        }
-                    }
+                // If the student has no group but the course has classes with groups,
+                // hide all mod items — they all belong to specific group sections.
+                // Only manual items (migrated grades) and category totals are relevant.
+                if ($gi->itemtype === 'mod' && empty($studentCategoryIds) && !empty($allClassCategoryIds)) {
+                    continue;
                 }
 
                 // Skip attendance items that don't belong to the student's class

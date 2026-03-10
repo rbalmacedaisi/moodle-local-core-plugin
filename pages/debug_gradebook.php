@@ -190,19 +190,10 @@ if ($userId && $courseId) {
                 }
             }
         }
-        // Section-based filter for mod items
-        if ($result === '✅ MOSTRAR' && $gi->itemtype === 'mod' && !empty($allClassSectionIds)) {
-            $modId = $DB->get_field('modules', 'id', ['name' => $gi->itemmodule]);
-            $cm = $modId ? $DB->get_record('course_modules',
-                ['course' => $courseId, 'instance' => $gi->iteminstance, 'module' => $modId], 'id,section') : null;
-            if ($cm) {
-                $cmSection = (int)$cm->section;
-                $sectionBelongsToAClass = in_array($cmSection, $allClassSectionIds);
-                if ($sectionBelongsToAClass && !in_array($cmSection, $studentSectionIds)) {
-                    $result = '❌ FILTRAR';
-                    $reason = 'sección de otro grupo (section=' . $cmSection . ')';
-                }
-            }
+        // No group + course has groups → hide all mod items
+        if ($result === '✅ MOSTRAR' && $gi->itemtype === 'mod' && empty($studentCategoryIds) && !empty($allClassCategoryIds)) {
+            $result = '❌ FILTRAR';
+            $reason = 'sin grupo en curso con clases';
         }
         if ($result === '✅ MOSTRAR' && $gi->itemmodule === 'bigbluebuttonbn') {
             $result = '❌ FILTRAR'; $reason = 'BBB';
