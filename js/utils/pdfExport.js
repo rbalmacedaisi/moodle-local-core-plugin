@@ -535,20 +535,19 @@
                 return { blocks, fill };
             });
 
-            // ── Dibujar tabla manualmente (sin autoTable para el body) ────────────
-            const FONT_SIZE  = 6.5;
-            const LINE_H     = 3.2;   // mm entre líneas de texto
-            const BLOCK_PAD  = 1.5;   // padding arriba/abajo dentro de bloque
-            const BLOCK_GAP  = 1.2;   // espacio entre bloques
-            const CELL_PAD_X = 2;
-            const CELL_PAD_T = 1.5;
-            const HEAD_H     = 8;     // altura fila encabezado días
-            const MIN_BODY_H = 18;    // altura mínima del body
+            // ── Dibujar tabla manualmente (todo en una sola hoja) ────────────────
+            const FONT_SIZE  = 5.5;
+            const LINE_H     = 2.6;
+            const BLOCK_PAD  = 1.0;
+            const BLOCK_GAP  = 0.7;
+            const CELL_PAD_X = 1.5;
+            const CELL_PAD_T = 1.0;
+            const HEAD_H     = 7;
+            const MIN_BODY_H = 14;
             const tableX     = 8;
 
-            // Estimar altura de cada bloque (sin splitTextToSize para evitar loops)
-            // Asumimos ~22 chars por línea a fontSize 6.5 en colW ~43mm
-            const charsPerLine = Math.max(1, Math.floor((colW - CELL_PAD_X * 2 - 2) / 1.9));
+            // Estimar altura de cada bloque
+            const charsPerLine = Math.max(1, Math.floor((colW - CELL_PAD_X * 2 - 2) / 1.55));
             const measureBlock = (lines) => {
                 let totalLines = 0;
                 lines.forEach(line => {
@@ -557,13 +556,13 @@
                 return BLOCK_PAD * 2 + totalLines * LINE_H;
             };
 
-            // Calcular altura del body
+            // Calcular bodyH real: la columna más alta, sin tope
             const bodyHeights = dayDataMap.map(d =>
                 d.blocks.length === 0
                     ? MIN_BODY_H
                     : d.blocks.reduce((s, b) => s + measureBlock(b.lines) + BLOCK_GAP, -BLOCK_GAP) + CELL_PAD_T * 2
             );
-            const bodyH = Math.min(Math.max(...bodyHeights, MIN_BODY_H), H - TABLE_START_Y - 40);
+            const bodyH = Math.max(...bodyHeights, MIN_BODY_H);
 
             // ── Fila encabezado de días ───────────────────────────────────────────
             doc.setFillColor(...C.navy);
@@ -571,14 +570,12 @@
             doc.setDrawColor(...C.border);
             doc.setLineWidth(0.3);
             doc.rect(tableX, TABLE_START_Y, tableWidth, HEAD_H, 'S');
-
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(8);
             doc.setTextColor(...C.white);
             DAYS.forEach((_, i) => {
                 const cx = tableX + i * colW + colW / 2;
-                doc.text(DAY_DISP[i], cx, TABLE_START_Y + HEAD_H - 2.5, { align: 'center' });
-                // separador vertical
+                doc.text(DAY_DISP[i], cx, TABLE_START_Y + HEAD_H - 2, { align: 'center' });
                 if (i > 0) {
                     doc.setDrawColor(...C.border);
                     doc.line(tableX + i * colW, TABLE_START_Y, tableX + i * colW, TABLE_START_Y + HEAD_H);
@@ -587,13 +584,10 @@
 
             // ── Fila body ─────────────────────────────────────────────────────────
             const bodyY = TABLE_START_Y + HEAD_H;
-
             DAYS.forEach((_, i) => {
                 const cellX = tableX + i * colW;
-                // Fondo blanco
                 doc.setFillColor(...C.white);
                 doc.rect(cellX, bodyY, colW, bodyH, 'F');
-                // Borde
                 doc.setDrawColor(...C.border);
                 doc.setLineWidth(0.3);
                 doc.rect(cellX, bodyY, colW, bodyH, 'S');
@@ -610,7 +604,6 @@
 
                 dayData.blocks.forEach((block, bi) => {
                     const blockH = measureBlock(block.lines);
-                    if (cursorY + blockH > bodyY + bodyH - 1) return; // no cabe
 
                     // Fondo del bloque
                     if (block.isExternal) {
@@ -631,7 +624,6 @@
                     let textY = cursorY + BLOCK_PAD + LINE_H * 0.85;
                     const textMaxW = colW - CELL_PAD_X * 2 - 1.5;
                     block.lines.forEach((line, li) => {
-                        if (textY > bodyY + bodyH - 1) return;
                         if (li === 0) {
                             doc.setFont('helvetica', 'bold');
                             doc.setTextColor(...(block.isExternal ? [146, 64, 14] : C.navy));
@@ -639,7 +631,6 @@
                             doc.setFont('helvetica', 'normal');
                             doc.setTextColor(30, 41, 59);
                         }
-                        // Truncar manualmente si es muy largo
                         let txt = line || '';
                         while (txt.length > 3 && doc.getStringUnitWidth(txt) * FONT_SIZE / doc.internal.scaleFactor > textMaxW) {
                             txt = txt.slice(0, -1);
@@ -657,7 +648,6 @@
             doc.setTextColor(30, 41, 59);
             drawFooter();
 
-            // Registrar finalY para la sección siguiente
             const tableEndY = bodyY + bodyH;
 
             // ── Sección "Sin horario asignado" ────────────────────────────────────
