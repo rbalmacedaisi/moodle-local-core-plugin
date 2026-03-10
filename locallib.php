@@ -602,8 +602,16 @@ function create_class_group($class)
     }
 
     if (!empty($class->instructorid) && $class->instructorid > 0) {
+        // Ensure the instructor is enrolled in the course before adding to the group
+        $enrolplugin = enrol_get_plugin('manual');
+        $courseInstance = get_manual_enroll($class->corecourseid);
+        $teacherRoleId = $GLOBALS['DB']->get_field('role', 'id', ['shortname' => 'editingteacher']);
+        if ($enrolplugin && $courseInstance && $teacherRoleId) {
+            $enrolplugin->enrol_user($courseInstance, $class->instructorid, $teacherRoleId);
+        }
+        // Non-fatal: log if group membership fails but don't abort class creation
         if (!groups_add_member($newClassGroup->id, $class->instructorid)) {
-            throw new Exception('Error adding teacher to class group');
+            gmk_log("WARNING: Could not add instructor {$class->instructorid} to group {$newClassGroup->id}");
         }
     }
     return $newClassGroup->id;
