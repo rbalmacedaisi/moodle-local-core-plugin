@@ -330,7 +330,11 @@ const ActivityCreationWizard = {
                     this.$emit('success');
                     this.close();
                 } else {
-                    alert('Error saving activity: ' + response.data.message);
+                    var msg = response.data.message || '';
+                    if (!msg || msg === 'Action not found:') {
+                        msg = 'Error del servidor. Si subiste un archivo, verifica que pese menos de 8 MB.';
+                    }
+                    alert('Error saving activity: ' + msg);
                 }
             } catch (error) {
                 console.error('Error saving activity:', error);
@@ -414,7 +418,14 @@ const ActivityCreationWizard = {
         onResourceFilesSelected(event) {
             var selected = Array.from(event.target.files);
             var self = this;
-            selected.forEach(function(f) { self.resourceFiles.push(f); });
+            var maxSize = 8 * 1024 * 1024; // 8MB = post_max_size del servidor
+            selected.forEach(function(f) {
+                if (f.size > maxSize) {
+                    alert('El archivo "' + f.name + '" pesa ' + (f.size / 1024 / 1024).toFixed(1) + ' MB y supera el límite de 8 MB permitido por el servidor.');
+                    return;
+                }
+                self.resourceFiles.push(f);
+            });
             event.target.value = '';
         },
         removeResourceFile(idx) {
