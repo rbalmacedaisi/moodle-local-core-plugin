@@ -49,7 +49,15 @@ class get_student_gradebook extends external_api
             );
             $groupIds = array_column($userGroups, 'groupid');
 
-            // Attendance module ids belonging to the student's classes
+            // All grade category ids that belong to ANY class in this course
+            $allClassCategoryIds = array_column(
+                $DB->get_records('gmk_class', ['corecourseid' => $courseId], '', 'id,gradecategoryid'),
+                'gradecategoryid'
+            );
+            $allClassCategoryIds = array_filter(array_map('intval', $allClassCategoryIds));
+
+            // Grade category ids and attendance module ids belonging to the student's classes
+            $studentCategoryIds  = [];
             $attendanceModuleIds = [];
             if (!empty($groupIds)) {
                 list($inSql, $inParams) = $DB->get_in_or_equal($groupIds);
@@ -62,6 +70,9 @@ class get_student_gradebook extends external_api
                 foreach ($classes as $c) {
                     if ($c->attendancemoduleid) {
                         $attendanceModuleIds[] = (int)$c->attendancemoduleid;
+                    }
+                    if ($c->gradecategoryid) {
+                        $studentCategoryIds[] = (int)$c->gradecategoryid;
                     }
                 }
             }
@@ -89,6 +100,18 @@ class get_student_gradebook extends external_api
             // ── 4. Build flat list of items, skipping irrelevant BBB items ─────
             $items = [];
             foreach ($gradeItems as $gi) {
+                // Skip items that belong to another group's grade category.
+                // "Global" items (categoryid not owned by any class) are always shown.
+                // If the student has a known category, only show items in their category
+                // or in global categories (not owned by any other class either).
+                $itemCatId = (int)$gi->categoryid;
+                if (!empty($allClassCategoryIds)) {
+                    $belongsToAClass = in_array($itemCatId, $allClassCategoryIds);
+                    if ($belongsToAClass && !in_array($itemCatId, $studentCategoryIds)) {
+                        continue; // Belongs to a different group's category
+                    }
+                }
+
                 // Skip attendance items that don't belong to the student's class
                 if ($gi->itemmodule === 'attendance') {
                     // Find the course module for this attendance instance
