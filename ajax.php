@@ -2382,24 +2382,29 @@ try {
             $intro = optional_param('intro', '', PARAM_RAW);
             $duedate = optional_param('duedate', 0, PARAM_INT);
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
-            $tags = optional_param('tags', '', PARAM_TEXT); // Receive tags as comma-separated string or array
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
-            
-            // Normalize tags if passed as string
+
+            // Normalize tags — may arrive as string (FormData/JSON) or array (JSON flattened)
             $tagList = [];
-            if (!empty($tags)) {
-                if (is_string($tags)) {
-                    $tagList = explode(',', $tags);
-                } else if (is_array($tags)) {
-                   $tagList = $tags;
-                }
+            $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
+            if (is_array($raw_tags)) {
+                $tagList = array_values(array_filter(array_map('trim', $raw_tags)));
+            } else if (is_string($raw_tags) && trim($raw_tags) !== '') {
+                $tagList = array_values(array_filter(array_map('trim', explode(',', $raw_tags))));
             }
 
             try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                    $classid, $type, $name, $intro, $duedate, $save_as_template, $tagList, $gradecat, $guest
+                    $classid, $type, $name, $intro, $duedate, $save_as_template, [], $gradecat, $guest
                 );
+
+                // Apply tags from ajax.php directly (avoids validate_parameters type issues)
+                if (!empty($result['cmid']) && !empty($tagList)) {
+                    $new_cm_tags = get_coursemodule_from_id('', (int)$result['cmid'], 0, false, MUST_EXIST);
+                    $new_ctx_tags = context_module::instance($new_cm_tags->id);
+                    gmk_safe_set_item_tags($new_cm_tags->id, $new_ctx_tags, $tagList);
+                }
 
                 // Handle file attachments for supported module types
                 $modname_create = ($type === 'assignment') ? 'assign' : $type;
@@ -2621,7 +2626,15 @@ try {
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
-            $tags = optional_param('tags', '', PARAM_RAW); // Array or comma list
+            // Normalize tags — may arrive as string (FormData/JSON) or array (JSON flattened)
+            $raw_tags_upd = isset($_POST['tags']) ? $_POST['tags'] : '';
+            if (is_array($raw_tags_upd)) {
+                $tags = array_values(array_filter(array_map('trim', $raw_tags_upd)));
+            } else if (is_string($raw_tags_upd) && trim($raw_tags_upd) !== '') {
+                $tags = array_values(array_filter(array_map('trim', explode(',', $raw_tags_upd))));
+            } else {
+                $tags = [];
+            }
             $visible = required_param('visible', PARAM_BOOL);
             
             // New optional params
@@ -2663,10 +2676,7 @@ try {
             // Update visibility
             set_coursemodule_visible($cmid, $visible ? 1 : 0);
 
-            // Update Tags
-            if (!is_array($tags)) {
-                $tags = array_values(array_filter(explode(',', $tags), function($t) { return trim($t) !== ''; }));
-            }
+            // Update Tags (already normalized to array above)
             gmk_safe_set_item_tags($cm->id, $context, $tags);
 
             // Rebuild cache
@@ -3418,6 +3428,36 @@ try {
             $DB->delete_records('forum_discussions', ['id'         => $discussionid]);
 
             $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_check_grace_period':
+            // Server-to-server endpoint: Express queries Moodle to check grace period.
+            // Accepts a shared token; falls back to requiring a valid Moodle session.
+            $token = optional_param('token', '', PARAM_TEXT);
+            $expected_token = get_config('local_grupomakro_core', 'grace_period_token') ?: 'gmk_grace_check_2026';
+            if ($token !== $expected_token) {
+                require_login();
+            }
+
+            if (!get_config('local_grupomakro_core', 'grace_period_enabled')) {
+                $response = ['status' => 'success', 'inGrace' => false];
+                break;
+            }
+
+            $documentnumber = required_param('documentnumber', PARAM_TEXT);
+            $now = time();
+            $grace = $DB->get_record_select(
+                'gmk_grace_period',
+                'documentnumber = :doc AND graceuntil >= :now',
+                ['doc' => $documentnumber, 'now' => $now],
+                'id, graceuntil',
+                IGNORE_MISSING
+            );
+            $response = [
+                'status'     => 'success',
+                'inGrace'    => !empty($grace),
+                'graceuntil' => $grace ? (int)$grace->graceuntil : null,
+            ];
             break;
 
         default:

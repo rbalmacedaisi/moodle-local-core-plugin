@@ -103,6 +103,11 @@ if ($hassiteconfig) {
         '🔓 Ignorar Estado Financiero en Login',
         new moodle_url('/local/grupomakro_core/pages/bypass_financial.php')
     );
+    $gracePeriodPage = new admin_externalpage(
+        'grupomakro_core_grace_period',
+        '⏳ Periodo de Gracia en Primer Login',
+        new moodle_url('/local/grupomakro_core/pages/grace_period.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -118,6 +123,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $manageMeetingsPage);
     $ADMIN->add('grupomakrocore_plugin', $fixAcademicStatusPage);
     $ADMIN->add('grupomakrocore_plugin', $bypassFinancialPage);
+    $ADMIN->add('grupomakrocore_plugin', $gracePeriodPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
@@ -202,6 +208,23 @@ if ($hassiteconfig) {
             'Secreto Admin del Proxy (Bypass Financiero)',
             'Token secreto para autenticar solicitudes de administración al proxy Express. Debe coincidir con ADMIN_SECRET en server.js.',
             'gmk_admin_bypass_2026',
+            PARAM_TEXT
+        ));
+
+        // Habilitar/deshabilitar periodo de gracia en primer login
+        $settingspage->add(new admin_setting_configcheckbox(
+            'local_grupomakro_core/grace_period_enabled',
+            'Periodo de gracia en primer login',
+            'Si está activo, los estudiantes que inicien sesión por primera vez tendrán acceso hasta el final del mes sin restricciones financieras.',
+            0
+        ));
+
+        // Token compartido para la consulta server-to-server (Express → Moodle)
+        $settingspage->add(new admin_setting_configpasswordunmask(
+            'local_grupomakro_core/grace_period_token',
+            'Token de consulta de periodo de gracia',
+            'Token secreto compartido entre el Express Server y Moodle. Debe coincidir con MOODLE_GRACE_TOKEN en server.js.',
+            'gmk_grace_check_2026',
             PARAM_TEXT
         ));
 

@@ -1592,6 +1592,22 @@ function xmldb_local_grupomakro_core_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 20260304000, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20260310000) {
+        // Create gmk_grace_period table for first-login grace periods.
+        $table = new xmldb_table('gmk_grace_period');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('documentnumber', XMLDB_TYPE_CHAR, '50');
+        $table->add_field('graceuntil', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_UNIQUE, ['userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+        upgrade_plugin_savepoint(true, 20260310000, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
 

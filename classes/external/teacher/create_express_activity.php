@@ -81,11 +81,7 @@ class create_express_activity extends external_api {
         try {
             $result = local_grupomakro_create_express_activity($params['classid'], $modname, $params['name'], $params['intro'], $extra);
             
-            // Handle Tags
-            if (!empty($params['tags']) && !empty($result->coursemodule)) {
-                $cmcontext = \context_module::instance($result->coursemodule);
-                gmk_safe_set_item_tags($result->coursemodule, $cmcontext, $params['tags']);
-            }
+            // Tags are applied by the ajax.php caller after execute() returns the cmid.
 
             // Handle Grade Category for quizzes/assignments if created successfully
             // (Wait, local_grupomakro_create_express_activity might handle basic grading, but explicit category assignment might need extra logic 

@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260304000;         // Store assigned_dates in gmk_class_schedules; use them in create_class_activities for precise session generation.
+$plugin->version   = 20260310000;         // Add gmk_grace_period table for first-login grace periods.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
