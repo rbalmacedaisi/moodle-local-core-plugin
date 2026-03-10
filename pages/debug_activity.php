@@ -15,6 +15,7 @@ header('Content-Type: text/html; charset=utf-8');
 <head>
 <meta charset="utf-8">
 <title>Debug Activity Creation</title>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <style>
 body { font-family: monospace; font-size: 13px; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
 h2 { color: #569cd6; }
