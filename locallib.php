@@ -602,16 +602,24 @@ function create_class_group($class)
     }
 
     if (!empty($class->instructorid) && $class->instructorid > 0) {
-        // Ensure the instructor is enrolled in the course before adding to the group
-        $enrolplugin = enrol_get_plugin('manual');
-        $courseInstance = get_manual_enroll($class->corecourseid);
-        $teacherRoleId = $GLOBALS['DB']->get_field('role', 'id', ['shortname' => 'editingteacher']);
-        if ($enrolplugin && $courseInstance && $teacherRoleId) {
-            $enrolplugin->enrol_user($courseInstance, $class->instructorid, $teacherRoleId);
-        }
-        // Non-fatal: log if group membership fails but don't abort class creation
-        if (!groups_add_member($newClassGroup->id, $class->instructorid)) {
-            gmk_log("WARNING: Could not add instructor {$class->instructorid} to group {$newClassGroup->id}");
+        // Verify the instructor exists and is not deleted/suspended before any group operation
+        $instructorExists = $GLOBALS['DB']->record_exists('user', [
+            'id' => $class->instructorid, 'deleted' => 0, 'suspended' => 0
+        ]);
+        if ($instructorExists) {
+            // Ensure the instructor is enrolled in the course before adding to the group
+            $enrolplugin = enrol_get_plugin('manual');
+            $courseInstance = get_manual_enroll($class->corecourseid);
+            $teacherRoleId = $GLOBALS['DB']->get_field('role', 'id', ['shortname' => 'editingteacher']);
+            if ($enrolplugin && $courseInstance && $teacherRoleId) {
+                $enrolplugin->enrol_user($courseInstance, $class->instructorid, $teacherRoleId);
+            }
+            // Non-fatal: log if group membership fails but don't abort class creation
+            if (!groups_add_member($newClassGroup->id, $class->instructorid)) {
+                gmk_log("WARNING: Could not add instructor {$class->instructorid} to group {$newClassGroup->id}");
+            }
+        } else {
+            gmk_log("WARNING: Instructor {$class->instructorid} not found or suspended, skipping group assignment");
         }
     }
     return $newClassGroup->id;
