@@ -106,51 +106,51 @@ if ($userId && $courseId) {
     }
 
     // ── STEP 2: All class category ids in course ──────────────────────────────
-    dbg_section('PASO 2 — Todas las clases (gmk_class) del curso y sus gradecategoryid');
-    $allClasses = $DB->get_records('gmk_class', ['corecourseid' => $courseId], '', 'id,groupid,gradecategoryid,attendancemoduleid');
+    dbg_section('PASO 2 — Todas las clases (gmk_class) del curso');
+    $allClasses = $DB->get_records('gmk_class', ['corecourseid' => $courseId], '', 'id,groupid,gradecategoryid,attendancemoduleid,coursesectionid');
     $allClassCategoryIds = [];
+    $allClassSectionIds  = [];
     if ($allClasses) {
         $rows = [];
         foreach ($allClasses as $c) {
             $groupName = $DB->get_field('groups', 'name', ['id' => $c->groupid]) ?: '-';
             $catName   = $c->gradecategoryid ? ($DB->get_field('grade_categories', 'fullname', ['id' => $c->gradecategoryid]) ?: '?') : '-';
-            $rows[] = [$c->id, $c->groupid, $groupName, $c->gradecategoryid ?: '-', $catName, $c->attendancemoduleid ?: '-'];
+            $rows[] = [$c->id, $c->groupid, $groupName, $c->gradecategoryid ?: '-', $catName, $c->attendancemoduleid ?: '-', $c->coursesectionid ?: '-'];
             if ($c->gradecategoryid) $allClassCategoryIds[] = (int)$c->gradecategoryid;
+            if ($c->coursesectionid) $allClassSectionIds[]  = (int)$c->coursesectionid;
         }
-        dbg_table($rows, ['class id', 'groupid', 'group name', 'gradecategoryid', 'category name', 'attendancemoduleid']);
+        dbg_table($rows, ['class id', 'groupid', 'group name', 'gradecategoryid', 'category name', 'attendancemoduleid', 'coursesectionid']);
     } else {
         echo '<p style="color:orange;">⚠️ No hay clases en gmk_class para este curso.</p>';
     }
     echo '<p><b>allClassCategoryIds:</b> [' . implode(', ', $allClassCategoryIds) . ']</p>';
+    echo '<p><b>allClassSectionIds:</b> [' . implode(', ', $allClassSectionIds) . ']</p>';
 
     // ── STEP 3: Student's classes ─────────────────────────────────────────────
     dbg_section('PASO 3 — Clases del estudiante (por grupo)');
     $studentCategoryIds  = [];
+    $studentSectionIds   = [];
     $attendanceModuleIds = [];
     if (!empty($groupIds)) {
-        list($inSql, $inParams) = $DB->get_in_or_equal($groupIds);
-        $classes = $DB->get_records_sql(
-            "SELECT id, groupid, attendancemoduleid, gradecategoryid FROM {gmk_class}
-             WHERE groupid $inSql AND corecourseid = :cid",
-            array_merge($inParams, ['cid' => $courseId])
-        );
-        if ($classes) {
-            $rows = [];
-            foreach ($classes as $c) {
-                $groupName = $DB->get_field('groups', 'name', ['id' => $c->groupid]) ?: '-';
-                $catName   = $c->gradecategoryid ? ($DB->get_field('grade_categories', 'fullname', ['id' => $c->gradecategoryid]) ?: '?') : '-';
-                $rows[] = [$c->id, $c->groupid, $groupName, $c->gradecategoryid ?: '-', $catName, $c->attendancemoduleid ?: '-'];
-                if ($c->gradecategoryid) $studentCategoryIds[] = (int)$c->gradecategoryid;
-                if ($c->attendancemoduleid) $attendanceModuleIds[] = (int)$c->attendancemoduleid;
-            }
-            dbg_table($rows, ['class id', 'groupid', 'group name', 'gradecategoryid', 'category name', 'attendancemoduleid']);
+        foreach ($allClasses as $c) {
+            if (!in_array((int)$c->groupid, array_map('intval', $groupIds))) continue;
+            $groupName = $DB->get_field('groups', 'name', ['id' => $c->groupid]) ?: '-';
+            $catName   = $c->gradecategoryid ? ($DB->get_field('grade_categories', 'fullname', ['id' => $c->gradecategoryid]) ?: '?') : '-';
+            $rows[] = [$c->id, $c->groupid, $groupName, $c->gradecategoryid ?: '-', $catName, $c->attendancemoduleid ?: '-', $c->coursesectionid ?: '-'];
+            if ($c->gradecategoryid)    $studentCategoryIds[]  = (int)$c->gradecategoryid;
+            if ($c->coursesectionid)    $studentSectionIds[]   = (int)$c->coursesectionid;
+            if ($c->attendancemoduleid) $attendanceModuleIds[] = (int)$c->attendancemoduleid;
+        }
+        if (!empty($studentCategoryIds)) {
+            dbg_table($rows ?? [], ['class id', 'groupid', 'group name', 'gradecategoryid', 'category name', 'attendancemoduleid', 'coursesectionid']);
         } else {
             echo '<p style="color:orange;">⚠️ No hay clases en gmk_class para los grupos del estudiante.</p>';
         }
     } else {
-        echo '<p style="color:gray;">Sin grupos → studentCategoryIds = []</p>';
+        echo '<p style="color:gray;">Sin grupos → studentCategoryIds = [], studentSectionIds = []</p>';
     }
     echo '<p><b>studentCategoryIds:</b> [' . implode(', ', $studentCategoryIds) . ']</p>';
+    echo '<p><b>studentSectionIds:</b> [' . implode(', ', $studentSectionIds) . ']</p>';
     echo '<p><b>attendanceModuleIds:</b> [' . implode(', ', $attendanceModuleIds) . ']</p>';
 
     // ── STEP 4: All grade items with filter trace ─────────────────────────────
@@ -172,8 +172,9 @@ if ($userId && $courseId) {
         $catName   = $DB->get_field('grade_categories', 'fullname', ['id' => $itemCatId]) ?: '?';
 
         // Apply filter logic
-        $result = '✅ MOSTRAR';
-        $reason = '';
+        $result   = '✅ MOSTRAR';
+        $reason   = '';
+        $cmSection = '-';
         if (!empty($allClassCategoryIds)) {
             $belongsToAClass = in_array($itemCatId, $allClassCategoryIds);
             if ($belongsToAClass && !in_array($itemCatId, $studentCategoryIds)) {
@@ -186,6 +187,20 @@ if ($userId && $courseId) {
                 if ($representsAClass && !in_array($representsCatId, $studentCategoryIds)) {
                     $result = '❌ FILTRAR';
                     $reason = 'total de cat de otro grupo (iteminstance=' . $representsCatId . ')';
+                }
+            }
+        }
+        // Section-based filter for mod items
+        if ($result === '✅ MOSTRAR' && $gi->itemtype === 'mod' && !empty($allClassSectionIds)) {
+            $modId = $DB->get_field('modules', 'id', ['name' => $gi->itemmodule]);
+            $cm = $modId ? $DB->get_record('course_modules',
+                ['course' => $courseId, 'instance' => $gi->iteminstance, 'module' => $modId], 'id,section') : null;
+            if ($cm) {
+                $cmSection = (int)$cm->section;
+                $sectionBelongsToAClass = in_array($cmSection, $allClassSectionIds);
+                if ($sectionBelongsToAClass && !in_array($cmSection, $studentSectionIds)) {
+                    $result = '❌ FILTRAR';
+                    $reason = 'sección de otro grupo (section=' . $cmSection . ')';
                 }
             }
         }
@@ -204,11 +219,12 @@ if ($userId && $courseId) {
             $gi->itemmodule ?: '-',
             $gi->itemname ?: '-',
             is_null($gi->finalgrade) ? 'NULL' : round($gi->finalgrade, 2),
+            $cmSection,
             $result,
             $reason,
         ];
     }
-    dbg_table($rows, ['item id', 'categoryid', 'category name', 'itemtype', 'itemmodule', 'itemname', 'finalgrade', 'resultado', 'razón']);
+    dbg_table($rows, ['item id', 'categoryid', 'category name', 'itemtype', 'itemmodule', 'itemname', 'finalgrade', 'cm section', 'resultado', 'razón']);
 
     // ── STEP 5: All grade categories in course ────────────────────────────────
     dbg_section('PASO 5 — Todas las grade_categories del curso');

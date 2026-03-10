@@ -49,31 +49,31 @@ class get_student_gradebook extends external_api
             );
             $groupIds = array_column($userGroups, 'groupid');
 
-            // All grade category ids that belong to ANY class in this course
-            $allClassCategoryIds = array_column(
-                $DB->get_records('gmk_class', ['corecourseid' => $courseId], '', 'id,gradecategoryid'),
-                'gradecategoryid'
-            );
-            $allClassCategoryIds = array_filter(array_map('intval', $allClassCategoryIds));
+            // All classes in this course — build maps of section/category ownership
+            $allClasses = $DB->get_records('gmk_class', ['corecourseid' => $courseId],
+                '', 'id,groupid,gradecategoryid,attendancemoduleid,coursesectionid');
 
-            // Grade category ids and attendance module ids belonging to the student's classes
+            // All grade category ids that belong to ANY class in this course
+            $allClassCategoryIds = [];
+            // Map: coursesection id → class (for section-based filtering)
+            $allClassSectionIds  = [];
+            foreach ($allClasses as $c) {
+                if ($c->gradecategoryid)  $allClassCategoryIds[] = (int)$c->gradecategoryid;
+                if ($c->coursesectionid)  $allClassSectionIds[]  = (int)$c->coursesectionid;
+            }
+            $allClassCategoryIds = array_unique(array_filter($allClassCategoryIds));
+            $allClassSectionIds  = array_unique(array_filter($allClassSectionIds));
+
+            // Grade category ids, section ids and attendance module ids of the student's classes
             $studentCategoryIds  = [];
+            $studentSectionIds   = [];
             $attendanceModuleIds = [];
             if (!empty($groupIds)) {
-                list($inSql, $inParams) = $DB->get_in_or_equal($groupIds);
-                $classes = $DB->get_records_sql(
-                    "SELECT id, attendancemoduleid, gradecategoryid
-                     FROM {gmk_class}
-                     WHERE groupid $inSql AND corecourseid = :cid",
-                    array_merge($inParams, ['cid' => $courseId])
-                );
-                foreach ($classes as $c) {
-                    if ($c->attendancemoduleid) {
-                        $attendanceModuleIds[] = (int)$c->attendancemoduleid;
-                    }
-                    if ($c->gradecategoryid) {
-                        $studentCategoryIds[] = (int)$c->gradecategoryid;
-                    }
+                foreach ($allClasses as $c) {
+                    if (!in_array((int)$c->groupid, array_map('intval', $groupIds))) continue;
+                    if ($c->attendancemoduleid) $attendanceModuleIds[] = (int)$c->attendancemoduleid;
+                    if ($c->gradecategoryid)    $studentCategoryIds[]  = (int)$c->gradecategoryid;
+                    if ($c->coursesectionid)    $studentSectionIds[]   = (int)$c->coursesectionid;
                 }
             }
 
@@ -118,6 +118,22 @@ class get_student_gradebook extends external_api
                         $representsAClass = in_array($representsCatId, $allClassCategoryIds);
                         if ($representsAClass && !in_array($representsCatId, $studentCategoryIds)) {
                             continue; // Total of a different group's category
+                        }
+                    }
+                }
+
+                // For mod items in a global category: filter by course section ownership.
+                // If the activity lives in a section that belongs to another group, skip it.
+                if ($gi->itemtype === 'mod' && !empty($allClassSectionIds)) {
+                    $cm = $DB->get_record('course_modules',
+                        ['course' => $courseId, 'instance' => $gi->iteminstance,
+                         'module' => $DB->get_field('modules', 'id', ['name' => $gi->itemmodule])],
+                        'id,section');
+                    if ($cm) {
+                        $cmSection = (int)$cm->section;
+                        $sectionBelongsToAClass = in_array($cmSection, $allClassSectionIds);
+                        if ($sectionBelongsToAClass && !in_array($cmSection, $studentSectionIds)) {
+                            continue; // Activity is in another group's section
                         }
                     }
                 }
