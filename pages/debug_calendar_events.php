@@ -207,9 +207,9 @@ echo "<div class='section'>5. Relación gmk_bbb_attendance_relation (sesiones fu
 $futureSess = $DB->get_records_sql(
     "SELECT asess.id, asess.sessdate, asess.caleventid
      FROM {attendance_sessions} asess
-     WHERE asess.groupid $inSql AND asess.sessdate > :now
+     WHERE asess.groupid $inSql AND asess.sessdate > " . $now . "
      ORDER BY asess.sessdate ASC LIMIT 15",
-    array_merge($inParams, ['now' => $now])
+    $inParams
 );
 
 echo "<table><tr><th>Session ID</th><th>Fecha</th><th>caleventid</th><th>En bbb_attendance_relation</th><th>classid</th></tr>";
