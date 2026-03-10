@@ -4338,6 +4338,13 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
             break;
     }
 
+    // Ensure fields always present so the LXP frontend doesn't throw on missing properties
+    $event->classDaysES   = $event->classDaysES   ?? [];
+    $event->classDaysEN   = $event->classDaysEN   ?? [];
+    $event->timeRange     = $event->timeRange     ?? date('H:i', $event->timestart);
+    $event->typelabel     = $event->typelabel     ?? 'Actividad';
+    $event->instructorName = $event->instructorName ?? '';
+
     $event->timeduration = 0; // Deadlines are usually points in time
     $event->start = date('Y-m-d H:i:s', $event->timestart);
     $event->end = $event->start;
