@@ -3471,6 +3471,22 @@ try {
             ];
             break;
 
+        case 'debug_inspect_post':
+            // TEMPORARY DEBUG — remove after diagnosis
+            require_capability('moodle/site:config', context_system::instance());
+            $response = [
+                'status' => 'success',
+                'action_received' => $action,
+                'post_keys' => array_keys($_POST),
+                'post_action' => $_POST['action'] ?? '(not set)',
+                'content_type' => $_SERVER['CONTENT_TYPE'] ?? '(not set)',
+                'request_method' => $_SERVER['REQUEST_METHOD'] ?? '(not set)',
+                'post_max_size' => ini_get('post_max_size'),
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'php_input_available' => !empty(file_get_contents('php://input')) ? 'yes (json path)' : 'no',
+            ];
+            break;
+
         default:
             $response['message'] = 'Action not found: ' . $action;
             break;

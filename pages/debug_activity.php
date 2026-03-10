@@ -70,16 +70,33 @@ input, select { background: #3c3c3c; color: #d4d4d4; border: 1px solid #555; pad
 <h3>Test 4: Verificar ajax.php directamente (action=ping)</h3>
 <button onclick="testPing()">Ping ajax.php</button>
 
+<h3>Test 5: Simular EXACTAMENTE Axios FormData (igual que wizard en dashboard)</h3>
+<div>
+    classid: <input type="number" id="classid5" value="<?php echo optional_param('classid', 1, PARAM_INT); ?>" style="width:80px">
+    type: <input type="text" id="type5" value="assignment" style="width:100px">
+    name: <input type="text" id="name5" value="Test Axios FormData">
+</div>
+<button onclick="testAxiosFormData()">Enviar con Axios (igual que wizard)</button>
+
+<h3>Test 6: Inspeccionar qué recibe ajax.php del FormData</h3>
+<button onclick="testInspect()">Inspeccionar POST recibido</button>
+
 <h3>Log de resultados:</h3>
 <div id="log"></div>
 
 <script>
-// Detectar wsUrl y sesskey igual que el dashboard
-window.wsUrl = window.location.origin + '/local/grupomakro_core/ajax.php';
-window.wsStaticParams = { sesskey: '<?php echo sesskey(); ?>' };
+// Usar exactamente los mismos valores que el dashboard real
+window.wsUrl = '<?php echo $CFG->wwwroot; ?>/local/grupomakro_core/ajax.php';
+window.wsStaticParams = { sesskey: '<?php echo $USER->sesskey; ?>' };
 
 document.getElementById('wsUrlDisplay').textContent = window.wsUrl;
 document.getElementById('sesskeyDisplay').textContent = window.wsStaticParams.sesskey;
+
+// Mostrar info extra de diagnóstico
+console.log('CFG wwwroot:', window.wsUrl);
+console.log('window.location.origin:', window.location.origin);
+console.log('Son iguales?', window.wsUrl.startsWith(window.location.origin));
+
 
 function log(title, data, isError) {
     const div = document.createElement('div');
@@ -194,6 +211,50 @@ async function testFormDataFile() {
         log('FormData+Archivo Response', data, !data.status || data.status !== 'success');
     } catch(e) {
         log('FormData+Archivo Error', { error: e.message }, true);
+    }
+}
+
+async function testAxiosFormData() {
+    // Replicar EXACTAMENTE el código del ActivityCreationWizard con supportsFiles=true
+    const fd = new FormData();
+    fd.append('action', 'local_grupomakro_create_express_activity');
+    fd.append('sesskey', window.wsStaticParams.sesskey);
+    fd.append('classid', document.getElementById('classid5').value);
+    fd.append('type', document.getElementById('type5').value);
+    fd.append('name', document.getElementById('name5').value);
+    fd.append('intro', '');
+    fd.append('tags', '');
+    fd.append('save_as_template', '0');
+
+    log('Axios FormData Request', {
+        url: window.wsUrl,
+        action: 'local_grupomakro_create_express_activity',
+        classid: document.getElementById('classid5').value,
+        type: document.getElementById('type5').value,
+        note: 'Sin Content-Type manual — igual que wizard corregido'
+    });
+
+    try {
+        // Usar axios igual que el wizard corregido (sin headers forzados)
+        const response = await axios.post(window.wsUrl, fd);
+        log('Axios FormData Response', response.data, response.data.status !== 'success');
+    } catch(e) {
+        log('Axios FormData Error', { error: e.message, code: e.code }, true);
+    }
+}
+
+async function testInspect() {
+    // Llamar a un endpoint especial que refleje lo que recibe
+    try {
+        const fd = new FormData();
+        fd.append('action', 'debug_inspect_post');
+        fd.append('test_field', 'hello_world');
+        fd.append('sesskey', window.wsStaticParams.sesskey);
+
+        const response = await axios.post(window.wsUrl, fd);
+        log('Inspect POST Response', response.data, false);
+    } catch(e) {
+        log('Inspect Error', { error: e.message }, true);
     }
 }
 
