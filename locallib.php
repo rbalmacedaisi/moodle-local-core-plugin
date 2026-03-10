@@ -331,12 +331,14 @@ function get_potential_class_teachers($params)
 
         $learningPlanTeachers = array_filter(array_map(function ($teacher) use ($incomingClassSchedule, $incomingTimestampRange, $weekdays, $classDays, $params) {
             $availableDays = [];
-            $availabilityRecords = get_teachers_disponibility(['instructorId' => $teacher->userid])[$teacher->userid]->disponibilityRecords;
+            $dispResult = get_teachers_disponibility(['instructorId' => $teacher->userid]);
+            $dispEntry = isset($dispResult[$teacher->userid]) && is_object($dispResult[$teacher->userid]) ? $dispResult[$teacher->userid] : null;
+            $availabilityRecords = ($dispEntry && isset($dispEntry->disponibilityRecords)) ? $dispEntry->disponibilityRecords : null;
             for ($dayIndex = 0; $dayIndex < 7; $dayIndex++) {
-                if ($classDays !== '1/1/1/1/1/1/1' && $incomingClassSchedule[$dayIndex] === "1" && !array_key_exists($weekdays[$dayIndex], $availabilityRecords)) {
+                if ($classDays !== '1/1/1/1/1/1/1' && $incomingClassSchedule[$dayIndex] === "1" && !array_key_exists($weekdays[$dayIndex], (array)$availabilityRecords)) {
                     return null;
                 }
-                if ($incomingClassSchedule[$dayIndex] === "1" && array_key_exists($weekdays[$dayIndex], $availabilityRecords)) {;
+                if ($incomingClassSchedule[$dayIndex] === "1" && is_array($availabilityRecords) && array_key_exists($weekdays[$dayIndex], $availabilityRecords)) {;
                     $foundedAvailableRange = false;
                     foreach ($availabilityRecords[$weekdays[$dayIndex]] as $timeRange) {
                         $availabilityTimestampRange = convert_time_range_to_timestamp_range(explode(', ', $timeRange));
