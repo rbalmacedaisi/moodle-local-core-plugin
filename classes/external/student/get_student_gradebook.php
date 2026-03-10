@@ -106,9 +106,19 @@ class get_student_gradebook extends external_api
                 // or in global categories (not owned by any other class either).
                 $itemCatId = (int)$gi->categoryid;
                 if (!empty($allClassCategoryIds)) {
+                    // For regular items: filter by their categoryid
                     $belongsToAClass = in_array($itemCatId, $allClassCategoryIds);
                     if ($belongsToAClass && !in_array($itemCatId, $studentCategoryIds)) {
                         continue; // Belongs to a different group's category
+                    }
+                    // For category-total items (itemtype='category'): their categoryid is 0,
+                    // but iteminstance = the grade_category.id they represent.
+                    if ($gi->itemtype === 'category') {
+                        $representsCatId = (int)$gi->iteminstance;
+                        $representsAClass = in_array($representsCatId, $allClassCategoryIds);
+                        if ($representsAClass && !in_array($representsCatId, $studentCategoryIds)) {
+                            continue; // Total of a different group's category
+                        }
                     }
                 }
 

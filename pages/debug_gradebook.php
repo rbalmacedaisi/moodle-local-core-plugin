@@ -180,6 +180,14 @@ if ($userId && $courseId) {
                 $result = '❌ FILTRAR';
                 $reason = 'cat de otro grupo';
             }
+            if ($result === '✅ MOSTRAR' && $gi->itemtype === 'category') {
+                $representsCatId = (int)$gi->iteminstance;
+                $representsAClass = in_array($representsCatId, $allClassCategoryIds);
+                if ($representsAClass && !in_array($representsCatId, $studentCategoryIds)) {
+                    $result = '❌ FILTRAR';
+                    $reason = 'total de cat de otro grupo (iteminstance=' . $representsCatId . ')';
+                }
+            }
         }
         if ($result === '✅ MOSTRAR' && $gi->itemmodule === 'bigbluebuttonbn') {
             $result = '❌ FILTRAR'; $reason = 'BBB';
