@@ -24,6 +24,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = "local_grupomakro_core";
-$plugin->version   = 20260310000;         // Add gmk_grace_period table for first-login grace periods.
+$plugin->version   = 20260310001;         // Add get_course_announcements and get_student_gradebook web services.
 $plugin->requires = 2014051200;
 $plugin->maturity = MATURITY_STABLE;
