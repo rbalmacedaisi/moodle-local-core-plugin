@@ -299,7 +299,7 @@ window.SchedulerComponents.PeriodGroupedView = {
                 const [epA, crA, shA] = a.split('|||');
                 const [epB, crB, shB] = b.split('|||');
                 // Período descendente
-                if (epA !== epB) return epB.localeCompare(epA);
+                if (epA !== epB) return epA.localeCompare(epB);
                 // Carrera ascendente
                 if (crA !== crB) return crA.localeCompare(crB);
                 // Jornada ascendente
