@@ -616,11 +616,13 @@
                     'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
                     'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
                 ];
-                const optimized = Array.isArray(schedules) ? schedules.map(s => {
-                    const clean = {};
-                    essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
-                    return clean;
-                }) : schedules;
+                const optimized = Array.isArray(schedules) ? schedules
+                    .filter(s => !s.isExternal) // Never publish external classes
+                    .map(s => {
+                        const clean = {};
+                        essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
+                        return clean;
+                    }) : schedules;
 
                 await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,

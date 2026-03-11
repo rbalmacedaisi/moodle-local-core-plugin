@@ -11,8 +11,10 @@ $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Fix Draft Duplicados');
 echo $OUTPUT->header();
 
-$action   = optional_param('action', '', PARAM_ALPHA);
-$periodid = optional_param('periodid', 0, PARAM_INT);
+$action      = optional_param('action', '', PARAM_ALPHA);
+$periodid    = optional_param('periodid', 0, PARAM_INT);
+$fixclassid  = optional_param('fixclassid', 0, PARAM_INT);
+$fixtopid    = optional_param('fixtopid', 0, PARAM_INT);
 
 echo '<h2>Fix: Limpiar Draft de Periodo</h2>';
 echo '<p style="font-family:sans-serif;color:#555;">Borra el draft guardado de un periodo para que el tablero de planificación muestre solo las clases publicadas en BD, sin duplicados.</p>';
