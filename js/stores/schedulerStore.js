@@ -648,7 +648,7 @@
             console.log(`DEBUG: Attempting to load draft for period ${periodId}...`);
             try {
                 const draft = await this._fetch('local_grupomakro_load_draft', { periodid: periodId });
-                if (draft && Array.isArray(draft)) {
+                if (draft && Array.isArray(draft) && draft.length > 0) {
                     console.log(`DEBUG: Draft found for period ${periodId}. Items: ${draft.length}`);
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
                     const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
