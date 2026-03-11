@@ -1362,7 +1362,7 @@ function list_classes($filters)
 
         //Set the number of students registered for the class
         $classParticipants = get_class_participants($class);
-        $class->enroledStudents = count($classParticipants->enroledStudents) - 1;
+        $class->enroledStudents = count($classParticipants->enroledStudents);
         $class->preRegisteredStudents = count($classParticipants->preRegisteredStudents);
         $class->queuedStudents = count($classParticipants->queuedStudents);
         $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
@@ -1511,10 +1511,40 @@ function get_class_participants($class)
 {
     global $DB;
 
+    $instructorId = (int)($class->instructorid ?? 0);
+
     $classParticipants = new stdClass();
-    $classParticipants->enroledStudents =  $DB->get_records('groups_members', ['groupid' => $class->groupid]);
-    $classParticipants->preRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
-    $classParticipants->queuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+
+    // enroledStudents: group members excluding the instructor
+    if ($instructorId) {
+        $classParticipants->enroledStudents = $DB->get_records_select(
+            'groups_members', 'groupid = :gid AND userid != :uid',
+            ['gid' => $class->groupid, 'uid' => $instructorId]
+        );
+    } else {
+        $classParticipants->enroledStudents = $DB->get_records('groups_members', ['groupid' => $class->groupid]);
+    }
+
+    // preRegisteredStudents: exclude instructor
+    if ($instructorId) {
+        $classParticipants->preRegisteredStudents = $DB->get_records_select(
+            'gmk_class_pre_registration', 'classid = :cid AND userid != :uid',
+            ['cid' => $class->id, 'uid' => $instructorId]
+        );
+    } else {
+        $classParticipants->preRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
+    }
+
+    // queuedStudents: exclude instructor
+    if ($instructorId) {
+        $classParticipants->queuedStudents = $DB->get_records_select(
+            'gmk_class_queue', 'classid = :cid AND userid != :uid',
+            ['cid' => $class->id, 'uid' => $instructorId]
+        );
+    } else {
+        $classParticipants->queuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+    }
+
     $classParticipants->progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
     return $classParticipants;
 }
