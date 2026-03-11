@@ -340,11 +340,15 @@ class local_grupomakro_progress_manager
     {
         global $DB, $USER;
 
+        gmk_log("assign_class_to_course_progress: userid=$userId classid={$class->id} corecourseid={$class->corecourseid} learningplanid=" . ($class->learningplanid ?? 'NULL'));
+
         $courseProgress = $DB->get_record('gmk_course_progre', [
             'userid' => $userId,
             'courseid' => $class->corecourseid,
             'learningplanid' => $class->learningplanid
         ]);
+
+        gmk_log("assign_class_to_course_progress: existing record=" . ($courseProgress ? "id={$courseProgress->id}" : 'none'));
 
         // If no progress record exists, create one
         if (!$courseProgress) {

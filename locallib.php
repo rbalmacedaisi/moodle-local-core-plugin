@@ -1819,13 +1819,19 @@ function approve_course_schedules($approvingSchedules)
         $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $schedule['classId']]);
         $scheduleQueuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $schedule['classId']]);
 
+        gmk_log("approve_course_schedules: classId={$schedule['classId']} groupid={$class->groupid} corecourseid={$class->corecourseid} approved={$class->approved} alreadyApproved=" . ($alreadyApproved ? 'true' : 'false'));
+        gmk_log("approve_course_schedules: preReg=" . count($schedulePreRegisteredStudents) . " queued=" . count($scheduleQueuedStudents));
+
         // Deduplicate by userid — a student may appear in both tables
         $allStudents = [];
         foreach (array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents) as $s) {
             $allStudents[$s->userid] = $s;
         }
 
+        gmk_log("approve_course_schedules: deduped students=" . count($allStudents) . " userids=" . implode(',', array_keys($allStudents)));
+
         $enrolmentResults = enrolApprovedScheduleStudents($allStudents, $class);
+        gmk_log("approve_course_schedules: enrolmentResults=" . json_encode($enrolmentResults));
 
         // Make sure the id field is set before updating
         if (!isset($class->id)) {
@@ -1882,10 +1888,15 @@ function enrolApprovedScheduleStudents($students, $class)
     $enrolplugin = enrol_get_plugin('manual');
     $courseInstance = get_manual_enroll($class->corecourseid);
 
+    gmk_log("enrolApprovedScheduleStudents: classid={$class->id} groupid={$class->groupid} corecourseid={$class->corecourseid} studentRoleId={$studentRoleId} courseInstance=" . ($courseInstance ? $courseInstance->id : 'NULL'));
+
     foreach ($students as $student) {
         // Enrol user in Moodle course first to avoid groups_add_member failure
         if ($courseInstance && $enrolplugin && $studentRoleId) {
             $enrolplugin->enrol_user($courseInstance, $student->userid, $studentRoleId);
+            gmk_log("enrolApprovedScheduleStudents: enrol_user courseid={$class->corecourseid} userid={$student->userid}");
+        } else {
+            gmk_log("enrolApprovedScheduleStudents: SKIP enrol_user - courseInstance=" . ($courseInstance ? 'ok' : 'NULL') . " enrolplugin=" . ($enrolplugin ? 'ok' : 'NULL') . " studentRoleId=$studentRoleId");
         }
 
         // Only add to group if the class has a valid Moodle group
@@ -1896,7 +1907,10 @@ function enrolApprovedScheduleStudents($students, $class)
         }
 
         if ($enrolmentResults[$student->userid]) {
+            gmk_log("enrolApprovedScheduleStudents: calling assign_class_to_course_progress userid={$student->userid} classid={$class->id}");
             local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class);
+        } else {
+            gmk_log("enrolApprovedScheduleStudents: enrolment FAILED for userid={$student->userid}");
         }
     }
     return $enrolmentResults;
