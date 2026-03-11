@@ -978,7 +978,14 @@ function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmo
     $bbbActivityDefinition->completionattendanceenabled     = 1;
     $bbbActivityDefinition->completionattendance            = 1;
 
-    $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
+    global $CFG;
+    $prevMsg = $CFG->messaging ?? true;
+    $CFG->messaging = false;
+    try {
+        $bbbActivityInfo = add_moduleinfo($bbbActivityDefinition, $class->course);
+    } finally {
+        $CFG->messaging = $prevMsg;
+    }
 
     $bbbInstanceInfo = new stdClass();
     $bbbInstanceInfo->coursemodule = $bbbActivityInfo->coursemodule;
@@ -1009,7 +1016,16 @@ function create_attendance_activity($class, $classSectionNumber)
     $attendanceActivityDefinition->completionusegrade         = 1;
     $attendanceActivityDefinition->completionpassgrade        = 1;
 
-    $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
+    // Suppress Moodle messaging during module creation to avoid failures when
+    // instructors are suspended or have invalid email addresses (message_send throws).
+    global $CFG;
+    $prevMessaging = $CFG->messaging ?? true;
+    $CFG->messaging = false;
+    try {
+        $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
+    } finally {
+        $CFG->messaging = $prevMessaging;
+    }
     return $attendanceActivityInfo;
 }
 
