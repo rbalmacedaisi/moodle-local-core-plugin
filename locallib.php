@@ -1515,8 +1515,14 @@ function get_class_participants($class)
 
     $classParticipants = new stdClass();
 
-    // enroledStudents: group members excluding the instructor
-    if ($instructorId) {
+    // enroledStudents: group members excluding the instructor.
+    // For classes without a Moodle group (groupid=0), use gmk_course_progre as the enrolled list
+    // only when the class is approved — before approval the group is the source of truth.
+    if (empty($class->groupid) && !empty($class->approved)) {
+        $classParticipants->enroledStudents = $instructorId
+            ? $DB->get_records_select('gmk_course_progre', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
+            : $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
+    } else if ($instructorId) {
         $classParticipants->enroledStudents = $DB->get_records_select(
             'groups_members', 'groupid = :gid AND userid != :uid',
             ['gid' => $class->groupid, 'uid' => $instructorId]
@@ -1829,6 +1835,13 @@ function approve_course_schedules($approvingSchedules)
 
         $class->approved = 1;
         $classApproved = $DB->update_record('gmk_class', $class);
+
+        // For classes without a Moodle group, clear the queue/pre-registration after approval
+        // so students don't appear duplicated in "En Espera"/"Inscritos" after being moved to enroledStudents.
+        if (empty($class->groupid)) {
+            $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id]);
+            $DB->delete_records('gmk_class_queue',            ['classid' => $class->id]);
+        }
 
         // Create Moodle attendance & BBB activities if not yet created.
         // Guard with attendancemoduleid to avoid duplicates if cron ran first.
