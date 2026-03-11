@@ -784,7 +784,11 @@ class scheduler extends external_api {
                     $classRec->instructorid = $cls['instructorid'] ?? 0;
                 }
                 
-                $classRec->groupid = $cls['subGroup'] ?? 0;
+                // subGroup from frontend is c.groupid aliased as subGroup in get_generated_schedules —
+                // i.e. the real Moodle group ID for existing classes, or 0 for new (draft) classes.
+                // Always start with 0; the correct value is assigned after create_class_group (new)
+                // or restored from existingDbRec (update) in the block below.
+                $classRec->groupid = 0;
                 $classRec->subperiodid = $cls['subperiod'] ?? 0;
                 $classRec->type = $cls['type'] ?? 0; 
                 $classRec->typelabel = $cls['typeLabel'] ?? 'Presencial';
@@ -921,41 +925,65 @@ class scheduler extends external_api {
                 $classRec->name = build_class_group_name($classRec);
 
                 if ($isUpdate) {
-                    $DB->update_record('gmk_class', $classRec);
                     $classid = $classRec->id;
+
+                    // Ensure group exists — if the existing DB record had groupid=0 (old-code publish), create it now
+                    if (empty($classRec->groupid) && !empty($classRec->corecourseid)) {
+                        try {
+                            $groupId = create_class_group($classRec);
+                            $classRec->groupid = $groupId;
+                            gmk_log("INFO: Grupo creado en update para clase $classid: groupid=$groupId");
+                        } catch (Exception $ge) {
+                            gmk_log("WARNING: No se pudo crear grupo en update para clase $classid: " . $ge->getMessage());
+                        }
+                    }
+
+                    $DB->update_record('gmk_class', $classRec);
+                    gmk_log("INFO: UPDATE clase $classid — corecourseid={$classRec->corecourseid} groupid={$classRec->groupid} coursesectionid={$classRec->coursesectionid} attendancemoduleid={$classRec->attendancemoduleid}");
 
                     if (!empty($classRec->attendancemoduleid) && !empty($classRec->coursesectionid)) {
                         // Has existing activities → recreate BBB sessions and attendance sessions with new schedule
                         try {
                             create_class_activities($classRec, true);
+                            gmk_log("INFO: Actividades recreadas (updating=true) para clase $classid");
                         } catch (Exception $ae) {
                             gmk_log("WARNING: No se pudieron recrear actividades para clase $classid: " . $ae->getMessage());
                         }
                     } else if (!empty($classRec->corecourseid) && !empty($classRec->groupid)) {
-                        // Was published with old code (no activities yet) → create section + activities now
+                        // No activities yet → create section (if missing) + activities
                         try {
                             if (empty($classRec->coursesectionid)) {
                                 $sectionId = create_class_section($classRec);
                                 $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
                                 $classRec->coursesectionid = $sectionId;
+                                gmk_log("INFO: Sección creada en update para clase $classid: sectionid=$sectionId");
                             }
                             create_class_activities($classRec, false);
+                            gmk_log("INFO: Actividades creadas (updating=false) para clase $classid");
                         } catch (Exception $ae) {
                             gmk_log("WARNING: No se pudieron crear actividades (update sin actividades previas) para clase $classid: " . $ae->getMessage());
                         }
+                    } else {
+                        gmk_log("WARNING: UPDATE clase $classid sin sección/actividades — corecourseid={$classRec->corecourseid} groupid={$classRec->groupid}");
                     }
                 } else {
                     $classRec->timecreated = time();
                     $classid = $DB->insert_record('gmk_class', $classRec);
                     $classRec->id = $classid;
+                    gmk_log("INFO: INSERT clase $classid — corecourseid={$classRec->corecourseid} name={$classRec->name}");
 
-                    // Create Moodle group for the new class (classroomid already resolved above)
-                    try {
-                        $groupId = create_class_group($classRec);
-                        $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
-                        $classRec->groupid = $groupId;
-                    } catch (Exception $ge) {
-                        gmk_log("WARNING: No se pudo crear el grupo para clase $classid: " . $ge->getMessage());
+                    // Create Moodle group for the new class
+                    if (!empty($classRec->corecourseid)) {
+                        try {
+                            $groupId = create_class_group($classRec);
+                            $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
+                            $classRec->groupid = $groupId;
+                            gmk_log("INFO: Grupo creado para clase $classid: groupid=$groupId");
+                        } catch (Exception $ge) {
+                            gmk_log("WARNING: No se pudo crear el grupo para clase $classid: " . $ge->getMessage());
+                        }
+                    } else {
+                        gmk_log("WARNING: INSERT clase $classid sin corecourseid — no se crea grupo ni actividades");
                     }
 
                     // Create course section and Moodle activities (attendance + BBB per session)
@@ -964,7 +992,9 @@ class scheduler extends external_api {
                             $sectionId = create_class_section($classRec);
                             $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
                             $classRec->coursesectionid = $sectionId;
+                            gmk_log("INFO: Sección creada para clase $classid: sectionid=$sectionId");
                             create_class_activities($classRec, false);
+                            gmk_log("INFO: Actividades creadas para clase $classid");
                         } catch (Exception $ae) {
                             gmk_log("WARNING: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
                         }
