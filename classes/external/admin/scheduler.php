@@ -1165,7 +1165,11 @@ class scheduler extends external_api {
             }
 
             $subjectName = $c->subjectname ?? ('Materia ' . $c->courseid);
-            $finalPeriodId = (int)($academic_period_id ?: ($c->institutional_period_id ?? 0));
+            // Prefer the institutional period stored on gmk_class (c.periodid) — that is what
+            // save_generation_result writes and what the frontend uses to detect external classes.
+            // Only fall back to academic_period_id (from local_learning_courses) when not set.
+            $institutionalPeriodId = (int)($c->institutional_period_id ?? 0);
+            $finalPeriodId = $institutionalPeriodId ?: (int)($academic_period_id ?: 0);
 
             $result[] = [
                 'id' => (int)$c->id,
