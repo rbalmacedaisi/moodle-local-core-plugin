@@ -322,4 +322,97 @@ if (empty($broken)) {
 ?>
 </section>
 
+<!-- ══ SECTION 4: Diagnóstico de learningplanid ════════════════════════════════ -->
+<section>
+<h2>4. Diagnóstico: Clases con learningplanid incorrecto</h2>
+<p>Clases cuyo <code>learningplanid</code> en <code>gmk_class</code> no coincide con lo que dice <code>local_learning_courses</code>.
+   Esto rompe el dropdown de <b>Período</b> y <b>Curso</b> en <code>editclass.php</code>.</p>
+<?php
+$classesForLp = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.courseid, c.corecourseid, c.learningplanid as class_lpid,
+            c.periodid as class_periodid,
+            ap.name as period_name,
+            lc.id as lc_id, lc.learningplanid as lc_lpid, lc.periodid as lc_period,
+            mc.fullname as moodle_course_name,
+            lp.name as lp_name_class
+     FROM {gmk_class} c
+     LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
+     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
+     LEFT JOIN {course} mc ON mc.id = c.corecourseid
+     LEFT JOIN {local_learningplans} lp ON lp.id = c.learningplanid
+     ORDER BY c.id DESC"
+);
+
+$mismatched = [];
+foreach ($classesForLp as $row) {
+    if ($row->lc_id && (int)$row->class_lpid !== (int)$row->lc_lpid) {
+        $mismatched[] = $row;
+    }
+}
+
+if (empty($mismatched)) {
+    echo '<p style="color:#34a853;font-weight:bold;">✅ Todos los learningplanid de clases coinciden con local_learning_courses.</p>';
+} else {
+    echo '<p style="color:#d93025;font-weight:bold;">⚠ Se encontraron ' . count($mismatched) . ' clases con learningplanid incorrecto:</p>';
+    echo '<table><tr>
+        <th>id</th><th>name</th><th>courseid</th><th>plan en gmk_class</th><th>plan correcto (lc)</th><th>período actual</th><th>Curso Moodle</th><th>Fix</th>
+    </tr>';
+    foreach ($mismatched as $row) {
+        $fixUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
+        $correctLpId = (int)$row->lc_lpid;
+
+        // Get correct LP name
+        $correctLp = $DB->get_record('local_learningplans', ['id' => $correctLpId], 'id, name');
+        $correctLpName = $correctLp ? s($correctLp->name) : 'LP id=' . $correctLpId;
+
+        echo '<tr style="background:#fff3e0;">
+            <td>' . (int)$row->id . '</td>
+            <td>' . s($row->name) . '</td>
+            <td>' . (int)$row->courseid . '</td>
+            <td style="color:#d93025;">' . (int)$row->class_lpid . ' (' . s($row->lp_name_class ?: '?') . ')</td>
+            <td style="color:#34a853;font-weight:bold;">' . $correctLpId . ' (' . $correctLpName . ')</td>
+            <td>' . s($row->period_name ?: $row->class_periodid) . '</td>
+            <td>' . s($row->moodle_course_name ?: '-') . '</td>
+            <td>
+                <form method="get" action="' . $fixUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
+                    <input type="hidden" name="action" value="fixlpid">
+                    <input type="hidden" name="fixclassid" value="' . (int)$row->id . '">
+                    <input type="hidden" name="fixtopid" value="' . $correctLpId . '">
+                    <input type="hidden" name="sesskey" value="' . sesskey() . '">
+                    <button type="submit" class="btn-green">✔ Corregir LP</button>
+                </form>
+            </td>
+        </tr>';
+    }
+    echo '</table>';
+}
+
+// Also show all classes with their meta for reference
+echo '<h3 style="margin-top:24px;">Todas las clases — referencia rápida</h3>';
+echo '<table><tr>
+    <th>id</th><th>name</th><th>courseid</th><th>corecourseid</th><th>learningplanid</th>
+    <th>LP nombre</th><th>periodid (gmk_class)</th><th>periodo inst.</th>
+    <th>lc.lpid</th><th>lc.periodid</th><th>¿Match?</th>
+</tr>';
+foreach ($classesForLp as $row) {
+    $match = (!$row->lc_id) ? '⚠ Sin lc' : ((int)$row->class_lpid === (int)$row->lc_lpid ? '✅' : '❌');
+    $bg = (!$row->lc_id || (int)$row->class_lpid !== (int)$row->lc_lpid) ? 'background:#fce8e6' : '';
+    echo '<tr style="' . $bg . '">
+        <td>' . (int)$row->id . '</td>
+        <td>' . s($row->name) . '</td>
+        <td>' . (int)$row->courseid . '</td>
+        <td>' . (int)$row->corecourseid . '</td>
+        <td>' . (int)$row->class_lpid . '</td>
+        <td>' . s($row->lp_name_class ?: '-') . '</td>
+        <td>' . (int)$row->class_periodid . '</td>
+        <td>' . s($row->period_name ?: '-') . '</td>
+        <td>' . ($row->lc_id ? (int)$row->lc_lpid : '-') . '</td>
+        <td>' . ($row->lc_id ? (int)$row->lc_period : '-') . '</td>
+        <td style="text-align:center;font-weight:bold;">' . $match . '</td>
+    </tr>';
+}
+echo '</table>';
+?>
+</section>
+
 <?php echo $OUTPUT->footer();
