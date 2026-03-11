@@ -697,7 +697,15 @@
 
                     this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...externalSchedules];
                 } else {
-                    console.log("DEBUG Draft: No draft found or draft is empty for this period.");
+                    // No draft — generate unassigned items from demand for subjects not yet in DB
+                    console.log("DEBUG Draft: No draft found — generating unassigned items from demand.");
+                    const dbSchedules = this.state.generatedSchedules.filter(s => !s.isExternal);
+                    const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
+                    const reconciledNew = this._reconcileDraftWithDemand([], dbSchedules);
+                    console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, new from demand=${reconciledNew.length}`);
+                    if (reconciledNew.length > 0) {
+                        this.state.generatedSchedules = [...dbSchedules, ...reconciledNew, ...externalSchedules];
+                    }
                 }
             } catch (e) {
                 console.error("Load generation error:", e);
