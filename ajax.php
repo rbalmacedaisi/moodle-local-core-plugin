@@ -2945,20 +2945,12 @@ try {
                     'source'    => isset($preReg[$s->id]) ? 'prereg' : 'queue',
                 ];
             }
-            // Already enrolled: use group members if class has a group,
-            // otherwise check actual Moodle course enrolment + gmk_course_progre by classid
+            // Already enrolled: only exclude group members (for classes with a Moodle group).
+            // For classes without a group, always show all queue/pre_reg students — they need to be re-enrollable.
             if (!empty($class->groupid)) {
                 $alreadyEnrolled = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $class->groupid]);
             } else {
-                // Only consider enrolled if they have BOTH a Moodle enrolment AND a progre record for this specific class
-                $alreadyEnrolled = $DB->get_fieldset_sql(
-                    "SELECT p.userid
-                       FROM {gmk_course_progre} p
-                       JOIN {user_enrolments} ue ON ue.userid = p.userid
-                       JOIN {enrol} e ON e.id = ue.enrolid AND e.courseid = :courseid
-                      WHERE p.classid = :classid",
-                    ['classid' => $class->id, 'courseid' => $class->corecourseid]
-                );
+                $alreadyEnrolled = [];
             }
             $response = [
                 'status'           => 'success',
