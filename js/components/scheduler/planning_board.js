@@ -150,7 +150,9 @@ window.SchedulerComponents.PlanningBoard = {
                                         :class="[
                                             cls.isExternal && getConflicts(cls).length > 0 ? 'bg-red-50 border-red-400 ring-2 ring-red-200' :
                                             cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' :
-                                            getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200 hover:border-blue-400'
+                                            getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' :
+                                            getLoadCoverage(cls).under ? 'bg-orange-50 border-orange-300 hover:border-orange-400' :
+                                            'bg-blue-50 border-blue-200 hover:border-blue-400'
                                         ]"
                                         :style="getEventStyle(cls)"
                                         :title="getConflictTooltip(cls)"
@@ -176,12 +178,19 @@ window.SchedulerComponents.PlanningBoard = {
                                                 </span>
                                             </div>
                                             <!-- Course load indicator -->
-                                            <div v-if="loadsMap[cls.subjectName]" class="mt-0.5 flex items-center gap-1 text-violet-700">
+                                            <div v-if="loadsMap[cls.subjectName]" class="mt-0.5 flex items-center gap-1"
+                                                :class="getLoadCoverage(cls).under ? 'text-orange-600' : 'text-violet-700'">
                                                 <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
-                                                <span class="font-semibold" :title="'Carga detectada: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales'">
+                                                <span class="font-semibold"
+                                                    :title="getLoadCoverage(cls).under
+                                                        ? 'Carga incompleta: ' + cls.assignedDates.length + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
+                                                        : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
                                                     {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
-                                                    <template v-if="cls.assignedDates"> · {{ cls.assignedDates.length }} ses.</template>
+                                                    <template v-if="cls.assignedDates">
+                                                        · {{ cls.assignedDates.length }}/{{ getLoadCoverage(cls).required }} ses.
+                                                    </template>
                                                 </span>
+                                                <i v-if="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
                                             </div>
                                             <div v-else-if="!cls.isExternal" class="mt-0.5 flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
                                                 <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
@@ -202,6 +211,12 @@ window.SchedulerComponents.PlanningBoard = {
                                         <!-- Conflict Indicator -->
                                         <div v-if="getConflicts(cls).length > 0" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
                                             <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                        </div>
+                                        <!-- Load coverage indicator (only when no conflict badge) -->
+                                        <div v-else-if="getLoadCoverage(cls).under"
+                                            class="absolute top-0 right-0 p-0.5 bg-orange-400 text-white rounded-bl"
+                                            :title="'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones'">
+                                            <i data-lucide="alert-circle" class="w-3 h-3"></i>
                                         </div>
 
                                         <!-- Resize Handle (bottom edge) -->
@@ -969,6 +984,25 @@ window.SchedulerComponents.PlanningBoard = {
         getRoomConflicts(cls) {
             if (!cls) return [];
             return this.getConflicts(cls).filter(i => ['room', 'capacity'].includes(i.type));
+        },
+        /**
+         * Returns { required: N, actual: M, under: bool } for a placed card.
+         * `required` = ceil(totalHours / sessionHours), `actual` = assignedDates.length.
+         * `under` = true when actual < required and load data is available.
+         */
+        getLoadCoverage(cls) {
+            const load = this.loadsMap[cls.subjectName];
+            if (!load || cls.isExternal) return { required: null, actual: null, under: false };
+            const totalH = parseFloat(load.total_hours || load.totalHours || 0);
+            if (!totalH) return { required: null, actual: null, under: false };
+            // Derive session duration in hours from the class start/end
+            const startM = this.toMins(cls.start || '00:00');
+            const endM   = this.toMins(cls.end   || '00:00');
+            const durH   = endM > startM ? (endM - startM) / 60 : 0;
+            if (!durH) return { required: null, actual: null, under: false };
+            const required = Math.ceil(totalH / durH);
+            const actual   = Array.isArray(cls.assignedDates) ? cls.assignedDates.length : 0;
+            return { required, actual, under: actual < required };
         },
         getConflictTooltip(cls) {
             const issues = this.getConflicts(cls);
