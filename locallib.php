@@ -778,12 +778,28 @@ function create_class_activities($class, $updating = false)
             $class->gradecategoryid = create_class_grade_category($class);
             $DB->update_record('gmk_class', $class);
 
-            //Add the attendance item grade to the class grade category
-            $classCourseGradeTree = new grade_tree($class->corecourseid, false, false);
-            $classGradeCategory = $classCourseGradeTree->locate_element('cg' . $class->gradecategoryid)['object'];
-            $attendanceGradeItemId = $DB->get_field('grade_items', 'id', ['itemmodule' => 'attendance', 'iteminstance' => $attendanceCourseModule->instance]);
-            $attendanceGradeItem = $classCourseGradeTree->locate_element('ig' . $attendanceGradeItemId)['object'];
-            $attendanceGradeItem->set_parent($classGradeCategory->id);
+            // Move the attendance grade item into the class grade category.
+            // set_parent triggers grade recalculation which may attempt to insert grade_grades that
+            // already exist (Moodle internal behavior). We use direct DB update to avoid that.
+            $attendanceGradeItemId = $DB->get_field('grade_items', 'id', [
+                'itemmodule' => 'attendance',
+                'iteminstance' => $attendanceCourseModule->instance,
+                'courseid' => $class->corecourseid,
+            ]);
+            if ($attendanceGradeItemId) {
+                // Get the grade_item record for the category so we know its id in grade_items
+                $catGradeItemId = $DB->get_field('grade_items', 'id', [
+                    'itemtype'   => 'category',
+                    'iteminstance' => $class->gradecategoryid,
+                    'courseid'   => $class->corecourseid,
+                ]);
+                // Move attendance grade_item into the category by direct update (avoids grade_grades recalc cascade)
+                $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $attendanceGradeItemId]);
+                if ($catGradeItemId) {
+                    $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $catGradeItemId]);
+                }
+                gmk_log("INFO: attendance grade_item $attendanceGradeItemId movido a categoría {$class->gradecategoryid}");
+            }
         }
     }
 
