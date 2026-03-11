@@ -635,11 +635,17 @@ class scheduler extends external_api {
                 }
             }
 
-            // 2. Delete classes for this period that are NOT in the payload (optional: only if you want full sync)
+            // 2. Delete classes that belong to this period and are NOT in the payload.
+            //    Never touch classes from other periods — they are "external" in the board.
             if (!empty($validIds)) {
-                $sql = "periodid = ? AND id NOT IN (" . implode(',', $validIds) . ")";
-                $DB->delete_records_select('gmk_class', $sql, [$periodid]);
+                $placeholders = implode(',', array_fill(0, count($validIds), '?'));
+                $DB->delete_records_select(
+                    'gmk_class',
+                    "periodid = ? AND id NOT IN ($placeholders)",
+                    array_merge([$periodid], $validIds)
+                );
             } else {
+                // No programmed ids in payload → wipe all classes of this period
                 $DB->delete_records('gmk_class', ['periodid' => $periodid]);
             }
 
