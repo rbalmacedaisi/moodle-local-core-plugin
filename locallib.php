@@ -1552,6 +1552,23 @@ function get_class_participants($class)
     }
 
     $classParticipants->progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
+
+    // For classes without a Moodle group that are already approved, students will appear in
+    // enroledStudents (via gmk_course_progre). Remove them from preRegisteredStudents and
+    // queuedStudents to avoid showing the same student in both "En Espera" and "Inscritos".
+    if (empty($class->groupid) && !empty($class->approved)) {
+        $enrolledUserIds = array_column((array)$classParticipants->enroledStudents, 'userid');
+        $enrolledSet = array_flip($enrolledUserIds);
+        $classParticipants->preRegisteredStudents = array_filter(
+            (array)$classParticipants->preRegisteredStudents,
+            fn($s) => !isset($enrolledSet[$s->userid])
+        );
+        $classParticipants->queuedStudents = array_filter(
+            (array)$classParticipants->queuedStudents,
+            fn($s) => !isset($enrolledSet[$s->userid])
+        );
+    }
+
     return $classParticipants;
 }
 
@@ -1845,12 +1862,9 @@ function approve_course_schedules($approvingSchedules)
             $classApproved = true;
         }
 
-        // For classes without a Moodle group, clear the queue/pre-registration after approval
-        // so students don't appear duplicated in "En Espera"/"Inscritos" after being moved to enroledStudents.
-        if (empty($class->groupid)) {
-            $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id]);
-            $DB->delete_records('gmk_class_queue',            ['classid' => $class->id]);
-        }
+        // NOTE: queue/pre_reg records are intentionally preserved — they represent
+        // the academic plan (who is assigned to this class) and must persist so that
+        // the student list reappears correctly if the enrollment dialog is reopened.
 
         // Create Moodle attendance & BBB activities if not yet created.
         // Guard with attendancemoduleid to avoid duplicates if cron ran first.

@@ -2921,32 +2921,41 @@ try {
             break;
 
         case 'local_grupomakro_get_planned_students':
-            // Returns pre-registered + queued students for a class (for bulk enrollment UI).
+            // Returns planned students for a class (for bulk enrollment UI).
+            // Sources: gmk_class_pre_registration + gmk_class_queue + gmk_course_progre (already enrolled).
+            // This ensures students always appear even after their queue records were cleared.
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
             $instructorId = (int)($class->instructorid ?? 0);
             $preReg = $DB->get_records('gmk_class_pre_registration', ['classid' => $classid]);
             $queued = $DB->get_records('gmk_class_queue', ['classid' => $classid]);
-            $allStudents = array_merge(array_values($preReg), array_values($queued));
-            // Resolve user info, excluding instructor
+            // Also include students already enrolled via gmk_course_progre (classid link).
+            // This ensures they reappear in the dialog even after queue records were cleared.
+            $progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $classid]);
+            // Build a userid-keyed map for quick source lookup
+            $preRegByUser  = array_column((array)$preReg,  null, 'userid');
+            $queueByUser   = array_column((array)$queued,  null, 'userid');
+            $allStudents = array_merge(array_values($preReg), array_values($queued), array_values($progreStudents));
+            // Resolve user info, excluding instructor and deduplicating
             $result = [];
             $seen = [];
             foreach ($allStudents as $s) {
                 if (isset($seen[$s->userid])) continue;
-                if ($instructorId && $s->userid == $instructorId) continue; // skip instructor
+                if ($instructorId && $s->userid == $instructorId) continue;
                 $seen[$s->userid] = true;
                 $u = $DB->get_record('user', ['id' => $s->userid, 'deleted' => 0], 'id, firstname, lastname, email, idnumber');
                 if (!$u) continue;
+                $src = isset($preRegByUser[$s->userid]) ? 'prereg' : (isset($queueByUser[$s->userid]) ? 'queue' : 'enrolled');
                 $result[] = [
                     'userid'    => (int)$u->id,
                     'fullname'  => fullname($u),
                     'email'     => $u->email,
                     'idnumber'  => $u->idnumber,
-                    'source'    => isset($preReg[$s->id]) ? 'prereg' : 'queue',
+                    'source'    => $src,
                 ];
             }
-            // Already enrolled: only exclude group members (for classes with a Moodle group).
-            // For classes without a group, always show all queue/pre_reg students — they need to be re-enrollable.
+            // Already enrolled: group members for classes with a Moodle group.
+            // For classes without a group, all students in the list are candidates (re-enrollable).
             if (!empty($class->groupid)) {
                 $alreadyEnrolled = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $class->groupid]);
             } else {
@@ -3016,14 +3025,9 @@ try {
 
             $enrolled = count(array_filter($results));
 
-            // For classes without a Moodle group, clear queue/pre_reg for enrolled students
-            // so they move from "En Espera" to "Usuarios Inscritos" on next load
-            if (empty($class->groupid)) {
-                foreach ($userids as $uid) {
-                    $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id, 'userid' => $uid]);
-                    $DB->delete_records('gmk_class_queue',            ['classid' => $class->id, 'userid' => $uid]);
-                }
-            }
+            // NOTE: We intentionally do NOT delete queue/pre_reg records after enrolment.
+            // Those records represent the academic planning ("who is assigned to this class")
+            // and must persist so the student list reappears correctly if the dialog is reopened.
 
             // Mark class as approved if not already
             if (!$class->approved) {
@@ -3063,12 +3067,8 @@ try {
                     if (!empty($allStudents)) {
                         $enrolResults = enrolApprovedScheduleStudents($allStudents, $class);
                         $results['enrolled_total'] += count(array_filter($enrolResults));
-
-                        // For classes without a Moodle group, clear queue/pre_reg after enrolment
-                        if (empty($class->groupid)) {
-                            $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id]);
-                            $DB->delete_records('gmk_class_queue',            ['classid' => $class->id]);
-                        }
+                        // NOTE: queue/pre_reg records are intentionally preserved — they represent
+                        // the academic plan (who is assigned to this class) and must persist.
                     } else {
                         $results['skipped']++;
                     }
