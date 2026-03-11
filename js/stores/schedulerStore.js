@@ -573,13 +573,21 @@
                     console.log("DEBUG PRE-SAVE: Property sizes of item 0:", stats);
                 }
 
-                const optimizedSchedules = Array.isArray(schedules) ? schedules.map(s => {
-                    const clean = {};
-                    essentialKeys.forEach(k => {
-                        if (s[k] !== undefined) clean[k] = s[k];
-                    });
-                    return clean;
-                }) : schedules;
+                const optimizedSchedules = Array.isArray(schedules) ? schedules
+                    .filter(s => {
+                        if (s.isExternal) return false; // never save externals in draft
+                        const hasRealId = s.id && !String(s.id).startsWith('rec-') && !String(s.id).startsWith('gen-') && Number(s.id) > 0;
+                        const isPlaced = (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                        // Save if: has real DB id (published) OR has been placed on the board
+                        return hasRealId || isPlaced;
+                    })
+                    .map(s => {
+                        const clean = {};
+                        essentialKeys.forEach(k => {
+                            if (s[k] !== undefined) clean[k] = s[k];
+                        });
+                        return clean;
+                    }) : schedules;
 
                 const payloadStr = JSON.stringify(optimizedSchedules);
                 console.log(`DEBUG: Saving draft (Round 5) for period ${periodId}. String length: ${payloadStr.length}`);
@@ -617,7 +625,11 @@
                     'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
                 ];
                 const optimized = Array.isArray(schedules) ? schedules
-                    .filter(s => !s.isExternal) // Never publish external classes
+                    .filter(s => {
+                        if (s.isExternal) return false;
+                        // Only publish placed items (have sessions or a day assigned)
+                        return (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                    })
                     .map(s => {
                         const clean = {};
                         essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
