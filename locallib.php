@@ -739,25 +739,35 @@ function create_class_activities($class, $updating = false)
         //Delete attendance - BBB sessions relation
         $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
     } else {
-        $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
+        // Reuse attendance module if already created (partial previous publish left attendancemoduleid set).
+        if (!empty($class->attendancemoduleid) && $DB->record_exists('course_modules', ['id' => $class->attendancemoduleid])) {
+            $attendanceCourseModule = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
+            $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
+            $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+            gmk_log("INFO: create_class_activities — reutilizando attendance existente cmid={$class->attendancemoduleid}");
+        } else {
+            $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
+            $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
+            $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
+            $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+            $class->attendancemoduleid = $attendanceStructure->cmid;
+            $DB->update_record('gmk_class', $class);
+        }
 
-        $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
-        $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
-        $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+        // Reuse grade category if already created.
+        if (empty($class->gradecategoryid) || !$DB->record_exists('grade_categories', ['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid])) {
+            $class->gradecategoryid = create_class_grade_category($class);
+            $DB->update_record('gmk_class', $class);
 
-        $class->attendancemoduleid = $attendanceStructure->cmid;
-        $DB->update_record('gmk_class', $class);
-
-        $class->gradecategoryid = create_class_grade_category($class);
-        $DB->update_record('gmk_class', $class);
-
-        //Add the attendance item grade to the class grade category    
-        $classCourseGradeTree = new grade_tree($class->corecourseid, false, false);
-        $classGradeCategory = $classCourseGradeTree->locate_element('cg' . $class->gradecategoryid)['object'];
-
-        $attendanceGradeItemId = $DB->get_field('grade_items', 'id', ['itemmodule' => 'attendance', 'iteminstance' => $attendanceCourseModule->instance]);
-        $attendanceGradeItem =  $classCourseGradeTree->locate_element('ig' . $attendanceGradeItemId)['object'];
-        $attendanceGradeItem->set_parent($classGradeCategory->id);
+            //Add the attendance item grade to the class grade category
+            $classCourseGradeTree = new grade_tree($class->corecourseid, false, false);
+            $classGradeCategory = $classCourseGradeTree->locate_element('cg' . $class->gradecategoryid)['object'];
+            $attendanceGradeItemId = $DB->get_field('grade_items', 'id', ['itemmodule' => 'attendance', 'iteminstance' => $attendanceCourseModule->instance]);
+            $attendanceGradeItem = $classCourseGradeTree->locate_element('ig' . $attendanceGradeItemId)['object'];
+            $attendanceGradeItem->set_parent($classGradeCategory->id);
+        } else {
+            gmk_log("INFO: create_class_activities — reutilizando gradecategory existente id={$class->gradecategoryid}");
+        }
     }
 
     $BBBModuleId = $DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
