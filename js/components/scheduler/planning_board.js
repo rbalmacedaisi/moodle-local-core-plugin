@@ -168,8 +168,10 @@ window.SchedulerComponents.PlanningBoard = {
                                             </span>
                                         </div>
                                         <div class="text-[9px] leading-tight text-slate-500 mt-0.5">
-                                            <span v-if="cls.teacherName" class="block font-medium text-slate-700 truncate">{{ cls.teacherName }}</span>
-                                            <span v-else class="block text-orange-500 italic">Por asignar</span>
+                                            <div class="block">
+                                                <span v-if="cls.teacherName" class="block font-medium text-slate-700 truncate">{{ cls.teacherName }}</span>
+                                                <span v-else class="block text-orange-500 italic">Por asignar</span>
+                                            </div>
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
@@ -207,15 +209,16 @@ window.SchedulerComponents.PlanningBoard = {
                                             </button>
                                         </div>
 
-                                        <!-- Conflict Indicator -->
-                                        <div v-if="getConflicts(cls).length > 0" class="absolute top-0 right-0 p-0.5 bg-red-500 text-white rounded-bl">
-                                            <i data-lucide="alert-triangle" class="w-3 h-3"></i>
-                                        </div>
-                                        <!-- Load coverage indicator (only when no conflict badge) -->
-                                        <div v-else-if="getLoadCoverage(cls).under"
-                                            class="absolute top-0 right-0 p-0.5 bg-orange-400 text-white rounded-bl"
-                                            :title="'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones'">
-                                            <i data-lucide="alert-circle" class="w-3 h-3"></i>
+                                        <!-- Conflict / Load indicator badge (top-right corner) -->
+                                        <div class="absolute top-0 right-0">
+                                            <div v-if="getConflicts(cls).length > 0" class="p-0.5 bg-red-500 text-white rounded-bl">
+                                                <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                            </div>
+                                            <div v-else-if="getLoadCoverage(cls).under"
+                                                class="p-0.5 bg-orange-400 text-white rounded-bl"
+                                                :title="'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones'">
+                                                <i data-lucide="alert-circle" class="w-3 h-3"></i>
+                                            </div>
                                         </div>
 
                                         <!-- Resize Handle (bottom edge) -->
@@ -994,20 +997,19 @@ window.SchedulerComponents.PlanningBoard = {
             if (!load || cls.isExternal) return { required: null, actual: null, under: false };
             const totalH = parseFloat(load.total_hours || load.totalHours || 0);
             if (!totalH) return { required: null, actual: null, under: false };
-            const startM = this.toMins(cls.start || '00:00');
-            const endM   = this.toMins(cls.end   || '00:00');
-            const durH   = endM > startM ? (endM - startM) / 60 : 0;
-            if (!durH) return { required: null, actual: null, under: false };
-            const required = Math.ceil(totalH / durH);
-            // Mirror effectiveSessionCount: use assignedDates if present, otherwise count period dates for that day
+            // Use assignedDates length if available — avoids calling getDatesForDay on every render
             let actual = 0;
             if (Array.isArray(cls.assignedDates) && cls.assignedDates.length > 0) {
                 actual = cls.assignedDates.length;
-            } else if (cls.day && cls.day !== 'N/A' && window.SchedulerAlgorithm?.getDatesForDay) {
-                const normalizedDay = cls.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-                actual = window.SchedulerAlgorithm.getDatesForDay(normalizedDay, this.storeState.context, cls.subperiod || 0).length;
+                const startM = this.toMins(cls.start || '00:00');
+                const endM   = this.toMins(cls.end   || '00:00');
+                const durH   = endM > startM ? (endM - startM) / 60 : 0;
+                if (!durH) return { required: null, actual: null, under: false };
+                const required = Math.ceil(totalH / durH);
+                return { required, actual, under: actual < required };
             }
-            return { required, actual, under: actual < required };
+            // No assignedDates: can't determine without getDatesForDay, skip the alert to avoid false positives
+            return { required: null, actual: null, under: false };
         },
         getConflictTooltip(cls) {
             const issues = this.getConflicts(cls);
