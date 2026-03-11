@@ -699,11 +699,11 @@
                         return merged;
                     });
 
-                    // Only reconcile truly new items (no DB id). Pass mergedDb so reconcile
-                    // knows which demand keys are already covered and won't generate duplicates.
-                    const reconciledNew = newDraftItems.length > 0
-                        ? this._reconcileDraftWithDemand(newDraftItems, mergedDb)
-                        : [];
+                    // Reconcile draft items (temp id / no DB id) against demand.
+                    // Always pass mergedDb so reconcile knows which demand keys are already covered.
+                    // Even when newDraftItems is empty, this generates "sin asignar" cards for
+                    // demand entries that have no DB class yet.
+                    const reconciledNew = this._reconcileDraftWithDemand(newDraftItems, mergedDb);
 
                     console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length} → reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
 

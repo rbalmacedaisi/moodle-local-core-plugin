@@ -3152,7 +3152,13 @@ try {
                 $schedulesJson = $decoded['schedules'] ?? null;
                 $source = 'RAW_INPUT_VAR';
             }
-            
+
+            // When Content-Type is application/json, schedules may already be decoded as array — re-encode it
+            if (is_array($schedulesJson)) {
+                $schedulesJson = json_encode($schedulesJson);
+                $source .= '_REENCODED';
+            }
+
             $len = $schedulesJson ? strlen($schedulesJson) : 0;
             error_log("DEBUG: Save draft for period $periodid. Source: $source. Length: $len chars.");
 
