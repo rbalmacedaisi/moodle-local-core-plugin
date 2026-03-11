@@ -1931,7 +1931,25 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
     // Do NOT fall back to get_enrolled_students_by_courseid — that returns ALL students enrolled
     // in the Moodle course (could be hundreds from other plans/periods).
     if ($isExternal && !$class->groupid) {
-        return get_class_participants($class);
+        $classStudents = get_class_participants($class);
+        // Resolve user names for each student list (same as the normal path below)
+        $resolveExternal = function($student) use ($DB) {
+            if (empty($student->userid)) return $student;
+            $u = $DB->get_record('user', ['id' => $student->userid, 'deleted' => 0], 'id,firstname,lastname,email,idnumber', IGNORE_MISSING);
+            if ($u) {
+                $student->firstname = $u->firstname;
+                $student->lastname  = $u->lastname;
+                $student->email     = $u->email;
+                $student->idnumber  = $u->idnumber;
+            }
+            $student->profilePicture = get_user_picture_url($student->userid);
+            return $student;
+        };
+        $classStudents->queuedStudents         = array_map($resolveExternal, (array)$classStudents->queuedStudents);
+        $classStudents->progreStudents         = array_map($resolveExternal, (array)$classStudents->progreStudents);
+        $classStudents->enroledStudents        = array_map($resolveExternal, (array)$classStudents->enroledStudents);
+        $classStudents->preRegisteredStudents  = array_map($resolveExternal, (array)$classStudents->preRegisteredStudents);
+        return $classStudents;
     }
 
     // NORMAL CLASS OR EXTERNAL CLASS WITH GROUP: Use existing logic
