@@ -962,7 +962,7 @@ function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmo
     $bbbActivityDefinition->participants                    = '[{"selectiontype":"user","selectionid":' . $class->instructorid . ',"role":"moderator"},{"selectiontype":"all","selectionid":"all","role":"viewer"}]';
     $bbbActivityDefinition->openingtime                     = $initDateTS - 600;
     $bbbActivityDefinition->closingtime                     = $endDateTS;
-    $bbbActivityDefinition->cmidnumber                      = $class->name . '-' . $class->id . '-' . $initDateTS;
+    $bbbActivityDefinition->cmidnumber                      = substr($class->name . '-' . $class->id . '-' . $initDateTS, 0, 100);
     $bbbActivityDefinition->groupmode                       = '0';
     $bbbActivityDefinition->modulename                      = 'bigbluebuttonbn';
     $bbbActivityDefinition->intro                           = "Sala de clases online de la clase " . $class->name;
