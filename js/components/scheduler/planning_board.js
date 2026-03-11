@@ -444,8 +444,7 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="flex justify-between">
                                 <span class="font-medium text-slate-700">Sesiones actuales:</span>
                                 <span :class="effectiveSessionCount === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
-                                    {{ effectiveSessionCount }}
-                                    <template v-if="optimalSessions">(óptimo: {{ optimalSessions }})</template>
+                                    {{ effectiveSessionCount }}{{ optimalSessions ? ' (óptimo: ' + optimalSessions + ')' : '' }}
                                 </span>
                             </div>
                             <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex justify-between">
