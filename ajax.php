@@ -3044,17 +3044,35 @@ try {
             core_php_time_limit::raise(600);
 
             $periodid = required_param('periodid', PARAM_INT);
-            $classes = $DB->get_records('gmk_class', ['periodid' => $periodid, 'approved' => 0, 'active' => 1]);
+            // Note: gmk_class has no 'active' field — filter only by periodid and approved=0
+            $classes = $DB->get_records('gmk_class', ['periodid' => $periodid, 'approved' => 0]);
 
-            $results = ['approved' => 0, 'skipped' => 0, 'errors' => []];
+            $results = ['approved' => 0, 'skipped' => 0, 'errors' => [], 'enrolled_total' => 0];
             foreach ($classes as $class) {
                 try {
-                    $queueStudents = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
-                    if (!empty($queueStudents)) {
-                        enrolApprovedScheduleStudents(array_values($queueStudents), $class);
+                    // Merge queue + pre_registration, deduplicate by userid, exclude instructor
+                    $instructorId = (int)($class->instructorid ?? 0);
+                    $preReg  = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
+                    $queued  = $DB->get_records('gmk_class_queue',            ['classid' => $class->id]);
+                    $allStudents = [];
+                    foreach (array_merge(array_values($preReg), array_values($queued)) as $s) {
+                        if ($instructorId && $s->userid == $instructorId) continue;
+                        $allStudents[$s->userid] = $s;
+                    }
+
+                    if (!empty($allStudents)) {
+                        $enrolResults = enrolApprovedScheduleStudents($allStudents, $class);
+                        $results['enrolled_total'] += count(array_filter($enrolResults));
+
+                        // For classes without a Moodle group, clear queue/pre_reg after enrolment
+                        if (empty($class->groupid)) {
+                            $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id]);
+                            $DB->delete_records('gmk_class_queue',            ['classid' => $class->id]);
+                        }
                     } else {
                         $results['skipped']++;
                     }
+
                     $DB->set_field('gmk_class', 'approved', 1, ['id' => $class->id]);
                     $results['approved']++;
                 } catch (Exception $e) {

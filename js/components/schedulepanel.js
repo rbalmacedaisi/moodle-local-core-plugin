@@ -273,8 +273,8 @@ Vue.component('scheduletable',{
                 );
                 const d = res.data?.data;
                 if (d) {
-                    const errMsg = d.errors.length > 0 ? ` (${d.errors.length} errores)` : '';
-                    this.snackMessage = `Aprobadas: ${d.approved} clases. Sin estudiantes: ${d.skipped}.${errMsg}`;
+                    const errMsg = d.errors.length > 0 ? ` — ${d.errors.length} errores` : '';
+                    this.snackMessage = `Aprobadas: ${d.approved} clases. Inscritos: ${d.enrolled_total ?? '?'} estudiantes. Omitidas: ${d.skipped}.${errMsg}`;
                     this.snackColor = d.errors.length > 0 ? 'warning' : 'success';
                     if (d.errors.length > 0) {
                         console.warn('Bulk approve errors:', d.errors);
