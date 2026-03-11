@@ -1553,11 +1553,11 @@ function get_class_participants($class)
 
     $classParticipants->progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
 
-    // For classes without a Moodle group that are already approved, students will appear in
-    // enroledStudents (via gmk_course_progre). Remove them from preRegisteredStudents and
-    // queuedStudents to avoid showing the same student in both "En Espera" and "Inscritos".
-    if (empty($class->groupid) && !empty($class->approved)) {
-        $enrolledUserIds = array_column((array)$classParticipants->enroledStudents, 'userid');
+    // Remove from preRegisteredStudents and queuedStudents any student already in enroledStudents,
+    // to avoid showing the same person in both "En Espera" and "Inscritos".
+    // This applies to all classes: group-based (groups_members) and no-group (gmk_course_progre).
+    $enrolledUserIds = array_column((array)$classParticipants->enroledStudents, 'userid');
+    if (!empty($enrolledUserIds)) {
         $enrolledSet = array_flip($enrolledUserIds);
         $classParticipants->preRegisteredStudents = array_filter(
             (array)$classParticipants->preRegisteredStudents,
