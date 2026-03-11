@@ -2975,11 +2975,12 @@ try {
 
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
 
-            // Count current enrolled: group members if class has group, otherwise gmk_course_progre
+            // Count current enrolled: group members if class has a Moodle group.
+            // For classes without a group there is no authoritative "enrolled" count to check against quota.
             if (!empty($class->groupid)) {
                 $currentCount = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
             } else {
-                $currentCount = $DB->count_records('gmk_course_progre', ['classid' => $class->id]);
+                $currentCount = 0;
             }
             $quota    = (int)$class->classroomcapacity;
             $newTotal = $currentCount + count($userids);
