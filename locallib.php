@@ -755,7 +755,24 @@ function create_class_activities($class, $updating = false)
         }
 
         // Reuse grade category if already created.
-        if (empty($class->gradecategoryid) || !$DB->record_exists('grade_categories', ['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid])) {
+        // Also search by fullname to recover from partial previous publishes where the category
+        // was created but gradecategoryid was never saved back to gmk_class (causing duplicate grade_grades on retry).
+        $existingCatId = null;
+        if (!empty($class->gradecategoryid) && $DB->record_exists('grade_categories', ['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid])) {
+            $existingCatId = (int)$class->gradecategoryid;
+            gmk_log("INFO: create_class_activities — reutilizando gradecategory por id={$existingCatId}");
+        } else {
+            $expectedCatName = $class->name . '-' . $class->id . ' grade category';
+            $existingCat = $DB->get_record('grade_categories', ['fullname' => $expectedCatName, 'courseid' => $class->corecourseid]);
+            if ($existingCat) {
+                $existingCatId = (int)$existingCat->id;
+                $class->gradecategoryid = $existingCatId;
+                $DB->update_record('gmk_class', $class);
+                gmk_log("INFO: create_class_activities — reutilizando gradecategory por nombre id={$existingCatId}");
+            }
+        }
+
+        if (!$existingCatId) {
             $class->gradecategoryid = create_class_grade_category($class);
             $DB->update_record('gmk_class', $class);
 
@@ -765,8 +782,6 @@ function create_class_activities($class, $updating = false)
             $attendanceGradeItemId = $DB->get_field('grade_items', 'id', ['itemmodule' => 'attendance', 'iteminstance' => $attendanceCourseModule->instance]);
             $attendanceGradeItem = $classCourseGradeTree->locate_element('ig' . $attendanceGradeItemId)['object'];
             $attendanceGradeItem->set_parent($classGradeCategory->id);
-        } else {
-            gmk_log("INFO: create_class_activities — reutilizando gradecategory existente id={$class->gradecategoryid}");
         }
     }
 
