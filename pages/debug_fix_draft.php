@@ -101,6 +101,17 @@ if ($action === 'fixcourseid' && $fixclassid > 0 && $fixtopid > 0 && confirm_ses
     }
 }
 
+// ── Handle fix class learningplanid ───────────────────────────────────────────
+if ($action === 'fixlpid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
+    $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
+    if ($cls) {
+        $DB->set_field('gmk_class', 'learningplanid', $fixtopid, ['id' => $fixclassid]);
+        $message = '<p class="msg-ok">✅ Clase id=' . $fixclassid . ' — learningplanid corregido a <b>' . $fixtopid . '</b>.</p>';
+    } else {
+        $message = '<p class="msg-err">❌ Clase no encontrada.</p>';
+    }
+}
+
 // ── Handle fix all broken courseids at once ────────────────────────────────────
 if ($action === 'fixallcourseids' && confirm_sesskey()) {
     $broken = $DB->get_records_sql(
