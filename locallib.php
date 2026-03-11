@@ -749,21 +749,22 @@ function create_class_activities($class, $updating = false)
             try {
                 $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
             } catch (Throwable $attErr) {
-                // add_moduleinfo can trigger Moodle messaging/events that throw on misconfigured sites.
-                // If the module was partially created, try to find it by section.
-                gmk_log("WARNING create_attendance_activity threw for class {$class->id}: " . $attErr->getMessage());
-                $attendanceActivityInfo = null;
-                // Try to find any attendance module already created in this section.
+                // add_moduleinfo throws when Moodle messaging fails (e.g. suspended instructor).
+                // The attendance module IS created in the DB before the event fires — recover it.
+                gmk_log("WARNING create_attendance_activity threw for class {$class->id}: " . $attErr->getMessage() . " — buscando módulo creado parcialmente");
                 $attModId = $DB->get_field('modules', 'id', ['name' => 'attendance']);
+                // course_modules.section stores the course_sections.id (not the section number)
                 $existingCm = $attModId ? $DB->get_record_sql(
                     "SELECT id, instance FROM {course_modules} WHERE course=:c AND module=:m AND section=:s ORDER BY id DESC LIMIT 1",
-                    ['c' => $class->corecourseid, 'm' => $attModId, 's' => $classSectionNumber]
+                    ['c' => $class->corecourseid, 'm' => $attModId, 's' => $class->coursesectionid]
                 ) : null;
                 if ($existingCm) {
                     $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
-                    gmk_log("INFO: Recuperado attendance existente cmid={$existingCm->id} para clase {$class->id}");
+                    gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} creado parcialmente para clase {$class->id}");
                 } else {
-                    throw $attErr; // Re-throw — attendance is required
+                    // Module was NOT created — nothing to recover, skip this class
+                    gmk_log("WARNING: No se pudo crear ni recuperar attendance para clase {$class->id} — saltando actividades");
+                    return; // Exit create_class_activities gracefully
                 }
             }
             $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
@@ -1016,16 +1017,7 @@ function create_attendance_activity($class, $classSectionNumber)
     $attendanceActivityDefinition->completionusegrade         = 1;
     $attendanceActivityDefinition->completionpassgrade        = 1;
 
-    // Suppress Moodle messaging during module creation to avoid failures when
-    // instructors are suspended or have invalid email addresses (message_send throws).
-    global $CFG;
-    $prevMessaging = $CFG->messaging ?? true;
-    $CFG->messaging = false;
-    try {
-        $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
-    } finally {
-        $CFG->messaging = $prevMessaging;
-    }
+    $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
     return $attendanceActivityInfo;
 }
 
