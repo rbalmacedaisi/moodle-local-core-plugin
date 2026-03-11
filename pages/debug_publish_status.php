@@ -310,11 +310,15 @@ foreach ($classes as $c) {
           ? '<span class="badge badge-ok">OK</span>'
           : '<span class="badge badge-err">INCOMPLETA</span>';
 
-      // Attendance sessions count
-      $attSessions = $hasAtt
-          ? $DB->count_records('attendance_sessions', ['attendanceid' =>
-              $DB->get_field('attendance', 'id', ['coursemodule' => $c->attendancemoduleid]) ?: 0])
-          : 0;
+      // Attendance sessions count: attendancemoduleid is a course_modules.id (cmid).
+      // course_modules.instance → attendance.id → attendance_sessions.attendanceid
+      $attSessions = 0;
+      if ($hasAtt && $attExists) {
+          $attInstanceId = $DB->get_field('course_modules', 'instance', ['id' => $c->attendancemoduleid]);
+          if ($attInstanceId) {
+              $attSessions = $DB->count_records('attendance_sessions', ['attendanceid' => $attInstanceId]);
+          }
+      }
   ?>
   <tr class="<?php echo $rowClass ?>" data-complete="<?php echo $allOk ? '1' : '0' ?>" id="row-<?php echo $c->id ?>">
     <td><?php echo $c->id ?></td>
