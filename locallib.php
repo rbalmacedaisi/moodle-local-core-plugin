@@ -1813,9 +1813,8 @@ function approve_course_schedules($approvingSchedules)
         // Get the class record with all fields
         $class = $DB->get_record('gmk_class', ['id' => $schedule['classId']], '*', MUST_EXIST);
 
-        if ($class->approved) {
-            throw new Exception('Class already approved');
-        }
+        // If already approved, still process any pending students (idempotent re-enrolment).
+        $alreadyApproved = (bool)$class->approved;
 
         $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $schedule['classId']]);
         $scheduleQueuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $schedule['classId']]);
@@ -1833,8 +1832,12 @@ function approve_course_schedules($approvingSchedules)
             throw new Exception('Class ID is missing from the record');
         }
 
-        $class->approved = 1;
-        $classApproved = $DB->update_record('gmk_class', $class);
+        if (!$alreadyApproved) {
+            $class->approved = 1;
+            $classApproved = $DB->update_record('gmk_class', $class);
+        } else {
+            $classApproved = true;
+        }
 
         // For classes without a Moodle group, clear the queue/pre-registration after approval
         // so students don't appear duplicated in "En Espera"/"Inscritos" after being moved to enroledStudents.

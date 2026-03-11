@@ -1097,7 +1097,11 @@ Vue.component('scheduleapproval', {
                         params: params
                     };
                     localStorage.setItem('scheduleApprovalResponse', JSON.stringify(debugResponse));
-                    console.log('DEBUG Response saved to localStorage');
+
+                    if (response.data && response.data.status === -1) {
+                        alert('Error al aprobar: ' + (response.data.message || 'Error desconocido'));
+                        return;
+                    }
 
                     // Reload the page after successful approval.
                     location.reload();
