@@ -319,70 +319,86 @@ if ($ajax === 'diag_duplicates') {
     exit;
 }
 
-// ── AJAX: limpiar queue/pre_reg de estudiantes ya inscritos ──────────────────
+// ── AJAX: limpiar duplicados pre_reg/queue y ya-inscritos ────────────────────
 if ($ajax === 'clean_duplicates') {
     header('Content-Type: application/json');
     try {
         $periodid = required_param('periodid', PARAM_INT);
         require_sesskey();
 
-        // Clases del periodo con grupo: limpiar queue/pre_reg de quienes ya están en groups_members
-        $classesWithGroup = $DB->get_records_select('gmk_class', 'periodid = :pid AND groupid > 0', ['pid' => $periodid]);
+        $allClasses = $DB->get_records('gmk_class', ['periodid' => $periodid]);
         $deletedPreReg = 0;
         $deletedQueue  = 0;
 
-        foreach ($classesWithGroup as $cls) {
-            // IDs en groups_members para este grupo
-            $groupMemberIds = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $cls->groupid]);
-            if (empty($groupMemberIds)) continue;
-            list($insql, $inparams) = $DB->get_in_or_equal($groupMemberIds);
+        foreach ($allClasses as $cls) {
 
-            $preIds = $DB->get_fieldset_select('gmk_class_pre_registration', 'id',
-                "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
-            if ($preIds) {
-                list($dsql, $dparams) = $DB->get_in_or_equal($preIds);
+            // A) Mismo userid en pre_registration Y en queue → eliminar el de pre_registration
+            //    (queue es el estado "en espera real"; pre_reg es la planificación inicial)
+            $dupIds = $DB->get_fieldset_sql(
+                "SELECT pr.id FROM {gmk_class_pre_registration} pr
+                  WHERE pr.classid = :cid
+                    AND EXISTS (
+                        SELECT 1 FROM {gmk_class_queue} q
+                         WHERE q.classid = pr.classid AND q.userid = pr.userid
+                    )",
+                ['cid' => $cls->id]
+            );
+            if ($dupIds) {
+                list($dsql, $dparams) = $DB->get_in_or_equal($dupIds);
                 $DB->delete_records_select('gmk_class_pre_registration', "id $dsql", $dparams);
-                $deletedPreReg += count($preIds);
+                $deletedPreReg += count($dupIds);
             }
 
-            $qIds = $DB->get_fieldset_select('gmk_class_queue', 'id',
-                "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
-            if ($qIds) {
-                list($dsql, $dparams) = $DB->get_in_or_equal($qIds);
-                $DB->delete_records_select('gmk_class_queue', "id $dsql", $dparams);
-                $deletedQueue += count($qIds);
-            }
-        }
-
-        // Clases sin grupo: limpiar queue/pre_reg de quienes ya están en gmk_course_progre con ese classid
-        $classesNoGroup = $DB->get_records_select('gmk_class', 'periodid = :pid AND (groupid = 0 OR groupid IS NULL)', ['pid' => $periodid]);
-        foreach ($classesNoGroup as $cls) {
-            $progreUserIds = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => $cls->id]);
-            if (empty($progreUserIds)) continue;
-            list($insql, $inparams) = $DB->get_in_or_equal($progreUserIds);
-
-            $preIds = $DB->get_fieldset_select('gmk_class_pre_registration', 'id',
-                "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
-            if ($preIds) {
-                list($dsql, $dparams) = $DB->get_in_or_equal($preIds);
-                $DB->delete_records_select('gmk_class_pre_registration', "id $dsql", $dparams);
-                $deletedPreReg += count($preIds);
+            // B) Ya inscritos en groups_members → limpiar de pre_reg y queue
+            if (!empty($cls->groupid)) {
+                $groupMemberIds = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $cls->groupid]);
+                if (!empty($groupMemberIds)) {
+                    list($insql, $inparams) = $DB->get_in_or_equal($groupMemberIds);
+                    $preIds = $DB->get_fieldset_select('gmk_class_pre_registration', 'id',
+                        "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
+                    if ($preIds) {
+                        list($dsql, $dparams) = $DB->get_in_or_equal($preIds);
+                        $DB->delete_records_select('gmk_class_pre_registration', "id $dsql", $dparams);
+                        $deletedPreReg += count($preIds);
+                    }
+                    $qIds = $DB->get_fieldset_select('gmk_class_queue', 'id',
+                        "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
+                    if ($qIds) {
+                        list($dsql, $dparams) = $DB->get_in_or_equal($qIds);
+                        $DB->delete_records_select('gmk_class_queue', "id $dsql", $dparams);
+                        $deletedQueue += count($qIds);
+                    }
+                }
             }
 
-            $qIds = $DB->get_fieldset_select('gmk_class_queue', 'id',
-                "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
-            if ($qIds) {
-                list($dsql, $dparams) = $DB->get_in_or_equal($qIds);
-                $DB->delete_records_select('gmk_class_queue', "id $dsql", $dparams);
-                $deletedQueue += count($qIds);
+            // C) Ya inscritos en gmk_course_progre (clases sin grupo) → limpiar de pre_reg y queue
+            if (empty($cls->groupid)) {
+                $progreUserIds = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => $cls->id]);
+                if (!empty($progreUserIds)) {
+                    list($insql, $inparams) = $DB->get_in_or_equal($progreUserIds);
+                    $preIds = $DB->get_fieldset_select('gmk_class_pre_registration', 'id',
+                        "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
+                    if ($preIds) {
+                        list($dsql, $dparams) = $DB->get_in_or_equal($preIds);
+                        $DB->delete_records_select('gmk_class_pre_registration', "id $dsql", $dparams);
+                        $deletedPreReg += count($preIds);
+                    }
+                    $qIds = $DB->get_fieldset_select('gmk_class_queue', 'id',
+                        "classid = :cid AND userid $insql", array_merge(['cid' => $cls->id], $inparams));
+                    if ($qIds) {
+                        list($dsql, $dparams) = $DB->get_in_or_equal($qIds);
+                        $DB->delete_records_select('gmk_class_queue', "id $dsql", $dparams);
+                        $deletedQueue += count($qIds);
+                    }
+                }
             }
         }
 
         echo json_encode([
-            'status'          => 'success',
-            'deleted_prereg'  => $deletedPreReg,
-            'deleted_queue'   => $deletedQueue,
-            'total'           => $deletedPreReg + $deletedQueue,
+            'status'         => 'success',
+            'deleted_prereg' => $deletedPreReg,
+            'deleted_queue'  => $deletedQueue,
+            'total'          => $deletedPreReg + $deletedQueue,
         ]);
     } catch (Throwable $e) {
         echo json_encode(['status' => 'error', 'message' => $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()]);

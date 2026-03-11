@@ -1553,10 +1553,7 @@ function get_class_participants($class)
 
     $classParticipants->progreStudents = $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
 
-    // Remove from preRegisteredStudents and queuedStudents any student already in enroledStudents,
-    // to avoid showing the same person in both "En Espera" and "Inscritos".
-    // Works for all classes: group-based (enroledStudents = groups_members rows with ->userid)
-    // and no-group classes (enroledStudents = gmk_course_progre rows with ->userid).
+    // 1. Remove from pre_registration and queue anyone already in enroledStudents.
     $enrolledUserIds = [];
     foreach ((array)$classParticipants->enroledStudents as $e) {
         if (!empty($e->userid)) {
@@ -1572,6 +1569,22 @@ function get_class_participants($class)
         $classParticipants->queuedStudents = array_filter(
             (array)$classParticipants->queuedStudents,
             fn($s) => !isset($enrolledSet[(int)$s->userid])
+        );
+    }
+
+    // 2. If the same student is in both pre_registration AND queue, keep only pre_registration.
+    //    This prevents double-counting when both tables have the same userid for the same class.
+    $preRegUserIds = [];
+    foreach ((array)$classParticipants->preRegisteredStudents as $s) {
+        if (!empty($s->userid)) {
+            $preRegUserIds[] = (int)$s->userid;
+        }
+    }
+    if (!empty($preRegUserIds)) {
+        $preRegSet = array_flip($preRegUserIds);
+        $classParticipants->queuedStudents = array_filter(
+            (array)$classParticipants->queuedStudents,
+            fn($s) => !isset($preRegSet[(int)$s->userid])
         );
     }
 

@@ -986,7 +986,9 @@ class scheduler extends external_api {
 
                 // Save Students to Queue
                 // studentIds contains idnumbers (document numbers), resolve to real user ids.
-                $DB->delete_records('gmk_class_queue', ['classid' => $classid]);
+                // Clear both queue and pre_registration so re-publishing never leaves duplicates.
+                $DB->delete_records('gmk_class_queue',            ['classid' => $classid]);
+                $DB->delete_records('gmk_class_pre_registration', ['classid' => $classid]);
                 if (!empty($cls['studentIds']) && is_array($cls['studentIds'])) {
                     foreach ($cls['studentIds'] as $uid) {
                         // Resolve idnumber → real user id if needed
