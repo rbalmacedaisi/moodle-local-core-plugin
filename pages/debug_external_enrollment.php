@@ -143,6 +143,70 @@ echo '<div class="info-box">Periodo activo: <strong>' . htmlspecialchars($active
 echo 'Inicio: ' . date('d/m/Y', $activePeriod->startdate) . ' &nbsp;|&nbsp; ';
 echo 'Fin: '    . date('d/m/Y', $activePeriod->enddate) . '</div>';
 
+// ── Diagnóstico: clases de Buceo y Soldadura en gmk_class ───────────────────
+echo '<div class="section">';
+echo '<h2>Diagnóstico: clases de Buceo y Soldadura en gmk_class</h2>';
+
+$buceoSoldClasses = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.periodid, ap.name as periodname,
+            c.groupid, c.approved, c.initdate, c.enddate,
+            c.corecourseid, co.fullname as coursename,
+            lp.id as lpid, lp.name as planname
+       FROM {gmk_class} c
+       LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
+       LEFT JOIN {course}               co ON co.id = c.corecourseid
+       LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
+      WHERE c.learningplanid IN (
+          SELECT id FROM {local_learning_plans}
+           WHERE " . $DB->sql_like('name', ':kw1') . "
+              OR " . $DB->sql_like('name', ':kw2') . "
+      )
+      ORDER BY c.id DESC",
+    ['kw1' => '%BUCEO%', 'kw2' => '%SOLDADURA%']
+);
+
+if (empty($buceoSoldClasses)) {
+    echo '<div class="err-box"><strong>No se encontraron clases en gmk_class para los planes BUCEO ni SOLDADURA.</strong><br>';
+    echo 'Esto confirma que fueron eliminadas durante los intentos anteriores de publicación.</div>';
+
+    // Mostrar qué planes existen con esos nombres
+    $plans = $DB->get_records_sql(
+        "SELECT id, name FROM {local_learning_plans}
+          WHERE " . $DB->sql_like('name', ':kw1') . " OR " . $DB->sql_like('name', ':kw2'),
+        ['kw1' => '%BUCEO%', 'kw2' => '%SOLDADURA%']
+    );
+    if ($plans) {
+        echo '<div class="warn-box">Planes encontrados en local_learning_plans:<ul>';
+        foreach ($plans as $pl) {
+            $studentCount = $DB->count_records('local_learning_users', ['learningplanid' => $pl->id]);
+            echo '<li>ID=' . $pl->id . ': <strong>' . htmlspecialchars($pl->name) . '</strong> — ' . $studentCount . ' estudiante(s) en local_learning_users</li>';
+        }
+        echo '</ul></div>';
+    }
+} else {
+    echo '<div class="ok-box">Se encontraron <strong>' . count($buceoSoldClasses) . '</strong> clases.</div>';
+    echo '<table>';
+    echo '<tr><th>ID</th><th>Nombre clase</th><th>Periodo</th><th>Plan</th><th>Curso Moodle</th><th>groupid</th><th>approved</th><th>initdate</th><th>enddate</th></tr>';
+    foreach ($buceoSoldClasses as $cls) {
+        $overlap = ($cls->initdate <= $activePeriod->enddate && $cls->enddate >= $activePeriod->startdate);
+        $rowCls  = $overlap ? 'warn' : '';
+        echo '<tr class="' . $rowCls . '">';
+        echo '<td>' . $cls->id . '</td>';
+        echo '<td>' . htmlspecialchars($cls->name) . '</td>';
+        echo '<td>' . htmlspecialchars($cls->periodname ?? 'ID:'.$cls->periodid) . '</td>';
+        echo '<td>' . htmlspecialchars($cls->planname ?? 'ID:'.$cls->lpid) . '</td>';
+        echo '<td>' . htmlspecialchars($cls->coursename ?? 'ID:'.$cls->corecourseid) . '</td>';
+        echo '<td>' . $cls->groupid . '</td>';
+        echo '<td>' . $cls->approved . '</td>';
+        echo '<td>' . ($cls->initdate ? date('d/m/Y', $cls->initdate) : '—') . '</td>';
+        echo '<td>' . ($cls->enddate  ? date('d/m/Y', $cls->enddate)  : '—') . '</td>';
+        echo '</tr>';
+    }
+    echo '</table>';
+    echo '<small style="color:#666">Filas amarillas = solapan con el periodo activo (aparecen en el tablero como externas)</small>';
+}
+echo '</div>'; // section diagnóstico
+
 // ── Obtener clases externas (misma lógica que get_generated_schedules) ───────
 // Clases de OTRO periodo cuyas fechas solapan con el periodo activo
 $externalClasses = $DB->get_records_sql(
