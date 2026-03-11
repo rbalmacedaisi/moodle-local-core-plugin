@@ -15,6 +15,16 @@ $periodid = optional_param('periodid', 0, PARAM_INT);
 
 echo '<h2>Debug: Clases Externas</h2>';
 
+// All periods list for reference
+echo '<h3>Todos los periodos en BD</h3>';
+$allPeriods = $DB->get_records_sql("SELECT id, name, startdate, enddate FROM {gmk_academic_periods} ORDER BY id DESC");
+echo '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:monospace;font-size:12px;margin-bottom:16px;">';
+echo '<tr style="background:#1a73e8;color:white;"><th>id</th><th>name</th><th>startdate</th><th>enddate</th></tr>';
+foreach ($allPeriods as $ap) {
+    echo '<tr><td>'.$ap->id.'</td><td>'.htmlspecialchars($ap->name).'</td><td>'.($ap->startdate ? userdate($ap->startdate) : '-').'</td><td>'.($ap->enddate ? userdate($ap->enddate) : '-').'</td></tr>';
+}
+echo '</table>';
+
 // Period selector
 $periods = $DB->get_records_sql("SELECT id, name FROM {gmk_academic_periods} ORDER BY id DESC");
 echo '<form method="get" style="margin-bottom:16px;font-family:sans-serif;">';
