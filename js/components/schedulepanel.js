@@ -6,6 +6,32 @@ Vue.component('scheduletable',{
     template: `
         <v-row justify="center" class="my-2 mx-0 position-relative">
             <v-col cols="12" class="py-0">
+
+                <!-- Bulk approve confirmation dialog -->
+                <v-dialog v-model="confirmDialog" max-width="480">
+                    <v-card>
+                        <v-card-title class="text-h6">Aprobar período</v-card-title>
+                        <v-card-text>
+                            ¿Confirma que desea inscribir todos los estudiantes y aprobar todas las clases
+                            del período <strong>{{ selectedPeriodName }}</strong>?<br>
+                            <span class="text-caption grey--text">Solo se procesarán clases aún no aprobadas.</span>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn text @click="confirmDialog = false">Cancelar</v-btn>
+                            <v-btn color="success" :loading="approving" @click="bulkApprove">Confirmar</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Result snackbar -->
+                <v-snackbar v-model="snackbar" :timeout="6000" top :color="snackColor">
+                    {{ snackMessage }}
+                    <template v-slot:action="{ attrs }">
+                        <v-btn text v-bind="attrs" @click="snackbar = false">Cerrar</v-btn>
+                    </template>
+                </v-snackbar>
+
                 <v-data-table
                    :headers="headers"
                    :items="items"
@@ -17,14 +43,33 @@ Vue.component('scheduletable',{
                     <template v-slot:top>
                         <v-toolbar flat>
                             <v-toolbar-title>{{lang.selection_schedules}}</v-toolbar-title>
-                            <v-divider
-                              class="mx-4"
-                              inset
-                              vertical
-                            ></v-divider>
+                            <v-divider class="mx-4" inset vertical></v-divider>
+                            <v-select
+                                v-model="selectedPeriod"
+                                :items="periods"
+                                item-text="name"
+                                item-value="id"
+                                label="Período"
+                                dense
+                                outlined
+                                hide-details
+                                clearable
+                                style="max-width:260px"
+                                class="mr-3"
+                            ></v-select>
+                            <v-btn
+                                color="success"
+                                small
+                                :disabled="!selectedPeriod || approving"
+                                :loading="approving"
+                                @click="confirmDialog = true"
+                            >
+                                <v-icon left small>mdi-check-all</v-icon>
+                                Aprobar período
+                            </v-btn>
                             <v-spacer></v-spacer>
                         </v-toolbar>
-                        
+
                         <v-row justify="start" class="ma-0 mr-3">
                             <v-col cols="4">
                                 <v-text-field
@@ -94,6 +139,13 @@ Vue.component('scheduletable',{
         return{
             dialog: false,
             search: '',
+            selectedPeriod: null,
+            approving: false,
+            confirmDialog: false,
+            snackbar: false,
+            snackMessage: '',
+            snackColor: 'success',
+            periods: window.periodsList || [],
             headers: [
                 {
                     text: window.strings.course,
@@ -208,7 +260,38 @@ Vue.component('scheduletable',{
             }catch (error){
                 console.error(error)
             }
-        }
+        },
+        async bulkApprove() {
+            if (!this.selectedPeriod) return;
+            this.approving = true;
+            this.confirmDialog = false;
+            try {
+                const res = await window.axios.post(
+                    window.location.origin + '/local/grupomakro_core/ajax.php',
+                    { action: 'local_grupomakro_bulk_approve_period', periodid: this.selectedPeriod },
+                    { headers: { 'Content-Type': 'application/json' } }
+                );
+                const d = res.data?.data;
+                if (d) {
+                    const errMsg = d.errors.length > 0 ? ` (${d.errors.length} errores)` : '';
+                    this.snackMessage = `Aprobadas: ${d.approved} clases. Sin estudiantes: ${d.skipped}.${errMsg}`;
+                    this.snackColor = d.errors.length > 0 ? 'warning' : 'success';
+                    if (d.errors.length > 0) {
+                        console.warn('Bulk approve errors:', d.errors);
+                    }
+                } else {
+                    this.snackMessage = res.data?.message || 'Error desconocido';
+                    this.snackColor = 'error';
+                }
+                this.snackbar = true;
+            } catch(e) {
+                this.snackMessage = 'Error: ' + (e.response?.data?.message || e.message);
+                this.snackColor = 'error';
+                this.snackbar = true;
+            } finally {
+                this.approving = false;
+            }
+        },
     },
     computed: {
         /**
@@ -219,6 +302,11 @@ Vue.component('scheduletable',{
          */
         lang(){
             return window.strings
+        },
+        selectedPeriodName() {
+            if (!this.selectedPeriod) return '';
+            const p = this.periods.find(p => p.id == this.selectedPeriod);
+            return p ? p.name : '';
         },
         /**
          * A computed property that returns the site URL for making API requests.

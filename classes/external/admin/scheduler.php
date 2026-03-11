@@ -859,10 +859,31 @@ class scheduler extends external_api {
                 }
                 
                 $classRec->classdays = $rawClassdays;
-                $classRec->approved = 1;
                 $classRec->active = 1;
                 $classRec->timemodified = time();
                 $classRec->usermodified = $GLOBALS['USER']->id;
+
+                // For updates: read current DB record to preserve approved state and existing Moodle structures.
+                // For inserts: default approved=0 (activities will be created now; approval happens separately).
+                $existingDbRec = null;
+                if ($isUpdate) {
+                    $existingDbRec = $DB->get_record('gmk_class', ['id' => $classRec->id]);
+                    // Preserve approved=1 only when the class already has activities (complete flow).
+                    // Classes published with old code (no attendancemoduleid) get reset to 0
+                    // so they go through the proper approval flow with student enrollment.
+                    $hasActivities = $existingDbRec && !empty($existingDbRec->attendancemoduleid);
+                    $classRec->approved = $hasActivities ? (int)$existingDbRec->approved : 0;
+                    // Preserve existing Moodle structure IDs so create_class_activities can find them
+                    if ($existingDbRec) {
+                        if (empty($classRec->attendancemoduleid)) $classRec->attendancemoduleid = $existingDbRec->attendancemoduleid;
+                        if (empty($classRec->coursesectionid))    $classRec->coursesectionid    = $existingDbRec->coursesectionid;
+                        if (empty($classRec->groupid))            $classRec->groupid             = $existingDbRec->groupid;
+                        if (empty($classRec->gradecategoryid))    $classRec->gradecategoryid     = $existingDbRec->gradecategoryid;
+                        if (empty($classRec->bbbmoduleids))       $classRec->bbbmoduleids        = $existingDbRec->bbbmoduleids;
+                    }
+                } else {
+                    $classRec->approved = 0;
+                }
 
                 // Resolve classroomid from payload so build_class_group_name has it for both INSERT and UPDATE
                 $classRec->classroomid = null;
@@ -902,6 +923,27 @@ class scheduler extends external_api {
                 if ($isUpdate) {
                     $DB->update_record('gmk_class', $classRec);
                     $classid = $classRec->id;
+
+                    if (!empty($classRec->attendancemoduleid) && !empty($classRec->coursesectionid)) {
+                        // Has existing activities → recreate BBB sessions and attendance sessions with new schedule
+                        try {
+                            create_class_activities($classRec, true);
+                        } catch (Exception $ae) {
+                            gmk_log("WARNING: No se pudieron recrear actividades para clase $classid: " . $ae->getMessage());
+                        }
+                    } else if (!empty($classRec->corecourseid) && !empty($classRec->groupid)) {
+                        // Was published with old code (no activities yet) → create section + activities now
+                        try {
+                            if (empty($classRec->coursesectionid)) {
+                                $sectionId = create_class_section($classRec);
+                                $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
+                                $classRec->coursesectionid = $sectionId;
+                            }
+                            create_class_activities($classRec, false);
+                        } catch (Exception $ae) {
+                            gmk_log("WARNING: No se pudieron crear actividades (update sin actividades previas) para clase $classid: " . $ae->getMessage());
+                        }
+                    }
                 } else {
                     $classRec->timecreated = time();
                     $classid = $DB->insert_record('gmk_class', $classRec);
@@ -914,6 +956,18 @@ class scheduler extends external_api {
                         $classRec->groupid = $groupId;
                     } catch (Exception $ge) {
                         gmk_log("WARNING: No se pudo crear el grupo para clase $classid: " . $ge->getMessage());
+                    }
+
+                    // Create course section and Moodle activities (attendance + BBB per session)
+                    if (!empty($classRec->corecourseid) && !empty($classRec->groupid)) {
+                        try {
+                            $sectionId = create_class_section($classRec);
+                            $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
+                            $classRec->coursesectionid = $sectionId;
+                            create_class_activities($classRec, false);
+                        } catch (Exception $ae) {
+                            gmk_log("WARNING: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
+                        }
                     }
                 }
 

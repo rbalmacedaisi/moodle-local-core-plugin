@@ -3011,6 +3011,31 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_bulk_approve_period':
+            raise_memory_limit(MEMORY_HUGE);
+            core_php_time_limit::raise(600);
+
+            $periodid = required_param('periodid', PARAM_INT);
+            $classes = $DB->get_records('gmk_class', ['periodid' => $periodid, 'approved' => 0, 'active' => 1]);
+
+            $results = ['approved' => 0, 'skipped' => 0, 'errors' => []];
+            foreach ($classes as $class) {
+                try {
+                    $queueStudents = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+                    if (!empty($queueStudents)) {
+                        enrolApprovedScheduleStudents(array_values($queueStudents), $class);
+                    } else {
+                        $results['skipped']++;
+                    }
+                    $DB->set_field('gmk_class', 'approved', 1, ['id' => $class->id]);
+                    $results['approved']++;
+                } catch (Exception $e) {
+                    $results['errors'][] = ['classid' => $class->id, 'name' => $class->name, 'error' => $e->getMessage()];
+                }
+            }
+            $response = ['status' => 'success', 'data' => $results];
+            break;
+
         case 'local_grupomakro_save_generation_result':
             $periodid = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);

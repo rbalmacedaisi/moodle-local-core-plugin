@@ -54,6 +54,9 @@ $strings = json_encode($strings);
 $token = get_logged_user_token();
 $themeToken = get_theme_token();
 
+$periods_raw = $DB->get_records('gmk_academic_periods', ['active' => 1], 'id DESC', 'id, name');
+$periodsList = json_encode(array_values($periods_raw));
+
 
 echo $OUTPUT->header();
 
@@ -87,6 +90,7 @@ echo <<<EOT
     var strings = $strings;
     var userToken = $token;
     var themeToken = $themeToken || null;
+    var periodsList = $periodsList;
   </script>
   
 EOT;
