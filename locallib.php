@@ -1026,7 +1026,8 @@ function list_classes($filters)
         
         // Derive Academic Metadata from Subject ID (gmk_class.courseid)
         if (!empty($class->courseid)) {
-            if (!isset($subjects_metadata_cache[$class->courseid])) {
+            $cacheKey = $class->courseid . '_' . ($class->learningplanid ?? 0);
+            if (!isset($subjects_metadata_cache[$cacheKey])) {
                 // First try: assume courseid is the Subject ID (local_learning_courses.id)
                 $subj = $DB->get_record('local_learning_courses', ['id' => $class->courseid], 'id, learningplanid, periodid, courseid');
                 
@@ -1037,9 +1038,14 @@ function list_classes($filters)
                     if (!empty($class->learningplanid)) {
                         $searchParams['learningplanid'] = $class->learningplanid;
                     }
-                    
+
                     $subj = $DB->get_record('local_learning_courses', $searchParams, 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
-                    
+
+                    // Last resort: try by Moodle courseid without learningplanid filter (corecourseid cross-check)
+                    if (!$subj && !empty($class->corecourseid)) {
+                        $subj = $DB->get_record('local_learning_courses', ['courseid' => $class->corecourseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                    }
+
                     if ($subj) {
                         gmk_log("DEBUG: list_classes encontró materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
                     } else {
@@ -1047,16 +1053,17 @@ function list_classes($filters)
                     }
                 }
                 
-                $subjects_metadata_cache[$class->courseid . '_' . ($class->learningplanid ?? 0)] = $subj ?: null;
+                $subjects_metadata_cache[$cacheKey] = $subj ?: null;
             }
-            
-            $meta = $subjects_metadata_cache[$class->courseid . '_' . ($class->learningplanid ?? 0)];
+
+            $meta = $subjects_metadata_cache[$cacheKey];
             if ($meta) {
                 $oldPlan = $class->learningplanid;
                 $oldPeriod = $class->periodid;
                 $oldCourse = $class->courseid;
 
-                if (empty($class->learningplanid)) {
+                // Always trust meta over stored value (meta comes from the actual subject record)
+                if (empty($class->learningplanid) || (int)$class->learningplanid !== (int)$meta->learningplanid) {
                     $class->learningplanid = (int)$meta->learningplanid;
                 }
                 
