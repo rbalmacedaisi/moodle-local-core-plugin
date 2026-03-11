@@ -162,9 +162,9 @@ window.SchedulerComponents.PlanningBoard = {
                                     >
                                         <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : (cls.isExternal ? 'text-amber-800' : 'text-blue-800')">
                                             {{ cls.subjectName }}
-                                            <span v-if="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
-                                            <span v-if="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
-                                                {{ cls.excluded_dates.length }}
+                                            <span v-show="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
+                                            <span v-show="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
+                                                {{ cls.excluded_dates ? cls.excluded_dates.length : '' }}
                                             </span>
                                         </div>
                                         <div class="text-[9px] leading-tight text-slate-500 mt-0.5">
@@ -175,7 +175,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
-                                                <span v-if="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
+                                                <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
                                             </div>
@@ -190,7 +190,7 @@ window.SchedulerComponents.PlanningBoard = {
                                                             : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
                                                         {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' · ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
                                                     </span>
-                                                    <i v-if="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
+                                                    <i v-show="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
                                                 </div>
                                                 <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
                                                     <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
@@ -219,10 +219,11 @@ window.SchedulerComponents.PlanningBoard = {
                                                 :title="'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones'">
                                                 <i data-lucide="alert-circle" class="w-3 h-3"></i>
                                             </div>
+                                            <template v-else></template>
                                         </div>
 
                                         <!-- Resize Handle (bottom edge) -->
-                                        <div v-if="!cls.isExternal"
+                                        <div v-show="!cls.isExternal"
                                             class="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center group/resize"
                                             @mousedown.stop="onResizeStart($event, cls)"
                                             title="Arrastrar para cambiar duración"
