@@ -138,37 +138,98 @@ foreach ($classes as $cls) {
 
 echo '</table>';
 
-// Also show all grade_categories for all courses in this period (to find orphans)
-echo '<hr><h3>grade_items huérfanos para user 1999 (todos los cursos del periodo)</h3>';
-$courseIds = array_unique(array_filter(array_column($classes, 'corecourseid')));
+// Direct item lookup — investigar itemid específico
+$lookupItemId = optional_param('itemid', 0, PARAM_INT);
+$lookupUserId = optional_param('userid', 0, PARAM_INT);
+echo '<hr><h3>Investigar grade_item específico</h3>';
+echo '<form method="get">
+    <input type="hidden" name="periodid" value="' . $periodid . '">
+    itemid: <input type="number" name="itemid" value="' . $lookupItemId . '" style="width:80px">
+    userid: <input type="number" name="userid" value="' . $lookupUserId . '" style="width:80px">
+    <button type="submit">Buscar</button>
+</form>';
+
+if ($lookupItemId) {
+    $gi = $DB->get_record('grade_items', ['id' => $lookupItemId]);
+    if ($gi) {
+        echo '<pre style="font-size:11px;background:#f5f5f5;padding:8px">';
+        echo "grade_item id=$lookupItemId:\n";
+        echo "  itemtype={$gi->itemtype}  itemmodule={$gi->itemmodule}  iteminstance={$gi->iteminstance}\n";
+        echo "  courseid={$gi->courseid}  categoryid={$gi->categoryid}  itemname=" . htmlspecialchars($gi->itemname) . "\n";
+        // Find category
+        if ($gi->categoryid) {
+            $cat = $DB->get_record('grade_categories', ['id' => $gi->categoryid]);
+            echo "  category=" . htmlspecialchars($cat ? $cat->fullname : 'NOT FOUND') . "\n";
+        }
+        // Find course_module if attendance
+        if ($gi->itemmodule === 'attendance') {
+            $cm = $DB->get_record('course_modules', ['instance' => $gi->iteminstance, 'course' => $gi->courseid]);
+            echo "  course_module=" . ($cm ? "id={$cm->id}" : "NOT FOUND (orphan!)") . "\n";
+        }
+        // Check grade_grades for this item
+        $ggs = $DB->get_records('grade_grades', ['itemid' => $lookupItemId], '', 'id, userid, finalgrade, rawgrade');
+        echo "  grade_grades count=" . count($ggs) . "\n";
+        if ($lookupUserId) {
+            $gg = $DB->get_record('grade_grades', ['itemid' => $lookupItemId, 'userid' => $lookupUserId]);
+            echo "  grade_grade for userid=$lookupUserId: " . ($gg ? "EXISTS (id={$gg->id})" : "NOT FOUND") . "\n";
+        }
+        echo '</pre>';
+    } else {
+        echo "<p style='color:red'>grade_item id=$lookupItemId no existe en la BD.</p>";
+    }
+}
+
+// All grade_grades for all users in courses of this period — find duplicates
+echo '<hr><h3>Todos los grade_grades para cursos del periodo (busca duplicados)</h3>';
+$courseIds = array_unique(array_filter(array_column((array)$classes, 'corecourseid')));
 if (!empty($courseIds)) {
-    $placeholders = implode(',', array_fill(0, count($courseIds), '?'));
-    $dupRows = $DB->get_records_sql(
-        "SELECT gg.id as ggid, gg.itemid, gg.userid, gi.courseid, gi.itemname, gi.itemmodule, gi.iteminstance,
-                gc_cat.fullname as catfullname
+    list($insql, $inparams) = $DB->get_in_or_equal($courseIds);
+    // Find (itemid, userid) pairs that appear more than once
+    $dupPairs = $DB->get_records_sql(
+        "SELECT gg.itemid, gg.userid, COUNT(*) as cnt, gi.itemtype, gi.itemmodule, gi.itemname, gi.courseid
          FROM {grade_grades} gg
          JOIN {grade_items} gi ON gi.id = gg.itemid
-         LEFT JOIN {grade_categories} gc_cat ON gc_cat.id = gi.categoryid
-         WHERE gi.courseid IN ($placeholders)
-           AND gg.userid = 1999
-           AND gi.itemmodule = 'attendance'
-         ORDER BY gi.courseid, gg.itemid",
-        $courseIds
+         WHERE gi.courseid $insql
+         GROUP BY gg.itemid, gg.userid
+         HAVING COUNT(*) > 1
+         ORDER BY cnt DESC",
+        $inparams
     );
+    if (empty($dupPairs)) {
+        echo '<p style="color:green">No se encontraron duplicados en grade_grades.</p>';
+    } else {
+        echo '<table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px">';
+        echo '<tr style="background:#f66;color:white"><th>itemid</th><th>userid</th><th>count</th><th>itemtype</th><th>itemmodule</th><th>itemname</th><th>courseid</th></tr>';
+        foreach ($dupPairs as $dp) {
+            echo "<tr><td>{$dp->itemid}</td><td>{$dp->userid}</td><td style='color:red;font-weight:bold'>{$dp->cnt}</td>";
+            echo "<td>{$dp->itemtype}</td><td>{$dp->itemmodule}</td>";
+            echo "<td>" . htmlspecialchars(substr($dp->itemname, 0, 60)) . "</td>";
+            echo "<td>{$dp->courseid}</td></tr>";
+        }
+        echo '</table>';
+    }
 
+    // Show all grade_items of type 'category' in these courses that might be orphaned
+    echo '<hr><h3>grade_items tipo category en cursos del periodo</h3>';
+    $catItems = $DB->get_records_sql(
+        "SELECT gi.id, gi.itemtype, gi.iteminstance, gi.courseid, gi.itemname,
+                gc.fullname as catname,
+                (SELECT COUNT(*) FROM {grade_grades} gg WHERE gg.itemid = gi.id) as gradecount
+         FROM {grade_items} gi
+         LEFT JOIN {grade_categories} gc ON gc.id = gi.iteminstance
+         WHERE gi.courseid $insql AND gi.itemtype = 'category'
+         ORDER BY gi.courseid, gi.id",
+        $inparams
+    );
     echo '<table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px">';
-    echo '<tr style="background:#eee"><th>grade_grade id</th><th>itemid</th><th>courseid</th><th>itemname</th><th>categoryname</th><th>attendance cm exists?</th></tr>';
-    foreach ($dupRows as $r) {
-        $cmExists = $DB->record_exists('course_modules', ['instance' => $r->iteminstance, 'course' => $r->courseid]);
-        $cmColor = $cmExists ? 'green' : 'red';
-        echo "<tr>";
-        echo "<td>{$r->ggid}</td>";
-        echo "<td>{$r->itemid}</td>";
-        echo "<td>{$r->courseid}</td>";
-        echo "<td>" . htmlspecialchars($r->itemname) . "</td>";
-        echo "<td>" . htmlspecialchars($r->catfullname) . "</td>";
-        echo "<td style='color:$cmColor'>" . ($cmExists ? 'SÍ' : 'NO (huérfano)') . "</td>";
-        echo "</tr>";
+    echo '<tr style="background:#eee"><th>gi.id</th><th>courseid</th><th>iteminstance(catid)</th><th>catname</th><th>grade_grades</th></tr>';
+    foreach ($catItems as $ci) {
+        $catExists = $DB->record_exists('grade_categories', ['id' => $ci->iteminstance]);
+        $bg = $catExists ? '' : 'background:#fcc';
+        echo "<tr style='$bg'>";
+        echo "<td>{$ci->id}</td><td>{$ci->courseid}</td><td>{$ci->iteminstance}</td>";
+        echo "<td>" . htmlspecialchars(substr($ci->catname ?? 'NOT FOUND', 0, 70)) . "</td>";
+        echo "<td>{$ci->gradecount}</td></tr>";
     }
     echo '</table>';
 }
