@@ -612,9 +612,14 @@
             }
         },
 
-        async publishGeneration(periodId, schedules) {
+        async publishGeneration(periodId, schedules, progressCallback = null) {
             if (!periodId || !schedules) return;
             this.state.loading = true;
+
+            const notify = (msg, type = 'info', progress = null) => {
+                if (progressCallback) progressCallback({ msg, type, progress });
+            };
+
             try {
                 const essentialKeys = [
                     'id', 'courseid', 'corecourseid', 'learningplanid', 'periodid',
@@ -627,7 +632,6 @@
                 const optimized = Array.isArray(schedules) ? schedules
                     .filter(s => {
                         if (s.isExternal) return false;
-                        // Only publish placed items (have sessions or a day assigned)
                         return (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
                     })
                     .map(s => {
@@ -636,14 +640,48 @@
                         return clean;
                     }) : schedules;
 
-                await this._fetch('local_grupomakro_save_generation_result', {
+                // ── FASE 1: guardar datos en BD (rápido, sin estructuras Moodle) ──────────
+                notify(`Guardando ${optimized.length} clases en base de datos...`, 'info', 10);
+                const phase1 = await this._fetch('local_grupomakro_save_generation_result', {
                     periodid: periodId,
-                    schedules: JSON.stringify(optimized)
+                    schedules: JSON.stringify(optimized),
+                    phase1only: 1,
                 });
+                const classids = (phase1 && Array.isArray(phase1.classids)) ? phase1.classids : [];
+                notify(`Fase 1 completada. ${classids.length} clases guardadas.`, 'success', 20);
 
-                // After publishing, re-save the full board state as draft (backend cleared it).
-                // This preserves positions of all items (including unassigned) for next session.
+                // ── FASE 2: crear estructuras Moodle clase por clase ─────────────────────
+                const total    = classids.length;
+                let   done     = 0;
+                let   errors   = 0;
+                const baseProgress = 20;
+                const maxProgress  = 90;
+
+                for (const classid of classids) {
+                    try {
+                        const res = await this._fetch('local_grupomakro_create_class_moodle_structures', { classid });
+                        done++;
+                        const pct = baseProgress + Math.round((done / total) * (maxProgress - baseProgress));
+                        const logLine = (res && res.log) ? res.log[res.log.length - 1] : 'OK';
+                        notify(`[${done}/${total}] Clase ${classid}: ${logLine}`, 'info', pct);
+                    } catch (e) {
+                        errors++;
+                        done++;
+                        const pct = baseProgress + Math.round((done / total) * (maxProgress - baseProgress));
+                        notify(`[${done}/${total}] Clase ${classid}: ERROR — ${e.message}`, 'error', pct);
+                    }
+                }
+
+                if (errors > 0) {
+                    notify(`Fase 2 completada con ${errors} error(es) en ${total} clases.`, 'warn', 92);
+                } else {
+                    notify(`Fase 2 completada. Grupos y actividades creados para ${total} clases.`, 'success', 92);
+                }
+
+                // ── Re-guardar borrador ───────────────────────────────────────────────────
+                notify('Re-guardando borrador...', 'info', 95);
                 await this.saveGeneration(periodId, this.state.generatedSchedules);
+                notify('Borrador actualizado.', 'success', 100);
 
                 this.state.successMessage = 'Horarios publicados correctamente';
             } catch (e) {

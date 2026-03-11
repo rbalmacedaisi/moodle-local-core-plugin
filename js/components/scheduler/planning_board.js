@@ -1515,16 +1515,17 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog(`Publicando ${assignedCount} clases en Moodle...`);
                 this.publishStatusText = `Publicando ${assignedCount} clases...`;
 
-                // Simulate incremental progress while the single HTTP call runs
-                const progressInterval = setInterval(() => {
-                    if (this.publishProgress < 85) this.publishProgress += 2;
-                }, 600);
-
-                try {
-                    await window.schedulerStore.publishGeneration(periodId, this.allClasses);
-                } finally {
-                    clearInterval(progressInterval);
-                }
+                await window.schedulerStore.publishGeneration(
+                    periodId,
+                    this.allClasses,
+                    ({ msg, type, progress }) => {
+                        this._publishLog(msg, type);
+                        if (progress !== null) {
+                            this.publishProgress = progress;
+                            this.publishStatusText = msg;
+                        }
+                    }
+                );
 
                 this.publishProgress = 95;
                 this._publishLog('Re-guardando borrador post-publicación...', 'info');

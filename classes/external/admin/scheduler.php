@@ -602,7 +602,7 @@ class scheduler extends external_api {
          ]);
     }
     
-    public static function save_generation_result($periodid, $schedules) {
+    public static function save_generation_result($periodid, $schedules, bool $phase1only = false) {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -1086,6 +1086,11 @@ class scheduler extends external_api {
         }
 
         // PHASE 2: Create Moodle structures (groups, sections, activities) OUTSIDE the transaction.
+        // When $phase1only=true the caller (ajax.php) drives phase 2 class-by-class instead.
+        if ($phase1only) {
+            gmk_log("FASE 1 completada para Periodo $periodid (phase1only=true, FASE 2 delegada al cliente)");
+            return true;
+        }
         // These Moodle core functions open their own internal transactions/queries and must not run
         // inside a delegated_transaction — any exception there would roll back all plugin DB writes.
         // Phase 2 errors are non-fatal: plugin data is already saved; Moodle structures are best-effort.

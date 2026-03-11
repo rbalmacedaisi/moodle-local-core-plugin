@@ -3083,19 +3083,81 @@ try {
             break;
 
         case 'local_grupomakro_save_generation_result':
-            $periodid = required_param('periodid', PARAM_INT);
+            $periodid       = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);
+            $phase1only     = optional_param('phase1only', 0, PARAM_INT); // 1 = skip Moodle structures
             $schedules = json_decode($schedules_json, true);
             if (!is_array($schedules)) $schedules = [];
 
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
-            $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result($periodid, $schedules);
+            $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result($periodid, $schedules, (bool)$phase1only);
             if ($result === true) {
-                $response = ['status' => 'success'];
+                // Return the list of classids created/updated so the frontend can drive phase 2.
+                $classids = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid', ['pid' => $periodid]);
+                $response = ['status' => 'success', 'classids' => array_values(array_map('intval', $classids))];
             } else {
                 $err = is_string($result) ? $result : 'Error al guardar estructura matricial';
                 $response = ['status' => 'error', 'message' => $err];
             }
+            break;
+
+        // Phase 2: create Moodle structures (group + section + activities) for a single class.
+        // Called once per class by the frontend so each call is short and there is no global timeout.
+        case 'local_grupomakro_create_class_moodle_structures':
+            $classid = required_param('classid', PARAM_INT);
+            require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
+            core_php_time_limit::raise(120);
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            $log   = [];
+
+            if (empty($class->corecourseid)) {
+                $response = ['status' => 'error', 'message' => 'Sin corecourseid', 'log' => []];
+                break;
+            }
+
+            // Group
+            if (empty($class->groupid)) {
+                try {
+                    $gid = create_class_group($class);
+                    $DB->set_field('gmk_class', 'groupid', $gid, ['id' => $classid]);
+                    $class->groupid = $gid;
+                    $log[] = "Grupo creado: id=$gid";
+                } catch (Throwable $e) {
+                    $response = ['status' => 'error', 'message' => 'Error creando grupo: ' . $e->getMessage(), 'log' => $log];
+                    break;
+                }
+            } else {
+                $log[] = "Grupo ya existe: id={$class->groupid}";
+            }
+
+            // Section
+            if (empty($class->coursesectionid)) {
+                try {
+                    $sid = create_class_section($class);
+                    $DB->set_field('gmk_class', 'coursesectionid', $sid, ['id' => $classid]);
+                    $class->coursesectionid = $sid;
+                    $log[] = "Sección creada: id=$sid";
+                } catch (Throwable $e) {
+                    $log[] = "WARN sección: " . $e->getMessage();
+                    // non-fatal — continue to activities
+                }
+            } else {
+                $log[] = "Sección ya existe: id={$class->coursesectionid}";
+            }
+
+            // Activities
+            $hasActivities = !empty($class->attendancemoduleid);
+            try {
+                create_class_activities($class, $hasActivities);
+                $class = $DB->get_record('gmk_class', ['id' => $classid]);
+                $log[] = ($hasActivities ? "Actividades recreadas" : "Actividades creadas")
+                       . ": attendanceid={$class->attendancemoduleid}";
+            } catch (Throwable $e) {
+                $log[] = "WARN actividades: " . $e->getMessage();
+            }
+
+            $response = ['status' => 'success', 'classid' => $classid, 'log' => $log,
+                         'groupid' => $class->groupid, 'attendancemoduleid' => $class->attendancemoduleid];
             break;
 
         case 'local_grupomakro_get_classrooms':
