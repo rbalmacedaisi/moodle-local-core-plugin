@@ -1022,31 +1022,74 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
 
 function create_class_grade_category($class)
 {
-    global $CFG, $DB;
-    // Use grade_category PHP class directly to avoid the external API wrapper,
-    // which calls grade_regrade_final_grades() and triggers Duplicate entry errors
-    // on grade_grades when the course already has enrolled users.
-    // grade_category is available via grade/lib.php (already included at file top).
+    global $DB;
+    // Insert directly into grade_categories and grade_items to avoid ANY call to
+    // grade_regrade_final_grades(). Both grade_category::insert() and the external
+    // create_gradecategories API trigger that recalculation, which inserts grade_grades
+    // for all enrolled users and causes Duplicate entry errors on the course root item.
+    $now = time();
 
-    $gradecat = new grade_category(['courseid' => $class->corecourseid], false);
-    $gradecat->apply_default_settings();
-    $gradecat->apply_forced_settings();
-    $gradecat->fullname    = $class->name . '-' . $class->id . ' grade category';
-    $gradecat->aggregation = GRADE_AGGREGATE_WEIGHTED_MEAN2; // 10
-    $gradecat->courseid    = $class->corecourseid;
-    $gradecat->insert();
+    // 1. Find the parent category (the course root category).
+    $parentCat = $DB->get_record_sql(
+        "SELECT id FROM {grade_categories} WHERE courseid = :courseid AND depth = 1 LIMIT 1",
+        ['courseid' => $class->corecourseid]
+    );
+    $parentId = $parentCat ? (int)$parentCat->id : null;
 
-    // Update the associated grade_item (the category total) with grade range and pass mark.
-    $gradecat->load_grade_item();
-    if ($gradecat->grade_item) {
-        $gradecat->grade_item->itemname = 'Total ' . $class->name . '-' . $class->id . ' grade';
-        $gradecat->grade_item->grademax  = 100;
-        $gradecat->grade_item->grademin  = 0;
-        $gradecat->grade_item->gradepass = 70;
-        $gradecat->grade_item->update();
-    }
+    // 2. Insert the grade_categories row.
+    $catRec = new stdClass();
+    $catRec->courseid         = (int)$class->corecourseid;
+    $catRec->fullname         = $class->name . '-' . $class->id . ' grade category';
+    $catRec->aggregation      = 10; // GRADE_AGGREGATE_WEIGHTED_MEAN2
+    $catRec->keephigh         = 0;
+    $catRec->droplow          = 0;
+    $catRec->aggregateonlygraded  = 0;
+    $catRec->aggregateoutcomes   = 0;
+    $catRec->timecreated      = $now;
+    $catRec->timemodified     = $now;
+    $catRec->hidden           = 0;
+    // depth and path are updated after we have the id.
+    $catRec->depth  = 2;
+    $catRec->path   = '/0/'; // placeholder, updated below
+    $catId = $DB->insert_record('grade_categories', $catRec);
 
-    return (int)$gradecat->id;
+    // Update path/depth now that we have the id.
+    $path = $parentId ? "/{$parentId}/{$catId}/" : "/{$catId}/";
+    $DB->set_field('grade_categories', 'path',  $path, ['id' => $catId]);
+    $DB->set_field('grade_categories', 'depth', 2,     ['id' => $catId]);
+
+    // 3. Insert the associated grade_item (category total item).
+    $itemRec = new stdClass();
+    $itemRec->courseid        = (int)$class->corecourseid;
+    $itemRec->categoryid      = $parentId ?? $catId;
+    $itemRec->itemname        = 'Total ' . $class->name . '-' . $class->id . ' grade';
+    $itemRec->itemtype        = 'category';
+    $itemRec->iteminstance    = $catId;
+    $itemRec->itemnumber      = 0;
+    $itemRec->gradetype       = 1; // GRADE_TYPE_VALUE
+    $itemRec->grademax        = 100;
+    $itemRec->grademin        = 0;
+    $itemRec->gradepass       = 70;
+    $itemRec->multfactor      = 1.0;
+    $itemRec->plusfactor      = 0.0;
+    $itemRec->aggregationcoef = 0;
+    $itemRec->aggregationcoef2 = 0;
+    $itemRec->sortorder       = 999;
+    $itemRec->display         = 0;
+    $itemRec->decimals        = null;
+    $itemRec->hidden          = 0;
+    $itemRec->locked          = 0;
+    $itemRec->locktime        = 0;
+    $itemRec->needsupdate     = 0;
+    $itemRec->weightoverride  = 0;
+    $itemRec->scaleid         = null;
+    $itemRec->outcomeid       = null;
+    $itemRec->timecreated     = $now;
+    $itemRec->timemodified    = $now;
+    $DB->insert_record('grade_items', $itemRec);
+
+    gmk_log("INFO: create_class_grade_category — categoría creada id=$catId para clase {$class->id} (courseid={$class->corecourseid})");
+    return $catId;
 }
 
 function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDate, $classDurationInSeconds, $class)
