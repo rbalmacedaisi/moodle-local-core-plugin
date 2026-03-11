@@ -1086,61 +1086,65 @@ class scheduler extends external_api {
         // PHASE 2: Create Moodle structures (groups, sections, activities) OUTSIDE the transaction.
         // These Moodle core functions open their own internal transactions/queries and must not run
         // inside a delegated_transaction — any exception there would roll back all plugin DB writes.
-        gmk_log("FASE 2: Creando estructuras Moodle para " . count($classRecsForMoodle) . " clases");
-        \core_php_time_limit::raise(600);
-        raise_memory_limit(MEMORY_HUGE);
+        // Phase 2 errors are non-fatal: plugin data is already saved; Moodle structures are best-effort.
+        try {
+            gmk_log("FASE 2: Creando estructuras Moodle para " . count($classRecsForMoodle) . " clases");
+            \core_php_time_limit::raise(600);
+            raise_memory_limit(MEMORY_HUGE);
 
-        foreach ($classRecsForMoodle as $classid => $classRec) {
-            // Re-read from DB to get the latest state (in case a previous iteration updated it).
-            $freshRec = $DB->get_record('gmk_class', ['id' => $classid]);
-            if (!$freshRec) continue;
-            // Merge fresh DB values back into classRec (keep name, course, period, etc. from original).
-            foreach ((array)$freshRec as $k => $v) {
-                $classRec->$k = $v;
-            }
+            foreach ($classRecsForMoodle as $classid => $classRec) {
+                // Re-read from DB to get the latest state (in case a previous iteration updated it).
+                $freshRec = $DB->get_record('gmk_class', ['id' => $classid]);
+                if (!$freshRec) continue;
+                foreach ((array)$freshRec as $k => $v) { $classRec->$k = $v; }
 
-            if (empty($classRec->corecourseid)) {
-                gmk_log("WARNING FASE2: clase $classid sin corecourseid — saltando");
-                continue;
-            }
-
-            // Ensure group exists.
-            if (empty($classRec->groupid)) {
-                try {
-                    $groupId = create_class_group($classRec);
-                    $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
-                    $classRec->groupid = $groupId;
-                    gmk_log("INFO FASE2: Grupo creado para clase $classid: groupid=$groupId");
-                } catch (Exception $ge) {
-                    gmk_log("WARNING FASE2: No se pudo crear grupo para clase $classid: " . $ge->getMessage());
-                    continue; // Can't create section without group
-                }
-            }
-
-            // Ensure section exists.
-            if (empty($classRec->coursesectionid)) {
-                try {
-                    $sectionId = create_class_section($classRec);
-                    $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
-                    $classRec->coursesectionid = $sectionId;
-                    gmk_log("INFO FASE2: Sección creada para clase $classid: sectionid=$sectionId");
-                } catch (Exception $se) {
-                    gmk_log("WARNING FASE2: No se pudo crear sección para clase $classid: " . $se->getMessage());
+                if (empty($classRec->corecourseid)) {
+                    gmk_log("WARNING FASE2: clase $classid sin corecourseid — saltando");
                     continue;
                 }
+
+                // Ensure group exists.
+                if (empty($classRec->groupid)) {
+                    try {
+                        $groupId = create_class_group($classRec);
+                        $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
+                        $classRec->groupid = $groupId;
+                        gmk_log("INFO FASE2: Grupo creado para clase $classid: groupid=$groupId");
+                    } catch (Throwable $ge) {
+                        gmk_log("WARNING FASE2: No se pudo crear grupo para clase $classid: " . $ge->getMessage());
+                        continue;
+                    }
+                }
+
+                // Ensure section exists.
+                if (empty($classRec->coursesectionid)) {
+                    try {
+                        $sectionId = create_class_section($classRec);
+                        $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
+                        $classRec->coursesectionid = $sectionId;
+                        gmk_log("INFO FASE2: Sección creada para clase $classid: sectionid=$sectionId");
+                    } catch (Throwable $se) {
+                        gmk_log("WARNING FASE2: No se pudo crear sección para clase $classid: " . $se->getMessage());
+                        continue;
+                    }
+                }
+
+                // Create or recreate activities (attendance + BBB sessions).
+                $hasActivities = !empty($classRec->attendancemoduleid);
+                try {
+                    create_class_activities($classRec, $hasActivities);
+                    gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
+                } catch (Throwable $ae) {
+                    gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
+                }
             }
 
-            // Create or recreate activities (attendance + BBB sessions).
-            $hasActivities = !empty($classRec->attendancemoduleid);
-            try {
-                create_class_activities($classRec, $hasActivities);
-                gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
-            } catch (Exception $ae) {
-                gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
-            }
+            gmk_log("FASE 2 completa para Periodo $periodid");
+        } catch (Throwable $phase2err) {
+            // Phase 2 failure is non-fatal — plugin DB data was already committed.
+            gmk_log("WARNING FASE2 error global para Periodo $periodid: " . $phase2err->getMessage());
         }
 
-        gmk_log("FASE 2 completa para Periodo $periodid");
         return true;
     }
     

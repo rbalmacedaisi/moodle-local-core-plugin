@@ -3619,9 +3619,12 @@ try {
             $response['message'] = 'Action not found: ' . $action;
             break;
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     $response['status'] = 'error';
     $response['message'] = $e->getMessage();
+    if (function_exists('gmk_log')) {
+        gmk_log("AJAX ERROR [{$action}]: " . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    }
 }
 
 $output = ob_get_clean();

@@ -746,7 +746,26 @@ function create_class_activities($class, $updating = false)
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
             gmk_log("INFO: create_class_activities — reutilizando attendance existente cmid={$class->attendancemoduleid}");
         } else {
-            $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
+            try {
+                $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
+            } catch (Throwable $attErr) {
+                // add_moduleinfo can trigger Moodle messaging/events that throw on misconfigured sites.
+                // If the module was partially created, try to find it by section.
+                gmk_log("WARNING create_attendance_activity threw for class {$class->id}: " . $attErr->getMessage());
+                $attendanceActivityInfo = null;
+                // Try to find any attendance module already created in this section.
+                $attModId = $DB->get_field('modules', 'id', ['name' => 'attendance']);
+                $existingCm = $attModId ? $DB->get_record_sql(
+                    "SELECT id, instance FROM {course_modules} WHERE course=:c AND module=:m AND section=:s ORDER BY id DESC LIMIT 1",
+                    ['c' => $class->corecourseid, 'm' => $attModId, 's' => $classSectionNumber]
+                ) : null;
+                if ($existingCm) {
+                    $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
+                    gmk_log("INFO: Recuperado attendance existente cmid={$existingCm->id} para clase {$class->id}");
+                } else {
+                    throw $attErr; // Re-throw — attendance is required
+                }
+            }
             $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
