@@ -775,30 +775,34 @@ function create_class_activities($class, $updating = false)
         }
 
         if (!$existingCatId) {
-            $class->gradecategoryid = create_class_grade_category($class);
-            $DB->update_record('gmk_class', $class);
+            // Grade category creation is non-critical: attendance activity works without it.
+            // We attempt creation via the grade_category PHP class (not the external API, which
+            // triggers grade_regrade_final_grades and causes Duplicate entry errors on grade_grades).
+            try {
+                $class->gradecategoryid = create_class_grade_category($class);
+                $DB->update_record('gmk_class', $class);
 
-            // Move the attendance grade item into the class grade category.
-            // set_parent triggers grade recalculation which may attempt to insert grade_grades that
-            // already exist (Moodle internal behavior). We use direct DB update to avoid that.
-            $attendanceGradeItemId = $DB->get_field('grade_items', 'id', [
-                'itemmodule' => 'attendance',
-                'iteminstance' => $attendanceCourseModule->instance,
-                'courseid' => $class->corecourseid,
-            ]);
-            if ($attendanceGradeItemId) {
-                // Get the grade_item record for the category so we know its id in grade_items
-                $catGradeItemId = $DB->get_field('grade_items', 'id', [
-                    'itemtype'   => 'category',
-                    'iteminstance' => $class->gradecategoryid,
-                    'courseid'   => $class->corecourseid,
+                // Move the attendance grade item into the class grade category via direct DB update
+                // to avoid triggering another grade recalculation cascade.
+                $attendanceGradeItemId = $DB->get_field('grade_items', 'id', [
+                    'itemmodule'  => 'attendance',
+                    'iteminstance' => $attendanceCourseModule->instance,
+                    'courseid'    => $class->corecourseid,
                 ]);
-                // Move attendance grade_item into the category by direct update (avoids grade_grades recalc cascade)
-                $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $attendanceGradeItemId]);
-                if ($catGradeItemId) {
-                    $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $catGradeItemId]);
+                if ($attendanceGradeItemId) {
+                    $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $attendanceGradeItemId]);
+                    gmk_log("INFO: attendance grade_item $attendanceGradeItemId movido a categoría {$class->gradecategoryid}");
                 }
-                gmk_log("INFO: attendance grade_item $attendanceGradeItemId movido a categoría {$class->gradecategoryid}");
+            } catch (dml_exception $de) {
+                // Duplicate grade_grades entry — gradebook recalc conflict. Category creation failed but
+                // attendance activity is already created and functional. Log and continue.
+                gmk_log("WARNING: No se pudo crear grade_category para clase {$class->id} (courseid={$class->corecourseid}): " . $de->getMessage());
+                $class->gradecategoryid = 0;
+                $DB->set_field('gmk_class', 'gradecategoryid', 0, ['id' => $class->id]);
+            } catch (Exception $e) {
+                gmk_log("WARNING: Error inesperado en grade_category para clase {$class->id}: " . $e->getMessage());
+                $class->gradecategoryid = 0;
+                $DB->set_field('gmk_class', 'gradecategoryid', 0, ['id' => $class->id]);
             }
         }
     }
@@ -1018,21 +1022,31 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
 
 function create_class_grade_category($class)
 {
+    global $CFG, $DB;
+    // Use grade_category PHP class directly to avoid the external API wrapper,
+    // which calls grade_regrade_final_grades() and triggers Duplicate entry errors
+    // on grade_grades when the course already has enrolled users.
+    // grade_category is available via grade/lib.php (already included at file top).
 
-    global $DB;
-    $classCategoryData = [
-        'fullname' => $class->name . '-' . $class->id . ' grade category',
-        'options' => [
-            'aggregation' => 10,
-            'aggregateonlygraded' => false,
-            'itemname' => 'Total ' . $class->name . '-' . $class->id . ' grade',
-            'grademax' => 100,
-            'grademin' => 0,
-            'gradepass' => 70,
-        ]
-    ];
-    $createClassCategoryResult = core_grades\external\create_gradecategories::execute($class->corecourseid, [$classCategoryData]);
-    return $createClassCategoryResult['categoryids'][0];
+    $gradecat = new grade_category(['courseid' => $class->corecourseid], false);
+    $gradecat->apply_default_settings();
+    $gradecat->apply_forced_settings();
+    $gradecat->fullname    = $class->name . '-' . $class->id . ' grade category';
+    $gradecat->aggregation = GRADE_AGGREGATE_WEIGHTED_MEAN2; // 10
+    $gradecat->courseid    = $class->corecourseid;
+    $gradecat->insert();
+
+    // Update the associated grade_item (the category total) with grade range and pass mark.
+    $gradecat->load_grade_item();
+    if ($gradecat->grade_item) {
+        $gradecat->grade_item->itemname = 'Total ' . $class->name . '-' . $class->id . ' grade';
+        $gradecat->grade_item->grademax  = 100;
+        $gradecat->grade_item->grademin  = 0;
+        $gradecat->grade_item->gradepass = 70;
+        $gradecat->grade_item->update();
+    }
+
+    return (int)$gradecat->id;
 }
 
 function replace_attendance_session($moduleId, $sessionIdToBeRemoved, $sessionDate, $classDurationInSeconds, $class)
