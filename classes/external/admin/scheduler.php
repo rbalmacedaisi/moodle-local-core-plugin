@@ -626,8 +626,12 @@ class scheduler extends external_api {
             // 1. Identify existing numeric IDs in the payload that ARE programmed
             $validIds = [];
             foreach ($data as $cls) {
+                // External classes belong to other periods — never include in validIds (they are never deleted).
+                if (!empty($cls['isExternal'])) {
+                    continue;
+                }
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
-                    $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) || 
+                    $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
                                     (!empty($cls['day']) && $cls['day'] !== 'N/A');
                     if ($isProgrammed) {
                         $validIds[] = $cls['id'];
@@ -664,10 +668,16 @@ class scheduler extends external_api {
             $course_fullnames = $DB->get_records_menu('course', [], '', 'id, fullname');
 
             foreach ($data as $cls) {
+                // Skip classes from other periods (external/overlap classes shown on the board for reference only).
+                // Their periodid differs from the current publish target — never modify them.
+                if (!empty($cls['isExternal'])) {
+                    continue;
+                }
+
                 // Skip classes that are not programmed (unassigned)
-                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) || 
+                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
                                 (!empty($cls['day']) && $cls['day'] !== 'N/A');
-                
+
                 if (!$isProgrammed) {
                     continue;
                 }
