@@ -665,32 +665,35 @@
                         return item;
                     });
 
-                    // Split draft into: items already in DB (update positions) vs truly new items
+                    // Split draft into: items already in DB vs truly new (temp id / no id)
                     const draftById = {};
                     const newDraftItems = [];
                     for (const item of processedDraft) {
                         const numId = Number(item.id);
                         if (numId > 0 && dbIds.has(numId)) {
-                            draftById[numId] = item; // use draft version to preserve positions/sessions
-                        } else {
+                            draftById[numId] = item;
+                        } else if (numId <= 0 || !dbIds.has(numId)) {
                             newDraftItems.push(item);
                         }
                     }
 
-                    // Merge: DB item is the source of truth for identity fields.
-                    // Draft only contributes positioning fields (sessions, day/time, room, assignedDates).
+                    // Merge: DB is source of truth for identity; draft only updates positioning fields
                     const POSITION_KEYS = ['sessions', 'day', 'start', 'end', 'room', 'assignedDates', 'classdays'];
                     const mergedDb = dbSchedules.map(s => {
                         const d = draftById[Number(s.id)];
                         if (!d) return s;
-                        const merged = Object.assign({}, s); // start from DB (correct identity)
+                        const merged = Object.assign({}, s);
                         POSITION_KEYS.forEach(k => { if (d[k] !== undefined) merged[k] = d[k]; });
                         return merged;
                     });
 
-                    // --- Reconcile only the truly new draft items with demand ---
-                    const reconciledNew = this._reconcileDraftWithDemand(newDraftItems);
-                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft items=${reconciledNew.length} (was ${newDraftItems.length}).`);
+                    // Only reconcile truly new items (no DB id). Pass mergedDb so reconcile
+                    // knows which demand keys are already covered and won't generate duplicates.
+                    const reconciledNew = newDraftItems.length > 0
+                        ? this._reconcileDraftWithDemand(newDraftItems, mergedDb)
+                        : [];
+
+                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length} → reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
 
                     this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...externalSchedules];
                 } else {
@@ -707,7 +710,7 @@
          * - Removes draft items whose subject+shift+subperiod no longer has any students.
          * - Adds new unassigned items for demand that has no draft item yet.
          */
-        _reconcileDraftWithDemand(draftItems) {
+        _reconcileDraftWithDemand(draftItems, existingItems = []) {
             const demand = this.state.demand || {};
             const configSettings = this.state.context?.configSettings || {};
             const isolatedCareers = new Set(configSettings.isolatedCareers || []);
@@ -793,6 +796,11 @@
             }
 
             const coveredKeys = new Set();
+
+            // Pre-mark keys already covered by existing DB items so we don't add duplicates
+            for (const item of existingItems) {
+                if (!item.isExternal) coveredKeys.add(aggKeyOf(item));
+            }
 
             for (const [key, items] of Object.entries(draftByKey)) {
                 const currentDemand = demandMap[key];
