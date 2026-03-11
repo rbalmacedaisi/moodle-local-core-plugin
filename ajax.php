@@ -2924,14 +2924,16 @@ try {
             // Returns pre-registered + queued students for a class (for bulk enrollment UI).
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            $instructorId = (int)($class->instructorid ?? 0);
             $preReg = $DB->get_records('gmk_class_pre_registration', ['classid' => $classid]);
             $queued = $DB->get_records('gmk_class_queue', ['classid' => $classid]);
             $allStudents = array_merge(array_values($preReg), array_values($queued));
-            // Resolve user info
+            // Resolve user info, excluding instructor
             $result = [];
             $seen = [];
             foreach ($allStudents as $s) {
                 if (isset($seen[$s->userid])) continue;
+                if ($instructorId && $s->userid == $instructorId) continue; // skip instructor
                 $seen[$s->userid] = true;
                 $u = $DB->get_record('user', ['id' => $s->userid, 'deleted' => 0], 'id, firstname, lastname, email, idnumber');
                 if (!$u) continue;
@@ -2943,8 +2945,12 @@ try {
                     'source'    => isset($preReg[$s->id]) ? 'prereg' : 'queue',
                 ];
             }
-            // Already enrolled in the group (exclude from list to avoid duplicates)
-            $alreadyEnrolled = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $class->groupid]);
+            // Already enrolled: use group members if class has a group, otherwise gmk_course_progre
+            if (!empty($class->groupid)) {
+                $alreadyEnrolled = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $class->groupid]);
+            } else {
+                $alreadyEnrolled = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => $class->id]);
+            }
             $response = [
                 'status'           => 'success',
                 'students'         => $result,
@@ -2968,12 +2974,17 @@ try {
 
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
 
-            // Count current group members
-            $currentCount = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
-            $quota        = (int)$class->classroomcapacity;
-            $newTotal     = $currentCount + count($userids);
+            // Count current enrolled: group members if class has group, otherwise gmk_course_progre
+            if (!empty($class->groupid)) {
+                $currentCount = $DB->count_records('groups_members', ['groupid' => $class->groupid]);
+            } else {
+                $currentCount = $DB->count_records('gmk_course_progre', ['classid' => $class->id]);
+            }
+            $quota    = (int)$class->classroomcapacity;
+            $newTotal = $currentCount + count($userids);
 
-            if ($newTotal > $quota && !$force_over) {
+            // Only block on quota if quota is actually set (>0)
+            if ($quota > 0 && $newTotal > $quota && !$force_over) {
                 $response = [
                     'status'       => 'quota_exceeded',
                     'current'      => $currentCount,
@@ -2986,7 +2997,7 @@ try {
             }
 
             // If force_over_quota, expand classroomcapacity to fit
-            if ($force_over && $newTotal > $quota) {
+            if ($force_over && $quota > 0 && $newTotal > $quota) {
                 $class->classroomcapacity = $newTotal;
                 $DB->update_record('gmk_class', $class);
             }
@@ -3002,6 +3013,21 @@ try {
             $results = enrolApprovedScheduleStudents($studentsToEnrol, $class);
 
             $enrolled = count(array_filter($results));
+
+            // For classes without a Moodle group, clear queue/pre_reg for enrolled students
+            // so they move from "En Espera" to "Usuarios Inscritos" on next load
+            if (empty($class->groupid)) {
+                foreach ($userids as $uid) {
+                    $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id, 'userid' => $uid]);
+                    $DB->delete_records('gmk_class_queue',            ['classid' => $class->id, 'userid' => $uid]);
+                }
+            }
+
+            // Mark class as approved if not already
+            if (!$class->approved) {
+                $DB->set_field('gmk_class', 'approved', 1, ['id' => $class->id]);
+            }
+
             $response = [
                 'status'   => 'success',
                 'enrolled' => $enrolled,
