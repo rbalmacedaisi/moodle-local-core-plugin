@@ -667,6 +667,33 @@ class scheduler extends external_api {
             $lvl_names = $DB->get_records_menu('local_learning_periods', [], '', 'id, name');
             $course_fullnames = $DB->get_records_menu('course', [], '', 'id, fullname');
 
+            // Pre-clean: remove grade_categories (and their grade_items/grade_grades) that were left over
+            // from partial previous publish attempts. These are categories whose fullname ends with
+            // '-{classid} grade category' where classid belongs to this period but gradecategoryid=0 in gmk_class
+            // (i.e. the category was created but the id was never saved back).
+            // This prevents 'Duplicate entry' errors on grade_grades during retries.
+            $periodClassIds = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid AND gradecategoryid = 0', ['pid' => $periodid]);
+            if (!empty($periodClassIds)) {
+                foreach ($periodClassIds as $cid) {
+                    $orphanCats = $DB->get_records_sql(
+                        "SELECT id FROM {grade_categories} WHERE " . $DB->sql_like('fullname', ':suffix'),
+                        ['suffix' => '%-' . $cid . ' grade category']
+                    );
+                    foreach ($orphanCats as $ocat) {
+                        // Delete grade_items and their grade_grades for this orphan category
+                        $gitems = $DB->get_fieldset_select('grade_items', 'id', 'categoryid = :cid OR (itemtype = :t AND iteminstance = :iid)',
+                            ['cid' => $ocat->id, 't' => 'category', 'iid' => $ocat->id]);
+                        if (!empty($gitems)) {
+                            list($insql, $inparams) = $DB->get_in_or_equal($gitems);
+                            $DB->delete_records_select('grade_grades', "itemid $insql", $inparams);
+                            $DB->delete_records_select('grade_items', "id $insql", $inparams);
+                        }
+                        $DB->delete_records('grade_categories', ['id' => $ocat->id]);
+                        gmk_log("INFO: Pre-clean eliminó grade_category id={$ocat->id} huérfana para clase $cid");
+                    }
+                }
+            }
+
             foreach ($data as $cls) {
                 // Skip classes from other periods (external/overlap classes shown on the board for reference only).
                 // Their periodid differs from the current publish target — never modify them.
