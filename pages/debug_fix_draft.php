@@ -101,6 +101,76 @@ if ($action === 'fixcourseid' && $fixclassid > 0 && $fixtopid > 0 && confirm_ses
     }
 }
 
+// ── Handle merge unassigned items from uploaded draft into current draft ───────
+if ($action === 'mergedraft' && $periodid > 0 && confirm_sesskey()) {
+    $period   = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+    $uploaded = $_FILES['mergefile'] ?? null;
+    if ($period && $uploaded && $uploaded['error'] === UPLOAD_ERR_OK) {
+        $content = file_get_contents($uploaded['tmp_name']);
+        $uploaded_items = json_decode($content, true);
+        if (!is_array($uploaded_items)) {
+            $message = '<p class="msg-err">❌ El archivo no es un JSON válido.</p>';
+        } else {
+            // Extract only unassigned items (no real DB id: id is 0, null, or a temp string like "rec-...")
+            $unassigned = array_filter($uploaded_items, function($item) {
+                $id = $item['id'] ?? null;
+                return empty($id) || !is_numeric($id) || (int)$id <= 0;
+            });
+
+            if (empty($unassigned)) {
+                $message = '<p class="msg-ok">ℹ️ No se encontraron items sin asignar en el archivo.</p>';
+            } else {
+                // Load current draft
+                $currentDraft = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
+                $currentItems = (!empty($currentDraft)) ? (json_decode($currentDraft, true) ?: []) : [];
+
+                // Merge: append unassigned items that don't already exist by subjectName+shift+subperiod
+                $existingKeys = [];
+                foreach ($currentItems as $ci) {
+                    $key = ($ci['subjectName'] ?? '') . '|' . ($ci['shift'] ?? '') . '|' . ($ci['subperiod'] ?? 0);
+                    $existingKeys[$key] = true;
+                }
+                $added = 0;
+                foreach ($unassigned as $item) {
+                    $key = ($item['subjectName'] ?? '') . '|' . ($item['shift'] ?? '') . '|' . ($item['subperiod'] ?? 0);
+                    if (!isset($existingKeys[$key])) {
+                        $currentItems[] = $item;
+                        $existingKeys[$key] = true;
+                        $added++;
+                    }
+                }
+
+                $DB->set_field('gmk_academic_periods', 'draft_schedules', json_encode(array_values($currentItems)), ['id' => $periodid]);
+                $message = '<p class="msg-ok">✅ Fusionados <b>' . $added . '</b> items sin asignar al draft de <b>' . s($period->name) . '</b>. Total items en draft: ' . count($currentItems) . '.</p>';
+                $periods = load_periods_list($DB);
+            }
+        }
+    } else {
+        $message = '<p class="msg-err">❌ Error al subir archivo o periodo no encontrado.</p>';
+    }
+}
+
+// ── Handle copy loads from one period to another ──────────────────────────────
+if ($action === 'copyloads' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
+    $fromPeriod = $DB->get_record('gmk_academic_periods', ['id' => $fixclassid]);
+    $toPeriod   = $DB->get_record('gmk_academic_periods', ['id' => $fixtopid]);
+    if ($fromPeriod && $toPeriod) {
+        $sourceLoads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $fixclassid]);
+        $DB->delete_records('gmk_subject_loads', ['academicperiodid' => $fixtopid]);
+        $copied = 0;
+        foreach ($sourceLoads as $sl) {
+            $new = clone $sl;
+            unset($new->id);
+            $new->academicperiodid = $fixtopid;
+            $DB->insert_record('gmk_subject_loads', $new);
+            $copied++;
+        }
+        $message = '<p class="msg-ok">✅ Copiadas <b>' . $copied . '</b> cargas desde <b>' . s($fromPeriod->name) . '</b> → <b>' . s($toPeriod->name) . '</b>.</p>';
+    } else {
+        $message = '<p class="msg-err">❌ Periodo origen o destino no encontrado.</p>';
+    }
+}
+
 // ── Handle fix class learningplanid ───────────────────────────────────────────
 if ($action === 'fixlpid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
     $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
@@ -221,6 +291,34 @@ if ($action === 'fixallcourseids' && confirm_sesskey()) {
     <?php else: ?>
       <span style="color:#999">—</span>
     <?php endif ?>
+  </td>
+</tr>
+<?php endforeach ?>
+</table>
+</section>
+
+<!-- ══ SECTION 1b: Fusionar items sin asignar desde draft anterior ═══════════ -->
+<section>
+<h2>1b. Recuperar items sin asignar desde draft descargado</h2>
+<p>Sube un JSON de draft guardado anteriormente. Solo se importarán los items <b>sin ID real</b> (no publicados/sin asignar) que no existan ya en el draft actual del periodo.</p>
+<table>
+<tr><th>Periodo destino</th><th>Subir draft anterior</th></tr>
+<?php foreach ($periods as $p):
+    $mergeUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
+        'action' => 'mergedraft', 'periodid' => $p->id, 'sesskey' => sesskey()
+    ]);
+?>
+<tr>
+  <td><?= s($p->name) ?> (id=<?= (int)$p->id ?>)</td>
+  <td>
+    <form method="post" action="<?= $mergeUrl ?>" enctype="multipart/form-data" style="display:inline-flex;gap:4px;align-items:center;">
+      <input type="hidden" name="sesskey" value="<?= sesskey() ?>">
+      <input type="file" name="mergefile" accept=".json" style="font-size:11px;" required>
+      <button type="submit" class="btn-green"
+        onclick="return confirm('¿Fusionar items sin asignar al draft de <?= s(addslashes($p->name)) ?>?')">
+        ⬆ Fusionar sin asignados
+      </button>
+    </form>
   </td>
 </tr>
 <?php endforeach ?>
@@ -431,6 +529,47 @@ foreach ($classesForLp as $row) {
     </tr>';
 }
 echo '</table>';
+?>
+</section>
+
+<!-- ══ SECTION 5: Diagnóstico de cargas horarias ══════════════════════════════ -->
+<section>
+<h2>5. Diagnóstico: Cargas horarias por periodo</h2>
+<p>Muestra cuántas cargas hay guardadas por periodo. Si el tablero no muestra carga horaria, probablemente las cargas están guardadas en un periodo diferente al activo.</p>
+<?php
+$loadCounts = $DB->get_records_sql(
+    "SELECT sl.academicperiodid, ap.name as period_name, COUNT(*) as total
+     FROM {gmk_subject_loads} sl
+     LEFT JOIN {gmk_academic_periods} ap ON ap.id = sl.academicperiodid
+     GROUP BY sl.academicperiodid, ap.name
+     ORDER BY sl.academicperiodid DESC"
+);
+if (empty($loadCounts)) {
+    echo '<p style="color:#d93025;font-weight:bold;">⚠ No hay cargas horarias guardadas en ningún periodo.</p>';
+} else {
+    echo '<table><tr><th>periodid</th><th>Periodo</th><th>Total cargas</th><th>Copiar cargas a otro periodo</th></tr>';
+    foreach ($loadCounts as $lc) {
+        $copyUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
+        echo '<tr>
+            <td>' . (int)$lc->academicperiodid . '</td>
+            <td>' . s($lc->period_name ?: '?') . '</td>
+            <td style="font-weight:bold;">' . (int)$lc->total . '</td>
+            <td>
+                <form method="get" action="' . $copyUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
+                    <input type="hidden" name="action" value="copyloads">
+                    <input type="hidden" name="fixclassid" value="' . (int)$lc->academicperiodid . '">
+                    <input type="hidden" name="sesskey" value="' . sesskey() . '">
+                    <select name="fixtopid" style="font-size:11px;padding:2px;">' . $periodOptions . '</select>
+                    <button type="submit" class="btn-blue"
+                        onclick="return confirm(\'¿Copiar ' . (int)$lc->total . ' cargas a ese periodo? Se reemplazarán las existentes.\')">
+                        ➡ Copiar
+                    </button>
+                </form>
+            </td>
+        </tr>';
+    }
+    echo '</table>';
+}
 ?>
 </section>
 

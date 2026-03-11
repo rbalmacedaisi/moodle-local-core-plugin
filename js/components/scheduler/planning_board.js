@@ -701,9 +701,25 @@ window.SchedulerComponents.PlanningBoard = {
         loadsMap() {
             const loads = this.storeState.context?.loads || [];
             const map = {};
+            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" → "SUBJECT"
+            const stripNomenclature = (name) => name
+                .replace(/^\S+[-–]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
+                .replace(/\s+\((PRESENCIAL|VIRTUAL|MIXTA)\).*$/i, '') // remove " (PRESENCIAL) AULA X"
+                .trim();
             loads.forEach(l => {
-                const name = l.subjectname || l.subjectName;
-                if (name) map[name] = l;
+                const raw = (l.subjectname || l.subjectName || '').trim();
+                if (!raw) return;
+                map[raw] = l;
+                map[raw.toUpperCase()] = l;
+            });
+            // Also index by the nomenclature-stripped version of each schedule's subjectName
+            // so that "2026-II (S) INGLÉS I (PRESENCIAL) AULA L" resolves to the "INGLÉS I" load entry.
+            // We do this by iterating generatedSchedules and mapping their full name → load entry.
+            const schedules = this.storeState.generatedSchedules || [];
+            schedules.forEach(cls => {
+                if (!cls.subjectName || map[cls.subjectName]) return; // already indexed
+                const stripped = stripNomenclature(cls.subjectName.toUpperCase());
+                if (map[stripped]) map[cls.subjectName] = map[stripped];
             });
             return map;
         },
