@@ -684,13 +684,22 @@ class scheduler extends external_api {
                 if (empty($courseId) || $courseId == "0") {
                     $lpid = $cls['learningplanid'] ?? 0;
                     if (!empty($cls['subjectName'])) {
-                        $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc 
-                                                         JOIN {course} c ON c.id = lc.courseid 
-                                                         WHERE (c.fullname = ? OR c.shortname = ?) 
+                        $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc
+                                                         JOIN {course} c ON c.id = lc.courseid
+                                                         WHERE (c.fullname = ? OR c.shortname = ?)
                                                            " . ($lpid ? "AND lc.learningplanid = ?" : "") . "
-                                                         ORDER BY lc.id DESC", 
-                                                         $lpid ? [$cls['subjectName'], $cls['subjectName'], $lpid] : [$cls['subjectName'], $cls['subjectName']], 
+                                                         ORDER BY lc.id DESC",
+                                                         $lpid ? [$cls['subjectName'], $cls['subjectName'], $lpid] : [$cls['subjectName'], $cls['subjectName']],
                                                          IGNORE_MULTIPLE);
+                        // Fallback: search by name without learningplanid filter
+                        if (!$subjByRef && $lpid) {
+                            $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc
+                                                             JOIN {course} c ON c.id = lc.courseid
+                                                             WHERE (c.fullname = ? OR c.shortname = ?)
+                                                             ORDER BY lc.id DESC",
+                                                             [$cls['subjectName'], $cls['subjectName']],
+                                                             IGNORE_MULTIPLE);
+                        }
                         if ($subjByRef) {
                             $courseId = $subjByRef->id;
                             if (empty($cls['corecourseid'])) {
@@ -699,9 +708,14 @@ class scheduler extends external_api {
                         }
                     }
                     if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
+                        // Try with learningplanid first
                         $searchParams = ['courseid' => $cls['corecourseid']];
                         if ($lpid) $searchParams['learningplanid'] = $lpid;
                         $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
+                        // Fallback: ignore learningplanid (it may be confused with periodid)
+                        if (!$subjByCore) {
+                            $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $cls['corecourseid']], 'id', IGNORE_MULTIPLE);
+                        }
                         if ($subjByCore) $courseId = $subjByCore->id;
                     }
                     if (!empty($courseId) && $courseId != "0") {
