@@ -375,6 +375,13 @@ $diagClassId = optional_param('diag_classid', 0, PARAM_INT);
 <h2>Diagnóstico de Inscripción por Clase</h2>
 <p style="color:#666;font-size:12px">Selecciona una clase del listado o ingresa el ID manualmente para ver su estado y ejecutar la inscripción.</p>
 
+<div style="margin-bottom:12px;padding:10px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px">
+    <strong>Limpieza de duplicados En Espera / Inscritos</strong><br>
+    <small style="color:#555">Elimina de <code>gmk_class_pre_registration</code> y <code>gmk_class_queue</code> los registros de estudiantes que ya están inscritos (en <code>groups_members</code> para clases con grupo, o en <code>gmk_course_progre</code> para clases sin grupo). Esto corrige el doble conteo.</small><br>
+    <button class="btn btn-danger" style="margin-top:6px" onclick="runCleanDuplicates()">Limpiar duplicados del periodo activo</button>
+    <span id="clean-result" style="margin-left:10px;font-size:12px;font-weight:bold"></span>
+</div>
+
 <?php
 // Listar TODAS las clases con estudiantes pendientes (queue o pre_reg) del periodo activo y externos
 $diagClasses = $DB->get_records_sql(
@@ -867,6 +874,33 @@ const SESSKEY = <?php echo json_encode(sesskey()); ?>;
 const AJAX_URL = <?php echo json_encode(
     (new moodle_url('/local/grupomakro_core/pages/debug_external_enrollment.php'))->out(false)
 ); ?>;
+
+async function runCleanDuplicates() {
+    if (!confirm('¿Limpiar registros de queue/pre_reg de estudiantes ya inscritos para el periodo activo?\n\nSolo elimina duplicados — no afecta a estudiantes pendientes de inscripción.')) return;
+    const el = document.getElementById('clean-result');
+    el.style.color = '#555';
+    el.textContent = 'Limpiando...';
+
+    const fd = new FormData();
+    fd.append('ajax', 'clean_duplicates');
+    fd.append('periodid', <?php echo (int)$activePeriodId; ?>);
+    fd.append('sesskey', SESSKEY);
+
+    try {
+        const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+        const d = await res.json();
+        if (d.status === 'success') {
+            el.style.color = '#28a745';
+            el.textContent = `✓ Eliminados ${d.total} registros (pre_reg: ${d.deleted_prereg}, queue: ${d.deleted_queue}). Recarga la página de aprobación para verificar.`;
+        } else {
+            el.style.color = '#dc3545';
+            el.textContent = 'Error: ' + d.message;
+        }
+    } catch(e) {
+        el.style.color = '#dc3545';
+        el.textContent = 'Error JS: ' + e.message;
+    }
+}
 
 function selectClass(id) {
     document.getElementById('diag-classid').value = id;
