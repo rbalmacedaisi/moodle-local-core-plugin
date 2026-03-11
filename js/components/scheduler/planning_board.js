@@ -995,13 +995,19 @@ window.SchedulerComponents.PlanningBoard = {
             if (!load || cls.isExternal) return { required: null, actual: null, under: false };
             const totalH = parseFloat(load.total_hours || load.totalHours || 0);
             if (!totalH) return { required: null, actual: null, under: false };
-            // Derive session duration in hours from the class start/end
             const startM = this.toMins(cls.start || '00:00');
             const endM   = this.toMins(cls.end   || '00:00');
             const durH   = endM > startM ? (endM - startM) / 60 : 0;
             if (!durH) return { required: null, actual: null, under: false };
             const required = Math.ceil(totalH / durH);
-            const actual   = Array.isArray(cls.assignedDates) ? cls.assignedDates.length : 0;
+            // Mirror effectiveSessionCount: use assignedDates if present, otherwise count period dates for that day
+            let actual = 0;
+            if (Array.isArray(cls.assignedDates) && cls.assignedDates.length > 0) {
+                actual = cls.assignedDates.length;
+            } else if (cls.day && cls.day !== 'N/A' && window.SchedulerAlgorithm?.getDatesForDay) {
+                const normalizedDay = cls.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                actual = window.SchedulerAlgorithm.getDatesForDay(normalizedDay, this.storeState.context, cls.subperiod || 0).length;
+            }
             return { required, actual, under: actual < required };
         },
         getConflictTooltip(cls) {
