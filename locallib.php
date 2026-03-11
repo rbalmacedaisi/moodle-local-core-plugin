@@ -589,18 +589,28 @@ function build_class_group_name($class) {
 
 function create_class_group($class)
 {
+    global $DB;
     $groupName = build_class_group_name($class);
+    $idnumber  = $class->name . '-' . $class->id;
 
-    $newClassGroup = new stdClass();
-    $newClassGroup->idnumber = $class->name . '-' . $class->id;
-    $newClassGroup->name = $groupName;
-    $newClassGroup->courseid = $class->corecourseid;
-    $newClassGroup->description = 'Group for the ' . ($class->name . '-' . $class->id) . ' class';
-    $newClassGroup->descriptionformat = 1;
-    $newClassGroup->id = groups_create_group($newClassGroup);
+    // Reuse existing group if one with this idnumber already exists in the course
+    // (can happen if a previous publish failed after creating the group but before saving groupid).
+    $existingGroup = $DB->get_record('groups', ['idnumber' => $idnumber, 'courseid' => $class->corecourseid]);
+    if ($existingGroup) {
+        gmk_log("INFO: create_class_group — reutilizando grupo existente id={$existingGroup->id} idnumber=$idnumber");
+        $newClassGroup = $existingGroup;
+    } else {
+        $newClassGroup = new stdClass();
+        $newClassGroup->idnumber = $idnumber;
+        $newClassGroup->name = $groupName;
+        $newClassGroup->courseid = $class->corecourseid;
+        $newClassGroup->description = 'Group for the ' . $idnumber . ' class';
+        $newClassGroup->descriptionformat = 1;
+        $newClassGroup->id = groups_create_group($newClassGroup);
 
-    if (!$newClassGroup->id) {
-        throw new Exception('Error creating class group');
+        if (!$newClassGroup->id) {
+            throw new Exception('Error creating class group');
+        }
     }
 
     if (!empty($class->instructorid) && $class->instructorid > 0) {
