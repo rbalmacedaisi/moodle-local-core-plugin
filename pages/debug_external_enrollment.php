@@ -20,6 +20,186 @@ require_capability('moodle/site:config', $context);
 // ── AJAX: restaurar enrollment individual ────────────────────────────────────
 $ajax = optional_param('ajax', '', PARAM_ALPHA);
 
+// ── AJAX: simular inscripción masiva (diagnóstico) ───────────────────────────
+if ($ajax === 'diagnose_enrol') {
+    header('Content-Type: application/json');
+    try {
+        $classid = required_param('classid', PARAM_INT);
+        require_sesskey();
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+        $report = [];
+        $report['class'] = [
+            'id'            => $class->id,
+            'name'          => $class->name,
+            'corecourseid'  => $class->corecourseid,
+            'groupid'       => $class->groupid,
+            'learningplanid'=> $class->learningplanid,
+            'approved'      => $class->approved,
+        ];
+
+        // Estudiantes en cada tabla
+        $preReg = $DB->get_records('gmk_class_pre_registration', ['classid' => $classid]);
+        $queue  = $DB->get_records('gmk_class_queue',            ['classid' => $classid]);
+
+        // Deduplicar
+        $allStudents = [];
+        foreach (array_merge($preReg, $queue) as $s) {
+            $allStudents[$s->userid] = $s;
+        }
+
+        $report['preReg_count']  = count($preReg);
+        $report['queue_count']   = count($queue);
+        $report['deduped_count'] = count($allStudents);
+        $report['student_userids'] = array_keys($allStudents);
+
+        // Verificar enrolment plugin
+        $studentRoleId  = $DB->get_field('role', 'id', ['shortname' => 'student']);
+        $enrolplugin    = enrol_get_plugin('manual');
+        $courseInstance = get_manual_enroll($class->corecourseid);
+
+        $report['studentRoleId']   = $studentRoleId;
+        $report['enrolplugin_ok']  = !empty($enrolplugin);
+        $report['courseInstance']  = $courseInstance ? ['id' => $courseInstance->id, 'courseid' => $courseInstance->courseid] : null;
+
+        // Para cada estudiante, verificar su estado actual
+        $studentDetails = [];
+        foreach ($allStudents as $uid => $s) {
+            $u = $DB->get_record('user', ['id' => $uid, 'deleted' => 0], 'id,firstname,lastname,idnumber,suspended', IGNORE_MISSING);
+            if (!$u) { $studentDetails[] = ['userid' => $uid, 'error' => 'usuario no encontrado']; continue; }
+
+            $inMoodle = $DB->record_exists_sql(
+                "SELECT 1 FROM {user_enrolments} ue JOIN {enrol} e ON ue.enrolid=e.id WHERE ue.userid=? AND e.courseid=?",
+                [$uid, $class->corecourseid]
+            );
+            $inProgre = $DB->record_exists('gmk_course_progre', ['userid' => $uid, 'classid' => $classid]);
+            $progreByLP = $DB->get_record('gmk_course_progre', [
+                'userid'       => $uid,
+                'courseid'     => $class->corecourseid,
+                'learningplanid' => $class->learningplanid,
+            ], 'id,classid,status', IGNORE_MISSING);
+
+            $studentDetails[] = [
+                'userid'       => $uid,
+                'name'         => $u->firstname . ' ' . $u->lastname,
+                'idnumber'     => $u->idnumber,
+                'suspended'    => (bool)$u->suspended,
+                'inMoodle'     => $inMoodle,
+                'inProgre_by_classid' => $inProgre,
+                'progre_by_LP' => $progreByLP ? (array)$progreByLP : null,
+            ];
+        }
+        $report['students'] = $studentDetails;
+
+        echo json_encode(['status' => 'success', 'data' => $report], JSON_PRETTY_PRINT);
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()]);
+    }
+    exit;
+}
+
+// ── AJAX: ejecutar inscripción real (dry-run=false) ───────────────────────────
+if ($ajax === 'do_enrol') {
+    header('Content-Type: application/json');
+    try {
+        $classid = required_param('classid', PARAM_INT);
+        require_sesskey();
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+        $preReg = $DB->get_records('gmk_class_pre_registration', ['classid' => $classid]);
+        $queue  = $DB->get_records('gmk_class_queue',            ['classid' => $classid]);
+
+        $allStudents = [];
+        foreach (array_merge($preReg, $queue) as $s) {
+            $allStudents[$s->userid] = $s;
+        }
+
+        $studentRoleId  = $DB->get_field('role', 'id', ['shortname' => 'student']);
+        $enrolplugin    = enrol_get_plugin('manual');
+        $courseInstance = get_manual_enroll($class->corecourseid);
+
+        $results = [];
+        foreach ($allStudents as $uid => $s) {
+            $r = ['userid' => $uid, 'steps' => []];
+            try {
+                // 1. Enrolar en curso
+                if ($courseInstance && $enrolplugin && $studentRoleId) {
+                    $enrolplugin->enrol_user($courseInstance, $uid, $studentRoleId);
+                    $r['steps'][] = 'enrol_user OK';
+                } else {
+                    $r['steps'][] = 'SKIP enrol_user: courseInstance=' . ($courseInstance ? 'ok' : 'NULL')
+                        . ' plugin=' . ($enrolplugin ? 'ok' : 'NULL')
+                        . ' role=' . $studentRoleId;
+                }
+
+                // 2. Agregar a grupo (solo si tiene groupid)
+                if (!empty($class->groupid)) {
+                    $gOk = groups_add_member($class->groupid, $uid);
+                    $r['steps'][] = 'groups_add_member ' . ($gOk ? 'OK' : 'FAIL');
+                } else {
+                    $r['steps'][] = 'no groupid, skip groups_add_member';
+                }
+
+                // 3. assign_class_to_course_progress
+                $existing = $DB->get_record('gmk_course_progre', [
+                    'userid'        => $uid,
+                    'courseid'      => $class->corecourseid,
+                    'learningplanid'=> $class->learningplanid,
+                ]);
+                if ($existing) {
+                    $existing->classid = $class->id;
+                    $existing->groupid = $class->groupid;
+                    $existing->status  = 2; // COURSE_IN_PROGRESS
+                    $existing->timemodified = time();
+                    $DB->update_record('gmk_course_progre', $existing);
+                    $r['steps'][] = 'progre updated (id=' . $existing->id . ')';
+                } else {
+                    $np = new stdClass();
+                    $np->userid        = $uid;
+                    $np->courseid      = $class->corecourseid;
+                    $np->learningplanid= $class->learningplanid;
+                    $np->classid       = $class->id;
+                    $np->groupid       = $class->groupid;
+                    $np->progress      = 0;
+                    $np->grade         = 0;
+                    $np->status        = 2;
+                    $np->timecreated   = time();
+                    $np->timemodified  = time();
+                    $np->usermodified  = $USER->id;
+                    $newId = $DB->insert_record('gmk_course_progre', $np);
+                    $r['steps'][] = 'progre inserted (id=' . $newId . ')';
+                }
+
+                $r['ok'] = true;
+            } catch (Throwable $ex) {
+                $r['ok']    = false;
+                $r['error'] = $ex->getMessage();
+            }
+            $results[] = $r;
+        }
+
+        // Marcar aprobada si no lo estaba
+        if (!$class->approved) {
+            $DB->set_field('gmk_class', 'approved', 1, ['id' => $classid]);
+            $results[] = ['info' => 'clase marcada approved=1'];
+        }
+
+        // Limpiar queue/pre_reg para clases sin grupo
+        if (empty($class->groupid)) {
+            $DB->delete_records('gmk_class_pre_registration', ['classid' => $classid]);
+            $DB->delete_records('gmk_class_queue',            ['classid' => $classid]);
+            $results[] = ['info' => 'queue y pre_registration limpiados (no group)'];
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $results], JSON_PRETTY_PRINT);
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()]);
+    }
+    exit;
+}
+
 if ($ajax === 'restore') {
     header('Content-Type: application/json');
     try {
@@ -115,6 +295,22 @@ th { background: #f2f2f2; font-weight: bold; position: sticky; top: 0; z-index: 
 </style>
 
 <h1>Debug: Clases Externas en el Tablero de Planificación</h1>
+
+<!-- ── Sección: Diagnóstico de inscripción por clase ───────────────────────── -->
+<?php
+$diagClassId = optional_param('diag_classid', 0, PARAM_INT);
+?>
+<div class="section" id="section-enrol-diag">
+<h2>Diagnóstico de Inscripción por Clase</h2>
+<p style="color:#666;font-size:12px">Ingresa el ID de una clase para ver exactamente qué pasaría al inscribir a sus estudiantes, y ejecutar la inscripción paso a paso.</p>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+  <label>Class ID:</label>
+  <input type="number" id="diag-classid" value="<?php echo $diagClassId; ?>" style="width:100px;padding:4px 8px;border:1px solid #ccc;border-radius:4px">
+  <button class="btn btn-primary" onclick="runDiagnose()">Diagnosticar</button>
+  <button class="btn btn-success" onclick="runEnrol()" id="btn-do-enrol" style="display:none">Inscribir estudiantes (ejecutar real)</button>
+</div>
+<div id="diag-result" style="font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;display:none;max-height:500px;overflow:auto;white-space:pre-wrap"></div>
+</div>
 <p style="color:#666;margin:0 0 12px">
   Muestra las clases de <strong>otros periodos</strong> que aparecen en el tablero porque sus fechas solapan con el periodo activo.
   Compara los estudiantes en BD con los que el tablero está mostrando.
@@ -540,6 +736,95 @@ const SESSKEY = <?php echo json_encode(sesskey()); ?>;
 const AJAX_URL = <?php echo json_encode(
     (new moodle_url('/local/grupomakro_core/pages/debug_external_enrollment.php'))->out(false)
 ); ?>;
+
+async function runDiagnose() {
+    const classid = document.getElementById('diag-classid').value;
+    if (!classid) { alert('Ingresa un Class ID'); return; }
+    const out = document.getElementById('diag-result');
+    out.style.display = 'block';
+    out.textContent = 'Consultando...';
+    document.getElementById('btn-do-enrol').style.display = 'none';
+
+    const fd = new FormData();
+    fd.append('ajax', 'diagnose_enrol');
+    fd.append('classid', classid);
+    fd.append('sesskey', SESSKEY);
+    fd.append('periodid', <?php echo (int)$activePeriodId; ?>);
+
+    try {
+        const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); } catch(e) { out.textContent = 'Respuesta no JSON:\n' + text; return; }
+
+        if (d.status !== 'success') { out.textContent = 'ERROR: ' + d.message; return; }
+
+        const r = d.data;
+        let html = '── CLASE ──────────────────────────────────────\n';
+        html += JSON.stringify(r.class, null, 2) + '\n\n';
+        html += '── ESTUDIANTES ─────────────────────────────────\n';
+        html += `preReg: ${r.preReg_count}  queue: ${r.queue_count}  deduped: ${r.deduped_count}\n`;
+        html += `userids: [${r.student_userids.join(', ')}]\n\n`;
+        html += '── ENROLMENT PLUGIN ────────────────────────────\n';
+        html += `studentRoleId: ${r.studentRoleId}\n`;
+        html += `enrolplugin_ok: ${r.enrolplugin_ok}\n`;
+        html += `courseInstance: ${JSON.stringify(r.courseInstance)}\n\n`;
+        html += '── DETALLE POR ESTUDIANTE ──────────────────────\n';
+        for (const s of r.students) {
+            const issues = [];
+            if (!s.inMoodle) issues.push('NO enrolado en Moodle');
+            if (!s.inProgre_by_classid) issues.push('NO en gmk_course_progre por classid');
+            if (!s.progre_by_LP) issues.push('NO en gmk_course_progre por LP+course');
+            if (s.suspended) issues.push('SUSPENDIDO');
+            html += `uid=${s.userid} | ${s.name} | ${s.idnumber}\n`;
+            html += `  inMoodle=${s.inMoodle} | inProgre_classid=${s.inProgre_by_classid} | progre_LP=${JSON.stringify(s.progre_by_LP)}\n`;
+            if (issues.length) html += `  ⚠ ${issues.join(' | ')}\n`;
+        }
+
+        out.textContent = html;
+        if (r.deduped_count > 0) {
+            document.getElementById('btn-do-enrol').style.display = 'inline-block';
+        }
+    } catch(e) {
+        out.textContent = 'Error JS: ' + e.message;
+    }
+}
+
+async function runEnrol() {
+    const classid = document.getElementById('diag-classid').value;
+    if (!confirm(`¿Ejecutar inscripción real para clase ${classid}? Esto modificará la base de datos.`)) return;
+
+    const out = document.getElementById('diag-result');
+    out.style.display = 'block';
+    out.textContent = 'Ejecutando inscripción...';
+
+    const fd = new FormData();
+    fd.append('ajax', 'do_enrol');
+    fd.append('classid', classid);
+    fd.append('sesskey', SESSKEY);
+    fd.append('periodid', <?php echo (int)$activePeriodId; ?>);
+
+    try {
+        const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); } catch(e) { out.textContent = 'Respuesta no JSON:\n' + text; return; }
+
+        if (d.status !== 'success') { out.textContent = 'ERROR: ' + d.message; return; }
+
+        let html = '── RESULTADOS ──────────────────────────────────\n';
+        for (const r of d.data) {
+            if (r.info) { html += `ℹ ${r.info}\n`; continue; }
+            html += `uid=${r.userid}: ${r.ok ? '✓' : '✗'}\n`;
+            for (const step of (r.steps || [])) html += `  → ${step}\n`;
+            if (r.error) html += `  ERROR: ${r.error}\n`;
+        }
+        html += '\n✓ Completado. Recarga scheduleapproval para verificar.';
+        out.textContent = html;
+    } catch(e) {
+        out.textContent = 'Error JS: ' + e.message;
+    }
+}
 
 function toggleChk(src, classid) {
     document.querySelectorAll('.chk-' + classid).forEach(c => c.checked = src.checked);
