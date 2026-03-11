@@ -5,6 +5,10 @@ require_admin();
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 
+$PAGE->set_url('/local/grupomakro_core/pages/debug_grade_duplicate.php', ['periodid' => $periodid]);
+$PAGE->set_context(context_system::instance());
+$PAGE->set_title('Debug Grade Duplicate');
+
 echo $OUTPUT->header();
 
 // List periods
@@ -23,7 +27,7 @@ if (!$periodid) {
 }
 
 // Get all classes for the period
-$classes = $DB->get_records('gmk_class', ['periodid' => $periodid, 'active' => 1], 'id ASC');
+$classes = $DB->get_records('gmk_class', ['periodid' => $periodid], 'id ASC');
 echo '<h3>Clases del periodo ' . $periodid . ' (' . count($classes) . ' clases)</h3>';
 
 echo '<table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px;width:100%">';
@@ -65,24 +69,18 @@ foreach ($classes as $cls) {
         ['courseid' => $cls->corecourseid, 'pat' => '%' . $cls->id . '%']
     );
 
-    // Get grade_items of type 'category' or 'mod' that might be orphaned (created but not linked)
-    // Specifically: grade_items for attendance modules in this course that have grade_grades for user 1999
+    // Get all attendance grade_items for this course with their grade_grade counts
     $orphanItems = [];
     if (!empty($cls->corecourseid)) {
         $orphanItems = $DB->get_records_sql(
-            "SELECT gi.id, gi.itemtype, gi.itemmodule, gi.iteminstance, gi.itemname,
-                    (SELECT COUNT(*) FROM {grade_grades} gg WHERE gg.itemid = gi.id) as gradecount
+            "SELECT gi.id, gi.itemmodule, gi.iteminstance, gi.itemname,
+                    (SELECT COUNT(*) FROM {grade_grades} gg WHERE gg.itemid = gi.id) as gradecount,
+                    (SELECT COUNT(*) FROM {course_modules} cm JOIN {modules} m ON m.id = cm.module AND m.name = 'attendance' WHERE cm.instance = gi.iteminstance AND cm.course = gi.courseid) as cm_exists
              FROM {grade_items} gi
              WHERE gi.courseid = :courseid
-               AND gi.itemtype = 'mod'
                AND gi.itemmodule = 'attendance'
-               AND gi.iteminstance NOT IN (
-                   SELECT cm.instance FROM {course_modules} cm
-                   JOIN {modules} m ON m.id = cm.module AND m.name = 'attendance'
-                   WHERE cm.id = :attcmid
-               )
              ORDER BY gi.id DESC",
-            ['courseid' => $cls->corecourseid, 'attcmid' => (int)($cls->attendancemoduleid ?: 0)]
+            ['courseid' => $cls->corecourseid]
         );
     }
 
@@ -113,7 +111,8 @@ foreach ($classes as $cls) {
 
     $orphanStr = '';
     foreach ($orphanItems as $oi) {
-        $orphanStr .= "gi.id={$oi->id} grades={$oi->gradecount}<br>";
+        $color = $oi->cm_exists ? 'green' : 'red';
+        $orphanStr .= "<span style='color:$color'>gi.id={$oi->id} grades={$oi->gradecount} cm=" . ($oi->cm_exists ? 'OK' : 'ORPHAN') . "</span><br>";
     }
 
     $dupStr = '';
