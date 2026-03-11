@@ -1555,17 +1555,23 @@ function get_class_participants($class)
 
     // Remove from preRegisteredStudents and queuedStudents any student already in enroledStudents,
     // to avoid showing the same person in both "En Espera" and "Inscritos".
-    // This applies to all classes: group-based (groups_members) and no-group (gmk_course_progre).
-    $enrolledUserIds = array_column((array)$classParticipants->enroledStudents, 'userid');
+    // Works for all classes: group-based (enroledStudents = groups_members rows with ->userid)
+    // and no-group classes (enroledStudents = gmk_course_progre rows with ->userid).
+    $enrolledUserIds = [];
+    foreach ((array)$classParticipants->enroledStudents as $e) {
+        if (!empty($e->userid)) {
+            $enrolledUserIds[] = (int)$e->userid;
+        }
+    }
     if (!empty($enrolledUserIds)) {
         $enrolledSet = array_flip($enrolledUserIds);
         $classParticipants->preRegisteredStudents = array_filter(
             (array)$classParticipants->preRegisteredStudents,
-            fn($s) => !isset($enrolledSet[$s->userid])
+            fn($s) => !isset($enrolledSet[(int)$s->userid])
         );
         $classParticipants->queuedStudents = array_filter(
             (array)$classParticipants->queuedStudents,
-            fn($s) => !isset($enrolledSet[$s->userid])
+            fn($s) => !isset($enrolledSet[(int)$s->userid])
         );
     }
 
