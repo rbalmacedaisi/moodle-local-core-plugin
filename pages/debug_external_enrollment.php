@@ -18,7 +18,7 @@ $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 // ── AJAX: restaurar enrollment individual ────────────────────────────────────
-$ajax = optional_param('ajax', '', PARAM_ALPHA);
+$ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);
 
 // ── AJAX: simular inscripción masiva (diagnóstico) ───────────────────────────
 if ($ajax === 'diagnose_enrol') {
@@ -241,6 +241,84 @@ if ($ajax === 'restore') {
     exit;
 }
 
+// ── AJAX: diagnóstico de duplicados para una clase ───────────────────────────
+if ($ajax === 'diag_duplicates') {
+    header('Content-Type: application/json');
+    try {
+        $classid = required_param('classid', PARAM_INT);
+        require_sesskey();
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+
+        // Reproducir exactamente la lógica de get_class_participants
+        $instructorId = (int)($class->instructorid ?? 0);
+
+        // enroledStudents
+        if (empty($class->groupid) && !empty($class->approved)) {
+            $enroled = $instructorId
+                ? $DB->get_records_select('gmk_course_progre', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
+                : $DB->get_records('gmk_course_progre', ['classid' => $class->id]);
+            $enroledSource = 'gmk_course_progre';
+        } else if ($instructorId) {
+            $enroled = $DB->get_records_select('groups_members', 'groupid = :gid AND userid != :uid', ['gid' => $class->groupid, 'uid' => $instructorId]);
+            $enroledSource = 'groups_members';
+        } else {
+            $enroled = $DB->get_records('groups_members', ['groupid' => $class->groupid]);
+            $enroledSource = 'groups_members';
+        }
+
+        // preRegisteredStudents
+        $preReg = $instructorId
+            ? $DB->get_records_select('gmk_class_pre_registration', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
+            : $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
+
+        // queuedStudents
+        $queued = $instructorId
+            ? $DB->get_records_select('gmk_class_queue', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
+            : $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+
+        // Calcular enrolled set
+        $enrolledUserIds = [];
+        foreach ($enroled as $e) {
+            if (!empty($e->userid)) $enrolledUserIds[] = (int)$e->userid;
+        }
+        $enrolledSet = array_flip($enrolledUserIds);
+
+        // Quiénes están en AMBOS lados (duplicados)
+        $dupPreReg = [];
+        foreach ($preReg as $s) {
+            if (isset($enrolledSet[(int)$s->userid])) $dupPreReg[] = (int)$s->userid;
+        }
+        $dupQueue = [];
+        foreach ($queued as $s) {
+            if (isset($enrolledSet[(int)$s->userid])) $dupQueue[] = (int)$s->userid;
+        }
+
+        // Muestra de los primeros enrolled para debug
+        $enroledSample = array_slice(array_map(fn($e) => ['id' => $e->id, 'userid' => $e->userid ?? null], array_values($enroled)), 0, 5);
+
+        echo json_encode([
+            'status'         => 'success',
+            'class_id'       => $class->id,
+            'class_name'     => $class->name,
+            'groupid'        => $class->groupid,
+            'approved'       => $class->approved,
+            'instructorid'   => $instructorId,
+            'enroled_source' => $enroledSource,
+            'enroled_count'  => count($enroled),
+            'enroled_sample' => $enroledSample,
+            'enrolled_userids' => array_values($enrolledUserIds),
+            'prereg_count'   => count($preReg),
+            'queue_count'    => count($queued),
+            'dup_in_prereg'  => $dupPreReg,
+            'dup_in_queue'   => $dupQueue,
+            'filter_would_remove' => count($dupPreReg) + count($dupQueue),
+        ], JSON_PRETTY_PRINT);
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()]);
+    }
+    exit;
+}
+
 // ── AJAX: limpiar queue/pre_reg de estudiantes ya inscritos ──────────────────
 if ($ajax === 'clean_duplicates') {
     header('Content-Type: application/json');
@@ -444,7 +522,8 @@ $diagClasses = $DB->get_records_sql(
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
   <label>Class ID:</label>
   <input type="number" id="diag-classid" value="<?php echo $diagClassId; ?>" style="width:100px;padding:4px 8px;border:1px solid #ccc;border-radius:4px">
-  <button class="btn btn-primary" onclick="runDiagnose()">Diagnosticar</button>
+  <button class="btn btn-primary" onclick="runDiagnose()">Diagnosticar inscripción</button>
+  <button class="btn btn-warning" style="background:#fd7e14" onclick="runDiagDuplicates()">Diagnosticar duplicados</button>
   <button class="btn btn-success" onclick="runEnrol()" id="btn-do-enrol" style="display:none">Inscribir estudiantes (ejecutar real)</button>
 </div>
 <div id="diag-result" style="font-family:monospace;font-size:12px;background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;display:none;max-height:500px;overflow:auto;white-space:pre-wrap"></div>
@@ -874,6 +953,52 @@ const SESSKEY = <?php echo json_encode(sesskey()); ?>;
 const AJAX_URL = <?php echo json_encode(
     (new moodle_url('/local/grupomakro_core/pages/debug_external_enrollment.php'))->out(false)
 ); ?>;
+
+async function runDiagDuplicates() {
+    const classid = document.getElementById('diag-classid').value;
+    if (!classid) { alert('Ingresa un Class ID'); return; }
+    const out = document.getElementById('diag-result');
+    out.style.display = 'block';
+    out.textContent = 'Diagnosticando duplicados...';
+
+    const fd = new FormData();
+    fd.append('ajax', 'diag_duplicates');
+    fd.append('classid', classid);
+    fd.append('sesskey', SESSKEY);
+
+    try {
+        const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); } catch(e) { out.textContent = 'Respuesta no JSON:\n' + text; return; }
+        if (d.status !== 'success') { out.textContent = 'ERROR: ' + d.message; return; }
+
+        let html = `── CLASE ${d.class_id}: ${d.class_name}\n`;
+        html += `   groupid=${d.groupid} | approved=${d.approved} | instructorid=${d.instructorid}\n\n`;
+        html += `── FUENTE DE INSCRITOS: ${d.enroled_source}\n`;
+        html += `   enroled_count=${d.enroled_count}\n`;
+        html += `   enrolled_userids (primeros 10): [${d.enrolled_userids.slice(0,10).join(', ')}]\n`;
+        html += `   muestra registros: ${JSON.stringify(d.enroled_sample)}\n\n`;
+        html += `── QUEUE/PRE_REG\n`;
+        html += `   prereg_count=${d.prereg_count} | queue_count=${d.queue_count}\n\n`;
+        html += `── DUPLICADOS (en espera Y en inscritos)\n`;
+        html += `   dup_in_prereg (${d.dup_in_prereg.length}): [${d.dup_in_prereg.join(', ')}]\n`;
+        html += `   dup_in_queue  (${d.dup_in_queue.length}):  [${d.dup_in_queue.join(', ')}]\n`;
+        html += `   filter_would_remove: ${d.filter_would_remove}\n`;
+        if (d.filter_would_remove === 0) {
+            html += `\n⚠ El filtro NO eliminaría ningún duplicado. El bug está en otro lugar.\n`;
+            html += `  Posibles causas:\n`;
+            html += `  - enroled_count=0 → la tabla fuente no tiene registros\n`;
+            html += `  - Los userids no coinciden por tipo (string vs int)\n`;
+        } else {
+            html += `\n✓ El filtro debería eliminar ${d.filter_would_remove} entradas de "En Espera".\n`;
+            html += `  Si aún duplica, puede ser caché del navegador o error al pasar $class al método.\n`;
+        }
+        out.textContent = html;
+    } catch(e) {
+        out.textContent = 'Error JS: ' + e.message;
+    }
+}
 
 async function runCleanDuplicates() {
     if (!confirm('¿Limpiar registros de queue/pre_reg de estudiantes ya inscritos para el periodo activo?\n\nSolo elimina duplicados — no afecta a estudiantes pendientes de inscripción.')) return;
