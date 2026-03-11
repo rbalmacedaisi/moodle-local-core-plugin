@@ -843,6 +843,38 @@ class scheduler extends external_api {
                 $classRec->timemodified = time();
                 $classRec->usermodified = $GLOBALS['USER']->id;
 
+                // Resolve classroomid from payload so build_class_group_name has it for both INSERT and UPDATE
+                $classRec->classroomid = null;
+                $roomRef = $cls['room'] ?? '';
+                if (!empty($roomRef) && $roomRef !== 'Sin aula') {
+                    if (is_numeric($roomRef)) {
+                        $classRec->classroomid = (int)$roomRef;
+                    } else {
+                        $rname = trim($roomRef);
+                        if (!array_key_exists($rname, $classrooms_cache)) {
+                            $rid = $DB->get_field('gmk_classrooms', 'id', ['name' => $rname], IGNORE_MULTIPLE);
+                            $classrooms_cache[$rname] = $rid ?: null;
+                        }
+                        $classRec->classroomid = $classrooms_cache[$rname];
+                    }
+                }
+                if (empty($classRec->classroomid) && !empty($cls['sessions']) && is_array($cls['sessions'])) {
+                    $firstSess = $cls['sessions'][0] ?? [];
+                    $sessRoom  = $firstSess['classroomid'] ?? null;
+                    if (!empty($sessRoom)) {
+                        if (is_numeric($sessRoom)) {
+                            $classRec->classroomid = (int)$sessRoom;
+                        } else {
+                            $rname = trim($sessRoom);
+                            if (!array_key_exists($rname, $classrooms_cache)) {
+                                $rid = $DB->get_field('gmk_classrooms', 'id', ['name' => $rname], IGNORE_MULTIPLE);
+                                $classrooms_cache[$rname] = $rid ?: null;
+                            }
+                            $classRec->classroomid = $classrooms_cache[$rname];
+                        }
+                    }
+                }
+
                 // Build full class name with nomenclature: PERIOD (SHIFT) SUBJECT (TYPE) ROOM
                 $classRec->name = build_class_group_name($classRec);
 
@@ -852,45 +884,9 @@ class scheduler extends external_api {
                 } else {
                     $classRec->timecreated = time();
                     $classid = $DB->insert_record('gmk_class', $classRec);
-
-                    // Create Moodle group for the new class
-                    // Resolve classroom from the first session or root room field
                     $classRec->id = $classid;
-                    $classRec->classroomid = null;
-                    $roomRef = $cls['room'] ?? '';
-                    if (!empty($roomRef) && $roomRef !== 'Sin aula') {
-                        if (is_numeric($roomRef)) {
-                            $classRec->classroomid = (int)$roomRef;
-                        } else {
-                            $rname = trim($roomRef);
-                            if (!array_key_exists($rname, $classrooms_cache)) {
-                                $rid = $DB->get_field('gmk_classrooms', 'id', ['name' => $rname], IGNORE_MULTIPLE);
-                                $classrooms_cache[$rname] = $rid ?: null;
-                            }
-                            $classRec->classroomid = $classrooms_cache[$rname];
-                        }
-                    }
-                    if (empty($classRec->classroomid) && !empty($cls['sessions']) && is_array($cls['sessions'])) {
-                        $firstSess = $cls['sessions'][0] ?? [];
-                        $sessRoom = $firstSess['classroomid'] ?? null;
-                        if (!empty($sessRoom)) {
-                            if (is_numeric($sessRoom)) {
-                                $classRec->classroomid = (int)$sessRoom;
-                            } else {
-                                $rname = trim($sessRoom);
-                                if (!array_key_exists($rname, $classrooms_cache)) {
-                                    $rid = $DB->get_field('gmk_classrooms', 'id', ['name' => $rname], IGNORE_MULTIPLE);
-                                    $classrooms_cache[$rname] = $rid ?: null;
-                                }
-                                $classRec->classroomid = $classrooms_cache[$rname];
-                            }
-                        }
-                    }
 
-                    // Update name now that classroomid is resolved
-                    $classRec->name = build_class_group_name($classRec);
-                    $DB->set_field('gmk_class', 'name', $classRec->name, ['id' => $classid]);
-
+                    // Create Moodle group for the new class (classroomid already resolved above)
                     try {
                         $groupId = create_class_group($classRec);
                         $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
