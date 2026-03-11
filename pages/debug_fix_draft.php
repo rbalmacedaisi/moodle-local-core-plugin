@@ -333,24 +333,15 @@ $classesForLp = $DB->get_records_sql(
             c.periodid as class_periodid,
             ap.name as period_name,
             lc.id as lc_id, lc.learningplanid as lc_lpid, lc.periodid as lc_period,
-            lc.name as lc_subject_name,
-            mc.fullname as moodle_course_name
+            mc.fullname as moodle_course_name,
+            mc2.fullname as lc_course_name
      FROM {gmk_class} c
      LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
      LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
      LEFT JOIN {course} mc ON mc.id = c.corecourseid
+     LEFT JOIN {course} mc2 ON mc2.id = lc.courseid
      ORDER BY c.id DESC"
 );
-
-// Build LP name map from local_learning_courses (lpid => one representative name from get_active_learning_plans if available)
-// We can get LP names by querying sc_learningplans or just show IDs if no name table exists
-$lpNames = [];
-$lpNameRows = $DB->get_records_sql("SELECT DISTINCT learningplanid, name FROM {local_learning_courses} WHERE learningplanid > 0 ORDER BY learningplanid");
-foreach ($lpNameRows as $lnr) {
-    if (!isset($lpNames[$lnr->learningplanid])) {
-        $lpNames[$lnr->learningplanid] = s($lnr->name); // use subject name as hint
-    }
-}
 
 $mismatched = [];
 foreach ($classesForLp as $row) {
@@ -373,7 +364,7 @@ if (empty($mismatched)) {
         echo '<tr style="background:#fff3e0;">
             <td>' . (int)$row->id . '</td>
             <td>' . s($row->name) . '</td>
-            <td>' . (int)$row->courseid . ' (' . s($row->lc_subject_name ?: '?') . ')</td>
+            <td>' . (int)$row->courseid . ' (' . s($row->lc_course_name ?: '?') . ')</td>
             <td style="color:#d93025;">LP=' . (int)$row->class_lpid . '</td>
             <td style="color:#34a853;font-weight:bold;">LP=' . $correctLpId . '</td>
             <td>' . s($row->period_name ?: $row->class_periodid) . '</td>
@@ -397,7 +388,7 @@ echo '<h3 style="margin-top:24px;">Todas las clases — referencia rápida</h3>'
 echo '<table><tr>
     <th>id</th><th>name</th><th>courseid</th><th>corecourseid</th><th>lpid (clase)</th>
     <th>periodid (clase)</th><th>periodo inst.</th>
-    <th>lc.lpid</th><th>lc.period</th><th>Materia (lc)</th><th>¿Match LP?</th>
+    <th>lc.lpid</th><th>lc.period</th><th>Curso (lc)</th><th>¿Match LP?</th>
 </tr>';
 foreach ($classesForLp as $row) {
     $match = (!$row->lc_id) ? '⚠ Sin lc' : ((int)$row->class_lpid === (int)$row->lc_lpid ? '✅' : '❌');
@@ -412,7 +403,7 @@ foreach ($classesForLp as $row) {
         <td>' . s($row->period_name ?: '-') . '</td>
         <td>' . ($row->lc_id ? (int)$row->lc_lpid : '-') . '</td>
         <td>' . ($row->lc_id ? (int)$row->lc_period : '-') . '</td>
-        <td>' . s($row->lc_subject_name ?: '-') . '</td>
+        <td>' . s($row->lc_course_name ?: '-') . '</td>
         <td style="text-align:center;font-weight:bold;">' . $match . '</td>
     </tr>';
 }
