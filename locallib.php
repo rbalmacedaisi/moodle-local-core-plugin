@@ -1927,22 +1927,11 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
         $isExternal = true;
     }
 
-    // EXTERNAL CLASS WITHOUT GROUP: Get all Moodle enrollments
-    // Only use this fallback if the class has no groupid
-    if ($isExternal && $class->corecourseid && !$class->groupid) {
-        $students = get_enrolled_students_by_courseid($class->corecourseid);
-
-        // Format to match expected structure
-        $classStudents = new stdClass();
-        $classStudents->enroledStudents = array_map(function ($student) {
-            $student->profilePicture = get_user_picture_url($student->id);
-            return $student;
-        }, $students);
-        $classStudents->preRegisteredStudents = [];
-        $classStudents->queuedStudents = [];
-        $classStudents->progreStudents = [];
-
-        return $classStudents;
+    // EXTERNAL CLASS WITHOUT GROUP: use queue/progre records (source of truth for this class).
+    // Do NOT fall back to get_enrolled_students_by_courseid — that returns ALL students enrolled
+    // in the Moodle course (could be hundreds from other plans/periods).
+    if ($isExternal && !$class->groupid) {
+        return get_class_participants($class);
     }
 
     // NORMAL CLASS OR EXTERNAL CLASS WITH GROUP: Use existing logic
