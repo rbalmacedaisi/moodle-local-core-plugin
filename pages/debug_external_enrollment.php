@@ -302,7 +302,67 @@ $diagClassId = optional_param('diag_classid', 0, PARAM_INT);
 ?>
 <div class="section" id="section-enrol-diag">
 <h2>Diagnóstico de Inscripción por Clase</h2>
-<p style="color:#666;font-size:12px">Ingresa el ID de una clase para ver exactamente qué pasaría al inscribir a sus estudiantes, y ejecutar la inscripción paso a paso.</p>
+<p style="color:#666;font-size:12px">Selecciona una clase del listado o ingresa el ID manualmente para ver su estado y ejecutar la inscripción.</p>
+
+<?php
+// Listar TODAS las clases con estudiantes pendientes (queue o pre_reg) del periodo activo y externos
+$diagClasses = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.groupid, c.approved, c.periodid, c.corecourseid,
+            ap.name AS periodname, lp.name AS planname,
+            COUNT(DISTINCT q.userid)  AS queue_count,
+            COUNT(DISTINCT pr.userid) AS prereg_count
+       FROM {gmk_class} c
+       LEFT JOIN {gmk_academic_periods}    ap ON ap.id = c.periodid
+       LEFT JOIN {local_learning_plans}    lp ON lp.id = c.learningplanid
+       LEFT JOIN {gmk_class_queue}          q ON q.classid  = c.id
+       LEFT JOIN {gmk_class_pre_registration} pr ON pr.classid = c.id
+      WHERE (c.periodid != :pid
+             AND c.initdate <= :enddate
+             AND c.enddate  >= :startdate)
+         OR c.periodid = :pid2
+      GROUP BY c.id, c.name, c.groupid, c.approved, c.periodid, c.corecourseid, ap.name, lp.name
+     HAVING COUNT(DISTINCT q.userid) > 0 OR COUNT(DISTINCT pr.userid) > 0
+      ORDER BY (c.periodid = :pid3) DESC, ap.name, lp.name, c.name",
+    [
+        'pid'       => $activePeriodId,
+        'pid2'      => $activePeriodId,
+        'pid3'      => $activePeriodId,
+        'startdate' => $activePeriod->startdate,
+        'enddate'   => $activePeriod->enddate,
+    ]
+);
+?>
+
+<?php if (!empty($diagClasses)): ?>
+<table style="margin-bottom:12px">
+  <tr>
+    <th>ID</th><th>Clase</th><th>Plan</th><th>Periodo</th>
+    <th>groupid</th><th>approved</th><th>queue</th><th>pre_reg</th><th>Acción</th>
+  </tr>
+  <?php foreach ($diagClasses as $dc):
+      $isExternal = ($dc->periodid != $activePeriodId);
+      $rowCls = $isExternal ? 'warn' : '';
+  ?>
+  <tr class="<?php echo $rowCls; ?>">
+    <td><?php echo $dc->id; ?></td>
+    <td><?php echo htmlspecialchars($dc->name); ?></td>
+    <td style="font-size:11px"><?php echo htmlspecialchars($dc->planname ?? '—'); ?></td>
+    <td style="font-size:11px"><?php echo htmlspecialchars($dc->periodname ?? 'ID:'.$dc->periodid); ?><?php echo $isExternal ? ' <span class="tag-ext">EXT</span>' : ''; ?></td>
+    <td><?php echo $dc->groupid ?: '—'; ?></td>
+    <td><?php echo $dc->approved ? '<span style="color:green">✓</span>' : '<span style="color:orange">✗</span>'; ?></td>
+    <td><?php echo $dc->queue_count; ?></td>
+    <td><?php echo $dc->prereg_count; ?></td>
+    <td>
+      <button class="btn btn-primary" style="padding:2px 8px;font-size:11px"
+        onclick="selectClass(<?php echo $dc->id; ?>)">Seleccionar</button>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+</table>
+<?php else: ?>
+<div class="warn-box">No hay clases con estudiantes en queue o pre_registration para este periodo.</div>
+<?php endif; ?>
+
 <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
   <label>Class ID:</label>
   <input type="number" id="diag-classid" value="<?php echo $diagClassId; ?>" style="width:100px;padding:4px 8px;border:1px solid #ccc;border-radius:4px">
@@ -736,6 +796,14 @@ const SESSKEY = <?php echo json_encode(sesskey()); ?>;
 const AJAX_URL = <?php echo json_encode(
     (new moodle_url('/local/grupomakro_core/pages/debug_external_enrollment.php'))->out(false)
 ); ?>;
+
+function selectClass(id) {
+    document.getElementById('diag-classid').value = id;
+    document.getElementById('diag-result').style.display = 'none';
+    document.getElementById('btn-do-enrol').style.display = 'none';
+    document.getElementById('section-enrol-diag').scrollIntoView({ behavior: 'smooth' });
+    runDiagnose();
+}
 
 async function runDiagnose() {
     const classid = document.getElementById('diag-classid').value;
