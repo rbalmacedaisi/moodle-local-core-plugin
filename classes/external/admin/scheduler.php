@@ -1087,7 +1087,7 @@ class scheduler extends external_api {
         // These Moodle core functions open their own internal transactions/queries and must not run
         // inside a delegated_transaction — any exception there would roll back all plugin DB writes.
         gmk_log("FASE 2: Creando estructuras Moodle para " . count($classRecsForMoodle) . " clases");
-        core_php_time_limit::raise(600);
+        \core_php_time_limit::raise(600);
         raise_memory_limit(MEMORY_HUGE);
 
         foreach ($classRecsForMoodle as $classid => $classRec) {
