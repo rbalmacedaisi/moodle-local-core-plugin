@@ -612,6 +612,49 @@ window.SchedulerComponents.PlanningBoard = {
                 </div>
             </div>
 
+            <!-- Modal: Publicando Horarios -->
+            <div v-if="publishDialog"
+                 class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+                    <div class="p-4 border-b border-slate-200 flex items-center gap-3"
+                         :class="publishError ? 'bg-red-50' : publishDone ? 'bg-green-50' : 'bg-blue-50'">
+                        <div v-if="!publishDone && !publishError" class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                        <i v-else-if="publishDone" data-lucide="check-circle" class="w-5 h-5 text-green-600 shrink-0"></i>
+                        <i v-else data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0"></i>
+                        <div>
+                            <h4 class="font-bold text-slate-800 text-sm">
+                                {{ publishError ? 'Error al publicar' : publishDone ? 'Publicación completada' : 'Publicando horarios...' }}
+                            </h4>
+                            <p class="text-[11px] text-slate-500">{{ publishStatusText }}</p>
+                        </div>
+                    </div>
+                    <!-- Progress bar -->
+                    <div class="px-4 pt-3 pb-1" v-if="!publishError">
+                        <div class="w-full bg-slate-100 rounded-full h-2">
+                            <div class="h-2 rounded-full transition-all duration-500"
+                                 :class="publishDone ? 'bg-green-500' : 'bg-blue-500'"
+                                 :style="{ width: publishProgress + '%' }"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1 text-right">{{ Math.round(publishProgress) }}%</p>
+                    </div>
+                    <!-- Log -->
+                    <div class="p-4 max-h-64 overflow-y-auto font-mono text-[11px] bg-slate-900 text-slate-100 mx-4 mb-4 rounded-lg" ref="publishLogBox">
+                        <div v-for="(line, i) in publishLog" :key="i"
+                             :class="line.type === 'error' ? 'text-red-400' : line.type === 'success' ? 'text-green-400' : line.type === 'warn' ? 'text-yellow-400' : 'text-slate-300'">
+                            <span class="text-slate-500 mr-2">{{ line.ts }}</span>{{ line.msg }}
+                        </div>
+                    </div>
+                    <div class="px-4 pb-4 flex justify-end">
+                        <button v-if="publishDone || publishError"
+                                @click="publishDialog = false"
+                                class="px-4 py-1.5 text-sm font-bold rounded-lg text-white"
+                                :class="publishError ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'">
+                            {{ publishError ? 'Cerrar' : 'Listo' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     `,
     data() {
@@ -629,6 +672,12 @@ window.SchedulerComponents.PlanningBoard = {
             selectedClass: null,
             saving: false,
             publishing: false,
+            publishDialog: false,
+            publishProgress: 0,
+            publishLog: [],
+            publishDone: false,
+            publishError: false,
+            publishStatusText: '',
             studentsDialog: false,
             currentStudents: [],
             logDialog: false,
@@ -1426,24 +1475,72 @@ window.SchedulerComponents.PlanningBoard = {
                 this.saving = false;
             }
         },
+        _publishLog(msg, type = 'info') {
+            const now = new Date();
+            const ts = now.toTimeString().slice(0, 8);
+            this.publishLog.push({ ts, msg, type });
+            this.$nextTick(() => {
+                const box = this.$refs.publishLogBox;
+                if (box) box.scrollTop = box.scrollHeight;
+            });
+        },
         async publishSchedules() {
             if (!window.schedulerStore) return;
-            const assignedCount = this.allClasses.filter(c => c.day && c.day !== 'N/A').length;
+            const assignedCount = this.allClasses.filter(c => !c.isExternal && c.sessions && c.sessions.length > 0).length;
             if (assignedCount === 0) {
                 alert('No hay clases asignadas para publicar. Ubica al menos una ficha en el calendario antes de publicar.');
                 return;
             }
-            if (!confirm(`¿Publicar ${assignedCount} clase(s) programada(s)? Esto creará o actualizará los registros en Gestión de Clases y los estudiantes quedarán asignados.`)) return;
+            if (!confirm(`¿Publicar ${assignedCount} clase(s) programada(s)? Esto creará o actualizará los registros en Gestión de Clases.`)) return;
+
+            // Open modal
+            this.publishDialog = true;
+            this.publishDone = false;
+            this.publishError = false;
+            this.publishProgress = 0;
+            this.publishLog = [];
+            this.publishStatusText = `Preparando ${assignedCount} clases...`;
             this.publishing = true;
+
             try {
                 const periodId = window.schedulerStore.state.activePeriod;
-                // First save draft to ensure latest state is in DB
+
+                this._publishLog(`Guardando borrador (${this.allClasses.length} ítems)...`);
+                this.publishProgress = 5;
+                this.publishStatusText = 'Guardando borrador...';
                 await window.schedulerStore.saveGeneration(periodId, this.allClasses);
-                // Then commit to live classes
-                await window.schedulerStore.publishGeneration(periodId, this.allClasses);
-                alert('Horarios publicados correctamente. Las clases ya están disponibles en Gestión de Clases.');
+                this._publishLog('Borrador guardado.', 'success');
+                this.publishProgress = 15;
+
+                this._publishLog(`Publicando ${assignedCount} clases en Moodle...`);
+                this.publishStatusText = `Publicando ${assignedCount} clases...`;
+
+                // Simulate incremental progress while the single HTTP call runs
+                const progressInterval = setInterval(() => {
+                    if (this.publishProgress < 85) this.publishProgress += 2;
+                }, 600);
+
+                try {
+                    await window.schedulerStore.publishGeneration(periodId, this.allClasses);
+                } finally {
+                    clearInterval(progressInterval);
+                }
+
+                this.publishProgress = 95;
+                this._publishLog('Re-guardando borrador post-publicación...', 'info');
+                this.publishProgress = 100;
+                this._publishLog(`¡Publicación completada! ${assignedCount} clases disponibles en Gestión de Clases.`, 'success');
+                this.publishStatusText = `${assignedCount} clases publicadas correctamente.`;
+                this.publishDone = true;
+
             } catch (e) {
-                alert('Error al publicar: ' + e.message);
+                this.publishError = true;
+                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
+                this._publishLog('ERROR: ' + e.message, 'error');
+                // Show technical detail
+                if (e.message && e.message.length > 120) {
+                    this._publishLog(e.message.slice(0, 300) + '...', 'error');
+                }
             } finally {
                 this.publishing = false;
             }
