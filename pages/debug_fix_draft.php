@@ -89,6 +89,18 @@ if ($action === 'fixclass' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesske
     }
 }
 
+// ── Handle fix class courseid ──────────────────────────────────────────────────
+if ($action === 'fixcourseid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
+    $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
+    $lc  = $DB->get_record('local_learning_courses', ['id' => $fixtopid]);
+    if ($cls && $lc) {
+        $DB->set_field('gmk_class', 'courseid', $fixtopid, ['id' => $fixclassid]);
+        $message = '<p class="msg-ok">✅ Clase id=' . $fixclassid . ' — courseid corregido a <b>' . $fixtopid . '</b> (local_learning_courses).</p>';
+    } else {
+        $message = '<p class="msg-err">❌ Clase o subject no encontrado.</p>';
+    }
+}
+
 ?>
 <style>
   body { font-family: sans-serif; }
@@ -200,6 +212,66 @@ $allClasses = $DB->get_records_sql(
 </tr>
 <?php endforeach ?>
 </table>
+</section>
+
+<!-- ══ SECTION 3: Diagnóstico de clases con courseid roto ═════════════════════ -->
+<section>
+<h2>3. Diagnóstico: Clases con courseid sin referencia</h2>
+<p>Clases cuyo <code>courseid</code> no existe en <code>local_learning_courses</code> — estas rompen <b>editclass.php</b>.</p>
+<?php
+$broken = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.courseid, c.corecourseid, c.learningplanid, c.periodid,
+            ap.name as period_name,
+            lc.id as lc_id, mc.fullname as moodle_course_name
+     FROM {gmk_class} c
+     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
+     LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
+     LEFT JOIN {course} mc ON mc.id = c.corecourseid
+     WHERE lc.id IS NULL
+     ORDER BY c.id DESC"
+);
+if (empty($broken)) {
+    echo '<p style="color:#34a853;font-weight:bold;">✅ Todas las clases tienen courseid válido.</p>';
+} else {
+    echo '<p style="color:#d93025;font-weight:bold;">⚠ Se encontraron ' . count($broken) . ' clases con courseid sin referencia:</p>';
+    echo '<table><tr>
+        <th>id</th><th>name</th><th>courseid (roto)</th><th>corecourseid</th><th>moodle_course</th><th>learningplanid</th><th>periodo</th><th>Fix courseid</th>
+    </tr>';
+    foreach ($broken as $b) {
+        // Try to find the correct local_learning_courses.id from corecourseid
+        $suggestion = null;
+        if ($b->corecourseid) {
+            $params = ['courseid' => $b->corecourseid];
+            if ($b->learningplanid) $params['learningplanid'] = $b->learningplanid;
+            $suggestion = $DB->get_record('local_learning_courses', $params, 'id', IGNORE_MULTIPLE);
+        }
+        $fixUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
+        echo '<tr style="background:#fce8e6;">
+            <td>' . (int)$b->id . '</td>
+            <td>' . s($b->name) . '</td>
+            <td style="color:#d93025;font-weight:bold;">' . (int)$b->courseid . '</td>
+            <td>' . (int)$b->corecourseid . '</td>
+            <td>' . s($b->moodle_course_name ?: '-') . '</td>
+            <td>' . (int)$b->learningplanid . '</td>
+            <td>' . s($b->period_name ?: $b->periodid) . '</td>
+            <td>';
+        if ($suggestion) {
+            echo '<form method="get" action="' . $fixUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
+                <input type="hidden" name="action" value="fixcourseid">
+                <input type="hidden" name="fixclassid" value="' . (int)$b->id . '">
+                <input type="hidden" name="fixtopid" value="' . (int)$suggestion->id . '">
+                <input type="hidden" name="sesskey" value="' . sesskey() . '">
+                <span style="font-size:11px;">→ lc.id=' . (int)$suggestion->id . '</span>
+                <button type="submit" class="btn-green">✔ Aplicar</button>
+            </form>';
+        } else {
+            echo '<span style="color:#999;font-size:11px;">Sin sugerencia</span>';
+        }
+        echo '</td></tr>';
+    }
+    echo '</table>';
+}
+?>
 </section>
 
 <?php echo $OUTPUT->footer();

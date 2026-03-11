@@ -67,7 +67,11 @@ $activityEndTime = null;
 $activityInfo = null;
 
 //Get the class that is going to be edited
-$class =  list_classes(['id'=>$id])[$id];
+$classResults = list_classes(['id' => $id]);
+$class = $classResults[$id] ?? ($classResults ? reset($classResults) : null);
+if (!$class) {
+    redirect(new moodle_url('/local/grupomakro_core/pages/classmanagement.php'), 'Clase no encontrada (id=' . $id . ')', 3);
+}
 
 
 

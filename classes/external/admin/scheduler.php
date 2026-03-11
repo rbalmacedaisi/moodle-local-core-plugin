@@ -724,9 +724,9 @@ class scheduler extends external_api {
                 // DEBUG: Trace ID resolution for this class with names
                 $inputPlanName = $lp_names[$cls['learningplanid'] ?? 0] ?? 'N/A';
                 $inputLvlName = $lvl_names[$cls['periodid'] ?? 0] ?? 'N/A';
-                $resolvedLvlName = $lvl_names[$subjMeta->periodid ?? 0] ?? 'N/A';
-                $resolvedPlanName = $lp_names[$subjMeta->learningplanid ?? 0] ?? 'N/A';
-                $moodleCourseName = $course_fullnames[$subjMeta->courseid ?? 0] ?? 'N/A';
+                $resolvedLvlName = $subjMeta ? ($lvl_names[$subjMeta->periodid ?? 0] ?? 'N/A') : 'N/A';
+                $resolvedPlanName = $subjMeta ? ($lp_names[$subjMeta->learningplanid ?? 0] ?? 'N/A') : 'N/A';
+                $moodleCourseName = $subjMeta ? ($course_fullnames[$subjMeta->courseid ?? 0] ?? 'N/A') : 'N/A';
 
                 gmk_log("DEBUG: PROCESANDO CLASE " . ($cls['id'] ?? 'NUEVA'));
                 gmk_log("  -> Materia: '" . ($cls['subjectName'] ?? 'Sin Nombre') . "'");
