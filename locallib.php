@@ -755,20 +755,22 @@ function create_class_activities($class, $updating = false)
         }
 
         // Reuse grade category if already created.
-        // Also search by fullname to recover from partial previous publishes where the category
-        // was created but gradecategoryid was never saved back to gmk_class (causing duplicate grade_grades on retry).
+        // Use class id suffix to find categories from partial previous publishes regardless of name changes.
         $existingCatId = null;
         if (!empty($class->gradecategoryid) && $DB->record_exists('grade_categories', ['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid])) {
             $existingCatId = (int)$class->gradecategoryid;
             gmk_log("INFO: create_class_activities — reutilizando gradecategory por id={$existingCatId}");
         } else {
-            $expectedCatName = $class->name . '-' . $class->id . ' grade category';
-            $existingCat = $DB->get_record('grade_categories', ['fullname' => $expectedCatName, 'courseid' => $class->corecourseid]);
+            // Search by the class id suffix in fullname — reliable even if class name changed between publishes.
+            $existingCat = $DB->get_record_sql(
+                "SELECT id FROM {grade_categories} WHERE courseid = :courseid AND " . $DB->sql_like('fullname', ':suffix'),
+                ['courseid' => $class->corecourseid, 'suffix' => '%-' . $class->id . ' grade category']
+            );
             if ($existingCat) {
                 $existingCatId = (int)$existingCat->id;
                 $class->gradecategoryid = $existingCatId;
                 $DB->update_record('gmk_class', $class);
-                gmk_log("INFO: create_class_activities — reutilizando gradecategory por nombre id={$existingCatId}");
+                gmk_log("INFO: create_class_activities — reutilizando gradecategory por sufijo id={$existingCatId} classid={$class->id}");
             }
         }
 
