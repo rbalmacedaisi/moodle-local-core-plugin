@@ -697,6 +697,12 @@ class scheduler extends external_api {
             // Load academic calendar once for the period (outside the loop to avoid multiple-records error).
             $periodCalendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid], '*', IGNORE_MULTIPLE);
 
+            // Accumulates classRec objects to process Moodle activities AFTER the DB transaction commits.
+            // This is critical: Moodle core functions (add_moduleinfo, groups_create_group, etc.) open their
+            // own internal transactions/get_records; running them inside a delegated_transaction causes the
+            // outer transaction to be marked as broken on any exception, rolling back all plugin DB writes.
+            $classRecsForMoodle = [];
+
             foreach ($data as $cls) {
                 // Skip classes from other periods (external/overlap classes shown on the board for reference only).
                 // Their periodid differs from the current publish target — never modify them.
@@ -966,80 +972,17 @@ class scheduler extends external_api {
 
                 if ($isUpdate) {
                     $classid = $classRec->id;
-
-                    // Ensure group exists — if the existing DB record had groupid=0 (old-code publish), create it now
-                    if (empty($classRec->groupid) && !empty($classRec->corecourseid)) {
-                        try {
-                            $groupId = create_class_group($classRec);
-                            $classRec->groupid = $groupId;
-                            gmk_log("INFO: Grupo creado en update para clase $classid: groupid=$groupId");
-                        } catch (Exception $ge) {
-                            gmk_log("WARNING: No se pudo crear grupo en update para clase $classid: " . $ge->getMessage());
-                        }
-                    }
-
                     $DB->update_record('gmk_class', $classRec);
                     gmk_log("INFO: UPDATE clase $classid — corecourseid={$classRec->corecourseid} groupid={$classRec->groupid} coursesectionid={$classRec->coursesectionid} attendancemoduleid={$classRec->attendancemoduleid}");
-
-                    if (!empty($classRec->attendancemoduleid) && !empty($classRec->coursesectionid)) {
-                        // Has existing activities → recreate BBB sessions and attendance sessions with new schedule
-                        try {
-                            create_class_activities($classRec, true);
-                            gmk_log("INFO: Actividades recreadas (updating=true) para clase $classid");
-                        } catch (Exception $ae) {
-                            gmk_log("WARNING: No se pudieron recrear actividades para clase $classid: " . $ae->getMessage());
-                        }
-                    } else if (!empty($classRec->corecourseid) && !empty($classRec->groupid)) {
-                        // No activities yet → create section (if missing) + activities
-                        try {
-                            if (empty($classRec->coursesectionid)) {
-                                $sectionId = create_class_section($classRec);
-                                $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
-                                $classRec->coursesectionid = $sectionId;
-                                gmk_log("INFO: Sección creada en update para clase $classid: sectionid=$sectionId");
-                            }
-                            create_class_activities($classRec, false);
-                            gmk_log("INFO: Actividades creadas (updating=false) para clase $classid");
-                        } catch (Exception $ae) {
-                            gmk_log("WARNING: No se pudieron crear actividades (update sin actividades previas) para clase $classid: " . $ae->getMessage());
-                        }
-                    } else {
-                        gmk_log("WARNING: UPDATE clase $classid sin sección/actividades — corecourseid={$classRec->corecourseid} groupid={$classRec->groupid}");
-                    }
                 } else {
                     $classRec->timecreated = time();
                     $classid = $DB->insert_record('gmk_class', $classRec);
                     $classRec->id = $classid;
                     gmk_log("INFO: INSERT clase $classid — corecourseid={$classRec->corecourseid} name={$classRec->name}");
-
-                    // Create Moodle group for the new class
-                    if (!empty($classRec->corecourseid)) {
-                        try {
-                            $groupId = create_class_group($classRec);
-                            $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
-                            $classRec->groupid = $groupId;
-                            gmk_log("INFO: Grupo creado para clase $classid: groupid=$groupId");
-                        } catch (Exception $ge) {
-                            gmk_log("WARNING: No se pudo crear el grupo para clase $classid: " . $ge->getMessage());
-                        }
-                    } else {
-                        gmk_log("WARNING: INSERT clase $classid sin corecourseid — no se crea grupo ni actividades");
-                    }
-
-                    // Create course section and Moodle activities (attendance + BBB per session)
-                    if (!empty($classRec->corecourseid) && !empty($classRec->groupid)) {
-                        try {
-                            $sectionId = create_class_section($classRec);
-                            $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
-                            $classRec->coursesectionid = $sectionId;
-                            gmk_log("INFO: Sección creada para clase $classid: sectionid=$sectionId");
-                            create_class_activities($classRec, false);
-                            gmk_log("INFO: Actividades creadas para clase $classid");
-                        } catch (Exception $ae) {
-                            gmk_log("WARNING: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
-                        }
-                    }
                 }
+
+                // Store classRec for the post-transaction Moodle activity creation phase.
+                $classRecsForMoodle[$classid] = clone $classRec;
 
                 // Save Students to Queue
                 // studentIds contains idnumbers (document numbers), resolve to real user ids.
@@ -1134,13 +1077,71 @@ class scheduler extends external_api {
             $DB->set_field('gmk_academic_periods', 'draft_schedules', null, ['id' => $periodid]);
             gmk_log("Draft limpiado para Periodo $periodid");
 
-            return true;
-            
         } catch (\Exception $e) {
             $transaction->rollback($e);
             gmk_log("ERROR en save_generation_result: " . $e->getMessage());
             return $e->getMessage();
         }
+
+        // PHASE 2: Create Moodle structures (groups, sections, activities) OUTSIDE the transaction.
+        // These Moodle core functions open their own internal transactions/queries and must not run
+        // inside a delegated_transaction — any exception there would roll back all plugin DB writes.
+        gmk_log("FASE 2: Creando estructuras Moodle para " . count($classRecsForMoodle) . " clases");
+        core_php_time_limit::raise(600);
+        raise_memory_limit(MEMORY_HUGE);
+
+        foreach ($classRecsForMoodle as $classid => $classRec) {
+            // Re-read from DB to get the latest state (in case a previous iteration updated it).
+            $freshRec = $DB->get_record('gmk_class', ['id' => $classid]);
+            if (!$freshRec) continue;
+            // Merge fresh DB values back into classRec (keep name, course, period, etc. from original).
+            foreach ((array)$freshRec as $k => $v) {
+                $classRec->$k = $v;
+            }
+
+            if (empty($classRec->corecourseid)) {
+                gmk_log("WARNING FASE2: clase $classid sin corecourseid — saltando");
+                continue;
+            }
+
+            // Ensure group exists.
+            if (empty($classRec->groupid)) {
+                try {
+                    $groupId = create_class_group($classRec);
+                    $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
+                    $classRec->groupid = $groupId;
+                    gmk_log("INFO FASE2: Grupo creado para clase $classid: groupid=$groupId");
+                } catch (Exception $ge) {
+                    gmk_log("WARNING FASE2: No se pudo crear grupo para clase $classid: " . $ge->getMessage());
+                    continue; // Can't create section without group
+                }
+            }
+
+            // Ensure section exists.
+            if (empty($classRec->coursesectionid)) {
+                try {
+                    $sectionId = create_class_section($classRec);
+                    $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
+                    $classRec->coursesectionid = $sectionId;
+                    gmk_log("INFO FASE2: Sección creada para clase $classid: sectionid=$sectionId");
+                } catch (Exception $se) {
+                    gmk_log("WARNING FASE2: No se pudo crear sección para clase $classid: " . $se->getMessage());
+                    continue;
+                }
+            }
+
+            // Create or recreate activities (attendance + BBB sessions).
+            $hasActivities = !empty($classRec->attendancemoduleid);
+            try {
+                create_class_activities($classRec, $hasActivities);
+                gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
+            } catch (Exception $ae) {
+                gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());
+            }
+        }
+
+        gmk_log("FASE 2 completa para Periodo $periodid");
+        return true;
     }
     
     public static function save_generation_result_returns() {
