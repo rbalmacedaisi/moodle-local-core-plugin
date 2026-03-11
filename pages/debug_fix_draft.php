@@ -53,7 +53,63 @@ if ($action === 'clear' && $periodid > 0 && confirm_sesskey()) {
     }
 }
 
+// ── Handle fix class periodid action ──────────────────────────────────────────
+if ($action === 'fixclass' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
+    $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
+    $toPeriod = $DB->get_record('gmk_academic_periods', ['id' => $fixtopid]);
+    if ($cls && $toPeriod) {
+        $DB->set_field('gmk_class', 'periodid', $fixtopid, ['id' => $fixclassid]);
+        $message = '<p style="background:#e6f4ea;border:1px solid #34a853;padding:10px 16px;border-radius:4px;font-family:sans-serif;">
+            ✅ Clase <b>id='.$fixclassid.'</b> movida al periodo <b>'.htmlspecialchars($toPeriod->name).'</b> (id='.$fixtopid.').
+        </p>';
+    } else {
+        $message = '<p style="background:#fce8e6;border:1px solid #d93025;padding:10px 16px;border-radius:4px;font-family:sans-serif;">❌ Clase o periodo no encontrado.</p>';
+    }
+}
+
 if ($message) echo $message;
+
+// ── Section: Fix clases con periodid incorrecto ────────────────────────────────
+echo '<h2 style="margin-top:32px;">Fix: Clases con periodid incorrecto</h2>';
+echo '<p style="font-family:sans-serif;color:#555;">Clases que tienen un nombre de otro periodo (p.ej. "2026-I ...") pero están guardadas con un periodid diferente. Muévelas al periodo correcto.</p>';
+
+$allPeriods = $DB->get_records_sql("SELECT id, name FROM {gmk_academic_periods} ORDER BY id DESC");
+$periodOptions = '';
+foreach ($allPeriods as $ap) {
+    $periodOptions .= '<option value="'.$ap->id.'">'.htmlspecialchars($ap->name).' (id='.$ap->id.')</option>';
+}
+
+$allClasses = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.periodid, ap.name as period_name
+     FROM {gmk_class} c
+     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
+     ORDER BY c.periodid DESC, c.id ASC"
+);
+
+echo '<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:monospace;font-size:12px;margin-top:8px;">';
+echo '<tr style="background:#1a73e8;color:white;">
+    <th>id</th><th>name</th><th>periodid actual</th><th>Mover a periodo</th>
+</tr>';
+foreach ($allClasses as $c) {
+    $fixUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', ['sesskey' => sesskey()]);
+    echo '<tr>
+        <td>'.(int)$c->id.'</td>
+        <td>'.htmlspecialchars($c->name).'</td>
+        <td>'.htmlspecialchars($c->period_name ?: $c->periodid).' (id='.(int)$c->periodid.')</td>
+        <td>
+            <form method="get" action="'.$fixUrl.'" style="display:inline-flex;gap:4px;align-items:center;">
+                <input type="hidden" name="action" value="fixclass">
+                <input type="hidden" name="fixclassid" value="'.(int)$c->id.'">
+                <input type="hidden" name="sesskey" value="'.sesskey().'">
+                <select name="fixtopid" style="font-size:11px;padding:2px;">
+                    '.$periodOptions.'
+                </select>
+                <button type="submit" style="background:#1a73e8;color:white;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:11px;">Mover</button>
+            </form>
+        </td>
+    </tr>';
+}
+echo '</table>';
 
 // ── Table ──────────────────────────────────────────────────────────────────────
 echo '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;font-family:monospace;font-size:13px;margin-top:16px;">';
