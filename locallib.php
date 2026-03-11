@@ -1814,7 +1814,13 @@ function approve_course_schedules($approvingSchedules)
         $schedulePreRegisteredStudents = $DB->get_records('gmk_class_pre_registration', ['classid' => $schedule['classId']]);
         $scheduleQueuedStudents = $DB->get_records('gmk_class_queue', ['classid' => $schedule['classId']]);
 
-        $enrolmentResults = enrolApprovedScheduleStudents(array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents), $class);
+        // Deduplicate by userid — a student may appear in both tables
+        $allStudents = [];
+        foreach (array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents) as $s) {
+            $allStudents[$s->userid] = $s;
+        }
+
+        $enrolmentResults = enrolApprovedScheduleStudents($allStudents, $class);
 
         // Make sure the id field is set before updating
         if (!isset($class->id)) {
@@ -1866,7 +1872,13 @@ function enrolApprovedScheduleStudents($students, $class)
             $enrolplugin->enrol_user($courseInstance, $student->userid, $studentRoleId);
         }
 
-        $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
+        // Only add to group if the class has a valid Moodle group
+        if (!empty($class->groupid)) {
+            $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
+        } else {
+            $enrolmentResults[$student->userid] = true; // No group — enrolment to course is sufficient
+        }
+
         if ($enrolmentResults[$student->userid]) {
             local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class);
         }
