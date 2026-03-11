@@ -147,7 +147,7 @@ echo 'Fin: '    . date('d/m/Y', $activePeriod->enddate) . '</div>';
 // Clases de OTRO periodo cuyas fechas solapan con el periodo activo
 $externalClasses = $DB->get_records_sql(
     "SELECT c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid,
-            c.instructorid, c.approved, c.active,
+            c.instructorid, c.approved,
             c.initdate, c.enddate, c.inittime, c.endtime,
             u.firstname, u.lastname,
             co.fullname as coursename,
@@ -161,7 +161,6 @@ $externalClasses = $DB->get_records_sql(
       WHERE c.periodid != :pid
         AND c.initdate <= :enddate
         AND c.enddate  >= :startdate
-        AND c.active = 1
       ORDER BY lp.name, c.name",
     [
         'pid'       => $activePeriodId,
