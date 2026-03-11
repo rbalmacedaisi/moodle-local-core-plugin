@@ -178,20 +178,22 @@ window.SchedulerComponents.PlanningBoard = {
                                                 </span>
                                             </div>
                                             <!-- Course load indicator -->
-                                            <div v-if="loadsMap[cls.subjectName]" class="mt-0.5 flex items-center gap-1"
-                                                :class="getLoadCoverage(cls).under ? 'text-orange-600' : 'text-violet-700'">
-                                                <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
-                                                <span class="font-semibold"
-                                                    :title="getLoadCoverage(cls).under
-                                                        ? 'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
-                                                        : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
-                                                    {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' · ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
-                                                </span>
-                                                <i v-if="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
-                                            </div>
-                                            <div v-else-if="!cls.isExternal" class="mt-0.5 flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
-                                                <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
-                                                <span class="italic">defecto</span>
+                                            <div class="mt-0.5">
+                                                <div v-if="loadsMap[cls.subjectName]" class="flex items-center gap-1"
+                                                    :class="getLoadCoverage(cls).under ? 'text-orange-600' : 'text-violet-700'">
+                                                    <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
+                                                    <span class="font-semibold"
+                                                        :title="getLoadCoverage(cls).under
+                                                            ? 'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
+                                                            : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
+                                                        {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' · ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
+                                                    </span>
+                                                    <i v-if="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
+                                                </div>
+                                                <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
+                                                    <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
+                                                    <span class="italic">defecto</span>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -987,6 +989,7 @@ window.SchedulerComponents.PlanningBoard = {
          * `under` = true when actual < required and load data is available.
          */
         getLoadCoverage(cls) {
+            if (!cls || !cls.subjectName) return { required: null, actual: null, under: false };
             const load = this.loadsMap[cls.subjectName];
             if (!load || cls.isExternal) return { required: null, actual: null, under: false };
             const totalH = parseFloat(load.total_hours || load.totalHours || 0);
