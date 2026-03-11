@@ -694,6 +694,9 @@ class scheduler extends external_api {
                 }
             }
 
+            // Load academic calendar once for the period (outside the loop to avoid multiple-records error).
+            $periodCalendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid], '*', IGNORE_MULTIPLE);
+
             foreach ($data as $cls) {
                 // Skip classes from other periods (external/overlap classes shown on the board for reference only).
                 // Their periodid differs from the current publish target — never modify them.
@@ -856,7 +859,7 @@ class scheduler extends external_api {
                 $classRec->initdate = $periodStart;
                 $classRec->enddate = $periodEnd;
                 
-                $calendar = $DB->get_record('gmk_academic_calendar', ['academicperiodid' => $periodid]);
+                $calendar = $periodCalendar;
                 if ($calendar) {
                     if ($classRec->subperiodid == 1 && !empty($calendar->block1start)) {
                         $classRec->initdate = $calendar->block1start;
