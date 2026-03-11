@@ -183,11 +183,11 @@ window.SchedulerComponents.PlanningBoard = {
                                                 <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
                                                 <span class="font-semibold"
                                                     :title="getLoadCoverage(cls).under
-                                                        ? 'Carga incompleta: ' + cls.assignedDates.length + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
+                                                        ? 'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
                                                         : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
                                                     {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
-                                                    <template v-if="cls.assignedDates">
-                                                        · {{ cls.assignedDates.length }}/{{ getLoadCoverage(cls).required }} ses.
+                                                    <template v-if="getLoadCoverage(cls).required">
+                                                        · {{ getLoadCoverage(cls).actual }}/{{ getLoadCoverage(cls).required }} ses.
                                                     </template>
                                                 </span>
                                                 <i v-if="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
