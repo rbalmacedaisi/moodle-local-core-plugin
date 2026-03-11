@@ -112,6 +112,22 @@ if ($action === 'fixlpid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey
     }
 }
 
+// ── Handle fix all mismatched learningplanids at once ─────────────────────────
+if ($action === 'fixalllpids' && confirm_sesskey()) {
+    $rows = $DB->get_records_sql(
+        "SELECT c.id, c.learningplanid as class_lpid, lc.learningplanid as lc_lpid
+         FROM {gmk_class} c
+         JOIN {local_learning_courses} lc ON lc.id = c.courseid
+         WHERE c.learningplanid != lc.learningplanid"
+    );
+    $fixed = 0;
+    foreach ($rows as $r) {
+        $DB->set_field('gmk_class', 'learningplanid', (int)$r->lc_lpid, ['id' => $r->id]);
+        $fixed++;
+    }
+    $message = '<p class="msg-ok">✅ learningplanid corregido en <b>' . $fixed . '</b> clases.</p>';
+}
+
 // ── Handle fix all broken courseids at once ────────────────────────────────────
 if ($action === 'fixallcourseids' && confirm_sesskey()) {
     $broken = $DB->get_records_sql(
@@ -353,7 +369,14 @@ foreach ($classesForLp as $row) {
 if (empty($mismatched)) {
     echo '<p style="color:#34a853;font-weight:bold;">✅ Todos los learningplanid de clases coinciden con local_learning_courses.</p>';
 } else {
+    $fixAllLpUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
+        'action' => 'fixalllpids', 'sesskey' => sesskey()
+    ]);
     echo '<p style="color:#d93025;font-weight:bold;">⚠ Se encontraron ' . count($mismatched) . ' clases con learningplanid incorrecto:</p>';
+    echo '<p><a href="' . $fixAllLpUrl . '" class="btn-green" style="font-size:14px;padding:6px 16px;"
+              onclick="return confirm(\'¿Corregir el learningplanid de todas las clases con mismatch?\')">
+              ✔ Corregir todas automáticamente
+         </a></p>';
     echo '<table><tr>
         <th>id</th><th>name</th><th>courseid</th><th>lpid en gmk_class</th><th>lpid correcto (lc)</th><th>período actual</th><th>Curso Moodle</th><th>Fix</th>
     </tr>';
