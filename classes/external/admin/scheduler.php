@@ -754,11 +754,18 @@ class scheduler extends external_api {
                 }
 
                 // Ensure we store the Subject ID (local_learning_courses.id) in courseid
-                $classRec->courseid = $courseId; 
+                $classRec->courseid = $courseId;
                 // Core Moodle Course ID
                 $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : ($cls['corecourseid'] ?? 0);
-                // Learning Plan
-                $classRec->learningplanid = $cls['learningplanid'] ?? ($subjMeta ? $subjMeta->learningplanid : 0);
+                // Learning Plan: always trust meta over frontend value (frontend may send period id instead of plan id)
+                $classRec->learningplanid = $subjMeta ? (int)$subjMeta->learningplanid : (int)($cls['learningplanid'] ?? 0);
+                // Subject name: always use the real Moodle course fullname to avoid double-building the nomenclature name
+                if ($subjMeta && !empty($subjMeta->courseid)) {
+                    $realCourseName = $course_fullnames[$subjMeta->courseid] ?? null;
+                    if ($realCourseName) {
+                        $classRec->name = $realCourseName;
+                    }
+                }
                 
                 // Note: periodid in DB stores the Institutional Period for filtering.
                 // The Academic Level (Level ID) is derived by list_classes using courseid.
@@ -998,6 +1005,11 @@ class scheduler extends external_api {
             }
             gmk_log("Guardado exitoso para Periodo $periodid");
             $transaction->allow_commit();
+
+            // Clear draft after successful publish so the board doesn't show duplicates on reload
+            $DB->set_field('gmk_academic_periods', 'draft_schedules', null, ['id' => $periodid]);
+            gmk_log("Draft limpiado para Periodo $periodid");
+
             return true;
             
         } catch (\Exception $e) {
@@ -1153,7 +1165,8 @@ class scheduler extends external_api {
 
             // If we have a valid subject ID (courseid column in gmk_class), get its period if not already set
             if (!empty($c->courseid) && $c->courseid != "0") {
-                if (!isset($subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)])) {
+                $subjCacheKey = $c->courseid . '_' . ($c->learningplanid ?? 0);
+                if (!isset($subjects_metadata_cache[$subjCacheKey])) {
                     $subj = $DB->get_record('local_learning_courses', ['id' => $c->courseid], 'id, learningplanid, periodid, courseid');
                     if (!$subj) {
                         $searchParams = ['courseid' => $c->courseid];
@@ -1161,11 +1174,14 @@ class scheduler extends external_api {
                             $searchParams['learningplanid'] = $c->learningplanid;
                         }
                         $subj = $DB->get_record('local_learning_courses', $searchParams, 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                        if (!$subj && !empty($c->corecourseid)) {
+                            $subj = $DB->get_record('local_learning_courses', ['courseid' => $c->corecourseid], 'id, learningplanid, periodid, courseid', IGNORE_MULTIPLE);
+                        }
                     }
-                    $subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)] = $subj ?: null;
+                    $subjects_metadata_cache[$subjCacheKey] = $subj ?: null;
                 }
-                
-                $meta = $subjects_metadata_cache[$c->courseid . '_' . ($c->learningplanid ?? 0)];
+
+                $meta = $subjects_metadata_cache[$subjCacheKey];
                 if ($meta) {
                     // CRITICAL: ONLY overwrite if current value is 0. Respect the saved majority plan!
                     if (empty($c->learningplanid)) $c->learningplanid = $meta->learningplanid;

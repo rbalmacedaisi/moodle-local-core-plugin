@@ -629,6 +629,10 @@
                     schedules: JSON.stringify(optimized)
                 });
 
+                // After publishing, re-save the full board state as draft (backend cleared it).
+                // This preserves positions of all items (including unassigned) for next session.
+                await this.saveGeneration(periodId, this.state.generatedSchedules);
+
                 this.state.successMessage = 'Horarios publicados correctamente';
             } catch (e) {
                 console.error('Publish generation error', e);
@@ -650,18 +654,45 @@
                     const externalIds = new Set(externalSchedules.map(s => Number(s.id)));
                     const pIdNum = Number(periodId);
 
-                    // Purge draft items that are actually live DB externals
+                    // IDs already in DB (from loadGeneratedSchedules)
+                    const dbSchedules = this.state.generatedSchedules.filter(s => !s.isExternal);
+                    const dbIds = new Set(dbSchedules.map(s => Number(s.id)).filter(Boolean));
+
+                    // Purge draft items that are DB externals
                     const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
                     const processedDraft = cleanedDraft.map(item => {
                         item.isExternal = (Number(item.periodid) || pIdNum) !== pIdNum;
                         return item;
                     });
 
-                    // --- Reconcile draft with current demand ---
-                    const reconciled = this._reconcileDraftWithDemand(processedDraft);
-                    console.log(`DEBUG Draft: After reconciliation -> ${reconciled.length} items (was ${processedDraft.length}).`);
+                    // Split draft into: items already in DB (update positions) vs truly new items
+                    const draftById = {};
+                    const newDraftItems = [];
+                    for (const item of processedDraft) {
+                        const numId = Number(item.id);
+                        if (numId > 0 && dbIds.has(numId)) {
+                            draftById[numId] = item; // use draft version to preserve positions/sessions
+                        } else {
+                            newDraftItems.push(item);
+                        }
+                    }
 
-                    this.state.generatedSchedules = [...reconciled, ...externalSchedules];
+                    // Merge: DB item is the source of truth for identity fields.
+                    // Draft only contributes positioning fields (sessions, day/time, room, assignedDates).
+                    const POSITION_KEYS = ['sessions', 'day', 'start', 'end', 'room', 'assignedDates', 'classdays'];
+                    const mergedDb = dbSchedules.map(s => {
+                        const d = draftById[Number(s.id)];
+                        if (!d) return s;
+                        const merged = Object.assign({}, s); // start from DB (correct identity)
+                        POSITION_KEYS.forEach(k => { if (d[k] !== undefined) merged[k] = d[k]; });
+                        return merged;
+                    });
+
+                    // --- Reconcile only the truly new draft items with demand ---
+                    const reconciledNew = this._reconcileDraftWithDemand(newDraftItems);
+                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft items=${reconciledNew.length} (was ${newDraftItems.length}).`);
+
+                    this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...externalSchedules];
                 } else {
                     console.log("DEBUG Draft: No draft found or draft is empty for this period.");
                 }
