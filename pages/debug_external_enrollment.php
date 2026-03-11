@@ -207,6 +207,90 @@ if (empty($buceoSoldClasses)) {
 }
 echo '</div>'; // section diagnóstico
 
+// ── Diagnóstico: duplicados pre_registration/queue en clases externas ────────
+echo '<div class="section">';
+echo '<h2>Diagnóstico: duplicados Inscritos/En Espera en clases externas</h2>';
+echo '<p style="color:#666;font-size:12px">El scheduleapproval muestra "Inscritos" = gmk_class_pre_registration y "En Espera" = gmk_class_queue. Si un estudiante está en ambas tablas para la misma clase, aparece contado dos veces.</p>';
+
+// Clases externas con estudiantes en ambas tablas
+$dupClasses = $DB->get_records_sql(
+    "SELECT c.id, c.name, c.periodid,
+            COUNT(DISTINCT pr.userid) as pre_count,
+            COUNT(DISTINCT q.userid)  as queue_count,
+            COUNT(DISTINCT CASE WHEN pr.userid IS NOT NULL AND q.userid IS NOT NULL THEN pr.userid END) as dup_count
+       FROM {gmk_class} c
+       LEFT JOIN {gmk_class_pre_registration} pr ON pr.classid = c.id
+       LEFT JOIN {gmk_class_queue}            q  ON q.classid  = c.id
+      WHERE c.periodid != :pid
+        AND c.initdate <= :enddate
+        AND c.enddate  >= :startdate
+      GROUP BY c.id, c.name, c.periodid
+     HAVING COUNT(DISTINCT pr.userid) > 0 AND COUNT(DISTINCT q.userid) > 0
+      ORDER BY dup_count DESC, c.id DESC",
+    [
+        'pid'       => $activePeriodId,
+        'startdate' => $activePeriod->startdate,
+        'enddate'   => $activePeriod->enddate,
+    ]
+);
+
+if (empty($dupClasses)) {
+    echo '<div class="ok-box">No hay duplicados entre pre_registration y queue en clases externas.</div>';
+} else {
+    $totalDupClasses = array_sum(array_column((array)$dupClasses, 'dup_count'));
+    echo '<div class="warn-box">Se encontraron <strong>' . count($dupClasses) . '</strong> clases con posibles duplicados. '
+       . 'Total de entradas duplicadas: <strong>' . $totalDupClasses . '</strong>.</div>';
+
+    echo '<table>';
+    echo '<tr><th>Clase ID</th><th>Nombre</th><th>pre_registration</th><th>queue</th><th>Duplicados (en ambas)</th></tr>';
+    foreach ($dupClasses as $dc) {
+        $rowCls = $dc->dup_count > 0 ? 'err' : 'ok';
+        echo '<tr class="' . $rowCls . '">';
+        echo '<td>' . $dc->id . '</td>';
+        echo '<td>' . htmlspecialchars($dc->name) . '</td>';
+        echo '<td>' . $dc->pre_count . '</td>';
+        echo '<td>' . $dc->queue_count . '</td>';
+        echo '<td><strong>' . $dc->dup_count . '</strong></td>';
+        echo '</tr>';
+    }
+    echo '</table>';
+
+    // Acción: limpiar pre_registration para clases externas que ya tienen queue
+    $classIdsWithDups = array_keys(array_filter((array)$dupClasses, fn($d) => $d->dup_count > 0));
+    if (!empty($classIdsWithDups)) {
+        $cleanAction = optional_param('clean_prereg', 0, PARAM_INT);
+        if ($cleanAction) {
+            require_sesskey();
+            $deleted = 0;
+            foreach ($dupClasses as $dc) {
+                if ($dc->dup_count <= 0) continue;
+                // Eliminar pre_registration donde el mismo userid ya existe en queue para esa clase
+                $toDelete = $DB->get_fieldset_sql(
+                    "SELECT pr.id FROM {gmk_class_pre_registration} pr
+                      WHERE pr.classid = :cid
+                        AND EXISTS (SELECT 1 FROM {gmk_class_queue} q WHERE q.classid = pr.classid AND q.userid = pr.userid)",
+                    ['cid' => $dc->id]
+                );
+                if ($toDelete) {
+                    list($insql, $inparams) = $DB->get_in_or_equal($toDelete);
+                    $DB->delete_records_select('gmk_class_pre_registration', "id $insql", $inparams);
+                    $deleted += count($toDelete);
+                }
+            }
+            echo '<div class="ok-box"><strong>Limpieza completada.</strong> Se eliminaron ' . $deleted . ' registros duplicados de gmk_class_pre_registration. <a href="?periodid=' . $activePeriodId . '">Recargar</a></div>';
+        } else {
+            echo '<form method="get" style="margin-top:10px">';
+            echo '<input type="hidden" name="periodid" value="' . $activePeriodId . '">';
+            echo '<input type="hidden" name="clean_prereg" value="1">';
+            echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+            echo '<button type="submit" class="btn btn-danger" onclick="return confirm(\'¿Eliminar los registros duplicados de gmk_class_pre_registration para estas clases externas?\')">Limpiar duplicados de pre_registration</button>';
+            echo ' <small style="color:#666">Solo elimina entradas donde el estudiante ya está en gmk_class_queue para la misma clase.</small>';
+            echo '</form>';
+        }
+    }
+}
+echo '</div>';
+
 // ── Obtener clases externas (misma lógica que get_generated_schedules) ───────
 // Clases de OTRO periodo cuyas fechas solapan con el periodo activo
 $externalClasses = $DB->get_records_sql(
