@@ -1175,6 +1175,30 @@ class scheduler extends external_api {
                     if (!$commitok) {
                         gmk_log("WARNING FASE2: COMMIT best-effort fallo para clase $classid");
                     }
+                    $attcmid = (int)($classRec->attendancemoduleid ?? 0);
+                    $extcheck = gmk_secondary_db_activity_check(
+                        (int)$classid,
+                        (int)$classRec->corecourseid,
+                        (int)$classRec->coursesectionid,
+                        $attcmid
+                    );
+                    if (!empty($extcheck['enabled']) && empty($extcheck['ok'])) {
+                        gmk_log("WARNING FASE2: EXTCHECK mismatch clase $classid"
+                            . " class_attendancemoduleid={$extcheck['class_attendancemoduleid']}"
+                            . " cm_exists={$extcheck['cm_exists']}"
+                            . " section_modules={$extcheck['section_modules_att_bbb']}");
+                        usleep(700000);
+                        gmk_best_effort_db_commit("scheduler_phase2_retry_class_{$classid}");
+                        $extcheck2 = gmk_secondary_db_activity_check(
+                            (int)$classid,
+                            (int)$classRec->corecourseid,
+                            (int)$classRec->coursesectionid,
+                            $attcmid
+                        );
+                        if (!empty($extcheck2['enabled']) && empty($extcheck2['ok'])) {
+                            throw new \Exception("Persistencia cruzada fallida para clase {$classid}");
+                        }
+                    }
                     gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
                 } catch (Throwable $ae) {
                     gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());

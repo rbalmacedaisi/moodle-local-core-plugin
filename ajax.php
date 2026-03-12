@@ -3156,6 +3156,8 @@ try {
             // Activities
             $attReason = '';
             $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
+            $crossPersistOk = true;
+            $crossPersistMsg = '';
             if (!$hasActivities && !empty($class->attendancemoduleid)) {
                 $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
             }
@@ -3166,8 +3168,49 @@ try {
                 $class = $DB->get_record('gmk_class', ['id' => $classid]);
                 $log[] = ($hasActivities ? "Actividades recreadas" : "Actividades creadas")
                        . ": attendanceid={$class->attendancemoduleid}";
+
+                $attcmid = (int)($class->attendancemoduleid ?? 0);
+                $extcheck = gmk_secondary_db_activity_check(
+                    (int)$classid,
+                    (int)$class->corecourseid,
+                    (int)$class->coursesectionid,
+                    $attcmid
+                );
+                if (!empty($extcheck['enabled'])) {
+                    $log[] = "EXTCHECK class.attendancemoduleid={$extcheck['class_attendancemoduleid']}"
+                        . " cm_exists={$extcheck['cm_exists']}"
+                        . " section_modules(attendance|bbb)={$extcheck['section_modules_att_bbb']}"
+                        . " ok=" . (($extcheck['ok'] ?? false) ? '1' : '0');
+                    if (empty($extcheck['ok'])) {
+                        // One extra commit + short wait for defensive convergence.
+                        usleep(700000);
+                        $commitok2 = gmk_best_effort_db_commit("ajax_create_class_moodle_structures_retry_class_{$classid}");
+                        $log[] = "COMMIT retry " . ($commitok2 ? "OK" : "WARN");
+                        $extcheck2 = gmk_secondary_db_activity_check(
+                            (int)$classid,
+                            (int)$class->corecourseid,
+                            (int)$class->coursesectionid,
+                            $attcmid
+                        );
+                        $log[] = "EXTCHECK retry class.attendancemoduleid={$extcheck2['class_attendancemoduleid']}"
+                            . " cm_exists={$extcheck2['cm_exists']}"
+                            . " section_modules(attendance|bbb)={$extcheck2['section_modules_att_bbb']}"
+                            . " ok=" . (($extcheck2['ok'] ?? false) ? '1' : '0');
+                        if (empty($extcheck2['ok'])) {
+                            $crossPersistOk = false;
+                            $crossPersistMsg = 'Persistencia cruzada fallida: los cambios no son visibles desde una segunda conexion DB.';
+                        }
+                    }
+                }
             } catch (Throwable $e) {
                 $log[] = "WARN actividades: " . $e->getMessage();
+            }
+
+            if (!$crossPersistOk) {
+                $response = ['status' => 'error', 'classid' => $classid, 'log' => $log,
+                    'message' => $crossPersistMsg,
+                    'groupid' => $class->groupid, 'attendancemoduleid' => $class->attendancemoduleid];
+                break;
             }
 
             $finalAttReason = '';

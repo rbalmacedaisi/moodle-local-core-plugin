@@ -69,6 +69,126 @@ if (!function_exists('gmk_best_effort_db_commit')) {
     }
 }
 
+if (!function_exists('gmk_secondary_db_activity_check')) {
+    /**
+     * Verify from a second DB connection that class activity writes are visible (committed).
+     *
+     * @return array{
+     *   enabled: bool,
+     *   ok: bool|null,
+     *   class_attendancemoduleid: int|null,
+     *   class_groupid: int|null,
+     *   class_coursesectionid: int|null,
+     *   cm_exists: int|null,
+     *   section_modules_att_bbb: int|null,
+     *   error?: string
+     * }
+     */
+    function gmk_secondary_db_activity_check(int $classid, int $courseid = 0, int $sectionid = 0, int $attcmid = 0): array {
+        global $CFG;
+
+        $out = [
+            'enabled' => false,
+            'ok' => null,
+            'class_attendancemoduleid' => null,
+            'class_groupid' => null,
+            'class_coursesectionid' => null,
+            'cm_exists' => null,
+            'section_modules_att_bbb' => null,
+        ];
+
+        if (!in_array($CFG->dbtype, ['mysqli', 'mariadb'], true)) {
+            $out['error'] = 'dbtype no soportado: ' . $CFG->dbtype;
+            return $out;
+        }
+        if (!class_exists('mysqli')) {
+            $out['error'] = 'ext mysqli no disponible';
+            return $out;
+        }
+
+        $host = (string)($CFG->dbhost ?? '');
+        $user = (string)($CFG->dbuser ?? '');
+        $pass = (string)($CFG->dbpass ?? '');
+        $name = (string)($CFG->dbname ?? '');
+        $port = (int)($CFG->dboptions['dbport'] ?? ($CFG->dbport ?? 3306));
+        $prefix = (string)($CFG->prefix ?? 'mdl_');
+
+        mysqli_report(MYSQLI_REPORT_OFF);
+        $mysqli = @new mysqli($host, $user, $pass, $name, $port);
+        if ($mysqli->connect_errno) {
+            $out['error'] = 'mysqli connect error: ' . $mysqli->connect_error;
+            return $out;
+        }
+
+        try {
+            $out['enabled'] = true;
+
+            $classsql = "SELECT attendancemoduleid, groupid, coursesectionid
+                           FROM {$prefix}gmk_class
+                          WHERE id = ?";
+            if ($stmt = $mysqli->prepare($classsql)) {
+                $stmt->bind_param('i', $classid);
+                if ($stmt->execute() && ($res = $stmt->get_result())) {
+                    $row = $res->fetch_assoc();
+                    if ($row) {
+                        $out['class_attendancemoduleid'] = isset($row['attendancemoduleid']) ? (int)$row['attendancemoduleid'] : null;
+                        $out['class_groupid'] = isset($row['groupid']) ? (int)$row['groupid'] : null;
+                        $out['class_coursesectionid'] = isset($row['coursesectionid']) ? (int)$row['coursesectionid'] : null;
+                    }
+                }
+                $stmt->close();
+            }
+
+            if ($attcmid > 0) {
+                $cmsql = "SELECT cm.id
+                            FROM {$prefix}course_modules cm
+                           WHERE cm.id = ?";
+                if ($stmt = $mysqli->prepare($cmsql)) {
+                    $stmt->bind_param('i', $attcmid);
+                    if ($stmt->execute() && ($res = $stmt->get_result())) {
+                        $row = $res->fetch_assoc();
+                        $out['cm_exists'] = $row ? 1 : 0;
+                    }
+                    $stmt->close();
+                }
+            }
+
+            if ($courseid > 0 && $sectionid > 0) {
+                $cntsql = "SELECT COUNT(1) AS c
+                             FROM {$prefix}course_modules cm
+                             JOIN {$prefix}modules m ON m.id = cm.module
+                            WHERE cm.course = ?
+                              AND cm.section = ?
+                              AND m.name IN ('attendance','bigbluebuttonbn')";
+                if ($stmt = $mysqli->prepare($cntsql)) {
+                    $stmt->bind_param('ii', $courseid, $sectionid);
+                    if ($stmt->execute() && ($res = $stmt->get_result())) {
+                        $row = $res->fetch_assoc();
+                        $out['section_modules_att_bbb'] = $row ? (int)$row['c'] : 0;
+                    }
+                    $stmt->close();
+                }
+            }
+
+            // "ok" means persisted in second connection consistently.
+            if ($attcmid > 0) {
+                $out['ok'] =
+                    ((int)($out['class_attendancemoduleid'] ?? 0) === $attcmid) &&
+                    ((int)($out['cm_exists'] ?? 0) === 1) &&
+                    ((int)($out['section_modules_att_bbb'] ?? 0) > 0);
+            } else {
+                $out['ok'] = false;
+            }
+        } catch (Throwable $e) {
+            $out['error'] = $e->getMessage();
+        } finally {
+            $mysqli->close();
+        }
+
+        return $out;
+    }
+}
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 

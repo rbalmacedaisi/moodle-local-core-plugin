@@ -654,31 +654,51 @@
                 const total    = classids.length;
                 let   done     = 0;
                 let   errors   = 0;
+                const failedClasses = [];
                 const baseProgress = 20;
                 const maxProgress  = 90;
 
                 for (const classid of classids) {
-                    try {
-                        const res = await this._fetch('local_grupomakro_create_class_moodle_structures', { classid });
-                        done++;
-                        const pct = baseProgress + Math.round((done / total) * (maxProgress - baseProgress));
+                    let res = null;
+                    let err = null;
+
+                    for (let attempt = 1; attempt <= 2; attempt++) {
+                        try {
+                            res = await this._fetch('local_grupomakro_create_class_moodle_structures', { classid });
+                            err = null;
+                            if (attempt > 1) {
+                                notify(`Clase ${classid}: recuperada en intento ${attempt}.`, 'success');
+                            }
+                            break;
+                        } catch (e) {
+                            err = e;
+                            if (attempt < 2) {
+                                notify(`Clase ${classid}: reintentando por error de persistencia...`, 'warn');
+                                await new Promise(r => setTimeout(r, 700));
+                            }
+                        }
+                    }
+
+                    done++;
+                    const pct = baseProgress + Math.round((done / total) * (maxProgress - baseProgress));
+                    if (err) {
+                        errors++;
+                        failedClasses.push({ classid, message: err.message });
+                        notify(`[${done}/${total}] Clase ${classid}: ERROR - ${err.message}`, 'error', pct);
+                    } else {
                         const logLine = (res && res.log) ? res.log[res.log.length - 1] : 'OK';
                         notify(`[${done}/${total}] Clase ${classid}: ${logLine}`, 'info', pct);
-                    } catch (e) {
-                        errors++;
-                        done++;
-                        const pct = baseProgress + Math.round((done / total) * (maxProgress - baseProgress));
-                        notify(`[${done}/${total}] Clase ${classid}: ERROR — ${e.message}`, 'error', pct);
                     }
                 }
 
                 if (errors > 0) {
                     notify(`Fase 2 completada con ${errors} error(es) en ${total} clases.`, 'warn', 92);
+                    const sample = failedClasses.slice(0, 10).map(x => `${x.classid}`).join(', ');
+                    throw new Error(`Publicacion incompleta: ${errors} clase(s) sin persistencia confirmada. Clases: ${sample}`);
                 } else {
                     notify(`Fase 2 completada. Grupos y actividades creados para ${total} clases.`, 'success', 92);
                 }
-
-                // ── Re-guardar borrador ───────────────────────────────────────────────────
+// ── Re-guardar borrador ───────────────────────────────────────────────────
                 notify('Re-guardando borrador...', 'info', 95);
                 await this.saveGeneration(periodId, this.state.generatedSchedules);
                 notify('Borrador actualizado.', 'success', 100);
@@ -1172,3 +1192,4 @@
     };
 
 })();
+
