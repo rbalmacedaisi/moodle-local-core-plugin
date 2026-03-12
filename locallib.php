@@ -747,6 +747,11 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
         return false;
     }
 
+    if (!gmk_section_sequence_contains_cmid((int)$class->coursesectionid, (int)$cm->id)) {
+        $reason = "attendance cmid {$cm->id} no esta en sequence de la seccion {$class->coursesectionid}";
+        return false;
+    }
+
     if (!$DB->record_exists('attendance', ['id' => $cm->instance])) {
         $reason = "instancia attendance {$cm->instance} no existe";
         return false;
@@ -776,6 +781,138 @@ function gmk_get_module_id_by_name($modulename)
     }
 
     return (int)$first->id;
+}
+
+/**
+ * True if the course module id is linked in the section sequence.
+ */
+function gmk_section_sequence_contains_cmid($sectionid, $cmid)
+{
+    global $DB;
+
+    if (empty($sectionid) || empty($cmid)) {
+        return false;
+    }
+
+    $sequence = $DB->get_field('course_sections', 'sequence', ['id' => (int)$sectionid]);
+    if ($sequence === false || $sequence === null || $sequence === '') {
+        return false;
+    }
+
+    $cmids = array_values(array_filter(array_map('intval', explode(',', (string)$sequence))));
+    return in_array((int)$cmid, $cmids, true);
+}
+
+/**
+ * Ensure a course module id is present in section sequence for Moodle course display.
+ */
+function gmk_ensure_cmid_in_section_sequence($sectionid, $cmid)
+{
+    global $DB;
+
+    $sectionid = (int)$sectionid;
+    $cmid = (int)$cmid;
+    if ($sectionid <= 0 || $cmid <= 0) {
+        return false;
+    }
+
+    $section = $DB->get_record('course_sections', ['id' => $sectionid], 'id,sequence', MUST_EXIST);
+    $sequence = trim((string)$section->sequence);
+    $cmids = $sequence === '' ? [] : array_values(array_filter(array_map('intval', explode(',', $sequence))));
+    if (in_array($cmid, $cmids, true)) {
+        return true;
+    }
+
+    $cmids[] = $cmid;
+    $newsequence = implode(',', $cmids);
+    $DB->set_field('course_sections', 'sequence', $newsequence, ['id' => $sectionid]);
+    return true;
+}
+
+/**
+ * Strict activity stack validation: attendance + sessions + BBB links.
+ */
+function gmk_is_class_activity_stack_complete($class, &$reason = '')
+{
+    global $DB;
+
+    $reason = '';
+    $attReason = '';
+    if (!gmk_is_valid_class_attendance_module($class, $attReason)) {
+        $reason = $attReason;
+        return false;
+    }
+
+    $attendanceid = $DB->get_field('course_modules', 'instance', ['id' => (int)$class->attendancemoduleid]);
+    if (empty($attendanceid)) {
+        $reason = "attendance instance no encontrada para cmid {$class->attendancemoduleid}";
+        return false;
+    }
+
+    $sessionCount = $DB->count_records('attendance_sessions', ['attendanceid' => (int)$attendanceid]);
+    if ($sessionCount <= 0) {
+        $reason = "attendance {$attendanceid} sin sesiones";
+        return false;
+    }
+
+    $relationCount = $DB->count_records('gmk_bbb_attendance_relation', [
+        'classid' => (int)$class->id,
+        'attendancemoduleid' => (int)$class->attendancemoduleid
+    ]);
+    if ($relationCount <= 0) {
+        $reason = "sin relaciones gmk_bbb_attendance_relation para la clase";
+        return false;
+    }
+
+    $params = ['classid' => (int)$class->id, 'attcmid' => (int)$class->attendancemoduleid];
+    $bbbRows = $DB->get_records_sql(
+        "SELECT DISTINCT bbbmoduleid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid = :classid
+            AND attendancemoduleid = :attcmid
+            AND bbbmoduleid IS NOT NULL
+            AND bbbmoduleid > 0",
+        $params
+    );
+    if (empty($bbbRows)) {
+        $reason = 'sin modulos BBB vinculados a las sesiones';
+        return false;
+    }
+
+    $validBBB = 0;
+    foreach ($bbbRows as $row) {
+        $bbbcmid = (int)$row->bbbmoduleid;
+        $bbbcm = $DB->get_record_sql(
+            "SELECT cm.id, cm.course, cm.section, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => $bbbcmid]
+        );
+        if (!$bbbcm) {
+            continue;
+        }
+        if ($bbbcm->modulename !== 'bigbluebuttonbn') {
+            continue;
+        }
+        if (!empty($class->corecourseid) && (int)$bbbcm->course !== (int)$class->corecourseid) {
+            continue;
+        }
+        if (!empty($class->coursesectionid) && (int)$bbbcm->section !== (int)$class->coursesectionid) {
+            continue;
+        }
+        if (!gmk_section_sequence_contains_cmid((int)$class->coursesectionid, (int)$bbbcmid)) {
+            continue;
+        }
+        $validBBB++;
+    }
+
+    if ($validBBB <= 0) {
+        $reason = 'los BBB vinculados no son validos o no estan visibles en la seccion';
+        return false;
+    }
+
+    return true;
 }
 
 function delete_class($classId, $reason =  null)
@@ -890,6 +1027,7 @@ function create_class_activities($class, $updating = false)
         $attendanceCourseModule  = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
         $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
         $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+        gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
         $attendanceSessionIdsToBeDeleted = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'attendancesessionid');
         if (!empty(array_keys($attendanceSessionIdsToBeDeleted))) {
             $attendanceStructure->delete_sessions(array_keys($attendanceSessionIdsToBeDeleted));
@@ -903,6 +1041,7 @@ function create_class_activities($class, $updating = false)
             $attendanceCourseModule = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
+            gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
             gmk_log("INFO: create_class_activities — reutilizando attendance existente cmid={$class->attendancemoduleid}");
         } else {
             try {
@@ -954,6 +1093,7 @@ function create_class_activities($class, $updating = false)
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
             $class->attendancemoduleid = $attendanceStructure->cmid;
+            gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceStructure->cmid);
             $DB->update_record('gmk_class', $class);
         }
 
@@ -1079,10 +1219,18 @@ function create_class_activities($class, $updating = false)
                 $activityEndTS = $sessionDateTS + $sessionDuration;
                 try {
                     $BBBCourseModuleInfo = create_big_blue_button_activity($class, $sessionDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
+                    gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$BBBCourseModuleInfo->coursemodule);
                     $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
                 } catch (Throwable $bbbErr) {
-                    gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
-                    $BBBCourseModuleInfo = null;
+                    $recoveredBBB = gmk_recover_big_blue_button_activity($class, $sessionDateTS, $BBBModuleId, (int)$class->coursesectionid);
+                    if ($recoveredBBB) {
+                        $BBBCourseModuleInfo = $recoveredBBB;
+                        $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                        gmk_log("INFO: BBB recuperado para clase {$class->id} date {$dateStr}: cmid={$BBBCourseModuleInfo->coursemodule}");
+                    } else {
+                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                        $BBBCourseModuleInfo = null;
+                    }
                 }
                 $attendanceSessions[] = create_attendance_session_object($class, $sessionDateTS, $sessionDuration, $BBBCourseModuleInfo);
             }
@@ -1105,10 +1253,18 @@ function create_class_activities($class, $updating = false)
                 $activityEndTS = $currentDateTS + (int)$class->classduration;
                 try {
                     $BBBCourseModuleInfo = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
+                    gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$BBBCourseModuleInfo->coursemodule);
                     $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
                 } catch (Throwable $bbbErr) {
-                    gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
-                    $BBBCourseModuleInfo = null;
+                    $recoveredBBB = gmk_recover_big_blue_button_activity($class, $currentDateTS, $BBBModuleId, (int)$class->coursesectionid);
+                    if ($recoveredBBB) {
+                        $BBBCourseModuleInfo = $recoveredBBB;
+                        $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                        gmk_log("INFO: BBB recuperado para clase {$class->id} date {$dateStr}: cmid={$BBBCourseModuleInfo->coursemodule}");
+                    } else {
+                        gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                        $BBBCourseModuleInfo = null;
+                    }
                 }
                 $attendanceSessions[] = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
             }
@@ -1183,6 +1339,38 @@ function create_big_blue_button_activity($class, $initDateTS, $endDateTS, $BBBmo
     $bbbInstanceInfo->name = $bbbActivityDefinition->name;
 
     return $bbbInstanceInfo;
+}
+
+/**
+ * Recover BBB module when add_moduleinfo throws after partial insert.
+ */
+function gmk_recover_big_blue_button_activity($class, $initDateTS, $BBBmoduleId, $sectionid = 0)
+{
+    global $DB;
+
+    $name = $class->name . '-' . $class->id . '-' . $initDateTS;
+    $existing = $DB->get_record_sql(
+        "SELECT cm.id AS coursemodule, cm.instance, b.name
+           FROM {course_modules} cm
+           JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+          WHERE cm.course = :courseid
+            AND cm.module = :moduleid
+            AND b.name = :name
+       ORDER BY cm.id DESC LIMIT 1",
+        [
+            'courseid' => (int)$class->corecourseid,
+            'moduleid' => (int)$BBBmoduleId,
+            'name' => $name
+        ]
+    );
+    if (!$existing) {
+        return null;
+    }
+
+    if (!empty($sectionid)) {
+        gmk_ensure_cmid_in_section_sequence((int)$sectionid, (int)$existing->coursemodule);
+    }
+    return $existing;
 }
 
 function create_attendance_activity($class, $classSectionNumber)
@@ -1271,15 +1459,17 @@ function create_class_grade_category($class)
     $catRec->timecreated      = $now;
     $catRec->timemodified     = $now;
     $catRec->hidden           = 0;
+    $catRec->parent           = $parentId ?: null;
     // depth and path are updated after we have the id.
-    $catRec->depth  = 2;
+    $catRec->depth  = $parentId ? 2 : 1;
     $catRec->path   = '/0/'; // placeholder, updated below
     $catId = $DB->insert_record('grade_categories', $catRec);
 
     // Update path/depth now that we have the id.
     $path = $parentId ? "/{$parentId}/{$catId}/" : "/{$catId}/";
+    $depth = $parentId ? 2 : 1;
     $DB->set_field('grade_categories', 'path',  $path, ['id' => $catId]);
-    $DB->set_field('grade_categories', 'depth', 2,     ['id' => $catId]);
+    $DB->set_field('grade_categories', 'depth', $depth, ['id' => $catId]);
 
     // 3. Insert the associated grade_item (category total item).
     $itemRec = new stdClass();

@@ -504,12 +504,12 @@ if ($ajax === 'recreate') {
 
         // Re-read final state and validate consistency.
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
-        $finalAttReason = '';
-        if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+        $finalActReason = '';
+        if (!gmk_is_class_activity_stack_complete($class, $finalActReason)) {
             ob_end_clean();
             echo json_encode([
                 'status'  => 'error',
-                'message' => "La clase no quedo con attendance valido: {$finalAttReason}",
+                'message' => "La clase no quedo con actividades completas: {$finalActReason}",
                 'log'     => $log,
                 'groupid' => $class->groupid,
                 'coursesectionid' => $class->coursesectionid,
@@ -552,8 +552,8 @@ if ($ajax === 'recreate_all') {
             $dummy = '';
             $groupOk = gmk_is_valid_class_group($candidate, $dummy);
             $sectionOk = gmk_is_valid_class_section($candidate, $dummy);
-            $attOk = gmk_is_valid_class_attendance_module($candidate, $dummy);
-            if (!$groupOk || !$sectionOk || !$attOk) {
+            $actOk = gmk_is_class_activity_stack_complete($candidate, $dummy);
+            if (!$groupOk || !$sectionOk || !$actOk) {
                 $classes[$candidate->id] = $candidate;
             }
         }
@@ -590,9 +590,9 @@ if ($ajax === 'recreate_all') {
                     $results['repairs'][] = ['id' => $class->id, 'name' => $class->name, 'log' => $repairlog];
                 }
                 $class = $DB->get_record('gmk_class', ['id' => $class->id], '*', MUST_EXIST);
-                $finalAttReason = '';
-                if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
-                    throw new \Exception("Attendance invalido tras recreacion: {$finalAttReason}");
+                $finalActReason = '';
+                if (!gmk_is_class_activity_stack_complete($class, $finalActReason)) {
+                    throw new \Exception("Actividades incompletas tras recreacion: {$finalActReason}");
                 }
                 $results['ok']++;
             } catch (Throwable $e) {
@@ -694,7 +694,7 @@ foreach ($classes as $c) {
     $dummy = '';
     $g  = gmk_is_valid_class_group($c, $dummy);
     $s  = gmk_is_valid_class_section($c, $dummy);
-    $a  = gmk_is_valid_class_attendance_module($c, $dummy);
+    $a  = gmk_is_class_activity_stack_complete($c, $dummy);
     if ($g && $s && $a) { $complete++; } else { $incomplete++; }
     if (!$g) $noGroup++;
     if (!$s) $noSection++;
@@ -771,7 +771,7 @@ foreach ($classes as $c) {
       $attReason = '';
       $hasGroup  = gmk_is_valid_class_group($c, $groupReason);
       $hasSect   = gmk_is_valid_class_section($c, $sectionReason);
-      $hasAtt    = gmk_is_valid_class_attendance_module($c, $attReason);
+      $hasAtt    = gmk_is_class_activity_stack_complete($c, $attReason);
       $hasBBB    = !empty($c->bbbmoduleids);
       $allOk     = $hasGroup && $hasSect && $hasAtt;
       $rowClass  = $allOk ? 'ok' : ((!$hasGroup) ? 'err' : 'warn');

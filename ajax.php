@@ -3168,10 +3168,10 @@ try {
                 $log[] = "WARN actividades: " . $e->getMessage();
             }
 
-            $finalAttReason = '';
-            if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+            $finalActReason = '';
+            if (!gmk_is_class_activity_stack_complete($class, $finalActReason)) {
                 $response = ['status' => 'error', 'classid' => $classid, 'log' => $log,
-                    'message' => "La clase no quedo con attendance valido: {$finalAttReason}",
+                    'message' => "La clase no quedo con actividades completas: {$finalActReason}",
                     'groupid' => $class->groupid, 'attendancemoduleid' => $class->attendancemoduleid];
                 break;
             }
