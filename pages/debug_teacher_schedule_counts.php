@@ -137,14 +137,14 @@ foreach ($classes as $class) {
     $passesdate = ((int)$class->enddate >= (int)$nowwithbuffer);
     $wouldshowindashboard = ($passesinstructor && $passesclosed && $passesdate && $hasrelation);
 
-    $dashcount = 0;
+    $dashcountlegacy = 0;
     if (!empty($class->groupid)) {
         $dashcountsql = "SELECT COUNT(DISTINCT gm.userid)
                            FROM {groups_members} gm
                            JOIN {local_learning_users} llu ON llu.userid = gm.userid
                           WHERE gm.groupid = :gid
                             AND gm.userid != :iid";
-        $dashcount = (int)$DB->count_records_sql($dashcountsql, [
+        $dashcountlegacy = (int)$DB->count_records_sql($dashcountsql, [
             'gid' => (int)$class->groupid,
             'iid' => (int)$class->instructorid
         ]);
@@ -180,6 +180,8 @@ foreach ($classes as $class) {
     $preregdedup = count((array)$parts->preRegisteredStudents);
     $queuededup = count((array)$parts->queuedStudents);
     $progrededup = count((array)$parts->progreStudents);
+    // Current dashboard logic should use this same enrolled count.
+    $dashcount = $enrolleddedup;
 
     $schedulepanelusers = ((int)$class->approved > 0) ? $enrolleddedup : $preregdedup;
     $schedulepanelwaiting = ((int)$class->approved > 0) ? 0 : $queuededup;
@@ -228,7 +230,7 @@ foreach ($classes as $class) {
     if (empty($class->groupid)) {
         $reasons[] = 'groupid vacio; dashboard usa group members para student_count.';
     }
-    if ($dashcount === 0 && $groupcount > 0) {
+    if ($dashcountlegacy === 0 && $groupcount > 0) {
         $reasons[] = 'Hay usuarios en groups_members pero ninguno en local_learning_users (filtro del dashboard).';
     }
     if ((int)$class->approved === 0 && ($preregdedup + $queuededup) > 0 && $dashcount === 0) {
@@ -261,6 +263,7 @@ foreach ($classes as $class) {
 
     $usersbyid = [];
     $llubyuser = [];
+    $studentstatusbyuid = [];
     if (!empty($candidateuids)) {
         list($inusersql, $inuserparams) = $DB->get_in_or_equal($candidateuids, SQL_PARAMS_NAMED, 'u');
         $usersbyid = $DB->get_records_sql(
@@ -282,11 +285,26 @@ foreach ($classes as $class) {
             }
             $llubyuser[$lr->userid][] = $lr;
         }
+
+        $statusfield = $DB->get_record('user_info_field', ['shortname' => 'studentstatus'], 'id', IGNORE_MISSING);
+        if ($statusfield) {
+            $statusrows = $DB->get_records_sql(
+                "SELECT userid, data
+                   FROM {user_info_data}
+                  WHERE fieldid = :fieldid
+                    AND userid $inusersql",
+                array_merge(['fieldid' => (int)$statusfield->id], $inuserparams)
+            );
+            foreach ($statusrows as $sr) {
+                $studentstatusbyuid[(int)$sr->userid] = trim((string)$sr->data);
+            }
+        }
     }
 
     $studenttabrows = [];
     $currentqueryuids = [];
     $fallbackqueryuids = [];
+    $fallbackactiveuids = [];
     foreach ($candidateuids as $uid) {
         $lurows = $llubyuser[$uid] ?? [];
         $hasstudentllu = false;
@@ -321,6 +339,12 @@ foreach ($classes as $class) {
             $fallbackqueryuids[] = $uid;
         }
 
+        $studentstatus = $studentstatusbyuid[$uid] ?? 'Activo';
+        $isactivestatus = (strcasecmp(trim($studentstatus), 'Activo') === 0);
+        if ($fallbackincluded && $isactivestatus) {
+            $fallbackactiveuids[] = $uid;
+        }
+
         $u = $usersbyid[$uid] ?? null;
         $studenttabrows[] = [
             'userid' => $uid,
@@ -331,6 +355,8 @@ foreach ($classes as $class) {
             'hasstudentllu' => $hasstudentllu,
             'llu_roles' => implode(',', $roles),
             'llu_plans' => implode(',', $planids),
+            'studentstatus' => $studentstatus,
+            'is_active_status' => $isactivestatus,
             'current_included' => $currentincluded,
             'fallback_included' => $fallbackincluded,
         ];
@@ -362,6 +388,7 @@ foreach ($classes as $class) {
         ],
         'counts' => [
             'teacher_dashboard_student_count' => $dashcount,
+            'teacher_dashboard_student_count_legacy_group_llu' => $dashcountlegacy,
             'group_members_excluding_instructor' => $groupcount,
             'prereg_raw' => $preregraw,
             'queue_raw' => $queueraw,
@@ -379,8 +406,10 @@ foreach ($classes as $class) {
             'candidate_union_count' => count($candidateuids),
             'current_query_included_count' => count($currentqueryuids),
             'fallback_query_included_count' => count($fallbackqueryuids),
+            'fallback_query_active_status_count' => count($fallbackactiveuids),
             'current_query_userids' => array_values($currentqueryuids),
             'fallback_query_userids' => array_values($fallbackqueryuids),
+            'fallback_query_active_userids' => array_values($fallbackactiveuids),
         ],
         'reasons' => $reasons,
     ];
@@ -393,8 +422,9 @@ foreach ($classes as $class) {
     echo '<thead><tr><th>Campo</th><th>Valor</th><th>Comentario</th></tr></thead><tbody>';
     echo '<tr><td>approved</td><td>' . (int)$class->approved . '</td><td>0=pendiente, 1=aprobada</td></tr>';
     echo '<tr><td>groupid</td><td>' . gmk_dbg_h($class->groupid) . '</td><td>Teacher dashboard cuenta desde groups_members</td></tr>';
-    echo '<tr><td>teacher_dashboard student_count</td><td><strong>' . $dashcount . '</strong></td><td>COUNT(DISTINCT groups_members) + filtro local_learning_users</td></tr>';
-    echo '<tr><td>groups_members (sin filtro local_learning_users)</td><td><strong>' . $groupcount . '</strong></td><td>Conteo real del grupo sin instructor</td></tr>';
+    echo '<tr><td>teacher_dashboard student_count (actual esperado)</td><td><strong>' . $dashcount . '</strong></td><td>Misma logica de get_class_participants()->enroledStudents</td></tr>';
+    echo '<tr><td>teacher_dashboard student_count (legacy group+llu)</td><td><strong>' . $dashcountlegacy . '</strong></td><td>COUNT(DISTINCT groups_members) + filtro local_learning_users</td></tr>';
+    echo '<tr><td>groups_members (sin filtro local_learning_users)</td><td><strong>' . $groupcount . '</strong></td><td>Conteo crudo del grupo sin instructor</td></tr>';
     echo '<tr><td>scheduleapproval users mostrados</td><td><strong>' . $schedulepanelusers . '</strong></td><td>Si approved=0 usa preRegistered; si approved=1 usa enroledStudents</td></tr>';
     echo '<tr><td>scheduleapproval waiting mostrado</td><td><strong>' . $schedulepanelwaiting . '</strong></td><td>Si approved=1 siempre muestra 0</td></tr>';
     echo '<tr><td>pre_registration (raw)</td><td>' . $preregraw . '</td><td>Sin deduplicar</td></tr>';
@@ -444,13 +474,14 @@ foreach ($classes as $class) {
     echo '<tr><td>candidate union users</td><td>' . count($candidateuids) . '</td><td>union(group, progre)</td></tr>';
     echo '<tr><td>included by current query logic</td><td><strong>' . count($currentqueryuids) . '</strong></td><td>logica antigua get_student_info</td></tr>';
     echo '<tr><td>included by fallback logic</td><td><strong>' . count($fallbackqueryuids) . '</strong></td><td>logica esperada para groupid=0</td></tr>';
+    echo '<tr><td>included + status Activo</td><td><strong>' . count($fallbackactiveuids) . '</strong></td><td>Coincide con tarjeta "Estudiantes Activos" de la tabla</td></tr>';
     echo '</tbody></table>';
 
     if (empty($studenttabrows)) {
         echo '<div class="muted">No hay candidatos para listar en detalle.</div>';
     } else {
         echo '<table class="dbg-table">';
-        echo '<thead><tr><th>userid</th><th>idnumber</th><th>nombre</th><th>in_group</th><th>in_progre</th><th>has_student_llu</th><th>llu_roles</th><th>llu_plans</th><th>current_included</th><th>fallback_included</th></tr></thead><tbody>';
+        echo '<thead><tr><th>userid</th><th>idnumber</th><th>nombre</th><th>in_group</th><th>in_progre</th><th>has_student_llu</th><th>llu_roles</th><th>llu_plans</th><th>student_status</th><th>status_activo</th><th>current_included</th><th>fallback_included</th></tr></thead><tbody>';
         foreach ($studenttabrows as $r) {
             echo '<tr>';
             echo '<td>' . (int)$r['userid'] . '</td>';
@@ -461,6 +492,8 @@ foreach ($classes as $class) {
             echo '<td>' . gmk_dbg_badge((bool)$r['hasstudentllu'], 'SI', 'NO') . '</td>';
             echo '<td>' . gmk_dbg_h($r['llu_roles']) . '</td>';
             echo '<td>' . gmk_dbg_h($r['llu_plans']) . '</td>';
+            echo '<td>' . gmk_dbg_h($r['studentstatus']) . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['is_active_status'], 'SI', 'NO') . '</td>';
             echo '<td>' . gmk_dbg_badge((bool)$r['current_included'], 'SI', 'NO') . '</td>';
             echo '<td>' . gmk_dbg_badge((bool)$r['fallback_included'], 'SI', 'NO') . '</td>';
             echo '</tr>';
