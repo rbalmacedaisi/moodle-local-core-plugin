@@ -990,13 +990,36 @@ try {
             $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
 
             // 1. Fetch Students (Rows)
-            $students = $DB->get_records_sql("
-                SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
-                FROM {groups_members} gm
-                JOIN {user} u ON u.id = gm.userid
-                WHERE gm.groupid = :groupid
-                ORDER BY u.lastname, u.firstname
-            ", ['groupid' => $groupid]);
+            // Keep parity with Student tab behavior:
+            // - Use Moodle group roster when available.
+            // - If group is empty/missing, fallback to class roster in gmk_course_progre.
+            $studentids = [];
+            if (!empty($groupid)) {
+                $studentids = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => (int)$groupid]);
+                $studentids = array_values(array_map('intval', $studentids));
+            }
+
+            if (empty($studentids)) {
+                $studentids = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => (int)$classid]);
+                $studentids = array_values(array_map('intval', $studentids));
+            }
+
+            if (!empty($class->instructorid)) {
+                $studentids = array_values(array_filter($studentids, function($uid) use ($class) {
+                    return (int)$uid !== (int)$class->instructorid;
+                }));
+            }
+
+            $students = [];
+            if (!empty($studentids)) {
+                list($stuinsql, $stuparams) = $DB->get_in_or_equal($studentids, SQL_PARAMS_NAMED, 'stu');
+                $students = $DB->get_records_sql("
+                    SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
+                      FROM {user} u
+                     WHERE u.id $stuinsql
+                  ORDER BY u.lastname, u.firstname
+                ", $stuparams);
+            }
 
             $userids = array_keys($students);
 
