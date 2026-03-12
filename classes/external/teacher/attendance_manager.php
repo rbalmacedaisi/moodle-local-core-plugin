@@ -22,7 +22,7 @@ class attendance_manager extends external_api {
      * Get attendance sessions for the current class (Group)
      */
     public static function get_sessions($classid) {
-        global $DB; // $USER not needed yet
+        global $DB, $CFG; // $USER not needed yet
         
         // 1. Get Course and Group ID from Class
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
@@ -99,6 +99,123 @@ class attendance_manager extends external_api {
             'start' => $start_date,
             'end' => $end_date 
         ]);
+
+        // Fallback 1: class-scoped relation table (handles inconsistent groupid in legacy/mixed classes).
+        if (empty($sessions)) {
+            $relrows = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $classid], '', 'attendancesessionid');
+            $sessionids = [];
+            foreach ($relrows as $relrow) {
+                if (!empty($relrow->attendancesessionid)) {
+                    $sessionids[] = (int)$relrow->attendancesessionid;
+                }
+            }
+            $sessionids = array_values(array_unique(array_filter($sessionids)));
+            if (!empty($sessionids)) {
+                list($sessinsql2, $sessparams2) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sidfb');
+                $sqlfb = "SELECT s.*
+                            FROM {attendance_sessions} s
+                           WHERE s.attendanceid = :attid
+                             AND s.id $sessinsql2
+                        ORDER BY s.sessdate ASC";
+                $sessions = $DB->get_records_sql($sqlfb, array_merge(['attid' => $att->id], $sessparams2));
+            }
+        }
+
+        // Fallback 2: attendance sessions by date range only.
+        if (empty($sessions)) {
+            $sqlfb2 = "SELECT s.*
+                         FROM {attendance_sessions} s
+                        WHERE s.attendanceid = :attid
+                          AND s.sessdate >= :start
+                          AND s.sessdate <= :end
+                     ORDER BY s.sessdate ASC";
+            $sessions = $DB->get_records_sql($sqlfb2, [
+                'attid' => $att->id,
+                'start' => $start_date,
+                'end' => $end_date
+            ]);
+        }
+
+        // Load BBB mapping by attendance session so all modalities can use the same "Entrar" flow.
+        $bbbBySessionId = [];
+        if (!empty($sessions)) {
+            $sessionids = array_keys($sessions);
+            list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sid');
+            $relsql = "SELECT attendancesessionid, bbbmoduleid, bbbid
+                         FROM {gmk_bbb_attendance_relation}
+                        WHERE classid = :classid
+                          AND attendancesessionid $sessinsql";
+            $relations = $DB->get_records_sql($relsql, array_merge(['classid' => $classid], $sessparams));
+
+            $cmids = [];
+            $instanceids = [];
+            foreach ($relations as $rel) {
+                if (!empty($rel->bbbmoduleid)) {
+                    $cmids[(int)$rel->bbbmoduleid] = (int)$rel->bbbmoduleid;
+                }
+                if (!empty($rel->bbbid)) {
+                    $instanceids[(int)$rel->bbbid] = (int)$rel->bbbid;
+                }
+            }
+
+            $bbbmetaByCmid = [];
+            if (!empty($cmids)) {
+                list($cminsql, $cmparams) = $DB->get_in_or_equal(array_values($cmids), SQL_PARAMS_NAMED, 'cmid');
+                $cmsql = "SELECT cm.id AS cmid, cm.instance, COALESCE(b.guest, 0) AS guest
+                            FROM {course_modules} cm
+                       LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+                           WHERE cm.id $cminsql";
+                $rows = $DB->get_records_sql($cmsql, $cmparams);
+                foreach ($rows as $r) {
+                    $bbbmetaByCmid[(int)$r->cmid] = [
+                        'cmid' => (int)$r->cmid,
+                        'instance' => (int)$r->instance,
+                        'guest' => !empty($r->guest),
+                    ];
+                }
+            }
+
+            $bbbmetaByInstance = [];
+            if (!empty($instanceids)) {
+                $bbbmodule = $DB->get_record('modules', ['name' => 'bigbluebuttonbn'], 'id', IGNORE_MULTIPLE);
+                if ($bbbmodule) {
+                    list($bbbinsql, $bbbparams) = $DB->get_in_or_equal(array_values($instanceids), SQL_PARAMS_NAMED, 'bbbid');
+                    $instsql = "SELECT cm.id AS cmid, cm.instance, COALESCE(b.guest, 0) AS guest
+                                  FROM {course_modules} cm
+                                  JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+                                 WHERE cm.module = :moduleid
+                                   AND cm.instance $bbbinsql";
+                    $rows = $DB->get_records_sql($instsql, array_merge(['moduleid' => (int)$bbbmodule->id], $bbbparams));
+                    foreach ($rows as $r) {
+                        $iid = (int)$r->instance;
+                        if ($iid > 0 && !isset($bbbmetaByInstance[$iid])) {
+                            $bbbmetaByInstance[$iid] = [
+                                'cmid' => (int)$r->cmid,
+                                'instance' => $iid,
+                                'guest' => !empty($r->guest),
+                            ];
+                        }
+                    }
+                }
+            }
+
+            foreach ($relations as $rel) {
+                $sid = (int)$rel->attendancesessionid;
+                $meta = null;
+
+                if (!empty($rel->bbbmoduleid)) {
+                    $meta = $bbbmetaByCmid[(int)$rel->bbbmoduleid] ?? null;
+                }
+
+                if (!$meta && !empty($rel->bbbid)) {
+                    $meta = $bbbmetaByInstance[(int)$rel->bbbid] ?? null;
+                }
+
+                if ($meta) {
+                    $bbbBySessionId[$sid] = $meta;
+                }
+            }
+        }
         
         // Format for frontend
         $result = [];
@@ -106,6 +223,7 @@ class attendance_manager extends external_api {
             $item = new stdClass();
             $item->id = $s->id;
             $item->sessdate = $s->sessdate; // Required for JS comparison
+            $item->duration = (int)$s->duration;
             $item->date = userdate($s->sessdate, get_string('strftimedatefullshort', 'langconfig'));
             $item->time = userdate($s->sessdate, '%H:%M') . ' - ' . userdate($s->sessdate + $s->duration, '%H:%M');
             $item->description = $s->description;
@@ -113,7 +231,17 @@ class attendance_manager extends external_api {
             
             // Check if passwords exist (for QR)
             $item->has_qr = !empty($s->includeqrcode);
-            
+
+            $item->join_url = '';
+            $item->guest_url = '';
+            $bbbmeta = $bbbBySessionId[(int)$s->id] ?? null;
+            if ($bbbmeta && !empty($bbbmeta['cmid'])) {
+                $item->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$bbbmeta['cmid'];
+                if (!empty($bbbmeta['guest'])) {
+                    $item->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . (int)$bbbmeta['cmid'];
+                }
+            }
+             
             $result[] = $item;
         }
 

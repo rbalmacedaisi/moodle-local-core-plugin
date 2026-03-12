@@ -53,7 +53,7 @@ const ManageClass = {
                                     <v-timeline-item
                                         v-for="(session, index) in timeline"
                                         :key="session.id"
-                                        :color="session.type === 'virtual' ? 'blue' : 'green'"
+                                        color="blue"
                                         small
                                         fill-dot
                                     >
@@ -61,8 +61,8 @@ const ManageClass = {
                                             <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
                                                 Sesión {{ index + 1 }}
                                                 <v-spacer></v-spacer>
-                                                <v-chip x-small outlined :color="session.type === 'virtual' ? 'blue' : 'green'">
-                                                    {{ session.type === 'virtual' ? 'VIRTUAL' : 'PRESENCIAL' }}
+                                                <v-chip x-small outlined color="blue">
+                                                    {{ ((classDetails.typelabel || 'Sesión') + '').toUpperCase() }}
                                                 </v-chip>
                                             </v-card-title>
                                             <v-card-text>
@@ -70,7 +70,7 @@ const ManageClass = {
                                                     <v-icon small class="mr-2">mdi-calendar-clock</v-icon>
                                                     <span class="font-weight-medium">{{ formatDate(session.startdate) }}</span>
                                                 </div>
-                                                <div v-if="session.type === 'virtual'" class="mt-2 caption blue--text text--darken-1">
+                                                <div class="mt-2 caption blue--text text--darken-1">
                                                     <v-icon x-small color="blue darken-1" class="mr-1">mdi-information</v-icon>
                                                     El acceso se habilita a la hora del evento.
                                                 </div>
@@ -87,13 +87,13 @@ const ManageClass = {
                                                 <v-btn 
                                                     small 
                                                     depressed 
-                                                    :color="session.type === 'virtual' ? 'blue' : 'green'" 
+                                                    color="blue"
                                                     class="rounded-lg px-4 white--text" 
                                                     @click="enterSession(session)"
-                                                    :disabled="session.type === 'virtual' && !isSessionActive(session)"
+                                                    :disabled="!isSessionActive(session)"
                                                 >
-                                                    <v-icon left x-small>{{ session.type === 'virtual' ? 'mdi-video' : 'mdi-qrcode' }}</v-icon>
-                                                    {{ session.type === 'virtual' ? 'Entrar' : 'Asistencia' }}
+                                                    <v-icon left x-small>mdi-video</v-icon>
+                                                    Entrar
                                                 </v-btn>
                                                 
                                                 <v-spacer></v-spacer>
@@ -657,50 +657,60 @@ const ManageClass = {
                     attSessions = attendanceResp.data.sessions;
                 }
 
-                // Merge Logic: Attach attendance info to timeline session if dates match
-                // Note: Timeline sessions usually have 'startdate' timestamp. Attendance has 'sessdate' timestamp.
+                // Canonical timeline source: attendance sessions.
+                // This avoids empty timelines when calendar events are inconsistent (especially in mixed classes).
+                const timelineCandidates = Array.isArray(sessions)
+                    ? sessions.map(s => ({ ...s, _matched: false }))
+                    : [];
+                let mergedTimeline = [];
 
-                // Track which attendance sessions have been matched
-                const usedAttendanceIds = new Set();
+                if (Array.isArray(attSessions) && attSessions.length > 0) {
+                    mergedTimeline = attSessions.map((att, idx) => {
+                        let best = null;
+                        let bestDiff = Number.MAX_SAFE_INTEGER;
 
-                const mergedTimeline = sessions.map(s => {
-                    // Simple logic: find attendance session on same day
-                    const sDate = new Date(s.startdate * 1000).toDateString();
+                        timelineCandidates.forEach(t => {
+                            if (t._matched) return;
+                            const diff = Math.abs((parseInt(t.startdate, 10) || 0) - (parseInt(att.sessdate, 10) || 0));
+                            if (diff < bestDiff) {
+                                bestDiff = diff;
+                                best = t;
+                            }
+                        });
 
-                    // console.log('Checking Timeline Session:', sDate);
+                        // Tolerance for manual reschedules / timezone drifts.
+                        if (best && bestDiff <= 7200) {
+                            best._matched = true;
+                        } else {
+                            best = null;
+                        }
 
-                    const att = attSessions.find(a => {
-                        const aDate = new Date(a.sessdate * 1000).toDateString();
-                        return sDate === aDate;
+                        const start = parseInt(att.sessdate, 10) || parseInt(best?.startdate, 10) || 0;
+                        const duration = parseInt(att.duration, 10) || 3600;
+
+                        return {
+                            id: best?.id ?? ('att_' + att.id),
+                            name: best?.name || `Sesion ${idx + 1}`,
+                            description: att.description || best?.description || 'Sesion programada',
+                            startdate: start,
+                            enddate: start + duration,
+                            // Unified experience: entry action is BBB-style for every modality.
+                            type: 'virtual',
+                            join_url: att.join_url || best?.join_url || '',
+                            guest_url: att.guest_url || best?.guest_url || '',
+                            attendance: att
+                        };
                     });
-
-                    if (att) {
-                        usedAttendanceIds.add(att.id);
-                        return { ...s, attendance: att };
-                    }
-                    return { ...s, attendance: null };
-                });
-
-                // Find orphaned attendance sessions (those not matched to a calendar event)
-                const orphanedAttendance = attSessions.filter(a => !usedAttendanceIds.has(a.id));
-
-                if (orphanedAttendance.length > 0) {
-                    // console.log('Found orphaned attendance sessions:', orphanedAttendance);
-                    const newSessions = orphanedAttendance.map(a => ({
-                        id: 'att_' + a.id, // Synthetic ID
-                        name: 'Sesión de Asistencia',
-                        description: a.description || 'Sesión de asistencia programada',
-                        startdate: a.sessdate,
-                        enddate: a.sessdate + 3600, // Default 1h duration if unknown
-                        type: 'attendance',
-                        attendance: a
-                    }));
-
-                    mergedTimeline.push(...newSessions);
+                } else {
+                    mergedTimeline = timelineCandidates.map(t => ({ ...t, attendance: null }));
                 }
 
-                // Sort by date again just in case
-                mergedTimeline.sort((a, b) => a.startdate - b.startdate);
+                // Keep unmatched event rows (if any).
+                timelineCandidates
+                    .filter(t => !t._matched)
+                    .forEach(t => mergedTimeline.push({ ...t, attendance: t.attendance || null }));
+
+                mergedTimeline.sort((a, b) => (parseInt(a.startdate, 10) || 0) - (parseInt(b.startdate, 10) || 0));
 
                 this.timeline = mergedTimeline;
                 this.timelineLoaded = true;
@@ -840,19 +850,15 @@ const ManageClass = {
             });
         },
         enterSession(session) {
-            if (session.type === 'virtual') {
-                if (session.join_url && session.join_url !== '#') {
-                    window.open(session.join_url, '_blank');
-                } else {
-                    let msg = 'El enlace a la sesión virtual no está disponible.';
-                    if (session.debug_error) {
-                        msg += '\nDetalles: ' + session.debug_error;
-                        console.error('BBB Join Error:', session.debug_error);
-                    }
-                    alert(msg);
-                }
+            if (session.join_url && session.join_url !== '#') {
+                window.open(session.join_url, '_blank');
             } else {
-                // Logic to open attendance manager
+                let msg = 'El enlace de la sesion no esta disponible.';
+                if (session.debug_error) {
+                    msg += '\nDetalles: ' + session.debug_error;
+                    console.error('BBB Join Error:', session.debug_error);
+                }
+                alert(msg);
             }
         },
         openQuizQuestions(activity) {
