@@ -834,10 +834,14 @@ try {
             }
 
             // Preload BBB metadata in one query.
+            $bbbcols = $DB->get_columns('bigbluebuttonbn');
+            $hasbbbguest = isset($bbbcols['guest']);
+            $bbbguestselect = $hasbbbguest ? 'COALESCE(b.guest, 0)' : '0';
+            $hasguestlogin = file_exists($CFG->dirroot . '/mod/bigbluebuttonbn/guest_login.php');
             $bbbMetaByInstance = [];
             if (!empty($bbbInstanceIds)) {
                 list($bbbInSql, $bbbParams) = $DB->get_in_or_equal(array_values($bbbInstanceIds), SQL_PARAMS_NAMED, 'bb');
-                $bbbSql = "SELECT cm.instance AS instanceid, cm.id AS cmid, COALESCE(b.guest, 0) AS guest
+                $bbbSql = "SELECT cm.instance AS instanceid, cm.id AS cmid, {$bbbguestselect} AS guest
                              FROM {course_modules} cm
                              JOIN {modules} m ON m.id = cm.module AND m.name = 'bigbluebuttonbn'
                         LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
@@ -896,7 +900,7 @@ try {
                         $cmid = (int)$bbbMetaByInstance[$linkedBbbId]['cmid'];
                         if ($cmid > 0) {
                             $session_data->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $cmid;
-                            if (!empty($bbbMetaByInstance[$linkedBbbId]['guest'])) {
+                            if ($hasguestlogin && !empty($bbbMetaByInstance[$linkedBbbId]['guest'])) {
                                 $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cmid;
                             }
                         }

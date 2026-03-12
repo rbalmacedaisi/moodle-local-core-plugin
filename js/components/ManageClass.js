@@ -643,10 +643,18 @@ const ManageClass = {
                             classid: this.classId
                         })
                     );
-                    if (attendanceResp?.data?.status === 'success') {
-                        attSessions = attendanceResp.data.sessions || [];
+                    const attendanceRoot = attendanceResp?.data || {};
+                    const attendancePayload = (attendanceRoot && typeof attendanceRoot === 'object' && attendanceRoot.data && !Array.isArray(attendanceRoot.data))
+                        ? attendanceRoot.data
+                        : attendanceRoot;
+                    const attendanceStatus = attendancePayload?.status || attendanceRoot?.status;
+                    if (attendanceStatus === 'success') {
+                        attSessions = attendancePayload.sessions || attendanceRoot.sessions || [];
                     } else {
-                        console.warn('attendance_sessions returned non-success', attendanceResp?.data);
+                        console.warn(
+                            'attendance_sessions returned non-success',
+                            attendanceRoot?.message || attendancePayload?.message || attendanceRoot
+                        );
                     }
                 } catch (attendanceErr) {
                     console.error('attendance_sessions request failed', attendanceErr);
@@ -659,14 +667,22 @@ const ManageClass = {
                         args: { classid: this.classId },
                         ...window.wsStaticParams
                     });
-                    if (timelineResp?.data?.status === 'success') {
-                        sessions = timelineResp.data.data.sessions || [];
-                        const payloadClass = timelineResp.data?.data?.class;
+                    const timelineRoot = timelineResp?.data || {};
+                    const timelinePayload = (timelineRoot && typeof timelineRoot === 'object' && timelineRoot.data && !Array.isArray(timelineRoot.data))
+                        ? timelineRoot.data
+                        : timelineRoot;
+                    const timelineStatus = timelinePayload?.status || timelineRoot?.status;
+                    if (timelineStatus === 'success') {
+                        sessions = timelinePayload.sessions || timelineRoot.sessions || [];
+                        const payloadClass = timelinePayload?.class || timelineRoot?.class;
                         if (payloadClass && !this.classDetails.name) {
                             this.classDetails = { ...this.classDetails, ...payloadClass };
                         }
                     } else {
-                        console.warn('class_details returned non-success', timelineResp?.data);
+                        console.warn(
+                            'class_details returned non-success',
+                            timelineRoot?.message || timelinePayload?.message || timelineRoot
+                        );
                     }
                 } catch (timelineErr) {
                     console.error('class_details request failed', timelineErr);

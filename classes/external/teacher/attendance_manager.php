@@ -177,6 +177,7 @@ class attendance_manager extends external_api {
 
         // Load BBB mapping by attendance session so all modalities can use the same "Entrar" flow.
         $bbbBySessionId = [];
+        $hasguestlogin = false;
         if (!empty($sessions)) {
             $sessionids = array_keys($sessions);
             list($sessinsql, $sessparams) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sid');
@@ -197,10 +198,15 @@ class attendance_manager extends external_api {
                 }
             }
 
+            $bbbcols = $DB->get_columns('bigbluebuttonbn');
+            $hasbbbguest = isset($bbbcols['guest']);
+            $bbbguestselect = $hasbbbguest ? 'COALESCE(b.guest, 0)' : '0';
+            $hasguestlogin = file_exists($CFG->dirroot . '/mod/bigbluebuttonbn/guest_login.php');
+
             $bbbmetaByCmid = [];
             if (!empty($cmids)) {
                 list($cminsql, $cmparams) = $DB->get_in_or_equal(array_values($cmids), SQL_PARAMS_NAMED, 'cmid');
-                $cmsql = "SELECT cm.id AS cmid, cm.instance, COALESCE(b.guest, 0) AS guest
+                $cmsql = "SELECT cm.id AS cmid, cm.instance, {$bbbguestselect} AS guest
                             FROM {course_modules} cm
                        LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
                            WHERE cm.id $cminsql";
@@ -219,7 +225,7 @@ class attendance_manager extends external_api {
                 $bbbmodule = $DB->get_record('modules', ['name' => 'bigbluebuttonbn'], 'id', IGNORE_MULTIPLE);
                 if ($bbbmodule) {
                     list($bbbinsql, $bbbparams) = $DB->get_in_or_equal(array_values($instanceids), SQL_PARAMS_NAMED, 'bbbid');
-                    $instsql = "SELECT cm.id AS cmid, cm.instance, COALESCE(b.guest, 0) AS guest
+                    $instsql = "SELECT cm.id AS cmid, cm.instance, {$bbbguestselect} AS guest
                                   FROM {course_modules} cm
                                   JOIN {bigbluebuttonbn} b ON b.id = cm.instance
                                  WHERE cm.module = :moduleid
@@ -276,7 +282,7 @@ class attendance_manager extends external_api {
             $bbbmeta = $bbbBySessionId[(int)$s->id] ?? null;
             if ($bbbmeta && !empty($bbbmeta['cmid'])) {
                 $item->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$bbbmeta['cmid'];
-                if (!empty($bbbmeta['guest'])) {
+                if ($hasguestlogin && !empty($bbbmeta['guest'])) {
                     $item->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . (int)$bbbmeta['cmid'];
                 }
             }
