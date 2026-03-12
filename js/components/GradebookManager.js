@@ -281,7 +281,7 @@ const GradebookManager = {
                 const response = await axios.post(url, params);
 
                 if (response.data.status === 'success') {
-                    this.items = response.data.items.map(i => ({
+                    this.items = (response.data.items || []).map(i => ({
                         ...i,
                         weight: parseFloat(i.weight) || 0,
                         percentage: parseFloat(parseFloat(i.percentage || 0).toFixed(2)),
@@ -290,6 +290,12 @@ const GradebookManager = {
                         locked: (i.locked == 1 || i.locked === '1' || i.locked === true),
                         is_protected: (i.itemname && i.itemname.includes('Nota Final Integrada'))
                     }));
+                    if (this.items.length === 0 && this.classId) {
+                        const fallbackItems = await this.fetchStructureFromGrades();
+                        if (fallbackItems.length > 0) {
+                            this.items = fallbackItems;
+                        }
+                    }
                     this.calculateTotal();
                 } else {
                     console.error('Server error:', response.data);
@@ -300,6 +306,45 @@ const GradebookManager = {
                 this.showSnackbar('Error de conexión: ' + error.toString(), 'error');
             } finally {
                 this.loading = false;
+            }
+        },
+        async fetchStructureFromGrades() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_class_grades',
+                    args: { classid: this.classId },
+                    sesskey: (window.Y && window.Y.config && window.Y.config.sesskey) ? window.Y.config.sesskey : this.getSesskey()
+                });
+
+                if (!response.data || response.data.status !== 'success' || !response.data.data) {
+                    return [];
+                }
+
+                const cols = Array.isArray(response.data.data.columns) ? response.data.data.columns : [];
+                const scoped = cols.filter(c => c && c.itemtype && c.itemtype !== 'course' && c.itemtype !== 'category');
+
+                return scoped.map(c => {
+                    const title = c.title || ('item ' + c.id);
+                    const moduleGuess = /asistencia/i.test(title) ? 'attendance' : '';
+                    return {
+                        id: c.id,
+                        itemname: title,
+                        itemtype: c.itemtype || 'mod',
+                        itemmodule: moduleGuess,
+                        weight: parseFloat(c.weight) || 0,
+                        percentage: 0,
+                        grademax: parseFloat(c.max_grade) || 100,
+                        hidden: 0,
+                        locked: 0,
+                        is_locked: false,
+                        aggregationcoef2: 0,
+                        is_natural: false,
+                        is_protected: (title && title.includes('Nota Final Integrada'))
+                    };
+                });
+            } catch (e) {
+                console.warn('GradebookManager fallback from class_grades failed', e);
+                return [];
             }
         },
         calculateTotal() {
