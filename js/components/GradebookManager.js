@@ -225,7 +225,9 @@ const GradebookManager = {
     },
     mounted() {
         this.injectStyles();
-        this.fetchStructure();
+        if (this.value) {
+            this.fetchStructure();
+        }
     },
     watch: {
         value(val) {

@@ -1126,8 +1126,11 @@ function delete_class($classId, $reason =  null)
     $class = $DB->get_record('gmk_class', ['id' => $classId]);
 
     if ($class->gradecategoryid && !empty($class->corecourseid) && $DB->record_exists('course', ['id' => $class->corecourseid])) {
-        $classCourseGradeTree = new grade_tree($class->corecourseid, false, false);
-        $classGradeCategory = $classCourseGradeTree->locate_element('cg' . $class->gradecategoryid)['object'];
+        // Performance: avoid building full grade_tree (expensive recursive get_children on every class delete).
+        $classGradeCategory = \grade_category::fetch([
+            'id' => (int)$class->gradecategoryid,
+            'courseid' => (int)$class->corecourseid
+        ]);
         if ($classGradeCategory) {
             $classGradeCategory->delete();
         }

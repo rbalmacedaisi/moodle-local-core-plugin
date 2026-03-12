@@ -1377,6 +1377,11 @@ try {
 
             // Fetch items in course and filter to class scope.
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
+            $categoryaggmap = [];
+            $categoryrows = $DB->get_records('grade_categories', ['courseid' => $courseid], '', 'id,aggregation');
+            foreach ($categoryrows as $crow) {
+                $categoryaggmap[(int)$crow->id] = (int)$crow->aggregation;
+            }
             
             $items = [];
             $total_weight = 0;
@@ -1408,8 +1413,8 @@ try {
                 }
 
                 $weight = 0;
-                $parent_cat = $gi->get_parent_category();
-                $is_natural = ($parent_cat && $parent_cat->aggregation == 13);
+                $parentagg = $categoryaggmap[(int)$gi->categoryid] ?? (int)$aggregation;
+                $is_natural = ($parentagg === 13);
                 
                 if ($is_natural) {
                    $weight = (float)$gi->aggregationcoef2;
@@ -1540,8 +1545,14 @@ try {
             }
             $aggregation = $target_cat->aggregation; 
             $is_natural = ($aggregation == 13);
+            $categoryaggmap = [];
+            $categoryrows = $DB->get_records('grade_categories', ['courseid' => $class->corecourseid], '', 'id,aggregation');
+            foreach ($categoryrows as $crow) {
+                $categoryaggmap[(int)$crow->id] = (int)$crow->aggregation;
+            }
 
             $tx = $DB->start_delegated_transaction();
+            $needsregrade = false;
             try {
                 // 1. Update Weights and Visibility
                 foreach ($weights as $w) {
@@ -1567,18 +1578,28 @@ try {
                             continue;
                         }
 
-                        // Update Weight based on parent category aggregation
-                        $parent_cat = $gi->get_parent_category();
-                        $is_natural = ($parent_cat && $parent_cat->aggregation == 13);
+                        // Update weight using cached parent category aggregation (avoid repeated grade tree lookups).
+                        $parentagg = $categoryaggmap[(int)$gi->categoryid] ?? (int)$aggregation;
+                        $is_natural = ($parentagg === 13);
 
+                        $newweight = (float)$w['weight'];
                         if ($is_natural) {
-                            $gi->aggregationcoef2 = (float)$w['weight'];
-                            $gi->weightoverride = 1; 
-                            $gi->update('aggregationcoef2');
-                            $gi->update('weightoverride');
+                            $currentcoef2 = (float)$gi->aggregationcoef2;
+                            $currentoverride = (int)$gi->weightoverride;
+                            if (abs($currentcoef2 - $newweight) > 0.00001 || $currentoverride !== 1) {
+                                $gi->aggregationcoef2 = $newweight;
+                                $gi->weightoverride = 1; 
+                                $gi->update('aggregationcoef2');
+                                $gi->update('weightoverride');
+                                $needsregrade = true;
+                            }
                         } else {
-                            $gi->aggregationcoef = (float)$w['weight'];
-                            $gi->update('aggregationcoef');
+                            $currentcoef = (float)$gi->aggregationcoef;
+                            if (abs($currentcoef - $newweight) > 0.00001) {
+                                $gi->aggregationcoef = $newweight;
+                                $gi->update('aggregationcoef');
+                                $needsregrade = true;
+                            }
                         }
 
                         // Update Visibility if provided
@@ -1591,6 +1612,7 @@ try {
                         if (!$is_migrated && $gi->grademax != 100) {
                             $gi->grademax = 100;
                             $gi->update('grademax');
+                            $needsregrade = true;
                         }
                     }
                 }
@@ -1616,6 +1638,7 @@ try {
                         if ($root_cat && $root_cat->aggregation != 8) {
                             $root_cat->aggregation = 8;
                             $root_cat->update();
+                            $needsregrade = true;
                         }
                         break;
                     }
@@ -1655,8 +1678,15 @@ try {
 
                 $tx->allow_commit();
                 
-                // FORCE REGRADE
-                \grade_regrade_final_grades($class->corecourseid);
+                // Performance: avoid synchronous full regrade on each save.
+                // Mark as needs regrading so Moodle recalculates lazily when required.
+                if ($needsregrade) {
+                    if (function_exists('grade_force_full_regrading')) {
+                        \grade_force_full_regrading($class->corecourseid);
+                    } else {
+                        \grade_regrade_final_grades($class->corecourseid);
+                    }
+                }
 
                 $response = ['status' => 'success', 'message' => 'ConfiguraciÃ³n actualizada.'];
             } catch (Exception $e) {
