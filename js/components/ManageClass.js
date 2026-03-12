@@ -631,30 +631,45 @@ const ManageClass = {
             }
             this.loadingTimeline = true;
             try {
-                const [timelineResp, attendanceResp] = await Promise.all([
-                    axios.post(window.wsUrl, {
+                let sessions = [];
+                let attSessions = [];
+
+                // 1) Primary source: attendance sessions (more reliable for mixed classes).
+                try {
+                    const attendanceResp = await axios.post(
+                        this.config.wwwroot + '/local/grupomakro_core/ajax.php',
+                        new URLSearchParams({
+                            action: 'local_grupomakro_get_attendance_sessions',
+                            classid: this.classId
+                        })
+                    );
+                    if (attendanceResp?.data?.status === 'success') {
+                        attSessions = attendanceResp.data.sessions || [];
+                    } else {
+                        console.warn('attendance_sessions returned non-success', attendanceResp?.data);
+                    }
+                } catch (attendanceErr) {
+                    console.error('attendance_sessions request failed', attendanceErr);
+                }
+
+                // 2) Secondary source: calendar details (best effort only, never blocks timeline rendering).
+                try {
+                    const timelineResp = await axios.post(window.wsUrl, {
                         action: 'local_grupomakro_get_class_details',
                         args: { classid: this.classId },
                         ...window.wsStaticParams
-                    }),
-                    axios.post(this.config.wwwroot + '/local/grupomakro_core/ajax.php', new URLSearchParams({
-                        action: 'local_grupomakro_get_attendance_sessions',
-                        classid: this.classId
-                    }))
-                ]);
-
-                let sessions = [];
-                if (timelineResp.data.status === 'success') {
-                    sessions = timelineResp.data.data.sessions;
-                    const payloadClass = timelineResp.data?.data?.class;
-                    if (payloadClass && !this.classDetails.name) {
-                        this.classDetails = { ...this.classDetails, ...payloadClass };
+                    });
+                    if (timelineResp?.data?.status === 'success') {
+                        sessions = timelineResp.data.data.sessions || [];
+                        const payloadClass = timelineResp.data?.data?.class;
+                        if (payloadClass && !this.classDetails.name) {
+                            this.classDetails = { ...this.classDetails, ...payloadClass };
+                        }
+                    } else {
+                        console.warn('class_details returned non-success', timelineResp?.data);
                     }
-                }
-
-                let attSessions = [];
-                if (attendanceResp.data.status === 'success') {
-                    attSessions = attendanceResp.data.sessions;
+                } catch (timelineErr) {
+                    console.error('class_details request failed', timelineErr);
                 }
 
                 // Canonical timeline source: attendance sessions.
