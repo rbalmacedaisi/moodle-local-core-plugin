@@ -648,6 +648,113 @@ function create_class_section($class)
     return $section->id;
 }
 
+/**
+ * Validate that the class group exists and belongs to the class course.
+ */
+function gmk_is_valid_class_group($class, &$reason = '')
+{
+    global $DB;
+
+    $reason = '';
+    if (empty($class->groupid)) {
+        $reason = 'groupid vacio';
+        return false;
+    }
+
+    $group = $DB->get_record('groups', ['id' => $class->groupid], 'id, courseid');
+    if (!$group) {
+        $reason = 'grupo no existe';
+        return false;
+    }
+
+    if (!empty($class->corecourseid) && (int)$group->courseid !== (int)$class->corecourseid) {
+        $reason = "grupo en curso {$group->courseid}, esperado {$class->corecourseid}";
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Validate that the class section exists and belongs to the class course.
+ */
+function gmk_is_valid_class_section($class, &$reason = '')
+{
+    global $DB;
+
+    $reason = '';
+    if (empty($class->coursesectionid)) {
+        $reason = 'coursesectionid vacio';
+        return false;
+    }
+
+    $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], 'id, course');
+    if (!$section) {
+        $reason = 'seccion no existe';
+        return false;
+    }
+
+    if (!empty($class->corecourseid) && (int)$section->course !== (int)$class->corecourseid) {
+        $reason = "seccion en curso {$section->course}, esperado {$class->corecourseid}";
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Validate that the attendance cmid exists and belongs to this class course/section.
+ */
+function gmk_is_valid_class_attendance_module($class, &$reason = '')
+{
+    global $DB;
+
+    $reason = '';
+    if (empty($class->attendancemoduleid)) {
+        $reason = 'attendancemoduleid vacio';
+        return false;
+    }
+
+    if (empty($class->coursesectionid)) {
+        $reason = 'coursesectionid vacio';
+        return false;
+    }
+
+    $cm = $DB->get_record_sql(
+        "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename
+           FROM {course_modules} cm
+           JOIN {modules} m ON m.id = cm.module
+          WHERE cm.id = :cmid",
+        ['cmid' => (int)$class->attendancemoduleid]
+    );
+    if (!$cm) {
+        $reason = 'course module no existe';
+        return false;
+    }
+
+    if ($cm->modulename !== 'attendance') {
+        $reason = "course module no es attendance ({$cm->modulename})";
+        return false;
+    }
+
+    if (!empty($class->corecourseid) && (int)$cm->course !== (int)$class->corecourseid) {
+        $reason = "attendance en curso {$cm->course}, esperado {$class->corecourseid}";
+        return false;
+    }
+
+    if (!empty($class->coursesectionid) && (int)$cm->section !== (int)$class->coursesectionid) {
+        $reason = "attendance en seccion {$cm->section}, esperado {$class->coursesectionid}";
+        return false;
+    }
+
+    if (!$DB->record_exists('attendance', ['id' => $cm->instance])) {
+        $reason = "instancia attendance {$cm->instance} no existe";
+        return false;
+    }
+
+    return true;
+}
+
 function delete_class($classId, $reason =  null)
 {
     global $DB, $USER;
@@ -711,7 +818,36 @@ function create_class_activities($class, $updating = false)
     $attendanceStructure = null;
 
     $class->course = get_course($class->corecourseid);
-    $classSectionNumber = $DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
+    $classSectionInfo = $DB->get_record('course_sections', ['id' => $class->coursesectionid], 'id,course,section');
+    if (!$classSectionInfo) {
+        throw new \Exception("La seccion {$class->coursesectionid} no existe para la clase {$class->id}");
+    }
+    if ((int)$classSectionInfo->course !== (int)$class->corecourseid) {
+        throw new \Exception(
+            "La seccion {$class->coursesectionid} pertenece al curso {$classSectionInfo->course} " .
+            "y no al curso {$class->corecourseid} de la clase {$class->id}"
+        );
+    }
+    $classSectionNumber = (int)$classSectionInfo->section;
+
+    $attendanceReason = '';
+    $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attendanceReason);
+    if (!$hasValidAttendance && !empty($class->attendancemoduleid)) {
+        gmk_log("WARNING: class {$class->id} tiene attendancemoduleid invalido {$class->attendancemoduleid}: {$attendanceReason}. Se recreara attendance.");
+        $class->attendancemoduleid = 0;
+        $class->bbbmoduleids = null;
+        if (!empty($class->id)) {
+            $DB->set_field('gmk_class', 'attendancemoduleid', 0, ['id' => $class->id]);
+            $DB->set_field('gmk_class', 'bbbmoduleids', null, ['id' => $class->id]);
+            $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
+        }
+        $updating = false;
+    }
+
+    if ($updating && !$hasValidAttendance) {
+        // Defensive fallback: never run update mode if the base attendance module is invalid.
+        $updating = false;
+    }
 
     if ($updating) {
         //Delete Big Blue Button Sessions
@@ -739,8 +875,8 @@ function create_class_activities($class, $updating = false)
         //Delete attendance - BBB sessions relation
         $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
     } else {
-        // Reuse attendance module if already created (partial previous publish left attendancemoduleid set).
-        if (!empty($class->attendancemoduleid) && $DB->record_exists('course_modules', ['id' => $class->attendancemoduleid])) {
+        // Reuse attendance module if already created and still valid for this class.
+        if (gmk_is_valid_class_attendance_module($class, $attendanceReason)) {
             $attendanceCourseModule = get_coursemodule_from_id('attendance', $class->attendancemoduleid, 0, false, MUST_EXIST);
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
@@ -760,15 +896,18 @@ function create_class_activities($class, $updating = false)
                     "SELECT id, instance FROM {course_modules} WHERE course=:c AND module=:m AND section=:s ORDER BY id DESC LIMIT 1",
                     ['c' => $class->corecourseid, 'm' => $attModId, 's' => $class->coursesectionid]
                 ) : null;
-                // Fallback: search without section filter in case of section ID mismatch
+                // Fallback: recover by unique class-id suffix in attendance name.
                 if (!$existingCm && $attModId) {
                     $existingCm = $DB->get_record_sql(
-                        "SELECT id, instance, section FROM {course_modules} WHERE course=:c AND module=:m ORDER BY id DESC LIMIT 1",
-                        ['c' => $class->corecourseid, 'm' => $attModId]
+                        "SELECT cm.id, cm.instance
+                           FROM {course_modules} cm
+                           JOIN {attendance} a ON a.id = cm.instance
+                          WHERE cm.course = :c
+                            AND cm.module = :m
+                            AND " . $DB->sql_like('a.name', ':suffix') . "
+                       ORDER BY cm.id DESC LIMIT 1",
+                        ['c' => $class->corecourseid, 'm' => $attModId, 'suffix' => '%-' . $class->id]
                     );
-                    if ($existingCm) {
-                        gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} en section={$existingCm->section} (esperaba {$class->coursesectionid})");
-                    }
                 }
                 if ($existingCm) {
                     $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
@@ -1911,8 +2050,9 @@ function approve_course_schedules($approvingSchedules)
         // the student list reappears correctly if the enrollment dialog is reopened.
 
         // Create Moodle attendance & BBB activities if not yet created.
-        // Guard with attendancemoduleid to avoid duplicates if cron ran first.
-        if (empty($class->attendancemoduleid)) {
+        // Validate module ownership to avoid reusing stale cmids from other classes.
+        $attReason = '';
+        if (!gmk_is_valid_class_attendance_module($class, $attReason)) {
             create_class_activities($class);
         }
 

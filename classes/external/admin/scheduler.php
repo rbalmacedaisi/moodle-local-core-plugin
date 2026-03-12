@@ -921,7 +921,8 @@ class scheduler extends external_api {
                     // Preserve approved=1 only when the class already has activities (complete flow).
                     // Classes published with old code (no attendancemoduleid) get reset to 0
                     // so they go through the proper approval flow with student enrollment.
-                    $hasActivities = $existingDbRec && !empty($existingDbRec->attendancemoduleid);
+                    $attReason = '';
+                    $hasActivities = $existingDbRec && gmk_is_valid_class_attendance_module($existingDbRec, $attReason);
                     $classRec->approved = $hasActivities ? (int)$existingDbRec->approved : 0;
                     // Preserve existing Moodle structure IDs so create_class_activities can find them
                     if ($existingDbRec) {
@@ -1110,21 +1111,23 @@ class scheduler extends external_api {
                     continue;
                 }
 
-                // Ensure group exists.
-                if (empty($classRec->groupid)) {
+                // Ensure group exists and belongs to the class course.
+                $groupReason = '';
+                if (!gmk_is_valid_class_group($classRec, $groupReason)) {
                     try {
                         $groupId = create_class_group($classRec);
                         $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
                         $classRec->groupid = $groupId;
-                        gmk_log("INFO FASE2: Grupo creado para clase $classid: groupid=$groupId");
+                        gmk_log("INFO FASE2: Grupo creado/reparado para clase $classid: groupid=$groupId");
                     } catch (Throwable $ge) {
                         gmk_log("WARNING FASE2: No se pudo crear grupo para clase $classid: " . $ge->getMessage());
                         continue;
                     }
                 }
 
-                // Ensure section exists.
-                if (empty($classRec->coursesectionid)) {
+                // Ensure section exists and belongs to the class course.
+                $sectionReason = '';
+                if (!gmk_is_valid_class_section($classRec, $sectionReason)) {
                     try {
                         $sectionId = create_class_section($classRec);
                         $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
@@ -1137,7 +1140,8 @@ class scheduler extends external_api {
                 }
 
                 // Create or recreate activities (attendance + BBB sessions).
-                $hasActivities = !empty($classRec->attendancemoduleid);
+                $attReason = '';
+                $hasActivities = gmk_is_valid_class_attendance_module($classRec, $attReason);
                 try {
                     create_class_activities($classRec, $hasActivities);
                     gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");

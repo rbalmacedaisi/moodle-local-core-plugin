@@ -3116,7 +3116,11 @@ try {
             }
 
             // Group
-            if (empty($class->groupid)) {
+            $groupReason = '';
+            if (!gmk_is_valid_class_group($class, $groupReason)) {
+                if (!empty($class->groupid)) {
+                    $log[] = "Grupo invalido ({$groupReason}), recreando...";
+                }
                 try {
                     $gid = create_class_group($class);
                     $DB->set_field('gmk_class', 'groupid', $gid, ['id' => $classid]);
@@ -3131,7 +3135,11 @@ try {
             }
 
             // Section
-            if (empty($class->coursesectionid)) {
+            $sectionReason = '';
+            if (!gmk_is_valid_class_section($class, $sectionReason)) {
+                if (!empty($class->coursesectionid)) {
+                    $log[] = "Seccion invalida ({$sectionReason}), recreando...";
+                }
                 try {
                     $sid = create_class_section($class);
                     $DB->set_field('gmk_class', 'coursesectionid', $sid, ['id' => $classid]);
@@ -3146,7 +3154,11 @@ try {
             }
 
             // Activities
-            $hasActivities = !empty($class->attendancemoduleid);
+            $attReason = '';
+            $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
+            if (!$hasActivities && !empty($class->attendancemoduleid)) {
+                $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
+            }
             try {
                 create_class_activities($class, $hasActivities);
                 $class = $DB->get_record('gmk_class', ['id' => $classid]);
@@ -3154,6 +3166,14 @@ try {
                        . ": attendanceid={$class->attendancemoduleid}";
             } catch (Throwable $e) {
                 $log[] = "WARN actividades: " . $e->getMessage();
+            }
+
+            $finalAttReason = '';
+            if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+                $response = ['status' => 'error', 'classid' => $classid, 'log' => $log,
+                    'message' => "La clase no quedo con attendance valido: {$finalAttReason}",
+                    'groupid' => $class->groupid, 'attendancemoduleid' => $class->attendancemoduleid];
+                break;
             }
 
             $response = ['status' => 'success', 'classid' => $classid, 'log' => $log,

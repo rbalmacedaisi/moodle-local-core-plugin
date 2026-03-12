@@ -31,7 +31,11 @@ if ($ajax === 'recreate') {
         $log   = [];
 
         // 1. Grupo
-        if (empty($class->groupid)) {
+        $groupReason = '';
+        if (!gmk_is_valid_class_group($class, $groupReason)) {
+            if (!empty($class->groupid)) {
+                $log[] = "Grupo invalido ({$groupReason}), recreando...";
+            }
             try {
                 $groupId = create_class_group($class);
                 $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
@@ -47,7 +51,11 @@ if ($ajax === 'recreate') {
         }
 
         // 2. Sección
-        if (empty($class->coursesectionid)) {
+        $sectionReason = '';
+        if (!gmk_is_valid_class_section($class, $sectionReason)) {
+            if (!empty($class->coursesectionid)) {
+                $log[] = "Seccion invalida ({$sectionReason}), recreando...";
+            }
             try {
                 $sectionId = create_class_section($class);
                 $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
@@ -61,7 +69,11 @@ if ($ajax === 'recreate') {
         }
 
         // 3. Actividades (attendance + BBB)
-        $hasActivities = !empty($class->attendancemoduleid);
+        $attReason = '';
+        $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
+        if (!$hasActivities && !empty($class->attendancemoduleid)) {
+            $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
+        }
         try {
             create_class_activities($class, $hasActivities);
             // Re-read to get updated fields
@@ -71,8 +83,22 @@ if ($ajax === 'recreate') {
             $log[] = "⚠ Error creando actividades: " . $e->getMessage();
         }
 
-        // Re-read final state
+        // Re-read final state and validate consistency.
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
+        $finalAttReason = '';
+        if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+            ob_end_clean();
+            echo json_encode([
+                'status'  => 'error',
+                'message' => "La clase no quedo con attendance valido: {$finalAttReason}",
+                'log'     => $log,
+                'groupid' => $class->groupid,
+                'coursesectionid' => $class->coursesectionid,
+                'attendancemoduleid' => $class->attendancemoduleid,
+            ]);
+            exit;
+        }
+
         ob_end_clean();
         echo json_encode([
             'status'  => 'success',
@@ -99,32 +125,43 @@ if ($ajax === 'recreate_all') {
         raise_memory_limit(MEMORY_HUGE);
         core_php_time_limit::raise(600);
 
-        // Clases con alguna estructura faltante
-        $classes = $DB->get_records_sql(
-            "SELECT * FROM {gmk_class}
-              WHERE periodid = :pid
-                AND (groupid = 0 OR groupid IS NULL
-                     OR coursesectionid = 0 OR coursesectionid IS NULL
-                     OR attendancemoduleid = 0 OR attendancemoduleid IS NULL)",
-            ['pid' => $periodid]
-        );
+        // Clases con alguna estructura faltante o invalida.
+        $allPeriodClasses = $DB->get_records('gmk_class', ['periodid' => $periodid]);
+        $classes = [];
+        foreach ($allPeriodClasses as $candidate) {
+            $dummy = '';
+            $groupOk = gmk_is_valid_class_group($candidate, $dummy);
+            $sectionOk = gmk_is_valid_class_section($candidate, $dummy);
+            $attOk = gmk_is_valid_class_attendance_module($candidate, $dummy);
+            if (!$groupOk || !$sectionOk || !$attOk) {
+                $classes[$candidate->id] = $candidate;
+            }
+        }
 
         $results = ['ok' => 0, 'errors' => [], 'skipped' => 0];
 
         foreach ($classes as $class) {
             try {
-                if (empty($class->groupid)) {
+                $groupReason = '';
+                if (!gmk_is_valid_class_group($class, $groupReason)) {
                     $groupId = create_class_group($class);
                     $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $class->id]);
                     $class->groupid = $groupId;
                 }
-                if (empty($class->coursesectionid)) {
+                $sectionReason = '';
+                if (!gmk_is_valid_class_section($class, $sectionReason)) {
                     $sectionId = create_class_section($class);
                     $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $class->id]);
                     $class->coursesectionid = $sectionId;
                 }
-                $hasActivities = !empty($class->attendancemoduleid);
+                $attReason = '';
+                $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
                 create_class_activities($class, $hasActivities);
+                $class = $DB->get_record('gmk_class', ['id' => $class->id], '*', MUST_EXIST);
+                $finalAttReason = '';
+                if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+                    throw new \Exception("Attendance invalido tras recreacion: {$finalAttReason}");
+                }
                 $results['ok']++;
             } catch (Throwable $e) {
                 $results['errors'][] = ['id' => $class->id, 'name' => $class->name, 'error' => $e->getMessage()];
@@ -222,9 +259,10 @@ $noActivities = 0;
 $incomplete = 0;
 
 foreach ($classes as $c) {
-    $g  = !empty($c->groupid);
-    $s  = !empty($c->coursesectionid);
-    $a  = !empty($c->attendancemoduleid);
+    $dummy = '';
+    $g  = gmk_is_valid_class_group($c, $dummy);
+    $s  = gmk_is_valid_class_section($c, $dummy);
+    $a  = gmk_is_valid_class_attendance_module($c, $dummy);
     if ($g && $s && $a) { $complete++; } else { $incomplete++; }
     if (!$g) $noGroup++;
     if (!$s) $noSection++;
@@ -296,17 +334,20 @@ foreach ($classes as $c) {
   </thead>
   <tbody>
   <?php foreach ($classes as $c):
-      $hasGroup  = !empty($c->groupid);
-      $hasSect   = !empty($c->coursesectionid);
-      $hasAtt    = !empty($c->attendancemoduleid);
+      $groupReason = '';
+      $sectionReason = '';
+      $attReason = '';
+      $hasGroup  = gmk_is_valid_class_group($c, $groupReason);
+      $hasSect   = gmk_is_valid_class_section($c, $sectionReason);
+      $hasAtt    = gmk_is_valid_class_attendance_module($c, $attReason);
       $hasBBB    = !empty($c->bbbmoduleids);
       $allOk     = $hasGroup && $hasSect && $hasAtt;
       $rowClass  = $allOk ? 'ok' : ((!$hasGroup) ? 'err' : 'warn');
 
       // Verificar que groupid realmente existe en BD de Moodle
-      $groupExists = $hasGroup ? $DB->record_exists('groups', ['id' => $c->groupid]) : false;
-      $sectExists  = $hasSect  ? $DB->record_exists('course_sections', ['id' => $c->coursesectionid]) : false;
-      $attExists   = $hasAtt   ? $DB->record_exists('course_modules', ['id' => $c->attendancemoduleid]) : false;
+      $groupExists = !empty($c->groupid) ? $DB->record_exists('groups', ['id' => $c->groupid]) : false;
+      $sectExists  = !empty($c->coursesectionid) ? $DB->record_exists('course_sections', ['id' => $c->coursesectionid]) : false;
+      $attExists   = !empty($c->attendancemoduleid) ? $DB->record_exists('course_modules', ['id' => $c->attendancemoduleid]) : false;
 
       // Count BBB modules
       $bbbCount = 0;
