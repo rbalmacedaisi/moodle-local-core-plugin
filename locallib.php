@@ -763,8 +763,9 @@ function create_class_activities($class, $updating = false)
                     gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} creado parcialmente para clase {$class->id}");
                 } else {
                     // Module was NOT created — nothing to recover, skip this class
-                    gmk_log("WARNING: No se pudo crear ni recuperar attendance para clase {$class->id} — saltando actividades");
-                    return; // Exit create_class_activities gracefully
+                    gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id} — saltando actividades");
+                    throw new \moodle_exception('errorcreateattendeance', 'local_grupomakro_core', '',
+                        "No se pudo crear ni recuperar el módulo de attendance para clase {$class->id} (courseid={$class->corecourseid})");
                 }
             }
             $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
@@ -893,10 +894,13 @@ function create_class_activities($class, $updating = false)
 
                 $sessionDateTS = strtotime($dateStr . ' ' . $sessionStartTime . ':00');
                 $BBBCourseModuleInfo = null;
-                if ($class->type !== 0) {
-                    $activityEndTS = $sessionDateTS + $sessionDuration;
+                $activityEndTS = $sessionDateTS + $sessionDuration;
+                try {
                     $BBBCourseModuleInfo = create_big_blue_button_activity($class, $sessionDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
                     $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                } catch (Throwable $bbbErr) {
+                    gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                    $BBBCourseModuleInfo = null;
                 }
                 $attendanceSessions[] = create_attendance_session_object($class, $sessionDateTS, $sessionDuration, $BBBCourseModuleInfo);
             }
@@ -916,10 +920,13 @@ function create_class_activities($class, $updating = false)
             $dateStr = date('Y-m-d', $currentDateTS);
             if ($day === '1' && !isset($holidaySet[$dateStr])) {
                 $BBBCourseModuleInfo = null;
-                if ($class->type !== 0) {
-                    $activityEndTS = $currentDateTS + (int)$class->classduration;
+                $activityEndTS = $currentDateTS + (int)$class->classduration;
+                try {
                     $BBBCourseModuleInfo = create_big_blue_button_activity($class, $currentDateTS, $activityEndTS, $BBBModuleId, $classSectionNumber);
                     $BBBCourseModulesInfo[] = $BBBCourseModuleInfo;
+                } catch (Throwable $bbbErr) {
+                    gmk_log("WARNING: BBB creation failed for class {$class->id} date {$dateStr}: " . $bbbErr->getMessage());
+                    $BBBCourseModuleInfo = null;
                 }
                 $attendanceSessions[] = create_attendance_session_object($class, $currentDateTS, (int)$class->classduration, $BBBCourseModuleInfo);
             }
@@ -938,8 +945,8 @@ function create_class_activities($class, $updating = false)
 
         $classAttendanceBBBRelation = new stdClass();
         $classAttendanceBBBRelation->attendancesessionid = $attendanceSessionId;
-        $classAttendanceBBBRelation->bbbmoduleid = $class->type != 0 ? $session->bbbCourseModuleInfo->coursemodule : null;
-        $classAttendanceBBBRelation->bbbid = $class->type != 0 ? $session->bbbCourseModuleInfo->instance : null;
+        $classAttendanceBBBRelation->bbbmoduleid = $session->bbbCourseModuleInfo ? $session->bbbCourseModuleInfo->coursemodule : null;
+        $classAttendanceBBBRelation->bbbid = $session->bbbCourseModuleInfo ? $session->bbbCourseModuleInfo->instance : null;
         $classAttendanceBBBRelation->classid = $class->id;
         $classAttendanceBBBRelation->attendancemoduleid = $attendanceStructure->cmid;
         $classAttendanceBBBRelation->attendanceid = $attendanceStructure->id;
