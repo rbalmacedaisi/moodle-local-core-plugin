@@ -85,6 +85,28 @@ function gmk_debug_publish_diagnostics($class) {
         $coursecontexts = $DB->get_records('context', ['contextlevel' => CONTEXT_COURSE, 'instanceid' => (int)$class->corecourseid], 'id ASC', 'id,contextlevel,instanceid,path,depth');
         $diag['course_context_count'] = count($coursecontexts);
         $diag['course_context_ids'] = array_values(array_map('intval', array_keys($coursecontexts)));
+
+        $rootcats = $DB->get_records_select(
+            'grade_categories',
+            'courseid = :c AND (parent IS NULL OR parent = 0) AND depth = 1',
+            ['c' => (int)$class->corecourseid],
+            'id ASC',
+            'id,courseid,parent,depth,path,fullname'
+        );
+        $diag['gradebook_root_categories_count'] = count($rootcats);
+        $diag['gradebook_root_categories'] = array_values(array_map(static function($r) {
+            return (array)$r;
+        }, $rootcats));
+
+        $courseitems = $DB->get_records('grade_items', [
+            'courseid' => (int)$class->corecourseid,
+            'itemtype' => 'course',
+            'iteminstance' => (int)$class->corecourseid
+        ], 'id ASC', 'id,courseid,itemtype,iteminstance,categoryid,sortorder,itemname');
+        $diag['gradebook_course_items_count'] = count($courseitems);
+        $diag['gradebook_course_items'] = array_values(array_map(static function($r) {
+            return (array)$r;
+        }, $courseitems));
     }
 
     return $diag;
@@ -116,11 +138,10 @@ function gmk_debug_log_exception_chain(Throwable $e, array &$log, string $label 
         if (property_exists($cur, 'debuginfo') && !empty($cur->debuginfo)) {
             $log[] = "{$prefix} debuginfo: " . (string)$cur->debuginfo;
         }
-        if ($idx === 0) {
-            $traceLines = explode("\n", $cur->getTraceAsString());
-            foreach (array_slice($traceLines, 0, 8) as $tl) {
-                $log[] = "    " . $tl;
-            }
+        $traceLines = explode("\n", $cur->getTraceAsString());
+        $tracePrefix = $idx === 0 ? 'trace' : ('prev-trace ' . $idx);
+        foreach (array_slice($traceLines, 0, 8) as $tl) {
+            $log[] = "    [{$tracePrefix}] " . $tl;
         }
         $cur = $cur->getPrevious();
         $idx++;
@@ -218,6 +239,78 @@ function gmk_debug_cleanup_partial_class_activities($classid, array &$log) {
     return $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
 }
 
+function gmk_debug_repair_course_gradebook_duplicates($courseid, array &$log) {
+    global $DB;
+
+    if (empty($courseid)) {
+        return;
+    }
+
+    $rootcats = $DB->get_records_select(
+        'grade_categories',
+        'courseid = :c AND (parent IS NULL OR parent = 0) AND depth = 1',
+        ['c' => (int)$courseid],
+        'id ASC',
+        'id,courseid,parent,depth,path,fullname'
+    );
+
+    $courseitems = $DB->get_records('grade_items', [
+        'courseid' => (int)$courseid,
+        'itemtype' => 'course',
+        'iteminstance' => (int)$courseid
+    ], 'id ASC', 'id,courseid,itemtype,iteminstance,categoryid,sortorder,itemname');
+
+    $log[] = "Auto-repair gradebook: rootcats=" . count($rootcats) . " courseitems=" . count($courseitems);
+
+    $rootIds = array_values(array_map('intval', array_keys($rootcats)));
+    $canonicalRootId = null;
+    foreach ($courseitems as $it) {
+        $cid = (int)$it->categoryid;
+        if ($cid > 0 && in_array($cid, $rootIds, true)) {
+            $canonicalRootId = $cid;
+            break;
+        }
+    }
+    if (!$canonicalRootId && !empty($rootIds)) {
+        $canonicalRootId = min($rootIds);
+    }
+
+    if (count($rootcats) > 1 && $canonicalRootId) {
+        foreach ($rootcats as $rid => $cat) {
+            $rid = (int)$rid;
+            if ($rid === $canonicalRootId) {
+                continue;
+            }
+            $hasChildren = $DB->record_exists_select('grade_categories', 'parent = :p', ['p' => $rid]);
+            $hasItems = $DB->record_exists('grade_items', ['categoryid' => $rid]);
+            if (!$hasChildren && !$hasItems) {
+                $DB->delete_records('grade_categories', ['id' => $rid]);
+                $log[] = "Auto-repair gradebook: root category huerfana eliminada id={$rid}";
+            } else {
+                $log[] = "Auto-repair gradebook WARN: root category id={$rid} no eliminada (children/items referencian).";
+            }
+        }
+    }
+
+    if (count($courseitems) > 1) {
+        $canonicalItem = reset($courseitems);
+        $canonicalItemId = (int)$canonicalItem->id;
+        foreach ($courseitems as $itid => $it) {
+            $itid = (int)$itid;
+            if ($itid === $canonicalItemId) {
+                continue;
+            }
+            $hasGrades = $DB->record_exists('grade_grades', ['itemid' => $itid]);
+            if (!$hasGrades) {
+                $DB->delete_records('grade_items', ['id' => $itid]);
+                $log[] = "Auto-repair gradebook: course grade_item duplicado eliminado id={$itid}";
+            } else {
+                $log[] = "Auto-repair gradebook WARN: course grade_item id={$itid} no eliminado (tiene grades).";
+            }
+        }
+    }
+}
+
 // ── AJAX: re-crear estructuras Moodle para una clase ─────────────────────────
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
@@ -294,6 +387,7 @@ if ($ajax === 'recreate') {
             if (gmk_debug_is_duplicate_read_error($e)) {
                 $log[] = "↳ Auto-repair: detectado error de duplicado en lectura. Limpiando y reintentando...";
                 try {
+                    gmk_debug_repair_course_gradebook_duplicates((int)$class->corecourseid, $log);
                     $class = gmk_debug_cleanup_partial_class_activities($classid, $log);
                     create_class_activities($class, false);
                     $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
@@ -389,6 +483,7 @@ if ($ajax === 'recreate_all') {
                     }
                     $repairlog = [];
                     $repairlog[] = "Clase {$class->id}: duplicate-read detectado, auto-repair en progreso.";
+                    gmk_debug_repair_course_gradebook_duplicates((int)$class->corecourseid, $repairlog);
                     $class = gmk_debug_cleanup_partial_class_activities($class->id, $repairlog);
                     create_class_activities($class, false);
                     $results['repairs'][] = ['id' => $class->id, 'name' => $class->name, 'log' => $repairlog];
