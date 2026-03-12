@@ -747,11 +747,6 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
         return false;
     }
 
-    if (!gmk_section_sequence_contains_cmid((int)$class->coursesectionid, (int)$cm->id)) {
-        $reason = "attendance cmid {$cm->id} no esta en sequence de la seccion {$class->coursesectionid}";
-        return false;
-    }
-
     if (!$DB->record_exists('attendance', ['id' => $cm->instance])) {
         $reason = "instancia attendance {$cm->instance} no existe";
         return false;

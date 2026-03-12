@@ -1,9 +1,9 @@
 ﻿<?php
 /**
- * Debug: Estado de publicaciÃ³n de horarios
+ * Debug: Estado de publicacion de horarios
  *
- * Muestra quÃ© clases de un periodo tienen grupos/secciones/actividades creadas
- * y cuÃ¡les les falta, permitiendo re-crear las estructuras faltantes.
+ * Muestra que clases de un periodo tienen grupos/secciones/actividades creadas
+ * y cuales les falta, permitiendo re-crear las estructuras faltantes.
  *
  * @package local_grupomakro_core
  */
@@ -19,7 +19,7 @@ require_capability('moodle/site:config', $context);
 $ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);
 
 /**
- * Snapshot de diagnÃƒÂ³stico para errores de publicaciÃƒÂ³n de actividades.
+ * Snapshot de diagnostico para errores de publicacion de actividades.
  */
 function gmk_debug_publish_diagnostics($class) {
     global $DB;
@@ -412,7 +412,7 @@ function gmk_debug_repair_course_gradebook_duplicates($courseid, array &$log) {
     }
 }
 
-// â”€â”€ AJAX: re-crear estructuras Moodle para una clase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- AJAX: re-crear estructuras Moodle para una clase -------------------------
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
@@ -434,17 +434,17 @@ if ($ajax === 'recreate') {
                 $groupId = create_class_group($class);
                 $DB->set_field('gmk_class', 'groupid', $groupId, ['id' => $classid]);
                 $class->groupid = $groupId;
-                $log[] = "âœ“ Grupo creado: id=$groupId";
+                $log[] = "OK Grupo creado: id=$groupId";
             } catch (Throwable $e) {
                 ob_end_clean();
                 echo json_encode(['status' => 'error', 'message' => 'Error creando grupo: ' . $e->getMessage(), 'log' => $log]);
                 exit;
             }
         } else {
-            $log[] = "â€” Grupo ya existe: id={$class->groupid}";
+            $log[] = "- Grupo ya existe: id={$class->groupid}";
         }
 
-        // 2. SecciÃ³n
+        // 2. Seccion
         $sectionReason = '';
         if (!gmk_is_valid_class_section($class, $sectionReason)) {
             if (!empty($class->coursesectionid)) {
@@ -454,12 +454,12 @@ if ($ajax === 'recreate') {
                 $sectionId = create_class_section($class);
                 $DB->set_field('gmk_class', 'coursesectionid', $sectionId, ['id' => $classid]);
                 $class->coursesectionid = $sectionId;
-                $log[] = "âœ“ SecciÃ³n creada: id=$sectionId";
+                $log[] = "OK Seccion creada: id=$sectionId";
             } catch (Throwable $e) {
-                $log[] = "âš  Error creando secciÃ³n: " . $e->getMessage();
+                $log[] = "WARN Error creando seccion: " . $e->getMessage();
             }
         } else {
-            $log[] = "â€” SecciÃ³n ya existe: id={$class->coursesectionid}";
+            $log[] = "- Seccion ya existe: id={$class->coursesectionid}";
         }
 
         // 3. Actividades (attendance + BBB)
@@ -472,44 +472,44 @@ if ($ajax === 'recreate') {
             create_class_activities($class, $hasActivities);
             // Re-read to get updated fields
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
-            $log[] = "âœ“ Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
+            $log[] = "OK Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
         } catch (Throwable $e) {
-            $log[] = "âš  Error creando actividades: " . $e->getMessage();
+            $log[] = "WARN Error creando actividades: " . $e->getMessage();
             gmk_debug_log_exception_chain($e, $log, 'Excepcion');
-            $log[] = "â†³ Excepcion: " . get_class($e);
-            $log[] = "â†³ Ubicacion: " . basename($e->getFile()) . ":" . $e->getLine();
+            $log[] = "-> Excepcion: " . get_class($e);
+            $log[] = "-> Ubicacion: " . basename($e->getFile()) . ":" . $e->getLine();
             $traceLines = explode("\n", $e->getTraceAsString());
             foreach (array_slice($traceLines, 0, 6) as $tl) {
                 $log[] = "    " . $tl;
             }
             $diag = gmk_debug_publish_diagnostics($class);
-            $log[] = "â†³ Diagnostico: " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $log[] = "-> Diagnostico: " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
             if (gmk_debug_is_duplicate_read_error($e)) {
-                $log[] = "â†³ Auto-repair: detectado error de duplicado en lectura. Limpiando y reintentando...";
+                $log[] = "-> Auto-repair: detectado error de duplicado en lectura. Limpiando y reintentando...";
                 try {
                     gmk_debug_repair_course_gradebook_duplicates((int)$class->corecourseid, $log);
                     $class = gmk_debug_cleanup_partial_class_activities($classid, $log);
                     create_class_activities($class, false);
                     $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
-                    $log[] = "âœ“ Auto-repair: reintento exitoso, attendancemoduleid={$class->attendancemoduleid}";
+                    $log[] = "OK Auto-repair: reintento exitoso, attendancemoduleid={$class->attendancemoduleid}";
                 } catch (Throwable $retrye) {
-                    $log[] = "âš  Auto-repair fallo en reintento: " . $retrye->getMessage();
+                    $log[] = "WARN Auto-repair fallo en reintento: " . $retrye->getMessage();
                     gmk_debug_log_exception_chain($retrye, $log, 'RetryEx');
                     $diag2 = gmk_debug_publish_diagnostics($class);
-                    $log[] = "â†³ Diagnostico post-reintento: " . json_encode($diag2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $log[] = "-> Diagnostico post-reintento: " . json_encode($diag2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 }
             }
         }
 
         // Re-read final state and validate consistency.
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
-        $finalActReason = '';
-        if (!gmk_is_class_activity_stack_complete($class, $finalActReason)) {
+        $finalAttReason = '';
+        if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
             ob_end_clean();
             echo json_encode([
                 'status'  => 'error',
-                'message' => "La clase no quedo con actividades completas: {$finalActReason}",
+                'message' => "La clase no quedo con attendance valido: {$finalAttReason}",
                 'log'     => $log,
                 'groupid' => $class->groupid,
                 'coursesectionid' => $class->coursesectionid,
@@ -534,7 +534,7 @@ if ($ajax === 'recreate') {
     exit;
 }
 
-// â”€â”€ AJAX: re-crear TODAS las clases incompletas del periodo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- AJAX: re-crear TODAS las clases incompletas del periodo ------------------
 if ($ajax === 'recreate_all') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
@@ -552,8 +552,8 @@ if ($ajax === 'recreate_all') {
             $dummy = '';
             $groupOk = gmk_is_valid_class_group($candidate, $dummy);
             $sectionOk = gmk_is_valid_class_section($candidate, $dummy);
-            $actOk = gmk_is_class_activity_stack_complete($candidate, $dummy);
-            if (!$groupOk || !$sectionOk || !$actOk) {
+            $attOk = gmk_is_valid_class_attendance_module($candidate, $dummy);
+            if (!$groupOk || !$sectionOk || !$attOk) {
                 $classes[$candidate->id] = $candidate;
             }
         }
@@ -590,9 +590,9 @@ if ($ajax === 'recreate_all') {
                     $results['repairs'][] = ['id' => $class->id, 'name' => $class->name, 'log' => $repairlog];
                 }
                 $class = $DB->get_record('gmk_class', ['id' => $class->id], '*', MUST_EXIST);
-                $finalActReason = '';
-                if (!gmk_is_class_activity_stack_complete($class, $finalActReason)) {
-                    throw new \Exception("Actividades incompletas tras recreacion: {$finalActReason}");
+                $finalAttReason = '';
+                if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+                    throw new \Exception("Attendance invalido tras recreacion: {$finalAttReason}");
                 }
                 $results['ok']++;
             } catch (Throwable $e) {
@@ -609,7 +609,7 @@ if ($ajax === 'recreate_all') {
     exit;
 }
 
-// â”€â”€ ParÃ¡metros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Parametros ---------------------------------------------------------------
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $allPeriods = $DB->get_records('gmk_academic_periods', null, 'id DESC', 'id, name');
 if (!$periodid && !empty($allPeriods)) {
@@ -619,7 +619,7 @@ if (!$periodid && !empty($allPeriods)) {
 
 $PAGE->set_url('/local/grupomakro_core/pages/debug_publish_status.php');
 $PAGE->set_context($context);
-$PAGE->set_title('Debug: Estado de publicaciÃ³n de horarios');
+$PAGE->set_title('Debug: Estado de publicacion de horarios');
 echo $OUTPUT->header();
 ?>
 <style>
@@ -646,7 +646,7 @@ th{background:#f2f2f2;font-weight:bold;position:sticky;top:0;z-index:1}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 
-<h1>Debug: Estado de PublicaciÃ³n de Horarios</h1>
+<h1>Debug: Estado de Publicacion de Horarios</h1>
 
 <!-- Selector de periodo -->
 <form method="get" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
@@ -667,7 +667,7 @@ th{background:#f2f2f2;font-weight:bold;position:sticky;top:0;z-index:1}
 <?php endif ?>
 
 <?php
-// â”€â”€ Cargar todas las clases del periodo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Cargar todas las clases del periodo --------------------------------------
 $classes = $DB->get_records_sql(
     "SELECT c.*,
             co.fullname  AS coursename,
@@ -694,7 +694,7 @@ foreach ($classes as $c) {
     $dummy = '';
     $g  = gmk_is_valid_class_group($c, $dummy);
     $s  = gmk_is_valid_class_section($c, $dummy);
-    $a  = gmk_is_class_activity_stack_complete($c, $dummy);
+    $a  = gmk_is_valid_class_attendance_module($c, $dummy);
     if ($g && $s && $a) { $complete++; } else { $incomplete++; }
     if (!$g) $noGroup++;
     if (!$s) $noSection++;
@@ -722,7 +722,7 @@ foreach ($classes as $c) {
   </div>
   <div class="warn-box" style="min-width:120px;text-align:center">
     <div style="font-size:24px;font-weight:bold"><?php echo $noSection ?></div>
-    <div>Sin secciÃ³n</div>
+    <div>Sin seccion</div>
   </div>
   <div class="warn-box" style="min-width:120px;text-align:center">
     <div style="font-size:24px;font-weight:bold"><?php echo $noActivities ?></div>
@@ -733,7 +733,7 @@ foreach ($classes as $c) {
 <?php if ($incomplete > 0): ?>
 <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
   <button class="btn btn-danger" onclick="recreateAll()">
-    â–¶ Re-crear estructuras faltantes en las <?php echo $incomplete ?> clases incompletas
+    > Re-crear estructuras faltantes en las <?php echo $incomplete ?> clases incompletas
   </button>
   <span id="recreate-all-result" style="font-size:12px;font-weight:bold"></span>
 </div>
@@ -757,11 +757,11 @@ foreach ($classes as $c) {
       <th>Instructor</th>
       <th title="Moodle course ID">CID</th>
       <th title="groupid en gmk_class">Grupo</th>
-      <th title="coursesectionid en gmk_class">SecciÃ³n</th>
+      <th title="coursesectionid en gmk_class">Seccion</th>
       <th title="attendancemoduleid en gmk_class">Attendance</th>
       <th title="bbbmoduleids en gmk_class">BBB</th>
       <th>Estado</th>
-      <th>AcciÃ³n</th>
+      <th>Accion</th>
     </tr>
   </thead>
   <tbody>
@@ -771,7 +771,7 @@ foreach ($classes as $c) {
       $attReason = '';
       $hasGroup  = gmk_is_valid_class_group($c, $groupReason);
       $hasSect   = gmk_is_valid_class_section($c, $sectionReason);
-      $hasAtt    = gmk_is_class_activity_stack_complete($c, $attReason);
+      $hasAtt    = gmk_is_valid_class_attendance_module($c, $attReason);
       $hasBBB    = !empty($c->bbbmoduleids);
       $allOk     = $hasGroup && $hasSect && $hasAtt;
       $rowClass  = $allOk ? 'ok' : ((!$hasGroup) ? 'err' : 'warn');
@@ -793,7 +793,7 @@ foreach ($classes as $c) {
           : '<span class="badge badge-err">INCOMPLETA</span>';
 
       // Attendance sessions count: attendancemoduleid is a course_modules.id (cmid).
-      // course_modules.instance â†’ attendance.id â†’ attendance_sessions.attendanceid
+      // course_modules.instance -> attendance.id -> attendance_sessions.attendanceid
       $attSessions = 0;
       if ($hasAtt && $attExists) {
           $attInstanceId = $DB->get_field('course_modules', 'instance', ['id' => $c->attendancemoduleid]);
@@ -809,30 +809,30 @@ foreach ($classes as $c) {
       <small style="color:#888">approved=<?php echo $c->approved ?> | type=<?php echo $c->type ?></small>
     </td>
     <td>
-      <span style="font-size:11px;color:#555"><?php echo htmlspecialchars($c->planname ?? 'â€”') ?></span><br>
+      <span style="font-size:11px;color:#555"><?php echo htmlspecialchars($c->planname ?? '-') ?></span><br>
       <span style="font-size:11px"><?php echo htmlspecialchars($c->coursename ?? 'ID:'.$c->corecourseid) ?></span>
     </td>
-    <td style="font-size:11px"><?php echo $c->instructorid ? htmlspecialchars($c->instr_first . ' ' . $c->instr_last) : 'â€”' ?></td>
+    <td style="font-size:11px"><?php echo $c->instructorid ? htmlspecialchars($c->instr_first . ' ' . $c->instr_last) : '-' ?></td>
     <td><?php echo $c->corecourseid ?></td>
     <td class="<?php echo $hasGroup ? ($groupExists ? '' : 'warn') : 'err' ?>">
       <?php if ($hasGroup): ?>
-        <?php echo $groupExists ? '<span class="check">âœ“</span>' : '<span class="cross">âš </span>' ?>
+        <?php echo $groupExists ? '<span class="check">OK</span>' : '<span class="cross">WARN</span>' ?>
         <small><?php echo $c->groupid ?></small>
       <?php else: ?>
-        <span class="cross">âœ—</span>
+        <span class="cross">X</span>
       <?php endif ?>
     </td>
     <td class="<?php echo $hasSect ? ($sectExists ? '' : 'warn') : 'err' ?>">
       <?php if ($hasSect): ?>
-        <?php echo $sectExists ? '<span class="check">âœ“</span>' : '<span class="cross">âš </span>' ?>
+        <?php echo $sectExists ? '<span class="check">OK</span>' : '<span class="cross">WARN</span>' ?>
         <small><?php echo $c->coursesectionid ?></small>
       <?php else: ?>
-        <span class="cross">âœ—</span>
+        <span class="cross">X</span>
       <?php endif ?>
     </td>
     <td class="<?php echo $hasAtt ? ($attExists ? '' : 'warn') : 'err' ?>">
       <?php if ($hasAtt): ?>
-        <?php echo $attExists ? '<span class="check">âœ“</span>' : '<span class="cross">âš </span>' ?>
+        <?php echo $attExists ? '<span class="check">OK</span>' : '<span class="cross">WARN</span>' ?>
         <small><?php echo $c->attendancemoduleid ?></small>
         <?php if ($attSessions > 0): ?>
           <br><small style="color:#28a745"><?php echo $attSessions ?> sesiones</small>
@@ -840,14 +840,14 @@ foreach ($classes as $c) {
           <br><small style="color:#dc3545">0 sesiones</small>
         <?php endif ?>
       <?php else: ?>
-        <span class="cross">âœ—</span>
+        <span class="cross">X</span>
       <?php endif ?>
     </td>
     <td>
       <?php if ($hasBBB): ?>
-        <span class="check">âœ“</span> <small><?php echo $bbbCount ?></small>
+        <span class="check">OK</span> <small><?php echo $bbbCount ?></small>
       <?php else: ?>
-        <span class="dash">â€”</span>
+        <span class="dash">-</span>
       <?php endif ?>
     </td>
     <td><?php echo $statusBadge ?></td>
@@ -903,7 +903,7 @@ async function recreateOne(classid, btn) {
         logEl.textContent = d.log ? d.log.join('\n') : (d.message || JSON.stringify(d));
 
         if (d.status === 'success') {
-            btn.textContent = 'âœ“ OK';
+            btn.textContent = 'OK';
             btn.style.background = '#28a745';
             // Actualizar fila
             const row = document.getElementById('row-' + classid);
@@ -923,7 +923,7 @@ async function recreateOne(classid, btn) {
 }
 
 async function recreateAll() {
-    if (!confirm('Â¿Re-crear estructuras faltantes en TODAS las clases incompletas del periodo?\nEsto puede tardar varios minutos.')) return;
+    if (!confirm('Re-crear estructuras faltantes en TODAS las clases incompletas del periodo?\nEsto puede tardar varios minutos.')) return;
 
     const btn = event.target;
     btn.disabled = true;
@@ -946,24 +946,25 @@ async function recreateAll() {
             const r = d.data;
             const repairs = Array.isArray(r.repairs) ? r.repairs.length : 0;
             resEl.style.color = r.errors.length > 0 ? '#fd7e14' : '#28a745';
-            resEl.textContent = `âœ“ ${r.ok}/${d.total} procesadas correctamente.`
+            resEl.textContent = `OK ${r.ok}/${d.total} procesadas correctamente.`
                 + (repairs > 0 ? ` ${repairs} auto-reparadas.` : '')
                 + (r.errors.length > 0 ? ` ${r.errors.length} errores: ` + r.errors.map(e => `[${e.id}] ${e.error}`).join(' | ') : '');
-            // Recargar la pÃ¡gina para ver estado actualizado
+            // Recargar la pagina para ver estado actualizado
             setTimeout(() => location.reload(), 2000);
         } else {
             resEl.style.color = '#dc3545';
             resEl.textContent = 'Error: ' + d.message;
         }
         btn.disabled = false;
-        btn.textContent = 'â–¶ Re-crear estructuras faltantes';
+        btn.textContent = '> Re-crear estructuras faltantes';
     } catch(e) {
         resEl.textContent = 'Error JS: ' + e.message;
         btn.disabled = false;
-        btn.textContent = 'â–¶ Re-crear estructuras faltantes';
+        btn.textContent = '> Re-crear estructuras faltantes';
     }
 }
 </script>
 
 <?php echo $OUTPUT->footer() ?>
+
 
