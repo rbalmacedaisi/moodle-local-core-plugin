@@ -436,6 +436,7 @@ function gmk_debug_table_columns($table) {
     $cols = $DB->get_columns($table);
     $out = [];
     foreach ($cols as $name => $col) {
+        $raw = (array)$col;
         $out[] = [
             'name' => (string)$name,
             'type' => property_exists($col, 'type') ? (string)$col->type : null,
@@ -443,12 +444,13 @@ function gmk_debug_table_columns($table) {
             'not_null' => property_exists($col, 'not_null') ? (bool)$col->not_null : null,
             'max_length' => property_exists($col, 'max_length') ? $col->max_length : null,
             'default_value' => property_exists($col, 'default_value') ? $col->default_value : null,
+            'raw' => $raw,
         ];
     }
     return $out;
 }
 
-function gmk_debug_collect_class_snapshot(int $classid): array {
+function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): array {
     global $DB;
 
     $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
@@ -542,6 +544,34 @@ function gmk_debug_collect_class_snapshot(int $classid): array {
             ['courseid' => $courseid, 'sectionid' => $sectionid],
             500
         );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'attendance_modules_in_section',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, a.name
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+               JOIN {attendance} a ON a.id = cm.instance
+              WHERE cm.course = :courseid
+                AND cm.section = :sectionid
+                AND m.name = 'attendance'
+           ORDER BY cm.id ASC",
+            ['courseid' => $courseid, 'sectionid' => $sectionid],
+            500
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'bbb_modules_in_section',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, b.name, b.openingtime, b.closingtime
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+               JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+              WHERE cm.course = :courseid
+                AND cm.section = :sectionid
+                AND m.name = 'bigbluebuttonbn'
+           ORDER BY cm.id ASC",
+            ['courseid' => $courseid, 'sectionid' => $sectionid],
+            2000
+        );
     }
 
     if ($courseid > 0) {
@@ -605,6 +635,58 @@ function gmk_debug_collect_class_snapshot(int $classid): array {
            ORDER BY grade_rows DESC, gi.id ASC",
             ['courseid' => $courseid],
             1000
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'attendance_candidates_by_classid_suffix',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, a.name
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+               JOIN {attendance} a ON a.id = cm.instance
+              WHERE cm.course = :courseid
+                AND m.name = 'attendance'
+                AND " . $DB->sql_like('a.name', ':suffix') . "
+           ORDER BY cm.id DESC",
+            ['courseid' => $courseid, 'suffix' => '%-' . $classid],
+            500
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'bbb_candidates_by_classid_suffix',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, b.name, b.openingtime, b.closingtime
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+               JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+              WHERE cm.course = :courseid
+                AND m.name = 'bigbluebuttonbn'
+                AND " . $DB->sql_like('b.name', ':suffix') . "
+           ORDER BY cm.id DESC",
+            ['courseid' => $courseid, 'suffix' => '%-' . $classid . '-%'],
+            2000
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'recent_attendance_bbb_cms_in_course',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, m.name AS modulename, cm.added
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.course = :courseid
+                AND m.name IN ('attendance','bigbluebuttonbn')
+           ORDER BY cm.id DESC",
+            ['courseid' => $courseid],
+            500
+        );
+    }
+
+    if ($hintcmid > 0) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'hint_cmid_lookup',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, cm.deletioninprogress, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => $hintcmid],
+            10
         );
     }
 
@@ -703,7 +785,8 @@ if ($ajax === 'inspect_class') {
     try {
         require_sesskey();
         $classid = required_param('classid', PARAM_INT);
-        $data = gmk_debug_collect_class_snapshot($classid);
+        $hintcmid = optional_param('hintcmid', 0, PARAM_INT);
+        $data = gmk_debug_collect_class_snapshot($classid, $hintcmid);
         ob_end_clean();
         echo json_encode(['status' => 'success', 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } catch (Throwable $e) {
@@ -807,6 +890,7 @@ if ($ajax === 'recreate') {
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
         $finalAttReason = '';
         if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
+            $log[] = "ERROR final: attendance invalido tras re-crear ({$finalAttReason})";
             ob_end_clean();
             echo json_encode([
                 'status'  => 'error',
@@ -1203,7 +1287,10 @@ async function recreateOne(classid, btn) {
         let d;
         try { d = JSON.parse(text); } catch(e) { logEl.textContent = 'No JSON:\n' + text; btn.disabled = false; btn.textContent = 'Re-crear'; return; }
 
-        logEl.textContent = d.log ? d.log.join('\n') : (d.message || JSON.stringify(d));
+        const header = `status=${d.status || 'unknown'}`
+            + (d.message ? `\nmessage=${d.message}` : '')
+            + '\n';
+        logEl.textContent = header + (d.log ? d.log.join('\n') : JSON.stringify(d));
 
         if (d.status === 'success') {
             btn.textContent = 'OK';
@@ -1236,6 +1323,15 @@ async function inspectOne(classid, btn) {
     const fd = new FormData();
     fd.append('ajax', 'inspect_class');
     fd.append('classid', classid);
+    // If the row currently shows an attendance cmid, pass it as hint for direct lookup.
+    const row = document.getElementById('row-' + classid);
+    if (row && row.children && row.children.length > 7) {
+        const txt = (row.children[7].innerText || row.children[7].textContent || '').trim();
+        const m = txt.match(/\\b(\\d{2,})\\b/);
+        if (m && m[1]) {
+            fd.append('hintcmid', m[1]);
+        }
+    }
     fd.append('sesskey', SESSKEY);
 
     try {
