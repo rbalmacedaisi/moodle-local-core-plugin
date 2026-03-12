@@ -477,6 +477,17 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
         'queries' => [],
     ];
 
+    $snapshot['queries'][] = gmk_debug_capture_sql(
+        'class_row_with_user',
+        "SELECT c.id, c.name, c.corecourseid, c.coursesectionid, c.groupid, c.attendancemoduleid, c.bbbmoduleids,
+                c.usermodified, c.timemodified, u.username, u.firstname, u.lastname
+           FROM {gmk_class} c
+      LEFT JOIN {user} u ON u.id = c.usermodified
+          WHERE c.id = :classid",
+        ['classid' => $classid],
+        5
+    );
+
     $tables = [
         'gmk_class',
         'groups',
@@ -1300,6 +1311,11 @@ async function recreateOne(classid, btn) {
             if (row) {
                 row.dataset.complete = '1';
                 row.className = 'ok';
+                // Reflect returned attendance cmid in the Attendance cell so inspect can reuse it.
+                if (row.children && row.children.length > 7 && d.attendancemoduleid) {
+                    row.children[7].innerHTML =
+                        '<span class="check">OK</span> <small>' + d.attendancemoduleid + '</small>';
+                }
             }
         } else {
             btn.disabled = false;
@@ -1330,6 +1346,14 @@ async function inspectOne(classid, btn) {
         const m = txt.match(/\\b(\\d{2,})\\b/);
         if (m && m[1]) {
             fd.append('hintcmid', m[1]);
+        }
+    }
+    // Fallback: parse cmid from latest recreate log line (attendancemoduleid=NNNN).
+    if (!fd.has('hintcmid')) {
+        const logTxt = logEl.textContent || '';
+        const m2 = logTxt.match(/attendancemoduleid\\s*=\\s*(\\d+)/i);
+        if (m2 && m2[1]) {
+            fd.append('hintcmid', m2[1]);
         }
     }
     fd.append('sesskey', SESSKEY);

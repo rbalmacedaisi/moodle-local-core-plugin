@@ -972,6 +972,33 @@ class scheduler extends external_api {
                 $classRec->name = build_class_group_name($classRec);
 
                 if ($isUpdate) {
+                    // Re-read right before update to avoid clobbering structure IDs with stale payload values.
+                    $latestDbRec = $DB->get_record('gmk_class', ['id' => $classRec->id]);
+                    if ($latestDbRec) {
+                        if (empty($classRec->attendancemoduleid) && !empty($latestDbRec->attendancemoduleid)) {
+                            $classRec->attendancemoduleid = $latestDbRec->attendancemoduleid;
+                        }
+                        if (empty($classRec->coursesectionid) && !empty($latestDbRec->coursesectionid)) {
+                            $classRec->coursesectionid = $latestDbRec->coursesectionid;
+                        }
+                        if (empty($classRec->groupid) && !empty($latestDbRec->groupid)) {
+                            $classRec->groupid = $latestDbRec->groupid;
+                        }
+                        if (empty($classRec->gradecategoryid) && !empty($latestDbRec->gradecategoryid)) {
+                            $classRec->gradecategoryid = $latestDbRec->gradecategoryid;
+                        }
+                        if (empty($classRec->bbbmoduleids) && !empty($latestDbRec->bbbmoduleids)) {
+                            $classRec->bbbmoduleids = $latestDbRec->bbbmoduleids;
+                        }
+                    }
+
+                    // Final guard: never overwrite with empties on update.
+                    if (empty($classRec->attendancemoduleid)) unset($classRec->attendancemoduleid);
+                    if (empty($classRec->coursesectionid)) unset($classRec->coursesectionid);
+                    if (empty($classRec->groupid)) unset($classRec->groupid);
+                    if (empty($classRec->gradecategoryid)) unset($classRec->gradecategoryid);
+                    if (empty($classRec->bbbmoduleids)) unset($classRec->bbbmoduleids);
+
                     $classid = $classRec->id;
                     $DB->update_record('gmk_class', $classRec);
                     gmk_log("INFO: UPDATE clase $classid — corecourseid={$classRec->corecourseid} groupid={$classRec->groupid} coursesectionid={$classRec->coursesectionid} attendancemoduleid={$classRec->attendancemoduleid}");
