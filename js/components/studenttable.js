@@ -33,12 +33,14 @@ Vue.component('studenttable', {
                         <v-row justify="space-between" class="ma-0 mr-3 mb-2 align-center">
                             <v-col cols="4">
                                 <v-text-field
-                                   v-model="options.search"
+                                   v-model="searchInput"
                                    append-icon="mdi-magnify"
                                    :label="lang.search"
                                    hide-details
                                    outlined
                                    dense
+                                   @keyup.enter="applySearch"
+                                   @click:append="applySearch"
                                 ></v-text-field>
                             </v-col>
                             <v-col cols="auto" class="d-flex" style="gap: 8px;">
@@ -366,6 +368,7 @@ Vue.component('studenttable', {
                 itemsPerPage: 15,
                 search: '',
             },
+            searchInput: '',
             students: [],
             plans: [], // Initialized
             availablePeriods: [],
@@ -387,6 +390,8 @@ Vue.component('studenttable', {
             studentGradeSelected: {},
             allAcademicPeriods: [], // Global list
             loadingAcademicPeriods: false,
+            currentFetchController: null,
+            fetchNonce: 0,
         };
     },
     computed: {
@@ -451,26 +456,55 @@ Vue.component('studenttable', {
     },
     created() {
         console.log('StudentTable Component Created');
+        this.searchInput = this.options.search || '';
     },
     watch: {
-        options: {
-            handler() {
-                this.getDataFromApi()
-            },
-            deep: true,
+        'options.page': function() {
+            this.getDataFromApi();
+        },
+        'options.itemsPerPage': function() {
+            this.getDataFromApi();
         },
         classId: {
             handler() {
-                this.getDataFromApi();
+                if (this.options.page !== 1) {
+                    this.options.page = 1;
+                } else {
+                    this.getDataFromApi();
+                }
             },
             immediate: true
         }
     },
+    beforeDestroy() {
+        if (this.currentFetchController) {
+            this.currentFetchController.abort();
+            this.currentFetchController = null;
+        }
+    },
     methods: {
+        applySearch() {
+            const normalized = (this.searchInput || '').trim();
+            if (normalized === (this.options.search || '').trim()) {
+                return;
+            }
+            this.options.search = normalized;
+            if (this.options.page !== 1) {
+                this.options.page = 1;
+            } else {
+                this.getDataFromApi();
+            }
+        },
         async getDataFromApi() {
+            const requestNonce = ++this.fetchNonce;
+            if (this.currentFetchController) {
+                this.currentFetchController.abort();
+            }
+            this.currentFetchController = new AbortController();
             this.loading = true;
+
             try {
-                // Use the WS URL (ajax.php) defined globally or fallback
+                // Use the WS URL (ajax.php) defined globally or fallback.
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
 
                 const params = new URLSearchParams();
@@ -494,10 +528,14 @@ Vue.component('studenttable', {
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: params
+                    body: params,
+                    signal: this.currentFetchController.signal
                 });
 
                 const res = await response.json();
+                if (requestNonce !== this.fetchNonce) {
+                    return;
+                }
 
                 if (res.errorcode) {
                     throw new Error(res.message);
@@ -509,7 +547,7 @@ Vue.component('studenttable', {
                         try {
                             dataUsers = JSON.parse(dataUsers);
                         } catch (e) {
-                            console.warn("Failed to parse dataUsers string", e);
+                            console.warn('Failed to parse dataUsers string', e);
                             dataUsers = [];
                         }
                     }
@@ -538,7 +576,7 @@ Vue.component('studenttable', {
                                 status: element.status,
                                 academicstatus: element.academicstatus,
                                 img: element.profileimage,
-                                currentgrade: element.currentgrade || '--',
+                                currentgrade: element.currentgrade || element.grade || '--',
                                 financial_status: element.financial_status || 'none',
                             });
                         });
@@ -546,12 +584,16 @@ Vue.component('studenttable', {
                 } else if (res.message) {
                     throw new Error(res.message);
                 }
-
             } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    return;
+                }
                 console.error('Error fetching student information:', error);
-                this.syncLog = 'Error fetching data: ' + error.message;
+                this.syncLog = 'Error fetching data: ' + (error.message || 'Error desconocido');
             } finally {
-                this.loading = false;
+                if (requestNonce === this.fetchNonce) {
+                    this.loading = false;
+                }
             }
         },
         getChipStyle(item) {
@@ -629,9 +671,12 @@ Vue.component('studenttable', {
             }
         },
         applyFilters() {
-            this.options.page = 1;
-            this.getDataFromApi();
             this.filterDialog = false;
+            if (this.options.page !== 1) {
+                this.options.page = 1;
+            } else {
+                this.getDataFromApi();
+            }
         },
         exportConsolidatedGrades() {
             let url = `${M.cfg.wwwroot}/local/grupomakro_core/pages/export_consolidated_grades.php?`;

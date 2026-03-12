@@ -27,6 +27,7 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 require_once($CFG->libdir . '/externallib.php');
 $plugin_name = 'local_grupomakro_core';
+$assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 require_login();
 
 $PAGE->set_url($CFG->wwwroot . '/local/grupomakro_core/pages/academicpanel.php');
@@ -174,11 +175,11 @@ echo <<<EOT
   
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . time()));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . time()));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicpanel.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/studenttable.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 echo $OUTPUT->footer();

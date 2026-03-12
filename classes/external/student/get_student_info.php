@@ -89,6 +89,9 @@ class get_student_info extends external_api {
             'classid'        => $classid,
             'financial_status' => $financial_status
         ]);
+
+        // Fast path: optimized query flow with SQL pagination and batched joins.
+        return self::execute_optimized($params);
         
         $sqlConditions = ["lpu.userrolename = :userrolename"];
         $sqlParams = ['userrolename' => 'student'];
@@ -406,6 +409,362 @@ class get_student_info extends external_api {
             'totalResults'  => $totalResults,
             'totalPages'    => $totalPages,
             'activeUsers'   => $activeUsersCount
+        ];
+    }
+
+    /**
+     * Optimized implementation for student listing.
+     *
+     * @param array $params validated params from execute()
+     * @return array
+     */
+    private static function execute_optimized(array $params): array {
+        global $DB;
+
+        $page = max(1, (int)$params['page']);
+        $resultsperpage = max(1, (int)$params['resultsperpage']);
+        $offset = ($page - 1) * $resultsperpage;
+
+        $class = null;
+        $classlearningplanid = 0;
+        if (!empty($params['classid'])) {
+            $class = $DB->get_record('gmk_class', ['id' => $params['classid']], 'id,groupid,instructorid,learningplanid');
+            if (!empty($class->learningplanid)) {
+                $classlearningplanid = (int)$class->learningplanid;
+            }
+        }
+
+        $lpucolumns = $DB->get_columns('local_learning_users');
+        $hassubperiodid = isset($lpucolumns['currentsubperiodid']);
+
+        $statusfieldid = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'studentstatus']);
+        $docfieldid = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'documentnumber']);
+        $journeyfieldid = (int)$DB->get_field('user_info_field', 'id', ['shortname' => 'gmkjourney']);
+
+        $sqlconditions = ["lpu.userrolename = :userrolename"];
+        $sqlparams = [
+            'userrolename' => 'student',
+            'statusfieldid' => $statusfieldid,
+            'docfieldid' => $docfieldid,
+            'journeyfieldid' => $journeyfieldid
+        ];
+
+        if (!empty($params['planid'])) {
+            $planids = array_filter(explode(',', $params['planid']), 'is_numeric');
+            if (!empty($planids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($planids, SQL_PARAMS_NAMED, 'plan');
+                $sqlconditions[] = "lp.id $insql";
+                $sqlparams = array_merge($sqlparams, $inparams);
+            }
+        }
+
+        if (!empty($params['periodid'])) {
+            $periodids = array_filter(explode(',', $params['periodid']), 'is_numeric');
+            if (!empty($periodids)) {
+                list($insql, $inparams) = $DB->get_in_or_equal($periodids, SQL_PARAMS_NAMED, 'period');
+                $sqlconditions[] = "lpu.currentperiodid $insql";
+                $sqlparams = array_merge($sqlparams, $inparams);
+            }
+        }
+
+        if (!empty($class)) {
+            if (!empty($class->groupid)) {
+                $sqlconditions[] = "EXISTS (
+                    SELECT 1
+                      FROM {groups_members} gm
+                     WHERE gm.userid = u.id
+                       AND gm.groupid = :groupid
+                )";
+                $sqlparams['groupid'] = (int)$class->groupid;
+            } else {
+                $sqlconditions[] = "EXISTS (
+                    SELECT 1
+                      FROM {gmk_course_progre} cp2
+                     WHERE cp2.userid = u.id
+                       AND cp2.classid = :classid_filter
+                )";
+                $sqlparams['classid_filter'] = (int)$params['classid'];
+            }
+
+            if (!empty($class->instructorid)) {
+                $sqlconditions[] = "u.id <> :instructorid";
+                $sqlparams['instructorid'] = (int)$class->instructorid;
+            }
+        }
+
+        if (!empty($params['financial_status'])) {
+            $sqlconditions[] = "fs.status = :financial_status";
+            $sqlparams['financial_status'] = $params['financial_status'];
+        }
+
+        if (!empty($params['status'])) {
+            $sqlconditions[] = "LOWER(COALESCE(statusud.data, 'Activo')) LIKE :statussearch";
+            $sqlparams['statussearch'] = '%' . \core_text::strtolower(trim($params['status'])) . '%';
+        }
+
+        if (!empty($params['search'])) {
+            $searchneedle = '%' . \core_text::strtolower(trim($params['search'])) . '%';
+            $fullnameexpr = "LOWER(" . $DB->sql_fullname('u.firstname', 'u.lastname') . ")";
+            $sqlconditions[] = "(
+                $fullnameexpr LIKE :searchfullname
+                OR LOWER(COALESCE(u.email, '')) LIKE :searchemail
+                OR LOWER(COALESCE(statusud.data, 'Activo')) LIKE :searchstatus
+                OR LOWER(COALESCE(docud.data, u.idnumber)) LIKE :searchid
+                OR LOWER(COALESCE(lp.name, '')) LIKE :searchcareer
+                OR LOWER(COALESCE(u.phone1, '')) LIKE :searchphone
+            )";
+            $sqlparams['searchfullname'] = $searchneedle;
+            $sqlparams['searchemail'] = $searchneedle;
+            $sqlparams['searchstatus'] = $searchneedle;
+            $sqlparams['searchid'] = $searchneedle;
+            $sqlparams['searchcareer'] = $searchneedle;
+            $sqlparams['searchphone'] = $searchneedle;
+        }
+
+        $gradejoin = '';
+        $gradeselect = '';
+        if (!empty($params['classid'])) {
+            $gradejoin = "LEFT JOIN {gmk_course_progre} cp ON (cp.userid = u.id AND cp.classid = :classid_join)";
+            $gradeselect = ", cp.grade AS currentgrade";
+            $sqlparams['classid_join'] = (int)$params['classid'];
+        }
+
+        $subperiodjoin = '';
+        $subperiodselect = "NULL AS subperiodid";
+        $subperiodnameselect = ", '' AS subperiodname";
+        if ($hassubperiodid) {
+            $subperiodjoin = "LEFT JOIN {local_learning_subperiods} lsp ON (lsp.id = lpu.currentsubperiodid)";
+            $subperiodselect = "lpu.currentsubperiodid AS subperiodid";
+            $subperiodnameselect = ", COALESCE(lsp.name, '') AS subperiodname";
+        }
+
+        $fromsql = "
+            FROM {local_learning_plans} lp
+            JOIN {local_learning_users} lpu ON (lpu.learningplanid = lp.id)
+            JOIN {user} u ON (u.id = lpu.userid)
+            LEFT JOIN {local_learning_periods} llp ON (llp.id = lpu.currentperiodid)
+            LEFT JOIN {gmk_academic_periods} gap ON (gap.id = lpu.academicperiodid)
+            LEFT JOIN {gmk_financial_status} fs ON (fs.userid = u.id)
+            LEFT JOIN {user_info_data} statusud ON (statusud.userid = u.id AND statusud.fieldid = :statusfieldid)
+            LEFT JOIN {user_info_data} docud ON (docud.userid = u.id AND docud.fieldid = :docfieldid)
+            LEFT JOIN {user_info_data} journeyud ON (journeyud.userid = u.id AND journeyud.fieldid = :journeyfieldid)
+            $subperiodjoin
+            $gradejoin
+        ";
+
+        $whereclause = "WHERE " . implode(' AND ', $sqlconditions);
+
+        $totalresults = (int)$DB->count_records_sql(
+            "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause",
+            $sqlparams
+        );
+
+        if ($totalresults === 0) {
+            return [
+                'dataUsers' => json_encode([]),
+                'totalResults' => 0,
+                'totalPages' => 0,
+                'activeUsers' => 0
+            ];
+        }
+
+        $activeparams = $sqlparams;
+        $activeparams['activestatus'] = 'activo';
+        $activeuserscount = (int)$DB->count_records_sql(
+            "SELECT COUNT(DISTINCT u.id) $fromsql $whereclause AND LOWER(COALESCE(statusud.data, 'Activo')) = :activestatus",
+            $activeparams
+        );
+
+        $pageusers = $DB->get_records_sql(
+            "SELECT DISTINCT u.id, u.firstname, u.lastname
+               $fromsql
+               $whereclause
+           ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC",
+            $sqlparams,
+            $offset,
+            $resultsperpage
+        );
+
+        if (empty($pageusers)) {
+            return [
+                'dataUsers' => json_encode([]),
+                'totalResults' => $totalresults,
+                'totalPages' => (int)ceil($totalresults / $resultsperpage),
+                'activeUsers' => $activeuserscount
+            ];
+        }
+
+        $pageuserids = [];
+        foreach ($pageusers as $pu) {
+            $pageuserids[] = (int)$pu->id;
+        }
+
+        list($userinsql, $userinparams) = $DB->get_in_or_equal($pageuserids, SQL_PARAMS_NAMED, 'uid');
+
+        $revalidatebyuser = [];
+        $revparams = $userinparams;
+        $revparams['revalidatepattern'] = '%rev-%';
+        $revalidaters = $DB->get_recordset_sql(
+            "SELECT gm.id, gm.userid, c.fullname AS coursename, c.id AS courseid
+               FROM {groups} g
+               JOIN {groups_members} gm ON (gm.groupid = g.id)
+               JOIN {course} c ON (c.id = g.courseid)
+              WHERE gm.userid $userinsql
+                AND " . $DB->sql_like('g.idnumber', ':revalidatepattern', false),
+            $revparams
+        );
+        foreach ($revalidaters as $revrow) {
+            $userid = (int)$revrow->userid;
+            if (!isset($revalidatebyuser[$userid])) {
+                $revalidatebyuser[$userid] = [];
+            }
+            $revalidatebyuser[$userid][] = [
+                'coursename' => $revrow->coursename,
+                'courseid' => $revrow->courseid,
+                'revalida' => 'revalida'
+            ];
+        }
+        $revalidaters->close();
+
+        $detailsqlconditions = $sqlconditions;
+        $detailsqlconditions[] = "u.id $userinsql";
+        $detailwhere = "WHERE " . implode(' AND ', $detailsqlconditions);
+        $detailparams = array_merge($sqlparams, $userinparams);
+
+        $detailrows = $DB->get_records_sql(
+            "SELECT
+                lpu.id,
+                $subperiodselect,
+                lpu.currentperiodid AS periodid,
+                lpu.academicperiodid,
+                COALESCE(gap.name, '') AS academicperiodname,
+                lp.id AS planid,
+                lp.name AS career,
+                u.id AS userid,
+                u.email,
+                u.idnumber,
+                u.phone1,
+                u.firstname,
+                u.lastname,
+                COALESCE(lpu.status, 'activo') AS academicstatus,
+                COALESCE(statusud.data, 'Activo') AS userstatus,
+                COALESCE(docud.data, '') AS documentnumber,
+                COALESCE(journeyud.data, '') AS journey,
+                COALESCE(llp.name, '--') AS periodname
+                $subperiodnameselect
+                $gradeselect,
+                COALESCE(fs.status, 'unknown') AS financial_status,
+                COALESCE(fs.reason, '') AS financial_reason,
+                COALESCE(fs.lastupdated, 0) AS financial_lastupdated
+               $fromsql
+               $detailwhere
+           ORDER BY u.firstname ASC, u.lastname ASC, u.id ASC, lp.name ASC, lpu.currentperiodid ASC",
+            $detailparams
+        );
+
+        $userdata = [];
+        foreach ($detailrows as $row) {
+            $userid = (int)$row->userid;
+            $fullname = trim($row->firstname . ' ' . $row->lastname);
+            $finalid = !empty($row->documentnumber) ? $row->documentnumber : $row->idnumber;
+            $subperiodname = !empty($row->subperiodname) ? $row->subperiodname : '';
+            $absences = 0;
+            if (!empty($params['classid'])) {
+                $summary = gmk_get_student_attendance_summary($userid, $params['classid']);
+                $absences = isset($summary['absences']) ? (int)$summary['absences'] : 0;
+            }
+
+            if (!isset($userdata[$userid])) {
+                $gradevalue = '--';
+                if (isset($row->currentgrade) && $row->currentgrade !== null && $row->currentgrade !== '') {
+                    $gradevalue = round((float)$row->currentgrade, 2);
+                }
+
+                $userdata[$userid] = [
+                    'userid' => $userid,
+                    'email' => $row->email,
+                    'nameuser' => $fullname,
+                    'documentnumber' => $finalid,
+                    'status' => !empty($row->userstatus) ? $row->userstatus : 'Activo',
+                    'academicstatus' => !empty($row->academicstatus) ? $row->academicstatus : 'activo',
+                    'profileimage' => get_user_picture_url($userid),
+                    'journey' => !empty($row->journey) ? $row->journey : '',
+                    'careers' => [],
+                    'periods' => [],
+                    'subperiods' => $subperiodname,
+                    'academicperiodid' => (int)$row->academicperiodid,
+                    'academicperiodname' => $row->academicperiodname,
+                    'revalidate' => isset($revalidatebyuser[$userid]) ? $revalidatebyuser[$userid] : [],
+                    'phone' => !empty($row->phone1) ? $row->phone1 : '--',
+                    'absences' => $absences,
+                    'grade' => $gradevalue,
+                    'currentgrade' => $gradevalue,
+                    'financial_status' => $row->financial_status,
+                    'financial_reason' => $row->financial_reason,
+                    'financial_lastupdated' => (int)$row->financial_lastupdated,
+                    '_careerdedupe' => []
+                ];
+            }
+
+            $careeritem = [
+                'planid' => (int)$row->planid,
+                'career' => $row->career,
+                'periodname' => $row->periodname,
+                'periodid' => (int)$row->periodid,
+                'subperiodname' => $subperiodname,
+                'subperiodid' => isset($row->subperiodid) ? (int)$row->subperiodid : 0,
+                'academicperiodid' => (int)$row->academicperiodid,
+                'academicperiodname' => $row->academicperiodname
+            ];
+
+            $careerkey = $careeritem['planid'] . '|' . $careeritem['periodid'] . '|' .
+                $careeritem['subperiodid'] . '|' . $careeritem['academicperiodid'];
+            if (!isset($userdata[$userid]['_careerdedupe'][$careerkey])) {
+                $userdata[$userid]['_careerdedupe'][$careerkey] = true;
+                $userdata[$userid]['careers'][] = $careeritem;
+            }
+        }
+
+        foreach ($userdata as $userid => $urow) {
+            if ($classlearningplanid > 0) {
+                $filteredcareers = [];
+                foreach ($urow['careers'] as $career) {
+                    if ((int)$career['planid'] === $classlearningplanid) {
+                        $filteredcareers[] = $career;
+                    }
+                }
+                if (!empty($filteredcareers)) {
+                    $userdata[$userid]['careers'] = $filteredcareers;
+                }
+            }
+
+            $periods = [];
+            foreach ($userdata[$userid]['careers'] as $career) {
+                if (!empty($career['periodname']) && !in_array($career['periodname'], $periods, true)) {
+                    $periods[] = $career['periodname'];
+                }
+            }
+            $userdata[$userid]['periods'] = $periods;
+
+            if (empty($userdata[$userid]['subperiods']) && !empty($userdata[$userid]['careers'][0]['subperiodname'])) {
+                $userdata[$userid]['subperiods'] = $userdata[$userid]['careers'][0]['subperiodname'];
+            }
+
+            unset($userdata[$userid]['_careerdedupe']);
+        }
+
+        $resultsonpage = [];
+        foreach ($pageuserids as $userid) {
+            if (isset($userdata[$userid])) {
+                $resultsonpage[] = $userdata[$userid];
+            }
+        }
+
+        return [
+            'dataUsers' => json_encode($resultsonpage),
+            'totalResults' => $totalresults,
+            'totalPages' => (int)ceil($totalresults / $resultsperpage),
+            'activeUsers' => $activeuserscount
         ];
     }
 
