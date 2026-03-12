@@ -755,6 +755,29 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
     return true;
 }
 
+/**
+ * Resolve a Moodle module id by name, tolerating accidental duplicate rows.
+ */
+function gmk_get_module_id_by_name($modulename)
+{
+    global $DB;
+
+    $mods = $DB->get_records('modules', ['name' => $modulename], 'id ASC', 'id,name');
+    if (empty($mods)) {
+        throw new \Exception("No existe el modulo '{$modulename}' en la tabla modules");
+    }
+
+    $first = reset($mods);
+    if (count($mods) > 1) {
+        gmk_log(
+            "WARNING: Se encontraron " . count($mods) . " registros en modules para '{$modulename}' " .
+            "(ids=" . implode(',', array_keys($mods)) . "). Se usara id={$first->id}."
+        );
+    }
+
+    return (int)$first->id;
+}
+
 function delete_class($classId, $reason =  null)
 {
     global $DB, $USER;
@@ -890,7 +913,7 @@ function create_class_activities($class, $updating = false)
                 $attErrMsg = $attErr->getMessage();
                 gmk_log("WARNING create_attendance_activity threw for class {$class->id}: {$attErrMsg}"
                     . " (courseid={$class->corecourseid}, sectionid={$class->coursesectionid}, sectionnum={$classSectionNumber})");
-                $attModId = $DB->get_field('modules', 'id', ['name' => 'attendance']);
+                $attModId = gmk_get_module_id_by_name('attendance');
                 // course_modules.section stores the course_sections.id (not the section number)
                 $existingCm = $attModId ? $DB->get_record_sql(
                     "SELECT id, instance FROM {course_modules} WHERE course=:c AND module=:m AND section=:s ORDER BY id DESC LIMIT 1",
@@ -978,7 +1001,7 @@ function create_class_activities($class, $updating = false)
         }
     }
 
-    $BBBModuleId = $DB->get_field('modules', 'id', ['name' => 'bigbluebuttonbn']);
+    $BBBModuleId = gmk_get_module_id_by_name('bigbluebuttonbn');
     $BBBCourseModulesInfo = [];
     $attendanceSessions = [];
 
@@ -1164,7 +1187,7 @@ function create_attendance_activity($class, $classSectionNumber)
     $attendanceActivityDefinition->cmidnumber                 = '';
     $attendanceActivityDefinition->intro                      = "Registro de asistencia para la clase " . $class->name;
     $attendanceActivityDefinition->section                    = $classSectionNumber;
-    $attendanceActivityDefinition->module                     = $DB->get_record('modules', ['name' => $attendanceActivityDefinition->modulename])->id;
+    $attendanceActivityDefinition->module                     = gmk_get_module_id_by_name($attendanceActivityDefinition->modulename);
     $attendanceActivityDefinition->subnet                     = '';
     $attendanceActivityDefinition->groupmode                  = 1;
     $attendanceActivityDefinition->visible                    = 1;
