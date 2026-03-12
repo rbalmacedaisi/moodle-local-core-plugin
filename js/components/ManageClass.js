@@ -33,7 +33,7 @@ const ManageClass = {
             <v-row>
                 <v-col cols="12" class="py-0">
                     <v-tabs v-model="activeTab" :background-color="$vuetify.theme.dark ? '' : 'white'" color="primary" grow>
-                        <v-tab v-for="tab in tabs" :key="tab.id">
+                        <v-tab v-for="tab in tabs" :key="tab.id" :href="'#' + tab.id">
                             <v-icon left small v-if="tab.icon">{{ tab.icon }}</v-icon>
                             {{ tab.name }}
                         </v-tab>
@@ -47,7 +47,7 @@ const ManageClass = {
                     <v-tabs-items v-model="activeTab" class="transparent">
                         
                         <!-- Timeline Tab -->
-                        <v-tab-item>
+                        <v-tab-item value="timeline">
                             <v-card flat class="transparent">
                                 <v-timeline dense align-top class="mx-4">
                                     <v-timeline-item
@@ -127,26 +127,27 @@ const ManageClass = {
 
                         
                         <!-- Roster Tab -->
-                        <v-tab-item>
-                            <teacher-student-table :class-id="classId"></teacher-student-table>
+                        <v-tab-item value="roster">
+                            <teacher-student-table v-if="loadedTabs.roster" :class-id="classId"></teacher-student-table>
                         </v-tab-item>
 
                         <!-- COMPLETED: Grading Tab -->
-                        <v-tab-item>
+                        <v-tab-item value="tasks">
                             <pending-grading-view 
+                                v-if="loadedTabs.tasks"
                                 :class-id="classId" 
                                 :class-name="classDetails.name"
                             ></pending-grading-view>
                         </v-tab-item>
 
                         <!-- Grades Tab -->
-                        <v-tab-item>
-                            <grades-grid :class-id="classId"></grades-grid>
+                        <v-tab-item value="grades">
+                            <grades-grid v-if="loadedTabs.grades" :class-id="classId"></grades-grid>
                         </v-tab-item>
 
                         <!-- Activities Tab -->
-                        <v-tab-item>
-                             <v-card flat class="transparent pa-4">
+                        <v-tab-item value="content">
+                             <v-card v-if="loadedTabs.content" flat class="transparent pa-4">
                                 <v-expansion-panels multiple hover>
                                     <v-expansion-panel v-for="(group, name) in groupedActivities" :key="name" class="mb-2 rounded-lg transparent-panel">
                                         <v-expansion-panel-header :class="$vuetify.theme.dark ? 'grey darken-3' : 'blue-grey lighten-5'">
@@ -210,8 +211,8 @@ const ManageClass = {
                         </v-tab-item>
 
                         <!-- Avisos Tab -->
-                        <v-tab-item>
-                            <v-card flat class="transparent pa-4">
+                        <v-tab-item value="notices">
+                            <v-card v-if="loadedTabs.notices" flat class="transparent pa-4">
 
                                 <!-- New Notice Form (expandable) -->
                                 <v-expand-transition>
@@ -509,11 +510,23 @@ const ManageClass = {
                 { id: 'content', name: 'Actividades', icon: 'mdi-folder-open' },
                 { id: 'notices', name: 'Avisos', icon: 'mdi-bullhorn' }
             ],
+            loadedTabs: {
+                timeline: true,
+                roster: false,
+                tasks: false,
+                grades: false,
+                content: false,
+                notices: false
+            },
             timeline: [],
-            loadingTimeline: true, // Start loading by default
+            loadingTimeline: false,
+            timelineLoaded: false,
             activities: [],
+            loadingActivities: false,
+            activitiesLoaded: false,
             notices: [],
             loadingNotices: false,
+            noticesLoaded: false,
             noticesForum: true,
             showNoticeForm: false,
             newNoticeSubject: '',
@@ -563,11 +576,32 @@ const ManageClass = {
     },
     mounted() {
         this.fetchClassDetails();
-        this.fetchTimeline(); // This now handles both timeline + attendance
-        this.fetchActivities();
-        this.fetchNotices();
+        this.ensureTabLoaded(this.activeTab);
+    },
+    watch: {
+        activeTab(newTab) {
+            this.ensureTabLoaded(newTab);
+        }
     },
     methods: {
+        ensureTabLoaded(tabId) {
+            if (!tabId || this.loadedTabs[tabId]) {
+                if (tabId === 'timeline' && !this.timelineLoaded && !this.loadingTimeline) {
+                    this.fetchTimeline();
+                }
+                return;
+            }
+
+            this.$set(this.loadedTabs, tabId, true);
+
+            if (tabId === 'content') {
+                this.fetchActivities();
+            } else if (tabId === 'notices') {
+                this.fetchNotices();
+            } else if (tabId === 'timeline' && !this.timelineLoaded) {
+                this.fetchTimeline();
+            }
+        },
         async fetchClassDetails() {
             try {
                 const response = await axios.post(window.wsUrl, {
@@ -583,10 +617,16 @@ const ManageClass = {
                 console.error('Error fetching class details:', error);
             }
         },
-        async fetchTimeline() {
+        async fetchTimeline(force = false) {
             if (!this.config || !this.config.wwwroot) {
                 console.error('ManageClass: Config or wwwroot missing', this.config);
                 this.loadingTimeline = false;
+                return;
+            }
+            if (this.loadingTimeline) {
+                return;
+            }
+            if (this.timelineLoaded && !force) {
                 return;
             }
             this.loadingTimeline = true;
@@ -603,12 +643,13 @@ const ManageClass = {
                     }))
                 ]);
 
-                console.log('Timeline Resp:', timelineResp.data);
-                console.log('Attendance Resp:', attendanceResp.data);
-
                 let sessions = [];
                 if (timelineResp.data.status === 'success') {
                     sessions = timelineResp.data.data.sessions;
+                    const payloadClass = timelineResp.data?.data?.class;
+                    if (payloadClass && !this.classDetails.name) {
+                        this.classDetails = { ...this.classDetails, ...payloadClass };
+                    }
                 }
 
                 let attSessions = [];
@@ -662,6 +703,7 @@ const ManageClass = {
                 mergedTimeline.sort((a, b) => a.startdate - b.startdate);
 
                 this.timeline = mergedTimeline;
+                this.timelineLoaded = true;
 
             } catch (error) {
                 console.error('Error fetching timeline/attendance:', error);
@@ -733,7 +775,14 @@ const ManageClass = {
         },
 
 
-        async fetchActivities() {
+        async fetchActivities(force = false) {
+            if (this.loadingActivities) {
+                return;
+            }
+            if (this.activitiesLoaded && !force) {
+                return;
+            }
+            this.loadingActivities = true;
             try {
                 const response = await axios.post(window.wsUrl, {
                     action: 'local_grupomakro_get_all_activities',
@@ -743,11 +792,14 @@ const ManageClass = {
                 if (response.data.status === 'success') {
                     // console.log('Fetch Activities Success:', response.data.activities);
                     this.activities = response.data.activities;
+                    this.activitiesLoaded = true;
                 } else {
                     console.warn('Fetch Activities Failed:', response.data);
                 }
             } catch (error) {
                 console.error('Error fetching activities:', error);
+            } finally {
+                this.loadingActivities = false;
             }
         },
         getSessionColor(session) {
@@ -833,7 +885,7 @@ const ManageClass = {
                     this.activities = this.activities.filter(a => a.id !== activity.id);
                     this.snackbarText = response.data.message || 'Actividad eliminada correctamente.';
                     this.snackbar = true;
-                    await this.fetchTimeline();
+                    await this.fetchTimeline(true);
                 } else {
                     alert(response.data.message || 'No se pudo eliminar la actividad.');
                     this.$set(activity, '_deleting', false);
@@ -886,8 +938,8 @@ const ManageClass = {
             }
         },
         onActivityCreated() {
-            this.fetchTimeline();
-            this.fetchActivities(); // Refresh activities list
+            this.fetchTimeline(true);
+            this.fetchActivities(true); // Refresh activities list
             this.isEditing = false;
         },
         openEditActivity(activity) {
@@ -897,7 +949,13 @@ const ManageClass = {
             this.customActivityLabel = activity.name; // Temporary till loaded
             this.showActivityWizard = true;
         },
-        async fetchNotices() {
+        async fetchNotices(force = false) {
+            if (this.loadingNotices) {
+                return;
+            }
+            if (this.noticesLoaded && !force) {
+                return;
+            }
             this.loadingNotices = true;
             try {
                 const response = await axios.post(window.wsUrl, {
@@ -908,6 +966,7 @@ const ManageClass = {
                 if (response.data.status === 'success') {
                     this.notices = response.data.posts || [];
                     this.noticesForum = response.data.forum_found !== false;
+                    this.noticesLoaded = true;
                 }
             } catch (e) {
                 console.error('Error fetching notices:', e);
@@ -943,7 +1002,7 @@ const ManageClass = {
                     this.newNoticeSubject = '';
                     this.newNoticeMessage = '';
                     this.noticeFiles = [];
-                    await this.fetchNotices();
+                    await this.fetchNotices(true);
                 } else {
                     this.noticeError = response.data.message || 'Error al publicar el aviso.';
                 }

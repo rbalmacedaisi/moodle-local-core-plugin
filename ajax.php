@@ -784,125 +784,127 @@ try {
             $classid = required_param('classid', PARAM_INT);
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
-            
-            require_once($CFG->dirroot . '/calendar/lib.php');
-            
-            // Fetch events for the class group
-            // We fetch events from -1 month to +6 months to show relevant history and future
-            $tstart = strtotime('-1 month');
-            $tend = strtotime('+6 months');
-            
-            // Fetch events for this class's group only (groupid = 0 means "all groups" â€” exclude those
-            // because in a shared template course they belong to every class and cause duplication).
-            $sql = "SELECT e.*
-                    FROM {event} e
-                    WHERE e.courseid = :courseid
-                      AND e.groupid = :groupid
-                    ORDER BY e.timestart ASC";
 
-            $params = [
+            // Pull only attendance + BBB events for the class group.
+            $sql = "SELECT e.*
+                      FROM {event} e
+                     WHERE e.courseid = :courseid
+                       AND e.groupid = :groupid
+                       AND e.modulename IN ('attendance','bigbluebuttonbn')
+                  ORDER BY e.timestart ASC";
+            $events = $DB->get_records_sql($sql, [
                 'courseid' => $class->corecourseid,
                 'groupid'  => $class->groupid,
-            ];
+            ]);
 
-            $events = $DB->get_records_sql($sql, $params);
-
-            // Pre-calculate attendance times for deduplication
+            // Pre-scan: attendance timestamps for de-duplication and BBB instance IDs for batched lookup.
             $attendanceTimes = [];
+            $attendanceEventIds = [];
+            $bbbInstanceIds = [];
             foreach ($events as $e) {
                 if ($e->modulename === 'attendance') {
-                    $attendanceTimes[] = $e->timestart;
+                    $attendanceTimes[] = (int)$e->timestart;
+                    $attendanceEventIds[(int)$e->id] = (int)$e->id;
+                    continue;
+                }
+                if ($e->modulename === 'bigbluebuttonbn' && !empty($e->instance)) {
+                    $bbbInstanceIds[(int)$e->instance] = (int)$e->instance;
+                }
+            }
+
+            // Map attendance calendar event -> linked BBB instance in one query.
+            $attendanceEventToBbb = [];
+            if (!empty($attendanceEventIds)) {
+                list($eventInSql, $eventParams) = $DB->get_in_or_equal(array_values($attendanceEventIds), SQL_PARAMS_NAMED, 'ev');
+                $relSql = "SELECT sess.caleventid AS eventid, rel.bbbid
+                             FROM {attendance_sessions} sess
+                             JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = sess.id
+                            WHERE rel.classid = :classid
+                              AND rel.bbbid > 0
+                              AND sess.caleventid $eventInSql";
+                $relRows = $DB->get_records_sql($relSql, array_merge(['classid' => $classid], $eventParams));
+                foreach ($relRows as $rel) {
+                    $eventid = (int)$rel->eventid;
+                    $bbbid = (int)$rel->bbbid;
+                    if ($eventid > 0 && $bbbid > 0) {
+                        $attendanceEventToBbb[$eventid] = $bbbid;
+                        $bbbInstanceIds[$bbbid] = $bbbid;
+                    }
+                }
+            }
+
+            // Preload BBB metadata in one query.
+            $bbbMetaByInstance = [];
+            if (!empty($bbbInstanceIds)) {
+                list($bbbInSql, $bbbParams) = $DB->get_in_or_equal(array_values($bbbInstanceIds), SQL_PARAMS_NAMED, 'bb');
+                $bbbSql = "SELECT cm.instance AS instanceid, cm.id AS cmid, COALESCE(b.guest, 0) AS guest
+                             FROM {course_modules} cm
+                             JOIN {modules} m ON m.id = cm.module AND m.name = 'bigbluebuttonbn'
+                        LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+                            WHERE cm.course = :courseid
+                              AND cm.instance $bbbInSql";
+                $bbbRows = $DB->get_records_sql($bbbSql, array_merge(['courseid' => $class->corecourseid], $bbbParams));
+                foreach ($bbbRows as $bbbRow) {
+                    $instanceid = (int)$bbbRow->instanceid;
+                    if ($instanceid <= 0 || isset($bbbMetaByInstance[$instanceid])) {
+                        continue;
+                    }
+                    $bbbMetaByInstance[$instanceid] = [
+                        'cmid' => (int)$bbbRow->cmid,
+                        'guest' => !empty($bbbRow->guest),
+                    ];
                 }
             }
 
             $formatted_sessions = [];
             foreach ($events as $e) {
                 try {
-                // All events already filtered by groupid in SQL â€” no PHP re-check needed.
-
-                // Filter by Module
-                // Allow bigbluebuttonbn module (lowercase)
-                if ($e->modulename !== 'attendance' && $e->modulename !== 'bigbluebuttonbn') {
-                   continue; 
-                }
-
-                // Deduplicate BBB events (fuzzy match 10 mins)
-                if ($e->modulename === 'bigbluebuttonbn') {
-                    $isDuplicate = false;
-                    foreach ($attendanceTimes as $attTime) {
-                        if (abs($attTime - $e->timestart) <= 601) {
-                            $isDuplicate = true;
-                            break;
+                    // Deduplicate standalone BBB events that overlap attendance by ~10 minutes.
+                    if ($e->modulename === 'bigbluebuttonbn') {
+                        $isDuplicate = false;
+                        foreach ($attendanceTimes as $attTime) {
+                            if (abs($attTime - (int)$e->timestart) <= 601) {
+                                $isDuplicate = true;
+                                break;
+                            }
+                        }
+                        if ($isDuplicate) {
+                            continue;
                         }
                     }
-                    if ($isDuplicate) {
-                        continue;
+
+                    $session_data = new stdClass();
+                    $session_data->id = (int)$e->id;
+                    $session_data->startdate = (int)$e->timestart;
+                    $session_data->enddate = (int)$e->timestart + (int)$e->timeduration;
+                    $session_data->name = $e->name;
+                    $session_data->type = ((int)$class->type === 1 ? 'virtual' : 'physical');
+                    $session_data->join_url = '';
+
+                    $linkedBbbId = 0;
+                    if ($e->modulename === 'attendance') {
+                        $linkedBbbId = (int)($attendanceEventToBbb[(int)$e->id] ?? 0);
+                        if ($linkedBbbId > 0) {
+                            $session_data->type = 'virtual';
+                        }
+                    } else if ($e->modulename === 'bigbluebuttonbn') {
+                        $session_data->type = 'virtual';
+                        $linkedBbbId = (int)$e->instance;
                     }
-                }
 
-                $session_data = new stdClass();
-                $session_data->id = $e->id; // Calendar event ID
-                $session_data->startdate = $e->timestart;
-                $session_data->enddate = $e->timestart + $e->timeduration;
-                $session_data->name = $e->name; // e.g. "Asistencia..." or "Clase..."
-                $session_data->type = ($class->type == 1 ? 'virtual' : 'physical'); // Default to class type
-                $session_data->join_url = '';
-
-                // Logic to enhance data based on event type
-                if ($e->modulename === 'attendance') {
-                     // Try to find if this attendance session is linked to a BBB activity
-                     // Link: attendance_sessions.caleventid -> gmk_bbb_attendance_relation
-                     $sql = "SELECT rel.bbbid, sess.id as sessionid
-                             FROM {attendance_sessions} sess
-                             JOIN {gmk_bbb_attendance_relation} rel ON rel.attendancesessionid = sess.id
-                             WHERE sess.caleventid = :caleventid";
-                     $rel = $DB->get_record_sql($sql, ['caleventid' => $e->id]);
-                     
-                     if ($rel && $rel->bbbid) {
-                         $session_data->type = 'virtual';
-                         try {
-                              $cm = get_coursemodule_from_instance('bigbluebuttonbn', $rel->bbbid);
-                              if ($cm) {
-                                  // requires mod/bigbluebuttonbn/locallib.php if needed? usually autoloaded
-                                  $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
-                                  
-                                  // Check for recordings
-                                  $recordingId = $DB->get_field('bigbluebuttonbn_recordings', 'recordingid', ['bigbluebuttonbnid' => $rel->bbbactivityid]);
-                                  if ($recordingId) {
-                                      $session_data->recording_url = "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId;
-                                  }
-                              }
-                         } catch (\Throwable $ex) { 
-                             $session_data->debug_error = $ex->getMessage();
-                             // Fallback or log?
-                         }
-                     }
-                } elseif ($e->modulename === 'bigbluebuttonbn') {
-                    $session_data->type = 'virtual';
-                    // It's a direct BBB event
-                    if ($e->instance) {
-                        try {
-                             $cm = get_coursemodule_from_instance('bigbluebuttonbn', $e->instance);
-                             if ($cm) {
-                                 // Fetch guest status
-                                 // Note: We avoid full mod_bigbluebuttonbn\locallib loading if possible, or use DB directly for speed in this list
-                                 $bbb = $DB->get_record('bigbluebuttonbn', ['id' => $e->instance]);
-                                 if ($bbb && !empty($bbb->guest)) {
-                                     $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cm->id;
-                                 }
-                                 
-                                 $session_data->join_url = \mod_bigbluebuttonbn\external\get_join_url::execute($cm->id)['join_url'] ?? '#';
-                             }
-                        } catch (\Throwable $ex) { 
-                            $session_data->debug_error = $ex->getMessage();
+                    if ($linkedBbbId > 0 && isset($bbbMetaByInstance[$linkedBbbId])) {
+                        $cmid = (int)$bbbMetaByInstance[$linkedBbbId]['cmid'];
+                        if ($cmid > 0) {
+                            $session_data->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $cmid;
+                            if (!empty($bbbMetaByInstance[$linkedBbbId]['guest'])) {
+                                $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cmid;
+                            }
                         }
                     }
-                }
 
-                $formatted_sessions[] = $session_data;
-
+                    $formatted_sessions[] = $session_data;
                 } catch (\Throwable $t) {
-                    // Log error if needed, but keeping it silent for production or use standard logging
+                    // Keep response resilient: skip malformed event rows.
                 }
             }
             
