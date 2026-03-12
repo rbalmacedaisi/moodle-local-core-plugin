@@ -175,9 +175,9 @@ class local_grupomakro_progress_manager
                 return false;
             }
 
-            // 1. Get Grade once for all records.
-            $gradeObj = grade_get_course_grade($userId, $courseId);
-            $userGrade = ($gradeObj && isset($gradeObj->grade)) ? round((float)$gradeObj->grade, 2) : 0.0;
+            // 1. Get Grade once for all records (fast direct lookup; avoids grade tree traversal).
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$userId, [(int)$courseId], 70.0);
+            $userGrade = !empty($passedmap[(int)$courseId]) ? 70.0 : 0.0;
             
             // Reusable components for progress calculation.
             $coursemod = get_fast_modinfo($courseId, $userId);
@@ -548,6 +548,9 @@ class local_grupomakro_progress_manager
                 return false;
             }
 
+            $requiredCourseIds = array_map(static function($lpc) { return (int)$lpc->courseid; }, $requiredCourses);
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$userId, $requiredCourseIds, 70.0);
+
             $firstIncompletePeriodId = null;
             $lastPeriodId = null;
 
@@ -569,12 +572,9 @@ class local_grupomakro_progress_manager
                     $completion = new \completion_info(get_course($lpc->courseid));
                     if ($completion->is_course_complete($userId)) {
                         $isComplete = true;
-                    } else {
-                        // Check if grade is >= 70
-                        $gradeObj = grade_get_course_grade($userId, $lpc->courseid);
-                        if ($gradeObj && isset($gradeObj->grade) && (float)$gradeObj->grade >= 70) {
-                            $isComplete = true;
-                        }
+                    } else if (!empty($passedmap[(int)$lpc->courseid])) {
+                        // Check if grade is >= 70 (fast direct lookup).
+                        $isComplete = true;
                     }
                 }
 
@@ -645,6 +645,8 @@ class local_grupomakro_progress_manager
             if (!$requiredCourses) {
                 return false;
             }
+            $requiredCourseIds = array_map(static function($lpc) { return (int)$lpc->courseid; }, $requiredCourses);
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$userId, $requiredCourseIds, 70.0);
 
             // 2. Count how many of these are completed by the student
             $completedCount = 0;
@@ -662,11 +664,8 @@ class local_grupomakro_progress_manager
                     $completion = new \completion_info(get_course($lpc->courseid));
                     if ($completion->is_course_complete($userId)) {
                         $isComplete = true;
-                    } else {
-                        $gradeObj = grade_get_course_grade($userId, $lpc->courseid);
-                        if ($gradeObj && isset($gradeObj->grade) && (float)$gradeObj->grade >= 70) {
-                            $isComplete = true;
-                        }
+                    } else if (!empty($passedmap[(int)$lpc->courseid])) {
+                        $isComplete = true;
                     }
                 }
 

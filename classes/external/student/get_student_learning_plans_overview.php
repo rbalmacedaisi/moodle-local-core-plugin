@@ -106,6 +106,8 @@ class get_student_learning_plans_overview extends external_api
     {
         global $DB;
         $userLearningPlanProgressRecords = $DB->get_records('gmk_course_progre', ['userid' => $userId, 'learningplanid' => $learningPlanId], '', 'courseid,credits');
+        $courseids = array_map(static function($r) { return (int)$r->courseid; }, $userLearningPlanProgressRecords);
+        $passedmap = gmk_get_user_passed_course_map_fast((int)$userId, $courseids, 70.0);
         $totalWeightedCompletion = 0;
         $totalCredits = 0;
         foreach ($userLearningPlanProgressRecords as $userLearningPlanProgressRecord) {
@@ -120,12 +122,9 @@ class get_student_learning_plans_overview extends external_api
                 $isComplete = true;
             }
             
-            // Criteria 3: Approved Grade (Local)
-            if (!$isComplete) {
-                $gradeObj = grade_get_course_grade($userId, $userLearningPlanProgressRecord->courseid);
-                if ($gradeObj && $gradeObj->grade >= 70) {
-                    $isComplete = true;
-                }
+            // Criteria 3: Approved Grade (fast direct check; no grade tree traversal)
+            if (!$isComplete && !empty($passedmap[(int)$userLearningPlanProgressRecord->courseid])) {
+                $isComplete = true;
             }
 
             $totalWeightedCompletion += ($isComplete ? 1 : 0) * $userLearningPlanProgressRecord->credits;

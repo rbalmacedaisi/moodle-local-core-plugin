@@ -72,18 +72,22 @@ class get_user_courses_by_category extends external_api
             $userCoursesByCategory = \local_soluttolms_core\external\getcourses_by_token::execute($params['userid']);
             $courseCategories = json_decode($userCoursesByCategory['categoryobj']);
             $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,progress');
+            $courseids = [];
+            foreach ($courseCategories as $courseCategory) {
+                foreach ($courseCategory->courses as $course) {
+                    $courseids[] = (int)$course->id;
+                }
+            }
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$params['userid'], $courseids, 70.0);
 
             foreach ($courseCategories as &$courseCategory) {
                 foreach ($courseCategory->courses as &$course) {
                     $courseProgre = isset($userGmkCourseProgress[$course->id]) ? $userGmkCourseProgress[$course->id] : null;
                     $progress = $courseProgre ? $courseProgre->progress : 0;
                     
-                    // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
-                    if ($progress < 100) {
-                        $gradeObj = grade_get_course_grade($params['userid'], $course->id);
-                        if ($gradeObj && $gradeObj->grade >= 70) {
-                            $progress = 100;
-                        }
+                    // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
+                    if ($progress < 100 && !empty($passedmap[(int)$course->id])) {
+                        $progress = 100;
                     }
 
                     $course->progress = (float)$progress;

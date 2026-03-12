@@ -69,6 +69,57 @@ if (!function_exists('gmk_best_effort_db_commit')) {
     }
 }
 
+if (!function_exists('gmk_get_user_passed_course_map_fast')) {
+    /**
+     * Fast pass/fail map by course using grade_items/grade_grades directly.
+     * Avoids gradebook tree traversal (grade_category::get_children) used by grade_get_course_grade().
+     *
+     * @param int $userid
+     * @param array $courseids
+     * @param float $passgrade
+     * @return array<int,bool> courseid => passed
+     */
+    function gmk_get_user_passed_course_map_fast(int $userid, array $courseids, float $passgrade = 70.0): array {
+        global $DB;
+
+        $cleanids = [];
+        foreach ($courseids as $cid) {
+            $cid = (int)$cid;
+            if ($cid > 0) {
+                $cleanids[$cid] = $cid;
+            }
+        }
+        $cleanids = array_values($cleanids);
+        if (empty($cleanids)) {
+            return [];
+        }
+
+        list($insql, $inparams) = $DB->get_in_or_equal($cleanids, SQL_PARAMS_NAMED, 'cid');
+        $sql = "SELECT gi.courseid,
+                       MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval
+                  FROM {grade_items} gi
+             LEFT JOIN {grade_grades} gg
+                    ON gg.itemid = gi.id
+                   AND gg.userid = :userid
+                 WHERE gi.itemtype = 'course'
+                   AND gi.courseid $insql
+              GROUP BY gi.courseid";
+        $rows = $DB->get_records_sql($sql, ['userid' => $userid] + $inparams);
+
+        $passed = [];
+        foreach ($cleanids as $cid) {
+            $passed[$cid] = false;
+        }
+        foreach ($rows as $row) {
+            $cid = (int)$row->courseid;
+            $grade = is_null($row->gradeval) ? null : (float)$row->gradeval;
+            $passed[$cid] = (!is_null($grade) && $grade >= $passgrade);
+        }
+
+        return $passed;
+    }
+}
+
 if (!function_exists('gmk_secondary_db_activity_check')) {
     /**
      * Verify from a second DB connection that class activity writes are visible (committed).

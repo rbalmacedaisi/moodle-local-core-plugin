@@ -72,16 +72,15 @@ class get_user_courses extends external_api
         try {
             $userCourses = \core_enrol_external::get_users_courses($params['userid'], false);
             $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $params['userid']], '', 'courseid,progress,credits');
+            $courseids = array_map(static function($c) { return (int)$c['id']; }, $userCourses);
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$params['userid'], $courseids, 70.0);
             foreach ($userCourses as &$course) {
                 $courseProgre = isset($userGmkCourseProgress[$course['id']]) ? $userGmkCourseProgress[$course['id']] : null;
                 $progress = $courseProgre ? $courseProgre->progress : 0;
 
-                // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
-                if ($progress < 100) {
-                    $gradeObj = grade_get_course_grade($params['userid'], $course['id']);
-                    if ($gradeObj && $gradeObj->grade >= 70) {
-                        $progress = 100;
-                    }
+                // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
+                if ($progress < 100 && !empty($passedmap[(int)$course['id']])) {
+                    $progress = 100;
                 }
 
                 $course['progress'] = (float)$progress;

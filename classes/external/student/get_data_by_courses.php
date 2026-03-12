@@ -77,10 +77,10 @@ class get_data_by_courses extends external_api
                 $courseData = json_decode($courseData['coursedata']);
                 $progress = $courseProgre->progress;
 
-                // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
+                // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
                 if ($progress < 100) {
-                    $gradeObj = grade_get_course_grade($params['userid'], $params['courseid']);
-                    if ($gradeObj && $gradeObj->grade >= 70) {
+                    $passedmap = gmk_get_user_passed_course_map_fast((int)$params['userid'], [(int)$params['courseid']], 70.0);
+                    if (!empty($passedmap[(int)$params['courseid']])) {
                         $progress = 100;
                     }
                 }

@@ -72,6 +72,20 @@ class get_learning_plans_data extends external_api
         global $DB, $USER;
         try {
             $learningPlansData = \get_learning_plans_external::get_learning_plans($params['page'], $params['resultsperpage']);
+            $courseids = [];
+            foreach ($learningPlansData['learningplans'] as $learningPlan) {
+                foreach ($learningPlan['periodsdata'] as $period) {
+                    foreach (['requiredcourses', 'optionalcourses'] as $type) {
+                        if (!isset($period[$type])) {
+                            continue;
+                        }
+                        foreach ($period[$type] as $course) {
+                            $courseids[] = (int)$course['id'];
+                        }
+                    }
+                }
+            }
+            $passedmap = gmk_get_user_passed_course_map_fast((int)$USER->id, $courseids, 70.0);
 
             foreach ($learningPlansData['learningplans'] as &$learningPlan) {
                 $userGmkCourseProgress = $DB->get_records('gmk_course_progre', ['userid' => $USER->id, 'learningplanid' => $learningPlan['learningplanid']], '', 'courseid,progress,credits');
@@ -85,12 +99,9 @@ class get_learning_plans_data extends external_api
                             $courseProgre = isset($userGmkCourseProgress[$course['id']]) ? $userGmkCourseProgress[$course['id']] : null;
                             $progress = $courseProgre ? $courseProgre->progress : 0;
                             
-                            // [VIRTUAL FALLBACK] Check gradebook directly if progress is not 100.
-                            if ($progress < 100) {
-                                $gradeObj = grade_get_course_grade($USER->id, $course['id']);
-                                if ($gradeObj && $gradeObj->grade >= 70) {
-                                    $progress = 100;
-                                }
+                            // [VIRTUAL FALLBACK] Fast direct grade check (no grade tree traversal).
+                            if ($progress < 100 && !empty($passedmap[(int)$course['id']])) {
+                                $progress = 100;
                             }
 
                             $course['realprogress'] = $progress;
