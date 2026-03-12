@@ -139,28 +139,12 @@ class get_dashboard_data extends external_api {
         }, $active_classes);
         $activeclassset = array_flip($activeclassids);
 
-        // Build course -> class ids map to rescue events without explicit classId.
-        $activeclassesbycourse = [];
-        foreach ($active_classes as $c) {
-            $cid = (int)$c->courseid;
-            if (!isset($activeclassesbycourse[$cid])) {
-                $activeclassesbycourse[$cid] = [];
-            }
-            $activeclassesbycourse[$cid][] = (int)$c->id;
-        }
-
-        $events = array_values(array_filter($events, function($event) use ($activeclassset, $activeclassesbycourse) {
+        $events = array_values(array_filter($events, function($event) use ($activeclassset) {
             $eventclassid = !empty($event->classId) ? (int)$event->classId : 0;
             if ($eventclassid > 0) {
                 return isset($activeclassset[$eventclassid]);
             }
-
-            // Fallback: if exactly one active class exists in this course, bind event to that class.
-            $courseid = !empty($event->courseid) ? (int)$event->courseid : 0;
-            if ($courseid > 0 && !empty($activeclassesbycourse[$courseid]) && count($activeclassesbycourse[$courseid]) === 1) {
-                $event->classId = $activeclassesbycourse[$courseid][0];
-                return true;
-            }
+            // Strict filter: if event cannot be mapped to a visible active class, do not show it.
             return false;
         }));
         

@@ -4879,7 +4879,35 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     // Try redundant mapping for Moodle form weirdness
     $moduleinfo->quizpassword = 'temp_pass';
 
-    $result = add_moduleinfo($moduleinfo, $course);
+    try {
+        $result = add_moduleinfo($moduleinfo, $course);
+    } catch (\Throwable $e) {
+        // Assign is the most version-sensitive module in this fork.
+        // Retry with a minimal payload to maximize compatibility.
+        if ($type !== 'assign') {
+            throw $e;
+        }
+
+        $minimal = new stdClass();
+        $minimal->modulename = 'assign';
+        $minimal->module = $module->id;
+        $minimal->name = $name;
+        $minimal->intro = $intro;
+        $minimal->introformat = FORMAT_HTML;
+        $minimal->course = $course->id;
+        $minimal->section = $section->section;
+        $minimal->visible = 1;
+        $minimal->groupmode = 1;
+        $minimal->grade = 100;
+        $minimal->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
+        $minimal->assignsubmission_file_enabled = 1;
+        $minimal->assignsubmission_onlinetext_enabled = 1;
+        if (!empty($extra['gradecat'])) {
+            $minimal->gradecat = $extra['gradecat'];
+        }
+
+        $result = add_moduleinfo($minimal, $course);
+    }
     if (empty($result) || empty($result->coursemodule)) {
         throw new \moodle_exception('No se pudo crear la actividad en el curso.');
     }
