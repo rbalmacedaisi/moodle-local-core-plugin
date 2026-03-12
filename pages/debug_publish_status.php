@@ -505,6 +505,27 @@ function gmk_debug_tail_plugin_log(int $classid, int $hintcmid = 0, int $tail = 
     return $out;
 }
 
+function gmk_debug_mysql_tx_state(): array {
+    global $DB;
+    $out = [
+        'read_only' => null,
+        'server_id' => null,
+        'autocommit' => null,
+        'in_transaction' => null,
+    ];
+    try {
+        $r = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        if ($r) {
+            foreach ((array)$r as $k => $v) {
+                $out[$k] = $v;
+            }
+        }
+    } catch (Throwable $e) {
+        $out['error'] = $e->getMessage();
+    }
+    return $out;
+}
+
 function gmk_debug_runtime_identity(): array {
     global $DB;
 
@@ -519,10 +540,19 @@ function gmk_debug_runtime_identity(): array {
         $r = $DB->get_record_sql("SELECT DATABASE() AS dbname, @@hostname AS dbhost, @@port AS dbport, CONNECTION_ID() AS dbconnid");
         if ($r) {
             $identity['db'] = (array)$r;
-            return $identity;
         }
     } catch (Throwable $e) {
         $identity['db']['mysql_error'] = $e->getMessage();
+    }
+
+    try {
+        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        if ($r2) {
+            $identity['db'] = array_merge($identity['db'], (array)$r2);
+            return $identity;
+        }
+    } catch (Throwable $e) {
+        $identity['db']['mysql_tx_error'] = $e->getMessage();
     }
 
     try {
@@ -1098,6 +1128,9 @@ if ($ajax === 'recreate') {
                 $log[] = "POSTCHECK+{$postwaitms}ms section_modules(attendance|bbb)={$waitSectionCount}";
                 $class = $classAfterWait;
             }
+
+            $txstate = gmk_debug_mysql_tx_state();
+            $log[] = "POSTCHECK tx_state read_only={$txstate['read_only']} server_id={$txstate['server_id']} autocommit={$txstate['autocommit']} in_transaction={$txstate['in_transaction']}";
         } catch (Throwable $e) {
             $log[] = "WARN Error creando actividades: " . $e->getMessage();
             gmk_debug_log_exception_chain($e, $log, 'Excepcion');
@@ -1552,6 +1585,9 @@ async function recreateOne(classid, btn) {
                         '<span class="check">OK</span> <small>' + d.attendancemoduleid + '</small>';
                 }
             }
+            if (d.attendancemoduleid) {
+                try { sessionStorage.setItem('gmk_last_cmid_' + classid, String(d.attendancemoduleid)); } catch (_) {}
+            }
         } else {
             btn.disabled = false;
             btn.textContent = 'Re-crear';
@@ -1591,6 +1627,14 @@ async function inspectOne(classid, btn) {
         if (m2 && m2[1]) {
             fd.append('hintcmid', m2[1]);
         }
+    }
+    if (!fd.has('hintcmid')) {
+        try {
+            const cached = sessionStorage.getItem('gmk_last_cmid_' + classid);
+            if (cached && /^\\d+$/.test(cached)) {
+                fd.append('hintcmid', cached);
+            }
+        } catch (_) {}
     }
     fd.append('sesskey', SESSKEY);
 

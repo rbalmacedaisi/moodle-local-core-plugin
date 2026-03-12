@@ -779,6 +779,68 @@ function gmk_get_module_id_by_name($modulename)
 }
 
 /**
+ * Normalize malformed course grade item rows that break grade_update() during module creation.
+ *
+ * Some legacy courses have a single course grade item with iteminstance != courseid
+ * (e.g. iteminstance = grade_category.id). When attendance add_instance triggers grade_update,
+ * that inconsistency can cause duplicate-key errors in grade_grades and leave transactions broken.
+ */
+function gmk_heal_course_gradebook_course_item($courseid) {
+    global $DB;
+
+    $courseid = (int)$courseid;
+    if ($courseid <= 0) {
+        return;
+    }
+
+    $rootcat = $DB->get_record_sql(
+        "SELECT id FROM {grade_categories}
+          WHERE courseid = :courseid AND depth = 1
+       ORDER BY id ASC LIMIT 1",
+        ['courseid' => $courseid]
+    );
+    $rootcatid = $rootcat ? (int)$rootcat->id : 0;
+
+    $courseitems = $DB->get_records('grade_items', ['courseid' => $courseid, 'itemtype' => 'course'], 'id ASC', 'id,iteminstance,categoryid');
+    if (empty($courseitems)) {
+        return;
+    }
+
+    $valid = [];
+    foreach ($courseitems as $it) {
+        if ((int)$it->iteminstance === $courseid) {
+            $valid[] = $it;
+        }
+    }
+
+    if (!empty($valid)) {
+        // Keep valid rows untouched; just align category to root when possible.
+        if ($rootcatid > 0) {
+            foreach ($valid as $it) {
+                if ((int)$it->categoryid !== $rootcatid) {
+                    $DB->set_field('grade_items', 'categoryid', $rootcatid, ['id' => (int)$it->id]);
+                    gmk_log("INFO: gradebook heal - course item {$it->id} recategorizado a root {$rootcatid} (courseid={$courseid})");
+                }
+            }
+        }
+        return;
+    }
+
+    // No valid iteminstance=courseid: salvage one existing course item instead of creating a new one.
+    $chosen = reset($courseitems);
+    if ($chosen) {
+        $chosenid = (int)$chosen->id;
+        $DB->set_field('grade_items', 'iteminstance', $courseid, ['id' => $chosenid]);
+        if ($rootcatid > 0) {
+            $DB->set_field('grade_items', 'categoryid', $rootcatid, ['id' => $chosenid]);
+        }
+        gmk_log("INFO: gradebook heal - course item {$chosenid} iteminstance corregido a {$courseid}" .
+            ($rootcatid > 0 ? " y categoryid={$rootcatid}" : '') .
+            " (courseid={$courseid})");
+    }
+}
+
+/**
  * True if the course module id is linked in the section sequence.
  */
 function gmk_section_sequence_contains_cmid($sectionid, $cmid)
@@ -1039,6 +1101,13 @@ function create_class_activities($class, $updating = false)
             gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
             gmk_log("INFO: create_class_activities — reutilizando attendance existente cmid={$class->attendancemoduleid}");
         } else {
+            // Prevent known legacy gradebook corruption from breaking attendance module creation.
+            try {
+                gmk_heal_course_gradebook_course_item((int)$class->corecourseid);
+            } catch (Throwable $healErr) {
+                gmk_log("WARNING: gradebook heal fallo para courseid={$class->corecourseid}: " . $healErr->getMessage());
+            }
+
             try {
                 $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
             } catch (Throwable $attErr) {
