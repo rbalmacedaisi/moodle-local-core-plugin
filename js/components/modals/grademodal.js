@@ -321,32 +321,27 @@ Vue.component('grademodal', {
         async getpensum() {
             const careersList = this.careersList;
             this.loadingPensum = true;
-
-            const tasks = careersList.map(async (element) => {
-                this.$set(element, 'periods', null);
-                const data = await this.getcarrers(element.planid);
-                const groupedByPeriodName = {};
-
-                if (data && typeof data === 'object') {
-                    Object.values(data).forEach(periodInfo => {
-                        if (periodInfo && periodInfo.periodName) {
-                            groupedByPeriodName[periodInfo.periodName] = periodInfo.courses || [];
-                        }
-                    });
-                }
-
-                this.$set(element, 'periods', groupedByPeriodName);
-            });
-
             try {
-                await Promise.all(tasks);
-            } catch (error) {
-                console.error('Error loading pensum:', error);
+                for (const element of careersList) {
+                    this.$set(element, 'periods', null);
+                    const data = await this.getcarrers(element.planid, 0);
+                    const groupedByPeriodName = {};
+
+                    if (data && typeof data === 'object') {
+                        Object.values(data).forEach(periodInfo => {
+                            if (periodInfo && periodInfo.periodName) {
+                                groupedByPeriodName[periodInfo.periodName] = periodInfo.courses || [];
+                            }
+                        });
+                    }
+
+                    this.$set(element, 'periods', groupedByPeriodName);
+                }
             } finally {
                 this.loadingPensum = false;
             }
         },
-        async getcarrers(id) {
+        async getcarrers(id, attempt = 0) {
             try {
                 const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
 
@@ -372,6 +367,11 @@ Vue.component('grademodal', {
 
                 return data || {};
             } catch (error) {
+                const statusCode = error && error.response ? Number(error.response.status || 0) : 0;
+                if (statusCode === 503 && attempt < 1) {
+                    await new Promise(resolve => setTimeout(resolve, 900));
+                    return this.getcarrers(id, attempt + 1);
+                }
                 console.error('Error fetching pensum:', error);
                 return {};
             }
