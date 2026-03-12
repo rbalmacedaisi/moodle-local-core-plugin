@@ -516,7 +516,7 @@ function gmk_debug_runtime_identity(): array {
     ];
 
     try {
-        $r = $DB->get_record_sql("SELECT DATABASE() AS dbname, @@hostname AS dbhost, @@port AS dbport");
+        $r = $DB->get_record_sql("SELECT DATABASE() AS dbname, @@hostname AS dbhost, @@port AS dbport, CONNECTION_ID() AS dbconnid");
         if ($r) {
             $identity['db'] = (array)$r;
             return $identity;
@@ -851,13 +851,21 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
     }
 
     $snapshot['queries'][] = gmk_debug_capture_sql_safe(
-        'logstore_recent_classid_mentions',
+        'logstore_recent_class_activity_window',
         "SELECT id, timecreated, userid, courseid, component, action, target, objecttable, objectid, contextinstanceid, origin, ip, other
            FROM {logstore_standard_log}
-          WHERE " . $DB->sql_like('other', ':classneedle') . "
+          WHERE timecreated >= :mintime
+            AND (courseid = :courseid
+                 OR objectid = :classid
+                 OR " . $DB->sql_like('other', ':classneedle') . ")
        ORDER BY id DESC",
-        ['classneedle' => '%classid%' . $classid . '%'],
-        200
+        [
+            'mintime' => time() - (7 * DAYSECS),
+            'courseid' => $courseid,
+            'classid' => $classid,
+            'classneedle' => '%classid%' . $classid . '%',
+        ],
+        250
     );
 
     $snapshot['plugin_log'] = gmk_debug_tail_plugin_log($classid, $hintcmid > 0 ? $hintcmid : $attcmid);
@@ -953,7 +961,7 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
 if ($ajax === 'inspect_class') {
     $PAGE->set_context(context_system::instance());
     ob_start();
-    header('Content-Type: application/json');
+    header('Content-Type: application/json; charset=utf-8');
     try {
         require_sesskey();
         $classid = required_param('classid', PARAM_INT);
@@ -972,10 +980,10 @@ if ($ajax === 'inspect_class') {
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
-    header('Content-Type: application/json');
+    header('Content-Type: application/json; charset=utf-8');
     try {
         $classid = required_param('classid', PARAM_INT);
-        $postwaitms = optional_param('postwaitms', 1500, PARAM_INT);
+        $postwaitms = optional_param('postwaitms', 3000, PARAM_INT);
         if ($postwaitms < 0) $postwaitms = 0;
         if ($postwaitms > 10000) $postwaitms = 10000;
         require_sesskey();
@@ -1157,7 +1165,7 @@ if ($ajax === 'recreate') {
 if ($ajax === 'recreate_all') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
-    header('Content-Type: application/json');
+    header('Content-Type: application/json; charset=utf-8');
     try {
         $periodid = required_param('periodid', PARAM_INT);
         require_sesskey();
@@ -1513,7 +1521,7 @@ async function recreateOne(classid, btn) {
     const fd = new FormData();
     fd.append('ajax', 'recreate');
     fd.append('classid', classid);
-    fd.append('postwaitms', '1500');
+    fd.append('postwaitms', '3000');
     fd.append('sesskey', SESSKEY);
 
     try {
