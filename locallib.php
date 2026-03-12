@@ -5245,16 +5245,16 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
     switch ($event->eventtype) {
         case 'due':
             $event->color = '#FF9800'; // Orange
-            $event->name = "⏳ Vencimiento: " . $event->name;
+            $event->name = "Vencimiento: " . $event->name;
             break;
         case 'gradingdue':
             $event->color = '#E91E63'; // Pink/Red
-            $event->name = "📝 Calificar: " . $event->name;
+            $event->name = "Por calificar: " . $event->name;
             $event->is_grading_task = true;
             break;
         case 'close':
             $event->color = '#F44336'; // Red
-            $event->name = "🚫 Cierre: " . $event->name;
+            $event->name = "Cierre: " . $event->name;
             break;
         default:
             $event->color = '#9E9E9E'; // Grey
