@@ -431,6 +431,80 @@ function gmk_debug_capture_sql($label, $sql, array $params = [], int $limit = 30
     ];
 }
 
+function gmk_debug_capture_sql_safe($label, $sql, array $params = [], int $limit = 300) {
+    try {
+        return gmk_debug_capture_sql($label, $sql, $params, $limit);
+    } catch (Throwable $e) {
+        return [
+            'label' => $label,
+            'sql' => $sql,
+            'params' => $params,
+            'count' => 0,
+            'limit' => $limit,
+            'rows' => [],
+            'error' => $e->getMessage(),
+        ];
+    }
+}
+
+function gmk_debug_tail_plugin_log(int $classid, int $hintcmid = 0, int $tail = 4000, int $maxmatches = 250): array {
+    global $CFG;
+
+    $path = $CFG->dirroot . '/local/grupomakro_core/gmk_debug.log';
+    $out = [
+        'path' => $path,
+        'exists' => is_file($path),
+        'readable' => is_readable($path),
+        'tail_scanned' => 0,
+        'matches_count' => 0,
+        'matches' => [],
+    ];
+
+    if (!$out['exists'] || !$out['readable']) {
+        return $out;
+    }
+
+    $lines = @file($path, FILE_IGNORE_NEW_LINES);
+    if ($lines === false) {
+        $out['read_error'] = 'No se pudo leer el archivo de log.';
+        return $out;
+    }
+
+    $slice = array_slice($lines, -max(1, $tail));
+    $out['tail_scanned'] = count($slice);
+
+    $patterns = [
+        'classid=' . $classid,
+        'class ' . $classid,
+        'clase ' . $classid,
+        '-' . $classid . '-',
+        '-' . $classid . ' ',
+    ];
+    if ($hintcmid > 0) {
+        $patterns[] = 'cmid=' . $hintcmid;
+        $patterns[] = 'cmid ' . $hintcmid;
+        $patterns[] = 'attendancemoduleid=' . $hintcmid;
+    }
+
+    $matches = [];
+    foreach ($slice as $line) {
+        foreach ($patterns as $p) {
+            if ($p !== '' && strpos($line, $p) !== false) {
+                $matches[] = $line;
+                break;
+            }
+        }
+    }
+
+    if (count($matches) > $maxmatches) {
+        $matches = array_slice($matches, -$maxmatches);
+    }
+    $out['matches_count'] = count($matches);
+    $out['matches'] = array_values($matches);
+
+    return $out;
+}
+
 function gmk_debug_runtime_identity(): array {
     global $DB;
 
@@ -720,6 +794,38 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
             ['courseid' => $courseid],
             500
         );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'recent_course_modules_any',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.module, cm.instance, cm.visible, cm.deletioninprogress, cm.added
+               FROM {course_modules} cm
+              WHERE cm.course = :courseid
+           ORDER BY cm.id DESC",
+            ['courseid' => $courseid],
+            500
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql_safe(
+            'logstore_recent_course_module_events',
+            "SELECT id, timecreated, userid, courseid, component, action, target, objecttable, objectid, contextinstanceid, origin, ip, other
+               FROM {logstore_standard_log}
+              WHERE courseid = :courseid
+                AND target = 'course_module'
+           ORDER BY id DESC",
+            ['courseid' => $courseid],
+            300
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql_safe(
+            'logstore_recent_course_section_events',
+            "SELECT id, timecreated, userid, courseid, component, action, target, objecttable, objectid, contextinstanceid, origin, ip, other
+               FROM {logstore_standard_log}
+              WHERE courseid = :courseid
+                AND target = 'course_section'
+           ORDER BY id DESC",
+            ['courseid' => $courseid],
+            150
+        );
     }
 
     if ($hintcmid > 0) {
@@ -732,7 +838,29 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
             ['cmid' => $hintcmid],
             10
         );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql_safe(
+            'logstore_recent_hint_cmid_events',
+            "SELECT id, timecreated, userid, courseid, component, action, target, objecttable, objectid, contextinstanceid, origin, ip, other
+               FROM {logstore_standard_log}
+              WHERE objectid = :cmid
+           ORDER BY id DESC",
+            ['cmid' => $hintcmid],
+            200
+        );
     }
+
+    $snapshot['queries'][] = gmk_debug_capture_sql_safe(
+        'logstore_recent_classid_mentions',
+        "SELECT id, timecreated, userid, courseid, component, action, target, objecttable, objectid, contextinstanceid, origin, ip, other
+           FROM {logstore_standard_log}
+          WHERE " . $DB->sql_like('other', ':classneedle') . "
+       ORDER BY id DESC",
+        ['classneedle' => '%classid%' . $classid . '%'],
+        200
+    );
+
+    $snapshot['plugin_log'] = gmk_debug_tail_plugin_log($classid, $hintcmid > 0 ? $hintcmid : $attcmid);
 
     $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $classid], 'id ASC');
     $snapshot['queries'][] = [
@@ -847,6 +975,9 @@ if ($ajax === 'recreate') {
     header('Content-Type: application/json');
     try {
         $classid = required_param('classid', PARAM_INT);
+        $postwaitms = optional_param('postwaitms', 1500, PARAM_INT);
+        if ($postwaitms < 0) $postwaitms = 0;
+        if ($postwaitms > 10000) $postwaitms = 10000;
         require_sesskey();
 
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
@@ -927,6 +1058,38 @@ if ($ajax === 'recreate') {
                 ['courseid' => (int)$class->corecourseid, 'sectionid' => (int)$class->coursesectionid]
             );
             $log[] = "POSTCHECK section_modules(attendance|bbb)={$postSectionCount}";
+
+            if ($postwaitms > 0) {
+                usleep($postwaitms * 1000);
+                $classAfterWait = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+                $waitAttCmid = (int)($classAfterWait->attendancemoduleid ?? 0);
+                $log[] = "POSTCHECK+{$postwaitms}ms class.attendancemoduleid={$waitAttCmid}";
+                if ($waitAttCmid > 0) {
+                    $waitcm = $DB->get_record_sql(
+                        "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename
+                           FROM {course_modules} cm
+                           JOIN {modules} m ON m.id = cm.module
+                          WHERE cm.id = :cmid",
+                        ['cmid' => $waitAttCmid]
+                    );
+                    if ($waitcm) {
+                        $log[] = "POSTCHECK+{$postwaitms}ms cm_exists=1 course={$waitcm->course} section={$waitcm->section} instance={$waitcm->instance} modulename={$waitcm->modulename}";
+                    } else {
+                        $log[] = "POSTCHECK+{$postwaitms}ms cm_exists=0 for cmid={$waitAttCmid}";
+                    }
+                }
+                $waitSectionCount = $DB->count_records_sql(
+                    "SELECT COUNT(1)
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.course = :courseid
+                        AND cm.section = :sectionid
+                        AND m.name IN ('attendance','bigbluebuttonbn')",
+                    ['courseid' => (int)$classAfterWait->corecourseid, 'sectionid' => (int)$classAfterWait->coursesectionid]
+                );
+                $log[] = "POSTCHECK+{$postwaitms}ms section_modules(attendance|bbb)={$waitSectionCount}";
+                $class = $classAfterWait;
+            }
         } catch (Throwable $e) {
             $log[] = "WARN Error creando actividades: " . $e->getMessage();
             gmk_debug_log_exception_chain($e, $log, 'Excepcion');
@@ -1350,6 +1513,7 @@ async function recreateOne(classid, btn) {
     const fd = new FormData();
     fd.append('ajax', 'recreate');
     fd.append('classid', classid);
+    fd.append('postwaitms', '1500');
     fd.append('sesskey', SESSKEY);
 
     try {
@@ -1396,6 +1560,7 @@ async function inspectOne(classid, btn) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
     const logEl = document.getElementById('log-' + classid);
+    const prevLogText = (logEl.textContent || '');
     logEl.style.display = 'block';
     logEl.textContent = 'Cargando diagnostico...';
 
@@ -1413,7 +1578,7 @@ async function inspectOne(classid, btn) {
     }
     // Fallback: parse cmid from latest recreate log line (attendancemoduleid=NNNN).
     if (!fd.has('hintcmid')) {
-        const logTxt = logEl.textContent || '';
+        const logTxt = prevLogText;
         const m2 = logTxt.match(/attendancemoduleid\\s*=\\s*(\\d+)/i);
         if (m2 && m2[1]) {
             fd.append('hintcmid', m2[1]);
