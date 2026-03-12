@@ -552,16 +552,6 @@ function gmk_debug_mysql_tx_state(): array {
     } catch (Throwable $e) {
         $out['error'] = $e->getMessage();
     }
-    try {
-        $r2 = $DB->get_record_sql("SELECT @@in_transaction AS in_transaction");
-        if ($r2) {
-            foreach ((array)$r2 as $k => $v) {
-                $out[$k] = $v;
-            }
-        }
-    } catch (Throwable $e) {
-        $out['in_transaction_error'] = $e->getMessage();
-    }
     return $out;
 }
 
@@ -693,14 +683,7 @@ function gmk_debug_runtime_identity(): array {
         $identity['db']['mysql_tx_error'] = $e->getMessage();
     }
 
-    try {
-        $r3 = $DB->get_record_sql("SELECT @@in_transaction AS in_transaction");
-        if ($r3) {
-            $identity['db'] = array_merge($identity['db'], (array)$r3);
-        }
-    } catch (Throwable $e) {
-        $identity['db']['in_transaction_error'] = $e->getMessage();
-    }
+    $identity['db']['in_transaction'] = 'n/a';
 
     if ($CFG->dbtype === 'pgsql') {
         try {
