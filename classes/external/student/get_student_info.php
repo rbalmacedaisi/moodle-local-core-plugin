@@ -110,12 +110,34 @@ class get_student_info extends external_api {
             }
         }
         if (!empty($params['classid'])) {
-            $class = $DB->get_record('gmk_class', ['id' => $params['classid']], 'groupid,instructorid');
+            $class = $DB->get_record('gmk_class', ['id' => $params['classid']], 'id,groupid,instructorid,approved');
             if ($class) {
-                $sqlConditions[] = "EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.userid = u.id AND gm.groupid = :groupid)";
-                $sqlConditions[] = "u.id <> :instructorid";
-                $sqlParams['groupid'] = $class->groupid;
-                $sqlParams['instructorid'] = $class->instructorid;
+                if (!empty($class->groupid)) {
+                    // Standard classes: roster comes from Moodle group membership.
+                    $sqlConditions[] = "EXISTS (
+                        SELECT 1
+                          FROM {groups_members} gm
+                         WHERE gm.userid = u.id
+                           AND gm.groupid = :groupid
+                    )";
+                    $sqlParams['groupid'] = (int)$class->groupid;
+                } else {
+                    // Classes without group (groupid=0): roster comes from class progress.
+                    // This is common in repaired/published classes where enrollment persisted
+                    // in gmk_course_progre but no Moodle group exists.
+                    $sqlConditions[] = "EXISTS (
+                        SELECT 1
+                          FROM {gmk_course_progre} cp2
+                         WHERE cp2.userid = u.id
+                           AND cp2.classid = :classid_filter
+                    )";
+                    $sqlParams['classid_filter'] = (int)$params['classid'];
+                }
+
+                if (!empty($class->instructorid)) {
+                    $sqlConditions[] = "u.id <> :instructorid";
+                    $sqlParams['instructorid'] = (int)$class->instructorid;
+                }
             }
         }
 

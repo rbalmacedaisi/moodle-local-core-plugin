@@ -235,6 +235,111 @@ foreach ($classes as $class) {
         $reasons[] = 'La aprobacion muestra pendientes (pre/queue), pero dashboard muestra inscritos reales en grupo.';
     }
 
+    // Diagnose the exact source used by TeacherStudentTable -> local_grupomakro_get_student_info.
+    $groupuids = [];
+    if (!empty($class->groupid)) {
+        $groupuids = $DB->get_fieldset_select(
+            'groups_members',
+            'userid',
+            'groupid = :gid AND userid != :iid',
+            ['gid' => (int)$class->groupid, 'iid' => (int)$class->instructorid]
+        );
+    }
+    $groupuids = array_values(array_unique(array_map('intval', $groupuids)));
+
+    $progreuids = $DB->get_fieldset_select(
+        'gmk_course_progre',
+        'userid',
+        'classid = :cid AND userid != :iid',
+        ['cid' => (int)$class->id, 'iid' => (int)$class->instructorid]
+    );
+    $progreuids = array_values(array_unique(array_map('intval', $progreuids)));
+
+    $candidateuids = array_values(array_unique(array_merge($groupuids, $progreuids)));
+    $groupuidset = array_fill_keys($groupuids, true);
+    $progreuidset = array_fill_keys($progreuids, true);
+
+    $usersbyid = [];
+    $llubyuser = [];
+    if (!empty($candidateuids)) {
+        list($inusersql, $inuserparams) = $DB->get_in_or_equal($candidateuids, SQL_PARAMS_NAMED, 'u');
+        $usersbyid = $DB->get_records_sql(
+            "SELECT id, firstname, lastname, idnumber, email
+               FROM {user}
+              WHERE id $inusersql",
+            $inuserparams
+        );
+
+        $llurecs = $DB->get_records_sql(
+            "SELECT id, userid, learningplanid, userrolename, currentperiodid, status
+               FROM {local_learning_users}
+              WHERE userid $inusersql",
+            $inuserparams
+        );
+        foreach ($llurecs as $lr) {
+            if (!isset($llubyuser[$lr->userid])) {
+                $llubyuser[$lr->userid] = [];
+            }
+            $llubyuser[$lr->userid][] = $lr;
+        }
+    }
+
+    $studenttabrows = [];
+    $currentqueryuids = [];
+    $fallbackqueryuids = [];
+    foreach ($candidateuids as $uid) {
+        $lurows = $llubyuser[$uid] ?? [];
+        $hasstudentllu = false;
+        $planids = [];
+        $roles = [];
+        foreach ($lurows as $lur) {
+            $roles[] = (string)$lur->userrolename;
+            $planids[] = (int)$lur->learningplanid;
+            if ($lur->userrolename === 'student') {
+                $hasstudentllu = true;
+            }
+        }
+        $roles = array_values(array_unique($roles));
+        $planids = array_values(array_unique($planids));
+
+        $ingroup = isset($groupuidset[$uid]);
+        $inprogre = isset($progreuidset[$uid]);
+        $isinstructor = ((int)$uid === (int)$class->instructorid);
+
+        // Current query in get_student_info before fix.
+        $currentpassesclassfilter = ((int)$class->groupid > 0) ? $ingroup : false;
+        $currentincluded = (!$isinstructor && $hasstudentllu && $currentpassesclassfilter);
+
+        // Expected/fixed behavior for classes without group.
+        $fallbackpassesclassfilter = ((int)$class->groupid > 0) ? $ingroup : $inprogre;
+        $fallbackincluded = (!$isinstructor && $hasstudentllu && $fallbackpassesclassfilter);
+
+        if ($currentincluded) {
+            $currentqueryuids[] = $uid;
+        }
+        if ($fallbackincluded) {
+            $fallbackqueryuids[] = $uid;
+        }
+
+        $u = $usersbyid[$uid] ?? null;
+        $studenttabrows[] = [
+            'userid' => $uid,
+            'idnumber' => $u ? (string)$u->idnumber : '',
+            'name' => $u ? trim($u->firstname . ' ' . $u->lastname) : '',
+            'ingroup' => $ingroup,
+            'inprogre' => $inprogre,
+            'hasstudentllu' => $hasstudentllu,
+            'llu_roles' => implode(',', $roles),
+            'llu_plans' => implode(',', $planids),
+            'current_included' => $currentincluded,
+            'fallback_included' => $fallbackincluded,
+        ];
+    }
+
+    if ((int)$class->groupid === 0 && !empty($progreuids) && empty($currentqueryuids)) {
+        $reasons[] = 'La pestaña Estudiantes queda vacia porque get_student_info filtraba solo por groups_members y esta clase no tiene groupid.';
+    }
+
     $diag = [
         'class' => [
             'id' => (int)$class->id,
@@ -267,6 +372,15 @@ foreach ($classes as $class) {
             'participants_progre' => $progrededup,
             'scheduleapproval_users_shown' => $schedulepanelusers,
             'scheduleapproval_waiting_shown' => $schedulepanelwaiting,
+        ],
+        'student_tab_debug' => [
+            'group_source_count' => count($groupuids),
+            'progre_source_count' => count($progreuids),
+            'candidate_union_count' => count($candidateuids),
+            'current_query_included_count' => count($currentqueryuids),
+            'fallback_query_included_count' => count($fallbackqueryuids),
+            'current_query_userids' => array_values($currentqueryuids),
+            'fallback_query_userids' => array_values($fallbackqueryuids),
         ],
         'reasons' => $reasons,
     ];
@@ -313,6 +427,42 @@ foreach ($classes as $class) {
             echo '<td>' . gmk_dbg_badge((int)$row->in_prereg === 1, 'SI', 'NO') . '</td>';
             echo '<td>' . gmk_dbg_badge((int)$row->in_queue === 1, 'SI', 'NO') . '</td>';
             echo '<td>' . gmk_dbg_badge((int)$row->in_progre === 1, 'SI', 'NO') . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    echo '<h4>Detalle de inclusion en pestaña Estudiantes (TeacherStudentTable)</h4>';
+    echo '<div class="muted">Fuente actual del endpoint local_grupomakro_get_student_info:</div>';
+    echo '<div class="muted">- Si class.groupid > 0: incluye solo usuarios en groups_members de ese groupid.</div>';
+    echo '<div class="muted">- Si class.groupid = 0: antes no incluia nadie (filtraba por groups_members inexistente).</div>';
+
+    echo '<table class="dbg-table">';
+    echo '<thead><tr><th>Metric</th><th>Count</th><th>Comentario</th></tr></thead><tbody>';
+    echo '<tr><td>group source users</td><td>' . count($groupuids) . '</td><td>groups_members sin instructor</td></tr>';
+    echo '<tr><td>progre source users</td><td>' . count($progreuids) . '</td><td>gmk_course_progre sin instructor</td></tr>';
+    echo '<tr><td>candidate union users</td><td>' . count($candidateuids) . '</td><td>union(group, progre)</td></tr>';
+    echo '<tr><td>included by current query logic</td><td><strong>' . count($currentqueryuids) . '</strong></td><td>logica antigua get_student_info</td></tr>';
+    echo '<tr><td>included by fallback logic</td><td><strong>' . count($fallbackqueryuids) . '</strong></td><td>logica esperada para groupid=0</td></tr>';
+    echo '</tbody></table>';
+
+    if (empty($studenttabrows)) {
+        echo '<div class="muted">No hay candidatos para listar en detalle.</div>';
+    } else {
+        echo '<table class="dbg-table">';
+        echo '<thead><tr><th>userid</th><th>idnumber</th><th>nombre</th><th>in_group</th><th>in_progre</th><th>has_student_llu</th><th>llu_roles</th><th>llu_plans</th><th>current_included</th><th>fallback_included</th></tr></thead><tbody>';
+        foreach ($studenttabrows as $r) {
+            echo '<tr>';
+            echo '<td>' . (int)$r['userid'] . '</td>';
+            echo '<td>' . gmk_dbg_h($r['idnumber']) . '</td>';
+            echo '<td>' . gmk_dbg_h($r['name']) . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['ingroup'], 'SI', 'NO') . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['inprogre'], 'SI', 'NO') . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['hasstudentllu'], 'SI', 'NO') . '</td>';
+            echo '<td>' . gmk_dbg_h($r['llu_roles']) . '</td>';
+            echo '<td>' . gmk_dbg_h($r['llu_plans']) . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['current_included'], 'SI', 'NO') . '</td>';
+            echo '<td>' . gmk_dbg_badge((bool)$r['fallback_included'], 'SI', 'NO') . '</td>';
             echo '</tr>';
         }
         echo '</tbody></table>';
