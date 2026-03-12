@@ -3094,21 +3094,21 @@ function get_academic_calendar_period($filters)
 function parse_academic_calendar_period_excel($academicCalendarPeriod)
 {
 
-    define('COLUMN_PERIOD', 'A');
-    define('COLUMN_BIMESTER', 'B');
-    define('COLUMN_PERIOD_START', 'C');
-    define('COLUMN_PERIOD_END', 'D');
-    define('COLUMN_INDUCTION', 'E');
-    define('COLUMN_FINAL_EXAM_FROM', 'F');
-    define('COLUMN_FINAL_EXAM_UNTIL', 'G');
-    define('COLUMN_LOAD_NOTES', 'H');
-    define('COLUMN_DELIVERY_LIST', 'I');
-    define('COLUMN_NOTIFICATION', 'J');
-    define('COLUMN_DEADLINES', 'K');
-    define('COLUMN_REVALIDATION', 'L');
-    define('COLUMN_REGISTRATIONS_FROM', 'M');
-    define('COLUMN_REGISTRATIONS_UNTIL', 'N');
-    define('COLUMN_GRADUATION_DATE', 'O');
+    if (!defined('COLUMN_PERIOD')) define('COLUMN_PERIOD', 'A');
+    if (!defined('COLUMN_BIMESTER')) define('COLUMN_BIMESTER', 'B');
+    if (!defined('COLUMN_PERIOD_START')) define('COLUMN_PERIOD_START', 'C');
+    if (!defined('COLUMN_PERIOD_END')) define('COLUMN_PERIOD_END', 'D');
+    if (!defined('COLUMN_INDUCTION')) define('COLUMN_INDUCTION', 'E');
+    if (!defined('COLUMN_FINAL_EXAM_FROM')) define('COLUMN_FINAL_EXAM_FROM', 'F');
+    if (!defined('COLUMN_FINAL_EXAM_UNTIL')) define('COLUMN_FINAL_EXAM_UNTIL', 'G');
+    if (!defined('COLUMN_LOAD_NOTES')) define('COLUMN_LOAD_NOTES', 'H');
+    if (!defined('COLUMN_DELIVERY_LIST')) define('COLUMN_DELIVERY_LIST', 'I');
+    if (!defined('COLUMN_NOTIFICATION')) define('COLUMN_NOTIFICATION', 'J');
+    if (!defined('COLUMN_DEADLINES')) define('COLUMN_DEADLINES', 'K');
+    if (!defined('COLUMN_REVALIDATION')) define('COLUMN_REVALIDATION', 'L');
+    if (!defined('COLUMN_REGISTRATIONS_FROM')) define('COLUMN_REGISTRATIONS_FROM', 'M');
+    if (!defined('COLUMN_REGISTRATIONS_UNTIL')) define('COLUMN_REGISTRATIONS_UNTIL', 'N');
+    if (!defined('COLUMN_GRADUATION_DATE')) define('COLUMN_GRADUATION_DATE', 'O');
 
     $romanNumerals = [
         'I' => 1,
@@ -3706,12 +3706,12 @@ function complete_class_event_information($event, &$fetchedClasses)
 {
     global $DB, $CFG;
 
-    define('PRESENCIAL_CLASS_TYPE_INDEX', '0');
-    define('VIRTUAL_CLASS_TYPE_INDEX', '1');
-    define('MIXTA_CLASS_TYPE_INDEX', '2');
-    define('PRESENCIAL_CLASS_COLOR', '#00bcd4');
-    define('VIRTUAL_CLASS_COLOR', '#2196f3');
-    define('MIXTA_CLASS_COLOR', '#673ab7');
+    if (!defined('PRESENCIAL_CLASS_TYPE_INDEX')) define('PRESENCIAL_CLASS_TYPE_INDEX', '0');
+    if (!defined('VIRTUAL_CLASS_TYPE_INDEX')) define('VIRTUAL_CLASS_TYPE_INDEX', '1');
+    if (!defined('MIXTA_CLASS_TYPE_INDEX')) define('MIXTA_CLASS_TYPE_INDEX', '2');
+    if (!defined('PRESENCIAL_CLASS_COLOR')) define('PRESENCIAL_CLASS_COLOR', '#00bcd4');
+    if (!defined('VIRTUAL_CLASS_COLOR')) define('VIRTUAL_CLASS_COLOR', '#2196f3');
+    if (!defined('MIXTA_CLASS_COLOR')) define('MIXTA_CLASS_COLOR', '#673ab7');
 
     $eventColors = [
         PRESENCIAL_CLASS_TYPE_INDEX => PRESENCIAL_CLASS_COLOR,
@@ -4732,6 +4732,50 @@ function toggle_class_grade_lock($classId, $locked) {
 }
 
 /**
+ * Ensures assign moduleinfo contains non-null defaults for required columns.
+ *
+ * Some forks/versions are strict on NOT NULL assign fields and can fail with:
+ * "Column 'submissiondrafts' cannot be null".
+ */
+function local_grupomakro_apply_assign_defaults(stdClass &$moduleinfo, array $assigncols): void {
+    $assigncols = array_change_key_case($assigncols, CASE_LOWER);
+    $defaults = [
+        'alwaysshowdescription' => 1,
+        'submissiondrafts' => 0,
+        'requiresubmissionstatement' => 0,
+        'sendnotifications' => 0,
+        'sendlatenotifications' => 0,
+        'sendstudentnotifications' => 1,
+        'duedate' => 0,
+        'cutoffdate' => 0,
+        'gradingduedate' => 0,
+        'allowsubmissionsfromdate' => 0,
+        'grade' => 100,
+        'completionsubmit' => 0,
+        'teamsubmission' => 0,
+        'requireallteammemberssubmit' => 0,
+        'teamsubmissiongroupingid' => 0,
+        'blindmarking' => 0,
+        'hidegrader' => 0,
+        'revealidentities' => 0,
+        'attemptreopenmethod' => 'none',
+        'maxattempts' => -1,
+        'markingworkflow' => 0,
+        'markingallocation' => 0,
+        'preventsubmissionnotingroup' => 0,
+    ];
+
+    foreach ($defaults as $field => $value) {
+        if (!array_key_exists($field, $assigncols)) {
+            continue;
+        }
+        if (!property_exists($moduleinfo, $field) || $moduleinfo->{$field} === null) {
+            $moduleinfo->{$field} = $value;
+        }
+    }
+}
+
+/**
  * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
  * Part of the innovative Teacher Experience.
  */
@@ -4787,37 +4831,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
         $moduleinfo->assignsubmission_file_enabled = 1;
         $moduleinfo->assignsubmission_onlinetext_enabled = 1;
-
-        // Keep assign defaults conservative to avoid schema/version mismatches.
-        // Only set fields when present in this installation.
+        // Keep assign defaults conservative and explicitly non-null.
         $assigncols = $DB->get_columns('assign');
-        if (isset($assigncols['alwaysshowdescription'])) {
-            $moduleinfo->alwaysshowdescription = 1;
-        }
-        if (isset($assigncols['submissiondrafts'])) {
-            $moduleinfo->submissiondrafts = 0;
-        }
-        if (isset($assigncols['requiresubmissionstatement'])) {
-            $moduleinfo->requiresubmissionstatement = 0;
-        }
-        if (isset($assigncols['sendnotifications'])) {
-            $moduleinfo->sendnotifications = 0;
-        }
-        if (isset($assigncols['sendlatenotifications'])) {
-            $moduleinfo->sendlatenotifications = 0;
-        }
-        if (isset($assigncols['sendstudentnotifications'])) {
-            $moduleinfo->sendstudentnotifications = 1;
-        }
-        if (isset($assigncols['cutoffdate'])) {
-            $moduleinfo->cutoffdate = 0;
-        }
-        if (isset($assigncols['gradingduedate'])) {
-            $moduleinfo->gradingduedate = 0;
-        }
-        if (isset($assigncols['allowsubmissionsfromdate'])) {
-            $moduleinfo->allowsubmissionsfromdate = 0;
-        }
+        local_grupomakro_apply_assign_defaults($moduleinfo, $assigncols);
     } else if ($type === 'quiz') {
         $moduleinfo->grade = 10; // Default max grade
         $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
@@ -4882,6 +4898,13 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     try {
         $result = add_moduleinfo($moduleinfo, $course);
     } catch (\Throwable $e) {
+        file_put_contents(
+            __DIR__ . '/gmk_debug.log',
+            '[' . date('Y-m-d H:i:s') . '] WARNING add_moduleinfo failed type=' . $type .
+            ' classid=' . $classid . ' msg=' . $e->getMessage() . PHP_EOL,
+            FILE_APPEND
+        );
+
         // Assign is the most version-sensitive module in this fork.
         // Retry with a minimal payload to maximize compatibility.
         if ($type !== 'assign') {
@@ -4902,11 +4925,23 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $minimal->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
         $minimal->assignsubmission_file_enabled = 1;
         $minimal->assignsubmission_onlinetext_enabled = 1;
+        $minimalassigncols = $DB->get_columns('assign');
+        local_grupomakro_apply_assign_defaults($minimal, $minimalassigncols);
         if (!empty($extra['gradecat'])) {
             $minimal->gradecat = $extra['gradecat'];
         }
 
-        $result = add_moduleinfo($minimal, $course);
+        try {
+            $result = add_moduleinfo($minimal, $course);
+        } catch (\Throwable $retrye) {
+            file_put_contents(
+                __DIR__ . '/gmk_debug.log',
+                '[' . date('Y-m-d H:i:s') . '] ERROR add_moduleinfo retry failed type=assign classid=' . $classid .
+                ' msg=' . $retrye->getMessage() . PHP_EOL,
+                FILE_APPEND
+            );
+            throw $retrye;
+        }
     }
     if (empty($result) || empty($result->coursemodule)) {
         throw new \moodle_exception('No se pudo crear la actividad en el curso.');
