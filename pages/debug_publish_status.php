@@ -20,6 +20,7 @@ $ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);
 
 // ── AJAX: re-crear estructuras Moodle para una clase ─────────────────────────
 if ($ajax === 'recreate') {
+    $PAGE->set_context(context_system::instance());
     header('Content-Type: application/json');
     try {
         $classid = required_param('classid', PARAM_INT);
@@ -85,6 +86,7 @@ if ($ajax === 'recreate') {
 
 // ── AJAX: re-crear TODAS las clases incompletas del periodo ──────────────────
 if ($ajax === 'recreate_all') {
+    $PAGE->set_context(context_system::instance());
     header('Content-Type: application/json');
     try {
         $periodid = required_param('periodid', PARAM_INT);

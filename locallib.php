@@ -1017,7 +1017,14 @@ function create_attendance_activity($class, $classSectionNumber)
     $attendanceActivityDefinition->completionusegrade         = 1;
     $attendanceActivityDefinition->completionpassgrade        = 1;
 
-    $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
+    global $CFG;
+    $prevMsg = $CFG->messaging ?? true;
+    $CFG->messaging = false;
+    try {
+        $attendanceActivityInfo = add_moduleinfo($attendanceActivityDefinition, $class->course);
+    } finally {
+        $CFG->messaging = $prevMsg;
+    }
     return $attendanceActivityInfo;
 }
 
