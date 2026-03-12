@@ -749,23 +749,34 @@ function create_class_activities($class, $updating = false)
             try {
                 $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
             } catch (Throwable $attErr) {
-                // add_moduleinfo throws when Moodle messaging fails (e.g. suspended instructor).
-                // The attendance module IS created in the DB before the event fires — recover it.
-                gmk_log("WARNING create_attendance_activity threw for class {$class->id}: " . $attErr->getMessage() . " — buscando módulo creado parcialmente");
+                // add_moduleinfo throws when grade recalc or messaging fails.
+                // The module IS often created in the DB before the exception — try to recover it.
+                $attErrMsg = $attErr->getMessage();
+                gmk_log("WARNING create_attendance_activity threw for class {$class->id}: {$attErrMsg}"
+                    . " (courseid={$class->corecourseid}, sectionid={$class->coursesectionid}, sectionnum={$classSectionNumber})");
                 $attModId = $DB->get_field('modules', 'id', ['name' => 'attendance']);
                 // course_modules.section stores the course_sections.id (not the section number)
                 $existingCm = $attModId ? $DB->get_record_sql(
                     "SELECT id, instance FROM {course_modules} WHERE course=:c AND module=:m AND section=:s ORDER BY id DESC LIMIT 1",
                     ['c' => $class->corecourseid, 'm' => $attModId, 's' => $class->coursesectionid]
                 ) : null;
+                // Fallback: search without section filter in case of section ID mismatch
+                if (!$existingCm && $attModId) {
+                    $existingCm = $DB->get_record_sql(
+                        "SELECT id, instance, section FROM {course_modules} WHERE course=:c AND module=:m ORDER BY id DESC LIMIT 1",
+                        ['c' => $class->corecourseid, 'm' => $attModId]
+                    );
+                    if ($existingCm) {
+                        gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} en section={$existingCm->section} (esperaba {$class->coursesectionid})");
+                    }
+                }
                 if ($existingCm) {
                     $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
-                    gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} creado parcialmente para clase {$class->id}");
+                    gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} para clase {$class->id}");
                 } else {
-                    // Module was NOT created — nothing to recover, skip this class
-                    gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id} — saltando actividades");
-                    throw new \moodle_exception('errorcreateattendeance', 'local_grupomakro_core', '',
-                        "No se pudo crear ni recuperar el módulo de attendance para clase {$class->id} (courseid={$class->corecourseid})");
+                    // Module was NOT created at all — report with original error
+                    gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id}: {$attErrMsg}");
+                    throw new \Exception("No se pudo crear attendance para clase {$class->id}: {$attErrMsg}", 0, $attErr);
                 }
             }
             $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
