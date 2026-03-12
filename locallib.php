@@ -4787,25 +4787,37 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $moduleinfo->duedate = !empty($extra['duedate']) ? $extra['duedate'] : 0;
         $moduleinfo->assignsubmission_file_enabled = 1;
         $moduleinfo->assignsubmission_onlinetext_enabled = 1;
-        
-        // Fix for missing default values in DB
-        $moduleinfo->submissiondrafts = 0;
-        $moduleinfo->requiresubmissionstatement = 0;
-        $moduleinfo->sendnotifications = 0;
-        $moduleinfo->sendlatenotifications = 0;
-        $moduleinfo->sendstudentnotifications = 1;
-        $moduleinfo->cutoffdate = 0;
-        $moduleinfo->gradingduedate = 0;
-        $moduleinfo->allowsubmissionsfromdate = 0;
-        $moduleinfo->teamsubmission = 0;
-        $moduleinfo->requireallteammemberssubmit = 0;
-        $moduleinfo->blindmarking = 0;
-        $moduleinfo->hidegrader = 0;
-        $moduleinfo->revealidentities = 0;
-        $moduleinfo->attemptreopenmethod = 'none';
-        $moduleinfo->maxattempts = -1;
-        $moduleinfo->markingworkflow = 0;
-        $moduleinfo->markingallocation = 0;
+
+        // Keep assign defaults conservative to avoid schema/version mismatches.
+        // Only set fields when present in this installation.
+        $assigncols = $DB->get_columns('assign');
+        if (isset($assigncols['alwaysshowdescription'])) {
+            $moduleinfo->alwaysshowdescription = 1;
+        }
+        if (isset($assigncols['submissiondrafts'])) {
+            $moduleinfo->submissiondrafts = 0;
+        }
+        if (isset($assigncols['requiresubmissionstatement'])) {
+            $moduleinfo->requiresubmissionstatement = 0;
+        }
+        if (isset($assigncols['sendnotifications'])) {
+            $moduleinfo->sendnotifications = 0;
+        }
+        if (isset($assigncols['sendlatenotifications'])) {
+            $moduleinfo->sendlatenotifications = 0;
+        }
+        if (isset($assigncols['sendstudentnotifications'])) {
+            $moduleinfo->sendstudentnotifications = 1;
+        }
+        if (isset($assigncols['cutoffdate'])) {
+            $moduleinfo->cutoffdate = 0;
+        }
+        if (isset($assigncols['gradingduedate'])) {
+            $moduleinfo->gradingduedate = 0;
+        }
+        if (isset($assigncols['allowsubmissionsfromdate'])) {
+            $moduleinfo->allowsubmissionsfromdate = 0;
+        }
     } else if ($type === 'quiz') {
         $moduleinfo->grade = 10; // Default max grade
         $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
@@ -4868,6 +4880,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     $moduleinfo->quizpassword = 'temp_pass';
 
     $result = add_moduleinfo($moduleinfo, $course);
+    if (empty($result) || empty($result->coursemodule)) {
+        throw new \moodle_exception('No se pudo crear la actividad en el curso.');
+    }
     
     // WORKAROUND: Clear the dummy password we set earlier
     if ($type === 'quiz' && isset($moduleinfo->instance) && $moduleinfo->password === 'temp_pass') {

@@ -2888,6 +2888,16 @@ try {
                     $classid, $type, $name, $intro, $duedate, $save_as_template, [], $gradecat, $guest
                 );
 
+                // Propagate nested backend errors instead of reporting false success.
+                if (!is_array($result) || ($result['status'] ?? 'error') !== 'success' || empty($result['cmid'])) {
+                    $response = [
+                        'status' => 'error',
+                        'message' => is_array($result) ? ($result['message'] ?? 'No se pudo crear la actividad.') : 'Respuesta invalida al crear actividad.',
+                        'data' => $result
+                    ];
+                    break;
+                }
+
                 // Apply tags from ajax.php directly (avoids validate_parameters type issues)
                 if (!empty($result['cmid']) && !empty($tagList)) {
                     $new_cm_tags = get_coursemodule_from_id('', (int)$result['cmid'], 0, false, MUST_EXIST);
@@ -2963,7 +2973,7 @@ try {
                 }
 
                 $response = ['status' => 'success', 'data' => $result];
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                  $response = ['status' => 'error', 'message' => $e->getMessage()];
             }
             break;

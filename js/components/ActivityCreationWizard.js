@@ -312,11 +312,19 @@ const ActivityCreationWizard = {
                     ...window.wsStaticParams
                 });
 
-                if (response.data.status === 'success') {
+                const topStatus = response && response.data ? response.data.status : 'error';
+                const nestedStatus = response && response.data && response.data.data ? response.data.data.status : null;
+                const finalSuccess = topStatus === 'success' && (nestedStatus === null || nestedStatus === 'success');
+
+                if (finalSuccess) {
                     this.$emit('success');
                     this.close();
                 } else {
-                    alert('Error saving activity: ' + (response.data.message || 'Error desconocido'));
+                    const backendMessage =
+                        (response && response.data && response.data.message) ||
+                        (response && response.data && response.data.data && response.data.data.message) ||
+                        'Error desconocido';
+                    alert('Error saving activity: ' + backendMessage);
                 }
             } catch (error) {
                 console.error('Error saving activity:', error);

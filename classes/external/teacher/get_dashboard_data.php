@@ -132,6 +132,37 @@ class get_dashboard_data extends external_api {
         $end_date_str = date('Y-m-d', $max_end);
         
         $events = get_class_events($params['userid'], $init_date_str, $end_date_str);
+
+        // Keep only events that belong to the instructor active classes shown in this dashboard.
+        $activeclassids = array_map(function($c) {
+            return (int)$c->id;
+        }, $active_classes);
+        $activeclassset = array_flip($activeclassids);
+
+        // Build course -> class ids map to rescue events without explicit classId.
+        $activeclassesbycourse = [];
+        foreach ($active_classes as $c) {
+            $cid = (int)$c->courseid;
+            if (!isset($activeclassesbycourse[$cid])) {
+                $activeclassesbycourse[$cid] = [];
+            }
+            $activeclassesbycourse[$cid][] = (int)$c->id;
+        }
+
+        $events = array_values(array_filter($events, function($event) use ($activeclassset, $activeclassesbycourse) {
+            $eventclassid = !empty($event->classId) ? (int)$event->classId : 0;
+            if ($eventclassid > 0) {
+                return isset($activeclassset[$eventclassid]);
+            }
+
+            // Fallback: if exactly one active class exists in this course, bind event to that class.
+            $courseid = !empty($event->courseid) ? (int)$event->courseid : 0;
+            if ($courseid > 0 && !empty($activeclassesbycourse[$courseid]) && count($activeclassesbycourse[$courseid]) === 1) {
+                $event->classId = $activeclassesbycourse[$courseid][0];
+                return true;
+            }
+            return false;
+        }));
         
         // Build maps for Course Info and Group Info
         $event_course_ids = [];
