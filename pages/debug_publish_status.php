@@ -81,7 +81,141 @@ function gmk_debug_publish_diagnostics($class) {
         }, $cms));
     }
 
+    if (!empty($class->corecourseid)) {
+        $coursecontexts = $DB->get_records('context', ['contextlevel' => CONTEXT_COURSE, 'instanceid' => (int)$class->corecourseid], 'id ASC', 'id,contextlevel,instanceid,path,depth');
+        $diag['course_context_count'] = count($coursecontexts);
+        $diag['course_context_ids'] = array_values(array_map('intval', array_keys($coursecontexts)));
+    }
+
     return $diag;
+}
+
+function gmk_debug_is_duplicate_read_error(Throwable $e): bool {
+    $msg = core_text::strtolower((string)$e->getMessage());
+    if (strpos($msg, 'mas de un registro') !== false) return true;
+    if (strpos($msg, 'mÃ¡s de un registro') !== false) return true;
+    if (strpos($msg, 'more than one record') !== false) return true;
+    $p = $e->getPrevious();
+    while ($p) {
+        $pmsg = core_text::strtolower((string)$p->getMessage());
+        if (strpos($pmsg, 'mas de un registro') !== false || strpos($pmsg, 'mÃ¡s de un registro') !== false || strpos($pmsg, 'more than one record') !== false) {
+            return true;
+        }
+        $p = $p->getPrevious();
+    }
+    return false;
+}
+
+function gmk_debug_log_exception_chain(Throwable $e, array &$log, string $label = 'Error') {
+    $idx = 0;
+    $cur = $e;
+    while ($cur) {
+        $prefix = $idx === 0 ? $label : ($label . " (prev {$idx})");
+        $log[] = "{$prefix}: [" . get_class($cur) . '] ' . $cur->getMessage();
+        $log[] = "{$prefix} @ " . basename($cur->getFile()) . ':' . $cur->getLine();
+        if (property_exists($cur, 'debuginfo') && !empty($cur->debuginfo)) {
+            $log[] = "{$prefix} debuginfo: " . (string)$cur->debuginfo;
+        }
+        if ($idx === 0) {
+            $traceLines = explode("\n", $cur->getTraceAsString());
+            foreach (array_slice($traceLines, 0, 8) as $tl) {
+                $log[] = "    " . $tl;
+            }
+        }
+        $cur = $cur->getPrevious();
+        $idx++;
+    }
+}
+
+function gmk_debug_cleanup_partial_class_activities($classid, array &$log) {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+    if (empty($class->corecourseid)) {
+        $log[] = "Auto-repair: clase sin corecourseid, no se puede limpiar.";
+        return $class;
+    }
+
+    $log[] = "Auto-repair: limpiando artefactos de actividades para clase {$class->id}...";
+
+    $attendanceModuleIds = [];
+    $bbbModuleIds = [];
+
+    $mods = $DB->get_records_list('modules', 'name', ['attendance', 'bigbluebuttonbn'], '', 'id,name');
+    $attendanceModIds = [];
+    $bbbModIds = [];
+    foreach ($mods as $m) {
+        if ($m->name === 'attendance') $attendanceModIds[] = (int)$m->id;
+        if ($m->name === 'bigbluebuttonbn') $bbbModIds[] = (int)$m->id;
+    }
+
+    if (!empty($attendanceModIds)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($attendanceModIds, SQL_PARAMS_NAMED, 'attm');
+        $params = $inparams + ['courseid' => (int)$class->corecourseid, 'suffix' => '%-' . (int)$class->id];
+        $attcms = $DB->get_records_sql(
+            "SELECT cm.id
+               FROM {course_modules} cm
+               JOIN {attendance} a ON a.id = cm.instance
+              WHERE cm.course = :courseid
+                AND cm.module {$insql}
+                AND " . $DB->sql_like('a.name', ':suffix'),
+            $params
+        );
+        $attendanceModuleIds = array_values(array_map(static function($r) { return (int)$r->id; }, $attcms));
+    }
+
+    if (!empty($bbbModIds)) {
+        list($insql2, $inparams2) = $DB->get_in_or_equal($bbbModIds, SQL_PARAMS_NAMED, 'bbbm');
+        $params2 = $inparams2 + ['courseid' => (int)$class->corecourseid, 'suffix' => '%-' . (int)$class->id . '-%'];
+        $bbbcms = $DB->get_records_sql(
+            "SELECT cm.id
+               FROM {course_modules} cm
+               JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+              WHERE cm.course = :courseid
+                AND cm.module {$insql2}
+                AND " . $DB->sql_like('b.name', ':suffix'),
+            $params2
+        );
+        $bbbModuleIds = array_values(array_map(static function($r) { return (int)$r->id; }, $bbbcms));
+    }
+
+    if (!empty($class->attendancemoduleid)) {
+        $attendanceModuleIds[] = (int)$class->attendancemoduleid;
+    }
+    if (!empty($class->bbbmoduleids)) {
+        foreach (explode(',', (string)$class->bbbmoduleids) as $id) {
+            $id = (int)trim($id);
+            if ($id > 0) $bbbModuleIds[] = $id;
+        }
+    }
+
+    $attendanceModuleIds = array_values(array_unique(array_filter($attendanceModuleIds)));
+    $bbbModuleIds = array_values(array_unique(array_filter($bbbModuleIds)));
+
+    foreach ($bbbModuleIds as $cmid) {
+        try {
+            course_delete_module($cmid);
+            $log[] = "Auto-repair: BBB eliminado cmid={$cmid}";
+        } catch (Throwable $delerr) {
+            $log[] = "Auto-repair WARN: no se pudo eliminar BBB cmid={$cmid}: " . $delerr->getMessage();
+        }
+    }
+
+    foreach ($attendanceModuleIds as $cmid) {
+        try {
+            course_delete_module($cmid);
+            $log[] = "Auto-repair: Attendance eliminado cmid={$cmid}";
+        } catch (Throwable $delerr) {
+            $log[] = "Auto-repair WARN: no se pudo eliminar attendance cmid={$cmid}: " . $delerr->getMessage();
+        }
+    }
+
+    $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $classid]);
+    $DB->set_field('gmk_class', 'attendancemoduleid', 0, ['id' => $classid]);
+    $DB->set_field('gmk_class', 'bbbmoduleids', null, ['id' => $classid]);
+
+    $log[] = "Auto-repair: campos reset (attendancemoduleid=0, bbbmoduleids=NULL).";
+    return $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
 }
 
 // ── AJAX: re-crear estructuras Moodle para una clase ─────────────────────────
@@ -147,6 +281,7 @@ if ($ajax === 'recreate') {
             $log[] = "✓ Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
         } catch (Throwable $e) {
             $log[] = "⚠ Error creando actividades: " . $e->getMessage();
+            gmk_debug_log_exception_chain($e, $log, 'Excepcion');
             $log[] = "↳ Excepcion: " . get_class($e);
             $log[] = "↳ Ubicacion: " . basename($e->getFile()) . ":" . $e->getLine();
             $traceLines = explode("\n", $e->getTraceAsString());
@@ -155,6 +290,21 @@ if ($ajax === 'recreate') {
             }
             $diag = gmk_debug_publish_diagnostics($class);
             $log[] = "↳ Diagnostico: " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+            if (gmk_debug_is_duplicate_read_error($e)) {
+                $log[] = "↳ Auto-repair: detectado error de duplicado en lectura. Limpiando y reintentando...";
+                try {
+                    $class = gmk_debug_cleanup_partial_class_activities($classid, $log);
+                    create_class_activities($class, false);
+                    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+                    $log[] = "✓ Auto-repair: reintento exitoso, attendancemoduleid={$class->attendancemoduleid}";
+                } catch (Throwable $retrye) {
+                    $log[] = "⚠ Auto-repair fallo en reintento: " . $retrye->getMessage();
+                    gmk_debug_log_exception_chain($retrye, $log, 'RetryEx');
+                    $diag2 = gmk_debug_publish_diagnostics($class);
+                    $log[] = "↳ Diagnostico post-reintento: " . json_encode($diag2, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                }
+            }
         }
 
         // Re-read final state and validate consistency.
