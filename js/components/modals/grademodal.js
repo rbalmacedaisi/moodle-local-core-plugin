@@ -131,7 +131,7 @@ Vue.component('grademodal', {
                                                         <v-btn
                                                             x-small
                                                             color="primary"
-                                                            :disabled="!hasActiveClasses(course)"
+                                                            :disabled="!canEnrollInCourse(course)"
                                                             @click.stop="openEnrollDialog(course)"
                                                         >
                                                             Inscribir
@@ -379,8 +379,15 @@ Vue.component('grademodal', {
         hasActiveClasses(course) {
             return Number(course && course.activeclasscount ? course.activeclasscount : 0) > 0;
         },
+        hasAllowedStatusForEnroll(course) {
+            const statusLabel = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
+            return statusLabel === 'disponible' || statusLabel === 'no disponible' || statusLabel === 'reprobada';
+        },
+        canEnrollInCourse(course) {
+            return this.hasActiveClasses(course) && this.hasAllowedStatusForEnroll(course);
+        },
         async openEnrollDialog(course) {
-            if (!this.hasActiveClasses(course)) {
+            if (!this.canEnrollInCourse(course)) {
                 return;
             }
 
