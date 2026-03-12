@@ -543,15 +543,127 @@ function gmk_debug_mysql_tx_state(): array {
         'in_transaction' => null,
     ];
     try {
-        $r = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        $r = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@in_transaction AS in_transaction");
         if ($r) {
             foreach ((array)$r as $k => $v) {
                 $out[$k] = $v;
             }
+            return $out;
+        }
+    } catch (Throwable $e) {
+        $out['error_primary'] = $e->getMessage();
+    }
+    try {
+        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        if ($r2) {
+            foreach ((array)$r2 as $k => $v) {
+                $out[$k] = $v;
+            }
+            return $out;
+        }
+    } catch (Throwable $e) {
+        $out['error_fallback'] = $e->getMessage();
+    }
+    return $out;
+}
+
+function gmk_debug_secondary_mysql_snapshot(int $classid, int $courseid = 0, int $sectionid = 0, int $attcmid = 0): array {
+    global $CFG;
+
+    $out = [
+        'enabled' => false,
+        'class_attendancemoduleid' => null,
+        'class_groupid' => null,
+        'class_coursesectionid' => null,
+        'cm_exists' => null,
+        'cm_modulename' => null,
+        'section_modules_att_bbb' => null,
+    ];
+
+    if (!in_array($CFG->dbtype, ['mysqli', 'mariadb'], true)) {
+        $out['error'] = 'dbtype no soportado para snapshot secundario: ' . $CFG->dbtype;
+        return $out;
+    }
+    if (!class_exists('mysqli')) {
+        $out['error'] = 'ext mysqli no disponible';
+        return $out;
+    }
+
+    $host = (string)($CFG->dbhost ?? '');
+    $user = (string)($CFG->dbuser ?? '');
+    $pass = (string)($CFG->dbpass ?? '');
+    $name = (string)($CFG->dbname ?? '');
+    $port = (int)($CFG->dboptions['dbport'] ?? ($CFG->dbport ?? 3306));
+    $prefix = (string)($CFG->prefix ?? 'mdl_');
+
+    mysqli_report(MYSQLI_REPORT_OFF);
+    $mysqli = @new mysqli($host, $user, $pass, $name, $port);
+    if ($mysqli->connect_errno) {
+        $out['error'] = 'mysqli connect error: ' . $mysqli->connect_error;
+        return $out;
+    }
+
+    try {
+        $out['enabled'] = true;
+
+        $classsql = "SELECT attendancemoduleid, groupid, coursesectionid FROM {$prefix}gmk_class WHERE id = ?";
+        if ($stmt = $mysqli->prepare($classsql)) {
+            $stmt->bind_param('i', $classid);
+            if ($stmt->execute() && ($res = $stmt->get_result())) {
+                $row = $res->fetch_assoc();
+                if ($row) {
+                    $out['class_attendancemoduleid'] = isset($row['attendancemoduleid']) ? (int)$row['attendancemoduleid'] : null;
+                    $out['class_groupid'] = isset($row['groupid']) ? (int)$row['groupid'] : null;
+                    $out['class_coursesectionid'] = isset($row['coursesectionid']) ? (int)$row['coursesectionid'] : null;
+                }
+            }
+            $stmt->close();
+        }
+
+        if ($attcmid > 0) {
+            $cmsql = "SELECT cm.id, m.name AS modulename
+                        FROM {$prefix}course_modules cm
+                        JOIN {$prefix}modules m ON m.id = cm.module
+                       WHERE cm.id = ?";
+            if ($stmt = $mysqli->prepare($cmsql)) {
+                $stmt->bind_param('i', $attcmid);
+                if ($stmt->execute() && ($res = $stmt->get_result())) {
+                    $row = $res->fetch_assoc();
+                    if ($row) {
+                        $out['cm_exists'] = 1;
+                        $out['cm_modulename'] = (string)$row['modulename'];
+                    } else {
+                        $out['cm_exists'] = 0;
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        if ($courseid > 0 && $sectionid > 0) {
+            $cntsql = "SELECT COUNT(1) AS c
+                         FROM {$prefix}course_modules cm
+                         JOIN {$prefix}modules m ON m.id = cm.module
+                        WHERE cm.course = ?
+                          AND cm.section = ?
+                          AND m.name IN ('attendance','bigbluebuttonbn')";
+            if ($stmt = $mysqli->prepare($cntsql)) {
+                $stmt->bind_param('ii', $courseid, $sectionid);
+                if ($stmt->execute() && ($res = $stmt->get_result())) {
+                    $row = $res->fetch_assoc();
+                    if ($row) {
+                        $out['section_modules_att_bbb'] = (int)$row['c'];
+                    }
+                }
+                $stmt->close();
+            }
         }
     } catch (Throwable $e) {
         $out['error'] = $e->getMessage();
+    } finally {
+        $mysqli->close();
     }
+
     return $out;
 }
 
@@ -575,13 +687,23 @@ function gmk_debug_runtime_identity(): array {
     }
 
     try {
-        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@in_transaction AS in_transaction");
         if ($r2) {
             $identity['db'] = array_merge($identity['db'], (array)$r2);
             return $identity;
         }
     } catch (Throwable $e) {
-        $identity['db']['mysql_tx_error'] = $e->getMessage();
+        $identity['db']['mysql_tx_error_primary'] = $e->getMessage();
+    }
+
+    try {
+        $r3 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        if ($r3) {
+            $identity['db'] = array_merge($identity['db'], (array)$r3);
+            return $identity;
+        }
+    } catch (Throwable $e) {
+        $identity['db']['mysql_tx_error_fallback'] = $e->getMessage();
     }
 
     try {
@@ -1182,6 +1304,18 @@ if ($ajax === 'recreate') {
 
             $txstate = gmk_debug_mysql_tx_state();
             $log[] = "POSTCHECK tx_state read_only={$txstate['read_only']} server_id={$txstate['server_id']} autocommit={$txstate['autocommit']} in_transaction={$txstate['in_transaction']}";
+            $extsnap = gmk_debug_secondary_mysql_snapshot(
+                (int)$classid,
+                (int)$class->corecourseid,
+                (int)$class->coursesectionid,
+                (int)($class->attendancemoduleid ?? 0)
+            );
+            $log[] = "POSTCHECK extdb class.attendancemoduleid=" . (string)$extsnap['class_attendancemoduleid']
+                . " cm_exists=" . (string)$extsnap['cm_exists']
+                . " section_modules(attendance|bbb)=" . (string)$extsnap['section_modules_att_bbb'];
+            if (!empty($extsnap['error'])) {
+                $log[] = "POSTCHECK extdb error=" . $extsnap['error'];
+            }
         } catch (Throwable $e) {
             $log[] = "WARN Error creando actividades: " . $e->getMessage();
             gmk_debug_log_exception_chain($e, $log, 'Excepcion');
