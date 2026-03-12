@@ -990,35 +990,77 @@ try {
             $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
 
             // 1. Fetch Students (Rows)
-            // Keep parity with Student tab behavior:
-            // - Use Moodle group roster when available.
-            // - If group is empty/missing, fallback to class roster in gmk_course_progre.
-            $studentids = [];
-            if (!empty($groupid)) {
-                $studentids = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => (int)$groupid]);
-                $studentids = array_values(array_map('intval', $studentids));
-            }
-
-            if (empty($studentids)) {
-                $studentids = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => (int)$classid]);
-                $studentids = array_values(array_map('intval', $studentids));
-            }
-
-            if (!empty($class->instructorid)) {
-                $studentids = array_values(array_filter($studentids, function($uid) use ($class) {
-                    return (int)$uid !== (int)$class->instructorid;
-                }));
-            }
-
+            // Primary source: same service used by TeacherStudentTable, to keep parity across tabs.
             $students = [];
-            if (!empty($studentids)) {
-                list($stuinsql, $stuparams) = $DB->get_in_or_equal($studentids, SQL_PARAMS_NAMED, 'stu');
-                $students = $DB->get_records_sql("
-                    SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
-                      FROM {user} u
-                     WHERE u.id $stuinsql
-                  ORDER BY u.lastname, u.firstname
-                ", $stuparams);
+            try {
+                require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_info.php');
+                $studentinfo = \local_grupomakro_core\external\student\get_student_info::execute(
+                    0, 5000, '', '', '', '', (int)$classid, ''
+                );
+                $datausers = $studentinfo['dataUsers'] ?? [];
+                if (is_string($datausers)) {
+                    $decoded = json_decode($datausers, true);
+                    $datausers = is_array($decoded) ? $decoded : [];
+                }
+                if (is_array($datausers)) {
+                    foreach ($datausers as $du) {
+                        $uid = (int)($du['userid'] ?? 0);
+                        if ($uid <= 0) {
+                            continue;
+                        }
+                        $fullname = trim((string)($du['nameuser'] ?? ''));
+                        $firstname = $fullname;
+                        $lastname = '';
+                        if ($fullname !== '') {
+                            $parts = preg_split('/\s+/', $fullname, 2);
+                            $firstname = (string)($parts[0] ?? $fullname);
+                            $lastname = (string)($parts[1] ?? '');
+                        }
+                        $u = new stdClass();
+                        $u->id = $uid;
+                        $u->firstname = $firstname;
+                        $u->lastname = $lastname;
+                        $u->email = (string)($du['email'] ?? '');
+                        $u->idnumber = (string)($du['documentnumber'] ?? '');
+                        $u->fullname = $fullname;
+                        $students[$uid] = $u;
+                    }
+                }
+            } catch (\Throwable $studentex) {
+                // Silent fallback to legacy query path below.
+            }
+
+            // Fallback source if external student service returns no rows.
+            if (empty($students)) {
+                // Keep parity with Student tab behavior:
+                // - Use Moodle group roster when available.
+                // - If group is empty/missing, fallback to class roster in gmk_course_progre.
+                $studentids = [];
+                if (!empty($groupid)) {
+                    $studentids = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => (int)$groupid]);
+                    $studentids = array_values(array_map('intval', $studentids));
+                }
+
+                if (empty($studentids)) {
+                    $studentids = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => (int)$classid]);
+                    $studentids = array_values(array_map('intval', $studentids));
+                }
+
+                if (!empty($class->instructorid)) {
+                    $studentids = array_values(array_filter($studentids, function($uid) use ($class) {
+                        return (int)$uid !== (int)$class->instructorid;
+                    }));
+                }
+
+                if (!empty($studentids)) {
+                    list($stuinsql, $stuparams) = $DB->get_in_or_equal($studentids, SQL_PARAMS_NAMED, 'stu');
+                    $students = $DB->get_records_sql("
+                        SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
+                          FROM {user} u
+                         WHERE u.id $stuinsql
+                      ORDER BY u.lastname, u.firstname
+                    ", $stuparams);
+                }
             }
 
             $userids = array_keys($students);
@@ -1125,9 +1167,10 @@ try {
 
             $grades_data = [];
             foreach ($students as $student) {
+                $studentfullname = trim(($student->fullname ?? '') !== '' ? $student->fullname : (($student->firstname ?? '') . ' ' . ($student->lastname ?? '')));
                 $student_row = [
                     'id' => $student->id,
-                    'fullname' => $student->firstname . ' ' . $student->lastname,
+                    'fullname' => $studentfullname,
                     'email' => $student->email,
                     'grades' => []
                 ];

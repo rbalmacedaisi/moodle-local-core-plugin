@@ -250,7 +250,23 @@ Vue.component('grades-grid', {
 
                 if (response.data && response.data.status === 'success') {
                     this.columns = response.data.data.columns;
-                    this.students = response.data.data.students;
+                    const apiStudents = response.data.data.students;
+                    if (Array.isArray(apiStudents)) {
+                        this.students = apiStudents;
+                    } else if (apiStudents && typeof apiStudents === 'object') {
+                        this.students = Object.values(apiStudents);
+                    } else {
+                        this.students = [];
+                    }
+
+                    // Fallback parity with Student tab:
+                    // if grade endpoint has columns but no roster rows, fetch roster from student_info.
+                    if (this.columns.length > 0 && this.students.length === 0 && this.classId) {
+                        const fallbackStudents = await this.fetchStudentsFallback();
+                        if (fallbackStudents.length > 0) {
+                            this.students = fallbackStudents;
+                        }
+                    }
                 } else {
                     throw new Error(response.data.message || 'Error al cargar calificaciones');
                 }
@@ -259,6 +275,56 @@ Vue.component('grades-grid', {
                 this.error = 'No se pudieron cargar las notas correctamente.';
             } finally {
                 this.loading = false;
+            }
+        },
+        async fetchStudentsFallback() {
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_student_info',
+                    args: {
+                        page: 1,
+                        resultsperpage: 5000,
+                        search: '',
+                        planid: '',
+                        periodid: '',
+                        status: '',
+                        classid: this.classId,
+                        financial_status: ''
+                    },
+                    sesskey: window.Y.config.sesskey
+                });
+
+                if (!response.data || response.data.status !== 'success' || !response.data.data) {
+                    return [];
+                }
+
+                let users = response.data.data.dataUsers || [];
+                if (typeof users === 'string') {
+                    try {
+                        users = JSON.parse(users);
+                    } catch (e) {
+                        users = [];
+                    }
+                }
+                if (!Array.isArray(users)) {
+                    return [];
+                }
+
+                return users.map(u => {
+                    const grades = {};
+                    this.columns.forEach(col => {
+                        grades[col.id] = '-';
+                    });
+                    return {
+                        id: u.userid,
+                        fullname: u.nameuser || '',
+                        email: u.email || '',
+                        grades: grades
+                    };
+                });
+            } catch (e) {
+                console.warn('Grades fallback students failed', e);
+                return [];
             }
         },
         formatGrade(grade) {
