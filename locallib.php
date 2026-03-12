@@ -913,6 +913,9 @@ function create_class_activities($class, $updating = false)
                 $attErrMsg = $attErr->getMessage();
                 $attErrClass = get_class($attErr);
                 $attErrLocation = basename($attErr->getFile()) . ':' . $attErr->getLine();
+                $attErrDebugInfo = (property_exists($attErr, 'debuginfo') && !empty($attErr->debuginfo))
+                    ? ' | debuginfo: ' . (string)$attErr->debuginfo
+                    : '';
                 gmk_log("WARNING create_attendance_activity threw for class {$class->id}: {$attErrMsg}"
                     . " (courseid={$class->corecourseid}, sectionid={$class->coursesectionid}, sectionnum={$classSectionNumber})");
                 $attModId = gmk_get_module_id_by_name('attendance');
@@ -941,7 +944,7 @@ function create_class_activities($class, $updating = false)
                     // Module was NOT created at all — report with original error
                     gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id}: {$attErrMsg}");
                     throw new \Exception(
-                        "No se pudo crear attendance para clase {$class->id}: [{$attErrClass} @ {$attErrLocation}] {$attErrMsg}",
+                        "No se pudo crear attendance para clase {$class->id}: [{$attErrClass} @ {$attErrLocation}] {$attErrMsg}{$attErrDebugInfo}",
                         0,
                         $attErr
                     );

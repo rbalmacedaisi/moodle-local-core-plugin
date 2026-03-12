@@ -91,13 +91,13 @@ function gmk_debug_publish_diagnostics($class) {
 }
 
 function gmk_debug_is_duplicate_read_error(Throwable $e): bool {
-    $msg = core_text::strtolower((string)$e->getMessage());
+    $msg = function_exists('mb_strtolower') ? mb_strtolower((string)$e->getMessage(), 'UTF-8') : strtolower((string)$e->getMessage());
     if (strpos($msg, 'mas de un registro') !== false) return true;
     if (strpos($msg, 'mÃ¡s de un registro') !== false) return true;
     if (strpos($msg, 'more than one record') !== false) return true;
     $p = $e->getPrevious();
     while ($p) {
-        $pmsg = core_text::strtolower((string)$p->getMessage());
+        $pmsg = function_exists('mb_strtolower') ? mb_strtolower((string)$p->getMessage(), 'UTF-8') : strtolower((string)$p->getMessage());
         if (strpos($pmsg, 'mas de un registro') !== false || strpos($pmsg, 'mÃ¡s de un registro') !== false || strpos($pmsg, 'more than one record') !== false) {
             return true;
         }
@@ -363,7 +363,7 @@ if ($ajax === 'recreate_all') {
             }
         }
 
-        $results = ['ok' => 0, 'errors' => [], 'skipped' => 0];
+        $results = ['ok' => 0, 'errors' => [], 'repairs' => [], 'skipped' => 0];
 
         foreach ($classes as $class) {
             try {
@@ -381,7 +381,18 @@ if ($ajax === 'recreate_all') {
                 }
                 $attReason = '';
                 $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
-                create_class_activities($class, $hasActivities);
+                try {
+                    create_class_activities($class, $hasActivities);
+                } catch (Throwable $e) {
+                    if (!gmk_debug_is_duplicate_read_error($e)) {
+                        throw $e;
+                    }
+                    $repairlog = [];
+                    $repairlog[] = "Clase {$class->id}: duplicate-read detectado, auto-repair en progreso.";
+                    $class = gmk_debug_cleanup_partial_class_activities($class->id, $repairlog);
+                    create_class_activities($class, false);
+                    $results['repairs'][] = ['id' => $class->id, 'name' => $class->name, 'log' => $repairlog];
+                }
                 $class = $DB->get_record('gmk_class', ['id' => $class->id], '*', MUST_EXIST);
                 $finalAttReason = '';
                 if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
@@ -737,8 +748,10 @@ async function recreateAll() {
 
         if (d.status === 'success') {
             const r = d.data;
+            const repairs = Array.isArray(r.repairs) ? r.repairs.length : 0;
             resEl.style.color = r.errors.length > 0 ? '#fd7e14' : '#28a745';
             resEl.textContent = `✓ ${r.ok}/${d.total} procesadas correctamente.`
+                + (repairs > 0 ? ` ${repairs} auto-reparadas.` : '')
                 + (r.errors.length > 0 ? ` ${r.errors.length} errores: ` + r.errors.map(e => `[${e.id}] ${e.error}`).join(' | ') : '');
             // Recargar la página para ver estado actualizado
             setTimeout(() => location.reload(), 2000);
