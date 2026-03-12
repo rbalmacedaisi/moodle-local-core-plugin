@@ -412,6 +412,307 @@ function gmk_debug_repair_course_gradebook_duplicates($courseid, array &$log) {
     }
 }
 
+function gmk_debug_rows_to_array($rows) {
+    return array_values(array_map(static function($r) {
+        return (array)$r;
+    }, $rows));
+}
+
+function gmk_debug_capture_sql($label, $sql, array $params = [], int $limit = 300) {
+    global $DB;
+    $rows = $DB->get_records_sql($sql, $params, 0, $limit);
+    return [
+        'label' => $label,
+        'sql' => $sql,
+        'params' => $params,
+        'count' => count($rows),
+        'limit' => $limit,
+        'rows' => gmk_debug_rows_to_array($rows),
+    ];
+}
+
+function gmk_debug_table_columns($table) {
+    global $DB;
+    $cols = $DB->get_columns($table);
+    $out = [];
+    foreach ($cols as $name => $col) {
+        $out[] = [
+            'name' => (string)$name,
+            'type' => property_exists($col, 'type') ? (string)$col->type : null,
+            'meta_type' => property_exists($col, 'meta_type') ? (string)$col->meta_type : null,
+            'not_null' => property_exists($col, 'not_null') ? (bool)$col->not_null : null,
+            'max_length' => property_exists($col, 'max_length') ? $col->max_length : null,
+            'default_value' => property_exists($col, 'default_value') ? $col->default_value : null,
+        ];
+    }
+    return $out;
+}
+
+function gmk_debug_collect_class_snapshot(int $classid): array {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+    $courseid = (int)$class->corecourseid;
+    $sectionid = (int)$class->coursesectionid;
+    $attcmid = (int)$class->attendancemoduleid;
+
+    $groupReason = '';
+    $sectionReason = '';
+    $attReason = '';
+
+    $snapshot = [
+        'generated_at' => date('c'),
+        'class' => (array)$class,
+        'flags' => [
+            'group_valid' => gmk_is_valid_class_group($class, $groupReason),
+            'section_valid' => gmk_is_valid_class_section($class, $sectionReason),
+            'attendance_valid' => gmk_is_valid_class_attendance_module($class, $attReason),
+            'group_reason' => $groupReason,
+            'section_reason' => $sectionReason,
+            'attendance_reason' => $attReason,
+        ],
+        'structures' => [],
+        'queries' => [],
+    ];
+
+    $tables = [
+        'gmk_class',
+        'groups',
+        'course_sections',
+        'course_modules',
+        'modules',
+        'attendance',
+        'attendance_sessions',
+        'bigbluebuttonbn',
+        'gmk_bbb_attendance_relation',
+        'grade_categories',
+        'grade_items',
+        'grade_grades',
+        'context',
+    ];
+    foreach ($tables as $t) {
+        try {
+            $snapshot['structures'][$t] = gmk_debug_table_columns($t);
+        } catch (Throwable $e) {
+            $snapshot['structures'][$t] = ['error' => $e->getMessage()];
+        }
+    }
+
+    if ($class->groupid) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'group_record',
+            "SELECT id, courseid, name, idnumber FROM {groups} WHERE id = :gid",
+            ['gid' => (int)$class->groupid],
+            10
+        );
+    }
+
+    if ($sectionid > 0) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'section_record',
+            "SELECT id, course, section, name, sequence, visible
+               FROM {course_sections}
+              WHERE id = :sid",
+            ['sid' => $sectionid],
+            10
+        );
+    }
+
+    if ($attcmid > 0) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'attendance_cmid_record',
+            "SELECT cm.id, cm.course, cm.section, cm.instance, cm.visible, cm.deletioninprogress, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => $attcmid],
+            10
+        );
+    }
+
+    if ($courseid > 0 && $sectionid > 0) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'section_modules',
+            "SELECT cm.id, m.name AS modulename, cm.instance, cm.visible, cm.section
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.course = :courseid
+                AND cm.section = :sectionid
+           ORDER BY cm.id ASC",
+            ['courseid' => $courseid, 'sectionid' => $sectionid],
+            500
+        );
+    }
+
+    if ($courseid > 0) {
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'modules_catalog',
+            "SELECT id, name FROM {modules} WHERE name IN ('attendance','bigbluebuttonbn') ORDER BY name, id",
+            [],
+            20
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'course_context',
+            "SELECT id, contextlevel, instanceid, path, depth
+               FROM {context}
+              WHERE contextlevel = :ctxlvl
+                AND instanceid = :courseid
+           ORDER BY id ASC",
+            ['ctxlvl' => CONTEXT_COURSE, 'courseid' => $courseid],
+            20
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'grade_categories_all',
+            "SELECT id, courseid, parent, depth, path, fullname
+               FROM {grade_categories}
+              WHERE courseid = :courseid
+           ORDER BY id ASC",
+            ['courseid' => $courseid],
+            500
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'grade_items_all',
+            "SELECT id, courseid, itemtype, itemmodule, iteminstance, itemnumber, categoryid, itemname, sortorder
+               FROM {grade_items}
+              WHERE courseid = :courseid
+           ORDER BY id ASC",
+            ['courseid' => $courseid],
+            1000
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'grade_items_course_totals',
+            "SELECT id, courseid, itemtype, iteminstance, categoryid, itemname, sortorder
+               FROM {grade_items}
+              WHERE courseid = :courseid
+                AND itemtype = 'course'
+                AND iteminstance = :iteminstance
+           ORDER BY id ASC",
+            ['courseid' => $courseid, 'iteminstance' => $courseid],
+            100
+        );
+
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'grade_grades_by_item_count',
+            "SELECT gi.id AS itemid, gi.itemtype, gi.itemmodule, gi.iteminstance, COUNT(gg.id) AS grade_rows
+               FROM {grade_items} gi
+               LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id
+              WHERE gi.courseid = :courseid
+           GROUP BY gi.id, gi.itemtype, gi.itemmodule, gi.iteminstance
+           ORDER BY grade_rows DESC, gi.id ASC",
+            ['courseid' => $courseid],
+            1000
+        );
+    }
+
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $classid], 'id ASC');
+    $snapshot['queries'][] = [
+        'label' => 'gmk_bbb_attendance_relation_by_class',
+        'sql' => "SELECT * FROM {gmk_bbb_attendance_relation} WHERE classid = :classid ORDER BY id ASC",
+        'params' => ['classid' => $classid],
+        'count' => count($relations),
+        'limit' => 1000,
+        'rows' => gmk_debug_rows_to_array($relations),
+    ];
+
+    $bbbcmids = [];
+    if (!empty($class->bbbmoduleids)) {
+        foreach (explode(',', (string)$class->bbbmoduleids) as $id) {
+            $id = (int)trim($id);
+            if ($id > 0) $bbbcmids[] = $id;
+        }
+    }
+    foreach ($relations as $rel) {
+        if (!empty($rel->bbbmoduleid)) {
+            $bbbcmids[] = (int)$rel->bbbmoduleid;
+        }
+    }
+    $bbbcmids = array_values(array_unique(array_filter($bbbcmids)));
+
+    if (!empty($bbbcmids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal($bbbcmids, SQL_PARAMS_NAMED, 'bbbc');
+        $snapshot['queries'][] = gmk_debug_capture_sql(
+            'bbb_cmids_expanded',
+            "SELECT cm.id AS cmid, cm.course, cm.section, cm.instance, cm.visible, m.name AS modulename,
+                    b.id AS bbbid, b.name, b.openingtime, b.closingtime
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+               LEFT JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+              WHERE cm.id {$insql}
+           ORDER BY cm.id ASC",
+            $inparams,
+            1000
+        );
+    }
+
+    if ($attcmid > 0) {
+        $attinstance = $DB->get_field('course_modules', 'instance', ['id' => $attcmid]);
+        if ($attinstance) {
+            $snapshot['queries'][] = gmk_debug_capture_sql(
+                'attendance_instance',
+                "SELECT id, name, course, grade
+                   FROM {attendance}
+                  WHERE id = :attid",
+                ['attid' => (int)$attinstance],
+                10
+            );
+            $snapshot['queries'][] = gmk_debug_capture_sql(
+                'attendance_sessions',
+                "SELECT id, attendanceid, sessdate, duration, groupid, lasttaken
+                   FROM {attendance_sessions}
+                  WHERE attendanceid = :attid
+               ORDER BY sessdate ASC, id ASC",
+                ['attid' => (int)$attinstance],
+                2000
+            );
+        }
+    }
+
+    if ($sectionid > 0) {
+        $sectionrow = $DB->get_record('course_sections', ['id' => $sectionid], 'id,sequence');
+        $sequence = $sectionrow ? trim((string)$sectionrow->sequence) : '';
+        $seqcmids = $sequence === '' ? [] : array_values(array_filter(array_map('intval', explode(',', $sequence))));
+        $sectioncms = $DB->get_records_sql(
+            "SELECT id FROM {course_modules}
+              WHERE course = :courseid
+                AND section = :sectionid
+           ORDER BY id ASC",
+            ['courseid' => $courseid, 'sectionid' => $sectionid]
+        );
+        $sectioncmids = array_values(array_map(static function($r) { return (int)$r->id; }, $sectioncms));
+        $snapshot['sequence_check'] = [
+            'sequence_raw' => $sequence,
+            'sequence_cmids' => $seqcmids,
+            'section_cmids' => $sectioncmids,
+            'missing_in_sequence' => array_values(array_diff($sectioncmids, $seqcmids)),
+            'extra_in_sequence' => array_values(array_diff($seqcmids, $sectioncmids)),
+        ];
+    }
+
+    return $snapshot;
+}
+
+// -- AJAX: inspeccionar datos DB de una clase para analisis --------------------
+if ($ajax === 'inspect_class') {
+    $PAGE->set_context(context_system::instance());
+    ob_start();
+    header('Content-Type: application/json');
+    try {
+        require_sesskey();
+        $classid = required_param('classid', PARAM_INT);
+        $data = gmk_debug_collect_class_snapshot($classid);
+        ob_end_clean();
+        echo json_encode(['status' => 'success', 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } catch (Throwable $e) {
+        ob_end_clean();
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 // -- AJAX: re-crear estructuras Moodle para una clase -------------------------
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
@@ -641,7 +942,7 @@ th{background:#f2f2f2;font-weight:bold;position:sticky;top:0;z-index:1}
 .check{color:green;font-weight:bold}.cross{color:red;font-weight:bold}.dash{color:#aaa}
 .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:bold;color:#fff}
 .badge-ok{background:#28a745}.badge-warn{background:#fd7e14}.badge-err{background:#dc3545}
-.log-out{font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;white-space:pre-wrap;max-height:200px;overflow-y:auto;margin-top:4px;display:none}
+.log-out{font-family:monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;padding:8px;border-radius:4px;white-space:pre-wrap;max-height:520px;overflow-y:auto;margin-top:4px;display:none}
 .spinner{display:inline-block;width:12px;height:12px;border:2px solid #eee;border-top-color:#007bff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -858,6 +1159,8 @@ foreach ($classes as $c) {
       <?php else: ?>
       <span style="color:#28a745;font-size:11px">OK</span>
       <?php endif ?>
+      <button class="btn btn-primary" style="padding:2px 8px;font-size:11px;margin-left:4px"
+        onclick="inspectOne(<?php echo $c->id ?>, this)">Diagnosticar</button>
       <div class="log-out" id="log-<?php echo $c->id ?>"></div>
     </td>
   </tr>
@@ -919,6 +1222,46 @@ async function recreateOne(classid, btn) {
         logEl.textContent = 'Error JS: ' + e.message;
         btn.disabled = false;
         btn.textContent = 'Re-crear';
+    }
+}
+
+async function inspectOne(classid, btn) {
+    const prevHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    const logEl = document.getElementById('log-' + classid);
+    logEl.style.display = 'block';
+    logEl.textContent = 'Cargando diagnostico...';
+
+    const fd = new FormData();
+    fd.append('ajax', 'inspect_class');
+    fd.append('classid', classid);
+    fd.append('sesskey', SESSKEY);
+
+    try {
+        const res = await fetch(AJAX_URL, { method: 'POST', body: fd });
+        const text = await res.text();
+        let d;
+        try { d = JSON.parse(text); } catch(e) {
+            logEl.textContent = 'No JSON:\n' + text;
+            btn.disabled = false;
+            btn.innerHTML = prevHtml;
+            return;
+        }
+        if (d.status !== 'success') {
+            logEl.textContent = 'Error: ' + (d.message || JSON.stringify(d));
+            btn.disabled = false;
+            btn.innerHTML = prevHtml;
+            return;
+        }
+
+        logEl.textContent = JSON.stringify(d.data, null, 2);
+        btn.disabled = false;
+        btn.innerHTML = prevHtml;
+    } catch (e) {
+        logEl.textContent = 'Error JS: ' + e.message;
+        btn.disabled = false;
+        btn.innerHTML = prevHtml;
     }
 }
 
