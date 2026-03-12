@@ -1075,6 +1075,89 @@ function gmk_rebuild_grade_category_tree(int $parentid, string $parentpath, int 
 }
 
 /**
+ * Move grade rows from a duplicate grade_item into a canonical one.
+ *
+ * Returns number of processed source grade rows.
+ */
+function gmk_merge_grade_item_grades(int $sourceitemid, int $targetitemid): int {
+    global $DB;
+
+    $sourceitemid = (int)$sourceitemid;
+    $targetitemid = (int)$targetitemid;
+    if ($sourceitemid <= 0 || $targetitemid <= 0 || $sourceitemid === $targetitemid) {
+        return 0;
+    }
+
+    $processed = 0;
+    $sourcegrades = $DB->get_records(
+        'grade_grades',
+        ['itemid' => $sourceitemid],
+        'id ASC',
+        'id,userid,rawgrade,finalgrade,rawgrademax,rawgrademin,rawscaleid,overridden,excluded,feedback,feedbackformat,information,informationformat'
+    );
+
+    foreach ($sourcegrades as $gg) {
+        $existing = $DB->get_record(
+            'grade_grades',
+            ['itemid' => $targetitemid, 'userid' => (int)$gg->userid],
+            'id,rawgrade,finalgrade,rawgrademax,rawgrademin,rawscaleid,feedback,information',
+            IGNORE_MISSING
+        );
+
+        if ($existing) {
+            $upd = new stdClass();
+            $upd->id = (int)$existing->id;
+            $changed = false;
+
+            if ($existing->finalgrade === null && $gg->finalgrade !== null) {
+                $upd->finalgrade = $gg->finalgrade;
+                $changed = true;
+            }
+            if ($existing->rawgrade === null && $gg->rawgrade !== null) {
+                $upd->rawgrade = $gg->rawgrade;
+                $changed = true;
+            }
+            if ($existing->rawgrademax === null && $gg->rawgrademax !== null) {
+                $upd->rawgrademax = $gg->rawgrademax;
+                $changed = true;
+            }
+            if ($existing->rawgrademin === null && $gg->rawgrademin !== null) {
+                $upd->rawgrademin = $gg->rawgrademin;
+                $changed = true;
+            }
+            if ($existing->rawscaleid === null && $gg->rawscaleid !== null) {
+                $upd->rawscaleid = $gg->rawscaleid;
+                $changed = true;
+            }
+            if (empty($existing->feedback) && !empty($gg->feedback)) {
+                $upd->feedback = $gg->feedback;
+                $upd->feedbackformat = $gg->feedbackformat;
+                $changed = true;
+            }
+            if (empty($existing->information) && !empty($gg->information)) {
+                $upd->information = $gg->information;
+                $upd->informationformat = $gg->informationformat;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $upd->timemodified = time();
+                $DB->update_record('grade_grades', $upd);
+            }
+
+            $DB->delete_records('grade_grades', ['id' => (int)$gg->id]);
+            $processed++;
+            continue;
+        }
+
+        $DB->set_field('grade_grades', 'itemid', $targetitemid, ['id' => (int)$gg->id]);
+        $processed++;
+    }
+
+    return $processed;
+}
+
+/**
  * Repairs duplicate root categories / malformed course grade items for one course.
  *
  * @return array{
@@ -1088,7 +1171,9 @@ function gmk_rebuild_grade_category_tree(int $parentid, string $parentpath, int 
  * }
  */
 function gmk_repair_course_gradebook_duplicates(int $courseid): array {
-    global $DB;
+    global $DB, $CFG;
+
+    require_once($CFG->libdir . '/gradelib.php');
 
     $stats = [
         'rootCandidates' => 0,
@@ -1098,6 +1183,10 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
         'mergedRoots' => 0,
         'deletedCourseItems' => 0,
         'relinkedCourseItems' => 0,
+        'createdCourseItems' => 0,
+        'fixedOrphanCategoryItems' => 0,
+        'dedupedCategoryItems' => 0,
+        'mergedGradeRows' => 0,
     ];
 
     $courseid = (int)$courseid;
@@ -1107,6 +1196,12 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
 
     // First, normalize malformed course item instance/category links.
     gmk_heal_course_gradebook_course_item($courseid);
+
+    // Ensure there is at least one root candidate.
+    $anycat = $DB->get_record('grade_categories', ['courseid' => $courseid], 'id', IGNORE_MISSING);
+    if ($anycat) {
+        $DB->set_field('grade_categories', 'parent', null, ['id' => (int)$anycat->id]);
+    }
 
     $rootcandidates = $DB->get_records_select(
         'grade_categories',
@@ -1144,6 +1239,9 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
     if ($canonicalrootid <= 0 && !empty($rootids)) {
         $canonicalrootid = (int)min($rootids);
     }
+    if ($canonicalrootid <= 0 && $anycat) {
+        $canonicalrootid = (int)$anycat->id;
+    }
     $stats['canonicalRootId'] = $canonicalrootid;
 
     if ($canonicalrootid > 0) {
@@ -1160,6 +1258,13 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
             if ($DB->record_exists('grade_items', ['categoryid' => $rid])) {
                 $DB->set_field('grade_items', 'categoryid', $canonicalrootid, ['categoryid' => $rid]);
             }
+            if ($DB->record_exists('grade_items', ['courseid' => $courseid, 'itemtype' => 'category', 'iteminstance' => $rid])) {
+                $DB->set_field('grade_items', 'iteminstance', $canonicalrootid, [
+                    'courseid' => $courseid,
+                    'itemtype' => 'category',
+                    'iteminstance' => $rid
+                ]);
+            }
 
             $DB->delete_records('grade_categories', ['id' => $rid]);
             $stats['mergedRoots']++;
@@ -1170,6 +1275,118 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
         $DB->set_field('grade_categories', 'depth', 1, ['id' => $canonicalrootid]);
         $DB->set_field('grade_categories', 'path', '/' . $canonicalrootid . '/', ['id' => $canonicalrootid]);
         gmk_rebuild_grade_category_tree($canonicalrootid, '/' . $canonicalrootid . '/', 2);
+
+        // Sanitize broken category parent links that can break get_children recursion.
+        $allcats = $DB->get_records('grade_categories', ['courseid' => $courseid], 'id ASC', 'id,parent');
+        $allcatids = array_map('intval', array_keys($allcats));
+        foreach ($allcats as $catid => $catrow) {
+            $catid = (int)$catid;
+            if ($catid === $canonicalrootid) {
+                continue;
+            }
+            $parentid = (int)$catrow->parent;
+            $parentexists = ($parentid > 0) && in_array($parentid, $allcatids, true);
+            $selfparent = ($parentid === $catid);
+            if ($selfparent || !$parentexists) {
+                $DB->set_field('grade_categories', 'parent', $canonicalrootid, ['id' => $catid]);
+            }
+        }
+        gmk_rebuild_grade_category_tree($canonicalrootid, '/' . $canonicalrootid . '/', 2);
+    }
+
+    // Fix orphan category-total items (iteminstance points to missing category).
+    $categoryitems = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'category'
+    ], 'id ASC', 'id,courseid,iteminstance,categoryid');
+    foreach ($categoryitems as $it) {
+        $inst = (int)$it->iteminstance;
+        $existscat = ($inst > 0) ? $DB->record_exists('grade_categories', ['id' => $inst, 'courseid' => $courseid]) : false;
+        if ($existscat) {
+            continue;
+        }
+
+        if ($canonicalrootid > 0) {
+            $DB->set_field('grade_items', 'iteminstance', $canonicalrootid, ['id' => (int)$it->id]);
+            if ((int)$it->categoryid !== $canonicalrootid) {
+                $DB->set_field('grade_items', 'categoryid', $canonicalrootid, ['id' => (int)$it->id]);
+            }
+            $stats['fixedOrphanCategoryItems']++;
+        } else {
+            $hasgrades = $DB->record_exists('grade_grades', ['itemid' => (int)$it->id]);
+            if (!$hasgrades) {
+                $DB->delete_records('grade_items', ['id' => (int)$it->id]);
+                $stats['fixedOrphanCategoryItems']++;
+            }
+        }
+    }
+
+    // Deduplicate category-total grade items by iteminstance (must be unique per category).
+    $categoryitems = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'category'
+    ], 'id ASC', 'id,iteminstance');
+    $byinstance = [];
+    foreach ($categoryitems as $it) {
+        $iid = (int)$it->iteminstance;
+        if ($iid <= 0) {
+            continue;
+        }
+        if (!isset($byinstance[$iid])) {
+            $byinstance[$iid] = [];
+        }
+        $byinstance[$iid][] = (int)$it->id;
+    }
+    foreach ($byinstance as $iid => $itemids) {
+        if (count($itemids) <= 1) {
+            continue;
+        }
+
+        $keepid = 0;
+        foreach ($itemids as $candidate) {
+            if ($DB->record_exists('grade_grades', ['itemid' => (int)$candidate])) {
+                $keepid = (int)$candidate;
+                break;
+            }
+        }
+        if ($keepid <= 0) {
+            $keepid = (int)$itemids[0];
+        }
+
+        foreach ($itemids as $dupitemid) {
+            $dupitemid = (int)$dupitemid;
+            if ($dupitemid === $keepid) {
+                continue;
+            }
+            $stats['mergedGradeRows'] += gmk_merge_grade_item_grades($dupitemid, $keepid);
+            $DB->delete_records('grade_items', ['id' => $dupitemid]);
+            $stats['dedupedCategoryItems']++;
+        }
+    }
+
+    // Ensure a course total grade_item exists (itemtype=course, iteminstance=courseid).
+    $courseitems = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'course',
+        'iteminstance' => $courseid
+    ], 'id ASC', 'id,categoryid');
+    if (empty($courseitems) && $canonicalrootid > 0) {
+        try {
+            $courseitem = new \grade_item();
+            $courseitem->courseid = $courseid;
+            $courseitem->categoryid = $canonicalrootid;
+            $courseitem->itemtype = 'course';
+            $courseitem->iteminstance = $courseid;
+            $courseitem->itemnumber = 0;
+            $courseitem->gradetype = GRADE_TYPE_VALUE;
+            $courseitem->grademax = 100;
+            $courseitem->grademin = 0;
+            $courseitem->sortorder = 1;
+            $courseitem->insert();
+            $stats['createdCourseItems']++;
+        } catch (\Throwable $ce) {
+            gmk_log("WARNING: gradebook repair no pudo crear course grade_item courseid={$courseid}: " . $ce->getMessage());
+        }
     }
 
     // Deduplicate course grade items if multiple rows still exist.
@@ -1197,11 +1414,9 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
             if ($itid === $keepid) {
                 continue;
             }
-            $hasgrades = $DB->record_exists('grade_grades', ['itemid' => $itid]);
-            if (!$hasgrades) {
-                $DB->delete_records('grade_items', ['id' => $itid]);
-                $stats['deletedCourseItems']++;
-            }
+            $stats['mergedGradeRows'] += gmk_merge_grade_item_grades($itid, $keepid);
+            $DB->delete_records('grade_items', ['id' => $itid]);
+            $stats['deletedCourseItems']++;
         }
     }
 
@@ -5040,7 +5255,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
                 "roots={$gbstats['rootCandidates']} rootcats={$gbstats['rootcats']} " .
                 "courseitems={$gbstats['courseitems']} canonical={$gbstats['canonicalRootId']} " .
                 "merged={$gbstats['mergedRoots']} deleteditems={$gbstats['deletedCourseItems']} " .
-                "relinked={$gbstats['relinkedCourseItems']}"
+                "relinked={$gbstats['relinkedCourseItems']} createdcourse={$gbstats['createdCourseItems']} " .
+                "fixedorphan={$gbstats['fixedOrphanCategoryItems']} dedupcat={$gbstats['dedupedCategoryItems']} " .
+                "mergedgrades={$gbstats['mergedGradeRows']}"
             );
         } catch (\Throwable $repairerr) {
             gmk_log("WARNING: assign gradebook preflight fallo courseid={$course->id}: " . $repairerr->getMessage());
@@ -5143,7 +5360,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
                     "roots={$gbstats['rootCandidates']} rootcats={$gbstats['rootcats']} " .
                     "courseitems={$gbstats['courseitems']} canonical={$gbstats['canonicalRootId']} " .
                     "merged={$gbstats['mergedRoots']} deleteditems={$gbstats['deletedCourseItems']} " .
-                    "relinked={$gbstats['relinkedCourseItems']}"
+                    "relinked={$gbstats['relinkedCourseItems']} createdcourse={$gbstats['createdCourseItems']} " .
+                    "fixedorphan={$gbstats['fixedOrphanCategoryItems']} dedupcat={$gbstats['dedupedCategoryItems']} " .
+                    "mergedgrades={$gbstats['mergedGradeRows']}"
                 );
             } catch (\Throwable $repairerr2) {
                 gmk_log("WARNING: assign reactive gradebook repair fallo courseid={$course->id}: " . $repairerr2->getMessage());
