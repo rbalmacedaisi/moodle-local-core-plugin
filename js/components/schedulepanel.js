@@ -10,16 +10,50 @@ Vue.component('scheduletable',{
                 <!-- Bulk approve confirmation dialog -->
                 <v-dialog v-model="confirmDialog" max-width="480">
                     <v-card>
-                        <v-card-title class="text-h6">Aprobar período</v-card-title>
+                        <v-card-title class="text-h6">Aprobar periodo</v-card-title>
                         <v-card-text>
-                            ¿Confirma que desea inscribir todos los estudiantes y aprobar todas las clases
-                            del período <strong>{{ selectedPeriodName }}</strong>?<br>
-                            <span class="text-caption grey--text">Solo se procesarán clases aún no aprobadas.</span>
+                            Confirma que desea inscribir todos los estudiantes y aprobar todas las clases
+                            del periodo <strong>{{ selectedPeriodName }}</strong>?<br>
+                            <span class="text-caption grey--text">Solo se procesaran clases aun no aprobadas.</span>
                         </v-card-text>
                         <v-card-actions>
                             <v-spacer></v-spacer>
                             <v-btn text @click="confirmDialog = false">Cancelar</v-btn>
-                            <v-btn color="success" :loading="approving" @click="bulkApprove">Confirmar</v-btn>
+                            <v-btn color="success" :loading="approving" @click="bulkApprove(false)">Confirmar</v-btn>
+                        </v-card-actions>
+                    </v-card>
+                </v-dialog>
+
+                <!-- Over quota warning dialog -->
+                <v-dialog v-model="overQuotaDialog" max-width="820">
+                    <v-card>
+                        <v-card-title class="text-h6">Advertencia de quorum</v-card-title>
+                        <v-card-text>
+                            Se detectaron {{ overQuotaClasses.length }} clases con mas de {{ quorumLimit }} estudiantes:
+                            <v-simple-table dense class="mt-3">
+                                <thead>
+                                    <tr>
+                                        <th>Clase</th>
+                                        <th class="text-right">Estudiantes</th>
+                                        <th class="text-right">Exceso</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in overQuotaClasses" :key="row.classid">
+                                        <td>{{ row.name }}</td>
+                                        <td class="text-right">{{ row.candidates }}</td>
+                                        <td class="text-right">{{ row.overflow }}</td>
+                                    </tr>
+                                </tbody>
+                            </v-simple-table>
+                            <div class="text-caption grey--text mt-3">
+                                Puede continuar para aprobar e inscribir igualmente a todos los estudiantes.
+                            </div>
+                        </v-card-text>
+                        <v-card-actions>
+                            <v-spacer></v-spacer>
+                            <v-btn text @click="overQuotaDialog = false">Cancelar</v-btn>
+                            <v-btn color="warning" :loading="approving" @click="confirmOverQuotaAndContinue">Continuar</v-btn>
                         </v-card-actions>
                     </v-card>
                 </v-dialog>
@@ -49,7 +83,7 @@ Vue.component('scheduletable',{
                                 :items="periods"
                                 item-text="name"
                                 item-value="id"
-                                label="Período"
+                                label="Periodo"
                                 dense
                                 outlined
                                 hide-details
@@ -65,7 +99,7 @@ Vue.component('scheduletable',{
                                 @click="confirmDialog = true"
                             >
                                 <v-icon left small>mdi-check-all</v-icon>
-                                Aprobar período
+                                Aprobar periodo
                             </v-btn>
                             <v-spacer></v-spacer>
                         </v-toolbar>
@@ -99,7 +133,7 @@ Vue.component('scheduletable',{
                     <template v-slot:item.numberclasses="{ item }">
                       <div class="d-flex flex-column">
                         {{item.numberclasses}}
-                        <div class="d-flex>">
+                        <div class="d-flex">
                             <span
                               v-for="(schedule, index) in item.schedules"
                               :key="schedule.id"
@@ -142,6 +176,9 @@ Vue.component('scheduletable',{
             selectedPeriod: null,
             approving: false,
             confirmDialog: false,
+            overQuotaDialog: false,
+            overQuotaClasses: [],
+            quorumLimit: 40,
             snackbar: false,
             snackMessage: '',
             snackColor: 'success',
@@ -164,7 +201,6 @@ Vue.component('scheduletable',{
                 { text: window.strings.actions, value: 'actions', sortable: false, align: 'center',filterable: false },
             ],
             items: [],
-            dialog: false,
         }
     },
     props:{},
@@ -261,28 +297,57 @@ Vue.component('scheduletable',{
                 console.error(error)
             }
         },
-        async bulkApprove() {
+        confirmOverQuotaAndContinue() {
+            this.bulkApprove(true);
+        },
+        async bulkApprove(force = false) {
             if (!this.selectedPeriod) return;
+
             this.approving = true;
-            this.confirmDialog = false;
+            if (!force) {
+                this.confirmDialog = false;
+            }
+            this.overQuotaDialog = false;
+
             try {
                 const res = await window.axios.post(
                     window.location.origin + '/local/grupomakro_core/ajax.php',
-                    { action: 'local_grupomakro_bulk_approve_period', periodid: this.selectedPeriod },
+                    {
+                        action: 'local_grupomakro_bulk_approve_period',
+                        periodid: this.selectedPeriod,
+                        force: force ? 1 : 0,
+                        quorumlimit: this.quorumLimit,
+                    },
                     { headers: { 'Content-Type': 'application/json' } }
                 );
+
+                const status = res.data?.status;
                 const d = res.data?.data;
-                if (d) {
-                    const errMsg = d.errors.length > 0 ? ` — ${d.errors.length} errores` : '';
-                    this.snackMessage = `Aprobadas: ${d.approved} clases. Inscritos: ${d.enrolled_total ?? '?'} estudiantes. Omitidas: ${d.skipped}.${errMsg}`;
-                    this.snackColor = d.errors.length > 0 ? 'warning' : 'success';
-                    if (d.errors.length > 0) {
-                        console.warn('Bulk approve errors:', d.errors);
+
+                if (status === 'warning' && d) {
+                    this.overQuotaClasses = Array.isArray(d.over_quota_classes) ? d.over_quota_classes : [];
+                    this.overQuotaDialog = this.overQuotaClasses.length > 0;
+                    this.snackMessage = res.data?.message || 'Se detectaron clases por encima del quorum.';
+                    this.snackColor = 'warning';
+                    this.snackbar = !this.overQuotaDialog;
+                    return;
+                }
+
+                if (status === 'success' && d) {
+                    const errors = Array.isArray(d.errors) ? d.errors : [];
+                    const errMsg = errors.length > 0 ? ` - ${errors.length} errores` : '';
+                    const overQuotaMsg = (d.over_quota_count || 0) > 0 ? ` Sobre quorum: ${d.over_quota_count}.` : '';
+
+                    this.snackMessage = `Aprobadas: ${d.approved} clases. Inscritos: ${d.enrolled_total ?? '?'} estudiantes. Omitidas: ${d.skipped}.${overQuotaMsg}${errMsg}`;
+                    this.snackColor = errors.length > 0 ? 'warning' : 'success';
+                    if (errors.length > 0) {
+                        console.warn('Bulk approve errors:', errors);
                     }
                 } else {
                     this.snackMessage = res.data?.message || 'Error desconocido';
                     this.snackColor = 'error';
                 }
+
                 this.snackbar = true;
             } catch(e) {
                 this.snackMessage = 'Error: ' + (e.response?.data?.message || e.message);
@@ -326,3 +391,4 @@ Vue.component('scheduletable',{
         }
     },
 })
+

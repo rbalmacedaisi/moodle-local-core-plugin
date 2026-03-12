@@ -181,7 +181,7 @@ try {
                     $response = ['status' => 'error', 'message' => 'Error al actualizar base de datos.'];
                 }
             } else {
-                $response = ['status' => 'error', 'message' => 'Inscripción no encontrada.'];
+                $response = ['status' => 'error', 'message' => 'InscripciÃ³n no encontrada.'];
             }
             break;
 
@@ -243,7 +243,7 @@ try {
                 // Find Learning Plan for User (Assuming active student)
                 $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                 if (!$lpUser) {
-                    $log[] = "Error: Usuario $idnumber no está inscrito en plan de estudio.";
+                    $log[] = "Error: Usuario $idnumber no estÃ¡ inscrito en plan de estudio.";
                     $failCount++;
                     continue;
                 }
@@ -259,7 +259,7 @@ try {
                 if (\local_grupomakro_progress_manager::update_student_period($user->id, $lpUser->learningplanid, $targetPeriod->id)) {
                     $successCount++;
                 } else {
-                    $log[] = "Aviso: No se requirió cambio para $idnumber.";
+                    $log[] = "Aviso: No se requiriÃ³ cambio para $idnumber.";
                     $successCount++; // Count as handled
                 }
             }
@@ -276,7 +276,7 @@ try {
             
             // Check file upload
             if (empty($_FILES['import_file'])) {
-                $response = ['status' => 'error', 'message' => 'No se recibió ningún archivo.'];
+                $response = ['status' => 'error', 'message' => 'No se recibiÃ³ ningÃºn archivo.'];
                 break;
             }
             
@@ -294,7 +294,7 @@ try {
                 $rows = $sheet->toArray();
                 
                 if (count($rows) < 2) {
-                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacío (o solo tiene cabecera).'];
+                    $response = ['status' => 'error', 'message' => 'El archivo parece estar vacÃ­o (o solo tiene cabecera).'];
                     break;
                 }
                 
@@ -304,7 +304,7 @@ try {
                 
                 // Flexible header search
                 foreach ($headers as $idx => $h) {
-                    if (strpos($h, 'id number') !== false || strpos($h, 'identificación') !== false || $h === 'idnumber') $idIdx = $idx;
+                    if (strpos($h, 'id number') !== false || strpos($h, 'identificaciÃ³n') !== false || $h === 'idnumber') $idIdx = $idx;
                     // Look for Bloque, Bimestre, Subperiodo
                     if (strpos($h, 'bloque') !== false || strpos($h, 'bimestre') !== false || strpos($h, 'subperiod') !== false) $bloqueIdx = $idx;
                 }
@@ -360,7 +360,7 @@ try {
                     }
 
                     if (!$user) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/Cédula $idnumber no encontrado.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario con ID/CÃ©dula $idnumber no encontrado.";
                         $failCount++;
                         continue;
                     }
@@ -368,7 +368,7 @@ try {
                     // Find Learning Plan for User (Assuming active student)
                     $lpUser = $DB->get_record('local_learning_users', ['userid' => $user->id, 'userrolename' => 'student']);
                     if (!$lpUser) {
-                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no está inscrito en plan de estudio.";
+                        $log[] = "Fila " . ($i+1) . ": Usuario $idnumber no estÃ¡ inscrito en plan de estudio.";
                         $failCount++;
                         continue;
                     }
@@ -401,7 +401,7 @@ try {
                 ];
 
             } catch (Exception $e) {
-                $response = ['status' => 'error', 'message' => 'Excepción procesando archivo: ' . $e->getMessage()];
+                $response = ['status' => 'error', 'message' => 'ExcepciÃ³n procesando archivo: ' . $e->getMessage()];
             }
             break;
 
@@ -718,7 +718,7 @@ try {
             }
             
             if (empty($all_atts)) {
-                 $response = ['status' => 'error', 'message' => 'No se encontró actividad de asistencia.'];
+                 $response = ['status' => 'error', 'message' => 'No se encontrÃ³ actividad de asistencia.'];
                  break;
             }
             
@@ -792,7 +792,7 @@ try {
             $tstart = strtotime('-1 month');
             $tend = strtotime('+6 months');
             
-            // Fetch events for this class's group only (groupid = 0 means "all groups" — exclude those
+            // Fetch events for this class's group only (groupid = 0 means "all groups" â€” exclude those
             // because in a shared template course they belong to every class and cause duplication).
             $sql = "SELECT e.*
                     FROM {event} e
@@ -818,7 +818,7 @@ try {
             $formatted_sessions = [];
             foreach ($events as $e) {
                 try {
-                // All events already filtered by groupid in SQL — no PHP re-check needed.
+                // All events already filtered by groupid in SQL â€” no PHP re-check needed.
 
                 // Filter by Module
                 // Allow bigbluebuttonbn module (lowercase)
@@ -1116,7 +1116,7 @@ try {
             $sort_order_json = optional_param('sortorder', '', PARAM_RAW);
             $sort_order = !empty($sort_order_json) ? json_decode($sort_order_json, true) : null;
 
-            if (!is_array($weights)) throw new Exception("Datos inválidos.");
+            if (!is_array($weights)) throw new Exception("Datos invÃ¡lidos.");
 
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
@@ -1210,7 +1210,7 @@ try {
                 // FORCE REGRADE
                 \grade_regrade_final_grades($class->corecourseid);
 
-                $response = ['status' => 'success', 'message' => 'Configuración actualizada.'];
+                $response = ['status' => 'success', 'message' => 'ConfiguraciÃ³n actualizada.'];
             } catch (Exception $e) {
                 $tx->rollback($e);
                 throw $e;
@@ -1259,16 +1259,16 @@ try {
             require_once($CFG->libdir . '/gradelib.php');
 
             $gi = \grade_item::fetch(['id' => $itemid]);
-            if (!$gi) throw new Exception("Ítem no encontrado.");
+            if (!$gi) throw new Exception("Ãtem no encontrado.");
             
             // Security check: Only manual items? Or allow deleting activities?
             // Safer to allow only manual for now, deleting activities deletes the module which is dangerous here.
             if ($gi->itemtype !== 'manual') {
-                throw new Exception("Solo se pueden eliminar ítems manuales desde aquí.");
+                throw new Exception("Solo se pueden eliminar Ã­tems manuales desde aquÃ­.");
             }
 
             $gi->delete();
-            $response = ['status' => 'success', 'message' => 'Ítem eliminado.'];
+            $response = ['status' => 'success', 'message' => 'Ãtem eliminado.'];
             break;
 
         case 'local_grupomakro_get_all_activities':
@@ -1297,7 +1297,7 @@ try {
                     }
                 }
             }
-            // If no section found, $cms stays empty — avoids leaking other classes' activities
+            // If no section found, $cms stays empty â€” avoids leaking other classes' activities
 
             $activities = [];
 
@@ -1306,7 +1306,7 @@ try {
                 // Exclude label
                 if ($cm->modname === 'label') continue;
 
-                // Attendance and BBB are "default" activities — always placed in General (no tags)
+                // Attendance and BBB are "default" activities â€” always placed in General (no tags)
                 $is_general = ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn');
 
                 if ($is_general) {
@@ -2396,7 +2396,7 @@ try {
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
 
-            // Normalize tags — may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags â€” may arrive as string (FormData/JSON) or array (JSON flattened)
             $tagList = [];
             $raw_tags = isset($_POST['tags']) ? $_POST['tags'] : '';
             if (is_array($raw_tags)) {
@@ -2671,7 +2671,7 @@ try {
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
             $intro = optional_param('intro', '', PARAM_RAW);
-            // Normalize tags — may arrive as string (FormData/JSON) or array (JSON flattened)
+            // Normalize tags â€” may arrive as string (FormData/JSON) or array (JSON flattened)
             $raw_tags_upd = isset($_POST['tags']) ? $_POST['tags'] : '';
             if (is_array($raw_tags_upd)) {
                 $tags = array_values(array_filter(array_map('trim', $raw_tags_upd)));
@@ -2878,7 +2878,7 @@ try {
             if ($result) {
                 $response = ['status' => 'success'];
             } else {
-                $response = ['status' => 'error', 'message' => 'Error al guardar la configuración'];
+                $response = ['status' => 'error', 'message' => 'Error al guardar la configuraciÃ³n'];
             }
             break;
 
@@ -3002,7 +3002,7 @@ try {
                     'quota'        => $quota,
                     'requested'    => count($userids),
                     'new_total'    => $newTotal,
-                    'message'      => "Al inscribir {$newTotal} estudiantes se superará el cupo de {$quota}. ¿Desea aumentar el cupo automáticamente?",
+                    'message'      => "Al inscribir {$newTotal} estudiantes se superarÃ¡ el cupo de {$quota}. Â¿Desea aumentar el cupo automÃ¡ticamente?",
                 ];
                 break;
             }
@@ -3048,26 +3048,91 @@ try {
             core_php_time_limit::raise(600);
 
             $periodid = required_param('periodid', PARAM_INT);
-            // Note: gmk_class has no 'active' field — filter only by periodid and approved=0
+            $force = optional_param('force', 0, PARAM_INT);
+            $quorumlimit = optional_param('quorumlimit', 40, PARAM_INT);
+            if ($quorumlimit <= 0) {
+                $quorumlimit = 40;
+            }
+
+            // Note: gmk_class has no 'active' field - filter only by periodid and approved=0.
             $classes = $DB->get_records('gmk_class', ['periodid' => $periodid, 'approved' => 0]);
 
-            $results = ['approved' => 0, 'skipped' => 0, 'errors' => [], 'enrolled_total' => 0];
+            $preparedclasses = [];
+            $overquotaclasses = [];
+
             foreach ($classes as $class) {
-                try {
-                    // Merge queue + pre_registration, deduplicate by userid, exclude instructor
-                    $instructorId = (int)($class->instructorid ?? 0);
-                    $preReg  = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
-                    $queued  = $DB->get_records('gmk_class_queue',            ['classid' => $class->id]);
-                    $allStudents = [];
-                    foreach (array_merge(array_values($preReg), array_values($queued)) as $s) {
-                        if ($instructorId && $s->userid == $instructorId) continue;
-                        $allStudents[$s->userid] = $s;
+                // Merge queue + pre_registration, deduplicate by userid, exclude instructor.
+                $instructorid = (int)($class->instructorid ?? 0);
+                $prereg = $DB->get_records('gmk_class_pre_registration', ['classid' => $class->id]);
+                $queued = $DB->get_records('gmk_class_queue', ['classid' => $class->id]);
+                $allstudents = [];
+
+                foreach (array_merge(array_values($prereg), array_values($queued)) as $student) {
+                    $userid = (int)($student->userid ?? 0);
+                    if (!$userid) {
+                        continue;
+                    }
+                    if ($instructorid && $userid === $instructorid) {
+                        continue;
                     }
 
-                    if (!empty($allStudents)) {
-                        $enrolResults = enrolApprovedScheduleStudents($allStudents, $class);
-                        $results['enrolled_total'] += count(array_filter($enrolResults));
-                        // NOTE: queue/pre_reg records are intentionally preserved — they represent
+                    $entry = new stdClass();
+                    $entry->userid = $userid;
+                    $allstudents[$userid] = $entry;
+                }
+
+                $candidatecount = count($allstudents);
+                if ($candidatecount > $quorumlimit) {
+                    $overquotaclasses[] = [
+                        'classid' => (int)$class->id,
+                        'name' => (string)$class->name,
+                        'candidates' => $candidatecount,
+                        'quorumlimit' => $quorumlimit,
+                        'overflow' => ($candidatecount - $quorumlimit),
+                        'classroomcapacity' => (int)($class->classroomcapacity ?? 0),
+                    ];
+                }
+
+                $preparedclasses[] = [
+                    'class' => $class,
+                    'students' => $allstudents,
+                ];
+            }
+
+            // Dry-run warning mode: do not approve/enrol until user confirms.
+            if (!$force && !empty($overquotaclasses)) {
+                $response = [
+                    'status' => 'warning',
+                    'message' => 'Se detectaron clases que superan el quorum.',
+                    'data' => [
+                        'quorum_limit' => $quorumlimit,
+                        'total_classes' => count($preparedclasses),
+                        'over_quota_count' => count($overquotaclasses),
+                        'over_quota_classes' => $overquotaclasses,
+                    ],
+                ];
+                break;
+            }
+
+            $results = [
+                'approved' => 0,
+                'skipped' => 0,
+                'errors' => [],
+                'enrolled_total' => 0,
+                'quorum_limit' => $quorumlimit,
+                'over_quota_count' => count($overquotaclasses),
+                'over_quota_classes' => $overquotaclasses,
+            ];
+
+            foreach ($preparedclasses as $entry) {
+                $class = $entry['class'];
+                $allstudents = $entry['students'];
+
+                try {
+                    if (!empty($allstudents)) {
+                        $enrolresults = enrolApprovedScheduleStudents(array_values($allstudents), $class);
+                        $results['enrolled_total'] += count(array_filter($enrolresults));
+                        // NOTE: queue/pre_reg records are intentionally preserved - they represent
                         // the academic plan (who is assigned to this class) and must persist.
                     } else {
                         $results['skipped']++;
@@ -3076,9 +3141,14 @@ try {
                     $DB->set_field('gmk_class', 'approved', 1, ['id' => $class->id]);
                     $results['approved']++;
                 } catch (Exception $e) {
-                    $results['errors'][] = ['classid' => $class->id, 'name' => $class->name, 'error' => $e->getMessage()];
+                    $results['errors'][] = [
+                        'classid' => (int)$class->id,
+                        'name' => (string)$class->name,
+                        'error' => $e->getMessage(),
+                    ];
                 }
             }
+
             $response = ['status' => 'success', 'data' => $results];
             break;
 
@@ -3144,13 +3214,13 @@ try {
                     $sid = create_class_section($class);
                     $DB->set_field('gmk_class', 'coursesectionid', $sid, ['id' => $classid]);
                     $class->coursesectionid = $sid;
-                    $log[] = "Sección creada: id=$sid";
+                    $log[] = "SecciÃ³n creada: id=$sid";
                 } catch (Throwable $e) {
-                    $log[] = "WARN sección: " . $e->getMessage();
-                    // non-fatal — continue to activities
+                    $log[] = "WARN secciÃ³n: " . $e->getMessage();
+                    // non-fatal â€” continue to activities
                 }
             } else {
-                $log[] = "Sección ya existe: id={$class->coursesectionid}";
+                $log[] = "SecciÃ³n ya existe: id={$class->coursesectionid}";
             }
 
             // Activities
@@ -3314,7 +3384,7 @@ try {
             $loads = json_decode($loadsJson, true);
             
             if (!is_array($loads)) {
-                throw new Exception('Formato de cargas inválido.');
+                throw new Exception('Formato de cargas invÃ¡lido.');
             }
             
             // Wipe existing loads for this period and insert new ones
@@ -3351,7 +3421,7 @@ try {
                 $source = 'RAW_INPUT_VAR';
             }
 
-            // When Content-Type is application/json, schedules may already be decoded as array — re-encode it
+            // When Content-Type is application/json, schedules may already be decoded as array â€” re-encode it
             if (is_array($schedulesJson)) {
                 $schedulesJson = json_encode($schedulesJson);
                 $source .= '_REENCODED';
@@ -3417,7 +3487,7 @@ try {
             $periodid = required_param('academicperiodid', PARAM_INT);
             
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                throw new Exception('No se recibió un archivo válido.');
+                throw new Exception('No se recibiÃ³ un archivo vÃ¡lido.');
             }
             
             $tmpPath = $_FILES['file']['tmp_name'];
@@ -3436,7 +3506,7 @@ try {
             }
             
             if (empty($colMap['date'])) {
-                throw new Exception('No se encontró la columna "Fecha" en el Excel.');
+                throw new Exception('No se encontrÃ³ la columna "Fecha" en el Excel.');
             }
             
             // Get existing dates to skip duplicates
@@ -3603,14 +3673,14 @@ try {
                     ['courseid' => $class->corecourseid, 'name' => 'Avisos%']
                 );
             }
-            if (!$forum) throw new Exception("No se encontró el foro de avisos del curso.");
+            if (!$forum) throw new Exception("No se encontrÃ³ el foro de avisos del curso.");
 
             $now = time();
 
             $cm = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
             $context = context_module::instance($cm->id);
 
-            // Insert the first post directly — forum_add_discussion() ignores $post->mailnow in Moodle 4.x
+            // Insert the first post directly â€” forum_add_discussion() ignores $post->mailnow in Moodle 4.x
             $post_record = new stdClass();
             $post_record->discussion    = 0; // Will update after discussion is created
             $post_record->parent        = 0;
@@ -3648,7 +3718,7 @@ try {
             $disc_record->timelocked   = 0;
 
             $discussionid = $DB->insert_record('forum_discussions', $disc_record);
-            if (!$discussionid) throw new Exception("No se pudo crear la discusión del aviso.");
+            if (!$discussionid) throw new Exception("No se pudo crear la discusiÃ³n del aviso.");
 
             // Link post back to discussion
             $DB->set_field('forum_posts', 'discussion', $discussionid, ['id' => $postid]);
@@ -3686,7 +3756,7 @@ try {
         case 'local_grupomakro_delete_forum_discussion':
             $discussionid = required_param('discussionid', PARAM_INT);
             $disc = $DB->get_record('forum_discussions', ['id' => $discussionid]);
-            if (!$disc) throw new Exception("Discusión no encontrada.");
+            if (!$disc) throw new Exception("DiscusiÃ³n no encontrada.");
 
             // Verify the current user is the instructor of that course or site admin
             $class_del = $DB->get_record('gmk_class', ['corecourseid' => $disc->course, 'instructorid' => $USER->id]);
@@ -3741,7 +3811,7 @@ try {
             break;
 
         case 'debug_inspect_post':
-            // TEMPORARY DEBUG — remove after diagnosis
+            // TEMPORARY DEBUG â€” remove after diagnosis
             require_capability('moodle/site:config', context_system::instance());
             $response = [
                 'status' => 'success',
@@ -3760,7 +3830,7 @@ try {
             // Sube un archivo al draft area del usuario (paso previo a crear/editar actividad)
             if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
                 $upload_error = !empty($_FILES['file']) ? $_FILES['file']['error'] : 'no file received';
-                $response = ['status' => 'error', 'message' => 'No se recibió ningún archivo o hubo un error al subirlo. Error: ' . $upload_error];
+                $response = ['status' => 'error', 'message' => 'No se recibiÃ³ ningÃºn archivo o hubo un error al subirlo. Error: ' . $upload_error];
                 break;
             }
             $draftitemid = optional_param('draftitemid', 0, PARAM_INT);
@@ -3807,3 +3877,4 @@ $output = ob_get_clean();
 header('Content-Type: application/json');
 echo json_encode($response);
 die();
+
