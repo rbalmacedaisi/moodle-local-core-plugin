@@ -1034,6 +1034,195 @@ function gmk_heal_course_gradebook_course_item($courseid) {
 }
 
 /**
+ * Detects the "more than one record in read()" family of Moodle errors.
+ */
+function gmk_is_duplicate_read_error($message): bool {
+    $msg = (string)$message;
+    if (function_exists('mb_strtolower')) {
+        $msg = mb_strtolower($msg);
+    } else {
+        $msg = strtolower($msg);
+    }
+    return (
+        strpos($msg, 'more than one record in read') !== false ||
+        strpos($msg, 'mas de un registro en lectura') !== false ||
+        strpos($msg, 'más de un registro en lectura') !== false
+    );
+}
+
+/**
+ * Rebuild grade category paths/depth recursively from a parent node.
+ */
+function gmk_rebuild_grade_category_tree(int $parentid, string $parentpath, int $depth, int $maxdepth = 30): void {
+    global $DB;
+
+    if ($depth > $maxdepth) {
+        gmk_log("WARNING: gradebook repair maxdepth alcanzado parent={$parentid}");
+        return;
+    }
+
+    $children = $DB->get_records('grade_categories', ['parent' => $parentid], 'id ASC', 'id,parent,depth,path');
+    foreach ($children as $child) {
+        $newpath = $parentpath . $child->id . '/';
+        if ((int)$child->depth !== $depth) {
+            $DB->set_field('grade_categories', 'depth', $depth, ['id' => (int)$child->id]);
+        }
+        if ((string)$child->path !== $newpath) {
+            $DB->set_field('grade_categories', 'path', $newpath, ['id' => (int)$child->id]);
+        }
+        gmk_rebuild_grade_category_tree((int)$child->id, $newpath, $depth + 1, $maxdepth);
+    }
+}
+
+/**
+ * Repairs duplicate root categories / malformed course grade items for one course.
+ *
+ * @return array{
+ *   rootCandidates:int,
+ *   rootcats:int,
+ *   courseitems:int,
+ *   canonicalRootId:int,
+ *   mergedRoots:int,
+ *   deletedCourseItems:int,
+ *   relinkedCourseItems:int
+ * }
+ */
+function gmk_repair_course_gradebook_duplicates(int $courseid): array {
+    global $DB;
+
+    $stats = [
+        'rootCandidates' => 0,
+        'rootcats' => 0,
+        'courseitems' => 0,
+        'canonicalRootId' => 0,
+        'mergedRoots' => 0,
+        'deletedCourseItems' => 0,
+        'relinkedCourseItems' => 0,
+    ];
+
+    $courseid = (int)$courseid;
+    if ($courseid <= 0) {
+        return $stats;
+    }
+
+    // First, normalize malformed course item instance/category links.
+    gmk_heal_course_gradebook_course_item($courseid);
+
+    $rootcandidates = $DB->get_records_select(
+        'grade_categories',
+        'courseid = :c AND (parent IS NULL OR parent = 0)',
+        ['c' => $courseid],
+        'id ASC',
+        'id,courseid,parent,depth,path,fullname'
+    );
+    $stats['rootCandidates'] = count($rootcandidates);
+
+    $rootcats = array_filter($rootcandidates, static function($r) {
+        return (int)$r->depth === 1;
+    });
+    $stats['rootcats'] = count($rootcats);
+
+    $courseitems = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'course',
+        'iteminstance' => $courseid
+    ], 'id ASC', 'id,categoryid');
+    $stats['courseitems'] = count($courseitems);
+
+    $rootids = array_map('intval', array_keys($rootcandidates));
+    $canonicalrootid = 0;
+    foreach ($courseitems as $it) {
+        $cid = (int)$it->categoryid;
+        if ($cid > 0 && in_array($cid, $rootids, true)) {
+            $canonicalrootid = $cid;
+            break;
+        }
+    }
+    if ($canonicalrootid <= 0 && !empty($rootcats)) {
+        $canonicalrootid = (int)array_key_first($rootcats);
+    }
+    if ($canonicalrootid <= 0 && !empty($rootids)) {
+        $canonicalrootid = (int)min($rootids);
+    }
+    $stats['canonicalRootId'] = $canonicalrootid;
+
+    if ($canonicalrootid > 0) {
+        foreach ($rootcandidates as $rid => $cat) {
+            $rid = (int)$rid;
+            if ($rid === $canonicalrootid) {
+                continue;
+            }
+
+            // Move child categories and grade items to canonical root.
+            if ($DB->record_exists('grade_categories', ['parent' => $rid])) {
+                $DB->set_field('grade_categories', 'parent', $canonicalrootid, ['parent' => $rid]);
+            }
+            if ($DB->record_exists('grade_items', ['categoryid' => $rid])) {
+                $DB->set_field('grade_items', 'categoryid', $canonicalrootid, ['categoryid' => $rid]);
+            }
+
+            $DB->delete_records('grade_categories', ['id' => $rid]);
+            $stats['mergedRoots']++;
+        }
+
+        // Ensure canonical root has valid root shape, then fix descendants.
+        $DB->set_field('grade_categories', 'parent', null, ['id' => $canonicalrootid]);
+        $DB->set_field('grade_categories', 'depth', 1, ['id' => $canonicalrootid]);
+        $DB->set_field('grade_categories', 'path', '/' . $canonicalrootid . '/', ['id' => $canonicalrootid]);
+        gmk_rebuild_grade_category_tree($canonicalrootid, '/' . $canonicalrootid . '/', 2);
+    }
+
+    // Deduplicate course grade items if multiple rows still exist.
+    $courseitems = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'course',
+        'iteminstance' => $courseid
+    ], 'id ASC', 'id,categoryid');
+
+    if (count($courseitems) > 1) {
+        $keep = null;
+        foreach ($courseitems as $it) {
+            if ($canonicalrootid > 0 && (int)$it->categoryid === $canonicalrootid) {
+                $keep = $it;
+                break;
+            }
+        }
+        if (!$keep) {
+            $keep = reset($courseitems);
+        }
+        $keepid = (int)$keep->id;
+
+        foreach ($courseitems as $itid => $it) {
+            $itid = (int)$itid;
+            if ($itid === $keepid) {
+                continue;
+            }
+            $hasgrades = $DB->record_exists('grade_grades', ['itemid' => $itid]);
+            if (!$hasgrades) {
+                $DB->delete_records('grade_items', ['id' => $itid]);
+                $stats['deletedCourseItems']++;
+            }
+        }
+    }
+
+    if ($canonicalrootid > 0) {
+        $courseitems = $DB->get_records('grade_items', [
+            'courseid' => $courseid,
+            'itemtype' => 'course',
+            'iteminstance' => $courseid
+        ], 'id ASC', 'id,categoryid');
+        foreach ($courseitems as $it) {
+            if ((int)$it->categoryid !== $canonicalrootid) {
+                $DB->set_field('grade_items', 'categoryid', $canonicalrootid, ['id' => (int)$it->id]);
+                $stats['relinkedCourseItems']++;
+            }
+        }
+    }
+
+    return $stats;
+}
+
+/**
  * True if the course module id is linked in the section sequence.
  */
 function gmk_section_sequence_contains_cmid($sectionid, $cmid)
@@ -4804,7 +4993,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
     }
     
-    $module = $DB->get_record('modules', ['name' => $type], '*', MUST_EXIST);
+    $module = (object)[
+        'id' => gmk_get_module_id_by_name($type)
+    ];
     
     $moduleinfo = new stdClass();
     $moduleinfo->modulename = $type;
@@ -4839,6 +5030,20 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         if (array_key_exists('submissiondrafts', array_change_key_case($assigncols, CASE_LOWER))) {
             // Force non-empty truthy value so this fork does not convert it to NULL.
             $moduleinfo->submissiondrafts = 1;
+        }
+
+        // Preflight repair for known gradebook corruption that breaks assign/grade insert.
+        try {
+            $gbstats = gmk_repair_course_gradebook_duplicates((int)$course->id);
+            gmk_log(
+                "INFO: assign gradebook preflight courseid={$course->id} " .
+                "roots={$gbstats['rootCandidates']} rootcats={$gbstats['rootcats']} " .
+                "courseitems={$gbstats['courseitems']} canonical={$gbstats['canonicalRootId']} " .
+                "merged={$gbstats['mergedRoots']} deleteditems={$gbstats['deletedCourseItems']} " .
+                "relinked={$gbstats['relinkedCourseItems']}"
+            );
+        } catch (\Throwable $repairerr) {
+            gmk_log("WARNING: assign gradebook preflight fallo courseid={$course->id}: " . $repairerr->getMessage());
         }
     } else if ($type === 'quiz') {
         $moduleinfo->grade = 10; // Default max grade
@@ -4918,7 +5123,8 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         file_put_contents(
             __DIR__ . '/gmk_debug.log',
             '[' . date('Y-m-d H:i:s') . '] WARNING add_moduleinfo failed type=' . $type .
-            ' classid=' . $classid . ' msg=' . $e->getMessage() . PHP_EOL,
+            ' classid=' . $classid . ' msg=' . $e->getMessage() .
+            ' trace=' . str_replace(["\r", "\n"], ' | ', $e->getTraceAsString()) . PHP_EOL,
             FILE_APPEND
         );
 
@@ -4926,6 +5132,22 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         // Retry with a minimal payload to maximize compatibility.
         if ($type !== 'assign') {
             throw $e;
+        }
+
+        // If Moodle reports duplicate-read corruption, repair gradebook and retry once.
+        if (gmk_is_duplicate_read_error($e->getMessage())) {
+            try {
+                $gbstats = gmk_repair_course_gradebook_duplicates((int)$course->id);
+                gmk_log(
+                    "INFO: assign gradebook reactive-repair courseid={$course->id} " .
+                    "roots={$gbstats['rootCandidates']} rootcats={$gbstats['rootcats']} " .
+                    "courseitems={$gbstats['courseitems']} canonical={$gbstats['canonicalRootId']} " .
+                    "merged={$gbstats['mergedRoots']} deleteditems={$gbstats['deletedCourseItems']} " .
+                    "relinked={$gbstats['relinkedCourseItems']}"
+                );
+            } catch (\Throwable $repairerr2) {
+                gmk_log("WARNING: assign reactive gradebook repair fallo courseid={$course->id}: " . $repairerr2->getMessage());
+            }
         }
 
         $minimal = new stdClass();

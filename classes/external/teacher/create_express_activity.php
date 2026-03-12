@@ -97,7 +97,7 @@ class create_express_activity extends external_api {
         } catch (\Throwable $e) {
             return array(
                 'status' => 'error',
-                'message' => 'Backend Error [assign-fix-v2]: ' . ($e->getMessage() ?: get_class($e)),
+                'message' => 'Backend Error [assign-fix-v3]: ' . ($e->getMessage() ?: get_class($e)),
                 'cmid' => 0
             );
         }
