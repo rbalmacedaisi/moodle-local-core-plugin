@@ -4741,7 +4741,9 @@ function local_grupomakro_apply_assign_defaults(stdClass &$moduleinfo, array $as
     $assigncols = array_change_key_case($assigncols, CASE_LOWER);
     $defaults = [
         'alwaysshowdescription' => 1,
-        'submissiondrafts' => 0,
+        // In this fork, 0 can be normalized to NULL during module creation path.
+        // Use 1 to keep NOT NULL constraints satisfied.
+        'submissiondrafts' => 1,
         'requiresubmissionstatement' => 0,
         'sendnotifications' => 0,
         'sendlatenotifications' => 0,
@@ -4834,6 +4836,10 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         // Keep assign defaults conservative and explicitly non-null.
         $assigncols = $DB->get_columns('assign');
         local_grupomakro_apply_assign_defaults($moduleinfo, $assigncols);
+        if (array_key_exists('submissiondrafts', array_change_key_case($assigncols, CASE_LOWER))) {
+            // Force non-empty truthy value so this fork does not convert it to NULL.
+            $moduleinfo->submissiondrafts = 1;
+        }
     } else if ($type === 'quiz') {
         $moduleinfo->grade = 10; // Default max grade
         $moduleinfo->timeopen = !empty($extra['timeopen']) ? $extra['timeopen'] : 0;
@@ -4896,6 +4902,17 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     $moduleinfo->quizpassword = 'temp_pass';
 
     try {
+        if ($type === 'assign') {
+            file_put_contents(
+                __DIR__ . '/gmk_debug.log',
+                '[' . date('Y-m-d H:i:s') . '] INFO assign payload classid=' . $classid .
+                ' submissiondrafts=' . (property_exists($moduleinfo, 'submissiondrafts') ? var_export($moduleinfo->submissiondrafts, true) : 'MISSING') .
+                ' grade=' . (property_exists($moduleinfo, 'grade') ? var_export($moduleinfo->grade, true) : 'MISSING') .
+                ' duedate=' . (property_exists($moduleinfo, 'duedate') ? var_export($moduleinfo->duedate, true) : 'MISSING') .
+                PHP_EOL,
+                FILE_APPEND
+            );
+        }
         $result = add_moduleinfo($moduleinfo, $course);
     } catch (\Throwable $e) {
         file_put_contents(
@@ -4927,11 +4944,23 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $minimal->assignsubmission_onlinetext_enabled = 1;
         $minimalassigncols = $DB->get_columns('assign');
         local_grupomakro_apply_assign_defaults($minimal, $minimalassigncols);
+        if (array_key_exists('submissiondrafts', array_change_key_case($minimalassigncols, CASE_LOWER))) {
+            $minimal->submissiondrafts = 1;
+        }
         if (!empty($extra['gradecat'])) {
             $minimal->gradecat = $extra['gradecat'];
         }
 
         try {
+            file_put_contents(
+                __DIR__ . '/gmk_debug.log',
+                '[' . date('Y-m-d H:i:s') . '] INFO assign retry payload classid=' . $classid .
+                ' submissiondrafts=' . (property_exists($minimal, 'submissiondrafts') ? var_export($minimal->submissiondrafts, true) : 'MISSING') .
+                ' grade=' . (property_exists($minimal, 'grade') ? var_export($minimal->grade, true) : 'MISSING') .
+                ' duedate=' . (property_exists($minimal, 'duedate') ? var_export($minimal->duedate, true) : 'MISSING') .
+                PHP_EOL,
+                FILE_APPEND
+            );
             $result = add_moduleinfo($minimal, $course);
         } catch (\Throwable $retrye) {
             file_put_contents(
