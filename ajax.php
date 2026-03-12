@@ -968,6 +968,25 @@ try {
                 }
             }
 
+            // Fallbacks via relation table when class.attendancemoduleid is missing.
+            $relattid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => (int)$classid]);
+            if ($relattid > 0) {
+                $classmodkeys['attendance:' . $relattid] = true;
+            }
+            $relattcmid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendancemoduleid', ['classid' => (int)$classid]);
+            if ($relattcmid > 0) {
+                $relattcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => $relattcmid]
+                );
+                if ($relattcm && !empty($relattcm->modname) && !empty($relattcm->instance)) {
+                    $classmodkeys[$relattcm->modname . ':' . (int)$relattcm->instance] = true;
+                }
+            }
+
             $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
 
             // 1. Fetch Students (Rows)
@@ -978,11 +997,6 @@ try {
                 WHERE gm.groupid = :groupid
                 ORDER BY u.lastname, u.firstname
             ", ['groupid' => $groupid]);
-
-            if (empty($students)) {
-                $response = ['status' => 'success', 'data' => ['columns' => [], 'students' => []]];
-                break;
-            }
 
             $userids = array_keys($students);
 
@@ -1027,7 +1041,8 @@ try {
                     $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
                     $inclasssection = isset($classmodkeys[$modkey]);
                     $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
-                    if ($inclasssection || $inclasscategory) {
+                    $insuffix = (!empty($gi->itemname) && preg_match('/-' . preg_quote((string)$classid, '/') . '$/', trim($gi->itemname)));
+                    if ($inclasssection || $inclasscategory || $insuffix) {
                         $includeitem = true;
                     }
                 }
@@ -1067,20 +1082,22 @@ try {
                 break;
             }
 
-            // 3. Fetch Grades (Cells) - BULK QUERY for performance
-            list($userinsql, $userparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u');
-            list($iteminsql, $itemparams) = $DB->get_in_or_equal($item_ids, SQL_PARAMS_NAMED, 'i');
-            
-            $sql = "SELECT id, itemid, userid, finalgrade 
-                    FROM {grade_grades} 
-                    WHERE userid $userinsql AND itemid $iteminsql";
-            
-            $all_grades = $DB->get_records_sql($sql, array_merge($userparams, $itemparams));
-            
-            // Map grades to [userid][itemid]
             $grades_map = [];
-            foreach ($all_grades as $g) {
-                $grades_map[$g->userid][$g->itemid] = $g->finalgrade;
+            // 3. Fetch Grades (Cells) - BULK QUERY for performance
+            if (!empty($userids) && !empty($item_ids)) {
+                list($userinsql, $userparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u');
+                list($iteminsql, $itemparams) = $DB->get_in_or_equal($item_ids, SQL_PARAMS_NAMED, 'i');
+                
+                $sql = "SELECT id, itemid, userid, finalgrade 
+                        FROM {grade_grades} 
+                        WHERE userid $userinsql AND itemid $iteminsql";
+                
+                $all_grades = $DB->get_records_sql($sql, array_merge($userparams, $itemparams));
+                
+                // Map grades to [userid][itemid]
+                foreach ($all_grades as $g) {
+                    $grades_map[$g->userid][$g->itemid] = $g->finalgrade;
+                }
             }
 
             $grades_data = [];
@@ -1157,6 +1174,25 @@ try {
                 }
             }
 
+            // Fallbacks via relation table when class.attendancemoduleid is missing.
+            $relattid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => (int)$classid]);
+            if ($relattid > 0) {
+                $classmodkeys['attendance:' . $relattid] = true;
+            }
+            $relattcmid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendancemoduleid', ['classid' => (int)$classid]);
+            if ($relattcmid > 0) {
+                $relattcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => $relattcmid]
+                );
+                if ($relattcm && !empty($relattcm->modname) && !empty($relattcm->instance)) {
+                    $classmodkeys[$relattcm->modname . ':' . (int)$relattcm->instance] = true;
+                }
+            }
+
             // Fetch items in course and filter to class scope.
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
             
@@ -1177,7 +1213,8 @@ try {
                     // Module items must be in this class section scope OR class category.
                     $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
                     $inclasssection = isset($classmodkeys[$modkey]);
-                    $includeitem = ($inclasssection || $inclasscategory);
+                    $insuffix = (!empty($gi->itemname) && preg_match('/-' . preg_quote((string)$classid, '/') . '$/', trim($gi->itemname)));
+                    $includeitem = ($inclasssection || $inclasscategory || $insuffix);
                 }
 
                 if (!$includeitem) continue;
@@ -1294,6 +1331,25 @@ try {
                 }
             }
 
+            // Fallbacks via relation table when class.attendancemoduleid is missing.
+            $relattid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => (int)$classid]);
+            if ($relattid > 0) {
+                $classmodkeys['attendance:' . $relattid] = true;
+            }
+            $relattcmid = (int)$DB->get_field('gmk_bbb_attendance_relation', 'attendancemoduleid', ['classid' => (int)$classid]);
+            if ($relattcmid > 0) {
+                $relattcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => $relattcmid]
+                );
+                if ($relattcm && !empty($relattcm->modname) && !empty($relattcm->instance)) {
+                    $classmodkeys[$relattcm->modname . ':' . (int)$relattcm->instance] = true;
+                }
+            }
+
             // Determine aggregation method using same logic as fetch
             $target_cat = \grade_category::fetch_course_category($class->corecourseid);
             if (!empty($class->gradecategoryid)) {
@@ -1315,12 +1371,13 @@ try {
                             $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
                             $inclasssection = isset($classmodkeys[$modkey]);
                         }
+                        $insuffix = (!empty($gi->itemname) && preg_match('/-' . preg_quote((string)$classid, '/') . '$/', trim($gi->itemname)));
                         // Allow updates only for class-scoped manual/mod/category total items.
                         $allowed = false;
                         if ($gi->itemtype === 'manual') {
                             $allowed = $inclasscategory;
                         } else if ($gi->itemtype === 'mod') {
-                            $allowed = ($inclasssection || $inclasscategory);
+                            $allowed = ($inclasssection || $inclasscategory || $insuffix);
                         } else if ($gi->itemtype === 'category') {
                             $allowed = ($classcategoryid > 0 && (int)$gi->iteminstance === $classcategoryid);
                         }
@@ -1394,11 +1451,12 @@ try {
                                 $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
                                 $inclasssection = isset($classmodkeys[$modkey]);
                             }
+                            $insuffix = (!empty($gi->itemname) && preg_match('/-' . preg_quote((string)$classid, '/') . '$/', trim($gi->itemname)));
                             $allowed = false;
                             if ($gi->itemtype === 'manual') {
                                 $allowed = $inclasscategory;
                             } else if ($gi->itemtype === 'mod') {
-                                $allowed = ($inclasssection || $inclasscategory);
+                                $allowed = ($inclasssection || $inclasscategory || $insuffix);
                             } else if ($gi->itemtype === 'category') {
                                 $allowed = ($classcategoryid > 0 && (int)$gi->iteminstance === $classcategoryid);
                             }
