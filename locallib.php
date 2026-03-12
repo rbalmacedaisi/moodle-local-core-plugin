@@ -5233,38 +5233,90 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     
     $results = [];
     $is_admin = is_siteadmin($userid);
+    $class = null;
+
+    if ($classid > 0) {
+        $class = $DB->get_record('gmk_class', ['id' => $classid]);
+        if (!$class) {
+            return [];
+        }
+        if (!$is_admin && (int)$class->instructorid !== (int)$userid) {
+            return [];
+        }
+    }
     
     // A. Assignments
     $assign_params = [];
     $assign_course_filter = "";
     $assign_group_filter = "";
+    $assign_item_scope_filter = "";
 
     if ($classid > 0) {
-        $class = $DB->get_record('gmk_class', ['id' => $classid]);
-        if ($class) {
-            $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
-            $assign_course_filter = " AND a.course = :courseid";
-            $assign_params['courseid'] = $cid;
-            if (!empty($class->groupid)) {
-                $assign_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
-                $assign_params['groupid'] = $class->groupid;
-            }
+        $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
+        $assign_course_filter = " AND a.course = :courseid";
+        $assign_params['courseid'] = $cid;
+        if (!empty($class->groupid)) {
+            $assign_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = s.userid)";
+            $assign_params['groupid'] = $class->groupid;
+        } else {
+            $assign_group_filter = " AND EXISTS (SELECT 1 FROM {gmk_course_progre} cp2 WHERE cp2.classid = :assignclassid AND cp2.userid = s.userid)";
+            $assign_params['assignclassid'] = (int)$classid;
         }
+
+        // Restrict to activities that belong to this class scope (section/category/name suffix).
+        $scopes = [];
+        if (!empty($class->coursesectionid)) {
+            $scopes[] = "EXISTS (
+                SELECT 1
+                  FROM {course_modules} cm
+                  JOIN {modules} m ON m.id = cm.module
+                 WHERE m.name = 'assign'
+                   AND cm.course = a.course
+                   AND cm.instance = a.id
+                   AND cm.section = :assignsectionid
+            )";
+            $assign_params['assignsectionid'] = (int)$class->coursesectionid;
+        }
+        if (!empty($class->gradecategoryid)) {
+            $scopes[] = "EXISTS (
+                SELECT 1
+                  FROM {grade_items} gi
+                 WHERE gi.courseid = a.course
+                   AND gi.itemtype = 'mod'
+                   AND gi.itemmodule = 'assign'
+                   AND gi.iteminstance = a.id
+                   AND gi.categoryid = :assigncatid
+            )";
+            $assign_params['assigncatid'] = (int)$class->gradecategoryid;
+        }
+        $scopes[] = $DB->sql_like('a.name', ':assignsuffix', false, false);
+        $assign_params['assignsuffix'] = '%-' . (int)$classid;
+        $assign_item_scope_filter = " AND (" . implode(" OR ", $scopes) . ")";
     } else if (!$is_admin) {
-        $assign_course_filter = " AND (
-            EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = a.course AND cls.instructorid = :instructorid)
-            OR EXISTS (
-                SELECT 1 FROM {role_assignments} ra 
-                JOIN {context} ctx ON ctx.id = ra.contextid
-                JOIN {role} r ON r.id = ra.roleid
-                WHERE ra.userid = :instructorid_m 
-                  AND ctx.contextlevel = 50 
-                  AND ctx.instanceid = a.course
-                  AND r.shortname IN ('editingteacher', 'teacher', 'manager', 'noneditingteacher')
-            )
+        // Global teacher view: only activities that belong to classes assigned in gmk_class.
+        $assign_course_filter = " AND EXISTS (
+            SELECT 1
+              FROM {gmk_class} cls
+             WHERE cls.instructorid = :instructorid
+               AND cls.closed = 0
+               AND (cls.corecourseid = a.course OR cls.courseid = a.course)
+               AND (
+                    (cls.groupid > 0 AND EXISTS (
+                        SELECT 1
+                          FROM {groups_members} gm2
+                         WHERE gm2.groupid = cls.groupid
+                           AND gm2.userid = s.userid
+                    ))
+                    OR
+                    (cls.groupid = 0 AND EXISTS (
+                        SELECT 1
+                          FROM {gmk_course_progre} cp2
+                         WHERE cp2.classid = cls.id
+                           AND cp2.userid = s.userid
+                    ))
+               )
         )";
         $assign_params['instructorid'] = $userid;
-        $assign_params['instructorid_m'] = $userid;
     }
 
     $assign_grade_condition = ($status === 'history') ? "(g.grade IS NOT NULL AND g.grade >= 0)" : "(g.grade IS NULL OR g.grade < 0)";
@@ -5280,7 +5332,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                    JOIN {user} u ON u.id = s.userid
                    LEFT JOIN {assign_grades} g ON g.assignment = a.id AND g.userid = s.userid AND g.attemptnumber = s.attemptnumber
                    WHERE s.status = 'submitted' AND s.latest = 1 AND $assign_grade_condition
-                   $assign_course_filter $assign_group_filter";
+                   $assign_course_filter $assign_group_filter $assign_item_scope_filter";
     
     // Store for debug if requested
     if (isset($GLOBALS['GMK_DEBUG'])) {
@@ -5301,33 +5353,74 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
     $quiz_params = [];
     $quiz_course_filter = "";
     $quiz_group_filter = "";
+    $quiz_item_scope_filter = "";
 
     if ($classid > 0) {
-        $class = $DB->get_record('gmk_class', ['id' => $classid]);
-        if ($class) {
-            $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
-            $quiz_course_filter = " AND q.course = :courseid";
-            $quiz_params['courseid'] = $cid;
-            if (!empty($class->groupid)) {
-                $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)";
-                $quiz_params['groupid'] = $class->groupid;
-            }
+        $cid = !empty($class->corecourseid) ? $class->corecourseid : $class->courseid;
+        $quiz_course_filter = " AND q.course = :courseid";
+        $quiz_params['courseid'] = $cid;
+        if (!empty($class->groupid)) {
+            $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {groups_members} gm WHERE gm.groupid = :groupid AND gm.userid = quiza.userid)";
+            $quiz_params['groupid'] = $class->groupid;
+        } else {
+            $quiz_group_filter = " AND EXISTS (SELECT 1 FROM {gmk_course_progre} cp2 WHERE cp2.classid = :quizclassid AND cp2.userid = quiza.userid)";
+            $quiz_params['quizclassid'] = (int)$classid;
         }
+
+        // Restrict to activities that belong to this class scope (section/category/name suffix).
+        $scopes = [];
+        if (!empty($class->coursesectionid)) {
+            $scopes[] = "EXISTS (
+                SELECT 1
+                  FROM {course_modules} cm
+                  JOIN {modules} m ON m.id = cm.module
+                 WHERE m.name = 'quiz'
+                   AND cm.course = q.course
+                   AND cm.instance = q.id
+                   AND cm.section = :quizsectionid
+            )";
+            $quiz_params['quizsectionid'] = (int)$class->coursesectionid;
+        }
+        if (!empty($class->gradecategoryid)) {
+            $scopes[] = "EXISTS (
+                SELECT 1
+                  FROM {grade_items} gi
+                 WHERE gi.courseid = q.course
+                   AND gi.itemtype = 'mod'
+                   AND gi.itemmodule = 'quiz'
+                   AND gi.iteminstance = q.id
+                   AND gi.categoryid = :quizcatid
+            )";
+            $quiz_params['quizcatid'] = (int)$class->gradecategoryid;
+        }
+        $scopes[] = $DB->sql_like('q.name', ':quizsuffix', false, false);
+        $quiz_params['quizsuffix'] = '%-' . (int)$classid;
+        $quiz_item_scope_filter = " AND (" . implode(" OR ", $scopes) . ")";
     } else if (!$is_admin) {
-        $quiz_course_filter = " AND (
-            EXISTS (SELECT 1 FROM {gmk_class} cls WHERE cls.courseid = q.course AND cls.instructorid = :instructorid)
-            OR EXISTS (
-                SELECT 1 FROM {role_assignments} ra 
-                JOIN {context} ctx ON ctx.id = ra.contextid
-                JOIN {role} r ON r.id = ra.roleid
-                WHERE ra.userid = :instructorid_m 
-                  AND ctx.contextlevel = 50 
-                  AND ctx.instanceid = q.course
-                  AND r.shortname IN ('editingteacher', 'teacher', 'manager', 'noneditingteacher')
-            )
+        // Global teacher view: only activities that belong to classes assigned in gmk_class.
+        $quiz_course_filter = " AND EXISTS (
+            SELECT 1
+              FROM {gmk_class} cls
+             WHERE cls.instructorid = :instructorid
+               AND cls.closed = 0
+               AND (cls.corecourseid = q.course OR cls.courseid = q.course)
+               AND (
+                    (cls.groupid > 0 AND EXISTS (
+                        SELECT 1
+                          FROM {groups_members} gm2
+                         WHERE gm2.groupid = cls.groupid
+                           AND gm2.userid = quiza.userid
+                    ))
+                    OR
+                    (cls.groupid = 0 AND EXISTS (
+                        SELECT 1
+                          FROM {gmk_course_progre} cp2
+                         WHERE cp2.classid = cls.id
+                           AND cp2.userid = quiza.userid
+                    ))
+               )
         )";
         $quiz_params['instructorid'] = $userid;
-        $quiz_params['instructorid_m'] = $userid;
     }
 
     $quiz_needsgrading_condition = ($status === 'history') ? "NOT EXISTS" : "EXISTS";
@@ -5353,7 +5446,7 @@ function gmk_get_pending_grading_items($userid, $classid = 0, $status = 'pending
                          )
                          AND qas.state = 'needsgrading'
                    )
-                   $quiz_course_filter $quiz_group_filter";
+                   $quiz_course_filter $quiz_group_filter $quiz_item_scope_filter";
     
     // Store for debug if requested
     if (isset($GLOBALS['GMK_DEBUG'])) {
