@@ -176,6 +176,24 @@ const ManageClass = {
                                                                 </template>
                                                                 <span>Gestionar Preguntas</span>
                                                             </v-tooltip>
+                                                            <v-tooltip bottom v-if="canDeleteActivity(activity)">
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn
+                                                                        icon
+                                                                        small
+                                                                        color="error"
+                                                                        class="mr-2"
+                                                                        :loading="!!activity._deleting"
+                                                                        :disabled="!!activity._deleting"
+                                                                        @click.stop="deleteActivity(activity)"
+                                                                        v-bind="attrs"
+                                                                        v-on="on"
+                                                                    >
+                                                                        <v-icon>mdi-delete-outline</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Eliminar actividad</span>
+                                                            </v-tooltip>
                                                             <v-btn icon small @click.stop="openEditActivity(activity)"><v-icon color="grey lighten-1">mdi-pencil</v-icon></v-btn>
                                                         </v-list-item-action>
                                                     </v-list-item>
@@ -792,6 +810,39 @@ const ManageClass = {
                 cmid: activity.id,
                 id: this.classId // Ensure we keep track of current class
             });
+        },
+        canDeleteActivity(activity) {
+            if (!activity || !activity.modname) return false;
+            return activity.modname !== 'attendance' && activity.modname !== 'bigbluebuttonbn';
+        },
+        async deleteActivity(activity) {
+            if (!this.canDeleteActivity(activity)) {
+                return;
+            }
+            if (!confirm(`¿Eliminar la actividad "${activity.name}"? Esta acción no se puede deshacer.`)) {
+                return;
+            }
+            this.$set(activity, '_deleting', true);
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_delete_activity',
+                    args: { cmid: activity.id, classid: this.classId },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status === 'success') {
+                    this.activities = this.activities.filter(a => a.id !== activity.id);
+                    this.snackbarText = response.data.message || 'Actividad eliminada correctamente.';
+                    this.snackbar = true;
+                    await this.fetchTimeline();
+                } else {
+                    alert(response.data.message || 'No se pudo eliminar la actividad.');
+                    this.$set(activity, '_deleting', false);
+                }
+            } catch (error) {
+                console.error('Error deleting activity:', error);
+                alert('Error de conexión al eliminar actividad.');
+                this.$set(activity, '_deleting', false);
+            }
         },
         addActivity(type, label = '') {
             if (type === 'quiz') {

@@ -2667,6 +2667,35 @@ try {
             $response = ['status' => 'success'];
             break;
 
+        case 'local_grupomakro_delete_activity':
+            $cmid = required_param('cmid', PARAM_INT);
+            $classid = required_param('classid', PARAM_INT);
+
+            $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+            $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+
+            if ((int)$cm->course !== (int)$class->corecourseid) {
+                throw new Exception('La actividad no pertenece al curso de la clase.');
+            }
+            if ((int)$cm->section !== (int)$class->coursesectionid) {
+                throw new Exception('La actividad no pertenece a la sección de esta clase.');
+            }
+
+            if ($cm->modname === 'attendance' || $cm->modname === 'bigbluebuttonbn') {
+                $response = [
+                    'status' => 'error',
+                    'message' => 'No se permite eliminar actividades de asistencia o BigBlueButton desde esta vista.'
+                ];
+                break;
+            }
+
+            $coursecontext = context_course::instance($class->corecourseid);
+            require_capability('moodle/course:manageactivities', $coursecontext);
+
+            course_delete_module($cmid);
+            $response = ['status' => 'success', 'message' => 'Actividad eliminada correctamente.'];
+            break;
+
         case 'local_grupomakro_update_activity':
             $cmid = required_param('cmid', PARAM_INT);
             $name = required_param('name', PARAM_TEXT);
