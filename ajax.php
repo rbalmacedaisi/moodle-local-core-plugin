@@ -684,6 +684,122 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_active_classes_for_course':
+            require_capability('moodle/site:config', $context);
+            $userid = required_param('userId', PARAM_INT);
+            $corecourseid = required_param('coreCourseId', PARAM_INT);
+            $learningcourseid = optional_param('learningCourseId', 0, PARAM_INT);
+            $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
+
+            $now = time();
+            $baseWhere = "c.approved = 1 AND c.closed = 0 AND c.enddate >= :now";
+            $baseParams = ['now' => $now];
+
+            $buildClasses = function($whereSql, $params) use ($DB, $userid) {
+                $sql = "SELECT
+                            c.id,
+                            c.name,
+                            c.type,
+                            c.typelabel,
+                            c.classdays,
+                            c.inithourformatted,
+                            c.endhourformatted,
+                            c.classroomcapacity,
+                            c.groupid,
+                            c.instructorid,
+                            c.initdate,
+                            c.enddate,
+                            c.corecourseid,
+                            c.learningplanid,
+                            c.courseid,
+                            CONCAT(COALESCE(u.firstname, ''), ' ', COALESCE(u.lastname, '')) AS instructorname
+                        FROM {gmk_class} c
+                        LEFT JOIN {user} u ON u.id = c.instructorid
+                        WHERE $whereSql
+                        ORDER BY c.initdate ASC, c.inittimets ASC, c.id ASC";
+                $rows = $DB->get_records_sql($sql, $params);
+                $result = [];
+                foreach ($rows as $row) {
+                    $enrolled = 0;
+                    $alreadyenrolled = false;
+                    if (!empty($row->groupid)) {
+                        $enrolled = (int)$DB->count_records_select(
+                            'groups_members',
+                            'groupid = :gid AND userid <> :instructorid',
+                            ['gid' => (int)$row->groupid, 'instructorid' => (int)$row->instructorid]
+                        );
+                        $alreadyenrolled = groups_is_member((int)$row->groupid, $userid);
+                    } else {
+                        $enrolled = (int)$DB->count_records_select(
+                            'gmk_course_progre',
+                            'classid = :classid AND userid <> :instructorid',
+                            ['classid' => (int)$row->id, 'instructorid' => (int)$row->instructorid]
+                        );
+                        $alreadyenrolled = $DB->record_exists('gmk_course_progre', ['classid' => (int)$row->id, 'userid' => $userid]);
+                    }
+
+                    $result[] = [
+                        'id' => (int)$row->id,
+                        'name' => $row->name,
+                        'type' => (int)$row->type,
+                        'typelabel' => !empty($row->typelabel) ? $row->typelabel : ((string)$row->type === '2' ? 'Mixta' : ((string)$row->type === '1' ? 'Virtual' : 'Presencial')),
+                        'classdays' => $row->classdays,
+                        'inithourformatted' => $row->inithourformatted,
+                        'endhourformatted' => $row->endhourformatted,
+                        'classroomcapacity' => (int)$row->classroomcapacity,
+                        'enrolled' => $enrolled,
+                        'alreadyenrolled' => $alreadyenrolled,
+                        'instructorname' => trim($row->instructorname),
+                        'initdate' => (int)$row->initdate,
+                        'enddate' => (int)$row->enddate,
+                        'initdateformatted' => !empty($row->initdate) ? userdate($row->initdate, get_string('strftimedate', 'langconfig')) : '',
+                        'enddateformatted' => !empty($row->enddate) ? userdate($row->enddate, get_string('strftimedate', 'langconfig')) : '',
+                    ];
+                }
+                return $result;
+            };
+
+            $activeclasses = [];
+            if ($learningcourseid > 0) {
+                $where = $baseWhere . " AND c.courseid = :learningcourseid";
+                $params = $baseParams + ['learningcourseid' => $learningcourseid];
+                if ($learningplanid > 0) {
+                    $where .= " AND c.learningplanid = :learningplanid";
+                    $params['learningplanid'] = $learningplanid;
+                }
+                $activeclasses = $buildClasses($where, $params);
+            }
+
+            // Fallback for legacy rows where gmk_class.courseid may not match lpc.id.
+            if (empty($activeclasses)) {
+                $where = $baseWhere . " AND c.corecourseid = :corecourseid";
+                $params = $baseParams + ['corecourseid' => $corecourseid];
+                if ($learningplanid > 0) {
+                    $where .= " AND c.learningplanid = :learningplanid";
+                    $params['learningplanid'] = $learningplanid;
+                }
+                $activeclasses = $buildClasses($where, $params);
+            }
+
+            $response = [
+                'status' => 'success',
+                'classes' => $activeclasses,
+            ];
+            break;
+
+        case 'local_grupomakro_manual_enroll':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/manual_enroll.php');
+            $classid = required_param('classId', PARAM_INT);
+            $userid = required_param('userId', PARAM_INT);
+            $result = \local_grupomakro_core\external\schedule\manual_enroll::execute($classid, $userid);
+            $response = [
+                'status' => 'success',
+                'data' => $result,
+            ];
+            break;
+
         case 'local_grupomakro_get_student_course_pensum_activities':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid = required_param('userId', PARAM_INT);

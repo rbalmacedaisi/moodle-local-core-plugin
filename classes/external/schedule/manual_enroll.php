@@ -52,10 +52,9 @@ class manual_enroll extends external_api {
         }
 
         // Logic from enrolApprovedScheduleStudents
-        // 1. Add to group
-        // check if already member
-        if (groups_is_member($class->groupid, $params['userId'])) {
-             return ['status' => 'warning', 'message' => 'User is already in this class group.'];
+        // 1. Add to group when available
+        if (!empty($class->groupid) && groups_is_member($class->groupid, $params['userId'])) {
+            return ['status' => 'warning', 'message' => 'User is already in this class group.'];
         }
 
         // Before adding to group, ensure user is enrolled in the core course
@@ -67,7 +66,12 @@ class manual_enroll extends external_api {
             $enrolplugin->enrol_user($courseInstance, $params['userId'], $studentRoleId);
         }
 
-        $added = groups_add_member($class->groupid, $params['userId']);
+        if (!empty($class->groupid)) {
+            $added = groups_add_member($class->groupid, $params['userId']);
+        } else {
+            // Some repaired classes may not have Moodle group; course enrollment/progress is still valid.
+            $added = true;
+        }
         
         if ($added) {
             // 2. Assign to course progress
@@ -98,7 +102,7 @@ class manual_enroll extends external_api {
                  $newProgress->timemodified = time();
                  $DB->insert_record('gmk_course_progre', $newProgress);
             } else {
-                 \local_grupomakro_progress_manager::assign_class_to_course_progress($params['userId'], $class);
+                \local_grupomakro_progress_manager::assign_class_to_course_progress($params['userId'], $class);
             }
             
             return ['status' => 'ok', 'message' => 'User enrolled successfully.'];

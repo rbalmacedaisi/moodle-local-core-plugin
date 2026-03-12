@@ -118,6 +118,70 @@ class get_student_learning_plan_pensum extends external_api
             );
             
             \gmk_log("DEBUG get_student_learning_plan_pensum - Courses found: " . count($userPensumCourses));
+
+            // Precompute active class counts by (learningcourseid, corecourseid, learningplanid).
+            $activeClassCountByLearningCourse = [];
+            $activeClassCountByCoreAndPlan = [];
+            if (!empty($userPensumCourses)) {
+                $learningcourseids = [];
+                $corecourseids = [];
+                $learningplanids = [];
+                foreach ($userPensumCourses as $pcourse) {
+                    if (!empty($pcourse->learningcourseid)) {
+                        $learningcourseids[] = (int)$pcourse->learningcourseid;
+                    }
+                    if (!empty($pcourse->courseid)) {
+                        $corecourseids[] = (int)$pcourse->courseid;
+                    }
+                    if (!empty($pcourse->learningplanid)) {
+                        $learningplanids[] = (int)$pcourse->learningplanid;
+                    }
+                }
+
+                $learningcourseids = array_values(array_unique($learningcourseids));
+                $corecourseids = array_values(array_unique($corecourseids));
+                $learningplanids = array_values(array_unique($learningplanids));
+
+                if (!empty($learningcourseids) || !empty($corecourseids)) {
+                    $countWhere = "c.approved = 1 AND c.closed = 0 AND c.enddate >= :now";
+                    $countParams = ['now' => time()];
+                    $countFilters = [];
+
+                    if (!empty($learningcourseids)) {
+                        list($inLearningSql, $inLearningParams) = $DB->get_in_or_equal($learningcourseids, SQL_PARAMS_NAMED, 'lc');
+                        $countFilters[] = "c.courseid $inLearningSql";
+                        $countParams = array_merge($countParams, $inLearningParams);
+                    }
+                    if (!empty($corecourseids)) {
+                        list($inCoreSql, $inCoreParams) = $DB->get_in_or_equal($corecourseids, SQL_PARAMS_NAMED, 'cc');
+                        $countFilters[] = "c.corecourseid $inCoreSql";
+                        $countParams = array_merge($countParams, $inCoreParams);
+                    }
+                    if (!empty($learningplanids)) {
+                        list($inPlanSql, $inPlanParams) = $DB->get_in_or_equal($learningplanids, SQL_PARAMS_NAMED, 'lp');
+                        $countWhere .= " AND c.learningplanid $inPlanSql";
+                        $countParams = array_merge($countParams, $inPlanParams);
+                    }
+                    if (!empty($countFilters)) {
+                        $countWhere .= " AND (" . implode(' OR ', $countFilters) . ")";
+                    }
+
+                    $counts = $DB->get_records_sql(
+                        "SELECT c.courseid, c.corecourseid, c.learningplanid, COUNT(1) AS total
+                           FROM {gmk_class} c
+                          WHERE $countWhere
+                       GROUP BY c.courseid, c.corecourseid, c.learningplanid",
+                        $countParams
+                    );
+
+                    foreach ($counts as $row) {
+                        $learningkey = (int)$row->courseid;
+                        $coreplankey = (int)$row->corecourseid . '_' . (int)$row->learningplanid;
+                        $activeClassCountByLearningCourse[$learningkey] = ($activeClassCountByLearningCourse[$learningkey] ?? 0) + (int)$row->total;
+                        $activeClassCountByCoreAndPlan[$coreplankey] = ($activeClassCountByCoreAndPlan[$coreplankey] ?? 0) + (int)$row->total;
+                    }
+                }
+            }
             
             $groupedUserPensumCourses = [];
             foreach ($userPensumCourses as $userPensumCourse) {
@@ -149,6 +213,11 @@ class get_student_learning_plan_pensum extends external_api
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
+
+                // Number of active classes available for manual enrollment from Academic Panel.
+                $learningKey = (int)$userPensumCourse->learningcourseid;
+                $corePlanKey = (int)$userPensumCourse->courseid . '_' . (int)$userPensumCourse->learningplanid;
+                $userPensumCourse->activeclasscount = (int)($activeClassCountByLearningCourse[$learningKey] ?? $activeClassCountByCoreAndPlan[$corePlanKey] ?? 0);
                 
                 // Handle prerequisites safely
                 $userPensumCourse->prerequisites = !empty($userPensumCourse->prerequisites) ? json_decode($userPensumCourse->prerequisites) : [];
