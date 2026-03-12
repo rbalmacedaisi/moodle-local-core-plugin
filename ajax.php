@@ -934,6 +934,42 @@ try {
             $courseid = $class->corecourseid;
             $groupid = $class->groupid;
 
+            // Build class scope for grade items:
+            // - activities that belong to this class section
+            // - items that belong to this class grade category
+            $classmodkeys = [];
+            if (!empty($class->coursesectionid)) {
+                $cmscope = $DB->get_records_sql(
+                    "SELECT m.name AS modname, cm.instance
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.course = :courseid
+                        AND cm.section = :sectionid",
+                    ['courseid' => (int)$courseid, 'sectionid' => (int)$class->coursesectionid]
+                );
+                foreach ($cmscope as $cmrow) {
+                    if (!empty($cmrow->modname) && !empty($cmrow->instance)) {
+                        $classmodkeys[$cmrow->modname . ':' . (int)$cmrow->instance] = true;
+                    }
+                }
+            }
+
+            // Hard include class attendance module if set (robust against section inconsistencies).
+            if (!empty($class->attendancemoduleid)) {
+                $attcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => (int)$class->attendancemoduleid]
+                );
+                if ($attcm && !empty($attcm->modname) && !empty($attcm->instance)) {
+                    $classmodkeys[$attcm->modname . ':' . (int)$attcm->instance] = true;
+                }
+            }
+
+            $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
+
             // 1. Fetch Students (Rows)
             $students = $DB->get_records_sql("
                 SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
@@ -965,8 +1001,40 @@ try {
             });
 
             foreach ($grade_items as $gi) {
-                // Determine if it's a total
-                $is_total = ($gi->itemtype === 'course' || $gi->itemtype === 'category');
+                // Class-scoped totals:
+                // - exclude course total (shared across many classes in the same course shell)
+                // - include only the class category total (if available)
+                $is_total = false;
+                $includeitem = false;
+                if ($gi->itemtype === 'course') {
+                    $includeitem = false;
+                } else if ($gi->itemtype === 'category') {
+                    if ($classcategoryid > 0 && (int)$gi->iteminstance === $classcategoryid) {
+                        $includeitem = true;
+                        $is_total = true;
+                    }
+                }
+
+                // Include manual items only if they belong to this class category.
+                if (!$includeitem && $gi->itemtype === 'manual') {
+                    if ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid) {
+                        $includeitem = true;
+                    }
+                }
+
+                // Include module items if they belong to class section scope or class category.
+                if (!$includeitem && $gi->itemtype === 'mod') {
+                    $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
+                    $inclasssection = isset($classmodkeys[$modkey]);
+                    $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
+                    if ($inclasssection || $inclasscategory) {
+                        $includeitem = true;
+                    }
+                }
+
+                if (!$includeitem) {
+                    continue;
+                }
                 
                 $columns[] = [
                     'id' => $gi->id,
@@ -977,6 +1045,26 @@ try {
                     'itemtype' => $gi->itemtype
                 ];
                 $item_ids[] = (int)$gi->id;
+            }
+
+            if (empty($item_ids)) {
+                $grades_data = [];
+                foreach ($students as $student) {
+                    $grades_data[] = [
+                        'id' => $student->id,
+                        'fullname' => $student->firstname . ' ' . $student->lastname,
+                        'email' => $student->email,
+                        'grades' => []
+                    ];
+                }
+                $response = [
+                    'status' => 'success',
+                    'data' => [
+                        'columns' => $columns,
+                        'students' => $grades_data
+                    ]
+                ];
+                break;
             }
 
             // 3. Fetch Grades (Cells) - BULK QUERY for performance
@@ -1026,6 +1114,7 @@ try {
             if (!$class) throw new Exception("Clase no encontrada.");
             
             $courseid = $class->corecourseid;
+            $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
             
             require_once($CFG->libdir . '/gradelib.php');
             
@@ -1038,7 +1127,37 @@ try {
             }
             $aggregation = $target_cat->aggregation; 
 
-            // Fetch ALL items in course
+            // Build class scope (section modules + class attendance module fallback).
+            $classmodkeys = [];
+            if (!empty($class->coursesectionid)) {
+                $cmscope = $DB->get_records_sql(
+                    "SELECT m.name AS modname, cm.instance
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.course = :courseid
+                        AND cm.section = :sectionid",
+                    ['courseid' => (int)$courseid, 'sectionid' => (int)$class->coursesectionid]
+                );
+                foreach ($cmscope as $cmrow) {
+                    if (!empty($cmrow->modname) && !empty($cmrow->instance)) {
+                        $classmodkeys[$cmrow->modname . ':' . (int)$cmrow->instance] = true;
+                    }
+                }
+            }
+            if (!empty($class->attendancemoduleid)) {
+                $attcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => (int)$class->attendancemoduleid]
+                );
+                if ($attcm && !empty($attcm->modname) && !empty($attcm->instance)) {
+                    $classmodkeys[$attcm->modname . ':' . (int)$attcm->instance] = true;
+                }
+            }
+
+            // Fetch items in course and filter to class scope.
             $grade_items = \grade_item::fetch_all(['courseid' => $courseid]);
             
             $items = [];
@@ -1047,6 +1166,21 @@ try {
 
             foreach ($grade_items as $gi) {
                 if ($gi->itemtype == 'course' || $gi->itemtype == 'category') continue;
+
+                $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
+                $includeitem = false;
+
+                if ($gi->itemtype === 'manual') {
+                    // Manual items must belong to this class category.
+                    $includeitem = $inclasscategory;
+                } else if ($gi->itemtype === 'mod') {
+                    // Module items must be in this class section scope OR class category.
+                    $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
+                    $inclasssection = isset($classmodkeys[$modkey]);
+                    $includeitem = ($inclasssection || $inclasscategory);
+                }
+
+                if (!$includeitem) continue;
                 
                 // HIDE "Nota Final Integrada" from the UI list as requested.
                 // It will be managed automatically in the backend.
@@ -1129,6 +1263,37 @@ try {
 
             require_once($CFG->libdir . '/gradelib.php');
 
+            // Build class scope to avoid editing unrelated grade items.
+            $classcategoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
+            $classmodkeys = [];
+            if (!empty($class->coursesectionid)) {
+                $cmscope = $DB->get_records_sql(
+                    "SELECT m.name AS modname, cm.instance
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.course = :courseid
+                        AND cm.section = :sectionid",
+                    ['courseid' => (int)$class->corecourseid, 'sectionid' => (int)$class->coursesectionid]
+                );
+                foreach ($cmscope as $cmrow) {
+                    if (!empty($cmrow->modname) && !empty($cmrow->instance)) {
+                        $classmodkeys[$cmrow->modname . ':' . (int)$cmrow->instance] = true;
+                    }
+                }
+            }
+            if (!empty($class->attendancemoduleid)) {
+                $attcm = $DB->get_record_sql(
+                    "SELECT cm.instance, m.name AS modname
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => (int)$class->attendancemoduleid]
+                );
+                if ($attcm && !empty($attcm->modname) && !empty($attcm->instance)) {
+                    $classmodkeys[$attcm->modname . ':' . (int)$attcm->instance] = true;
+                }
+            }
+
             // Determine aggregation method using same logic as fetch
             $target_cat = \grade_category::fetch_course_category($class->corecourseid);
             if (!empty($class->gradecategoryid)) {
@@ -1144,6 +1309,25 @@ try {
                 foreach ($weights as $w) {
                     $gi = \grade_item::fetch(['id' => $w['id'], 'courseid' => $class->corecourseid]);
                     if ($gi) {
+                        $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
+                        $inclasssection = false;
+                        if ($gi->itemtype === 'mod') {
+                            $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
+                            $inclasssection = isset($classmodkeys[$modkey]);
+                        }
+                        // Allow updates only for class-scoped manual/mod/category total items.
+                        $allowed = false;
+                        if ($gi->itemtype === 'manual') {
+                            $allowed = $inclasscategory;
+                        } else if ($gi->itemtype === 'mod') {
+                            $allowed = ($inclasssection || $inclasscategory);
+                        } else if ($gi->itemtype === 'category') {
+                            $allowed = ($classcategoryid > 0 && (int)$gi->iteminstance === $classcategoryid);
+                        }
+                        if (!$allowed) {
+                            continue;
+                        }
+
                         // Update Weight based on parent category aggregation
                         $parent_cat = $gi->get_parent_category();
                         $is_natural = ($parent_cat && $parent_cat->aggregation == 13);
@@ -1204,6 +1388,24 @@ try {
                     foreach ($sort_order as $itemid) {
                         $gi = \grade_item::fetch(['id' => $itemid, 'courseid' => $class->corecourseid]);
                         if ($gi) {
+                            $inclasscategory = ($classcategoryid > 0 && (int)$gi->categoryid === $classcategoryid);
+                            $inclasssection = false;
+                            if ($gi->itemtype === 'mod') {
+                                $modkey = ($gi->itemmodule ?: '') . ':' . (int)$gi->iteminstance;
+                                $inclasssection = isset($classmodkeys[$modkey]);
+                            }
+                            $allowed = false;
+                            if ($gi->itemtype === 'manual') {
+                                $allowed = $inclasscategory;
+                            } else if ($gi->itemtype === 'mod') {
+                                $allowed = ($inclasssection || $inclasscategory);
+                            } else if ($gi->itemtype === 'category') {
+                                $allowed = ($classcategoryid > 0 && (int)$gi->iteminstance === $classcategoryid);
+                            }
+                            if (!$allowed) {
+                                continue;
+                            }
+
                             $gi->move_after_sortorder($anchor_sortorder);
                             // After move, the item's sortorder is updated. Use it as next anchor.
                             $anchor_sortorder = $gi->sortorder;
