@@ -21,6 +21,7 @@ $ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);
 // ── AJAX: re-crear estructuras Moodle para una clase ─────────────────────────
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
+    ob_start(); // buffer all output so debug messages don't contaminate JSON
     header('Content-Type: application/json');
     try {
         $classid = required_param('classid', PARAM_INT);
@@ -37,6 +38,7 @@ if ($ajax === 'recreate') {
                 $class->groupid = $groupId;
                 $log[] = "✓ Grupo creado: id=$groupId";
             } catch (Throwable $e) {
+                ob_end_clean();
                 echo json_encode(['status' => 'error', 'message' => 'Error creando grupo: ' . $e->getMessage(), 'log' => $log]);
                 exit;
             }
@@ -71,6 +73,7 @@ if ($ajax === 'recreate') {
 
         // Re-read final state
         $class = $DB->get_record('gmk_class', ['id' => $classid]);
+        ob_end_clean();
         echo json_encode([
             'status'  => 'success',
             'log'     => $log,
@@ -79,6 +82,7 @@ if ($ajax === 'recreate') {
             'attendancemoduleid' => $class->attendancemoduleid,
         ]);
     } catch (Throwable $e) {
+        ob_end_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
     exit;
@@ -87,6 +91,7 @@ if ($ajax === 'recreate') {
 // ── AJAX: re-crear TODAS las clases incompletas del periodo ──────────────────
 if ($ajax === 'recreate_all') {
     $PAGE->set_context(context_system::instance());
+    ob_start(); // buffer all output so debug messages don't contaminate JSON
     header('Content-Type: application/json');
     try {
         $periodid = required_param('periodid', PARAM_INT);
@@ -126,8 +131,10 @@ if ($ajax === 'recreate_all') {
             }
         }
 
+        ob_end_clean();
         echo json_encode(['status' => 'success', 'data' => $results, 'total' => count($classes)]);
     } catch (Throwable $e) {
+        ob_end_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
     exit;
