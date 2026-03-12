@@ -1171,6 +1171,10 @@ class scheduler extends external_api {
                 $hasActivities = gmk_is_valid_class_attendance_module($classRec, $attReason);
                 try {
                     create_class_activities($classRec, $hasActivities);
+                    $commitok = gmk_best_effort_db_commit("scheduler_phase2_class_{$classid}");
+                    if (!$commitok) {
+                        gmk_log("WARNING FASE2: COMMIT best-effort fallo para clase $classid");
+                    }
                     gmk_log("INFO FASE2: Actividades " . ($hasActivities ? "recreadas" : "creadas") . " para clase $classid");
                 } catch (Throwable $ae) {
                     gmk_log("WARNING FASE2: No se pudieron crear actividades para clase $classid: " . $ae->getMessage());

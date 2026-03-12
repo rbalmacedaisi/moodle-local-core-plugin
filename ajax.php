@@ -3161,6 +3161,8 @@ try {
             }
             try {
                 create_class_activities($class, $hasActivities);
+                $commitok = gmk_best_effort_db_commit("ajax_create_class_moodle_structures_class_{$classid}");
+                $log[] = "COMMIT best-effort " . ($commitok ? "OK" : "WARN");
                 $class = $DB->get_record('gmk_class', ['id' => $classid]);
                 $log[] = ($hasActivities ? "Actividades recreadas" : "Actividades creadas")
                        . ": attendanceid={$class->attendancemoduleid}";

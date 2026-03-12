@@ -47,6 +47,28 @@ if (!function_exists('gmk_log')) {
     }
 }
 
+if (!function_exists('gmk_best_effort_db_commit')) {
+    /**
+     * Try to commit any pending DB transaction without throwing.
+     * Useful when upstream code swallows exceptions after partial writes.
+     */
+    function gmk_best_effort_db_commit($context = '') {
+        global $DB;
+        try {
+            $DB->execute('COMMIT');
+            if ($context !== '') {
+                gmk_log("INFO: best-effort COMMIT OK ($context)");
+            }
+            return true;
+        } catch (Throwable $e) {
+            if ($context !== '') {
+                gmk_log("WARNING: best-effort COMMIT fallo ($context): " . $e->getMessage());
+            }
+            return false;
+        }
+    }
+}
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 

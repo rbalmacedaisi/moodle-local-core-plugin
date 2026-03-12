@@ -540,29 +540,27 @@ function gmk_debug_mysql_tx_state(): array {
         'read_only' => null,
         'server_id' => null,
         'autocommit' => null,
-        'in_transaction' => null,
+        'in_transaction' => 'n/a',
     ];
     try {
-        $r = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@in_transaction AS in_transaction");
+        $r = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit");
         if ($r) {
             foreach ((array)$r as $k => $v) {
                 $out[$k] = $v;
             }
-            return $out;
         }
     } catch (Throwable $e) {
-        $out['error_primary'] = $e->getMessage();
+        $out['error'] = $e->getMessage();
     }
     try {
-        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        $r2 = $DB->get_record_sql("SELECT @@in_transaction AS in_transaction");
         if ($r2) {
             foreach ((array)$r2 as $k => $v) {
                 $out[$k] = $v;
             }
-            return $out;
         }
     } catch (Throwable $e) {
-        $out['error_fallback'] = $e->getMessage();
+        $out['in_transaction_error'] = $e->getMessage();
     }
     return $out;
 }
@@ -668,7 +666,7 @@ function gmk_debug_secondary_mysql_snapshot(int $classid, int $courseid = 0, int
 }
 
 function gmk_debug_runtime_identity(): array {
-    global $DB;
+    global $DB, $CFG;
 
     $identity = [
         'php_host' => function_exists('gethostname') ? gethostname() : php_uname('n'),
@@ -687,32 +685,32 @@ function gmk_debug_runtime_identity(): array {
     }
 
     try {
-        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@in_transaction AS in_transaction");
+        $r2 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit");
         if ($r2) {
             $identity['db'] = array_merge($identity['db'], (array)$r2);
-            return $identity;
         }
     } catch (Throwable $e) {
-        $identity['db']['mysql_tx_error_primary'] = $e->getMessage();
+        $identity['db']['mysql_tx_error'] = $e->getMessage();
     }
 
     try {
-        $r3 = $DB->get_record_sql("SELECT @@read_only AS read_only, @@server_id AS server_id, @@autocommit AS autocommit, @@session.in_transaction AS in_transaction");
+        $r3 = $DB->get_record_sql("SELECT @@in_transaction AS in_transaction");
         if ($r3) {
             $identity['db'] = array_merge($identity['db'], (array)$r3);
-            return $identity;
         }
     } catch (Throwable $e) {
-        $identity['db']['mysql_tx_error_fallback'] = $e->getMessage();
+        $identity['db']['in_transaction_error'] = $e->getMessage();
     }
 
-    try {
-        $r = $DB->get_record_sql("SELECT current_database() AS dbname");
-        if ($r) {
-            $identity['db'] = array_merge($identity['db'], (array)$r);
+    if ($CFG->dbtype === 'pgsql') {
+        try {
+            $r = $DB->get_record_sql("SELECT current_database() AS dbname");
+            if ($r) {
+                $identity['db'] = array_merge($identity['db'], (array)$r);
+            }
+        } catch (Throwable $e) {
+            $identity['db']['pgsql_error'] = $e->getMessage();
         }
-    } catch (Throwable $e) {
-        $identity['db']['pgsql_error'] = $e->getMessage();
     }
 
     return $identity;
@@ -1240,6 +1238,8 @@ if ($ajax === 'recreate') {
         }
         try {
             create_class_activities($class, $hasActivities);
+            $commitok = gmk_best_effort_db_commit("debug_recreate_class_{$classid}");
+            $log[] = "POSTCHECK commit_attempt=" . ($commitok ? 'ok' : 'warn');
             // Re-read to get updated fields
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             $log[] = "OK Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
@@ -1334,6 +1334,8 @@ if ($ajax === 'recreate') {
                     gmk_debug_repair_course_gradebook_duplicates((int)$class->corecourseid, $log);
                     $class = gmk_debug_cleanup_partial_class_activities($classid, $log);
                     create_class_activities($class, false);
+                    $commitok2 = gmk_best_effort_db_commit("debug_recreate_autorepair_class_{$classid}");
+                    $log[] = "POSTCHECK commit_attempt_autorepair=" . ($commitok2 ? 'ok' : 'warn');
                     $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
                     $log[] = "OK Auto-repair: reintento exitoso, attendancemoduleid={$class->attendancemoduleid}";
                 } catch (Throwable $retrye) {
