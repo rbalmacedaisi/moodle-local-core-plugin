@@ -431,6 +431,38 @@ function gmk_debug_capture_sql($label, $sql, array $params = [], int $limit = 30
     ];
 }
 
+function gmk_debug_runtime_identity(): array {
+    global $DB;
+
+    $identity = [
+        'php_host' => function_exists('gethostname') ? gethostname() : php_uname('n'),
+        'php_uname' => php_uname('n'),
+        'php_pid' => function_exists('getmypid') ? getmypid() : null,
+        'db' => [],
+    ];
+
+    try {
+        $r = $DB->get_record_sql("SELECT DATABASE() AS dbname, @@hostname AS dbhost, @@port AS dbport");
+        if ($r) {
+            $identity['db'] = (array)$r;
+            return $identity;
+        }
+    } catch (Throwable $e) {
+        $identity['db']['mysql_error'] = $e->getMessage();
+    }
+
+    try {
+        $r = $DB->get_record_sql("SELECT current_database() AS dbname");
+        if ($r) {
+            $identity['db'] = array_merge($identity['db'], (array)$r);
+        }
+    } catch (Throwable $e) {
+        $identity['db']['pgsql_error'] = $e->getMessage();
+    }
+
+    return $identity;
+}
+
 function gmk_debug_table_columns($table) {
     global $DB;
     $cols = $DB->get_columns($table);
@@ -464,6 +496,7 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
 
     $snapshot = [
         'generated_at' => date('c'),
+        'runtime' => gmk_debug_runtime_identity(),
         'class' => (array)$class,
         'flags' => [
             'group_valid' => gmk_is_valid_class_group($class, $groupReason),
@@ -868,6 +901,32 @@ if ($ajax === 'recreate') {
             // Re-read to get updated fields
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             $log[] = "OK Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
+            $postAttCmid = (int)($class->attendancemoduleid ?? 0);
+            $log[] = "POSTCHECK class.attendancemoduleid={$postAttCmid}";
+            if ($postAttCmid > 0) {
+                $postcm = $DB->get_record_sql(
+                    "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => $postAttCmid]
+                );
+                if ($postcm) {
+                    $log[] = "POSTCHECK cm_exists=1 course={$postcm->course} section={$postcm->section} instance={$postcm->instance} modulename={$postcm->modulename}";
+                } else {
+                    $log[] = "POSTCHECK cm_exists=0 for cmid={$postAttCmid}";
+                }
+            }
+            $postSectionCount = $DB->count_records_sql(
+                "SELECT COUNT(1)
+                   FROM {course_modules} cm
+                   JOIN {modules} m ON m.id = cm.module
+                  WHERE cm.course = :courseid
+                    AND cm.section = :sectionid
+                    AND m.name IN ('attendance','bigbluebuttonbn')",
+                ['courseid' => (int)$class->corecourseid, 'sectionid' => (int)$class->coursesectionid]
+            );
+            $log[] = "POSTCHECK section_modules(attendance|bbb)={$postSectionCount}";
         } catch (Throwable $e) {
             $log[] = "WARN Error creando actividades: " . $e->getMessage();
             gmk_debug_log_exception_chain($e, $log, 'Excepcion');
@@ -919,6 +978,7 @@ if ($ajax === 'recreate') {
         echo json_encode([
             'status'  => 'success',
             'log'     => $log,
+            'runtime' => gmk_debug_runtime_identity(),
             'groupid'         => $class->groupid,
             'coursesectionid' => $class->coursesectionid,
             'attendancemoduleid' => $class->attendancemoduleid,
@@ -1302,6 +1362,9 @@ async function recreateOne(classid, btn) {
             + (d.message ? `\nmessage=${d.message}` : '')
             + '\n';
         logEl.textContent = header + (d.log ? d.log.join('\n') : JSON.stringify(d));
+        if (d.runtime) {
+            logEl.textContent += '\n\nruntime=' + JSON.stringify(d.runtime, null, 2);
+        }
 
         if (d.status === 'success') {
             btn.textContent = 'OK';
