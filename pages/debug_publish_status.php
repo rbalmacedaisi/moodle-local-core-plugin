@@ -447,6 +447,35 @@ function gmk_debug_capture_sql_safe($label, $sql, array $params = [], int $limit
     }
 }
 
+function gmk_debug_register_ajax_shutdown_handler(string $label = 'ajax'): void {
+    register_shutdown_function(static function() use ($label) {
+        $err = error_get_last();
+        if (!$err) {
+            return;
+        }
+        $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR];
+        if (!in_array((int)$err['type'], $fatalTypes, true)) {
+            return;
+        }
+
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'status' => 'error',
+            'message' => "Fatal en {$label}: " . ($err['message'] ?? 'error desconocido'),
+            'fatal' => [
+                'type' => $err['type'] ?? null,
+                'file' => $err['file'] ?? null,
+                'line' => $err['line'] ?? null,
+            ],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    });
+}
+
 function gmk_debug_tail_plugin_log(int $classid, int $hintcmid = 0, int $tail = 4000, int $maxmatches = 250): array {
     global $CFG;
 
@@ -991,7 +1020,15 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
 if ($ajax === 'inspect_class') {
     $PAGE->set_context(context_system::instance());
     ob_start();
+    gmk_debug_register_ajax_shutdown_handler('inspect_class');
+    @ini_set('display_errors', '0');
     header('Content-Type: application/json; charset=utf-8');
+    $prevErrorHandler = set_error_handler(static function($severity, $message, $file, $line) {
+        if (!(error_reporting() & $severity)) {
+            return false;
+        }
+        throw new \ErrorException($message, 0, $severity, $file, $line);
+    });
     try {
         require_sesskey();
         $classid = required_param('classid', PARAM_INT);
@@ -1002,6 +1039,12 @@ if ($ajax === 'inspect_class') {
     } catch (Throwable $e) {
         ob_end_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    } finally {
+        if ($prevErrorHandler !== null) {
+            set_error_handler($prevErrorHandler);
+        } else {
+            restore_error_handler();
+        }
     }
     exit;
 }
@@ -1010,7 +1053,15 @@ if ($ajax === 'inspect_class') {
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
+    gmk_debug_register_ajax_shutdown_handler('recreate');
+    @ini_set('display_errors', '0');
     header('Content-Type: application/json; charset=utf-8');
+    $prevErrorHandler = set_error_handler(static function($severity, $message, $file, $line) {
+        if (!(error_reporting() & $severity)) {
+            return false;
+        }
+        throw new \ErrorException($message, 0, $severity, $file, $line);
+    });
     try {
         $classid = required_param('classid', PARAM_INT);
         $postwaitms = optional_param('postwaitms', 3000, PARAM_INT);
@@ -1190,6 +1241,12 @@ if ($ajax === 'recreate') {
     } catch (Throwable $e) {
         ob_end_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    } finally {
+        if ($prevErrorHandler !== null) {
+            set_error_handler($prevErrorHandler);
+        } else {
+            restore_error_handler();
+        }
     }
     exit;
 }
@@ -1198,7 +1255,15 @@ if ($ajax === 'recreate') {
 if ($ajax === 'recreate_all') {
     $PAGE->set_context(context_system::instance());
     ob_start(); // buffer all output so debug messages don't contaminate JSON
+    gmk_debug_register_ajax_shutdown_handler('recreate_all');
+    @ini_set('display_errors', '0');
     header('Content-Type: application/json; charset=utf-8');
+    $prevErrorHandler = set_error_handler(static function($severity, $message, $file, $line) {
+        if (!(error_reporting() & $severity)) {
+            return false;
+        }
+        throw new \ErrorException($message, 0, $severity, $file, $line);
+    });
     try {
         $periodid = required_param('periodid', PARAM_INT);
         require_sesskey();
@@ -1265,6 +1330,12 @@ if ($ajax === 'recreate_all') {
     } catch (Throwable $e) {
         ob_end_clean();
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    } finally {
+        if ($prevErrorHandler !== null) {
+            set_error_handler($prevErrorHandler);
+        } else {
+            restore_error_handler();
+        }
     }
     exit;
 }
@@ -1561,7 +1632,13 @@ async function recreateOne(classid, btn) {
         const res  = await fetch(AJAX_URL, { method: 'POST', body: fd });
         const text = await res.text();
         let d;
-        try { d = JSON.parse(text); } catch(e) { logEl.textContent = 'No JSON:\n' + text; btn.disabled = false; btn.textContent = 'Re-crear'; return; }
+        try { d = JSON.parse(text); } catch(e) {
+            logEl.textContent = 'No JSON (HTTP ' + res.status + '):\n'
+                + (text ? text.slice(0, 6000) : '[respuesta vacia]');
+            btn.disabled = false;
+            btn.textContent = 'Re-crear';
+            return;
+        }
 
         const header = `status=${d.status || 'unknown'}`
             + (d.message ? `\nmessage=${d.message}` : '')
@@ -1643,7 +1720,8 @@ async function inspectOne(classid, btn) {
         const text = await res.text();
         let d;
         try { d = JSON.parse(text); } catch(e) {
-            logEl.textContent = 'No JSON:\n' + text;
+            logEl.textContent = 'No JSON (HTTP ' + res.status + '):\n'
+                + (text ? text.slice(0, 6000) : '[respuesta vacia]');
             btn.disabled = false;
             btn.innerHTML = prevHtml;
             return;
@@ -1683,7 +1761,12 @@ async function recreateAll() {
         const res  = await fetch(AJAX_URL, { method: 'POST', body: fd });
         const text = await res.text();
         let d;
-        try { d = JSON.parse(text); } catch(e) { resEl.textContent = 'No JSON: ' + text; btn.disabled = false; return; }
+        try { d = JSON.parse(text); } catch(e) {
+            resEl.textContent = 'No JSON (HTTP ' + res.status + '): '
+                + (text ? text.slice(0, 6000) : '[respuesta vacia]');
+            btn.disabled = false;
+            return;
+        }
 
         if (d.status === 'success') {
             const r = d.data;
