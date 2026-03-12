@@ -26,15 +26,55 @@ class attendance_manager extends external_api {
         
         // 1. Get Course and Group ID from Class
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+        $all_atts = [];
         
         // 2. Find the Attendance Activity in this Course
         // First check the class's own local course, then fall back to the core/template course.
 
+        // Priority 0: class.attendancemoduleid (most robust when relation table is incomplete).
+        if (empty($all_atts) && !empty($class->attendancemoduleid)) {
+            $attcm = $DB->get_record_sql(
+                "SELECT cm.id, cm.instance, m.name AS modulename
+                   FROM {course_modules} cm
+                   JOIN {modules} m ON m.id = cm.module
+                  WHERE cm.id = :cmid",
+                ['cmid' => (int)$class->attendancemoduleid]
+            );
+            if ($attcm && $attcm->modulename === 'attendance') {
+                $att_record = $DB->get_record('attendance', ['id' => (int)$attcm->instance]);
+                if ($att_record) {
+                    $all_atts = [$att_record->id => $att_record];
+                }
+            }
+        }
+
         // Check gmk_bbb_attendance_relation for a direct mapping (most precise)
-        $mapped_attid = $DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => $classid]);
-        if ($mapped_attid) {
-            $att_record = $DB->get_record('attendance', ['id' => $mapped_attid]);
-            $all_atts = $att_record ? [$att_record->id => $att_record] : [];
+        if (empty($all_atts)) {
+            $mapped_attid = $DB->get_field('gmk_bbb_attendance_relation', 'attendanceid', ['classid' => $classid]);
+            if ($mapped_attid) {
+                $att_record = $DB->get_record('attendance', ['id' => $mapped_attid]);
+                $all_atts = $att_record ? [$att_record->id => $att_record] : [];
+            }
+        }
+
+        // Relation fallback: resolve attendance via relation.attendancemoduleid when attendanceid is null/zero.
+        if (empty($all_atts)) {
+            $rel_attcmid = $DB->get_field('gmk_bbb_attendance_relation', 'attendancemoduleid', ['classid' => $classid]);
+            if (!empty($rel_attcmid)) {
+                $attcm = $DB->get_record_sql(
+                    "SELECT cm.id, cm.instance, m.name AS modulename
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => (int)$rel_attcmid]
+                );
+                if ($attcm && $attcm->modulename === 'attendance') {
+                    $att_record = $DB->get_record('attendance', ['id' => (int)$attcm->instance]);
+                    if ($att_record) {
+                        $all_atts = [$att_record->id => $att_record];
+                    }
+                }
+            }
         }
 
         // Primary: attendance in the class's own Moodle course
@@ -114,10 +154,9 @@ class attendance_manager extends external_api {
                 list($sessinsql2, $sessparams2) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'sidfb');
                 $sqlfb = "SELECT s.*
                             FROM {attendance_sessions} s
-                           WHERE s.attendanceid = :attid
-                             AND s.id $sessinsql2
+                           WHERE s.id $sessinsql2
                         ORDER BY s.sessdate ASC";
-                $sessions = $DB->get_records_sql($sqlfb, array_merge(['attid' => $att->id], $sessparams2));
+                $sessions = $DB->get_records_sql($sqlfb, $sessparams2);
             }
         }
 
