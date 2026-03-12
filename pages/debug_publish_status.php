@@ -18,6 +18,72 @@ require_capability('moodle/site:config', $context);
 
 $ajax = optional_param('ajax', '', PARAM_ALPHANUMEXT);
 
+/**
+ * Snapshot de diagnÃ³stico para errores de publicaciÃ³n de actividades.
+ */
+function gmk_debug_publish_diagnostics($class) {
+    global $DB;
+
+    $diag = [
+        'class' => [
+            'id' => (int)$class->id,
+            'corecourseid' => (int)$class->corecourseid,
+            'coursesectionid' => (int)$class->coursesectionid,
+            'attendancemoduleid' => (int)$class->attendancemoduleid,
+            'groupid' => (int)$class->groupid,
+            'name' => (string)$class->name,
+        ],
+    ];
+
+    $modsAttendance = $DB->get_records('modules', ['name' => 'attendance'], 'id ASC', 'id,name');
+    $modsBBB = $DB->get_records('modules', ['name' => 'bigbluebuttonbn'], 'id ASC', 'id,name');
+    $diag['modules'] = [
+        'attendance_ids' => array_values(array_map('intval', array_keys($modsAttendance))),
+        'bbb_ids' => array_values(array_map('intval', array_keys($modsBBB))),
+    ];
+
+    if (!empty($class->coursesectionid)) {
+        $sec = $DB->get_record('course_sections', ['id' => $class->coursesectionid], 'id,course,section,name,sequence');
+        $diag['section'] = $sec ? (array)$sec : null;
+        if ($sec) {
+            $sameSectionRows = $DB->get_records('course_sections', ['course' => $sec->course, 'section' => $sec->section], 'id ASC', 'id,course,section');
+            $diag['section']['same_course_section_count'] = count($sameSectionRows);
+            $diag['section']['same_course_section_ids'] = array_values(array_map('intval', array_keys($sameSectionRows)));
+        }
+    }
+
+    if (!empty($class->attendancemoduleid)) {
+        $attCM = $DB->get_record_sql(
+            "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => (int)$class->attendancemoduleid]
+        );
+        $diag['attendance_cmid'] = $attCM ? (array)$attCM : null;
+    }
+
+    if (!empty($class->corecourseid) && !empty($class->coursesectionid) && !empty($modsAttendance)) {
+        $attids = array_map('intval', array_keys($modsAttendance));
+        list($insql, $inparams) = $DB->get_in_or_equal($attids, SQL_PARAMS_NAMED, 'attm');
+        $params = $inparams + ['courseid' => (int)$class->corecourseid, 'sectionid' => (int)$class->coursesectionid];
+        $cms = $DB->get_records_sql(
+            "SELECT id, course, section, module, instance
+               FROM {course_modules}
+              WHERE course = :courseid
+                AND section = :sectionid
+                AND module {$insql}
+           ORDER BY id ASC",
+            $params
+        );
+        $diag['attendance_cms_in_target_section'] = array_values(array_map(static function($r) {
+            return (array)$r;
+        }, $cms));
+    }
+
+    return $diag;
+}
+
 // ── AJAX: re-crear estructuras Moodle para una clase ─────────────────────────
 if ($ajax === 'recreate') {
     $PAGE->set_context(context_system::instance());
@@ -81,6 +147,14 @@ if ($ajax === 'recreate') {
             $log[] = "✓ Actividades creadas/actualizadas: attendancemoduleid={$class->attendancemoduleid}";
         } catch (Throwable $e) {
             $log[] = "⚠ Error creando actividades: " . $e->getMessage();
+            $log[] = "↳ Excepcion: " . get_class($e);
+            $log[] = "↳ Ubicacion: " . basename($e->getFile()) . ":" . $e->getLine();
+            $traceLines = explode("\n", $e->getTraceAsString());
+            foreach (array_slice($traceLines, 0, 6) as $tl) {
+                $log[] = "    " . $tl;
+            }
+            $diag = gmk_debug_publish_diagnostics($class);
+            $log[] = "↳ Diagnostico: " . json_encode($diag, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         // Re-read final state and validate consistency.
@@ -95,6 +169,7 @@ if ($ajax === 'recreate') {
                 'groupid' => $class->groupid,
                 'coursesectionid' => $class->coursesectionid,
                 'attendancemoduleid' => $class->attendancemoduleid,
+                'diagnostics' => gmk_debug_publish_diagnostics($class),
             ]);
             exit;
         }

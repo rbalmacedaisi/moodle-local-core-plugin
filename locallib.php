@@ -911,6 +911,8 @@ function create_class_activities($class, $updating = false)
                 // add_moduleinfo throws when grade recalc or messaging fails.
                 // The module IS often created in the DB before the exception — try to recover it.
                 $attErrMsg = $attErr->getMessage();
+                $attErrClass = get_class($attErr);
+                $attErrLocation = basename($attErr->getFile()) . ':' . $attErr->getLine();
                 gmk_log("WARNING create_attendance_activity threw for class {$class->id}: {$attErrMsg}"
                     . " (courseid={$class->corecourseid}, sectionid={$class->coursesectionid}, sectionnum={$classSectionNumber})");
                 $attModId = gmk_get_module_id_by_name('attendance');
@@ -938,7 +940,11 @@ function create_class_activities($class, $updating = false)
                 } else {
                     // Module was NOT created at all — report with original error
                     gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id}: {$attErrMsg}");
-                    throw new \Exception("No se pudo crear attendance para clase {$class->id}: {$attErrMsg}", 0, $attErr);
+                    throw new \Exception(
+                        "No se pudo crear attendance para clase {$class->id}: [{$attErrClass} @ {$attErrLocation}] {$attErrMsg}",
+                        0,
+                        $attErr
+                    );
                 }
             }
             $attendanceCourseModule  = get_coursemodule_from_id('attendance', $attendanceActivityInfo->coursemodule, 0, false, MUST_EXIST);
