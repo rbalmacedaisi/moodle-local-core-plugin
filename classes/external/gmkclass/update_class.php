@@ -68,6 +68,7 @@ class update_class extends external_api {
                 'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'classDays' => new external_value(PARAM_TEXT, 'The days when the class will have sessions, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity', VALUE_DEFAULT, 0),
+                'academicPeriodId' => new external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
             ]
         );
     }
@@ -91,7 +92,8 @@ class update_class extends external_api {
         string $initDate = '',
         string $endDate = '',
         string $classDays,
-        int $classroomCapacity = 0
+        int $classroomCapacity = 0,
+        int $academicPeriodId = 0
         ) {
 
 
@@ -109,7 +111,8 @@ class update_class extends external_api {
             'initDate'=>$initDate,
             'endDate'=>$endDate,
             'classDays'=>$classDays,
-            'classroomCapacity'=>$classroomCapacity
+            'classroomCapacity'=>$classroomCapacity,
+            'academicPeriodId'=>$academicPeriodId
         ]);
         
         try{

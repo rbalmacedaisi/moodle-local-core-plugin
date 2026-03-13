@@ -73,6 +73,11 @@ if (!$class) {
     redirect(new moodle_url('/local/grupomakro_core/pages/classmanagement.php'), 'Clase no encontrada (id=' . $id . ')', 3);
 }
 
+// Institutional/lective period is stored in gmk_class.periodid.
+// list_classes() remaps periodid to the academic plan period, so keep the original value separately.
+$classInstitutionalPeriodId = isset($class->institutional_period_id)
+    ? (int)$class->institutional_period_id
+    : (int)$DB->get_field('gmk_class', 'periodid', ['id' => $class->id]);
 
 
 if($reschedulingActivity){
@@ -114,14 +119,33 @@ foreach($learningPlanPeriods as $period){
 if (!$selectedPeriodExists && !empty($class->periodid)) {
     $fallbackPeriodLabel = $DB->get_field('local_learning_periods', 'name', ['id' => $class->periodid]);
     if (empty($fallbackPeriodLabel)) {
-        $fallbackPeriodLabel = $DB->get_field('gmk_academic_periods', 'name', ['id' => $class->periodid]);
-    }
-    if (empty($fallbackPeriodLabel)) {
         $fallbackPeriodLabel = 'Periodo #' . $class->periodid;
     }
     array_unshift($classPeriods['options'], ['value' => (int)$class->periodid, 'label' => $fallbackPeriodLabel]);
 }
 //--------------------------
+
+// Institutional/lective periods (gmk_academic_periods) used by gmk_class.periodid.
+$classLectivePeriods = ['selected' => $classInstitutionalPeriodId, 'options' => []];
+$academicPeriods = $DB->get_records('gmk_academic_periods', null, 'startdate DESC, id DESC', 'id, name, status');
+$selectedLectivePeriodExists = false;
+foreach ($academicPeriods as $academicPeriod) {
+    if ((int)$academicPeriod->id === (int)$classInstitutionalPeriodId) {
+        $selectedLectivePeriodExists = true;
+    }
+    $classLectivePeriods['options'][] = [
+        'value'  => (int)$academicPeriod->id,
+        'label'  => $academicPeriod->name,
+        'active' => (int)$academicPeriod->status === 1
+    ];
+}
+if (!$selectedLectivePeriodExists && !empty($classInstitutionalPeriodId)) {
+    $fallbackLectiveLabel = $DB->get_field('gmk_academic_periods', 'name', ['id' => $classInstitutionalPeriodId]);
+    if (empty($fallbackLectiveLabel)) {
+        $fallbackLectiveLabel = 'Periodo lectivo #' . $classInstitutionalPeriodId;
+    }
+    array_unshift($classLectivePeriods['options'], ['value' => (int)$classInstitutionalPeriodId, 'label' => $fallbackLectiveLabel, 'active' => false]);
+}
 
 //Get courses by class learning plan and class period
 $learningPlanPeriodCourses = json_decode(get_learning_plan_courses_external::get_learning_plan_courses($class->learningplanid,$class->periodid)['courses']);
@@ -167,6 +191,7 @@ $strings->class_type = get_string('class_type', $plugin_name);
 $strings->class_room = get_string('class_room', $plugin_name);
 $strings->class_learning_plan = get_string('class_learning_plan', $plugin_name);
 $strings->class_period = get_string('class_period', $plugin_name);
+$strings->class_lective_period = get_string('class_lective_period', $plugin_name);
 $strings->class_course = get_string('class_course', $plugin_name);
 $strings->class_date_time = get_string('class_date_time', $plugin_name);
 $strings->class_start_time = get_string('class_start_time', $plugin_name);
@@ -180,6 +205,7 @@ $strings->class_type_placeholder = get_string('class_type_placeholder', $plugin_
 $strings->class_room_placeholder = get_string('class_room_placeholder', $plugin_name);
 $strings->class_learningplan_placeholder = get_string('class_learningplan_placeholder', $plugin_name);
 $strings->class_period_placeholder = get_string('class_period_placeholder', $plugin_name);
+$strings->class_lective_period_placeholder = get_string('class_lective_period_placeholder', $plugin_name);
 $strings->class_course_placeholder = get_string('class_course_placeholder', $plugin_name);
 
 $strings->monday = get_string('monday', $plugin_name);
@@ -209,6 +235,7 @@ $templatedata = json_encode([
     'classTypes' => $classTypes,
     'classLearningPlans' => $classLearningPlans,
     'classPeriods'=>$classPeriods,
+    'classLectivePeriods' => $classLectivePeriods,
     'classCourses'=>$classCourses,
     'classTeachers'=>$classPotentialTeachers,
     'initTime'=> $class->inittime,

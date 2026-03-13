@@ -269,6 +269,7 @@ $string['class_name'] = 'Nombre de clase';
 $string['class_type'] = 'Tipo de clase';
 $string['class_room'] = 'Aula de clase';
 $string['class_learning_plan'] = 'Plan de aprendizaje';
+$string['class_lective_period'] = 'Período lectivo';
 $string['class_period'] = 'Período';
 $string['class_course'] = 'Curso';
 $string['class_date_time'] = 'Horario y días de clase';
@@ -286,6 +287,7 @@ $string['class_name_placeholder'] = 'Ingrese un nombre';
 $string['class_type_placeholder'] = 'Seleccionar Tipo de clase';
 $string['class_room_placeholder'] = 'Seleccionar Aula de clase';
 $string['class_learningplan_placeholder'] = 'Seleccionar Plan de aprendizaje';
+$string['class_lective_period_placeholder'] = 'Seleccionar Período lectivo';
 $string['class_period_placeholder'] = 'Seleccionar Período';
 $string['class_course_placeholder'] = 'Seleccionar Curso';
 

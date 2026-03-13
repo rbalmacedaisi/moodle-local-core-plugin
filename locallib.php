@@ -685,7 +685,12 @@ function create_class($classParams)
         $newClass->name           = $classParams["name"];
         $newClass->type           = $classParams["type"];
         $newClass->learningplanid = $classParams["learningPlanId"];
-        $newClass->periodid       = $classParams["periodId"];
+        // periodId = academic/plan period (local_learning_periods)
+        // academicPeriodId = institutional/lective period (gmk_academic_periods)
+        // gmk_class.periodid stores the institutional period.
+        $newClass->periodid       = !empty($classParams["academicPeriodId"])
+            ? (int)$classParams["academicPeriodId"]
+            : (int)$classParams["periodId"];
         $newClass->courseid       = $classParams["courseId"];
         $newClass->instructorid   = $classParams["instructorId"];
         $newClass->inittime       = $classParams["initTime"];
@@ -2970,7 +2975,12 @@ function update_class($classParams)
     $class->name           = $classParams["name"];
     $class->type           = $classParams["type"];
     $class->learningplanid = $classParams["learningPlanId"];
-    $class->periodid       = $classParams["periodId"];
+    // periodId = academic/plan period (local_learning_periods)
+    // academicPeriodId = institutional/lective period (gmk_academic_periods)
+    // gmk_class.periodid stores the institutional period.
+    $class->periodid       = !empty($classParams["academicPeriodId"])
+        ? (int)$classParams["academicPeriodId"]
+        : (int)$classParams["periodId"];
     $class->courseid       = $classParams["courseId"];
     $class->instructorid   = $classParams["instructorId"];
     $class->inittime       = $classParams["initTime"];

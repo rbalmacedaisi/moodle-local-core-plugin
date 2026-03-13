@@ -68,6 +68,14 @@ window.Vue.component('editclass', {
                                <option v-for="period in periods" :value="period.value">{{period.label}}</option>
                             </select>
                         </div>
+
+                        <div id="lectiveperiod-fieldset" class="col-sm-12 col-md-6 py-2">
+                            <label class="w-100" for="classAcademicPeriod">{{ lang.class_lective_period }}</label>
+                            <select v-model="classData.academicPeriodId" ref="classAcademicPeriod" id="classAcademicPeriod" class="form-control" required>
+                               <option :value="undefined">{{ lang.class_lective_period_placeholder }}</option>
+                               <option v-for="period in lectivePeriods" :value="period.value">{{period.label}}</option>
+                            </select>
+                        </div>
                             
                         <div id="courses-fieldset" class="col-sm-12 col-md-6 form-group py-2">
                             <label class="w-100" for="classCourse">{{ lang.class_course }}</label>
@@ -268,6 +276,7 @@ window.Vue.component('editclass', {
                 type: undefined,
                 learningPlanId: undefined,
                 periodId: undefined,
+                academicPeriodId: undefined,
                 courseId: undefined,
                 teacherIndex: undefined,
                 initDate: undefined,
@@ -289,6 +298,7 @@ window.Vue.component('editclass', {
             classTypes: [],
             learningPlans: [],
             periods: [],
+            lectivePeriods: [],
             courses: [],
             teachers: [],
             classTeacherId: undefined,
@@ -357,6 +367,8 @@ window.Vue.component('editclass', {
 
             this.periods = (rawTemplatedata.classPeriods || {}).options || [];
             this.classData.periodId = (rawTemplatedata.classPeriods || {}).selected;
+            this.lectivePeriods = (rawTemplatedata.classLectivePeriods || {}).options || [];
+            this.classData.academicPeriodId = (rawTemplatedata.classLectivePeriods || {}).selected;
 
             this.courses = (rawTemplatedata.classCourses || {}).options || [];
             this.classData.courseId = (rawTemplatedata.classCourses || {}).selected;
@@ -609,6 +621,7 @@ window.Vue.component('editclass', {
                 this.$refs.classType,
                 this.$refs.classLearningPlan,
                 this.$refs.classPeriod,
+                this.$refs.classAcademicPeriod,
                 this.$refs.classCourse,
                 this.$refs.classInitTime,
                 this.$refs.classEndTime
@@ -680,7 +693,7 @@ window.Vue.component('editclass', {
             }
         },
         saveClassParameters() {
-            const { id, name, type, learningPlanId, periodId, courseId, initTime, endTime, classroomCapacity } = this.classData
+            const { id, name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, classroomCapacity } = this.classData
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_update_class',
@@ -689,6 +702,7 @@ window.Vue.component('editclass', {
                 type,
                 learningPlanId,
                 periodId,
+                academicPeriodId,
                 courseId,
                 instructorId: this.selectedClassTeacher ? this.selectedClassTeacher.id : (this.classTeacherId || 0),
                 initTime,

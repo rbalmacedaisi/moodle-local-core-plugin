@@ -69,6 +69,7 @@ class create_class extends external_api {
                 'classDays' => new external_value(PARAM_TEXT, 'The days when tha class will be dictated, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active',VALUE_REQUIRED),
                 'classroomId' => new external_value(PARAM_TEXT, 'Classroom id',VALUE_DEFAULT,null,NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity',VALUE_DEFAULT,40),
+                'academicPeriodId' => new external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
             ]
         );
     }
@@ -92,7 +93,8 @@ class create_class extends external_api {
         string $endDate = '',
         string $classDays,
         string $classroomId=null,
-        int $classroomCapacity=40
+        int $classroomCapacity=40,
+        int $academicPeriodId = 0
         ) {
 
         // Validate the parameters passed to the function.
@@ -109,7 +111,8 @@ class create_class extends external_api {
             'endDate'=>$endDate,
             'classDays'=>$classDays,
             'classroomId'=>$classroomId,
-            'classroomCapacity'=>$classroomCapacity
+            'classroomCapacity'=>$classroomCapacity,
+            'academicPeriodId'=>$academicPeriodId
         ]);
         
         try{;

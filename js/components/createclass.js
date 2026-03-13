@@ -52,6 +52,14 @@ window.Vue.component('createclass', {
                                    <option v-for="period in periods" :value="period.value">{{period.label}}</option>
                                 </select>
                             </div>
+
+                            <div id="lectiveperiod-fieldset" class="col-sm-12 col-md-6 py-2">
+                                <label class="w-100" for="classAcademicPeriod">{{lang.class_lective_period}}</label>
+                                <select v-model="classData.academicPeriodId" ref="classAcademicPeriod" id="classAcademicPeriod" class="form-control" required>
+                                   <option :value="undefined">{{lang.class_lective_period_placeholder}}</option>
+                                   <option v-for="period in lectivePeriods" :value="period.value">{{period.label}}</option>
+                                </select>
+                            </div>
                             
                             <div id="courses-fieldset" class="col-sm-12 col-md-6 py-2">
                                 <label class="w-100" for="classCourse">{{lang.class_course}}</label>
@@ -260,6 +268,7 @@ window.Vue.component('createclass', {
                 classRoomIndex: undefined,
                 learningPlanId: undefined,
                 periodId: undefined,
+                academicPeriodId: undefined,
                 courseId: undefined,
                 teacherIndex: undefined,
                 initTime: undefined,
@@ -283,6 +292,12 @@ window.Vue.component('createclass', {
             showErrorDialog: false,
             errorMessage: undefined,
             templateData
+        }
+    },
+    created() {
+        if (!this.classData.academicPeriodId && this.lectivePeriods.length) {
+            const active = this.lectivePeriods.find(period => period.active) || this.lectivePeriods[0];
+            this.classData.academicPeriodId = active ? active.value : undefined;
         }
     },
     methods: {
@@ -428,6 +443,7 @@ window.Vue.component('createclass', {
                 this.$refs.classRoom,
                 this.$refs.classLearningPlan,
                 this.$refs.classPeriod,
+                this.$refs.classAcademicPeriod,
                 this.$refs.classCourse,
                 this.$refs.classInitTime,
                 this.$refs.classEndTime
@@ -467,7 +483,7 @@ window.Vue.component('createclass', {
             return this.classData.type === 0;
         },
         saveClassParameters() {
-            const { name, type, learningPlanId, periodId, courseId, initTime, endTime, initDate, endDate } = this.classData
+            const { name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, initDate, endDate } = this.classData
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_create_class',
@@ -475,6 +491,7 @@ window.Vue.component('createclass', {
                 type,
                 learningPlanId,
                 periodId,
+                academicPeriodId,
                 courseId,
                 instructorId: this.selectedClassTeacher?.id,
                 initTime,
@@ -491,6 +508,9 @@ window.Vue.component('createclass', {
         },
         selectedClassRoom() {
             return this.templateData.classRooms[this.classData.classRoomIndex]
+        },
+        lectivePeriods() {
+            return this.templateData.academicPeriods || [];
         },
         /**
          * A computed property that returns language-related data from the 'window.strings' object.
