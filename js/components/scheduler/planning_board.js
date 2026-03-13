@@ -1511,28 +1511,94 @@ window.SchedulerComponents.PlanningBoard = {
             this.publishing    = true;
 
             try {
-                const periodId = window.schedulerStore.state.activePeriod;
+                const store    = window.schedulerStore;
+                const periodId = store.state.activePeriod;
 
-                this._publishLog(`Guardando borrador...`);
+                // ── FASE 1: guardar TODAS las clases en BD ──────────────────────────────
+                // CRITICAL: we must pass ALL placed classes so the backend does NOT delete
+                // the ones missing from the list. Passing only [cls] would wipe every other
+                // class for this period.
+                this._publishLog(`Preparando lista de clases...`);
                 this.publishProgress = 10;
-                await window.schedulerStore.saveGeneration(periodId, this.allClasses);
-                this._publishLog('Borrador guardado.', 'success');
+
+                const essentialKeys = [
+                    'id', 'courseid', 'corecourseid', 'learningplanid', 'periodid',
+                    'subjectName', 'day', 'start', 'end', 'room',
+                    'instructorId', 'instructorid', 'teacherName', 'studentCount', 'studentIds',
+                    'subperiod', 'type', 'typeLabel', 'career', 'shift',
+                    'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
+                    'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
+                ];
+                const allPlaced = this.allClasses
+                    .filter(s => {
+                        if (s.isExternal) return false;
+                        return (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                    })
+                    .map(s => {
+                        const clean = {};
+                        essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
+                        return clean;
+                    });
+
+                // Find where our target cls sits in the allPlaced list (by index → classid mapping)
+                const targetIdx = allPlaced.findIndex(s => {
+                    if (cls.id && s.id && cls.id === s.id) return true;
+                    return s.corecourseid === cls.corecourseid &&
+                           s.shift        === cls.shift &&
+                           s.day          === cls.day;
+                });
+
+                if (targetIdx === -1) {
+                    throw new Error(`No se encontró "${cls.subjectName}" en la lista de clases colocadas.`);
+                }
+
+                this._publishLog(`Guardando ${allPlaced.length} clases en base de datos...`);
                 this.publishProgress = 20;
 
-                this._publishLog(`Publicando "${cls.subjectName}"...`);
-                this.publishStatusText = `Publicando "${cls.subjectName}"...`;
+                const phase1   = await store._fetch('local_grupomakro_save_generation_result', {
+                    periodid:  periodId,
+                    schedules: JSON.stringify(allPlaced),
+                    phase1only: 1,
+                });
+                const classids = (phase1 && Array.isArray(phase1.classids)) ? phase1.classids : [];
+                this._publishLog(`Fase 1: ${classids.length} clases guardadas en BD.`, 'success');
+                this.publishProgress = 40;
 
-                await window.schedulerStore.publishGeneration(
-                    periodId,
-                    [cls],
-                    ({ msg, type, progress }) => {
-                        this._publishLog(msg, type);
-                        if (progress !== null) {
-                            this.publishProgress = 20 + Math.round(progress * 0.8);
-                            this.publishStatusText = msg;
+                const targetClassId = classids[targetIdx];
+                if (!targetClassId) {
+                    throw new Error(`No se obtuvo ID de BD para "${cls.subjectName}".`);
+                }
+
+                // ── FASE 2: crear estructuras Moodle SOLO para la clase target ──────────
+                this._publishLog(`Creando estructura Moodle para "${cls.subjectName}" (ID: ${targetClassId})...`);
+                this.publishStatusText = `Publicando "${cls.subjectName}"...`;
+                this.publishProgress = 60;
+
+                let res = null;
+                let lastErr = null;
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                    try {
+                        res = await store._fetch('local_grupomakro_create_class_moodle_structures', { classid: targetClassId });
+                        lastErr = null;
+                        break;
+                    } catch (e) {
+                        lastErr = e;
+                        if (attempt < 2) {
+                            this._publishLog('Reintentando por error de persistencia...', 'warn');
+                            await new Promise(r => setTimeout(r, 700));
                         }
                     }
-                );
+                }
+                if (lastErr) throw lastErr;
+
+                this.publishProgress = 90;
+                const logLine = (res && res.log && res.log.length) ? res.log[res.log.length - 1] : 'OK';
+                this._publishLog(`Clase ${targetClassId}: ${logLine}`, 'info');
+
+                // Re-guardar borrador
+                this._publishLog('Re-guardando borrador...', 'info');
+                await store.saveGeneration(periodId, store.state.generatedSchedules);
+                this._publishLog('Borrador actualizado.', 'success');
 
                 this.publishProgress = 100;
                 this._publishLog(`¡"${cls.subjectName}" publicada correctamente!`, 'success');
