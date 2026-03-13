@@ -423,13 +423,17 @@ $checks[] = [
 $checks[] = [
     'id' => 'course_items_wrong_iteminstance',
     'title' => 'grade_items de tipo course con iteminstance incorrecto',
-    'description' => 'Debe cumplirse iteminstance = courseid para evitar errores de regrade.',
-    'sql' => "SELECT gi.id AS courseitemid, gi.courseid, gi.iteminstance, gi.categoryid, gi.sortorder
+    'description' => 'Debe apuntar a una categoria raiz valida del mismo curso (parent NULL/0).',
+    'sql' => "SELECT gi.id AS courseitemid, gi.courseid, gi.iteminstance, gi.categoryid, gi.sortorder,
+                     gc.id AS linkedcategoryid, gc.parent AS linkedcategoryparent
                 FROM {grade_items} gi
+           LEFT JOIN {grade_categories} gc
+                  ON gc.id = gi.iteminstance
+                 AND gc.courseid = gi.courseid
                WHERE gi.itemtype = 'course'
                  AND gi.courseid IN ({$coursescopesql})
-                 AND gi.iteminstance <> gi.courseid
-            ORDER BY gi.courseid, gi.id",
+                 AND (gc.id IS NULL OR (gc.parent IS NOT NULL AND gc.parent <> 0))
+             ORDER BY gi.courseid, gi.id",
     'params' => $scopeparams,
     'type' => 'issue',
 ];
