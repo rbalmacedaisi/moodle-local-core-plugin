@@ -81,13 +81,18 @@ $themeToken = get_theme_token();
 $userToken = get_logged_user_token();
 
 $strings = new stdClass();
+$stringmanager = get_string_manager();
+$hasLectivePeriodLabel = $stringmanager->string_exists('class_lective_period', $plugin_name);
+$hasLectivePeriodPlaceholder = $stringmanager->string_exists('class_lective_period_placeholder', $plugin_name);
 $strings->class_general_data = get_string('class_general_data', $plugin_name);
 $strings->class_name = get_string('class_name', $plugin_name);
 $strings->class_type = get_string('class_type', $plugin_name);
 $strings->class_room = get_string('class_room', $plugin_name);
 $strings->class_learning_plan = get_string('class_learning_plan', $plugin_name);
 $strings->class_period = get_string('class_period', $plugin_name);
-$strings->class_lective_period = get_string('class_lective_period', $plugin_name);
+$strings->class_lective_period = $hasLectivePeriodLabel
+    ? get_string('class_lective_period', $plugin_name)
+    : get_string('class_period', $plugin_name);
 $strings->class_course = get_string('class_course', $plugin_name);
 $strings->class_date_time = get_string('class_date_time', $plugin_name);
 $strings->class_start_time = get_string('class_start_time', $plugin_name);
@@ -101,7 +106,9 @@ $strings->class_type_placeholder = get_string('class_type_placeholder', $plugin_
 $strings->class_room_placeholder = get_string('class_room_placeholder', $plugin_name);
 $strings->class_learningplan_placeholder = get_string('class_learningplan_placeholder', $plugin_name);
 $strings->class_period_placeholder = get_string('class_period_placeholder', $plugin_name);
-$strings->class_lective_period_placeholder = get_string('class_lective_period_placeholder', $plugin_name);
+$strings->class_lective_period_placeholder = $hasLectivePeriodPlaceholder
+    ? get_string('class_lective_period_placeholder', $plugin_name)
+    : get_string('class_period_placeholder', $plugin_name);
 $strings->class_course_placeholder = get_string('class_course_placeholder', $plugin_name);
 
 $strings->monday = get_string('monday', $plugin_name);
