@@ -4360,19 +4360,53 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         $userGroupIdSet = array_flip($userGroupIds);
 
         // Student strict scope:
-        // only classes currently "in progress" (status=2) and linked through classid.
+        // only courses/classes currently "in progress" (status=2) in gmk_course_progre.
         // This avoids showing events for approved/failed/non-enrolled subjects.
+        $studentHasProgreData = false;
+        $studentActiveCourseIdSet = [];
         $studentActiveClassIdSet = [];
-        $islearningplanstudent = $DB->record_exists('local_learning_users', ['userid' => (int)$userId]);
-        if ($islearningplanstudent) {
-            $inprogressclassids = $DB->get_fieldset_select(
-                'gmk_course_progre',
-                'classid',
-                'userid = :userid AND status = :status AND classid > 0',
-                ['userid' => (int)$userId, 'status' => 2]
-            );
-            if (!empty($inprogressclassids)) {
-                $studentActiveClassIdSet = array_fill_keys(array_map('intval', $inprogressclassids), true);
+
+        $studentperiodmap = [];
+        $learningplanusers = $DB->get_records(
+            'local_learning_users',
+            ['userid' => (int)$userId],
+            '',
+            'id, learningplanid, currentperiodid'
+        );
+        foreach ($learningplanusers as $lpu) {
+            if (!empty($lpu->learningplanid) && !empty($lpu->currentperiodid)) {
+                $studentperiodmap[(int)$lpu->learningplanid] = (int)$lpu->currentperiodid;
+            }
+        }
+
+        $studentprogrerows = $DB->get_records_select(
+            'gmk_course_progre',
+            'userid = :userid',
+            ['userid' => (int)$userId],
+            '',
+            'id, learningplanid, periodid, courseid, classid, status'
+        );
+
+        if (!empty($studentprogrerows)) {
+            $studentHasProgreData = true;
+            foreach ($studentprogrerows as $prow) {
+                if ((int)$prow->status !== 2) {
+                    continue;
+                }
+                $rowlearningplanid = !empty($prow->learningplanid) ? (int)$prow->learningplanid : 0;
+                $rowperiodid = !empty($prow->periodid) ? (int)$prow->periodid : 0;
+                if ($rowlearningplanid > 0 && isset($studentperiodmap[$rowlearningplanid])) {
+                    $currentperiodid = (int)$studentperiodmap[$rowlearningplanid];
+                    if ($rowperiodid > 0 && $rowperiodid !== $currentperiodid) {
+                        continue;
+                    }
+                }
+                if (!empty($prow->courseid)) {
+                    $studentActiveCourseIdSet[(int)$prow->courseid] = true;
+                }
+                if (!empty($prow->classid)) {
+                    $studentActiveClassIdSet[(int)$prow->classid] = true;
+                }
             }
         }
     }
@@ -4409,8 +4443,17 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             continue;
         }
 
-        // Student strict scope (if applicable): class must be one of the classes in progress.
-        if ($userId && !empty($studentActiveClassIdSet)) {
+        // Student strict scope (if applicable):
+        // 1) course must be in progress
+        // 2) if we have class mapping, class must be in progress too
+        if ($userId && !empty($studentHasProgreData)) {
+            $eventcourseid = !empty($eventComplete->courseid) ? (int)$eventComplete->courseid : 0;
+            if (!empty($studentActiveCourseIdSet) && !isset($studentActiveCourseIdSet[$eventcourseid])) {
+                continue;
+            }
+        }
+
+        if ($userId && !empty($studentHasProgreData) && !empty($studentActiveClassIdSet)) {
             $eventclassid = !empty($eventComplete->classId) ? (int)$eventComplete->classId : 0;
             if ($eventclassid <= 0 || !isset($studentActiveClassIdSet[$eventclassid])) {
                 continue;
@@ -6147,13 +6190,36 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
 
     // Try to link this activity to a Class
     $gmkClass = null;
+    $cm = null;
+
+    // 0. Most precise mapping: module section -> gmk_class.coursesectionid.
+    if (!empty($event->modulename) && !empty($event->instance) && !empty($event->courseid)) {
+        $cm = get_coursemodule_from_instance($event->modulename, $event->instance, $event->courseid);
+        if ($cm && !empty($cm->section)) {
+            $cachekey = 'section_' . (int)$event->courseid . '_' . (int)$cm->section;
+            if (array_key_exists($cachekey, $fetchedClasses)) {
+                $gmkClass = $fetchedClasses[$cachekey];
+            } else {
+                $gmkClass = $DB->get_record_select(
+                    'gmk_class',
+                    'corecourseid = :courseid AND coursesectionid = :sectionid AND closed = 0',
+                    ['courseid' => (int)$event->courseid, 'sectionid' => (int)$cm->section],
+                    '*',
+                    IGNORE_MULTIPLE
+                );
+                if ($gmkClass) {
+                    $fetchedClasses[$cachekey] = $gmkClass;
+                }
+            }
+        }
+    }
 
     // 1. Heuristic: Find class by Group ID if event has one
-    if (!empty($event->groupid)) {
+    if (!$gmkClass && !empty($event->groupid)) {
         if (array_key_exists('group_' . $event->groupid, $fetchedClasses)) {
              $gmkClass = $fetchedClasses['group_' . $event->groupid];
         } else {
-             $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0]);
+             $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0], '*', IGNORE_MULTIPLE);
              if ($gmkClass) $fetchedClasses['group_' . $event->groupid] = $gmkClass;
         }
     }
@@ -6223,6 +6289,10 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
     $event->timeRange     = $event->timeRange     ?? date('H:i', $event->timestart);
     $event->typelabel     = $event->typelabel     ?? 'Actividad';
     $event->instructorName = $event->instructorName ?? '';
+
+    if ($cm && !empty($cm->id)) {
+        $event->cmid = (int)$cm->id;
+    }
 
     $event->timeduration = 0; // Deadlines are usually points in time
     $event->start = date('Y-m-d H:i:s', $event->timestart);
