@@ -21,7 +21,8 @@ require_capability('moodle/site:config', $sysctx);
 $courseid = optional_param('courseid', 0, PARAM_INT);
 $classid = optional_param('classid', 0, PARAM_INT);
 $maxrows = optional_param('maxrows', 200, PARAM_INT);
-$run = optional_param('run', 0, PARAM_BOOL);
+$showdetails = optional_param('showdetails', ($courseid > 0 || $classid > 0) ? 1 : 0, PARAM_BOOL);
+$run = optional_param('run', 1, PARAM_BOOL);
 
 if ($maxrows < 10) {
     $maxrows = 10;
@@ -34,6 +35,7 @@ $pageurl = new moodle_url('/local/grupomakro_core/pages/debug_grade_sql_checklis
     'courseid' => $courseid,
     'classid' => $classid,
     'maxrows' => $maxrows,
+    'showdetails' => $showdetails,
     'run' => $run,
 ]);
 $PAGE->set_url($pageurl);
@@ -42,22 +44,56 @@ $PAGE->set_title('Debug Checklist SQL de Calificaciones');
 $PAGE->set_heading('Debug Checklist SQL de Calificaciones');
 
 /**
+ * Infer courseid from a generic SQL result row.
+ *
+ * @param array $row
+ * @param array $classcoursemap classid => corecourseid
+ * @return int
+ */
+function gmk_dbg_extract_courseid_from_row(array $row, array $classcoursemap): int {
+    foreach (['corecourseid', 'courseid', 'cmcourse', 'categorycourseid'] as $key) {
+        if (array_key_exists($key, $row) && $row[$key] !== null && $row[$key] !== '') {
+            return (int)$row[$key];
+        }
+    }
+    if (array_key_exists('classid', $row)) {
+        $cid = (int)$row['classid'];
+        if ($cid > 0 && isset($classcoursemap[$cid])) {
+            return (int)$classcoursemap[$cid];
+        }
+    }
+    return 0;
+}
+
+/**
  * Collect SQL rows preserving duplicates and order.
  *
  * @param moodle_database $db
  * @param string $sql
  * @param array $params
  * @param int $maxrows
- * @return array{rows:array,returned:int,truncated:bool}
+ * @param array $classcoursemap
+ * @param bool $scanall
+ * @return array{rows:array,returned:int,truncated:bool,coursehits:array}
  */
-function gmk_dbg_collect_rows($db, string $sql, array $params, int $maxrows): array {
+function gmk_dbg_collect_rows($db, string $sql, array $params, int $maxrows, array $classcoursemap = [], bool $scanall = true): array {
     $rows = [];
     $returned = 0;
-    $rs = $db->get_recordset_sql($sql, $params, 0, $maxrows + 1);
+    $coursehits = [];
+    $limitnum = $scanall ? 0 : ($maxrows + 1);
+    $rs = $db->get_recordset_sql($sql, $params, 0, $limitnum);
     foreach ($rs as $record) {
+        $arr = (array)$record;
         $returned++;
         if ($returned <= $maxrows) {
-            $rows[] = (array)$record;
+            $rows[] = $arr;
+        }
+        $rowcourseid = gmk_dbg_extract_courseid_from_row($arr, $classcoursemap);
+        if ($rowcourseid > 0) {
+            if (!isset($coursehits[$rowcourseid])) {
+                $coursehits[$rowcourseid] = 0;
+            }
+            $coursehits[$rowcourseid]++;
         }
     }
     $rs->close();
@@ -65,6 +101,7 @@ function gmk_dbg_collect_rows($db, string $sql, array $params, int $maxrows): ar
         'rows' => $rows,
         'returned' => $returned,
         'truncated' => ($returned > $maxrows),
+        'coursehits' => $coursehits,
     ];
 }
 
@@ -137,14 +174,15 @@ echo '<label style="display:inline-block;min-width:80px;"><b>Class ID</b></label
 echo '<input type="number" name="classid" value="' . (int)$classid . '" style="width:120px;margin-right:12px;">';
 echo '<label style="display:inline-block;min-width:95px;"><b>Max rows</b></label> ';
 echo '<input type="number" name="maxrows" value="' . (int)$maxrows . '" min="10" max="1000" style="width:100px;margin-right:12px;">';
-echo '<button type="submit" style="padding:6px 12px;">Diagnosticar</button>';
+echo '<label style="margin-right:12px;">';
+echo '<input type="checkbox" name="showdetails" value="1" ' . ($showdetails ? 'checked' : '') . '> Mostrar detalle por check';
+echo '</label>';
+echo '<button type="submit" style="padding:6px 12px;">Actualizar diagnostico</button>';
 echo '</form>';
-
-if (!$run) {
-    echo '<p style="color:#444;">Ejecuta el diagnostico con el formulario para ver el checklist.</p>';
-    echo $OUTPUT->footer();
-    exit;
-}
+echo '<p style="font-size:12px;color:#444;margin-top:0;">'
+    . 'La vista corre automaticamente y muestra estado de todos los cursos activos. '
+    . 'Usa filtros si quieres aislar un curso o clase.'
+    . '</p>';
 
 $classwhere = 'c.closed = 0';
 $classparams = [];
@@ -168,6 +206,39 @@ if ($classid > 0) {
     $scopeparams['scopeclassid'] = $classid;
 }
 $coursescopesql = "SELECT DISTINCT sc.corecourseid FROM {gmk_class} sc WHERE {$scopewhere}";
+
+$classcoursemap = [];
+$classmaprows = $DB->get_records_sql(
+    "SELECT c.id AS classid, c.corecourseid
+       FROM {gmk_class} c
+      WHERE c.closed = 0",
+    []
+);
+foreach ($classmaprows as $cmr) {
+    $classcoursemap[(int)$cmr->classid] = (int)$cmr->corecourseid;
+}
+
+$allcourses = $DB->get_records_sql(
+    "SELECT DISTINCT sc.corecourseid AS courseid, co.fullname
+       FROM {gmk_class} sc
+       JOIN {course} co ON co.id = sc.corecourseid
+      WHERE {$scopewhere}
+   ORDER BY co.fullname",
+    $scopeparams
+);
+
+$coursestatus = [];
+foreach ($allcourses as $course) {
+    $cid = (int)$course->courseid;
+    $coursestatus[$cid] = [
+        'courseid' => $cid,
+        'coursename' => (string)$course->fullname,
+        'issuechecks' => [],
+        'infochecks' => [],
+        'issuerows' => 0,
+        'inforows' => 0,
+    ];
+}
 
 $checks = [];
 
@@ -423,8 +494,8 @@ $results = [];
 $issuescount = 0;
 
 foreach ($checks as $check) {
-    $fetch = gmk_dbg_collect_rows($DB, $check['sql'], $check['params'], $maxrows);
-    $hasrows = !empty($fetch['rows']);
+    $fetch = gmk_dbg_collect_rows($DB, $check['sql'], $check['params'], $maxrows, $classcoursemap, true);
+    $hasrows = ($fetch['returned'] > 0);
     $status = 'ok';
     if ($check['type'] === 'issue' && $hasrows) {
         $status = 'issue';
@@ -443,7 +514,31 @@ foreach ($checks as $check) {
         'rows' => $fetch['rows'],
         'rows_returned' => $fetch['returned'],
         'truncated' => $fetch['truncated'],
+        'coursehits' => $fetch['coursehits'],
     ];
+
+    if (($status === 'issue' || $status === 'info') && !empty($fetch['coursehits'])) {
+        foreach ($fetch['coursehits'] as $hitcourseid => $hitcount) {
+            $hitcourseid = (int)$hitcourseid;
+            if (!isset($coursestatus[$hitcourseid])) {
+                $coursestatus[$hitcourseid] = [
+                    'courseid' => $hitcourseid,
+                    'coursename' => 'Curso ID ' . $hitcourseid,
+                    'issuechecks' => [],
+                    'infochecks' => [],
+                    'issuerows' => 0,
+                    'inforows' => 0,
+                ];
+            }
+            if ($status === 'issue') {
+                $coursestatus[$hitcourseid]['issuechecks'][$check['id']] = $check['title'];
+                $coursestatus[$hitcourseid]['issuerows'] += (int)$hitcount;
+            } else if ($status === 'info') {
+                $coursestatus[$hitcourseid]['infochecks'][$check['id']] = $check['title'];
+                $coursestatus[$hitcourseid]['inforows'] += (int)$hitcount;
+            }
+        }
+    }
 }
 
 $durationms = (int)round((microtime(true) - $started) * 1000);
@@ -471,37 +566,92 @@ foreach ($results as $r) {
 echo gmk_dbg_table($summaryrows);
 
 echo '<hr style="margin:18px 0;">';
-echo '<h3>Detalle por check</h3>';
+echo '<h3 style="margin-bottom:8px;">Estado por curso</h3>';
+echo '<input id="gmk-course-filter" type="text" placeholder="Filtrar curso por nombre o ID..." '
+    . 'style="width:360px;padding:6px;margin-bottom:10px;border:1px solid #c8d1dc;">';
 
-foreach ($results as $r) {
-    $boxborder = '#d0d7de';
-    $boxbg = '#f6f8fa';
-    if ($r['status'] === 'issue') {
-        $boxborder = '#f5c2c7';
-        $boxbg = '#fff5f5';
-    } else if ($r['status'] === 'info') {
-        $boxborder = '#b6d4fe';
-        $boxbg = '#f0f7ff';
+$coursestatusrows = [];
+foreach ($coursestatus as $cs) {
+    $coursefinalstatus = 'OK';
+    if (!empty($cs['issuechecks'])) {
+        $coursefinalstatus = 'ISSUE';
+    } else if (!empty($cs['infochecks'])) {
+        $coursefinalstatus = 'INFO';
     }
+    $courseurl = new moodle_url('/local/grupomakro_core/pages/debug_grade_sql_checklist.php', [
+        'run' => 1,
+        'courseid' => $cs['courseid'],
+        'classid' => 0,
+        'showdetails' => 1,
+        'maxrows' => $maxrows,
+    ]);
+    $coursestatusrows[] = [
+        'status' => $coursefinalstatus,
+        'courseid' => $cs['courseid'],
+        'coursename' => $cs['coursename'],
+        'issue_checks' => count($cs['issuechecks']),
+        'issue_rows' => $cs['issuerows'],
+        'info_checks' => count($cs['infochecks']),
+        'info_rows' => $cs['inforows'],
+        'checks_issue' => implode(' | ', array_keys($cs['issuechecks'])),
+        'checks_info' => implode(' | ', array_keys($cs['infochecks'])),
+        'drilldown' => (string)$courseurl,
+    ];
+}
+echo '<div id="gmk-course-status-table">' . gmk_dbg_table($coursestatusrows) . '</div>';
+echo '<script>
+const gmkFilter = document.getElementById("gmk-course-filter");
+if (gmkFilter) {
+  gmkFilter.addEventListener("input", function() {
+    const q = (this.value || "").toLowerCase().trim();
+    const table = document.querySelector("#gmk-course-status-table table");
+    if (!table) return;
+    const bodyRows = table.querySelectorAll("tbody tr");
+    bodyRows.forEach(function(tr) {
+      const txt = (tr.textContent || "").toLowerCase();
+      tr.style.display = (!q || txt.indexOf(q) !== -1) ? "" : "none";
+    });
+  });
+}
+</script>';
 
-    echo '<div style="border:1px solid ' . $boxborder . ';background:' . $boxbg . ';padding:12px;margin-bottom:14px;">';
-    echo '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">';
-    echo '<div><b>' . s($r['title']) . '</b><br><span style="font-size:12px;color:#444;">' . s($r['description']) . '</span></div>';
-    echo '<div>' . gmk_dbg_status_badge($r['status']) . '</div>';
-    echo '</div>';
-    echo '<div style="margin-top:8px;font-size:12px;"><b>Rows:</b> ' . (int)$r['rows_returned']
-        . ($r['truncated'] ? ' (truncated to ' . (int)$maxrows . ')' : '') . '</div>';
+echo '<hr style="margin:18px 0;">';
+if ($showdetails) {
+    echo '<h3>Detalle por check</h3>';
 
-    echo '<details style="margin-top:8px;"><summary><b>SQL</b></summary>';
-    echo '<pre style="white-space:pre-wrap;background:#0d1117;color:#e6edf3;padding:10px;font-size:12px;">' . s($r['sql']) . '</pre>';
-    if (!empty($r['params'])) {
-        echo '<pre style="white-space:pre-wrap;background:#111827;color:#d1fae5;padding:10px;font-size:12px;">'
-            . s(json_encode($r['params'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+    foreach ($results as $r) {
+        $boxborder = '#d0d7de';
+        $boxbg = '#f6f8fa';
+        if ($r['status'] === 'issue') {
+            $boxborder = '#f5c2c7';
+            $boxbg = '#fff5f5';
+        } else if ($r['status'] === 'info') {
+            $boxborder = '#b6d4fe';
+            $boxbg = '#f0f7ff';
+        }
+
+        echo '<div style="border:1px solid ' . $boxborder . ';background:' . $boxbg . ';padding:12px;margin-bottom:14px;">';
+        echo '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">';
+        echo '<div><b>' . s($r['title']) . '</b><br><span style="font-size:12px;color:#444;">' . s($r['description']) . '</span></div>';
+        echo '<div>' . gmk_dbg_status_badge($r['status']) . '</div>';
+        echo '</div>';
+        echo '<div style="margin-top:8px;font-size:12px;"><b>Rows:</b> ' . (int)$r['rows_returned']
+            . ($r['truncated'] ? ' (truncated to ' . (int)$maxrows . ')' : '') . '</div>';
+
+        echo '<details style="margin-top:8px;"><summary><b>SQL</b></summary>';
+        echo '<pre style="white-space:pre-wrap;background:#0d1117;color:#e6edf3;padding:10px;font-size:12px;">' . s($r['sql']) . '</pre>';
+        if (!empty($r['params'])) {
+            echo '<pre style="white-space:pre-wrap;background:#111827;color:#d1fae5;padding:10px;font-size:12px;">'
+                . s(json_encode($r['params'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) . '</pre>';
+        }
+        echo '</details>';
+
+        echo '<div style="margin-top:10px;">' . gmk_dbg_table($r['rows']) . '</div>';
+        echo '</div>';
     }
-    echo '</details>';
-
-    echo '<div style="margin-top:10px;">' . gmk_dbg_table($r['rows']) . '</div>';
-    echo '</div>';
+} else {
+    echo '<p style="font-size:12px;color:#444;">Detalle por check oculto para carga rapida. '
+        . 'Activa "Mostrar detalle por check" para verlo.</p>';
 }
 
 $diagnostic = [
@@ -510,14 +660,34 @@ $diagnostic = [
         'courseid' => $courseid,
         'classid' => $classid,
         'maxrows' => $maxrows,
+        'showdetails' => (int)$showdetails,
     ],
     'summary' => [
         'checks_executed' => count($results),
         'checks_with_issues' => $issuescount,
         'duration_ms' => $durationms,
     ],
+    'courses' => [],
     'checks' => [],
 ];
+
+foreach ($coursestatus as $cs) {
+    $coursefinalstatus = 'ok';
+    if (!empty($cs['issuechecks'])) {
+        $coursefinalstatus = 'issue';
+    } else if (!empty($cs['infochecks'])) {
+        $coursefinalstatus = 'info';
+    }
+    $diagnostic['courses'][] = [
+        'courseid' => $cs['courseid'],
+        'coursename' => $cs['coursename'],
+        'status' => $coursefinalstatus,
+        'issue_checks' => array_values(array_keys($cs['issuechecks'])),
+        'info_checks' => array_values(array_keys($cs['infochecks'])),
+        'issue_rows' => $cs['issuerows'],
+        'info_rows' => $cs['inforows'],
+    ];
+}
 
 foreach ($results as $r) {
     $diagnostic['checks'][] = [
@@ -526,6 +696,7 @@ foreach ($results as $r) {
         'status' => $r['status'],
         'rows' => $r['rows_returned'],
         'truncated' => $r['truncated'],
+        'course_hits' => $r['coursehits'],
         'sql' => $r['sql'],
         'params' => $r['params'],
         'data' => $r['rows'],
@@ -538,4 +709,3 @@ echo '<textarea style="width:100%;min-height:320px;font-family:monospace;font-si
     . '</textarea>';
 
 echo $OUTPUT->footer();
-
