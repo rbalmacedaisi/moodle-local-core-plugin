@@ -266,10 +266,10 @@ function get_teachers_disponibility($params)
     $weekdays = array(
         'disp_monday' => 'Lunes',
         'disp_tuesday' => 'Martes',
-        'disp_wednesday' => 'Miércoles',
+        'disp_wednesday' => 'MiÃ©rcoles',
         'disp_thursday' => 'Jueves',
         'disp_friday' => 'Viernes',
-        'disp_saturday' => 'Sábado',
+        'disp_saturday' => 'SÃ¡bado',
         'disp_sunday' => 'Domingo'
     );
     $teachersDisponibility = array();
@@ -329,10 +329,10 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
-        2 => 'Miércoles',
+        2 => 'MiÃ©rcoles',
         3 => 'Jueves',
         4 => 'Viernes',
-        5 => 'Sábado',
+        5 => 'SÃ¡bado',
         6 => 'Domingo'
     );
     $errors = array();
@@ -349,7 +349,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     for ($i = 0; $i < 7; $i++) {
 
         if ($incomingClassSchedule[$i] === "1" && !array_key_exists($weekdays[$i], $availabilityRecords)) {
-            $errorString = "El instructor no esta disponible el día " . $weekdays[$i];
+            $errorString = "El instructor no esta disponible el dÃ­a " . $weekdays[$i];
             $errors[] = $errorString;
         } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {
             $foundedAvailableRange = false;
@@ -361,7 +361,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
                 }
             }
             if (!$foundedAvailableRange) {
-                $errorString = "El instructor no esta disponible el día " . $weekdays[$i] . " en el horário: " . $initTime . " - " . $endTime;
+                $errorString = "El instructor no esta disponible el dÃ­a " . $weekdays[$i] . " en el horÃ¡rio: " . $initTime . " - " . $endTime;
                 $errors[] = $errorString;
             }
         }
@@ -422,7 +422,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     //                     ($class->inittime >= $initTime && $class->inittime <= $endTime) ||
     //                     ($class->endtime >= $initTime && $class->endtime <= $endTime)
     //                 ) {
-    //                     $errorString =  "El salon de clase no esta disponible el día ".$weekdays[$i]." en el horário: ".$initTime." - ".$endTime ;
+    //                     $errorString =  "El salon de clase no esta disponible el dÃ­a ".$weekdays[$i]." en el horÃ¡rio: ".$initTime." - ".$endTime ;
     //                     $errors[]=$errorString;
     //                 }
     //             }
@@ -443,10 +443,10 @@ function get_potential_class_teachers($params)
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
-        2 => 'Miércoles',
+        2 => 'MiÃ©rcoles',
         3 => 'Jueves',
         4 => 'Viernes',
-        5 => 'Sábado',
+        5 => 'SÃ¡bado',
         6 => 'Domingo'
     );
 
@@ -728,7 +728,7 @@ function create_class($classParams)
 /**
  * Build the Moodle group name for a class using the nomenclature:
  * {PERIOD} ({SHIFT_INITIAL}) {SUBJECT_NAME} ({CLASS_TYPE}) {CLASSROOM}
- * Example: 2026-I (S) INGLÉS I (PRESENCIAL) AULA Z
+ * Example: 2026-I (S) INGLÃ‰S I (PRESENCIAL) AULA Z
  */
 function build_class_group_name($class) {
     global $DB;
@@ -790,7 +790,7 @@ function create_class_group($class)
     // (can happen if a previous publish failed after creating the group but before saving groupid).
     $existingGroup = $DB->get_record('groups', ['idnumber' => $idnumber, 'courseid' => $class->corecourseid]);
     if ($existingGroup) {
-        gmk_log("INFO: create_class_group — reutilizando grupo existente id={$existingGroup->id} idnumber=$idnumber");
+        gmk_log("INFO: create_class_group â€” reutilizando grupo existente id={$existingGroup->id} idnumber=$idnumber");
         $newClassGroup = $existingGroup;
     } else {
         $newClassGroup = new stdClass();
@@ -949,6 +949,110 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
 }
 
 /**
+ * Ensure class has a valid grade category in its own course.
+ *
+ * Reuses an existing category by class suffix when possible and only creates one if needed.
+ * Returns 0 on failure.
+ */
+function gmk_get_or_create_class_grade_category(&$class): int
+{
+    global $DB;
+
+    if (empty($class) || empty($class->corecourseid)) {
+        return 0;
+    }
+
+    $courseid = (int)$class->corecourseid;
+    $classid = !empty($class->id) ? (int)$class->id : 0;
+    $categoryid = !empty($class->gradecategoryid) ? (int)$class->gradecategoryid : 0;
+
+    if ($categoryid > 0 && $DB->record_exists('grade_categories', ['id' => $categoryid, 'courseid' => $courseid])) {
+        if ((int)$DB->get_field('grade_categories', 'aggregateonlygraded', ['id' => $categoryid]) === 0) {
+            $DB->set_field('grade_categories', 'aggregateonlygraded', 1, ['id' => $categoryid]);
+        }
+        return $categoryid;
+    }
+
+    if ($classid > 0) {
+        $existing = $DB->get_record_sql(
+            "SELECT id
+               FROM {grade_categories}
+              WHERE courseid = :courseid
+                AND " . $DB->sql_like('fullname', ':suffix') . "
+           ORDER BY id ASC
+              LIMIT 1",
+            ['courseid' => $courseid, 'suffix' => '%-' . $classid . ' grade category']
+        );
+        if ($existing) {
+            $categoryid = (int)$existing->id;
+            if ((int)$DB->get_field('grade_categories', 'aggregateonlygraded', ['id' => $categoryid]) === 0) {
+                $DB->set_field('grade_categories', 'aggregateonlygraded', 1, ['id' => $categoryid]);
+            }
+            $class->gradecategoryid = $categoryid;
+            if ($classid > 0) {
+                $DB->set_field('gmk_class', 'gradecategoryid', $categoryid, ['id' => $classid]);
+            }
+            return $categoryid;
+        }
+    }
+
+    try {
+        $categoryid = (int)create_class_grade_category($class);
+    } catch (\Throwable $e) {
+        gmk_log("WARNING: gmk_get_or_create_class_grade_category fallo classid={$classid} courseid={$courseid}: " . $e->getMessage());
+        return 0;
+    }
+
+    if ($categoryid > 0) {
+        $class->gradecategoryid = $categoryid;
+        if ($classid > 0) {
+            $DB->set_field('gmk_class', 'gradecategoryid', $categoryid, ['id' => $classid]);
+        }
+    }
+
+    return $categoryid;
+}
+
+/**
+ * Move gradable module grade_items into the provided class category.
+ *
+ * Returns number of grade_items updated.
+ */
+function gmk_move_module_grade_items_to_class_category(int $courseid, string $modname, int $iteminstance, int $categoryid): int
+{
+    global $DB;
+
+    $courseid = (int)$courseid;
+    $iteminstance = (int)$iteminstance;
+    $categoryid = (int)$categoryid;
+    if ($courseid <= 0 || $iteminstance <= 0 || $categoryid <= 0 || $modname === '') {
+        return 0;
+    }
+
+    $items = $DB->get_records('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'mod',
+        'itemmodule' => $modname,
+        'iteminstance' => $iteminstance
+    ], 'id ASC', 'id,categoryid');
+
+    if (empty($items)) {
+        return 0;
+    }
+
+    $updated = 0;
+    foreach ($items as $item) {
+        if ((int)$item->categoryid === $categoryid) {
+            continue;
+        }
+        $DB->set_field('grade_items', 'categoryid', $categoryid, ['id' => (int)$item->id]);
+        $updated++;
+    }
+
+    return $updated;
+}
+
+/**
  * Resolve a Moodle module id by name, tolerating accidental duplicate rows.
  */
 function gmk_get_module_id_by_name($modulename)
@@ -988,8 +1092,10 @@ function gmk_heal_course_gradebook_course_item($courseid) {
 
     $rootcat = $DB->get_record_sql(
         "SELECT id FROM {grade_categories}
-          WHERE courseid = :courseid AND depth = 1
-       ORDER BY id ASC LIMIT 1",
+          WHERE courseid = :courseid
+            AND (parent IS NULL OR parent = 0)
+       ORDER BY CASE WHEN depth = 1 THEN 0 ELSE 1 END, id ASC
+          LIMIT 1",
         ['courseid' => $courseid]
     );
     $rootcatid = $rootcat ? (int)$rootcat->id : 0;
@@ -1046,7 +1152,7 @@ function gmk_is_duplicate_read_error($message): bool {
     return (
         strpos($msg, 'more than one record in read') !== false ||
         strpos($msg, 'mas de un registro en lectura') !== false ||
-        strpos($msg, 'más de un registro en lectura') !== false
+        strpos($msg, 'mÃ¡s de un registro en lectura') !== false
     );
 }
 
@@ -1745,7 +1851,7 @@ function create_class_activities($class, $updating = false)
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
             gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
-            gmk_log("INFO: create_class_activities — reutilizando attendance existente cmid={$class->attendancemoduleid}");
+            gmk_log("INFO: create_class_activities â€” reutilizando attendance existente cmid={$class->attendancemoduleid}");
         } else {
             // Prevent known legacy gradebook corruption from breaking attendance module creation.
             try {
@@ -1758,7 +1864,7 @@ function create_class_activities($class, $updating = false)
                 $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
             } catch (Throwable $attErr) {
                 // add_moduleinfo throws when grade recalc or messaging fails.
-                // The module IS often created in the DB before the exception — try to recover it.
+                // The module IS often created in the DB before the exception â€” try to recover it.
                 $attErrMsg = $attErr->getMessage();
                 $attErrClass = get_class($attErr);
                 $attErrLocation = basename($attErr->getFile()) . ':' . $attErr->getLine();
@@ -1790,7 +1896,7 @@ function create_class_activities($class, $updating = false)
                     $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
                     gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} para clase {$class->id}");
                 } else {
-                    // Module was NOT created at all — report with original error
+                    // Module was NOT created at all â€” report with original error
                     gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id}: {$attErrMsg}");
                     throw new \Exception(
                         "No se pudo crear attendance para clase {$class->id}: [{$attErrClass} @ {$attErrLocation}] {$attErrMsg}{$attErrDebugInfo}",
@@ -1806,57 +1912,26 @@ function create_class_activities($class, $updating = false)
             gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceStructure->cmid);
             $DB->update_record('gmk_class', $class);
         }
-
-        // Reuse grade category if already created.
-        // Use class id suffix to find categories from partial previous publishes regardless of name changes.
-        $existingCatId = null;
-        if (!empty($class->gradecategoryid) && $DB->record_exists('grade_categories', ['id' => $class->gradecategoryid, 'courseid' => $class->corecourseid])) {
-            $existingCatId = (int)$class->gradecategoryid;
-            gmk_log("INFO: create_class_activities — reutilizando gradecategory por id={$existingCatId}");
-        } else {
-            // Search by the class id suffix in fullname — reliable even if class name changed between publishes.
-            $existingCat = $DB->get_record_sql(
-                "SELECT id FROM {grade_categories} WHERE courseid = :courseid AND " . $DB->sql_like('fullname', ':suffix'),
-                ['courseid' => $class->corecourseid, 'suffix' => '%-' . $class->id . ' grade category']
-            );
-            if ($existingCat) {
-                $existingCatId = (int)$existingCat->id;
-                $class->gradecategoryid = $existingCatId;
-                $DB->update_record('gmk_class', $class);
-                gmk_log("INFO: create_class_activities — reutilizando gradecategory por sufijo id={$existingCatId} classid={$class->id}");
-            }
-        }
-
-        if (!$existingCatId) {
-            // Grade category creation is non-critical: attendance activity works without it.
-            // We attempt creation via the grade_category PHP class (not the external API, which
-            // triggers grade_regrade_final_grades and causes Duplicate entry errors on grade_grades).
-            try {
-                $class->gradecategoryid = create_class_grade_category($class);
-                $DB->update_record('gmk_class', $class);
-
-                // Move the attendance grade item into the class grade category via direct DB update
-                // to avoid triggering another grade recalculation cascade.
-                $attendanceGradeItemId = $DB->get_field('grade_items', 'id', [
-                    'itemmodule'  => 'attendance',
-                    'iteminstance' => $attendanceCourseModule->instance,
-                    'courseid'    => $class->corecourseid,
-                ]);
-                if ($attendanceGradeItemId) {
-                    $DB->set_field('grade_items', 'categoryid', $class->gradecategoryid, ['id' => $attendanceGradeItemId]);
-                    gmk_log("INFO: attendance grade_item $attendanceGradeItemId movido a categoría {$class->gradecategoryid}");
+        // Ensure class category is valid and attendance grade item is always scoped to that class.
+        try {
+            $classcategoryid = gmk_get_or_create_class_grade_category($class);
+            if ($classcategoryid > 0) {
+                $moved = gmk_move_module_grade_items_to_class_category(
+                    (int)$class->corecourseid,
+                    'attendance',
+                    (int)$attendanceCourseModule->instance,
+                    $classcategoryid
+                );
+                if ($moved > 0) {
+                    gmk_log("INFO: attendance grade_items alineados a categoria {$classcategoryid} para class {$class->id} (rows={$moved})");
                 }
-            } catch (dml_exception $de) {
-                // Duplicate grade_grades entry — gradebook recalc conflict. Category creation failed but
-                // attendance activity is already created and functional. Log and continue.
-                gmk_log("WARNING: No se pudo crear grade_category para clase {$class->id} (courseid={$class->corecourseid}): " . $de->getMessage());
-                $class->gradecategoryid = 0;
-                $DB->set_field('gmk_class', 'gradecategoryid', 0, ['id' => $class->id]);
-            } catch (Exception $e) {
-                gmk_log("WARNING: Error inesperado en grade_category para clase {$class->id}: " . $e->getMessage());
-                $class->gradecategoryid = 0;
-                $DB->set_field('gmk_class', 'gradecategoryid', 0, ['id' => $class->id]);
+            } else {
+                gmk_log("WARNING: create_class_activities no pudo asegurar gradecategory para class {$class->id}");
             }
+        } catch (\Throwable $caterr) {
+            gmk_log("WARNING: Error asegurando gradecategory para clase {$class->id}: " . $caterr->getMessage());
+            $class->gradecategoryid = 0;
+            $DB->set_field('gmk_class', 'gradecategoryid', 0, ['id' => $class->id]);
         }
     }
 
@@ -1901,9 +1976,9 @@ function create_class_activities($class, $updating = false)
                 // Fallback: generate all matching weekdays in the class date range.
                 $candidateDates = [];
                 $dayNameMap = [
-                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'Miércoles' => 'Wednesday',
+                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'MiÃ©rcoles' => 'Wednesday',
                     'Miercoles' => 'Wednesday', 'Jueves' => 'Thursday', 'Viernes' => 'Friday',
-                    'Sábado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
+                    'SÃ¡bado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
                 ];
                 $targetEnglishDay = $dayNameMap[$sched->day] ?? null;
                 if ($targetEnglishDay) {
@@ -2123,7 +2198,7 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
     $attendanceSessionDefinition->duration = $classDurationInSeconds;
     $attendanceSessionDefinition->groupid         = $class->groupid;
     $attendanceSessionDefinition->timemodified    = time();
-    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "Sesión de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'Sesión de clase presencial.';
+    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "SesiÃ³n de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'SesiÃ³n de clase presencial.';
     $attendanceSessionDefinition->calendarevent   = 1;
     $attendanceSessionDefinition->includeqrcode   = 1;
     $attendanceSessionDefinition->rotateqrcode    = 1;
@@ -2152,7 +2227,12 @@ function create_class_grade_category($class)
 
     // 1. Find the parent category (the course root category).
     $parentCat = $DB->get_record_sql(
-        "SELECT id FROM {grade_categories} WHERE courseid = :courseid AND depth = 1 LIMIT 1",
+        "SELECT id
+           FROM {grade_categories}
+          WHERE courseid = :courseid
+            AND (parent IS NULL OR parent = 0)
+       ORDER BY CASE WHEN depth = 1 THEN 0 ELSE 1 END, id ASC
+          LIMIT 1",
         ['courseid' => $class->corecourseid]
     );
     $parentId = $parentCat ? (int)$parentCat->id : null;
@@ -2164,7 +2244,7 @@ function create_class_grade_category($class)
     $catRec->aggregation      = 10; // GRADE_AGGREGATE_WEIGHTED_MEAN2
     $catRec->keephigh         = 0;
     $catRec->droplow          = 0;
-    $catRec->aggregateonlygraded  = 0;
+    $catRec->aggregateonlygraded  = 1;
     $catRec->aggregateoutcomes   = 0;
     $catRec->timecreated      = $now;
     $catRec->timemodified     = $now;
@@ -2211,7 +2291,7 @@ function create_class_grade_category($class)
     $itemRec->timemodified    = $now;
     $DB->insert_record('grade_items', $itemRec);
 
-    gmk_log("INFO: create_class_grade_category — categoría creada id=$catId para clase {$class->id} (courseid={$class->corecourseid})");
+    gmk_log("INFO: create_class_grade_category â€” categorÃ­a creada id=$catId para clase {$class->id} (courseid={$class->corecourseid})");
     return $catId;
 }
 
@@ -2280,9 +2360,9 @@ function list_classes($filters)
                     }
 
                     if ($subj) {
-                        gmk_log("DEBUG: list_classes encontró materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
+                        gmk_log("DEBUG: list_classes encontrÃ³ materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
                     } else {
-                        gmk_log("DEBUG: list_classes NO encontró metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
+                        gmk_log("DEBUG: list_classes NO encontrÃ³ metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
                     }
                 }
                 
@@ -2338,7 +2418,7 @@ function list_classes($filters)
         }
 
         //Set the list of choosen days
-        $daysES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        $daysES = ['Lunes', 'Martes', 'MiÃ©rcoles', 'Jueves', 'Viernes', 'SÃ¡bado', 'Domingo'];
         $daysEN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         $daysString = $class->classdays;
         $selectedDaysES = [];
@@ -2613,7 +2693,7 @@ function get_class_participants($class)
 
     // enroledStudents: group members excluding the instructor.
     // For classes without a Moodle group (groupid=0), use gmk_course_progre as the enrolled list
-    // only when the class is approved — before approval the group is the source of truth.
+    // only when the class is approved â€” before approval the group is the source of truth.
     if (empty($class->groupid) && !empty($class->approved)) {
         $classParticipants->enroledStudents = $instructorId
             ? $DB->get_records_select('gmk_course_progre', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
@@ -2954,7 +3034,7 @@ function approve_course_schedules($approvingSchedules)
         gmk_log("approve_course_schedules: classId={$schedule['classId']} groupid={$class->groupid} corecourseid={$class->corecourseid} approved={$class->approved} alreadyApproved=" . ($alreadyApproved ? 'true' : 'false'));
         gmk_log("approve_course_schedules: preReg=" . count($schedulePreRegisteredStudents) . " queued=" . count($scheduleQueuedStudents));
 
-        // Deduplicate by userid — a student may appear in both tables
+        // Deduplicate by userid â€” a student may appear in both tables
         $allStudents = [];
         foreach (array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents) as $s) {
             $allStudents[$s->userid] = $s;
@@ -2977,7 +3057,7 @@ function approve_course_schedules($approvingSchedules)
             $classApproved = true;
         }
 
-        // NOTE: queue/pre_reg records are intentionally preserved — they represent
+        // NOTE: queue/pre_reg records are intentionally preserved â€” they represent
         // the academic plan (who is assigned to this class) and must persist so that
         // the student list reappears correctly if the enrollment dialog is reopened.
 
@@ -3033,7 +3113,7 @@ function enrolApprovedScheduleStudents($students, $class)
         if (!empty($class->groupid)) {
             $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
         } else {
-            $enrolmentResults[$student->userid] = true; // No group — enrolment to course is sufficient
+            $enrolmentResults[$student->userid] = true; // No group â€” enrolment to course is sufficient
         }
 
         if ($enrolmentResults[$student->userid]) {
@@ -3130,7 +3210,7 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
     }
 
     // EXTERNAL CLASS WITHOUT GROUP: use queue/progre records (source of truth for this class).
-    // Do NOT fall back to get_enrolled_students_by_courseid — that returns ALL students enrolled
+    // Do NOT fall back to get_enrolled_students_by_courseid â€” that returns ALL students enrolled
     // in the Moodle course (could be hundreds from other plans/periods).
     if ($isExternal && !$class->groupid) {
         $classStudents = get_class_participants($class);
@@ -3165,7 +3245,7 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
             $result = user_get_users_by_id([$userid]);
             return isset($result[$userid]) ? $result[$userid] : null;
         }
-        // Otherwise, it's an idnumber string — look up by idnumber
+        // Otherwise, it's an idnumber string â€” look up by idnumber
         return $DB->get_record('user', ['idnumber' => $userid, 'deleted' => 0]);
     };
 
@@ -3224,7 +3304,7 @@ function get_scheduleless_students($params)
     // Status 0 = No Disponible (Prerequisites not met)
     // Status 1 = Disponible (Available to take)
     // Status 5 = Reprobada (Failed - needs to retake)
-    // Status 99 = Migración Pendiente (Migration Pending)
+    // Status 99 = MigraciÃ³n Pendiente (Migration Pending)
     $sql = "SELECT DISTINCT gcp.userid, gcp.status
             FROM {gmk_course_progre} gcp
             WHERE gcp.courseid = :courseid
@@ -3291,7 +3371,7 @@ function add_teacher_disponibility($params)
     $teacherDisponibility->userid = $params['instructorId'];
 
     foreach ($params['newDisponibilityRecords'] as $newDisponibilityRecord) {
-        $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+        $day = strtolower(str_replace(['Ã¡', 'Ã©', 'Ã­', 'Ã³', 'Ãº', 'Ã±'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
         $teacherDisponibility->{$dayENLabels[$day]} = json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
     }
     foreach ($dayENLabels as $dayLabel) {
@@ -3331,10 +3411,10 @@ function update_teacher_disponibility($params)
     $weekdays = [
         "Monday" => "Lunes",
         "Tuesday" => "Martes",
-        "Wednesday" => "Miércoles",
+        "Wednesday" => "MiÃ©rcoles",
         "Thursday" => "Jueves",
         "Friday" => "Viernes",
-        "Saturday" => "Sábado",
+        "Saturday" => "SÃ¡bado",
         "Sunday" => "Domingo"
     ];
     foreach ($params['skills'] as $skillId) {
@@ -3351,7 +3431,7 @@ function update_teacher_disponibility($params)
 
         $disponibilityDays = array();
         foreach ($params['newDisponibilityRecords'] as $newDisponibilityRecord) {
-            $day = strtolower(str_replace(['á', 'é', 'í', 'ó', 'ú', 'ñ'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+            $day = strtolower(str_replace(['Ã¡', 'Ã©', 'Ã­', 'Ã³', 'Ãº', 'Ã±'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
             $teacherDisponibility->{$dayENLabels[$day]} = calculate_disponibility_range($newDisponibilityRecord['timeslots']);
             $disponibilityDays[] = explode('_', $dayENLabels[$day])[1];
         }
@@ -3473,7 +3553,7 @@ function bulk_update_teachers_disponibilities($disponibilityRecords)
         )->userid;
         try {
             if (!$disponibilityRecord['instructorId']) {
-                throw new Exception(json_encode(['No hay usuario con el número de documento ' . $instructorDocument]));
+                throw new Exception(json_encode(['No hay usuario con el nÃºmero de documento ' . $instructorDocument]));
             }
             if (!$DB->get_record('gmk_teacher_disponibility', ['userid' => $disponibilityRecord['instructorId']])) {
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
@@ -3680,13 +3760,13 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile)
     foreach ($rangeSheet->getRowIterator(2) as $row) {
         $instructorId = $rangeSheet->getCell('A' . $row->getRowIndex())->getValue();
         if (!$instructorId) {
-            // $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El número de documento es requerido.';
+            // $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El nÃºmero de documento es requerido.';
             continue;
         }
 
         $day = cleanString($rangeSheet->getCell('B' . $row->getRowIndex())->getValue());
         if (!in_array($day, $days)) {
-            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. Día ' . $day . ' no definido.';
+            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. DÃ­a ' . $day . ' no definido.';
             continue;
         }
 
@@ -3718,14 +3798,14 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile)
     foreach ($skillsSheet->getRowIterator(2) as $row) {
         $instructorId = $skillsSheet->getCell('A' . $row->getRowIndex())->getValue();
         if (!$instructorId) {
-            // $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El número de documento es requerido.';
+            // $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El nÃºmero de documento es requerido.';
             continue;
         }
 
         $skill = $skillsSheet->getCell('B' . $row->getRowIndex())->getValue();
         // $teacherSkills
         if (!$skill) {
-            // $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser númerico.';
+            // $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser nÃºmerico.';
             continue;
         }
         $skill = cleanString($skill);
@@ -3882,10 +3962,10 @@ function check_reschedule_conflicts($params)
     $weekdays = array(
         'Monday' => 'Lunes',
         'Tuesday' => 'Martes',
-        'Wednesday' => 'Miércoles',
+        'Wednesday' => 'MiÃ©rcoles',
         'Thursday' => 'Jueves',
         'Friday' => 'Viernes',
-        'Saturday' => 'Sábado',
+        'Saturday' => 'SÃ¡bado',
         'Sunday' => 'Domingo'
     );
 
@@ -3910,7 +3990,7 @@ function check_reschedule_conflicts($params)
         }
     }
     if (!$foundedAvailableRange) {
-        $errors[] = "El instructor no esta disponible el día " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
+        $errors[] = "El instructor no esta disponible el dÃ­a " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
     }
 
     //Check the group members and count how many students are in conflict with the new date and time
@@ -5238,6 +5318,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     // DEBUG LOG
     file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - Creating activity: $name type: $type classid: $classid\n", FILE_APPEND);
 
+    $class = null;
+    $targetgradecat = 0;
+
     if ($classid == -1) {
         $course = get_course(SITEID); // Use Front Page
         // Get section 1 of front page or create if needed
@@ -5252,6 +5335,9 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
         $course = get_course($class->corecourseid);
         $section = $DB->get_record('course_sections', ['id' => $class->coursesectionid], '*', MUST_EXIST);
+
+        // Always keep an internal class category available for gradable activities.
+        $targetgradecat = gmk_get_or_create_class_grade_category($class);
     }
     
     $module = (object)[
@@ -5269,8 +5355,12 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     $moduleinfo->visible    = 1;
     $moduleinfo->groupmode  = 1; // Separate groups
     
-    if (!empty($extra['gradecat'])) {
-        $moduleinfo->gradecat = $extra['gradecat'];
+    $requestedgradecat = !empty($extra['gradecat']) ? (int)$extra['gradecat'] : 0;
+    if ($requestedgradecat > 0 && $DB->record_exists('grade_categories', ['id' => $requestedgradecat, 'courseid' => (int)$course->id])) {
+        $targetgradecat = $requestedgradecat;
+    }
+    if ($targetgradecat > 0) {
+        $moduleinfo->gradecat = $targetgradecat;
     }
     
     if ($type === 'bigbluebuttonbn') {
@@ -5355,6 +5445,22 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         // Completion defaults if enabled site-wide
         $moduleinfo->completionpass = 0;
         $moduleinfo->completionattemptsexhausted = 0;
+
+        // Preflight repair for known gradebook corruption that can break quiz grade item creation.
+        try {
+            $gbstats = gmk_repair_course_gradebook_duplicates((int)$course->id);
+            gmk_log(
+                "INFO: quiz gradebook preflight courseid={$course->id} " .
+                "roots={$gbstats['rootCandidates']} rootcats={$gbstats['rootcats']} " .
+                "courseitems={$gbstats['courseitems']} canonical={$gbstats['canonicalRootId']} " .
+                "merged={$gbstats['mergedRoots']} deleteditems={$gbstats['deletedCourseItems']} " .
+                "relinked={$gbstats['relinkedCourseItems']} createdcourse={$gbstats['createdCourseItems']} " .
+                "fixedorphan={$gbstats['fixedOrphanCategoryItems']} dedupcat={$gbstats['dedupedCategoryItems']} " .
+                "mergedgrades={$gbstats['mergedGradeRows']}"
+            );
+        } catch (\Throwable $repairerr) {
+            gmk_log("WARNING: quiz gradebook preflight fallo courseid={$course->id}: " . $repairerr->getMessage());
+        }
     } else if ($type === 'forum') {
         $moduleinfo->type = 'general'; // Standard general forum
         $moduleinfo->forcesubscribe = 1; // Auto-subscribe
@@ -5434,8 +5540,8 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
         if (array_key_exists('submissiondrafts', array_change_key_case($minimalassigncols, CASE_LOWER))) {
             $minimal->submissiondrafts = 1;
         }
-        if (!empty($extra['gradecat'])) {
-            $minimal->gradecat = $extra['gradecat'];
+        if ($targetgradecat > 0) {
+            $minimal->gradecat = $targetgradecat;
         }
 
         try {
@@ -5462,10 +5568,23 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     if (empty($result) || empty($result->coursemodule)) {
         throw new \moodle_exception('No se pudo crear la actividad en el curso.');
     }
+
+    // Enforce class grade category even if module internals ignored gradecat.
+    if (!empty($class) && $targetgradecat > 0 && !empty($result->instance) && in_array($type, ['assign', 'quiz', 'attendance'], true)) {
+        $moved = gmk_move_module_grade_items_to_class_category(
+            (int)$course->id,
+            (string)$type,
+            (int)$result->instance,
+            (int)$targetgradecat
+        );
+        if ($moved > 0) {
+            gmk_log("INFO: express activity {$type} classid={$classid} instance={$result->instance} alineada a categoria {$targetgradecat} (rows={$moved})");
+        }
+    }
     
     // WORKAROUND: Clear the dummy password we set earlier
-    if ($type === 'quiz' && isset($moduleinfo->instance) && $moduleinfo->password === 'temp_pass') {
-        $DB->set_field('quiz', 'password', '', array('id' => $moduleinfo->instance));
+    if ($type === 'quiz' && !empty($result->instance) && isset($moduleinfo->password) && $moduleinfo->password === 'temp_pass') {
+        $DB->set_field('quiz', 'password', '', array('id' => (int)$result->instance));
     }
     
     // Handle template saving if requested
@@ -6208,7 +6327,7 @@ function gmk_get_course_tags($courseid) {
 /**
  * Safely assign tags to a course module, avoiding duplicate key errors.
  *
- * Moodle's core_tag_tag::set_item_tags calls create_if_missing → INSERT INTO mdl_tag,
+ * Moodle's core_tag_tag::set_item_tags calls create_if_missing â†’ INSERT INTO mdl_tag,
  * which throws dml_write_exception when the tag already exists (duplicate key on tagcollid+name).
  * This wrapper pre-resolves each tag name to its existing rawname in the DB before calling
  * set_item_tags, so no INSERT is attempted for already-existing tags.
@@ -6252,7 +6371,7 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         }
 
         if (!$tag) {
-            // Tag doesn't exist at all — insert it safely
+            // Tag doesn't exist at all â€” insert it safely
             $newrec = new stdClass();
             $newrec->isstandard   = 0;
             $newrec->userid       = 0;
@@ -6263,7 +6382,7 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
             try {
                 $tagid = $DB->insert_record('tag', $newrec);
             } catch (dml_write_exception $e) {
-                // Race condition: another request inserted it just now — fetch it
+                // Race condition: another request inserted it just now â€” fetch it
                 $tag = $DB->get_record('tag', ['tagcollid' => $newrec->tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
                 $tagid = $tag ? $tag->id : null;
             }
@@ -6303,3 +6422,4 @@ function gmk_get_module_fileinfo(string $modname): ?array {
     ];
     return $map[$modname] ?? null;
 }
+

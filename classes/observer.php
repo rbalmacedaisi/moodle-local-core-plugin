@@ -232,21 +232,73 @@ class local_grupomakro_core_observer
     public static function course_module_created(\core\event\course_module_created $event)
     {
         global $DB;
-        $eventData = $event->get_data();
-        $courseModInfo = get_fast_modinfo($eventData['courseid']);
-        $moduleInfo = $courseModInfo->get_cm($eventData['contextinstanceid']);
-        $moduleSectionInfo = $moduleInfo->get_section_info();
-        $sectionId = $moduleSectionInfo->__get('id');
         try {
-            $sectionGroupId = $DB->get_field('gmk_class', 'groupid', ['coursesectionid' => $sectionId], MUST_EXIST);
-            $sectionUserIds = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'courseid = :courseid AND groupid = :groupid', ['courseid' => $eventData['courseid'], 'groupid' => $sectionGroupId]);
-            foreach ($sectionUserIds as $userId) {
-                local_grupomakro_progress_manager::update_course_progress($eventData['courseid'], $userId);
+            $eventData = $event->get_data();
+            $courseid = (int)$eventData['courseid'];
+            $cmid = (int)$eventData['contextinstanceid'];
+
+            $courseModInfo = get_fast_modinfo($courseid);
+            if (empty($courseModInfo->cms[$cmid])) {
+                return true;
+            }
+            $moduleInfo = $courseModInfo->get_cm($cmid);
+            $moduleSectionInfo = $moduleInfo->get_section_info();
+            $sectionId = (int)$moduleSectionInfo->__get('id');
+
+            $class = $DB->get_record_sql(
+                "SELECT *
+                   FROM {gmk_class}
+                  WHERE corecourseid = :courseid
+                    AND coursesectionid = :sectionid
+                    AND closed = 0
+               ORDER BY id DESC
+                  LIMIT 1",
+                ['courseid' => $courseid, 'sectionid' => $sectionId]
+            );
+
+            if ($class) {
+                // If teacher creates activities directly in Moodle UI, keep gradebook aligned to class category.
+                if (in_array((string)$moduleInfo->modname, ['assign', 'quiz', 'attendance'], true)) {
+                    $classcatid = gmk_get_or_create_class_grade_category($class);
+                    if ($classcatid > 0 && !empty($moduleInfo->instance)) {
+                        gmk_move_module_grade_items_to_class_category(
+                            $courseid,
+                            (string)$moduleInfo->modname,
+                            (int)$moduleInfo->instance,
+                            (int)$classcatid
+                        );
+                    }
+                }
+
+                $sectionUserIds = [];
+                if (!empty($class->groupid)) {
+                    $sectionUserIds = $DB->get_fieldset_select(
+                        'gmk_course_progre',
+                        'userid',
+                        'courseid = :courseid AND groupid = :groupid',
+                        ['courseid' => $courseid, 'groupid' => (int)$class->groupid]
+                    );
+                }
+                if (empty($sectionUserIds)) {
+                    $sectionUserIds = $DB->get_fieldset_select(
+                        'gmk_course_progre',
+                        'userid',
+                        'classid = :classid',
+                        ['classid' => (int)$class->id]
+                    );
+                }
+
+                foreach (array_unique(array_map('intval', $sectionUserIds)) as $userId) {
+                    if ($userId <= 0) {
+                        continue;
+                    }
+                    local_grupomakro_progress_manager::update_course_progress($courseid, $userId);
+                }
             }
             return true;
-        } catch (Exception $e) {
-            print_object($e);
-            return false;
+        } catch (\Throwable $e) {
+            gmk_log("WARNING: observer course_module_created fallo: " . $e->getMessage());
+            return true;
         }
     }
     public static function course_module_deleted(\core\event\course_module_deleted $event)
