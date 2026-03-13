@@ -65,11 +65,7 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
     
     // 1. Admin menu handling (from original locallib.php)
     if (is_siteadmin()) {
-        $CFG->custommenuitems = get_string('pluginname', 'local_grupomakro_core');
-        if (has_capability('local/grupomakro_core:seeallorders', $PAGE->context)) {
-            $CFG->custommenuitems .= PHP_EOL . '-' . get_string('orders', 'local_grupomakro_core') .
-                '|/local_grupomakro_core/pages/orders.php';
-        }
+        $CFG->custommenuitems = 'Planificación';
         $CFG->custommenuitems .= PHP_EOL . '-' . 'Planificación Académica' .
             '|/local/grupomakro_core/pages/academic_planning.php';
 
