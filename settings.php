@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -28,79 +28,74 @@ if ($hassiteconfig) {
     $ADMIN->add('courses', new admin_category('grupomakrocore_plugin', new lang_string('admin_category_label', 'local_grupomakro_core')));
     $classManagementPage =new admin_externalpage(
         'grupomakro_core_class_management',
-        get_string('class_management', 'local_grupomakro_core'),
+        '📘 ' . get_string('class_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/classmanagement.php')
     );
     $classSchedulesPage =new admin_externalpage(
         'grupomakro_core_class_schedule',
-        get_string('class_schedules', 'local_grupomakro_core'),
+        '🗓️ ' . get_string('class_schedules', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/schedules.php')
     );
     $availabilityPanelPage =new admin_externalpage(
         'grupomakro_core_availability_panel',
-        get_string('availability_panel', 'local_grupomakro_core'),
+        '🧑‍🏫 ' . get_string('availability_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/availabilitypanel.php')
     );
     $availabilityCalendarPage =new admin_externalpage(
         'grupomakro_core_availability_calendar',
-        get_string('availability_calendar', 'local_grupomakro_core'),
+        '📆 ' . get_string('availability_calendar', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/availability.php')
     );
     $schedulesPanelPage =new admin_externalpage(
         'grupomakro_core_schedules_panel',
-        get_string('schedules_panel', 'local_grupomakro_core'),
+        '🕒 ' . get_string('schedules_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/schedulepanel.php')
     );
     $institutionManagementPage =new admin_externalpage(
         'grupomakro_core_institution_management',
-        get_string('institution_management', 'local_grupomakro_core'),
+        '🏫 ' . get_string('institution_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/institutionmanagement.php')
     );
     $academicDirectorPanelPage = new admin_externalpage(
         'grupomakro_core_academic_director_panel',
-        get_string('academic_director_panel', 'local_grupomakro_core'),
+        '🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/academicpanel.php')
     );
     $teachersManagementPage = new admin_externalpage(
         'grupomakro_core_teachers_management',
-        get_string('admin_teachers_management', 'local_grupomakro_core'),
+        '👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core'),
         new moodle_url('/local/grupomakro_core/pages/teachers.php')
     );
 
     // -- IMPORTADORES MASIVOS --
     $importUsersPage = new admin_externalpage(
         'grupomakro_core_import_users',
-        'Importar Usuarios (Masivo)',
+        '👥 Importar Usuarios (Masivo)',
         new moodle_url('/local/grupomakro_core/pages/import_users.php')
     );
     $importGradesPage = new admin_externalpage(
         'grupomakro_core_import_grades',
-        'Importar Notas (Q10)',
+        '📝 Importar Notas (Q10)',
         new moodle_url('/local/grupomakro_core/pages/import_grades.php')
     );
     $bulkDeletePage = new admin_externalpage(
         'grupomakro_core_bulk_delete_users',
-        'Eliminación Masiva',
+        '🗑️ Eliminación Masiva',
         new moodle_url('/local/grupomakro_core/pages/bulk_delete_users.php')
     );
     $manageCoursesPage = new admin_externalpage(
         'grupomakro_core_manage_courses',
-        'Gestor de Cursos',
+        '📂 Gestor de Cursos',
         new moodle_url('/local/grupomakro_core/pages/manage_courses.php')
     );
     $manageMeetingsPage = new admin_externalpage(
         'grupomakro_core_manage_meetings',
-        'Gestor de Sesiones Virtuales',
+        '🎥 Gestor de Sesiones Virtuales',
         new moodle_url('/local/grupomakro_core/pages/manage_meetings.php')
-    );
-    $fixAcademicStatusPage = new admin_externalpage(
-        'grupomakro_core_fix_academic_status',
-        '🔧 Inicializar Estados Académicos',
-        new moodle_url('/local/grupomakro_core/pages/fix_academic_status.php')
     );
     $bypassFinancialPage = new admin_externalpage(
         'grupomakro_core_bypass_financial',
-        '🔓 Ignorar Estado Financiero en Login',
+        '💳 Ignorar Estado Financiero en Login',
         new moodle_url('/local/grupomakro_core/pages/bypass_financial.php')
     );
     $gracePeriodPage = new admin_externalpage(
@@ -110,7 +105,7 @@ if ($hassiteconfig) {
     );
     $debugPublishStatusPage = new admin_externalpage(
         'grupomakro_core_debug_publish_status',
-        'Debug Publicacion Horarios',
+        '🧪 Debug Publicación Horarios',
         new moodle_url('/local/grupomakro_core/pages/debug_publish_status.php')
     );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
@@ -126,7 +121,6 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $bulkDeletePage);
     $ADMIN->add('grupomakrocore_plugin', $manageCoursesPage);
     $ADMIN->add('grupomakrocore_plugin', $manageMeetingsPage);
-    $ADMIN->add('grupomakrocore_plugin', $fixAcademicStatusPage);
     $ADMIN->add('grupomakrocore_plugin', $bypassFinancialPage);
     $ADMIN->add('grupomakrocore_plugin', $gracePeriodPage);
     $ADMIN->add('grupomakrocore_plugin', $debugPublishStatusPage);
