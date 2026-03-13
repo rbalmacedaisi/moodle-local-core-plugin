@@ -4354,10 +4354,27 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         //Get the events filtered by date range, groups and courses.
         $events = calendar_get_events(strtotime($initDate), strtotime($endDate), false, $userGroupIds, $userCourseIds, true);
 
-        // Build a Set of groupIds the student actually belongs to, for post-fetch filtering.
+        // Build a Set of groupIds the user actually belongs to, for post-fetch filtering.
         // calendar_get_events returns events for ALL groups in a course when courseIds are passed,
         // so we must filter down to only the groups the student is enrolled in.
         $userGroupIdSet = array_flip($userGroupIds);
+
+        // Student strict scope:
+        // only classes currently "in progress" (status=2) and linked through classid.
+        // This avoids showing events for approved/failed/non-enrolled subjects.
+        $studentActiveClassIdSet = [];
+        $islearningplanstudent = $DB->record_exists('local_learning_users', ['userid' => (int)$userId]);
+        if ($islearningplanstudent) {
+            $inprogressclassids = $DB->get_fieldset_select(
+                'gmk_course_progre',
+                'classid',
+                'userid = :userid AND status = :status AND classid > 0',
+                ['userid' => (int)$userId, 'status' => 2]
+            );
+            if (!empty($inprogressclassids)) {
+                $studentActiveClassIdSet = array_fill_keys(array_map('intval', $inprogressclassids), true);
+            }
+        }
     }
     // If the user is null, let's get all the class events.
     else {
@@ -4392,10 +4409,18 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
             continue;
         }
 
-        // For student requests: filter out events from groups the student is NOT enrolled in.
-        // calendar_get_events returns events for all groups in a course, not just the student's group.
+        // Student strict scope (if applicable): class must be one of the classes in progress.
+        if ($userId && !empty($studentActiveClassIdSet)) {
+            $eventclassid = !empty($eventComplete->classId) ? (int)$eventComplete->classId : 0;
+            if ($eventclassid <= 0 || !isset($studentActiveClassIdSet[$eventclassid])) {
+                continue;
+            }
+        }
+
+        // Filter out events from groups the user is NOT enrolled in.
+        // calendar_get_events returns events for all groups in a course, not just the user's group.
         if ($userId && isset($userGroupIdSet) && !empty($eventComplete->groupid)) {
-            if (!isset($userGroupIdSet[$eventComplete->groupid])) {
+            if (!isset($userGroupIdSet[(int)$eventComplete->groupid])) {
                 continue; // Event belongs to a group the student is not part of
             }
         }
