@@ -930,6 +930,15 @@ class scheduler extends external_api {
                 $existingDbRec = null;
                 if ($isUpdate) {
                     $existingDbRec = $DB->get_record('gmk_class', ['id' => $classRec->id]);
+                    // If the record no longer exists in DB (e.g. it was deleted by a previous buggy publish),
+                    // fall back to INSERT so the class is fully recreated instead of silently lost.
+                    if (!$existingDbRec) {
+                        gmk_log("WARNING: clase id={$classRec->id} no existe en gmk_class (fue eliminada). Insertando como nueva.");
+                        unset($classRec->id);
+                        $isUpdate = false;
+                    }
+                }
+                if ($isUpdate) {
                     // Preserve approved=1 only when the class already has activities (complete flow).
                     // Classes published with old code (no attendancemoduleid) get reset to 0
                     // so they go through the proper approval flow with student enrollment.
