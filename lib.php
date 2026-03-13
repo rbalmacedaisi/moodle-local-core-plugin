@@ -85,28 +85,14 @@ function local_grupomakro_core_extend_navigation(global_navigation $navigation) 
             '|/local/grupomakro_core/pages/availability.php';
         $CFG->custommenuitems .= PHP_EOL . '-🕒 ' . get_string('schedules_panel', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/schedulepanel.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🏫 ' . get_string('institution_management', 'local_grupomakro_core') .
-            '|/local/grupomakro_core/pages/institutionmanagement.php';
         $CFG->custommenuitems .= PHP_EOL . '-🎯 ' . get_string('academic_director_panel', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/academicpanel.php';
         $CFG->custommenuitems .= PHP_EOL . '-👩‍🏫 ' . get_string('admin_teachers_management', 'local_grupomakro_core') .
             '|/local/grupomakro_core/pages/teachers.php';
-        $CFG->custommenuitems .= PHP_EOL . '-👥 Importar Usuarios (Masivo)' .
-            '|/local/grupomakro_core/pages/import_users.php';
-        $CFG->custommenuitems .= PHP_EOL . '-📝 Importar Notas (Q10)' .
-            '|/local/grupomakro_core/pages/import_grades.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🗑️ Eliminación Masiva' .
-            '|/local/grupomakro_core/pages/bulk_delete_users.php';
         $CFG->custommenuitems .= PHP_EOL . '-📂 Gestor de Cursos' .
             '|/local/grupomakro_core/pages/manage_courses.php';
         $CFG->custommenuitems .= PHP_EOL . '-🎥 Gestor de Sesiones Virtuales' .
             '|/local/grupomakro_core/pages/manage_meetings.php';
-        $CFG->custommenuitems .= PHP_EOL . '-💳 Ignorar Estado Financiero en Login' .
-            '|/local/grupomakro_core/pages/bypass_financial.php';
-        $CFG->custommenuitems .= PHP_EOL . '-⏳ Periodo de Gracia en Primer Login' .
-            '|/local/grupomakro_core/pages/grace_period.php';
-        $CFG->custommenuitems .= PHP_EOL . '-🧪 Debug Publicación Horarios' .
-            '|/local/grupomakro_core/pages/debug_publish_status.php';
     }
 
     // 2. Redirection logic
