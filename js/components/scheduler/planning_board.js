@@ -207,6 +207,9 @@ window.SchedulerComponents.PlanningBoard = {
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
                                                 <i data-lucide="users" class="w-3 h-3"></i>
                                             </button>
+                                            <button v-if="!cls.isExternal" @click.stop="publishSingleClass(cls)" :disabled="publishing" class="p-0.5 bg-white rounded shadow hover:bg-blue-50 transition-colors disabled:opacity-40" title="Publicar esta ficha en Moodle">
+                                                <i data-lucide="send" class="w-3 h-3 text-slate-400 hover:text-blue-600"></i>
+                                            </button>
                                         </div>
 
                                         <!-- Conflict / Load indicator badge (top-right corner) -->
@@ -372,6 +375,9 @@ window.SchedulerComponents.PlanningBoard = {
                         <div class="pt-2 flex flex-col gap-2">
                               <button @click="viewStudents(selectedClass)" class="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4"></i> Ver Lista de Alumnos ({{ selectedClass.studentCount || 0 }})
+                              </button>
+                              <button v-if="!selectedClass.isExternal" @click="publishSingleClass(selectedClass); editDialog = false;" :disabled="publishing" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                                <i data-lucide="send" class="w-4 h-4"></i> {{ publishing ? 'Publicando...' : 'Publicar esta ficha' }}
                               </button>
                              <button v-if="!selectedClass.isExternal" @click="unassignClass" class="w-full py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded text-sm font-bold transition-colors">
                                 Desasignar (Mover a Lista)
@@ -1484,6 +1490,64 @@ window.SchedulerComponents.PlanningBoard = {
                 if (box) box.scrollTop = box.scrollHeight;
             });
         },
+        async publishSingleClass(cls) {
+            if (!window.schedulerStore || !cls || cls.isExternal) return;
+
+            const hasSession = (Array.isArray(cls.sessions) && cls.sessions.length > 0) ||
+                               (cls.day && cls.day !== 'N/A');
+            if (!hasSession) {
+                alert('Esta ficha no tiene horario asignado. Ubícala en el calendario antes de publicar.');
+                return;
+            }
+
+            if (!confirm(`¿Publicar "${cls.subjectName}"?\n\nSe creará o actualizará su registro en Gestión de Clases.`)) return;
+
+            this.publishDialog = true;
+            this.publishDone   = false;
+            this.publishError  = false;
+            this.publishProgress = 0;
+            this.publishLog    = [];
+            this.publishStatusText = `Preparando "${cls.subjectName}"...`;
+            this.publishing    = true;
+
+            try {
+                const periodId = window.schedulerStore.state.activePeriod;
+
+                this._publishLog(`Guardando borrador...`);
+                this.publishProgress = 10;
+                await window.schedulerStore.saveGeneration(periodId, this.allClasses);
+                this._publishLog('Borrador guardado.', 'success');
+                this.publishProgress = 20;
+
+                this._publishLog(`Publicando "${cls.subjectName}"...`);
+                this.publishStatusText = `Publicando "${cls.subjectName}"...`;
+
+                await window.schedulerStore.publishGeneration(
+                    periodId,
+                    [cls],
+                    ({ msg, type, progress }) => {
+                        this._publishLog(msg, type);
+                        if (progress !== null) {
+                            this.publishProgress = 20 + Math.round(progress * 0.8);
+                            this.publishStatusText = msg;
+                        }
+                    }
+                );
+
+                this.publishProgress = 100;
+                this._publishLog(`¡"${cls.subjectName}" publicada correctamente!`, 'success');
+                this.publishStatusText = `"${cls.subjectName}" publicada en Gestión de Clases.`;
+                this.publishDone = true;
+
+            } catch (e) {
+                this.publishError = true;
+                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
+                this._publishLog('ERROR: ' + e.message, 'error');
+            } finally {
+                this.publishing = false;
+            }
+        },
+
         async publishSchedules() {
             if (!window.schedulerStore) return;
             const assignedCount = this.allClasses.filter(c => !c.isExternal && c.sessions && c.sessions.length > 0).length;
