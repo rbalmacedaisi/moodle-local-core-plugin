@@ -1,6 +1,6 @@
 <?php
 // Detecta registros en gmk_course_progre con classid apuntando a una gmk_class
-// que ya no existe (clase eliminada). Muestra checkboxes para corrección masiva.
+// que ya no existe (clase eliminada). Muestra filtros + checkboxes para corrección masiva.
 // Acción: classid=0, groupid=0, status=COURSE_AVAILABLE (1), grade=0, progress=0
 // para los que estaban cursando (status=2). Registros en estado terminal (3/4/5)
 // solo se les limpia classid/groupid sin tocar status/grade/progress.
@@ -28,6 +28,7 @@ echo '<style>
   th { background: #1a73e8; color: white; }
   tr:nth-child(even) { background: #f9f9f9; }
   tr.selected { background: #e8f5e9 !important; }
+  tr.hidden-row { display: none; }
   .ok   { color: green; font-weight: bold; }
   .err  { color: red; font-weight: bold; }
   .warn { color: orange; font-weight: bold; }
@@ -43,6 +44,7 @@ echo '<style>
   button:hover, .btn:hover { background:#1558b0; }
   .btn-danger { background:#dc3545; }
   .btn-danger:hover { background:#b02a37; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
   .tag { font-size:11px; padding:2px 6px; border-radius:3px; color:white; font-weight:bold; }
   .tag-cursando  { background:#e65100; }
   .tag-aprobada  { background:#2e7d32; }
@@ -50,6 +52,15 @@ echo '<style>
   .tag-completada{ background:#1565c0; }
   .tag-otro      { background:#555; }
   .cb { width: 18px; height: 18px; cursor: pointer; }
+  .filter-bar { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
+                background:#f1f3f4; border:1px solid #dadce0; border-radius:6px;
+                padding:12px 16px; margin-bottom:12px; }
+  .filter-bar label { font-size:12px; font-weight:bold; color:#555; display:block; margin-bottom:3px; }
+  .filter-bar select, .filter-bar input[type=text] {
+      padding:6px 10px; border:1px solid #ccc; border-radius:4px;
+      font-size:13px; min-width:180px; }
+  .filter-counter { font-size:13px; color:#555; align-self:center; margin-left:auto; }
+  .filter-counter b { color:#1a73e8; }
 </style>';
 
 // ── Constantes de status ───────────────────────────────────────────────────
@@ -70,7 +81,6 @@ define('STATUS_TAGS', [
 ]);
 
 // ── Obtener todos los candidatos ──────────────────────────────────────────
-// gmk_course_progre con classid > 0 y sin gmk_class correspondiente.
 $candidatesSql = "
     SELECT gcp.id        AS progre_id,
            gcp.userid,
@@ -125,9 +135,6 @@ if ($action === 'fix') {
         }
         $row    = $candidateMap[$id];
         $status = (int)$row->status;
-
-        // Para registros en estado terminal (aprobada/completada/reprobada)
-        // solo limpiamos classid y groupid; preservamos status/grade/progress.
         $isTerminal = in_array($status, [3, 4, 5]);
 
         try {
@@ -140,8 +147,7 @@ if ($action === 'fix') {
                 }
             }
 
-            // 2. Des-matricular del curso Moodle solo si estaba cursando (status=2).
-            //    En estados terminales conservamos la matrícula (puede tener notas).
+            // 2. Des-matricular del curso solo si estaba cursando.
             if (!$isTerminal) {
                 $enrolplugin    = enrol_get_plugin('manual');
                 $courseInstance = get_manual_enroll($row->courseid);
@@ -175,7 +181,7 @@ if ($action === 'fix') {
 
             $fixed++;
             $statusLabel = STATUS_LABELS[$status] ?? "status=$status";
-            $log[] = "<span class='ok'>✔ {$row->firstname} {$row->lastname} — {$row->coursename} ({$statusLabel}) → {$action_desc}</span>";
+            $log[] = "<span class='ok'>✔ {$row->firstname} {$row->lastname} — " . htmlspecialchars($row->coursename) . " ({$statusLabel}) → {$action_desc}</span>";
         } catch (Exception $e) {
             $errors++;
             $log[] = "<span class='err'>✘ Error id={$id}: " . htmlspecialchars($e->getMessage()) . "</span>";
@@ -207,12 +213,17 @@ if ($total === 0) {
     exit;
 }
 
-// Agrupar por status para el resumen.
-$byStatus = [];
+// Resumen por estado y lista de materias únicas para los filtros.
+$byStatus    = [];
+$courseNames = [];
 foreach ($candidates as $row) {
     $s = (int)$row->status;
     $byStatus[$s] = ($byStatus[$s] ?? 0) + 1;
+    $courseNames[$row->coursename] = true;
 }
+ksort($byStatus);
+$courseNames = array_keys($courseNames);
+sort($courseNames);
 
 echo "<div class='box warn'>⚠ Se encontraron <b>$total registros</b> con classid huérfano.</div>";
 
@@ -224,16 +235,49 @@ foreach ($byStatus as $s => $cnt) {
 }
 echo "</div>";
 
-echo '<form method="post" action="?action=fix">';
-echo "<div class='section'>Candidatos ($total)</div>";
-echo "<table>
+echo '<form method="post" action="?action=fix" id="fix-form">';
+
+// ── Barra de filtros ───────────────────────────────────────────────────────
+echo "<div class='filter-bar'>
+  <div>
+    <label for='filter-status'>Estado</label>
+    <select id='filter-status'>
+      <option value=''>— Todos los estados —</option>";
+foreach ($byStatus as $s => $cnt) {
+    $label = STATUS_LABELS[$s] ?? "status=$s";
+    echo "<option value='$s'>$label ($cnt)</option>";
+}
+echo "    </select>
+  </div>
+  <div>
+    <label for='filter-course'>Materia</label>
+    <input type='text' id='filter-course' placeholder='Buscar materia...' autocomplete='off'>
+  </div>
+  <div>
+    <label for='filter-student'>Estudiante</label>
+    <input type='text' id='filter-student' placeholder='Buscar estudiante...' autocomplete='off'>
+  </div>
+  <div style='align-self:flex-end;display:flex;gap:6px;'>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='clearFilters()'>✕ Limpiar</button>
+    <button type='button' class='btn btn-sm' style='background:#28a745' onclick='selectVisible()'>✔ Sel. visibles</button>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='deselectVisible()'>✕ Desel. visibles</button>
+  </div>
+  <div class='filter-counter'>Mostrando <b id='visible-count'>$total</b> de <b>$total</b> &nbsp;|&nbsp; Marcados: <b id='checked-count'>0</b></div>
+</div>";
+
+// ── Tabla ─────────────────────────────────────────────────────────────────
+echo "<div class='section' id='table-heading'>Candidatos ($total)</div>";
+echo "<table id='candidates-table'>
+<thead>
 <tr>
-  <th><input type='checkbox' id='chk-all' class='cb' title='Marcar/desmarcar todos'></th>
+  <th><input type='checkbox' id='chk-all' class='cb' title='Marcar/desmarcar visibles'></th>
   <th>#</th><th>Estudiante</th><th>Materia</th>
   <th>classid huérfano</th><th>groupid</th>
   <th>Estado</th><th>Nota</th><th>Progreso</th>
   <th>Acción que se aplicará</th>
-</tr>";
+</tr>
+</thead>
+<tbody id='candidates-body'>";
 
 $i = 0;
 foreach ($candidates as $row) {
@@ -242,16 +286,21 @@ foreach ($candidates as $row) {
     $statusLabel = STATUS_LABELS[$status] ?? "status=$status";
     $tag         = STATUS_TAGS[$status]   ?? 'otro';
     $isTerminal  = in_array($status, [3, 4, 5]);
+    $courseSafe  = htmlspecialchars($row->coursename);
+    $studentName = htmlspecialchars($row->firstname . ' ' . $row->lastname);
 
     $actionDesc = $isTerminal
         ? "<span class='warn'>Limpiar classid/groupid (preservar nota/status)</span>"
         : "<span class='err'>Restablecer a Disponible (limpiar todo)</span>";
 
-    echo "<tr id='row-{$row->progre_id}'>
+    echo "<tr id='row-{$row->progre_id}'
+             data-status='{$status}'
+             data-course='" . strtolower($courseSafe) . "'
+             data-student='" . strtolower($studentName) . "'>
         <td><input type='checkbox' name='ids[]' value='{$row->progre_id}' class='cb row-cb'></td>
-        <td>$i</td>
-        <td>{$row->firstname} {$row->lastname}<br><small style='color:#666'>uid={$row->userid}</small></td>
-        <td>" . htmlspecialchars($row->coursename) . "<br><small style='color:#666'>cid={$row->courseid}</small></td>
+        <td class='row-num'>$i</td>
+        <td>{$studentName}<br><small style='color:#666'>uid={$row->userid}</small></td>
+        <td>{$courseSafe}<br><small style='color:#666'>cid={$row->courseid}</small></td>
         <td class='err'>{$row->orphaned_classid}</td>
         <td>" . ($row->groupid > 0 ? $row->groupid : '<span style="color:#aaa">0</span>') . "</td>
         <td><span class='tag tag-$tag'>$statusLabel</span></td>
@@ -260,7 +309,7 @@ foreach ($candidates as $row) {
         <td>$actionDesc</td>
     </tr>";
 }
-echo "</table>";
+echo "</tbody></table>";
 
 echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
     <button type='submit' class='btn-danger btn'
@@ -269,29 +318,97 @@ echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
                  return confirm('¿Corregir '+n+' registro(s) seleccionado(s)?');\">
         🔧 Corregir seleccionados
     </button>
-    <button type='button' class='btn' style='background:#28a745'
-        onclick=\"document.querySelectorAll('.row-cb').forEach(cb=>cb.checked=true);
-                 document.querySelectorAll('tr[id^=row-]').forEach(tr=>tr.classList.add('selected'));\">
-        ✔ Seleccionar todos
-    </button>
     <a href='?' class='btn' style='background:#6c757d'>↺ Reanalizar</a>
 </div>
 </form>";
 
 echo '<script>
-document.getElementById("chk-all").addEventListener("change", function() {
-    document.querySelectorAll(".row-cb").forEach(cb => cb.checked = this.checked);
-    document.querySelectorAll("tr[id^=row-]").forEach(tr => tr.classList.toggle("selected", this.checked));
-});
-document.querySelectorAll(".row-cb").forEach(cb => {
-    cb.addEventListener("change", function() {
-        var tr = this.closest("tr");
-        if (tr) tr.classList.toggle("selected", this.checked);
+(function() {
+    var filterStatus  = document.getElementById("filter-status");
+    var filterCourse  = document.getElementById("filter-course");
+    var filterStudent = document.getElementById("filter-student");
+    var tbody         = document.getElementById("candidates-body");
+    var chkAll        = document.getElementById("chk-all");
+    var visibleCount  = document.getElementById("visible-count");
+    var checkedCount  = document.getElementById("checked-count");
+
+    function applyFilters() {
+        var status  = filterStatus.value;
+        var course  = filterCourse.value.trim().toLowerCase();
+        var student = filterStudent.value.trim().toLowerCase();
+        var rows    = tbody.querySelectorAll("tr[id^=row-]");
+        var shown   = 0;
+        var n       = 1;
+
+        rows.forEach(function(tr) {
+            var matchStatus  = !status  || tr.dataset.status  === status;
+            var matchCourse  = !course  || tr.dataset.course.indexOf(course)  !== -1;
+            var matchStudent = !student || tr.dataset.student.indexOf(student) !== -1;
+            var visible = matchStatus && matchCourse && matchStudent;
+            tr.classList.toggle("hidden-row", !visible);
+            if (visible) {
+                var numCell = tr.querySelector(".row-num");
+                if (numCell) numCell.textContent = n++;
+                shown++;
+            }
+        });
+        visibleCount.textContent = shown;
+        updateCheckedCount();
+    }
+
+    function updateCheckedCount() {
+        checkedCount.textContent = tbody.querySelectorAll(".row-cb:checked").length;
+    }
+
+    filterStatus.addEventListener("change", applyFilters);
+    filterCourse.addEventListener("input",  applyFilters);
+    filterStudent.addEventListener("input", applyFilters);
+
+    // Marcar/desmarcar solo las filas visibles.
+    chkAll.addEventListener("change", function() {
+        tbody.querySelectorAll("tr[id^=row-]:not(.hidden-row) .row-cb").forEach(function(cb) {
+            cb.checked = chkAll.checked;
+            var tr = cb.closest("tr");
+            if (tr) tr.classList.toggle("selected", cb.checked);
+        });
+        updateCheckedCount();
     });
-});
+
+    tbody.querySelectorAll(".row-cb").forEach(function(cb) {
+        cb.addEventListener("change", function() {
+            var tr = this.closest("tr");
+            if (tr) tr.classList.toggle("selected", this.checked);
+            updateCheckedCount();
+        });
+    });
+
+    window.selectVisible = function() {
+        tbody.querySelectorAll("tr[id^=row-]:not(.hidden-row) .row-cb").forEach(function(cb) {
+            cb.checked = true;
+            var tr = cb.closest("tr");
+            if (tr) tr.classList.add("selected");
+        });
+        updateCheckedCount();
+    };
+
+    window.deselectVisible = function() {
+        tbody.querySelectorAll("tr[id^=row-]:not(.hidden-row) .row-cb").forEach(function(cb) {
+            cb.checked = false;
+            var tr = cb.closest("tr");
+            if (tr) tr.classList.remove("selected");
+        });
+        updateCheckedCount();
+    };
+
+    window.clearFilters = function() {
+        filterStatus.value  = "";
+        filterCourse.value  = "";
+        filterStudent.value = "";
+        applyFilters();
+    };
+})();
 </script>';
 
-// Función helper (necesaria para el fallback de des-matriculación en el fix inline).
 if (!function_exists('get_manual_enroll')) {
     function get_manual_enroll($courseid) {
         $instances = enrol_get_instances($courseid, true);
