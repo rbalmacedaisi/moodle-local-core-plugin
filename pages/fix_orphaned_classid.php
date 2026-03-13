@@ -23,13 +23,81 @@ if (!function_exists('get_manual_enroll')) {
     }
 }
 
+$action = optional_param('action', '', PARAM_ALPHANUM);
+
+// ── Endpoint AJAX: procesa UN registro y devuelve JSON ─────────────────────
+if ($action === 'fix_one') {
+    require_sesskey();
+    header('Content-Type: application/json; charset=utf-8');
+
+    $id = required_param('id', PARAM_INT);
+
+    $statusLabels = [0=>'No disponible',1=>'Disponible',2=>'Cursando',
+                     3=>'Completada',4=>'Aprobada',5=>'Reprobada',6=>'Revalidando'];
+
+    $row = $DB->get_record_sql("
+        SELECT gcp.id AS progre_id, gcp.userid, gcp.courseid,
+               gcp.classid AS orphaned_classid, gcp.groupid, gcp.status,
+               u.firstname, u.lastname, c.fullname AS coursename
+          FROM {gmk_course_progre} gcp
+          JOIN {user}   u   ON u.id  = gcp.userid  AND u.deleted = 0
+          JOIN {course} c   ON c.id  = gcp.courseid
+     LEFT JOIN {gmk_class} cls ON cls.id = gcp.classid
+         WHERE gcp.id = :id AND gcp.classid > 0 AND cls.id IS NULL
+    ", ['id' => $id]);
+
+    if (!$row) {
+        echo json_encode(['ok' => false, 'msg' => "id=$id: no encontrado o ya corregido."]);
+        exit;
+    }
+
+    try {
+        $status     = (int)$row->status;
+        $isTerminal = in_array($status, [3, 4, 5]);
+
+        if (!empty($row->groupid) && $DB->record_exists('groups', ['id' => $row->groupid])) {
+            if (groups_is_member($row->groupid, $row->userid)) {
+                groups_remove_member($row->groupid, $row->userid);
+            }
+        }
+
+        if (!$isTerminal) {
+            $enrolplugin    = enrol_get_plugin('manual');
+            $courseInstance = get_manual_enroll($row->courseid);
+            if ($enrolplugin && $courseInstance) {
+                $enrolplugin->unenrol_user($courseInstance, (int)$row->userid);
+            }
+        }
+
+        if ($isTerminal) {
+            $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, timemodified=:now WHERE id=:id",
+                         ['now' => time(), 'id' => $id]);
+            $desc = 'classid/groupid → 0 (nota preservada)';
+        } else {
+            $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, status=1, grade=0, progress=0, timemodified=:now WHERE id=:id",
+                         ['now' => time(), 'id' => $id]);
+            $desc = 'Restablecido a Disponible';
+        }
+
+        $DB->delete_records('gmk_class_pre_registration', ['userid' => $row->userid, 'classid' => $row->orphaned_classid]);
+        $DB->delete_records('gmk_class_queue',            ['userid' => $row->userid, 'classid' => $row->orphaned_classid]);
+
+        $statusLabel = $statusLabels[$status] ?? "status=$status";
+        echo json_encode([
+            'ok'  => true,
+            'msg' => "{$row->firstname} {$row->lastname} — {$row->coursename} ({$statusLabel}) → {$desc}",
+        ]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'msg' => 'Error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
 $PAGE->set_url('/local/grupomakro_core/pages/fix_orphaned_classid.php');
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Fix: classid huérfano en gmk_course_progre');
 $PAGE->set_heading('Corrección: Registros con Clase Eliminada');
 echo $OUTPUT->header();
-
-$action = optional_param('action', '', PARAM_ALPHA);
 
 echo '<style>
   body { font-family: sans-serif; }
@@ -322,15 +390,31 @@ foreach ($candidates as $row) {
 echo "</tbody></table>";
 
 echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
-    <button type='submit' class='btn-danger btn'
-        onclick=\"var n=document.querySelectorAll('.row-cb:checked').length;
-                 if(n===0){alert('Selecciona al menos un registro.');return false;}
-                 return confirm('¿Corregir '+n+' registro(s) seleccionado(s)?');\">
+    <button type='button' class='btn-danger btn' onclick='startFix()'>
         🔧 Corregir seleccionados
     </button>
     <a href='?' class='btn' style='background:#6c757d'>↺ Reanalizar</a>
 </div>
-</form>";
+</form>
+
+<!-- Progress overlay -->
+<div id='fix-overlay' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:center;justify-content:center;'>
+  <div style='background:#fff;border-radius:8px;padding:28px 32px;width:540px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.3);'>
+    <div style='font-size:16px;font-weight:bold;margin-bottom:14px;' id='fix-title'>Corrigiendo registros...</div>
+
+    <div style='background:#e9ecef;border-radius:4px;height:20px;overflow:hidden;margin-bottom:8px;'>
+      <div id='fix-bar' style='height:100%;background:#1a73e8;width:0%;transition:width .3s;'></div>
+    </div>
+    <div style='font-size:13px;color:#555;margin-bottom:12px;' id='fix-counter'>0 / 0</div>
+
+    <div id='fix-log' style='font-size:12px;line-height:1.8;max-height:260px;overflow-y:auto;
+         border:1px solid #ddd;border-radius:4px;padding:8px 12px;background:#f8f9fa;'></div>
+
+    <div style='margin-top:16px;display:flex;gap:8px;justify-content:flex-end;'>
+      <button id='fix-close-btn' onclick='closeFixOverlay()' class='btn' style='display:none;background:#28a745;'>✔ Listo — Reanalizar</button>
+    </div>
+  </div>
+</div>";
 
 echo '<script>
 (function() {
@@ -418,5 +502,67 @@ echo '<script>
     };
 })();
 </script>';
+
+$sesskey = sesskey();
+echo "<script>
+var FIX_URL     = window.location.pathname + '?action=fix_one&sesskey={$sesskey}';
+var fixOverlay  = document.getElementById('fix-overlay');
+var fixBar      = document.getElementById('fix-bar');
+var fixCounter  = document.getElementById('fix-counter');
+var fixLog      = document.getElementById('fix-log');
+var fixTitle    = document.getElementById('fix-title');
+var fixCloseBtn = document.getElementById('fix-close-btn');
+
+function appendLog(msg, ok) {
+    var line = document.createElement('div');
+    line.style.color = ok ? '#2e7d32' : '#c62828';
+    line.textContent = (ok ? '✔ ' : '✘ ') + msg;
+    fixLog.appendChild(line);
+    fixLog.scrollTop = fixLog.scrollHeight;
+}
+
+async function startFix() {
+    var checked = Array.from(document.querySelectorAll('.row-cb:checked'));
+    if (checked.length === 0) { alert('Selecciona al menos un registro.'); return; }
+    if (!confirm('¿Corregir ' + checked.length + ' registro(s) seleccionado(s)?')) return;
+
+    var ids = checked.map(function(cb) { return parseInt(cb.value); });
+
+    fixOverlay.style.display = 'flex';
+    fixBar.style.width = '0%';
+    fixBar.style.background = '#1a73e8';
+    fixLog.innerHTML = '';
+    fixCloseBtn.style.display = 'none';
+    fixTitle.textContent = 'Corrigiendo ' + ids.length + ' registro(s)...';
+
+    var done = 0, errors = 0, total = ids.length;
+
+    for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        fixCounter.textContent = (i + 1) + ' / ' + total;
+        try {
+            var resp = await fetch(FIX_URL + '&id=' + id, { method: 'POST' });
+            var data = await resp.json();
+            appendLog(data.msg, data.ok);
+            if (!data.ok) errors++;
+            else done++;
+        } catch(e) {
+            appendLog('id=' + id + ': Error de red — ' + e.message, false);
+            errors++;
+        }
+        fixBar.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }
+
+    fixCounter.textContent = total + ' / ' + total;
+    fixBar.style.background = errors > 0 ? '#fd7e14' : '#28a745';
+    fixTitle.textContent = 'Completado: ' + done + ' corregidos' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
+    fixCloseBtn.style.display = 'inline-block';
+}
+
+function closeFixOverlay() {
+    fixOverlay.style.display = 'none';
+    window.location.href = '?';
+}
+</script>";
 
 echo $OUTPUT->footer();
