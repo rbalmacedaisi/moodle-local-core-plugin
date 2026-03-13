@@ -4448,7 +4448,11 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         // 2) if we have class mapping, class must be in progress too
         if ($userId && !empty($studentHasProgreData)) {
             $eventcourseid = !empty($eventComplete->courseid) ? (int)$eventComplete->courseid : 0;
-            if (!empty($studentActiveCourseIdSet) && !isset($studentActiveCourseIdSet[$eventcourseid])) {
+            // If the user has progress rows but no active in-progress courses, show no events.
+            if (empty($studentActiveCourseIdSet)) {
+                continue;
+            }
+            if (!isset($studentActiveCourseIdSet[$eventcourseid])) {
                 continue;
             }
         }
