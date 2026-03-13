@@ -108,6 +108,11 @@ if ($hassiteconfig) {
         '🧪 Debug Publicación Horarios',
         new moodle_url('/local/grupomakro_core/pages/debug_publish_status.php')
     );
+    $fixOrphanedClassidPage = new admin_externalpage(
+        'grupomakro_core_fix_orphaned_classid',
+        '🔧 Fix: Clases Eliminadas (classid huérfano)',
+        new moodle_url('/local/grupomakro_core/pages/fix_orphaned_classid.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -124,6 +129,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $bypassFinancialPage);
     $ADMIN->add('grupomakrocore_plugin', $gracePeriodPage);
     $ADMIN->add('grupomakrocore_plugin', $debugPublishStatusPage);
+    $ADMIN->add('grupomakrocore_plugin', $fixOrphanedClassidPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
