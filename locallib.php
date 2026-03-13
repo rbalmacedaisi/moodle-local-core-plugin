@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -266,10 +266,10 @@ function get_teachers_disponibility($params)
     $weekdays = array(
         'disp_monday' => 'Lunes',
         'disp_tuesday' => 'Martes',
-        'disp_wednesday' => 'MiÃ©rcoles',
+        'disp_wednesday' => 'Miércoles',
         'disp_thursday' => 'Jueves',
         'disp_friday' => 'Viernes',
-        'disp_saturday' => 'SÃ¡bado',
+        'disp_saturday' => 'Sábado',
         'disp_sunday' => 'Domingo'
     );
     $teachersDisponibility = array();
@@ -329,10 +329,10 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
-        2 => 'MiÃ©rcoles',
+        2 => 'Miércoles',
         3 => 'Jueves',
         4 => 'Viernes',
-        5 => 'SÃ¡bado',
+        5 => 'Sábado',
         6 => 'Domingo'
     );
     $errors = array();
@@ -349,7 +349,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     for ($i = 0; $i < 7; $i++) {
 
         if ($incomingClassSchedule[$i] === "1" && !array_key_exists($weekdays[$i], $availabilityRecords)) {
-            $errorString = "El instructor no esta disponible el dÃ­a " . $weekdays[$i];
+            $errorString = "El instructor no esta disponible el día " . $weekdays[$i];
             $errors[] = $errorString;
         } else if ($incomingClassSchedule[$i] === "1" && array_key_exists($weekdays[$i], $availabilityRecords)) {
             $foundedAvailableRange = false;
@@ -361,7 +361,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
                 }
             }
             if (!$foundedAvailableRange) {
-                $errorString = "El instructor no esta disponible el dÃ­a " . $weekdays[$i] . " en el horÃ¡rio: " . $initTime . " - " . $endTime;
+                $errorString = "El instructor no esta disponible el día " . $weekdays[$i] . " en el horario: " . $initTime . " - " . $endTime;
                 $errors[] = $errorString;
             }
         }
@@ -422,7 +422,7 @@ function check_class_schedule_availability($instructorId, $classDays, $initTime,
     //                     ($class->inittime >= $initTime && $class->inittime <= $endTime) ||
     //                     ($class->endtime >= $initTime && $class->endtime <= $endTime)
     //                 ) {
-    //                     $errorString =  "El salon de clase no esta disponible el dÃ­a ".$weekdays[$i]." en el horÃ¡rio: ".$initTime." - ".$endTime ;
+    //                     $errorString =  "El salon de clase no esta disponible el dÃƒÂ­a ".$weekdays[$i]." en el horÃƒÂ¡rio: ".$initTime." - ".$endTime ;
     //                     $errors[]=$errorString;
     //                 }
     //             }
@@ -443,10 +443,10 @@ function get_potential_class_teachers($params)
     $weekdays = array(
         0 => 'Lunes',
         1 => 'Martes',
-        2 => 'MiÃ©rcoles',
+        2 => 'Miércoles',
         3 => 'Jueves',
         4 => 'Viernes',
-        5 => 'SÃ¡bado',
+        5 => 'Sábado',
         6 => 'Domingo'
     );
 
@@ -728,7 +728,7 @@ function create_class($classParams)
 /**
  * Build the Moodle group name for a class using the nomenclature:
  * {PERIOD} ({SHIFT_INITIAL}) {SUBJECT_NAME} ({CLASS_TYPE}) {CLASSROOM}
- * Example: 2026-I (S) INGLÃ‰S I (PRESENCIAL) AULA Z
+ * Example: 2026-I (S) INGLÃƒâ€°S I (PRESENCIAL) AULA Z
  */
 function build_class_group_name($class) {
     global $DB;
@@ -790,7 +790,7 @@ function create_class_group($class)
     // (can happen if a previous publish failed after creating the group but before saving groupid).
     $existingGroup = $DB->get_record('groups', ['idnumber' => $idnumber, 'courseid' => $class->corecourseid]);
     if ($existingGroup) {
-        gmk_log("INFO: create_class_group â€” reutilizando grupo existente id={$existingGroup->id} idnumber=$idnumber");
+        gmk_log("INFO: create_class_group Ã¢â‚¬â€ reutilizando grupo existente id={$existingGroup->id} idnumber=$idnumber");
         $newClassGroup = $existingGroup;
     } else {
         $newClassGroup = new stdClass();
@@ -1185,7 +1185,7 @@ function gmk_is_duplicate_read_error($message): bool {
     return (
         strpos($msg, 'more than one record in read') !== false ||
         strpos($msg, 'mas de un registro en lectura') !== false ||
-        strpos($msg, 'mÃ¡s de un registro en lectura') !== false
+        strpos($msg, 'mÃƒÂ¡s de un registro en lectura') !== false
     );
 }
 
@@ -2069,7 +2069,7 @@ function create_class_activities($class, $updating = false)
             $attendanceRecord = $DB->get_record('attendance', ['id' => $attendanceCourseModule->instance], '*', MUST_EXIST);
             $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
             gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
-            gmk_log("INFO: create_class_activities â€” reutilizando attendance existente cmid={$class->attendancemoduleid}");
+            gmk_log("INFO: create_class_activities Ã¢â‚¬â€ reutilizando attendance existente cmid={$class->attendancemoduleid}");
         } else {
             // Prevent known legacy gradebook corruption from breaking attendance module creation.
             try {
@@ -2082,7 +2082,7 @@ function create_class_activities($class, $updating = false)
                 $attendanceActivityInfo = create_attendance_activity($class, $classSectionNumber);
             } catch (Throwable $attErr) {
                 // add_moduleinfo throws when grade recalc or messaging fails.
-                // The module IS often created in the DB before the exception â€” try to recover it.
+                // The module IS often created in the DB before the exception Ã¢â‚¬â€ try to recover it.
                 $attErrMsg = $attErr->getMessage();
                 $attErrClass = get_class($attErr);
                 $attErrLocation = basename($attErr->getFile()) . ':' . $attErr->getLine();
@@ -2114,7 +2114,7 @@ function create_class_activities($class, $updating = false)
                     $attendanceActivityInfo = (object)['coursemodule' => $existingCm->id];
                     gmk_log("INFO: Recuperado attendance cmid={$existingCm->id} para clase {$class->id}");
                 } else {
-                    // Module was NOT created at all â€” report with original error
+                    // Module was NOT created at all Ã¢â‚¬â€ report with original error
                     gmk_log("ERROR: No se pudo crear ni recuperar attendance para clase {$class->id}: {$attErrMsg}");
                     throw new \Exception(
                         "No se pudo crear attendance para clase {$class->id}: [{$attErrClass} @ {$attErrLocation}] {$attErrMsg}{$attErrDebugInfo}",
@@ -2130,7 +2130,8 @@ function create_class_activities($class, $updating = false)
             gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceStructure->cmid);
             $DB->update_record('gmk_class', $class);
         }
-        // Ensure class category is valid and attendance grade item is always scoped to that class.
+
+        // Ensure class category is valid and attendance grade item is always scoped to that class.
         try {
             $classcategoryid = gmk_get_or_create_class_grade_category($class);
             if ($classcategoryid > 0) {
@@ -2194,9 +2195,9 @@ function create_class_activities($class, $updating = false)
                 // Fallback: generate all matching weekdays in the class date range.
                 $candidateDates = [];
                 $dayNameMap = [
-                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'MiÃ©rcoles' => 'Wednesday',
+                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'Miércoles' => 'Wednesday',
                     'Miercoles' => 'Wednesday', 'Jueves' => 'Thursday', 'Viernes' => 'Friday',
-                    'SÃ¡bado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
+                    'Sábado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
                 ];
                 $targetEnglishDay = $dayNameMap[$sched->day] ?? null;
                 if ($targetEnglishDay) {
@@ -2416,7 +2417,7 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
     $attendanceSessionDefinition->duration = $classDurationInSeconds;
     $attendanceSessionDefinition->groupid         = $class->groupid;
     $attendanceSessionDefinition->timemodified    = time();
-    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "SesiÃ³n de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'SesiÃ³n de clase presencial.';
+    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "SesiÃƒÂ³n de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'SesiÃƒÂ³n de clase presencial.';
     $attendanceSessionDefinition->calendarevent   = 1;
     $attendanceSessionDefinition->includeqrcode   = 1;
     $attendanceSessionDefinition->rotateqrcode    = 1;
@@ -2509,7 +2510,7 @@ function create_class_grade_category($class)
     $itemRec->timemodified    = $now;
     $DB->insert_record('grade_items', $itemRec);
 
-    gmk_log("INFO: create_class_grade_category â€” categorÃ­a creada id=$catId para clase {$class->id} (courseid={$class->corecourseid})");
+    gmk_log("INFO: create_class_grade_category Ã¢â‚¬â€ categorÃƒÂ­a creada id=$catId para clase {$class->id} (courseid={$class->corecourseid})");
     return $catId;
 }
 
@@ -2578,9 +2579,9 @@ function list_classes($filters)
                     }
 
                     if ($subj) {
-                        gmk_log("DEBUG: list_classes encontrÃ³ materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
+                        gmk_log("DEBUG: list_classes encontrÃƒÂ³ materia via FALLBACK (Moodle Course ID) para la clase " . ($class->id ?? 'new') . " con courseid " . $class->courseid . " y plan " . ($class->learningplanid ?? 'N/A'));
                     } else {
-                        gmk_log("DEBUG: list_classes NO encontrÃ³ metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
+                        gmk_log("DEBUG: list_classes NO encontrÃƒÂ³ metadatos para courseid: " . $class->courseid . " en clase: " . ($class->name ?? 'sin nombre'));
                     }
                 }
                 
@@ -2636,7 +2637,7 @@ function list_classes($filters)
         }
 
         //Set the list of choosen days
-        $daysES = ['Lunes', 'Martes', 'MiÃ©rcoles', 'Jueves', 'Viernes', 'SÃ¡bado', 'Domingo'];
+        $daysES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         $daysEN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         $daysString = $class->classdays;
         $selectedDaysES = [];
@@ -2911,7 +2912,7 @@ function get_class_participants($class)
 
     // enroledStudents: group members excluding the instructor.
     // For classes without a Moodle group (groupid=0), use gmk_course_progre as the enrolled list
-    // only when the class is approved â€” before approval the group is the source of truth.
+    // only when the class is approved Ã¢â‚¬â€ before approval the group is the source of truth.
     if (empty($class->groupid) && !empty($class->approved)) {
         $classParticipants->enroledStudents = $instructorId
             ? $DB->get_records_select('gmk_course_progre', 'classid = :cid AND userid != :uid', ['cid' => $class->id, 'uid' => $instructorId])
@@ -3252,7 +3253,7 @@ function approve_course_schedules($approvingSchedules)
         gmk_log("approve_course_schedules: classId={$schedule['classId']} groupid={$class->groupid} corecourseid={$class->corecourseid} approved={$class->approved} alreadyApproved=" . ($alreadyApproved ? 'true' : 'false'));
         gmk_log("approve_course_schedules: preReg=" . count($schedulePreRegisteredStudents) . " queued=" . count($scheduleQueuedStudents));
 
-        // Deduplicate by userid â€” a student may appear in both tables
+        // Deduplicate by userid Ã¢â‚¬â€ a student may appear in both tables
         $allStudents = [];
         foreach (array_merge($schedulePreRegisteredStudents, $scheduleQueuedStudents) as $s) {
             $allStudents[$s->userid] = $s;
@@ -3275,7 +3276,7 @@ function approve_course_schedules($approvingSchedules)
             $classApproved = true;
         }
 
-        // NOTE: queue/pre_reg records are intentionally preserved â€” they represent
+        // NOTE: queue/pre_reg records are intentionally preserved Ã¢â‚¬â€ they represent
         // the academic plan (who is assigned to this class) and must persist so that
         // the student list reappears correctly if the enrollment dialog is reopened.
 
@@ -3331,7 +3332,7 @@ function enrolApprovedScheduleStudents($students, $class)
         if (!empty($class->groupid)) {
             $enrolmentResults[$student->userid] = groups_add_member($class->groupid, $student->userid);
         } else {
-            $enrolmentResults[$student->userid] = true; // No group â€” enrolment to course is sufficient
+            $enrolmentResults[$student->userid] = true; // No group Ã¢â‚¬â€ enrolment to course is sufficient
         }
 
         if ($enrolmentResults[$student->userid]) {
@@ -3428,7 +3429,7 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
     }
 
     // EXTERNAL CLASS WITHOUT GROUP: use queue/progre records (source of truth for this class).
-    // Do NOT fall back to get_enrolled_students_by_courseid â€” that returns ALL students enrolled
+    // Do NOT fall back to get_enrolled_students_by_courseid Ã¢â‚¬â€ that returns ALL students enrolled
     // in the Moodle course (could be hundreds from other plans/periods).
     if ($isExternal && !$class->groupid) {
         $classStudents = get_class_participants($class);
@@ -3463,7 +3464,7 @@ function get_course_students_by_class_schedule($classId, $activePeriodId = null)
             $result = user_get_users_by_id([$userid]);
             return isset($result[$userid]) ? $result[$userid] : null;
         }
-        // Otherwise, it's an idnumber string â€” look up by idnumber
+        // Otherwise, it's an idnumber string Ã¢â‚¬â€ look up by idnumber
         return $DB->get_record('user', ['idnumber' => $userid, 'deleted' => 0]);
     };
 
@@ -3522,7 +3523,7 @@ function get_scheduleless_students($params)
     // Status 0 = No Disponible (Prerequisites not met)
     // Status 1 = Disponible (Available to take)
     // Status 5 = Reprobada (Failed - needs to retake)
-    // Status 99 = MigraciÃ³n Pendiente (Migration Pending)
+    // Status 99 = MigraciÃƒÂ³n Pendiente (Migration Pending)
     $sql = "SELECT DISTINCT gcp.userid, gcp.status
             FROM {gmk_course_progre} gcp
             WHERE gcp.courseid = :courseid
@@ -3589,7 +3590,11 @@ function add_teacher_disponibility($params)
     $teacherDisponibility->userid = $params['instructorId'];
 
     foreach ($params['newDisponibilityRecords'] as $newDisponibilityRecord) {
-        $day = strtolower(str_replace(['Ã¡', 'Ã©', 'Ã­', 'Ã³', 'Ãº', 'Ã±'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+        $day = cleanString((string)$newDisponibilityRecord['day']);
+        if (!array_key_exists($day, $dayENLabels)) {
+            $errors[] = 'Día inválido en disponibilidad: ' . $newDisponibilityRecord['day'];
+            continue;
+        }
         $teacherDisponibility->{$dayENLabels[$day]} = json_encode(calculate_disponibility_range($newDisponibilityRecord['timeslots']));
     }
     foreach ($dayENLabels as $dayLabel) {
@@ -3629,10 +3634,10 @@ function update_teacher_disponibility($params)
     $weekdays = [
         "Monday" => "Lunes",
         "Tuesday" => "Martes",
-        "Wednesday" => "MiÃ©rcoles",
+        "Wednesday" => "Miércoles",
         "Thursday" => "Jueves",
         "Friday" => "Viernes",
-        "Saturday" => "SÃ¡bado",
+        "Saturday" => "Sábado",
         "Sunday" => "Domingo"
     ];
     foreach ($params['skills'] as $skillId) {
@@ -3649,7 +3654,11 @@ function update_teacher_disponibility($params)
 
         $disponibilityDays = array();
         foreach ($params['newDisponibilityRecords'] as $newDisponibilityRecord) {
-            $day = strtolower(str_replace(['Ã¡', 'Ã©', 'Ã­', 'Ã³', 'Ãº', 'Ã±'], ['a', 'e', 'i', 'o', 'u', 'n'], $newDisponibilityRecord['day']));
+            $day = cleanString((string)$newDisponibilityRecord['day']);
+            if (!array_key_exists($day, $dayENLabels)) {
+                $errors[] = 'Día inválido en disponibilidad: ' . $newDisponibilityRecord['day'];
+                continue;
+            }
             $teacherDisponibility->{$dayENLabels[$day]} = calculate_disponibility_range($newDisponibilityRecord['timeslots']);
             $disponibilityDays[] = explode('_', $dayENLabels[$day])[1];
         }
@@ -3771,7 +3780,7 @@ function bulk_update_teachers_disponibilities($disponibilityRecords)
         )->userid;
         try {
             if (!$disponibilityRecord['instructorId']) {
-                throw new Exception(json_encode(['No hay usuario con el nÃºmero de documento ' . $instructorDocument]));
+                throw new Exception(json_encode(['No hay usuario con el nÃƒÂºmero de documento ' . $instructorDocument]));
             }
             if (!$DB->get_record('gmk_teacher_disponibility', ['userid' => $disponibilityRecord['instructorId']])) {
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
@@ -3978,13 +3987,13 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile)
     foreach ($rangeSheet->getRowIterator(2) as $row) {
         $instructorId = $rangeSheet->getCell('A' . $row->getRowIndex())->getValue();
         if (!$instructorId) {
-            // $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El nÃºmero de documento es requerido.';
+            // $errors[]='Error en hoja horario: columna A, fila '.$row->getRowIndex().'. El nÃƒÂºmero de documento es requerido.';
             continue;
         }
 
         $day = cleanString($rangeSheet->getCell('B' . $row->getRowIndex())->getValue());
         if (!in_array($day, $days)) {
-            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. DÃ­a ' . $day . ' no definido.';
+            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. DÃƒÂ­a ' . $day . ' no definido.';
             continue;
         }
 
@@ -4016,14 +4025,14 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile)
     foreach ($skillsSheet->getRowIterator(2) as $row) {
         $instructorId = $skillsSheet->getCell('A' . $row->getRowIndex())->getValue();
         if (!$instructorId) {
-            // $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El nÃºmero de documento es requerido.';
+            // $errors[]='Error en hoja habilidades: columna A, fila '.$row->getRowIndex().'. El nÃƒÂºmero de documento es requerido.';
             continue;
         }
 
         $skill = $skillsSheet->getCell('B' . $row->getRowIndex())->getValue();
         // $teacherSkills
         if (!$skill) {
-            // $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser nÃºmerico.';
+            // $errors[]='Error en hoja habilidades: columna B, fila '.$row->getRowIndex().'. El ID debe ser nÃƒÂºmerico.';
             continue;
         }
         $skill = cleanString($skill);
@@ -4180,10 +4189,10 @@ function check_reschedule_conflicts($params)
     $weekdays = array(
         'Monday' => 'Lunes',
         'Tuesday' => 'Martes',
-        'Wednesday' => 'MiÃ©rcoles',
+        'Wednesday' => 'Miércoles',
         'Thursday' => 'Jueves',
         'Friday' => 'Viernes',
-        'Saturday' => 'SÃ¡bado',
+        'Saturday' => 'Sábado',
         'Sunday' => 'Domingo'
     );
 
@@ -4208,7 +4217,7 @@ function check_reschedule_conflicts($params)
         }
     }
     if (!$foundedAvailableRange) {
-        $errors[] = "El instructor no esta disponible el dÃ­a " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
+        $errors[] = "El instructor no esta disponible el día " . $incomingWeekDay . " en el horario " . $params['initTime'] . " - " . $params['endTime'] . '.';
     }
 
     //Check the group members and count how many students are in conflict with the new date and time
@@ -4395,7 +4404,7 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
                 }
                 // Si el registro tiene status=2 (en curso), se incluye sin importar el periodo.
                 // El check de currentperiodid fue removido porque puede estar desactualizado
-                // al inicio de un nuevo periodo académico, causando que se descarten cursos activos.
+                // al inicio de un nuevo periodo acadÃ©mico, causando que se descarten cursos activos.
                 if (!empty($prow->courseid)) {
                     $studentActiveCourseIdSet[(int)$prow->courseid] = true;
                 }
@@ -6639,7 +6648,7 @@ function gmk_get_course_tags($courseid) {
 /**
  * Safely assign tags to a course module, avoiding duplicate key errors.
  *
- * Moodle's core_tag_tag::set_item_tags calls create_if_missing â†’ INSERT INTO mdl_tag,
+ * Moodle's core_tag_tag::set_item_tags calls create_if_missing Ã¢â€ â€™ INSERT INTO mdl_tag,
  * which throws dml_write_exception when the tag already exists (duplicate key on tagcollid+name).
  * This wrapper pre-resolves each tag name to its existing rawname in the DB before calling
  * set_item_tags, so no INSERT is attempted for already-existing tags.
@@ -6683,7 +6692,7 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
         }
 
         if (!$tag) {
-            // Tag doesn't exist at all â€” insert it safely
+            // Tag doesn't exist at all Ã¢â‚¬â€ insert it safely
             $newrec = new stdClass();
             $newrec->isstandard   = 0;
             $newrec->userid       = 0;
@@ -6694,7 +6703,7 @@ function gmk_safe_set_item_tags(int $cmid, $context, array $tagnames) {
             try {
                 $tagid = $DB->insert_record('tag', $newrec);
             } catch (dml_write_exception $e) {
-                // Race condition: another request inserted it just now â€” fetch it
+                // Race condition: another request inserted it just now Ã¢â‚¬â€ fetch it
                 $tag = $DB->get_record('tag', ['tagcollid' => $newrec->tagcollid, 'name' => $normalized], 'id', IGNORE_MISSING);
                 $tagid = $tag ? $tag->id : null;
             }

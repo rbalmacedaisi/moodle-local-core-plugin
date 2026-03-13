@@ -371,11 +371,18 @@ class local_grupomakro_progress_manager
         // Update existing progress record
         $courseProgress->classid = $class->id;
         $courseProgress->groupid = $class->groupid;
-        $courseProgress->progress = 0;
-        $courseProgress->grade = 0;
-        $courseProgress->status = COURSE_IN_PROGRESS;
         $courseProgress->timemodified = time();
         $courseProgress->usermodified = $USER->id;
+
+        // No degradar un curso ya aprobado o completado a "en curso".
+        // Si el estudiante fue re-matriculado en una clase para un curso que ya aprobó,
+        // se actualiza la asignación de clase pero se preserva el status, nota y progreso.
+        $terminalStatuses = [COURSE_COMPLETED, COURSE_APPROVED];
+        if (!in_array((int)$courseProgress->status, $terminalStatuses)) {
+            $courseProgress->progress = 0;
+            $courseProgress->grade    = 0;
+            $courseProgress->status   = COURSE_IN_PROGRESS;
+        }
 
         return $DB->update_record('gmk_course_progre', $courseProgress);
     }
