@@ -129,6 +129,7 @@ class get_student_learning_plan_pensum extends external_api
             $classGradeByGroupId = [];
             $membershipClassGradesByCourseId = [];
             $planClassCategoryGradeByCourseId = [];
+            $manualIntegratedGradeByCourseId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
@@ -201,6 +202,32 @@ class get_student_learning_plan_pensum extends external_api
                     foreach ($plancategorygrades as $pcg) {
                         if (!is_null($pcg->gradeval)) {
                             $planClassCategoryGradeByCourseId[(int)$pcg->corecourseid] = round((float)$pcg->gradeval, 2);
+                        }
+                    }
+
+                    // Prefer explicit migrated/final integrated grade when present.
+                    $manualgrades = $DB->get_records_sql(
+                        "SELECT gi.courseid,
+                                MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                                         THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+                           FROM {grade_items} gi
+                      LEFT JOIN {grade_grades} gg
+                             ON gg.itemid = gi.id
+                            AND gg.userid = :userid
+                          WHERE gi.itemtype = 'manual'
+                            AND (gi.itemname = :nfi OR gi.itemname LIKE :nfilike)
+                            AND gi.courseid $courseInSql
+                       GROUP BY gi.courseid
+                       ORDER BY gi.courseid ASC",
+                        [
+                            'userid' => $params['userId'],
+                            'nfi' => 'Nota Final Integrada',
+                            'nfilike' => 'Nota Final Integrada%'
+                        ] + $courseInParams
+                    );
+                    foreach ($manualgrades as $mg) {
+                        if (!is_null($mg->gradeval)) {
+                            $manualIntegratedGradeByCourseId[(int)$mg->courseid] = round((float)$mg->gradeval, 2);
                         }
                     }
 
@@ -397,17 +424,26 @@ class get_student_learning_plan_pensum extends external_api
 
                 $progressclassid = !empty($userPensumCourse->progressclassid) ? (int)$userPensumCourse->progressclassid : 0;
                 $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
+                $courseidkey = (int)$userPensumCourse->courseid;
+
+                // 0) Highest priority: explicit "Nota Final Integrada" (final academic grade).
+                if (array_key_exists($courseidkey, $manualIntegratedGradeByCourseId)) {
+                    $candidate = (float)$manualIntegratedGradeByCourseId[$courseidkey];
+                    if ($candidate >= 0 && $candidate <= 100) {
+                        $coursegrade = $candidate;
+                        $gradesource = 'manual_nota_final_integrada';
+                    }
+                }
 
                 // 1) Preferred: class category grade (strict class/group scope).
-                if ($progressclassid > 0 && array_key_exists($progressclassid, $classGradeByClassId)) {
+                if (is_null($coursegrade) && $progressclassid > 0 && array_key_exists($progressclassid, $classGradeByClassId)) {
                     $coursegrade = (float)$classGradeByClassId[$progressclassid];
                     $gradesource = 'class_category';
-                } else if ($progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
+                } else if (is_null($coursegrade) && $progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
                     $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
                     $gradesource = 'group_class_category';
-                } else {
+                } else if (is_null($coursegrade)) {
                     // 1b) Fallback by classes where the student is group member in this same course.
-                    $courseidkey = (int)$userPensumCourse->courseid;
                     if (!empty($membershipClassGradesByCourseId[$courseidkey])) {
                         $valid = array_values(array_filter(array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]), function($v) {
                             return ($v >= 0 && $v <= 100);
@@ -421,7 +457,6 @@ class get_student_learning_plan_pensum extends external_api
 
                 // 1c) Fallback by any class category in same plan/course that has a sane grade for this student.
                 if (is_null($coursegrade)) {
-                    $courseidkey = (int)$userPensumCourse->courseid;
                     if (array_key_exists($courseidkey, $planClassCategoryGradeByCourseId)) {
                         $candidate = (float)$planClassCategoryGradeByCourseId[$courseidkey];
                         if ($candidate >= 0 && $candidate <= 100) {
@@ -432,8 +467,8 @@ class get_student_learning_plan_pensum extends external_api
                 }
 
                 // 2) Then: Moodle course total if sane (0..100). This restores real historical grades.
-                if (is_null($coursegrade) && array_key_exists((int)$userPensumCourse->courseid, $gradesByCourseId)) {
-                    $candidate = (float)$gradesByCourseId[(int)$userPensumCourse->courseid];
+                if (is_null($coursegrade) && array_key_exists($courseidkey, $gradesByCourseId)) {
+                    $candidate = (float)$gradesByCourseId[$courseidkey];
                     if ($candidate >= 0 && $candidate <= 100) {
                         $coursegrade = $candidate;
                         $gradesource = 'course_total';
