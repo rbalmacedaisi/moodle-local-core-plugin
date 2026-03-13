@@ -1097,11 +1097,14 @@ function gmk_merge_grade_item_grades(int $sourceitemid, int $targetitemid): int 
     );
 
     foreach ($sourcegrades as $gg) {
-        $existing = $DB->get_record(
-            'grade_grades',
-            ['itemid' => $targetitemid, 'userid' => (int)$gg->userid],
-            'id,rawgrade,finalgrade,rawgrademax,rawgrademin,rawscaleid,feedback,information',
-            IGNORE_MISSING
+        // Avoid get_record() warnings when legacy corruption left duplicate rows per (itemid, userid).
+        $existing = $DB->get_record_sql(
+            "SELECT id, rawgrade, finalgrade, rawgrademax, rawgrademin, rawscaleid, feedback, information
+               FROM {grade_grades}
+              WHERE itemid = :itemid
+                AND userid = :userid
+           ORDER BY id ASC LIMIT 1",
+            ['itemid' => $targetitemid, 'userid' => (int)$gg->userid]
         );
 
         if ($existing) {
@@ -1198,7 +1201,14 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
     gmk_heal_course_gradebook_course_item($courseid);
 
     // Ensure there is at least one root candidate.
-    $anycat = $DB->get_record('grade_categories', ['courseid' => $courseid], 'id', IGNORE_MISSING);
+    // A course can have many grade_categories; pick one deterministically without get_record() duplicate warnings.
+    $anycat = $DB->get_record_sql(
+        "SELECT id
+           FROM {grade_categories}
+          WHERE courseid = :courseid
+       ORDER BY id ASC LIMIT 1",
+        ['courseid' => $courseid]
+    );
     if ($anycat) {
         $DB->set_field('grade_categories', 'parent', null, ['id' => (int)$anycat->id]);
     }

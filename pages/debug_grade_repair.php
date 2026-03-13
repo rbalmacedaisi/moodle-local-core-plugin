@@ -337,8 +337,8 @@ if ($apply) {
                              AND c.gradecategoryid > 0
                              AND (gc.id IS NULL OR gc.courseid <> c.corecourseid)
                         ORDER BY c.corecourseid, c.id";
-        $invalidall = $DB->get_records_sql($sqlinvalidall, $classparams);
-        foreach ($invalidall as $r) {
+        $invalidrs = $DB->get_recordset_sql($sqlinvalidall, $classparams);
+        foreach ($invalidrs as $r) {
             $cid = (int)$r->classid;
             try {
                 $class = $DB->get_record('gmk_class', ['id' => $cid], '*', MUST_EXIST);
@@ -374,6 +374,7 @@ if ($apply) {
                 $applyresult['errors'][] = "invalidclasscat classid={$cid}: " . $e->getMessage();
             }
         }
+        $invalidrs->close();
     }
 
     if ($fixwrongmodcat) {
@@ -395,10 +396,9 @@ if ($apply) {
                            AND c.coursesectionid > 0
                            AND gi.categoryid <> c.gradecategoryid
                       ORDER BY c.corecourseid, c.id, gi.id";
-        $wrongall = $DB->get_records_sql($sqlwrongall, $classparams);
-
         $moveplan = [];
-        foreach ($wrongall as $r) {
+        $wrongrs = $DB->get_recordset_sql($sqlwrongall, $classparams);
+        foreach ($wrongrs as $r) {
             $gid = (int)$r->gradeitemid;
             $expected = (int)$r->expectedcategoryid;
             if (!isset($moveplan[$gid])) {
@@ -415,6 +415,7 @@ if ($apply) {
                 unset($moveplan[$gid]);
             }
         }
+        $wrongrs->close();
 
         foreach ($moveplan as $plan) {
             try {
