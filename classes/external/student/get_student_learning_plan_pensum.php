@@ -127,11 +127,15 @@ class get_student_learning_plan_pensum extends external_api
             $gradesByCourseId = [];
             $classGradeByClassId = [];
             $classGradeByGroupId = [];
+            $membershipClassGradesByCourseId = [];
+            $planClassCategoryGradeByCourseId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
                 $corecourseids = [];
                 $progressclassids = [];
+                $membershipclassids = [];
+                $membershipClassCourseByClassId = [];
                 foreach ($userPensumCourses as $pcourse) {
                     if (!empty($pcourse->learningcourseid)) {
                         $learningcourseids[] = (int)$pcourse->learningcourseid;
@@ -156,8 +160,55 @@ class get_student_learning_plan_pensum extends external_api
                         $courseNamesById[(int)$courserecord->id] = $courserecord->fullname;
                     }
 
+                    // Candidate classes by real group membership (handles old progress rows with classid/groupid empty).
+                    $membershipclasses = $DB->get_records_sql(
+                        "SELECT c.id, c.corecourseid
+                           FROM {gmk_class} c
+                           JOIN {groups_members} gm ON gm.groupid = c.groupid
+                          WHERE gm.userid = :userid
+                            AND c.learningplanid = :lpid
+                            AND c.gradecategoryid > 0
+                            AND c.corecourseid $courseInSql
+                       ORDER BY c.id ASC",
+                        ['userid' => $params['userId'], 'lpid' => $params['learningPlanId']] + $courseInParams
+                    );
+                    foreach ($membershipclasses as $mclass) {
+                        $cid = (int)$mclass->id;
+                        $membershipclassids[] = $cid;
+                        $membershipClassCourseByClassId[$cid] = (int)$mclass->corecourseid;
+                    }
+
+                    // Broad fallback: category totals from any class category in this plan+course.
+                    $plancategorygrades = $DB->get_records_sql(
+                        "SELECT c.corecourseid,
+                                MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                                         THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+                           FROM {gmk_class} c
+                           JOIN {grade_items} gi
+                             ON gi.courseid = c.corecourseid
+                            AND gi.itemtype = 'category'
+                            AND gi.iteminstance = c.gradecategoryid
+                      LEFT JOIN {grade_grades} gg
+                             ON gg.itemid = gi.id
+                            AND gg.userid = :userid
+                          WHERE c.learningplanid = :lpid
+                            AND c.gradecategoryid > 0
+                            AND c.corecourseid $courseInSql
+                       GROUP BY c.corecourseid
+                       ORDER BY c.corecourseid ASC",
+                        ['userid' => $params['userId'], 'lpid' => $params['learningPlanId']] + $courseInParams
+                    );
+                    foreach ($plancategorygrades as $pcg) {
+                        if (!is_null($pcg->gradeval)) {
+                            $planClassCategoryGradeByCourseId[(int)$pcg->corecourseid] = round((float)$pcg->gradeval, 2);
+                        }
+                    }
+
                     // Bulk fetch course totals for the student (fallback source only).
-                    $gradeSql = "SELECT gi.courseid, MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval
+                    $gradeSql = "SELECT gi.courseid,
+                                        MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                                                 THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval_sane,
+                                        MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval_any
                                    FROM {grade_items} gi
                               LEFT JOIN {grade_grades} gg
                                      ON gg.itemid = gi.id
@@ -169,7 +220,12 @@ class get_student_learning_plan_pensum extends external_api
                     $gradeParams = ['userid' => $params['userId']] + $courseInParams;
                     $graderows = $DB->get_records_sql($gradeSql, $gradeParams);
                     foreach ($graderows as $graderow) {
-                        $gradeval = is_null($graderow->gradeval) ? null : (float)$graderow->gradeval;
+                        $gradeval = null;
+                        if (!is_null($graderow->gradeval_sane)) {
+                            $gradeval = (float)$graderow->gradeval_sane;
+                        } else if (!is_null($graderow->gradeval_any)) {
+                            $gradeval = (float)$graderow->gradeval_any;
+                        }
                         if (!is_null($gradeval)) {
                             $gradesByCourseId[(int)$graderow->courseid] = round($gradeval, 2);
                         }
@@ -177,8 +233,9 @@ class get_student_learning_plan_pensum extends external_api
                 }
 
                 // Preferred source: class category totals (grade item type=category) for the student's class/group.
-                if (!empty($progressclassids)) {
-                    list($classInSql, $classInParams) = $DB->get_in_or_equal($progressclassids, SQL_PARAMS_NAMED, 'clid');
+                $allcandidateclassids = array_values(array_unique(array_merge($progressclassids, $membershipclassids)));
+                if (!empty($allcandidateclassids)) {
+                    list($classInSql, $classInParams) = $DB->get_in_or_equal($allcandidateclassids, SQL_PARAMS_NAMED, 'clid');
                     $classrows = $DB->get_records_sql(
                         "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid
                            FROM {gmk_class} c
@@ -266,6 +323,14 @@ class get_student_learning_plan_pensum extends external_api
                                     if (!empty($cr->groupid)) {
                                         $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
                                     }
+                                    $classid = (int)$cr->id;
+                                    if (isset($membershipClassCourseByClassId[$classid])) {
+                                        $courseid = (int)$membershipClassCourseByClassId[$classid];
+                                        if (!isset($membershipClassGradesByCourseId[$courseid])) {
+                                            $membershipClassGradesByCourseId[$courseid] = [];
+                                        }
+                                        $membershipClassGradesByCourseId[$courseid][] = $resolvedgrade;
+                                    }
                                 }
                             }
                         }
@@ -340,8 +405,34 @@ class get_student_learning_plan_pensum extends external_api
                 } else if ($progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
                     $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
                     $gradesource = 'group_class_category';
+                } else {
+                    // 1b) Fallback by classes where the student is group member in this same course.
+                    $courseidkey = (int)$userPensumCourse->courseid;
+                    if (!empty($membershipClassGradesByCourseId[$courseidkey])) {
+                        $valid = array_values(array_filter(array_map('floatval', $membershipClassGradesByCourseId[$courseidkey]), function($v) {
+                            return ($v >= 0 && $v <= 100);
+                        }));
+                        if (!empty($valid)) {
+                            $coursegrade = round(max($valid), 2);
+                            $gradesource = 'membership_class_category';
+                        }
+                    }
+                }
+
+                // 1c) Fallback by any class category in same plan/course that has a sane grade for this student.
+                if (is_null($coursegrade)) {
+                    $courseidkey = (int)$userPensumCourse->courseid;
+                    if (array_key_exists($courseidkey, $planClassCategoryGradeByCourseId)) {
+                        $candidate = (float)$planClassCategoryGradeByCourseId[$courseidkey];
+                        if ($candidate >= 0 && $candidate <= 100) {
+                            $coursegrade = $candidate;
+                            $gradesource = 'plan_class_category';
+                        }
+                    }
+                }
+
                 // 2) Then: Moodle course total if sane (0..100). This restores real historical grades.
-                } else if (array_key_exists((int)$userPensumCourse->courseid, $gradesByCourseId)) {
+                if (is_null($coursegrade) && array_key_exists((int)$userPensumCourse->courseid, $gradesByCourseId)) {
                     $candidate = (float)$gradesByCourseId[(int)$userPensumCourse->courseid];
                     if ($candidate >= 0 && $candidate <= 100) {
                         $coursegrade = $candidate;
