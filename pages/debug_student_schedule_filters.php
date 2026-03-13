@@ -26,6 +26,17 @@ $userid = optional_param('userid', 0, PARAM_INT);
 $search = optional_param('search', '', PARAM_TEXT);
 $initdate = optional_param('initdate', date('Y-01-01'), PARAM_TEXT);
 $enddate = optional_param('enddate', date('Y-12-31', strtotime('+1 year')), PARAM_TEXT);
+$page = optional_param('page', 0, PARAM_INT);
+$perpage = optional_param('perpage', 50, PARAM_INT);
+if ($page < 0) {
+    $page = 0;
+}
+if ($perpage < 20) {
+    $perpage = 20;
+}
+if ($perpage > 200) {
+    $perpage = 200;
+}
 
 function gmk_dbg_h($value): string {
     if ($value === null) {
@@ -131,50 +142,117 @@ echo '<label><strong>Fecha fin (YYYY-MM-DD)</strong></label><br>';
 echo '<input type="text" name="enddate" value="' . gmk_dbg_h($enddate) . '" style="width:100%;max-width:280px;" />';
 echo '</div>';
 echo '</div>';
+echo '<div class="dbg-grid" style="margin-top:10px;">';
+echo '<div>';
+echo '<label><strong>Filas por pagina</strong></label><br>';
+echo '<input type="number" name="perpage" value="' . (int)$perpage . '" min="20" max="200" style="width:100%;max-width:280px;" />';
+echo '</div>';
+echo '<div>';
+echo '<label><strong>Pagina</strong></label><br>';
+echo '<input type="number" name="page" value="' . (int)$page . '" min="0" style="width:100%;max-width:280px;" />';
+echo '</div>';
+echo '</div>';
 echo '<div style="margin-top:12px;"><button type="submit" class="btn btn-primary">Diagnosticar</button></div>';
 echo '</form>';
 
-if ($search !== '' && $userid <= 0) {
-    $like = '%' . $DB->sql_like_escape($search) . '%';
-    $candidates = $DB->get_records_sql(
-        "SELECT u.id, u.firstname, u.lastname, u.email
-           FROM {user} u
-          WHERE u.deleted = 0
-            AND (
-                " . $DB->sql_like('u.firstname', ':s1', false, false) . "
-                OR " . $DB->sql_like('u.lastname', ':s2', false, false) . "
-                OR " . $DB->sql_like('u.email', ':s3', false, false) . "
-            )
-       ORDER BY u.lastname, u.firstname",
-        ['s1' => $like, 's2' => $like, 's3' => $like],
-        0,
-        50
-    );
+// Listado dinamico de estudiantes (sin necesidad de busqueda manual).
+$searchsql = '';
+$searchparams = [];
+if (trim($search) !== '') {
+    $like = '%' . $DB->sql_like_escape(trim($search)) . '%';
+    $searchsql = " AND (
+        " . $DB->sql_like('u.firstname', ':s1', false, false) . "
+        OR " . $DB->sql_like('u.lastname', ':s2', false, false) . "
+        OR " . $DB->sql_like('u.email', ':s3', false, false) . "
+    )";
+    $searchparams = ['s1' => $like, 's2' => $like, 's3' => $like];
+}
 
-    $rows = [];
-    foreach ($candidates as $c) {
-        $url = new moodle_url('/local/grupomakro_core/pages/debug_student_schedule_filters.php', [
-            'userid' => (int)$c->id,
+$totalstudents = (int)$DB->count_records_sql(
+    "SELECT COUNT(DISTINCT llu.userid)
+       FROM {local_learning_users} llu
+       JOIN {user} u ON u.id = llu.userid
+      WHERE u.deleted = 0 {$searchsql}",
+    $searchparams
+);
+$offset = $page * $perpage;
+$studentlist = $DB->get_records_sql(
+    "SELECT u.id,
+            u.firstname,
+            u.lastname,
+            u.email,
+            COUNT(DISTINCT CASE WHEN cp.status = 2 THEN cp.courseid END) AS inprogress_courses,
+            COUNT(DISTINCT CASE WHEN cp.status = 2 THEN cp.classid END) AS inprogress_classes,
+            COUNT(DISTINCT CASE WHEN cp.status = 4 THEN cp.courseid END) AS approved_courses
+       FROM {local_learning_users} llu
+       JOIN {user} u ON u.id = llu.userid
+  LEFT JOIN {gmk_course_progre} cp ON cp.userid = u.id
+      WHERE u.deleted = 0 {$searchsql}
+   GROUP BY u.id, u.firstname, u.lastname, u.email
+   ORDER BY u.lastname ASC, u.firstname ASC, u.id ASC",
+    $searchparams,
+    $offset,
+    $perpage
+);
+
+$listrows = [];
+foreach ($studentlist as $st) {
+    $url = new moodle_url('/local/grupomakro_core/pages/debug_student_schedule_filters.php', [
+        'userid' => (int)$st->id,
+        'search' => $search,
+        'initdate' => $initdate,
+        'enddate' => $enddate,
+        'page' => $page,
+        'perpage' => $perpage
+    ]);
+    $listrows[] = [
+        'ID' => (int)$st->id,
+        'Nombre' => s(trim($st->firstname . ' ' . $st->lastname)),
+        'Email' => s($st->email),
+        'Cursando (materias)' => (int)$st->inprogress_courses,
+        'Cursando (clases)' => (int)$st->inprogress_classes,
+        'Aprobadas' => (int)$st->approved_courses,
+        'Accion' => '<a href="' . $url->out(false) . '">Diagnosticar</a>',
+    ];
+}
+
+echo '<div class="dbg-card"><strong>Lista de estudiantes</strong><br>';
+echo '<span class="muted">Mostrando ' . count($studentlist) . ' de ' . $totalstudents . ' | pagina ' . ($page + 1) . ' | ' . $perpage . ' por pagina</span>';
+echo '</div>';
+gmk_dbg_print_table(
+    ['ID', 'Nombre', 'Email', 'Cursando (materias)', 'Cursando (clases)', 'Aprobadas', 'Accion'],
+    $listrows
+);
+
+$hasprev = $page > 0;
+$hasnext = ($offset + count($studentlist)) < $totalstudents;
+if ($hasprev || $hasnext) {
+    echo '<div class="dbg-card">';
+    if ($hasprev) {
+        $prevurl = new moodle_url('/local/grupomakro_core/pages/debug_student_schedule_filters.php', [
+            'search' => $search,
             'initdate' => $initdate,
-            'enddate' => $enddate
+            'enddate' => $enddate,
+            'page' => $page - 1,
+            'perpage' => $perpage
         ]);
-        $rows[] = [
-            'ID' => (int)$c->id,
-            'Nombre' => s(trim($c->firstname . ' ' . $c->lastname)),
-            'Email' => s($c->email),
-            'Accion' => '<a href="' . $url->out(false) . '">Diagnosticar</a>',
-        ];
+        echo '<a href="' . $prevurl->out(false) . '" class="btn btn-secondary" style="margin-right:10px;">Anterior</a>';
     }
-    echo '<div class="dbg-card"><strong>Resultados busqueda:</strong></div>';
-    gmk_dbg_print_table(['ID', 'Nombre', 'Email', 'Accion'], $rows);
-
+    if ($hasnext) {
+        $nexturl = new moodle_url('/local/grupomakro_core/pages/debug_student_schedule_filters.php', [
+            'search' => $search,
+            'initdate' => $initdate,
+            'enddate' => $enddate,
+            'page' => $page + 1,
+            'perpage' => $perpage
+        ]);
+        echo '<a href="' . $nexturl->out(false) . '" class="btn btn-secondary">Siguiente</a>';
+    }
     echo '</div>';
-    echo $OUTPUT->footer();
-    exit;
 }
 
 if ($userid <= 0) {
-    echo '<div class="dbg-card"><span class="muted">Ingresa un Student ID o busca un estudiante para iniciar el diagnostico.</span></div>';
+    echo '<div class="dbg-card"><span class="muted">Selecciona un estudiante de la lista para ejecutar el diagnostico completo.</span></div>';
     echo '</div>';
     echo $OUTPUT->footer();
     exit;
@@ -550,4 +628,3 @@ echo '<div class="dbg-card"><strong>JSON tecnico</strong><pre class="dbg-pre">' 
 
 echo '</div>';
 echo $OUTPUT->footer();
-
