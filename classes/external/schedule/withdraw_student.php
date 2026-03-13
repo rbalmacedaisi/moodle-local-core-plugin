@@ -19,6 +19,9 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_mana
  *   2. Unenrols from Moodle course
  *   3. Resets gmk_course_progre to status=COURSE_AVAILABLE (1)
  *   4. Removes any pending pre-registration / queue record
+ *
+ * Handles the case where gmk_class was deleted (orphaned classid) by falling
+ * back to the data stored in gmk_course_progre itself.
  */
 class withdraw_student extends external_api {
 
@@ -41,29 +44,70 @@ class withdraw_student extends external_api {
         self::validate_context($context);
         require_capability('moodle/site:config', $context);
 
-        $class  = $DB->get_record('gmk_class', ['id' => $params['classId']], '*', MUST_EXIST);
-        $userId = (int)$params['userId'];
+        $classId = (int)$params['classId'];
+        $userId  = (int)$params['userId'];
 
-        // 1. Remove from Moodle group.
-        if (!empty($class->groupid) && groups_is_member($class->groupid, $userId)) {
-            groups_remove_member($class->groupid, $userId);
+        // Try to load the class record. If it was deleted, fall back to progre data.
+        $class = $DB->get_record('gmk_class', ['id' => $classId]);
+
+        if ($class) {
+            // ── Normal path: class exists ──────────────────────────────────
+            // 1. Remove from Moodle group.
+            if (!empty($class->groupid) && groups_is_member($class->groupid, $userId)) {
+                groups_remove_member($class->groupid, $userId);
+            }
+
+            // 2. Unenrol from the Moodle course.
+            $enrolplugin    = enrol_get_plugin('manual');
+            $courseInstance = get_manual_enroll($class->corecourseid);
+            if ($enrolplugin && $courseInstance) {
+                $enrolplugin->unenrol_user($courseInstance, $userId);
+            }
+
+            // 3. Reset progress record.
+            \local_grupomakro_progress_manager::unassign_class_from_course_progress($userId, $class);
+
+            // 4. Remove pre-registration / queue entries.
+            $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $classId]);
+            $DB->delete_records('gmk_class_queue',            ['userid' => $userId, 'classid' => $classId]);
+
+            return ['status' => 'ok', 'message' => 'Estudiante retirado correctamente de la clase.'];
         }
 
-        // 2. Unenrol from the Moodle course (manual enrolment plugin).
-        $enrolplugin    = enrol_get_plugin('manual');
-        $courseInstance = get_manual_enroll($class->corecourseid);
-        if ($enrolplugin && $courseInstance) {
-            $enrolplugin->unenrol_user($courseInstance, $userId);
+        // ── Fallback path: class was deleted, use data from progre record ──
+        $progre = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'classid' => $classId]);
+        if (!$progre) {
+            return ['status' => 'error', 'message' => 'No se encontró el registro del estudiante para esta clase.'];
         }
 
-        // 3. Reset progress record → status = COURSE_AVAILABLE, grade = 0, classid = 0.
-        \local_grupomakro_progress_manager::unassign_class_from_course_progress($userId, $class);
+        // 1. Remove from group if still set.
+        if (!empty($progre->groupid) && groups_is_member($progre->groupid, $userId)) {
+            groups_remove_member($progre->groupid, $userId);
+        }
 
-        // 4. Remove any pre-registration or queue entries for this class.
-        $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $class->id]);
-        $DB->delete_records('gmk_class_queue',            ['userid' => $userId, 'classid' => $class->id]);
+        // 2. Unenrol from the Moodle course.
+        if (!empty($progre->courseid)) {
+            $enrolplugin    = enrol_get_plugin('manual');
+            $courseInstance = get_manual_enroll($progre->courseid);
+            if ($enrolplugin && $courseInstance) {
+                $enrolplugin->unenrol_user($courseInstance, $userId);
+            }
+        }
 
-        return ['status' => 'ok', 'message' => 'Estudiante retirado correctamente de la clase.'];
+        // 3. Reset progress record directly (class object not available).
+        $progre->classid       = 0;
+        $progre->groupid       = 0;
+        $progre->progress      = 0;
+        $progre->grade         = 0;
+        $progre->status        = COURSE_AVAILABLE; // 1
+        $progre->timemodified  = time();
+        $DB->update_record('gmk_course_progre', $progre);
+
+        // 4. Remove pre-registration / queue entries.
+        $DB->delete_records('gmk_class_pre_registration', ['userid' => $userId, 'classid' => $classId]);
+        $DB->delete_records('gmk_class_queue',            ['userid' => $userId, 'classid' => $classId]);
+
+        return ['status' => 'ok', 'message' => 'Clase no encontrada (fue eliminada). Registro del estudiante corregido correctamente.'];
     }
 
     public static function execute_returns() {
