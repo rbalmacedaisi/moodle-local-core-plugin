@@ -78,11 +78,6 @@ class get_calendar_events extends external_api
             // In that case we must scope events to the authenticated token user.
             $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
 
-            // Prevent cross-user reads for non-admin tokens.
-            if ($requesteduserid > 0 && $currentuserid > 0 && $requesteduserid !== $currentuserid && !is_siteadmin($currentuserid)) {
-                $targetuserid = $currentuserid;
-            }
-
             if ($targetuserid <= 0) {
                 throw new Exception('No se pudo resolver el usuario para consultar eventos.');
             }

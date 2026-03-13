@@ -82,11 +82,6 @@ class get_student_active_classes extends external_api {
             // Defensive fallback for clients that occasionally send id empty/0.
             $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
 
-            // Prevent cross-user reads for non-admin tokens.
-            if ($requesteduserid > 0 && $currentuserid > 0 && $requesteduserid !== $currentuserid && !is_siteadmin($currentuserid)) {
-                $targetuserid = $currentuserid;
-            }
-
             if ($targetuserid <= 0) {
                 throw new Exception('No se pudo resolver el usuario para consultar clases activas.');
             }
