@@ -467,7 +467,7 @@ window.Vue.component('createclass', {
             return this.classData.type === 0;
         },
         saveClassParameters() {
-            const { name, type, learningPlanId, periodId, courseId, initTime, endTime } = this.classData
+            const { name, type, learningPlanId, periodId, courseId, initTime, endTime, initDate, endDate } = this.classData
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_create_class',
@@ -479,9 +479,11 @@ window.Vue.component('createclass', {
                 instructorId: this.selectedClassTeacher?.id,
                 initTime,
                 endTime,
+                initDate,
+                endDate,
                 classDays: this.classDaysString,
                 classroomId: this.selectedClassRoom?.value,
-                classroomCapacity: this.selectedClassRoom?.capacity
+                classroomCapacity: this.selectedClassRoom?.capacity || 40
             }
         },
         validTimeRange() {

@@ -104,8 +104,22 @@ foreach($activeLearningPlans as $activeLearningPlanKey=>$activeLearningPlan){
 $learningPlanPeriods = json_decode(get_learning_plan_periods_external::get_learning_plan_periods($class->learningplanid)['periods']);
 $classPeriods = ['selected'=>$class->periodid];
 $classPeriods['options'] =[];
+$selectedPeriodExists = false;
 foreach($learningPlanPeriods as $period){
+    if ((int)$period->id === (int)$class->periodid) {
+        $selectedPeriodExists = true;
+    }
     $classPeriods['options'][]= ['value'=>$period->id, 'label'=>$period->name];
+}
+if (!$selectedPeriodExists && !empty($class->periodid)) {
+    $fallbackPeriodLabel = $DB->get_field('local_learning_periods', 'name', ['id' => $class->periodid]);
+    if (empty($fallbackPeriodLabel)) {
+        $fallbackPeriodLabel = $DB->get_field('gmk_academic_periods', 'name', ['id' => $class->periodid]);
+    }
+    if (empty($fallbackPeriodLabel)) {
+        $fallbackPeriodLabel = 'Periodo #' . $class->periodid;
+    }
+    array_unshift($classPeriods['options'], ['value' => (int)$class->periodid, 'label' => $fallbackPeriodLabel]);
 }
 //--------------------------
 
