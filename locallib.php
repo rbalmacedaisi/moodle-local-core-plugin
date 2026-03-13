@@ -2037,11 +2037,22 @@ function create_class_activities($class, $updating = false)
     }
 
     if ($updating) {
-        //Delete Big Blue Button Sessions
-        foreach (explode(",", $class->bbbmoduleids) as $BBBModuleId) {
+        //Delete Big Blue Button Sessions.
+        // Use both class field and relation table to avoid stale leftovers.
+        $bbbModulesToDelete = [];
+        foreach (explode(",", (string)$class->bbbmoduleids) as $BBBModuleId) {
             if (empty($BBBModuleId)) {
                 continue;
             }
+            $bbbModulesToDelete[(int)$BBBModuleId] = (int)$BBBModuleId;
+        }
+        $relatedBBBModules = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'bbbmoduleid');
+        foreach ($relatedBBBModules as $relatedBBBModule) {
+            if (!empty($relatedBBBModule->bbbmoduleid)) {
+                $bbbModulesToDelete[(int)$relatedBBBModule->bbbmoduleid] = (int)$relatedBBBModule->bbbmoduleid;
+            }
+        }
+        foreach ($bbbModulesToDelete as $BBBModuleId) {
             try {
                 course_delete_module($BBBModuleId);
             } catch (Exception $e) {
@@ -2055,9 +2066,24 @@ function create_class_activities($class, $updating = false)
         $attendanceRecord = $DB->get_record('attendance', array('id' => $attendanceCourseModule->instance), '*', MUST_EXIST);
         $attendanceStructure = new \mod_attendance_structure($attendanceRecord, $attendanceCourseModule, $class->course);
         gmk_ensure_cmid_in_section_sequence((int)$class->coursesectionid, (int)$attendanceCourseModule->id);
-        $attendanceSessionIdsToBeDeleted = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'attendancesessionid');
-        if (!empty(array_keys($attendanceSessionIdsToBeDeleted))) {
-            $attendanceStructure->delete_sessions(array_keys($attendanceSessionIdsToBeDeleted));
+        $attendanceSessionIdsToBeDeleted = [];
+        $sessionIdsFromRelations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $class->id], '', 'attendancesessionid');
+        foreach ($sessionIdsFromRelations as $rel) {
+            if (!empty($rel->attendancesessionid)) {
+                $attendanceSessionIdsToBeDeleted[(int)$rel->attendancesessionid] = (int)$rel->attendancesessionid;
+            }
+        }
+        // Defensive cleanup: relation table may be incomplete in legacy rows.
+        $fallbackSessions = $DB->get_records('attendance_sessions', [
+            'attendanceid' => (int)$attendanceRecord->id,
+            'groupid' => (int)$class->groupid
+        ], '', 'id');
+        foreach ($fallbackSessions as $fallbackSession) {
+            $attendanceSessionIdsToBeDeleted[(int)$fallbackSession->id] = (int)$fallbackSession->id;
+        }
+
+        if (!empty($attendanceSessionIdsToBeDeleted)) {
+            $attendanceStructure->delete_sessions(array_values($attendanceSessionIdsToBeDeleted));
         }
 
         //Delete attendance - BBB sessions relation
@@ -2802,6 +2828,132 @@ function get_class_course_info($coreCourseId)
     return $course;
 }
 
+/**
+ * Convert classdays bitmask (1/0/...) to canonical day labels for gmk_class_schedules.
+ *
+ * @param string $classdays
+ * @return array Clean day key => day label
+ */
+function gmk_get_enabled_schedule_days_from_bitmask($classdays)
+{
+    $dayLabels = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+    $parts = explode('/', (string)$classdays);
+    if (count($parts) < 7) {
+        $parts = array_pad($parts, 7, '0');
+    }
+
+    $enabled = [];
+    foreach ($dayLabels as $idx => $label) {
+        if ((string)($parts[$idx] ?? '0') === '1') {
+            $enabled[cleanString($label)] = $label;
+        }
+    }
+    return $enabled;
+}
+
+/**
+ * Keep gmk_class_schedules aligned after class edits.
+ * If day/time/date range changed, assigned_dates is cleared so activity generation
+ * re-derives dates from classdays + date range.
+ *
+ * @param stdClass $class
+ * @param stdClass|null $oldClass
+ * @return void
+ */
+function gmk_sync_class_schedules_for_class_update($class, $oldClass = null)
+{
+    global $DB, $USER;
+
+    $scheduleRecords = $DB->get_records('gmk_class_schedules', ['classid' => $class->id], 'id ASC');
+    if (empty($scheduleRecords)) {
+        return;
+    }
+
+    $enabledDays = gmk_get_enabled_schedule_days_from_bitmask((string)$class->classdays);
+    $dayChanged = !$oldClass || (string)$class->classdays !== (string)$oldClass->classdays;
+    $timeChanged = !$oldClass
+        || (string)$class->inittime !== (string)$oldClass->inittime
+        || (string)$class->endtime !== (string)$oldClass->endtime;
+    $dateChanged = !$oldClass
+        || (int)$class->initdate !== (int)$oldClass->initdate
+        || (int)$class->enddate !== (int)$oldClass->enddate;
+    $clearAssignedDates = $dayChanged || $timeChanged || $dateChanged;
+
+    $daySeen = [];
+    $updated = 0;
+    $deleted = 0;
+    $inserted = 0;
+    $now = time();
+
+    foreach ($scheduleRecords as $record) {
+        $dayKey = cleanString((string)$record->day);
+
+        if (!isset($enabledDays[$dayKey])) {
+            $DB->delete_records('gmk_class_schedules', ['id' => $record->id]);
+            $deleted++;
+            continue;
+        }
+
+        $daySeen[$dayKey] = true;
+        $dirty = false;
+
+        $canonicalDay = $enabledDays[$dayKey];
+        if ((string)$record->day !== (string)$canonicalDay) {
+            $record->day = $canonicalDay;
+            $dirty = true;
+        }
+        if ((string)$record->start_time !== (string)$class->inittime) {
+            $record->start_time = $class->inittime;
+            $dirty = true;
+        }
+        if ((string)$record->end_time !== (string)$class->endtime) {
+            $record->end_time = $class->endtime;
+            $dirty = true;
+        }
+        if ($clearAssignedDates && !empty($record->assigned_dates)) {
+            $record->assigned_dates = null;
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $record->timemodified = $now;
+            if (!empty($USER->id)) {
+                $record->usermodified = (int)$USER->id;
+            }
+            $DB->update_record('gmk_class_schedules', $record);
+            $updated++;
+        }
+    }
+
+    foreach ($enabledDays as $dayKey => $dayLabel) {
+        if (!empty($daySeen[$dayKey])) {
+            continue;
+        }
+
+        $newSchedule = new stdClass();
+        $newSchedule->classid = $class->id;
+        $newSchedule->day = $dayLabel;
+        $newSchedule->start_time = $class->inittime;
+        $newSchedule->end_time = $class->endtime;
+        $newSchedule->classroomid = !empty($class->classroomid) ? (int)$class->classroomid : null;
+        $newSchedule->excluded_dates = null;
+        $newSchedule->assigned_dates = null;
+        $newSchedule->usermodified = !empty($USER->id) ? (int)$USER->id : 0;
+        $newSchedule->timecreated = $now;
+        $newSchedule->timemodified = $now;
+        $DB->insert_record('gmk_class_schedules', $newSchedule);
+        $inserted++;
+    }
+
+    if ($updated || $deleted || $inserted) {
+        gmk_log(
+            "INFO: class {$class->id} schedules synced after edit "
+            . "(updated={$updated}, inserted={$inserted}, deleted={$deleted}, clearAssignedDates="
+            . ($clearAssignedDates ? '1' : '0') . ")"
+        );
+    }
+}
+
 function update_class($classParams)
 {
     global $DB, $USER;
@@ -2847,6 +2999,7 @@ function update_class($classParams)
     $scheduleChanged = (
         $class->type != $oldClass->type ||
         $class->instructorid != $oldClass->instructorid ||
+        $class->periodid != $oldClass->periodid ||
         $class->inittime != $oldClass->inittime ||
         $class->endtime != $oldClass->endtime ||
         $class->initdate != $oldClass->initdate ||
@@ -2857,6 +3010,9 @@ function update_class($classParams)
     // Always create if it's a new class (not covered here) or if critical params changed.
     // If only name changed, we SKIP the heavy activity rebuild.
     if ($scheduleChanged) {
+        // Keep schedule rows in sync with editclass before regenerating Moodle sessions.
+        gmk_sync_class_schedules_for_class_update($class, $oldClass);
+
         $task = new \local_grupomakro_core\task\update_class_activities();
         $task->set_custom_data(['classId' => $class->id, 'updating' => true, 'userId' => $USER->id]);
         \core\task\manager::queue_adhoc_task($task);
