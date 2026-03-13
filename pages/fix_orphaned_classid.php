@@ -13,6 +13,16 @@ require_once($config_path);
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
+if (!function_exists('get_manual_enroll')) {
+    function get_manual_enroll($courseid) {
+        $instances = enrol_get_instances($courseid, true);
+        foreach ($instances as $instance) {
+            if ($instance->enrol == 'manual') return $instance;
+        }
+        return false;
+    }
+}
+
 $PAGE->set_url('/local/grupomakro_core/pages/fix_orphaned_classid.php');
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Fix: classid huérfano en gmk_course_progre');
@@ -408,15 +418,5 @@ echo '<script>
     };
 })();
 </script>';
-
-if (!function_exists('get_manual_enroll')) {
-    function get_manual_enroll($courseid) {
-        $instances = enrol_get_instances($courseid, true);
-        foreach ($instances as $instance) {
-            if ($instance->enrol == 'manual') return $instance;
-        }
-        return false;
-    }
-}
 
 echo $OUTPUT->footer();
