@@ -61,6 +61,7 @@ class get_calendar_events extends external_api
      */
     public static function execute($userId = null, $initDate = null, $endDate = null)
     {
+        global $USER;
 
         // Parameter validation.
         $params = self::validate_parameters(self::execute_parameters(), [
@@ -70,7 +71,23 @@ class get_calendar_events extends external_api
         ]);
 
         try {
-            $eventDaysFiltered = get_class_events($params['userId'], $params['initDate'], $params['endDate']);
+            $requesteduserid = !empty($params['userId']) ? (int)$params['userId'] : 0;
+            $currentuserid = !empty($USER->id) ? (int)$USER->id : 0;
+
+            // Defensive fallback for clients that occasionally send userId empty/0.
+            // In that case we must scope events to the authenticated token user.
+            $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
+
+            // Prevent cross-user reads for non-admin tokens.
+            if ($requesteduserid > 0 && $currentuserid > 0 && $requesteduserid !== $currentuserid && !is_siteadmin($currentuserid)) {
+                $targetuserid = $currentuserid;
+            }
+
+            if ($targetuserid <= 0) {
+                throw new Exception('No se pudo resolver el usuario para consultar eventos.');
+            }
+
+            $eventDaysFiltered = get_class_events($targetuserid, $params['initDate'], $params['endDate']);
 
             return ['events' => json_encode(array_values($eventDaysFiltered))];
         } catch (Exception $e) {

@@ -76,7 +76,22 @@ class get_student_active_classes extends external_api {
         ]);
         
         try{
-            $activeClasses = student_get_active_classes($params['id']);
+            $requesteduserid = !empty($params['id']) ? (int)$params['id'] : 0;
+            $currentuserid = !empty($USER->id) ? (int)$USER->id : 0;
+
+            // Defensive fallback for clients that occasionally send id empty/0.
+            $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
+
+            // Prevent cross-user reads for non-admin tokens.
+            if ($requesteduserid > 0 && $currentuserid > 0 && $requesteduserid !== $currentuserid && !is_siteadmin($currentuserid)) {
+                $targetuserid = $currentuserid;
+            }
+
+            if ($targetuserid <= 0) {
+                throw new Exception('No se pudo resolver el usuario para consultar clases activas.');
+            }
+
+            $activeClasses = student_get_active_classes($targetuserid);
             $activeClasses['classes'] = array_values(array_map(function ($course){
                 $course['schedules'] = array_values($course['schedules']);
                 return $course;
