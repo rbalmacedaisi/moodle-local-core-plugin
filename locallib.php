@@ -1186,6 +1186,7 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
         'mergedRoots' => 0,
         'deletedCourseItems' => 0,
         'relinkedCourseItems' => 0,
+        'deletedMalformedCourseItems' => 0,
         'createdCourseItems' => 0,
         'fixedOrphanCategoryItems' => 0,
         'dedupedCategoryItems' => 0,
@@ -1441,6 +1442,41 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
                 $DB->set_field('grade_items', 'categoryid', $canonicalrootid, ['id' => (int)$it->id]);
                 $stats['relinkedCourseItems']++;
             }
+        }
+    }
+
+    // Remove malformed "course total" items where iteminstance != courseid.
+    // These legacy rows are the main reason checklist still reports:
+    // - course_items_wrong_iteminstance
+    // - duplicate_course_items
+    $canonicalcourseitem = $DB->get_record('grade_items', [
+        'courseid' => $courseid,
+        'itemtype' => 'course',
+        'iteminstance' => $courseid
+    ], 'id', IGNORE_MISSING);
+    $keepcourseitemid = $canonicalcourseitem ? (int)$canonicalcourseitem->id : 0;
+
+    if ($keepcourseitemid > 0) {
+        $malformedcourseitems = $DB->get_records_select(
+            'grade_items',
+            'courseid = :courseid AND itemtype = :itemtype AND iteminstance <> :iteminstance',
+            [
+                'courseid' => $courseid,
+                'itemtype' => 'course',
+                'iteminstance' => $courseid
+            ],
+            'id ASC',
+            'id,iteminstance,categoryid'
+        );
+
+        foreach ($malformedcourseitems as $mci) {
+            $mid = (int)$mci->id;
+            if ($mid <= 0 || $mid === $keepcourseitemid) {
+                continue;
+            }
+            $stats['mergedGradeRows'] += gmk_merge_grade_item_grades($mid, $keepcourseitemid);
+            $DB->delete_records('grade_items', ['id' => $mid]);
+            $stats['deletedMalformedCourseItems']++;
         }
     }
 
