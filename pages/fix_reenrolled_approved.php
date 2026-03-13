@@ -1,10 +1,7 @@
 <?php
-// Detecta y corrige estudiantes con status=2 en gmk_course_progre para cursos que
-// ya aprobaron. Busca la nota en 4 fuentes:
-//   1) gmk_course_progre.grade >= 70 (sync_progress guarda exactamente 70, no > 71)
-//   2) Total del curso en Moodle (grade_items.itemtype='course') >= 70
-//   3) "Nota Final Integrada" en grade_items >= 70
-//   4) Total de categoría de clase (gmk_class.gradecategoryid) >= 70
+// Detecta estudiantes con status=2 en gmk_course_progre que posiblemente ya aprobaron
+// la materia. Muestra checkboxes para que el admin seleccione cuáles corregir.
+// La nota a guardar se toma de Moodle (real), NO del valor binario 70/0 de sync_progress.
 $config_path = __DIR__ . '/../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../../config.php';
@@ -27,6 +24,7 @@ echo '<style>
   th, td { border: 1px solid #ccc; padding: 6px 10px; }
   th { background: #1a73e8; color: white; }
   tr:nth-child(even) { background: #f9f9f9; }
+  tr.selected { background: #e8f5e9 !important; }
   .ok   { color: green; font-weight: bold; }
   .err  { color: red; font-weight: bold; }
   .warn { color: orange; font-weight: bold; }
@@ -43,22 +41,16 @@ echo '<style>
   .btn-danger { background:#dc3545; }
   .btn-danger:hover { background:#b02a37; }
   .source-tag { font-size:11px; background:#555; color:white; padding:1px 5px; border-radius:3px; }
+  .cb { width: 18px; height: 18px; cursor: pointer; }
 </style>';
 
 $PASSING = 70.0;
 
-// ── Obtener la mejor nota disponible en Moodle para un estudiante/curso ───
+// ── Obtener la nota REAL de Moodle (no el 70/0 de sync_progress) ──────────
+// Prioridad: course total > NFI > class category
 // Retorna [grade => float|null, source => string]
-function get_best_grade_with_source($DB, $userid, $courseid, $learningplanid, $passing) {
-    // Fuente 1: gmk_course_progre.grade (sync_progress guarda 70.0 si aprobó)
-    $stored = $DB->get_field('gmk_course_progre', 'grade', [
-        'userid' => $userid, 'courseid' => $courseid, 'learningplanid' => $learningplanid
-    ]);
-    if ($stored !== false && $stored !== null && (float)$stored >= $passing) {
-        return ['grade' => round((float)$stored, 2), 'source' => 'gmk_course_progre.grade'];
-    }
-
-    // Fuente 2: Total del curso en Moodle (itemtype='course') — igual que gmk_get_user_passed_course_map_fast
+function get_real_moodle_grade($DB, $userid, $courseid, $learningplanid) {
+    // 1) Total del curso en Moodle (grade_items.itemtype='course')
     $courseTotal = $DB->get_field_sql(
         "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
            FROM {grade_items}  gi
@@ -66,26 +58,25 @@ function get_best_grade_with_source($DB, $userid, $courseid, $learningplanid, $p
           WHERE gi.itemtype = 'course' AND gi.courseid = :cid",
         ['uid' => $userid, 'cid' => $courseid]
     );
-    if ($courseTotal !== false && $courseTotal !== null && (float)$courseTotal >= $passing) {
+    if ($courseTotal !== false && $courseTotal !== null && (float)$courseTotal > 0) {
         return ['grade' => round((float)$courseTotal, 2), 'source' => 'Moodle course total'];
     }
 
-    // Fuente 3: Nota Final Integrada
+    // 2) Nota Final Integrada
     $nfi = $DB->get_field_sql(
         "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
            FROM {grade_items}  gi
            JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = :uid
           WHERE gi.courseid = :cid
-            AND (gi.itemname LIKE :n1 OR gi.itemname LIKE :n2)
-            AND COALESCE(gg.finalgrade, gg.rawgrade) >= :pass",
+            AND (gi.itemname LIKE :n1 OR gi.itemname LIKE :n2)",
         ['uid' => $userid, 'cid' => $courseid,
-         'n1' => '%Nota Final Integrada%', 'n2' => '%Final Integrada%', 'pass' => $passing]
+         'n1' => '%Nota Final Integrada%', 'n2' => '%Final Integrada%']
     );
-    if ($nfi !== false && $nfi !== null) {
+    if ($nfi !== false && $nfi !== null && (float)$nfi > 0) {
         return ['grade' => round((float)$nfi, 2), 'source' => 'Nota Final Integrada'];
     }
 
-    // Fuente 4: Categoría de clase (gradecategoryid)
+    // 3) Categoría de clase
     $cat = $DB->get_field_sql(
         "SELECT MAX(COALESCE(gg.finalgrade, gg.rawgrade))
            FROM {gmk_class}    cls
@@ -95,18 +86,19 @@ function get_best_grade_with_source($DB, $userid, $courseid, $learningplanid, $p
            JOIN {grade_grades} gg  ON gg.itemid = gi.id AND gg.userid = :uid
           WHERE cls.corecourseid   = :cid
             AND cls.learningplanid = :lpid
-            AND cls.gradecategoryid > 0
-            AND COALESCE(gg.finalgrade, gg.rawgrade) >= :pass",
-        ['uid' => $userid, 'cid' => $courseid, 'lpid' => $learningplanid, 'pass' => $passing]
+            AND cls.gradecategoryid > 0",
+        ['uid' => $userid, 'cid' => $courseid, 'lpid' => $learningplanid]
     );
-    if ($cat !== false && $cat !== null) {
+    if ($cat !== false && $cat !== null && (float)$cat > 0) {
         return ['grade' => round((float)$cat, 2), 'source' => 'class category'];
     }
 
-    return ['grade' => null, 'source' => 'ninguna'];
+    return ['grade' => null, 'source' => 'no encontrada'];
 }
 
-// ── Consulta principal: todos los status=2 con alguna señal de aprobación ─
+// ── Candidatos: status=2 con señal de aprobación ──────────────────────────
+// La señal viene de gmk_course_progre.grade >= 70 (sync lo pone en 70 si pasó)
+// O de grade_items itemtype='course' >= 70 en Moodle
 $candidatesSql = "
     SELECT DISTINCT
            gcp.id          AS progre_id,
@@ -124,10 +116,8 @@ $candidatesSql = "
       JOIN {course} c ON c.id = gcp.courseid
      WHERE gcp.status = 2
        AND (
-            -- Señal 1: sync_progress ya guardó grade >= 70 pero status no fue actualizado
             gcp.grade >= :stored_pass
             OR
-            -- Señal 2: total del curso en Moodle >= 70
             EXISTS (
                 SELECT 1
                   FROM {grade_items}  gi
@@ -137,7 +127,6 @@ $candidatesSql = "
                    AND COALESCE(gg.finalgrade, gg.rawgrade) >= :course_pass
             )
             OR
-            -- Señal 3: Nota Final Integrada
             EXISTS (
                 SELECT 1
                   FROM {grade_items}  gi
@@ -147,7 +136,6 @@ $candidatesSql = "
                    AND COALESCE(gg.finalgrade, gg.rawgrade) >= :nfi_pass
             )
             OR
-            -- Señal 4: categoría de clase
             EXISTS (
                 SELECT 1
                   FROM {gmk_class}    cls
@@ -163,7 +151,6 @@ $candidatesSql = "
        )
      ORDER BY u.lastname, u.firstname, c.fullname
 ";
-
 $candidates = $DB->get_records_sql($candidatesSql, [
     'stored_pass' => $PASSING,
     'course_pass' => $PASSING,
@@ -173,134 +160,170 @@ $candidates = $DB->get_records_sql($candidatesSql, [
     'cat_pass'    => $PASSING,
 ]);
 
-// ── ACCIÓN: aplicar corrección ────────────────────────────────────────────
+// ── ACCIÓN: corregir los seleccionados ────────────────────────────────────
 if ($action === 'fix') {
-    if (empty($candidates)) {
-        echo "<div class='box ok'>No hay registros que corregir.</div>";
+    $selectedIds = optional_param_array('ids', [], PARAM_INT);
+    $selectedIds = array_filter($selectedIds, fn($id) => $id > 0);
+
+    if (empty($selectedIds)) {
+        echo "<div class='box warn'>No seleccionaste ningún registro.</div>";
         echo "<p><a href='?' class='btn'>← Volver</a></p>";
         echo $OUTPUT->footer();
         exit;
+    }
+
+    // Construir mapa id → row desde los candidatos
+    $candidateMap = [];
+    foreach ($candidates as $row) {
+        $candidateMap[(int)$row->progre_id] = $row;
     }
 
     $fixed = 0;
     $errors = 0;
     $log = [];
 
-    foreach ($candidates as $row) {
-        $result = get_best_grade_with_source($DB, $row->userid, $row->courseid, $row->learningplanid, $PASSING);
+    foreach ($selectedIds as $id) {
+        if (!isset($candidateMap[$id])) {
+            $log[] = "<span class='err'>✘ id=$id no encontrado en candidatos</span>";
+            $errors++;
+            continue;
+        }
+        $row    = $candidateMap[$id];
+        $result = get_real_moodle_grade($DB, $row->userid, $row->courseid, $row->learningplanid);
         $grade  = $result['grade'];
         $source = $result['source'];
+
+        // Si Moodle no tiene nota real, usar el stored_grade (70.0 de sync)
+        if ($grade === null && (float)$row->stored_grade >= $PASSING) {
+            $grade  = (float)$row->stored_grade;
+            $source = 'gmk_course_progre.grade (sync)';
+        }
 
         if ($grade === null) {
             $errors++;
             $log[] = "<span class='err'>✘ Sin nota para {$row->firstname} {$row->lastname} — {$row->coursename}</span>";
             continue;
         }
+
         try {
             $DB->execute(
                 "UPDATE {gmk_course_progre}
                     SET status = 4, grade = :grade, progress = 100, timemodified = :now
                   WHERE id = :id",
-                ['grade' => $grade, 'now' => time(), 'id' => $row->progre_id]
+                ['grade' => $grade, 'now' => time(), 'id' => $id]
             );
             $fixed++;
             $log[] = "<span class='ok'>✔ {$row->firstname} {$row->lastname} — {$row->coursename} → status=4, grade={$grade} (fuente: {$source})</span>";
         } catch (Exception $e) {
             $errors++;
-            $log[] = "<span class='err'>✘ Error id={$row->progre_id}: " . $e->getMessage() . "</span>";
+            $log[] = "<span class='err'>✘ Error id={$id}: " . $e->getMessage() . "</span>";
         }
     }
 
     echo "<div class='section'>Resultado de la corrección</div>";
     echo "<div class='box " . ($errors === 0 ? 'ok' : 'warn') . "'>";
-    echo "<b>$fixed corregidos</b>" . ($errors > 0 ? ", <b class='err'>$errors sin nota</b>" : "") . "</div>";
+    echo "<b>$fixed corregidos</b>" . ($errors > 0 ? ", <b class='err'>$errors errores</b>" : "") . "</div>";
     echo "<div style='font-size:13px;line-height:1.9;'>" . implode('<br>', $log) . "</div>";
     echo "<p style='margin-top:16px;'><a href='?' class='btn'>← Volver al análisis</a></p>";
     echo $OUTPUT->footer();
     exit;
 }
 
-// ── VISTA: análisis ───────────────────────────────────────────────────────
+// ── VISTA: tabla con checkboxes ───────────────────────────────────────────
 echo "<div class='box info'><b>¿Qué detecta esta página?</b><br>
-Registros en <code>gmk_course_progre</code> con <code>status=2</code> donde hay evidencia de aprobación
-en al menos una de estas 4 fuentes:
-<ol style='margin:6px 0 0 18px;'>
-<li><b>gmk_course_progre.grade ≥ 70</b> — sync_progress guardó 70.0 pero no actualizó el status (threshold ≥ 71)</li>
-<li><b>Total del curso en Moodle</b> (grade_items.itemtype='course') ≥ 70</li>
-<li><b>Nota Final Integrada</b> en grade_grades ≥ 70</li>
-<li><b>Categoría de clase</b> (gmk_class.gradecategoryid) en grade_grades ≥ 70</li>
-</ol></div>";
+Registros <code>status=2</code> en <code>gmk_course_progre</code> donde hay señal de aprobación previa.<br>
+<b>Revisa cada fila</b> y marca solo las que realmente deben corregirse (desactiva los falsos positivos).
+<br><br>
+⚠ La nota a guardar es la <b>nota real de Moodle</b> (course total, NFI o categoría), NO el valor binario 70 de sync_progress.</div>";
 
 $total = count($candidates);
 
 if ($total === 0) {
     echo "<div class='box ok'><b>✔ No se encontraron registros con esta anomalía.</b></div>";
-
-    // Diagnóstico adicional: mostrar cuántos status=2 existen en total
     $totalStatus2 = $DB->count_records('gmk_course_progre', ['status' => 2]);
-    echo "<div class='box warn'>Hay <b>$totalStatus2 registros con status=2</b> en total. Si esperas encontrar casos, verifica que las notas están en Moodle o que sync_progress se ejecutó recientemente.</div>";
+    echo "<div class='box warn'>Hay <b>$totalStatus2 registros con status=2</b> en total. Si esperas encontrar casos, verifica que las notas estén en Moodle o que sync_progress se haya ejecutado.</div>";
     echo $OUTPUT->footer();
     exit;
 }
 
-echo "<div class='box warn'>⚠ Se encontraron <b>$total registros</b> con status=2 y evidencia de aprobación. Se corregirán a status=4 (Aprobada).</div>";
+echo "<div class='box warn'>⚠ Se encontraron <b>$total candidatos</b>. <b>Selecciona solo los que deben corregirse</b> y presiona el botón.</div>";
 
-echo "<div class='section'>Registros a corregir ($total)</div>";
+echo '<form method="post" action="?action=fix">';
+echo "<div class='section'>Candidatos a revisar ($total)</div>";
 echo "<table>
 <tr>
+  <th><input type='checkbox' id='chk-all' class='cb' title='Marcar/desmarcar todos'></th>
   <th>#</th><th>Estudiante</th><th>Materia</th>
   <th>periodid</th><th>classid</th>
-  <th>grade en BD</th><th>Mejor nota encontrada</th><th>Fuente</th>
+  <th>grade en BD<br><small>(sync binario)</small></th>
+  <th>Nota real en Moodle</th><th>Fuente</th>
 </tr>";
 
 $i = 0;
-$fixable = 0;
 foreach ($candidates as $row) {
     $i++;
-    $result = get_best_grade_with_source($DB, $row->userid, $row->courseid, $row->learningplanid, $PASSING);
+    $result = get_real_moodle_grade($DB, $row->userid, $row->courseid, $row->learningplanid);
     $grade  = $result['grade'];
     $source = $result['source'];
 
+    // Nota que se usará al corregir (Moodle real, o stored como fallback)
     if ($grade !== null) {
-        $fixable++;
-        $gradeHtml  = "<span class='ok'>$grade</span>";
-        $sourceHtml = "<span class='source-tag'>{$source}</span>";
-        $fixHtml    = "→ status=<b>4</b>, grade=<b>$grade</b>, progress=<b>100</b>";
+        $correctionGrade = $grade;
+        $correctionSource = $source;
+    } elseif ((float)$row->stored_grade >= $PASSING) {
+        $correctionGrade = (float)$row->stored_grade;
+        $correctionSource = 'gmk_course_progre.grade (sync)';
     } else {
-        $gradeHtml  = "<span class='err'>no encontrada</span>";
-        $sourceHtml = '';
-        $fixHtml    = "<span class='err'>requiere revisión manual</span>";
+        $correctionGrade = null;
+        $correctionSource = 'sin nota';
     }
 
-    echo "<tr>
+    $gradeHtml = $correctionGrade !== null
+        ? "<span class='ok'>$correctionGrade</span>"
+        : "<span class='err'>no encontrada</span>";
+    $sourceHtml = "<span class='source-tag'>" . htmlspecialchars($correctionSource) . "</span>";
+    $canFix = $correctionGrade !== null;
+
+    echo "<tr id='row-{$row->progre_id}'>
+        <td><input type='checkbox' name='ids[]' value='{$row->progre_id}' class='cb row-cb' "
+            . ($canFix ? '' : 'disabled') . "></td>
         <td>$i</td>
         <td>{$row->firstname} {$row->lastname}<br><small style='color:#666'>uid={$row->userid}</small></td>
         <td>{$row->coursename}<br><small style='color:#666'>cid={$row->courseid}</small></td>
         <td>{$row->periodid}</td>
         <td>{$row->current_classid}</td>
-        <td class='" . ((float)$row->stored_grade >= $PASSING ? 'ok' : 'err') . "'>{$row->stored_grade}</td>
+        <td class='" . ((float)$row->stored_grade >= $PASSING ? 'warn' : 'err') . "'>{$row->stored_grade}</td>
         <td>$gradeHtml</td>
-        <td>$sourceHtml $fixHtml</td>
+        <td>$sourceHtml</td>
     </tr>";
 }
 echo "</table>";
 
-$unfixable = $total - $fixable;
-if ($unfixable > 0) {
-    echo "<div class='box warn'>⚠ <b>$unfixable registros</b> no tienen nota accesible y no se corregirán automáticamente.</div>";
-}
+echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
+    <button type='submit' class='btn-danger btn'
+        onclick=\"var n=document.querySelectorAll('.row-cb:checked').length;
+                 if(n===0){alert('Selecciona al menos un registro.');return false;}
+                 return confirm('¿Corregir '+n+' registro(s) seleccionado(s)? status → 4, grade → nota real, progress → 100');\">
+        🔧 Corregir seleccionados
+    </button>
+    <a href='?' class='btn' style='background:#6c757d'>↺ Reanalizar</a>
+</div>
+</form>";
 
-if ($fixable > 0) {
-    echo "<form method='get' style='margin-top:16px;'>
-        <input type='hidden' name='action' value='fix'>
-        <button type='submit' class='btn-danger btn'
-            onclick=\"return confirm('¿Corregir $fixable registros? status → 4, grade → valor real, progress → 100')\">
-            🔧 Corregir $fixable registros ahora
-        </button>
-        &nbsp; <a href='?' class='btn' style='background:#6c757d'>↺ Reanalizar</a>
-    </form>";
-} else {
-    echo "<div class='box err'>No hay registros corregibles automáticamente.</div>";
-}
+echo '<script>
+document.getElementById("chk-all").addEventListener("change", function() {
+    document.querySelectorAll(".row-cb:not(:disabled)").forEach(cb => cb.checked = this.checked);
+    document.querySelectorAll("tr[id^=row-]").forEach(tr => {
+        var cb = tr.querySelector(".row-cb");
+        if (cb && !cb.disabled) tr.classList.toggle("selected", this.checked);
+    });
+});
+document.querySelectorAll(".row-cb").forEach(cb => {
+    cb.addEventListener("change", function() {
+        var tr = this.closest("tr");
+        if (tr) tr.classList.toggle("selected", this.checked);
+    });
+});
+</script>';
 
 echo $OUTPUT->footer();
