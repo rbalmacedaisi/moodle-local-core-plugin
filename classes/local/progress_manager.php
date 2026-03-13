@@ -159,7 +159,7 @@ class local_grupomakro_progress_manager
         }
     }
 
-    static function update_course_progress($courseId, $userId, $learningPlanId = null, $logFile = null)
+    static function update_course_progress($courseId, $userId, $learningPlanId = null, $logFile = null, $syncMoodleCompletion = true)
     {
         global $DB, $PAGE;
         
@@ -250,8 +250,10 @@ class local_grupomakro_progress_manager
                 }
             }
             
-            // 4. Force Moodle completion if any of the plan-course statuses is COMPLETED.
-            if ($anyCompleted) {
+            // 4. Optionally force Moodle completion if any of the plan-course statuses is COMPLETED.
+            // In some flows (e.g. grade report inline save), forcing completion can trigger
+            // expensive side effects (messages/observers) in the same request.
+            if ($syncMoodleCompletion && $anyCompleted) {
                 self::force_moodle_course_completion($courseId, $userId, $logFile);
             }
 

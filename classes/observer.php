@@ -342,7 +342,9 @@ class local_grupomakro_core_observer
         $courseId = $eventData['courseid'];
         $userId = $eventData['relateduserid'];
 
-        local_grupomakro_progress_manager::update_course_progress($courseId, $userId);
+        // Keep local progress in sync, but avoid forcing Moodle completion in the same
+        // grade-save request to reduce observer/mail side effects and edit conflicts.
+        local_grupomakro_progress_manager::update_course_progress($courseId, $userId, null, null, false);
     }
 
     /**
