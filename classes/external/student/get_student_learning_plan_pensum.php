@@ -109,7 +109,8 @@ class get_student_learning_plan_pensum extends external_api
         try {
             $userPensumCourses = $DB->get_records_sql(
                 "
-                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid
+                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid,
+                       gcp.grade as progressgrade, gcp.classid as progressclassid, gcp.groupid as progressgroupid
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
                 WHERE lpc.learningplanid = :lpid
@@ -124,10 +125,13 @@ class get_student_learning_plan_pensum extends external_api
             $activeClassCountByCoreCourse = [];
             $courseNamesById = [];
             $gradesByCourseId = [];
+            $classGradeByClassId = [];
+            $classGradeByGroupId = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
                 $corecourseids = [];
+                $progressclassids = [];
                 foreach ($userPensumCourses as $pcourse) {
                     if (!empty($pcourse->learningcourseid)) {
                         $learningcourseids[] = (int)$pcourse->learningcourseid;
@@ -135,10 +139,14 @@ class get_student_learning_plan_pensum extends external_api
                     if (!empty($pcourse->courseid)) {
                         $corecourseids[] = (int)$pcourse->courseid;
                     }
+                    if (!empty($pcourse->progressclassid)) {
+                        $progressclassids[] = (int)$pcourse->progressclassid;
+                    }
                 }
 
                 $learningcourseids = array_values(array_unique($learningcourseids));
                 $corecourseids = array_values(array_unique($corecourseids));
+                $progressclassids = array_values(array_unique($progressclassids));
 
                 // Bulk fetch course names.
                 if (!empty($corecourseids)) {
@@ -148,25 +156,118 @@ class get_student_learning_plan_pensum extends external_api
                         $courseNamesById[(int)$courserecord->id] = $courserecord->fullname;
                     }
 
-                    // Bulk fetch final course grade items for the student.
-                    $gradeSql = "SELECT gi.courseid, gg.finalgrade, gg.rawgrade
+                    // Bulk fetch course totals for the student (fallback source only).
+                    $gradeSql = "SELECT gi.courseid, MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval
                                    FROM {grade_items} gi
                               LEFT JOIN {grade_grades} gg
                                      ON gg.itemid = gi.id
                                     AND gg.userid = :userid
                                   WHERE gi.itemtype = 'course'
-                                    AND gi.courseid $courseInSql";
+                                    AND gi.courseid $courseInSql
+                               GROUP BY gi.courseid
+                               ORDER BY gi.courseid ASC";
                     $gradeParams = ['userid' => $params['userId']] + $courseInParams;
                     $graderows = $DB->get_records_sql($gradeSql, $gradeParams);
                     foreach ($graderows as $graderow) {
-                        $gradeval = null;
-                        if (!is_null($graderow->finalgrade)) {
-                            $gradeval = (float)$graderow->finalgrade;
-                        } else if (!is_null($graderow->rawgrade)) {
-                            $gradeval = (float)$graderow->rawgrade;
-                        }
+                        $gradeval = is_null($graderow->gradeval) ? null : (float)$graderow->gradeval;
                         if (!is_null($gradeval)) {
                             $gradesByCourseId[(int)$graderow->courseid] = round($gradeval, 2);
+                        }
+                    }
+                }
+
+                // Preferred source: class category totals (grade item type=category) for the student's class/group.
+                if (!empty($progressclassids)) {
+                    list($classInSql, $classInParams) = $DB->get_in_or_equal($progressclassids, SQL_PARAMS_NAMED, 'clid');
+                    $classrows = $DB->get_records_sql(
+                        "SELECT c.id, c.groupid, c.corecourseid, c.gradecategoryid
+                           FROM {gmk_class} c
+                          WHERE c.id $classInSql
+                            AND c.gradecategoryid > 0
+                            AND c.corecourseid > 0
+                       ORDER BY c.id ASC",
+                        $classInParams
+                    );
+
+                    if (!empty($classrows)) {
+                        $categoryids = [];
+                        $categorycourseids = [];
+                        foreach ($classrows as $cr) {
+                            $categoryids[] = (int)$cr->gradecategoryid;
+                            $categorycourseids[] = (int)$cr->corecourseid;
+                        }
+                        $categoryids = array_values(array_unique($categoryids));
+                        $categorycourseids = array_values(array_unique($categorycourseids));
+
+                        if (!empty($categoryids) && !empty($categorycourseids)) {
+                            list($catInSql, $catInParams) = $DB->get_in_or_equal($categoryids, SQL_PARAMS_NAMED, 'cat');
+                            list($ccInSql, $ccInParams) = $DB->get_in_or_equal($categorycourseids, SQL_PARAMS_NAMED, 'cc');
+                            $categoryitems = $DB->get_records_sql(
+                                "SELECT gi.id, gi.courseid, gi.iteminstance AS categoryid
+                                   FROM {grade_items} gi
+                                  WHERE gi.itemtype = 'category'
+                                    AND gi.iteminstance $catInSql
+                                    AND gi.courseid $ccInSql
+                               ORDER BY gi.id ASC",
+                                $catInParams + $ccInParams
+                            );
+
+                            $itemidbycoursecat = [];
+                            foreach ($categoryitems as $ci) {
+                                $key = ((int)$ci->courseid) . '-' . ((int)$ci->categoryid);
+                                if (!isset($itemidbycoursecat[$key])) {
+                                    $itemidbycoursecat[$key] = (int)$ci->id;
+                                }
+                            }
+
+                            if (!empty($itemidbycoursecat)) {
+                                $itemids = array_values(array_unique(array_values($itemidbycoursecat)));
+                                list($itemInSql, $itemInParams) = $DB->get_in_or_equal($itemids, SQL_PARAMS_NAMED, 'it');
+                                $gradegraderows = $DB->get_records_sql(
+                                    "SELECT gg.id, gg.itemid, gg.finalgrade, gg.rawgrade
+                                       FROM {grade_grades} gg
+                                      WHERE gg.userid = :userid
+                                        AND gg.itemid $itemInSql
+                                   ORDER BY gg.id ASC",
+                                    ['userid' => $params['userId']] + $itemInParams
+                                );
+
+                                $gradebyitemid = [];
+                                foreach ($gradegraderows as $ggr) {
+                                    $gradeval = null;
+                                    if (!is_null($ggr->finalgrade)) {
+                                        $gradeval = (float)$ggr->finalgrade;
+                                    } else if (!is_null($ggr->rawgrade)) {
+                                        $gradeval = (float)$ggr->rawgrade;
+                                    }
+                                    if (is_null($gradeval)) {
+                                        continue;
+                                    }
+
+                                    $itemid = (int)$ggr->itemid;
+                                    // Keep max non-null in case of duplicate grade rows.
+                                    if (!array_key_exists($itemid, $gradebyitemid) || $gradeval > $gradebyitemid[$itemid]) {
+                                        $gradebyitemid[$itemid] = $gradeval;
+                                    }
+                                }
+
+                                foreach ($classrows as $cr) {
+                                    $key = ((int)$cr->corecourseid) . '-' . ((int)$cr->gradecategoryid);
+                                    if (empty($itemidbycoursecat[$key])) {
+                                        continue;
+                                    }
+                                    $itemid = (int)$itemidbycoursecat[$key];
+                                    if (!array_key_exists($itemid, $gradebyitemid)) {
+                                        continue;
+                                    }
+
+                                    $resolvedgrade = round((float)$gradebyitemid[$itemid], 2);
+                                    $classGradeByClassId[(int)$cr->id] = $resolvedgrade;
+                                    if (!empty($cr->groupid)) {
+                                        $classGradeByGroupId[(int)$cr->groupid] = $resolvedgrade;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -226,7 +327,29 @@ class get_student_learning_plan_pensum extends external_api
                 $userPensumCourse->coursename = $courseNamesById[(int)$userPensumCourse->courseid] ?? 'Unknown Course';
                 $userPensumCourse->periodname = $periodName ? $periodName->name : 'Periodo Desconocido';
                 $userPensumCourse->grade = '-';
-                $coursegrade = $gradesByCourseId[(int)$userPensumCourse->courseid] ?? null;
+                $coursegrade = null;
+                $gradesource = 'none';
+
+                $progressclassid = !empty($userPensumCourse->progressclassid) ? (int)$userPensumCourse->progressclassid : 0;
+                $progressgroupid = !empty($userPensumCourse->progressgroupid) ? (int)$userPensumCourse->progressgroupid : 0;
+
+                // 1) Preferred: class category grade (strict class/group scope).
+                if ($progressclassid > 0 && array_key_exists($progressclassid, $classGradeByClassId)) {
+                    $coursegrade = (float)$classGradeByClassId[$progressclassid];
+                    $gradesource = 'class_category';
+                } else if ($progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
+                    $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
+                    $gradesource = 'group_class_category';
+                // 2) Then: persisted grade in gmk_course_progre.
+                } else if (isset($userPensumCourse->progressgrade) && !is_null($userPensumCourse->progressgrade)) {
+                    $coursegrade = round((float)$userPensumCourse->progressgrade, 2);
+                    $gradesource = 'gmk_course_progre';
+                // 3) Last fallback: Moodle course total (can include mixed groups/categories).
+                } else if (array_key_exists((int)$userPensumCourse->courseid, $gradesByCourseId)) {
+                    $coursegrade = (float)$gradesByCourseId[(int)$userPensumCourse->courseid];
+                    $gradesource = 'course_total_fallback';
+                }
+
                 if (!is_null($coursegrade)) {
                     $userPensumCourse->grade = (string)$coursegrade;
 
@@ -236,6 +359,7 @@ class get_student_learning_plan_pensum extends external_api
                         $userPensumCourse->progress = 100.00;
                     }
                 }
+                $userPensumCourse->gradesource = $gradesource;
 
                 $userPensumCourse->statusLabel = self::STATUS_LABEL[$userPensumCourse->status] ?? 'No disponible';
                 $userPensumCourse->statusColor = self::STATUS_COLOR[$userPensumCourse->status] ?? '#5e35b1';
