@@ -340,14 +340,26 @@ class get_student_learning_plan_pensum extends external_api
                 } else if ($progressgroupid > 0 && array_key_exists($progressgroupid, $classGradeByGroupId)) {
                     $coursegrade = (float)$classGradeByGroupId[$progressgroupid];
                     $gradesource = 'group_class_category';
-                // 2) Then: persisted grade in gmk_course_progre.
-                } else if (isset($userPensumCourse->progressgrade) && !is_null($userPensumCourse->progressgrade)) {
-                    $coursegrade = round((float)$userPensumCourse->progressgrade, 2);
-                    $gradesource = 'gmk_course_progre';
-                // 3) Last fallback: Moodle course total (can include mixed groups/categories).
+                // 2) Then: Moodle course total if sane (0..100). This restores real historical grades.
                 } else if (array_key_exists((int)$userPensumCourse->courseid, $gradesByCourseId)) {
-                    $coursegrade = (float)$gradesByCourseId[(int)$userPensumCourse->courseid];
-                    $gradesource = 'course_total_fallback';
+                    $candidate = (float)$gradesByCourseId[(int)$userPensumCourse->courseid];
+                    if ($candidate >= 0 && $candidate <= 100) {
+                        $coursegrade = $candidate;
+                        $gradesource = 'course_total';
+                    } else {
+                        $gradesource = 'course_total_out_of_range';
+                    }
+                }
+
+                // 3) Last fallback: persisted grade in gmk_course_progre.
+                if (is_null($coursegrade) && isset($userPensumCourse->progressgrade) && !is_null($userPensumCourse->progressgrade)) {
+                    $candidate = round((float)$userPensumCourse->progressgrade, 2);
+                    if ($candidate >= 0 && $candidate <= 100) {
+                        $coursegrade = $candidate;
+                        $gradesource = ($gradesource === 'course_total_out_of_range') ? 'gmk_course_progre_after_out_of_range_course_total' : 'gmk_course_progre';
+                    } else {
+                        $gradesource = 'gmk_course_progre_out_of_range';
+                    }
                 }
 
                 if (!is_null($coursegrade)) {
