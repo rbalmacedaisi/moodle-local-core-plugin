@@ -225,8 +225,120 @@ foreach ($futureSess as $s) {
 }
 echo "</table><p><i>Máx. 15 sesiones futuras</i></p>";
 
-// ── 6. Resultado final: lo que ve la LXP ─────────────────────────────────
-echo "<div class='section'>6. Lo que recibe la LXP (get_class_events)</div>";
+// ── 6. Filtro gmk_course_progre (causa más común de 0 resultados) ─────────
+echo "<div class='section'>6. Filtro gmk_course_progre (status=2 + periodo activo)</div>";
+
+// 6a. currentperiodid del estudiante por learning plan
+$learningplanusers = $DB->get_records(
+    'local_learning_users',
+    ['userid' => (int)$userId],
+    '',
+    'id, learningplanid, currentperiodid'
+);
+$studentperiodmap = [];
+foreach ($learningplanusers as $lpu) {
+    if (!empty($lpu->learningplanid) && !empty($lpu->currentperiodid)) {
+        $studentperiodmap[(int)$lpu->learningplanid] = (int)$lpu->currentperiodid;
+    }
+}
+
+if (empty($learningplanusers)) {
+    echo "<div class='box warn'>⚠ El estudiante no tiene registros en local_learning_users. El filtro de periodo no aplica.</div>";
+} else {
+    echo "<p><b>local_learning_users (periodo activo por plan):</b></p>";
+    echo "<table><tr><th>learningplanid</th><th>currentperiodid</th></tr>";
+    foreach ($learningplanusers as $lpu) {
+        echo "<tr><td>{$lpu->learningplanid}</td><td>{$lpu->currentperiodid}</td></tr>";
+    }
+    echo "</table>";
+}
+
+// 6b. Registros en gmk_course_progre
+$progrerows = $DB->get_records_select(
+    'gmk_course_progre',
+    'userid = :userid',
+    ['userid' => (int)$userId],
+    '',
+    'id, learningplanid, periodid, courseid, classid, status'
+);
+
+$statusLabels = [0 => 'pendiente', 1 => 'aprobado', 2 => 'en curso', 3 => 'reprobado', 4 => 'retirado'];
+
+if (empty($progrerows)) {
+    echo "<div class='box warn'>⚠ El estudiante NO tiene registros en gmk_course_progre. <br>El filtro estricto <b>no se activa</b> y los eventos deberían mostrarse sin restricción de status.</div>";
+} else {
+    echo "<p><b>gmk_course_progre</b> (" . count($progrerows) . " registros):</p>";
+    echo "<table><tr><th>id</th><th>learningplanid</th><th>periodid</th><th>courseid</th><th>classid</th><th>status</th><th>¿Pasa filtro?</th><th>Razón descarte</th></tr>";
+
+    $activeCourseIds = [];
+    $activeClassIds  = [];
+
+    foreach ($progrerows as $prow) {
+        $statusNum  = (int)$prow->status;
+        $statusText = $statusLabels[$statusNum] ?? $statusNum;
+        $passes     = false;
+        $reason     = '';
+
+        if ($statusNum !== 2) {
+            $reason = "status=" . $statusNum . " (" . $statusText . "), se requiere 2";
+        } else {
+            $rowlpid  = !empty($prow->learningplanid) ? (int)$prow->learningplanid : 0;
+            $rowperid = !empty($prow->periodid)       ? (int)$prow->periodid       : 0;
+            if ($rowlpid > 0 && isset($studentperiodmap[$rowlpid])) {
+                $currentperid = (int)$studentperiodmap[$rowlpid];
+                if ($rowperid > 0 && $rowperid !== $currentperid) {
+                    $reason = "periodid={$rowperid} ≠ currentperiodid={$currentperid}";
+                } else {
+                    $passes = true;
+                }
+            } else {
+                $passes = true; // sin plan o sin periodo → no filtra por periodo
+            }
+        }
+
+        if ($passes) {
+            if (!empty($prow->courseid)) $activeCourseIds[(int)$prow->courseid] = true;
+            if (!empty($prow->classid))  $activeClassIds[(int)$prow->classid]   = true;
+        }
+
+        $rowClass = $passes ? 'ok' : 'err';
+        echo "<tr>
+            <td>{$prow->id}</td>
+            <td>" . ($prow->learningplanid ?: '-') . "</td>
+            <td>" . ($prow->periodid ?: '-') . "</td>
+            <td>{$prow->courseid}</td>
+            <td>" . ($prow->classid ?: '-') . "</td>
+            <td class='{$rowClass}'>{$statusNum} ({$statusText})</td>
+            <td class='{$rowClass}'>" . ($passes ? '✔ sí' : '✘ no') . "</td>
+            <td class='" . ($passes ? '' : 'err') . "'>" . ($reason ?: '') . "</td>
+        </tr>";
+    }
+    echo "</table>";
+
+    // Resumen
+    if (empty($activeCourseIds)) {
+        echo "<div class='box err'>⚠ <b>NINGÚN registro pasa el filtro</b> → <code>\$studentActiveCourseIdSet</code> queda vacío → <b>todos los eventos son descartados</b>.<br>
+        El filtro estricto se activa porque el estudiante SÍ tiene filas en gmk_course_progre, pero ninguna con status=2 en el periodo actual.</div>";
+    } else {
+        $courseList = implode(', ', array_keys($activeCourseIds));
+        $classList  = implode(', ', array_keys($activeClassIds));
+        echo "<div class='box ok'>✔ Cursos activos para el filtro: [{$courseList}]<br>Clases activas: [" . ($classList ?: 'ninguna') . "]</div>";
+
+        // Verificar si los cursos del grupo están en el set activo
+        $missing = [];
+        foreach ($userCourseIds as $cid) {
+            if (!isset($activeCourseIds[$cid])) {
+                $missing[] = $cid;
+            }
+        }
+        if (!empty($missing)) {
+            echo "<div class='box warn'>⚠ Los cursos [" . implode(', ', $missing) . "] tienen grupos asignados al estudiante pero NO están en el set activo de gmk_course_progre. Sus eventos serán descartados.</div>";
+        }
+    }
+}
+
+// ── 7. Resultado final: lo que ve la LXP ─────────────────────────────────
+echo "<div class='section'>7. Lo que recibe la LXP (get_class_events)</div>";
 $lxp     = get_class_events($userId);
 $lxpFut  = count(array_filter($lxp, fn($e) => strtotime($e->start) > $now));
 $lxpPast = count($lxp) - $lxpFut;
@@ -246,7 +358,7 @@ echo "</table>";
 echo "<p>Total: " . count($lxp) . " | Pasadas: $lxpPast | <b>Futuras: $lxpFut</b></p>";
 
 if ($lxpFut === 0) {
-    echo "<div class='box err'><b>CONFIRMADO: La LXP recibe 0 sesiones futuras para este estudiante.</b><br>Revisa los ⚠ en las secciones anteriores.</div>";
+    echo "<div class='box err'><b>CONFIRMADO: La LXP recibe 0 sesiones futuras para este estudiante.</b><br>Revisa los ⚠ en las secciones anteriores, especialmente la sección 6.</div>";
 } else {
     echo "<div class='box ok'><b>La LXP recibe $lxpFut sesiones futuras.</b> Si aún no aparecen en pantalla, el problema está en el frontend (horario.vue).</div>";
 }

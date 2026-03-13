@@ -130,6 +130,7 @@ class get_student_learning_plan_pensum extends external_api
             $membershipClassGradesByCourseId = [];
             $planClassCategoryGradeByCourseId = [];
             $manualIntegratedGradeByCourseId = [];
+            $manualIntegratedGradeByCourseName = [];
 
             if (!empty($userPensumCourses)) {
                 $learningcourseids = [];
@@ -214,15 +215,13 @@ class get_student_learning_plan_pensum extends external_api
                       LEFT JOIN {grade_grades} gg
                              ON gg.itemid = gi.id
                             AND gg.userid = :userid
-                          WHERE gi.itemtype = 'manual'
-                            AND (gi.itemname = :nfi OR gi.itemname LIKE :nfilike)
+                          WHERE gi.itemname LIKE :nfi_any
                             AND gi.courseid $courseInSql
                        GROUP BY gi.courseid
                        ORDER BY gi.courseid ASC",
                         [
                             'userid' => $params['userId'],
-                            'nfi' => 'Nota Final Integrada',
-                            'nfilike' => 'Nota Final Integrada%'
+                            'nfi_any' => '%Nota Final Integrada%'
                         ] + $courseInParams
                     );
                     foreach ($manualgrades as $mg) {
