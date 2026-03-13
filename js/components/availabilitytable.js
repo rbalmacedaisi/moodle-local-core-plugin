@@ -1,5 +1,17 @@
+const fixMojibakeText = (value) => {
+    const raw = String(value ?? '');
+    if (raw.includes('Ã') || raw.includes('Â')) {
+        try {
+            return decodeURIComponent(escape(raw)).replace(/Â/g, '');
+        } catch (e) {
+            return raw.replace(/Â/g, '');
+        }
+    }
+    return raw;
+}
+
 const removeDiacriticAndLowerCase = (string) => {
-    return string.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    return fixMojibakeText(string).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
 }
 
 Vue.component('availabilitytable', {
@@ -419,6 +431,27 @@ Vue.component('availabilitytable', {
         this.getSkills()
     },
     methods: {
+        normalizeDayLabel(day) {
+            const raw = fixMojibakeText(day).trim();
+            const normalizedKey = removeDiacriticAndLowerCase(raw);
+            const dayMap = {
+                lunes: 'Lunes',
+                monday: 'Lunes',
+                martes: 'Martes',
+                tuesday: 'Martes',
+                miercoles: 'Miércoles',
+                wednesday: 'Miércoles',
+                jueves: 'Jueves',
+                thursday: 'Jueves',
+                viernes: 'Viernes',
+                friday: 'Viernes',
+                sabado: 'Sábado',
+                saturday: 'Sábado',
+                domingo: 'Domingo',
+                sunday: 'Domingo'
+            };
+            return dayMap[normalizedKey] || raw;
+        },
         /**
          * Uploads a CSV file for updating teachers' disponibilities.
          * This method performs the following actions:
@@ -563,12 +596,27 @@ Vue.component('availabilitytable', {
             }
 
             // Parse the data from the API response and assign it to the 'teacherAvailabilityRecords' array.
-            this.teacherAvailabilityRecords = JSON.parse(availabilityResponse.data.teacherAvailabilityRecords)
+            this.teacherAvailabilityRecords = JSON.parse(availabilityResponse.data.teacherAvailabilityRecords) || []
 
             let array_skill = []
             // Extract available days for each instructor.
             this.teacherAvailabilityRecords.forEach(record => {
-                const days = Object.keys(record.disponibilityRecords);
+                const normalizedDisponibilityRecords = {};
+                Object.entries(record.disponibilityRecords || {}).forEach(([rawDay, timeSlots]) => {
+                    const canonicalDay = this.normalizeDayLabel(rawDay);
+                    if (!canonicalDay) {
+                        return;
+                    }
+                    if (!Array.isArray(normalizedDisponibilityRecords[canonicalDay])) {
+                        normalizedDisponibilityRecords[canonicalDay] = [];
+                    }
+                    if (Array.isArray(timeSlots)) {
+                        normalizedDisponibilityRecords[canonicalDay].push(...timeSlots);
+                    }
+                });
+
+                this.$set(record, 'disponibilityRecords', normalizedDisponibilityRecords);
+                const days = Object.keys(normalizedDisponibilityRecords);
                 record.days = days;
 
 
@@ -602,7 +650,11 @@ Vue.component('availabilitytable', {
             this.pickedInstructorId = instructorId
 
             // Populate the selectedDays with the available days of the selected instructor.
-            this.selectedDays = Object.keys(this.selectedInstructorData.disponibilityRecords);
+            this.selectedDays = Array.from(new Set(
+                Object.keys(this.selectedInstructorData.disponibilityRecords || {})
+                    .map(day => this.normalizeDayLabel(day))
+                    .filter(day => this.daysOfWeek.includes(day))
+            ));
 
             this.selectedInstructorData.instructorSkills.forEach((element) => {
                 this.selectedskills.push({
@@ -611,9 +663,13 @@ Vue.component('availabilitytable', {
                 })
             })
             // Iterate through each available day and collect the time slots.
-            for (const day in this.selectedInstructorData.disponibilityRecords) {
+            for (const rawDay in this.selectedInstructorData.disponibilityRecords) {
+                const day = this.normalizeDayLabel(rawDay);
+                if (!this.daysOfWeek.includes(day)) {
+                    continue;
+                }
                 // Get the list of available time slots for the current day.
-                const timeSlots = this.selectedInstructorData.disponibilityRecords[day];
+                const timeSlots = this.selectedInstructorData.disponibilityRecords[rawDay];
 
                 // Process and structure each available time slot into the schedules array.
                 timeSlots.forEach(slot => {
@@ -726,7 +782,7 @@ Vue.component('availabilitytable', {
             if (this.valid) {
                 // Create a new availability record from the selected schedules.
                 const newDisponibilityRecord = this.schedulesPerDay.map(daySchedule => {
-                    const day = daySchedule.day;
+                    const day = this.normalizeDayLabel(daySchedule.day);
                     const timeslots = daySchedule.schedules.map(schedule => `${schedule.startTime}, ${schedule.timeEnd}`);
                     return { day, timeslots };
                 });

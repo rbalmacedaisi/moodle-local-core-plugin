@@ -1176,7 +1176,7 @@ function gmk_heal_course_gradebook_course_item($courseid) {
  * Detects the "more than one record in read()" family of Moodle errors.
  */
 function gmk_is_duplicate_read_error($message): bool {
-    $msg = (string)$message;
+    $msg = gmk_fix_mojibake_text((string)$message);
     if (function_exists('mb_strtolower')) {
         $msg = mb_strtolower($msg);
     } else {
@@ -1185,7 +1185,7 @@ function gmk_is_duplicate_read_error($message): bool {
     return (
         strpos($msg, 'more than one record in read') !== false ||
         strpos($msg, 'mas de un registro en lectura') !== false ||
-        strpos($msg, 'mÃƒÂ¡s de un registro en lectura') !== false
+        strpos($msg, 'más de un registro en lectura') !== false
     );
 }
 
@@ -2195,11 +2195,22 @@ function create_class_activities($class, $updating = false)
                 // Fallback: generate all matching weekdays in the class date range.
                 $candidateDates = [];
                 $dayNameMap = [
-                    'Lunes' => 'Monday', 'Martes' => 'Tuesday', 'Miércoles' => 'Wednesday',
-                    'Miercoles' => 'Wednesday', 'Jueves' => 'Thursday', 'Viernes' => 'Friday',
-                    'Sábado' => 'Saturday', 'Sabado' => 'Saturday', 'Domingo' => 'Sunday'
+                    'lunes' => 'Monday',
+                    'monday' => 'Monday',
+                    'martes' => 'Tuesday',
+                    'tuesday' => 'Tuesday',
+                    'miercoles' => 'Wednesday',
+                    'wednesday' => 'Wednesday',
+                    'jueves' => 'Thursday',
+                    'thursday' => 'Thursday',
+                    'viernes' => 'Friday',
+                    'friday' => 'Friday',
+                    'sabado' => 'Saturday',
+                    'saturday' => 'Saturday',
+                    'domingo' => 'Sunday',
+                    'sunday' => 'Sunday'
                 ];
-                $targetEnglishDay = $dayNameMap[$sched->day] ?? null;
+                $targetEnglishDay = $dayNameMap[cleanString((string)$sched->day)] ?? null;
                 if ($targetEnglishDay) {
                     $initDate  = $class->initdate ? date('Y-m-d', $class->initdate) : date('Y-m-d');
                     $endDate   = $class->enddate  ? date('Y-m-d', $class->enddate)  : date('Y-m-d', strtotime('+2 months'));
@@ -2417,7 +2428,7 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
     $attendanceSessionDefinition->duration = $classDurationInSeconds;
     $attendanceSessionDefinition->groupid         = $class->groupid;
     $attendanceSessionDefinition->timemodified    = time();
-    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "SesiÃƒÂ³n de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'SesiÃƒÂ³n de clase presencial.';
+    $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "Sesión de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'Sesión de clase presencial.';
     $attendanceSessionDefinition->calendarevent   = 1;
     $attendanceSessionDefinition->includeqrcode   = 1;
     $attendanceSessionDefinition->rotateqrcode    = 1;
@@ -3780,7 +3791,7 @@ function bulk_update_teachers_disponibilities($disponibilityRecords)
         )->userid;
         try {
             if (!$disponibilityRecord['instructorId']) {
-                throw new Exception(json_encode(['No hay usuario con el nÃƒÂºmero de documento ' . $instructorDocument]));
+                throw new Exception(json_encode(['No hay usuario con el número de documento ' . $instructorDocument]));
             }
             if (!$DB->get_record('gmk_teacher_disponibility', ['userid' => $disponibilityRecord['instructorId']])) {
                 $newDisponibilityId = add_teacher_disponibility($disponibilityRecord);
@@ -3993,7 +4004,7 @@ function parse_bulk_disponibilities_CSV($bulkDisponibilitiesFile)
 
         $day = cleanString($rangeSheet->getCell('B' . $row->getRowIndex())->getValue());
         if (!in_array($day, $days)) {
-            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. DÃƒÂ­a ' . $day . ' no definido.';
+            $errors[] = 'Error en hoja horario: columna B, fila ' . $row->getRowIndex() . '. Día ' . $day . ' no definido.';
             continue;
         }
 
@@ -5395,17 +5406,49 @@ function get_theme_token()
     return json_encode(external_generate_token_for_current_user($themeExternalService)->token);
 }
 
+function gmk_fix_mojibake_text($string)
+{
+    $string = (string)$string;
+    if ($string === '') {
+        return $string;
+    }
+
+    // Attempt to recover UTF-8 text that was interpreted as latin1/cp1252
+    // (e.g., "MiÃ©rcoles" => "Miércoles", "SÃ¡bado" => "Sábado").
+    for ($i = 0; $i < 2; $i++) {
+        if (strpos($string, 'Ã') === false && strpos($string, 'Â') === false) {
+            break;
+        }
+        $candidate = @mb_convert_encoding($string, 'ISO-8859-1', 'UTF-8');
+        if (!is_string($candidate) || $candidate === '' || $candidate === $string) {
+            break;
+        }
+        $string = $candidate;
+    }
+
+    // Remove residual artifacts.
+    $string = str_replace("\xC2\xA0", ' ', $string); // NBSP.
+    $string = str_replace('Â', '', $string);
+
+    return $string;
+}
+
 function containsSubstringIgnoringCaseAndTildes($needle, $haystack)
 {
+    $needle = gmk_fix_mojibake_text($needle);
+    $haystack = gmk_fix_mojibake_text($haystack);
+
     // Convert both strings to lowercase
     $needle = mb_strtolower($needle, 'UTF-8');
     $haystack = mb_strtolower($haystack, 'UTF-8');
 
     $transliterator = Transliterator::create('NFD;[:Nonspacing Mark:] Remove;NFC');
 
-    // Remove diacritic marks (tildes) using iconv
-    $needle = $transliterator->transliterate($needle);
-    $haystack = $transliterator->transliterate($haystack);
+    // Remove diacritic marks (tildes).
+    if ($transliterator) {
+        $needle = $transliterator->transliterate($needle);
+        $haystack = $transliterator->transliterate($haystack);
+    }
 
     // Use strpos to check if $needle is in $haystack
     return strpos($haystack, $needle) !== false;
@@ -5413,11 +5456,15 @@ function containsSubstringIgnoringCaseAndTildes($needle, $haystack)
 
 function cleanString($string)
 {
+    $string = gmk_fix_mojibake_text($string);
+    $string = trim((string)$string);
     $string = mb_strtolower($string, 'UTF-8');
 
     $transliterator = Transliterator::create('NFD;[:Nonspacing Mark:] Remove;NFC');
 
-    $string = $transliterator->transliterate($string);
+    if ($transliterator) {
+        $string = $transliterator->transliterate($string);
+    }
 
     return $string;
 }

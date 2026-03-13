@@ -883,22 +883,34 @@ class scheduler extends external_api {
                 if ($isAllZero) {
                     // Derive from sessions or day
                     $dayNameMap = [
-                        'Lunes' => 0, 'Martes' => 1, 'Miércoles' => 2, 'Miercoles' => 2,
-                        'Jueves' => 3, 'Viernes' => 4, 'Sábado' => 5, 'Sabado' => 5, 'Domingo' => 6
+                        'lunes' => 0,
+                        'monday' => 0,
+                        'martes' => 1,
+                        'tuesday' => 1,
+                        'miercoles' => 2,
+                        'wednesday' => 2,
+                        'jueves' => 3,
+                        'thursday' => 3,
+                        'viernes' => 4,
+                        'friday' => 4,
+                        'sabado' => 5,
+                        'saturday' => 5,
+                        'domingo' => 6,
+                        'sunday' => 6
                     ];
                     $mask = [0, 0, 0, 0, 0, 0, 0];
                     
                     if (isset($cls['sessions']) && is_array($cls['sessions'])) {
                         foreach ($cls['sessions'] as $sess) {
-                            $sDay = trim($sess['day'] ?? '');
-                            if (isset($dayNameMap[$sDay])) {
-                                $mask[$dayNameMap[$sDay]] = 1;
+                            $sdaykey = cleanString((string)($sess['day'] ?? ''));
+                            if (isset($dayNameMap[$sdaykey])) {
+                                $mask[$dayNameMap[$sdaykey]] = 1;
                             }
                         }
                     } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
-                        $sDay = trim($cls['day']);
-                        if (isset($dayNameMap[$sDay])) {
-                            $mask[$dayNameMap[$sDay]] = 1;
+                        $sdaykey = cleanString((string)$cls['day']);
+                        if (isset($dayNameMap[$sdaykey])) {
+                            $mask[$dayNameMap[$sdaykey]] = 1;
                         }
                     }
                     
