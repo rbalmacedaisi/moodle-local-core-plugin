@@ -108,6 +108,11 @@ if ($hassiteconfig) {
         '⏳ Periodo de Gracia en Primer Login',
         new moodle_url('/local/grupomakro_core/pages/grace_period.php')
     );
+    $debugPublishStatusPage = new admin_externalpage(
+        'grupomakro_core_debug_publish_status',
+        'Debug Publicacion Horarios',
+        new moodle_url('/local/grupomakro_core/pages/debug_publish_status.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -124,6 +129,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $fixAcademicStatusPage);
     $ADMIN->add('grupomakrocore_plugin', $bypassFinancialPage);
     $ADMIN->add('grupomakrocore_plugin', $gracePeriodPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugPublishStatusPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
@@ -294,3 +300,4 @@ if ($hassiteconfig) {
      * End of settings page: Email Templates.
      */
 }
+
