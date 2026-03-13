@@ -4393,14 +4393,9 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
                 if ((int)$prow->status !== 2) {
                     continue;
                 }
-                $rowlearningplanid = !empty($prow->learningplanid) ? (int)$prow->learningplanid : 0;
-                $rowperiodid = !empty($prow->periodid) ? (int)$prow->periodid : 0;
-                if ($rowlearningplanid > 0 && isset($studentperiodmap[$rowlearningplanid])) {
-                    $currentperiodid = (int)$studentperiodmap[$rowlearningplanid];
-                    if ($rowperiodid > 0 && $rowperiodid !== $currentperiodid) {
-                        continue;
-                    }
-                }
+                // Si el registro tiene status=2 (en curso), se incluye sin importar el periodo.
+                // El check de currentperiodid fue removido porque puede estar desactualizado
+                // al inicio de un nuevo periodo académico, causando que se descarten cursos activos.
                 if (!empty($prow->courseid)) {
                     $studentActiveCourseIdSet[(int)$prow->courseid] = true;
                 }

@@ -215,18 +215,77 @@ class get_student_learning_plan_pensum extends external_api
                       LEFT JOIN {grade_grades} gg
                              ON gg.itemid = gi.id
                             AND gg.userid = :userid
-                          WHERE gi.itemname LIKE :nfi_any
+                          WHERE (gi.itemname LIKE :nfi_any
+                                 OR gi.itemname LIKE :nfi_alt1
+                                 OR gi.itemname LIKE :nfi_alt2)
                             AND gi.courseid $courseInSql
                        GROUP BY gi.courseid
                        ORDER BY gi.courseid ASC",
                         [
                             'userid' => $params['userId'],
-                            'nfi_any' => '%Nota Final Integrada%'
+                            'nfi_any' => '%Nota Final Integrada%',
+                            'nfi_alt1' => '%Final Integrada%',
+                            'nfi_alt2' => '%Nota Final%'
                         ] + $courseInParams
                     );
                     foreach ($manualgrades as $mg) {
                         if (!is_null($mg->gradeval)) {
                             $manualIntegratedGradeByCourseId[(int)$mg->courseid] = round((float)$mg->gradeval, 2);
+                        }
+                    }
+
+                    // Defensive fallback: if the same subject exists in another Moodle course id,
+                    // resolve "Nota Final Integrada" by fullname (historical statuses only later).
+                    $targetcoursenames = array_values(array_unique(array_filter(array_values($courseNamesById), function($name) {
+                        return trim((string)$name) !== '';
+                    })));
+                    if (!empty($targetcoursenames)) {
+                        list($nameInSql, $nameInParams) = $DB->get_in_or_equal($targetcoursenames, SQL_PARAMS_NAMED, 'cname');
+                        $sameNameCourses = $DB->get_records_sql(
+                            "SELECT id, fullname
+                               FROM {course}
+                              WHERE fullname $nameInSql
+                           ORDER BY id ASC",
+                            $nameInParams
+                        );
+
+                        if (!empty($sameNameCourses)) {
+                            $sameNameCourseIds = [];
+                            foreach ($sameNameCourses as $snc) {
+                                $sameNameCourseIds[] = (int)$snc->id;
+                            }
+                            $sameNameCourseIds = array_values(array_unique($sameNameCourseIds));
+
+                            if (!empty($sameNameCourseIds)) {
+                                list($sameCourseInSql, $sameCourseInParams) = $DB->get_in_or_equal($sameNameCourseIds, SQL_PARAMS_NAMED, 'sncid');
+                                $manualgradesByName = $DB->get_records_sql(
+                                    "SELECT c.fullname,
+                                            MAX(CASE WHEN COALESCE(gg.finalgrade, gg.rawgrade) BETWEEN 0 AND 100
+                                                     THEN COALESCE(gg.finalgrade, gg.rawgrade) END) AS gradeval
+                                       FROM {grade_items} gi
+                                       JOIN {course} c ON c.id = gi.courseid
+                                  LEFT JOIN {grade_grades} gg
+                                         ON gg.itemid = gi.id
+                                        AND gg.userid = :userid
+                                      WHERE (gi.itemname LIKE :nfi_any
+                                             OR gi.itemname LIKE :nfi_alt1
+                                             OR gi.itemname LIKE :nfi_alt2)
+                                        AND gi.courseid $sameCourseInSql
+                                   GROUP BY c.fullname
+                                   ORDER BY c.fullname ASC",
+                                    [
+                                        'userid' => $params['userId'],
+                                        'nfi_any' => '%Nota Final Integrada%',
+                                        'nfi_alt1' => '%Final Integrada%',
+                                        'nfi_alt2' => '%Nota Final%'
+                                    ] + $sameCourseInParams
+                                );
+                                foreach ($manualgradesByName as $mgn) {
+                                    if (!is_null($mgn->gradeval)) {
+                                        $manualIntegratedGradeByCourseName[(string)$mgn->fullname] = round((float)$mgn->gradeval, 2);
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -431,6 +490,19 @@ class get_student_learning_plan_pensum extends external_api
                     if ($candidate >= 0 && $candidate <= 100) {
                         $coursegrade = $candidate;
                         $gradesource = 'manual_nota_final_integrada';
+                    }
+                }
+
+                // Historical-safe fallback by subject name (prevents forcing old grades on current in-progress subjects).
+                $historicalstatus = in_array((int)$userPensumCourse->status, [3, 4, 5, 6, 7], true);
+                if (is_null($coursegrade) && $historicalstatus) {
+                    $coursenamekey = trim((string)($courseNamesById[$courseidkey] ?? ''));
+                    if ($coursenamekey !== '' && array_key_exists($coursenamekey, $manualIntegratedGradeByCourseName)) {
+                        $candidate = (float)$manualIntegratedGradeByCourseName[$coursenamekey];
+                        if ($candidate >= 0 && $candidate <= 100) {
+                            $coursegrade = $candidate;
+                            $gradesource = 'manual_nota_final_integrada_same_name';
+                        }
                     }
                 }
 
