@@ -195,6 +195,7 @@ function gmk_rep_load_anomalies($db, string $classwhere, array $classparams, arr
         $out['duproots'] = ['rows' => [], 'total' => 0, 'truncated' => false];
         $out['wrongcourseiteminstance'] = ['rows' => [], 'total' => 0, 'truncated' => false];
         $out['dupcourseitems'] = ['rows' => [], 'total' => 0, 'truncated' => false];
+        $out['invalidaggiteminstance'] = ['rows' => [], 'total' => 0, 'truncated' => false];
         $out['invalidparents'] = ['rows' => [], 'total' => 0, 'truncated' => false];
         $out['invaliditemcats'] = ['rows' => [], 'total' => 0, 'truncated' => false];
         $out['rootmode8'] = ['rows' => [], 'total' => 0, 'truncated' => false];
@@ -232,6 +233,18 @@ function gmk_rep_load_anomalies($db, string $classwhere, array $classparams, arr
                           HAVING COUNT(*) > 1
                         ORDER BY gi.courseid";
     $out['dupcourseitems'] = gmk_rep_collect_rows($db, $sqldupcourseitems, $inparams, $maxrows);
+
+    $sqlinvalidaggiteminstance = "SELECT gi.id AS gradeitemid, gi.courseid, gi.itemtype, gi.iteminstance, gi.categoryid,
+                                         gc.id AS linkedcategoryid, gc.parent AS linkedcategoryparent
+                                    FROM {grade_items} gi
+                               LEFT JOIN {grade_categories} gc
+                                      ON gc.id = gi.iteminstance
+                                     AND gc.courseid = gi.courseid
+                                   WHERE gi.courseid {$insql}
+                                     AND gi.itemtype IN ('course', 'category')
+                                     AND (gi.iteminstance IS NULL OR gi.iteminstance = 0 OR gc.id IS NULL)
+                                ORDER BY gi.courseid, gi.id";
+    $out['invalidaggiteminstance'] = gmk_rep_collect_rows($db, $sqlinvalidaggiteminstance, $inparams, $maxrows);
 
     $sqlinvalidparents = "SELECT gc.id AS categoryid, gc.courseid, gc.parent,
                                  pgc.id AS parent_exists_id, pgc.courseid AS parent_courseid
@@ -304,6 +317,7 @@ $previewsummary = [
     ['check' => 'duplicate root categories', 'rows' => $anomalies['duproots']['total']],
     ['check' => 'course items not linked to root category', 'rows' => $anomalies['wrongcourseiteminstance']['total']],
     ['check' => 'duplicate course items', 'rows' => $anomalies['dupcourseitems']['total']],
+    ['check' => 'aggregate items with invalid iteminstance', 'rows' => $anomalies['invalidaggiteminstance']['total']],
     ['check' => 'categories with invalid parent', 'rows' => $anomalies['invalidparents']['total']],
     ['check' => 'grade items with invalid categoryid', 'rows' => $anomalies['invaliditemcats']['total']],
     ['check' => 'class categories aggregateonlygraded=0', 'rows' => $anomalies['aggzero']['total']],
@@ -593,6 +607,7 @@ if ($applyresult['applied']) {
             ['check' => 'duplicate root categories', 'rows' => $postanomalies['duproots']['total']],
             ['check' => 'course items not linked to root category', 'rows' => $postanomalies['wrongcourseiteminstance']['total']],
             ['check' => 'duplicate course items', 'rows' => $postanomalies['dupcourseitems']['total']],
+            ['check' => 'aggregate items with invalid iteminstance', 'rows' => $postanomalies['invalidaggiteminstance']['total']],
             ['check' => 'categories with invalid parent', 'rows' => $postanomalies['invalidparents']['total']],
             ['check' => 'grade items with invalid categoryid', 'rows' => $postanomalies['invaliditemcats']['total']],
             ['check' => 'class aggregateonlygraded=0', 'rows' => $postanomalies['aggzero']['total']],
@@ -613,6 +628,8 @@ echo '<details><summary><b>course items not linked to root category</b> (' . (in
     . gmk_rep_table($anomalies['wrongcourseiteminstance']['rows']) . '</details>';
 echo '<details><summary><b>duplicate course items</b> (' . (int)$anomalies['dupcourseitems']['total'] . ')</summary>'
     . gmk_rep_table($anomalies['dupcourseitems']['rows']) . '</details>';
+echo '<details><summary><b>aggregate items with invalid iteminstance</b> (' . (int)$anomalies['invalidaggiteminstance']['total'] . ')</summary>'
+    . gmk_rep_table($anomalies['invalidaggiteminstance']['rows']) . '</details>';
 echo '<details><summary><b>categories with invalid parent</b> (' . (int)$anomalies['invalidparents']['total'] . ')</summary>'
     . gmk_rep_table($anomalies['invalidparents']['rows']) . '</details>';
 echo '<details><summary><b>grade items with invalid categoryid</b> (' . (int)$anomalies['invaliditemcats']['total'] . ')</summary>'
@@ -631,6 +648,7 @@ $payload = [
         'duproots' => $anomalies['duproots']['total'],
         'wrongcourseiteminstance' => $anomalies['wrongcourseiteminstance']['total'],
         'dupcourseitems' => $anomalies['dupcourseitems']['total'],
+        'invalidaggiteminstance' => $anomalies['invalidaggiteminstance']['total'],
         'invalidparents' => $anomalies['invalidparents']['total'],
         'invaliditemcats' => $anomalies['invaliditemcats']['total'],
         'aggzero' => $anomalies['aggzero']['total'],
@@ -643,6 +661,7 @@ $payload = [
         'duproots' => $postanomalies['duproots']['total'],
         'wrongcourseiteminstance' => $postanomalies['wrongcourseiteminstance']['total'],
         'dupcourseitems' => $postanomalies['dupcourseitems']['total'],
+        'invalidaggiteminstance' => $postanomalies['invalidaggiteminstance']['total'],
         'invalidparents' => $postanomalies['invalidparents']['total'],
         'invaliditemcats' => $postanomalies['invaliditemcats']['total'],
         'aggzero' => $postanomalies['aggzero']['total'],

@@ -454,6 +454,24 @@ $checks[] = [
 ];
 
 $checks[] = [
+    'id' => 'aggregate_items_invalid_iteminstance',
+    'title' => 'grade_items aggregate (course/category) con iteminstance invalido',
+    'description' => 'iteminstance debe apuntar a una categoria existente del mismo curso.',
+    'sql' => "SELECT gi.id AS gradeitemid, gi.courseid, gi.itemtype, gi.iteminstance, gi.categoryid,
+                     gc.id AS linkedcategoryid, gc.parent AS linkedcategoryparent
+                FROM {grade_items} gi
+           LEFT JOIN {grade_categories} gc
+                  ON gc.id = gi.iteminstance
+                 AND gc.courseid = gi.courseid
+               WHERE gi.itemtype IN ('course', 'category')
+                 AND gi.courseid IN ({$coursescopesql})
+                 AND (gi.iteminstance IS NULL OR gi.iteminstance = 0 OR gc.id IS NULL)
+            ORDER BY gi.courseid, gi.id",
+    'params' => $scopeparams,
+    'type' => 'issue',
+];
+
+$checks[] = [
     'id' => 'duplicate_category_totals',
     'title' => 'Duplicados de itemtype=category por iteminstance',
     'description' => 'No debe haber dos category totals para la misma categoria.',

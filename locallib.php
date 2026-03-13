@@ -1098,6 +1098,16 @@ function gmk_heal_course_gradebook_course_item($courseid) {
         ['courseid' => $courseid]
     );
     $rootcatid = $rootcat ? (int)$rootcat->id : 0;
+    if ($rootcatid <= 0) {
+        try {
+            $coursecat = \grade_category::fetch_course_category($courseid);
+            if ($coursecat && !empty($coursecat->id)) {
+                $rootcatid = (int)$coursecat->id;
+            }
+        } catch (\Throwable $e) {
+            gmk_log("WARNING: gradebook heal - no se pudo crear/fetch root category courseid={$courseid}: " . $e->getMessage());
+        }
+    }
 
     $courseitems = $DB->get_records('grade_items', ['courseid' => $courseid, 'itemtype' => 'course'], 'id ASC', 'id,iteminstance,categoryid');
     if (empty($courseitems)) {
@@ -1324,6 +1334,7 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
         'fixedCycles' => 0,
         'fixedInvalidItemCategories' => 0,
         'fixedCategoryItemParentLinks' => 0,
+        'fixedInvalidAggregateItemInstances' => 0,
     ];
 
     $courseid = (int)$courseid;
@@ -1391,6 +1402,17 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
        ORDER BY id ASC LIMIT 1",
         ['courseid' => $courseid]
     );
+    if (!$anycat) {
+        // Last-resort root creation for heavily corrupted courses.
+        try {
+            $coursecat = \grade_category::fetch_course_category($courseid);
+            if ($coursecat && !empty($coursecat->id)) {
+                $anycat = (object)['id' => (int)$coursecat->id];
+            }
+        } catch (\Throwable $e) {
+            gmk_log("WARNING: gradebook repair no pudo crear/fetch root category courseid={$courseid}: " . $e->getMessage());
+        }
+    }
     if ($anycat) {
         $DB->set_field('grade_categories', 'parent', null, ['id' => (int)$anycat->id]);
     }
@@ -1436,6 +1458,29 @@ function gmk_repair_course_gradebook_duplicates(int $courseid): array {
     $stats['canonicalRootId'] = $canonicalrootid;
 
     if ($canonicalrootid > 0) {
+        // Fix aggregate grade_items (course/category) that point to missing category rows.
+        // These rows trigger "Creating default object from empty value" inside grade_category::get_children().
+        $brokenaggitems = $DB->get_records_sql(
+            "SELECT gi.id, gi.itemtype, gi.iteminstance, gi.categoryid
+               FROM {grade_items} gi
+          LEFT JOIN {grade_categories} gc
+                 ON gc.id = gi.iteminstance
+                AND gc.courseid = gi.courseid
+              WHERE gi.courseid = :courseid
+                AND gi.itemtype IN ('course', 'category')
+                AND (gi.iteminstance IS NULL OR gi.iteminstance = 0 OR gc.id IS NULL)
+           ORDER BY gi.id ASC",
+            ['courseid' => $courseid]
+        );
+        foreach ($brokenaggitems as $it) {
+            $iid = (int)$it->id;
+            $DB->set_field('grade_items', 'iteminstance', $canonicalrootid, ['id' => $iid]);
+            if ($it->itemtype === 'course' && !empty($it->categoryid)) {
+                $DB->set_field('grade_items', 'categoryid', null, ['id' => $iid]);
+            }
+            $stats['fixedInvalidAggregateItemInstances']++;
+        }
+
         foreach ($rootcandidates as $rid => $cat) {
             $rid = (int)$rid;
             if ($rid === $canonicalrootid) {
