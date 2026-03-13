@@ -28,6 +28,28 @@ $initdate = optional_param('initdate', date('Y-01-01'), PARAM_TEXT);
 $enddate = optional_param('enddate', date('Y-12-31', strtotime('+1 year')), PARAM_TEXT);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = optional_param('perpage', 50, PARAM_INT);
+$maxrows = optional_param('maxrows', 100, PARAM_INT);
+$runmass = optional_param('runmass', 0, PARAM_BOOL);
+$applymass = optional_param('applymass', 0, PARAM_BOOL);
+
+$fixdeduplicate = optional_param('fixdeduplicate', 0, PARAM_BOOL);
+$fixsyncstatus = optional_param('fixsyncstatus', 0, PARAM_BOOL);
+$fixsyncperiod = optional_param('fixsyncperiod', 0, PARAM_BOOL);
+$fixgroupmembers = optional_param('fixgroupmembers', 0, PARAM_BOOL);
+if (!$applymass) {
+    if (!array_key_exists('fixdeduplicate', $_REQUEST)) {
+        $fixdeduplicate = 1;
+    }
+    if (!array_key_exists('fixsyncstatus', $_REQUEST)) {
+        $fixsyncstatus = 1;
+    }
+    if (!array_key_exists('fixsyncperiod', $_REQUEST)) {
+        $fixsyncperiod = 1;
+    }
+    if (!array_key_exists('fixgroupmembers', $_REQUEST)) {
+        $fixgroupmembers = 1;
+    }
+}
 if ($page < 0) {
     $page = 0;
 }
@@ -36,6 +58,12 @@ if ($perpage < 20) {
 }
 if ($perpage > 200) {
     $perpage = 200;
+}
+if ($maxrows < 20) {
+    $maxrows = 20;
+}
+if ($maxrows > 1000) {
+    $maxrows = 1000;
 }
 
 function gmk_dbg_h($value): string {
@@ -99,6 +127,409 @@ function gmk_dbg_print_table(array $headers, array $rows): void {
     echo '</tbody></table>';
 }
 
+function gmk_dbg_mass_collect(int $maxrows): array {
+    global $DB;
+
+    $passedsubsql = "
+        SELECT gg.userid, gi.courseid, MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval
+          FROM {grade_items} gi
+          JOIN {grade_grades} gg ON gg.itemid = gi.id
+          JOIN (
+                SELECT DISTINCT userid, courseid
+                  FROM {gmk_course_progre}
+                 WHERE status = 2
+               ) sc
+            ON sc.userid = gg.userid
+           AND sc.courseid = gi.courseid
+         WHERE gi.itemtype = 'course'
+      GROUP BY gg.userid, gi.courseid
+    ";
+
+    $periodsubsql = "
+        SELECT userid, learningplanid, MAX(currentperiodid) AS currentperiodid
+          FROM {local_learning_users}
+      GROUP BY userid, learningplanid
+    ";
+
+    $checks = [];
+
+    $checks[] = [
+        'id' => 'duplicate_progress_records',
+        'title' => 'Duplicados gmk_course_progre (userid+courseid+learningplanid)',
+        'countsql' => "SELECT COUNT(*)
+                         FROM (
+                               SELECT 1
+                                 FROM {gmk_course_progre}
+                             GROUP BY userid, courseid, learningplanid
+                               HAVING COUNT(*) > 1
+                              ) q",
+        'countparams' => [],
+        'rowsql' => "SELECT CONCAT(cp.userid, '-', cp.courseid, '-', cp.learningplanid) AS rowid,
+                            cp.userid, cp.courseid, cp.learningplanid,
+                            COUNT(*) AS dupcount, MIN(cp.id) AS minid, MAX(cp.id) AS maxid
+                       FROM {gmk_course_progre} cp
+                   GROUP BY cp.userid, cp.courseid, cp.learningplanid
+                     HAVING COUNT(*) > 1
+                   ORDER BY dupcount DESC, maxid DESC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'courseid', 'learningplanid', 'dupcount', 'minid', 'maxid'],
+    ];
+
+    $checks[] = [
+        'id' => 'inprogress_wrong_period',
+        'title' => 'Cursando (status=2) fuera del periodo actual del plan',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                         JOIN ($periodsubsql) lpu
+                           ON lpu.userid = cp.userid
+                          AND lpu.learningplanid = cp.learningplanid
+                        WHERE cp.status = 2
+                          AND cp.periodid > 0
+                          AND lpu.currentperiodid > 0
+                          AND cp.periodid <> lpu.currentperiodid",
+        'countparams' => [],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.periodid, lpu.currentperiodid,
+                            cp.courseid, cp.classid, cp.groupid
+                       FROM {gmk_course_progre} cp
+                       JOIN ($periodsubsql) lpu
+                         ON lpu.userid = cp.userid
+                        AND lpu.learningplanid = cp.learningplanid
+                      WHERE cp.status = 2
+                        AND cp.periodid > 0
+                        AND lpu.currentperiodid > 0
+                        AND cp.periodid <> lpu.currentperiodid
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'periodid', 'currentperiodid', 'courseid', 'classid', 'groupid'],
+    ];
+
+    $checks[] = [
+        'id' => 'inprogress_invalid_class',
+        'title' => 'Cursando (status=2) con classid invalido (no existe en gmk_class)',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                    LEFT JOIN {gmk_class} gc ON gc.id = cp.classid
+                        WHERE cp.status = 2
+                          AND cp.classid > 0
+                          AND gc.id IS NULL",
+        'countparams' => [],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.courseid, cp.classid, cp.groupid, cp.periodid
+                       FROM {gmk_course_progre} cp
+                  LEFT JOIN {gmk_class} gc ON gc.id = cp.classid
+                      WHERE cp.status = 2
+                        AND cp.classid > 0
+                        AND gc.id IS NULL
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'courseid', 'classid', 'groupid', 'periodid'],
+    ];
+
+    $checks[] = [
+        'id' => 'inprogress_group_mismatch',
+        'title' => 'Cursando (status=2) con groupid distinto al groupid de su clase',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                         JOIN {gmk_class} gc ON gc.id = cp.classid
+                        WHERE cp.status = 2
+                          AND cp.classid > 0
+                          AND gc.groupid > 0
+                          AND cp.groupid > 0
+                          AND cp.groupid <> gc.groupid",
+        'countparams' => [],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.courseid, cp.classid,
+                            cp.groupid AS cp_groupid, gc.groupid AS class_groupid
+                       FROM {gmk_course_progre} cp
+                       JOIN {gmk_class} gc ON gc.id = cp.classid
+                      WHERE cp.status = 2
+                        AND cp.classid > 0
+                        AND gc.groupid > 0
+                        AND cp.groupid > 0
+                        AND cp.groupid <> gc.groupid
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'courseid', 'classid', 'cp_groupid', 'class_groupid'],
+    ];
+
+    $checks[] = [
+        'id' => 'inprogress_missing_group_member',
+        'title' => 'Cursando (status=2) sin membership en groups_members para el grupo de la clase',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                         JOIN {gmk_class} gc ON gc.id = cp.classid
+                    LEFT JOIN {groups_members} gm
+                           ON gm.userid = cp.userid
+                          AND gm.groupid = gc.groupid
+                        WHERE cp.status = 2
+                          AND cp.classid > 0
+                          AND gc.groupid > 0
+                          AND gm.id IS NULL",
+        'countparams' => [],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.courseid, cp.classid,
+                            gc.groupid AS class_groupid
+                       FROM {gmk_course_progre} cp
+                       JOIN {gmk_class} gc ON gc.id = cp.classid
+                  LEFT JOIN {groups_members} gm
+                         ON gm.userid = cp.userid
+                        AND gm.groupid = gc.groupid
+                      WHERE cp.status = 2
+                        AND cp.classid > 0
+                        AND gc.groupid > 0
+                        AND gm.id IS NULL
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'courseid', 'classid', 'class_groupid'],
+    ];
+
+    $checks[] = [
+        'id' => 'inprogress_passed_by_gradebook',
+        'title' => 'Cursando (status=2) pero con nota final >= 70 en gradebook (candidato a aprobar)',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                         JOIN ($passedsubsql) pg
+                           ON pg.userid = cp.userid
+                          AND pg.courseid = cp.courseid
+                        WHERE cp.status = 2
+                          AND pg.gradeval >= :passgrade",
+        'countparams' => ['passgrade' => 70.0],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.courseid, cp.classid, cp.groupid,
+                            cp.status, cp.progress, cp.grade, pg.gradeval AS gradebook_grade
+                       FROM {gmk_course_progre} cp
+                       JOIN ($passedsubsql) pg
+                         ON pg.userid = cp.userid
+                        AND pg.courseid = cp.courseid
+                      WHERE cp.status = 2
+                        AND pg.gradeval >= :passgrade
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => ['passgrade' => 70.0],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'courseid', 'classid', 'groupid', 'status', 'progress', 'grade', 'gradebook_grade'],
+    ];
+
+    $checks[] = [
+        'id' => 'finished_with_class_link',
+        'title' => 'Completadas/Aprobadas/Reprobadas con classid/groupid enlazado (informativo)',
+        'countsql' => "SELECT COUNT(*)
+                         FROM {gmk_course_progre} cp
+                        WHERE cp.status IN (3,4,5)
+                          AND (cp.classid > 0 OR cp.groupid > 0)",
+        'countparams' => [],
+        'rowsql' => "SELECT cp.id AS rowid,
+                            cp.userid, cp.learningplanid, cp.courseid, cp.status, cp.classid, cp.groupid
+                       FROM {gmk_course_progre} cp
+                      WHERE cp.status IN (3,4,5)
+                        AND (cp.classid > 0 OR cp.groupid > 0)
+                   ORDER BY cp.userid ASC, cp.learningplanid ASC, cp.courseid ASC, cp.id ASC",
+        'rowparams' => [],
+        'headers' => ['rowid', 'userid', 'learningplanid', 'courseid', 'status', 'classid', 'groupid'],
+    ];
+
+    $result = [
+        'generatedat' => date('Y-m-d H:i:s'),
+        'summaryrows' => [],
+        'details' => [],
+        'totalissues' => 0,
+    ];
+
+    foreach ($checks as $chk) {
+        $count = (int)$DB->count_records_sql($chk['countsql'], $chk['countparams']);
+        $rows = [];
+        if ($count > 0) {
+            $rows = array_values($DB->get_records_sql($chk['rowsql'], $chk['rowparams'], 0, $maxrows));
+        }
+        $status = ($count > 0) ? 'ISSUE' : 'OK';
+        if ($count > 0) {
+            $result['totalissues']++;
+        }
+        $result['summaryrows'][] = [
+            'Check' => $chk['title'],
+            'Issues' => $count,
+            'Estado' => ($count > 0 ? '<span class="badge bad">ISSUE</span>' : '<span class="badge ok">OK</span>'),
+        ];
+        $result['details'][] = [
+            'id' => $chk['id'],
+            'title' => $chk['title'],
+            'status' => $status,
+            'count' => $count,
+            'headers' => $chk['headers'],
+            'rows' => array_map(static function($r) {
+                return (array)$r;
+            }, $rows),
+            'truncated' => ($count > count($rows)),
+        ];
+    }
+
+    return $result;
+}
+
+function gmk_dbg_pick_progress_record_to_keep(array $records): int {
+    $statuspriority = [
+        4 => 700, // aprobada
+        3 => 650, // completada
+        7 => 600, // revalidando
+        6 => 500, // pendiente revalida
+        2 => 400, // cursando
+        5 => 300, // reprobada
+        1 => 200, // disponible
+        0 => 100, // no disponible
+        99 => 550, // migracion
+    ];
+
+    $bestid = 0;
+    $bestscore = -1.0e18;
+    foreach ($records as $r) {
+        $status = isset($r->status) ? (int)$r->status : -1;
+        $score = ($statuspriority[$status] ?? 0) * 1000000;
+        $score += (!empty($r->classid) ? 100000 : 0);
+        $score += (!empty($r->groupid) ? 50000 : 0);
+        $score += (int)round((float)($r->progress ?? 0) * 100);
+        $score += (int)round((float)($r->grade ?? 0) * 100);
+        $score += (int)($r->timemodified ?? 0);
+        $score += (int)($r->id ?? 0);
+
+        if ($score > $bestscore) {
+            $bestscore = $score;
+            $bestid = (int)$r->id;
+        }
+    }
+    return $bestid;
+}
+
+function gmk_dbg_mass_repair(array $opts): array {
+    global $DB;
+    $report = [];
+
+    @set_time_limit(0);
+
+    if (!empty($opts['fixdeduplicate'])) {
+        $dupkeys = $DB->get_records_sql("
+            SELECT CONCAT(cp.userid, '-', cp.courseid, '-', cp.learningplanid) AS rowid,
+                   cp.userid, cp.courseid, cp.learningplanid, COUNT(*) AS dupcount
+              FROM {gmk_course_progre} cp
+          GROUP BY cp.userid, cp.courseid, cp.learningplanid
+            HAVING COUNT(*) > 1
+        ");
+        $deleted = 0;
+        $groups = 0;
+        foreach ($dupkeys as $k) {
+            $groups++;
+            $records = $DB->get_records('gmk_course_progre', [
+                'userid' => (int)$k->userid,
+                'courseid' => (int)$k->courseid,
+                'learningplanid' => (int)$k->learningplanid
+            ], 'timemodified DESC, id DESC', 'id,status,progress,grade,classid,groupid,timemodified');
+            if (count($records) <= 1) {
+                continue;
+            }
+            $keepid = gmk_dbg_pick_progress_record_to_keep(array_values($records));
+            foreach ($records as $r) {
+                if ((int)$r->id === $keepid) {
+                    continue;
+                }
+                $DB->delete_records('gmk_course_progre', ['id' => (int)$r->id]);
+                $deleted++;
+            }
+        }
+        $report[] = "Deduplicación: grupos=$groups, eliminados=$deleted.";
+    }
+
+    if (!empty($opts['fixgroupmembers'])) {
+        $missingmembers = $DB->get_records_sql("
+            SELECT cp.id AS rowid, cp.userid, gc.groupid AS class_groupid
+              FROM {gmk_course_progre} cp
+              JOIN {gmk_class} gc ON gc.id = cp.classid
+         LEFT JOIN {groups_members} gm
+                ON gm.userid = cp.userid
+               AND gm.groupid = gc.groupid
+             WHERE cp.status = 2
+               AND cp.classid > 0
+               AND gc.groupid > 0
+               AND gm.id IS NULL
+        ");
+        $ok = 0;
+        $fail = 0;
+        foreach ($missingmembers as $row) {
+            $added = groups_add_member((int)$row->class_groupid, (int)$row->userid);
+            if ($added) {
+                $ok++;
+            } else {
+                $fail++;
+            }
+        }
+        $report[] = "Sincronización de grupos: agregados=$ok, fallidos=$fail.";
+    }
+
+    if (!empty($opts['fixsyncstatus'])) {
+        $targets = $DB->get_records_sql("
+            SELECT DISTINCT CONCAT(cp.userid, '-', cp.courseid, '-', cp.learningplanid) AS rowid,
+                            cp.userid, cp.courseid, cp.learningplanid
+              FROM {gmk_course_progre} cp
+              JOIN (
+                    SELECT gg.userid, gi.courseid, MAX(COALESCE(gg.finalgrade, gg.rawgrade)) AS gradeval
+                      FROM {grade_items} gi
+                      JOIN {grade_grades} gg ON gg.itemid = gi.id
+                      JOIN (
+                            SELECT DISTINCT userid, courseid
+                              FROM {gmk_course_progre}
+                             WHERE status = 2
+                           ) sc
+                        ON sc.userid = gg.userid
+                       AND sc.courseid = gi.courseid
+                     WHERE gi.itemtype = 'course'
+                  GROUP BY gg.userid, gi.courseid
+                   ) pg
+                ON pg.userid = cp.userid
+               AND pg.courseid = cp.courseid
+             WHERE cp.status = 2
+               AND pg.gradeval >= :passgrade
+        ", ['passgrade' => 70.0]);
+        $ok = 0;
+        $fail = 0;
+        foreach ($targets as $t) {
+            $updated = local_grupomakro_progress_manager::update_course_progress(
+                (int)$t->courseid,
+                (int)$t->userid,
+                (int)$t->learningplanid
+            );
+            if ($updated) {
+                $ok++;
+            } else {
+                $fail++;
+            }
+        }
+        $report[] = "Sincronización de estado por nota: objetivo=" . count($targets) . ", ok=$ok, fail=$fail.";
+    }
+
+    if (!empty($opts['fixsyncperiod'])) {
+        $lpusers = $DB->get_records_sql("
+            SELECT CONCAT(llu.userid, '-', llu.learningplanid) AS rowid,
+                   llu.userid, llu.learningplanid
+              FROM {local_learning_users} llu
+             WHERE llu.learningplanid > 0
+          GROUP BY llu.userid, llu.learningplanid
+        ");
+        $ok = 0;
+        $nooporfail = 0;
+        foreach ($lpusers as $lpu) {
+            $synced = local_grupomakro_progress_manager::sync_student_period(
+                (int)$lpu->userid,
+                (int)$lpu->learningplanid
+            );
+            if ($synced) {
+                $ok++;
+            } else {
+                $nooporfail++;
+            }
+        }
+        $report[] = "Sincronización de periodos: procesados=" . count($lpusers) . ", sincronizados=$ok, sin cambio/fail=$nooporfail.";
+    }
+
+    return $report;
+}
+
 echo $OUTPUT->header();
 
 echo '<style>
@@ -154,6 +585,91 @@ echo '</div>';
 echo '</div>';
 echo '<div style="margin-top:12px;"><button type="submit" class="btn btn-primary">Diagnosticar</button></div>';
 echo '</form>';
+
+echo '<div class="dbg-card">';
+echo '<strong>Diagnóstico masivo de integridad (todos los estudiantes)</strong><br>';
+echo '<span class="muted">Identifica inconsistencia de progreso/periodo/clase/grupo que afecta "Mi Horario".</span>';
+echo '<form method="get" style="margin-top:10px;">';
+echo '<input type="hidden" name="search" value="' . gmk_dbg_h($search) . '">';
+echo '<input type="hidden" name="initdate" value="' . gmk_dbg_h($initdate) . '">';
+echo '<input type="hidden" name="enddate" value="' . gmk_dbg_h($enddate) . '">';
+echo '<input type="hidden" name="perpage" value="' . (int)$perpage . '">';
+echo '<input type="hidden" name="page" value="' . (int)$page . '">';
+echo '<label style="margin-right:8px;"><strong>Max filas detalle por check:</strong></label>';
+echo '<input type="number" name="maxrows" value="' . (int)$maxrows . '" min="20" max="1000" style="max-width:120px;">';
+echo '<button type="submit" name="runmass" value="1" class="btn btn-secondary" style="margin-left:8px;">Ejecutar diagnóstico masivo</button>';
+echo '</form>';
+echo '</div>';
+
+$massrepairlog = [];
+if ($applymass) {
+    require_sesskey();
+    $massrepairlog = gmk_dbg_mass_repair([
+        'fixdeduplicate' => !empty($fixdeduplicate),
+        'fixsyncstatus' => !empty($fixsyncstatus),
+        'fixsyncperiod' => !empty($fixsyncperiod),
+        'fixgroupmembers' => !empty($fixgroupmembers),
+    ]);
+    $runmass = 1;
+}
+
+$massdiag = null;
+if ($runmass) {
+    $massdiag = gmk_dbg_mass_collect((int)$maxrows);
+
+    if (!empty($massrepairlog)) {
+        echo '<div class="dbg-card"><strong>Resultado de reparación masiva</strong><ul>';
+        foreach ($massrepairlog as $line) {
+            echo '<li>' . s($line) . '</li>';
+        }
+        echo '</ul></div>';
+    }
+
+    echo '<div class="dbg-card"><strong>Resumen masivo</strong><br>';
+    echo '<span class="muted">Generado: ' . s($massdiag['generatedat']) . '</span><br>';
+    echo '<span class="muted">Checks con issues: ' . (int)$massdiag['totalissues'] . '</span>';
+    echo '</div>';
+    gmk_dbg_print_table(['Check', 'Issues', 'Estado'], $massdiag['summaryrows']);
+
+    echo '<div class="dbg-card">';
+    echo '<strong>Aplicar corrección masiva</strong><br>';
+    echo '<span class="muted">Usa checks para ejecutar correcciones seguras en bloque.</span>';
+    echo '<form method="post" style="margin-top:10px;" onsubmit="return confirm(\'Se aplicarán correcciones masivas de integridad. ¿Deseas continuar?\');">';
+    echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+    echo '<input type="hidden" name="search" value="' . gmk_dbg_h($search) . '">';
+    echo '<input type="hidden" name="initdate" value="' . gmk_dbg_h($initdate) . '">';
+    echo '<input type="hidden" name="enddate" value="' . gmk_dbg_h($enddate) . '">';
+    echo '<input type="hidden" name="perpage" value="' . (int)$perpage . '">';
+    echo '<input type="hidden" name="page" value="' . (int)$page . '">';
+    echo '<input type="hidden" name="maxrows" value="' . (int)$maxrows . '">';
+    echo '<input type="hidden" name="runmass" value="1">';
+    echo '<input type="hidden" name="applymass" value="1">';
+
+    echo '<label style="display:block;"><input type="checkbox" name="fixdeduplicate" value="1" ' . (!empty($fixdeduplicate) ? 'checked' : '') . '> Deduplicar gmk_course_progre (conservar mejor registro por usuario/curso/plan)</label>';
+    echo '<label style="display:block;"><input type="checkbox" name="fixsyncstatus" value="1" ' . (!empty($fixsyncstatus) ? 'checked' : '') . '> Sincronizar estado por nota (status=2 con nota final >= 70 pasa a estado final)</label>';
+    echo '<label style="display:block;"><input type="checkbox" name="fixsyncperiod" value="1" ' . (!empty($fixsyncperiod) ? 'checked' : '') . '> Sincronizar currentperiodid por estudiante/plan</label>';
+    echo '<label style="display:block;"><input type="checkbox" name="fixgroupmembers" value="1" ' . (!empty($fixgroupmembers) ? 'checked' : '') . '> Corregir groups_members faltantes para clases en curso</label>';
+    echo '<button type="submit" class="btn btn-primary" style="margin-top:10px;">Aplicar corrección masiva</button>';
+    echo '</form>';
+    echo '</div>';
+
+    foreach ($massdiag['details'] as $check) {
+        echo '<div class="dbg-card">';
+        echo '<strong>' . s($check['title']) . '</strong> ';
+        if ($check['status'] === 'ISSUE') {
+            echo '<span class="badge bad">ISSUE</span>';
+        } else {
+            echo '<span class="badge ok">OK</span>';
+        }
+        echo ' <span class="muted">rows=' . (int)$check['count'];
+        if (!empty($check['truncated'])) {
+            echo ' (mostrando primeras ' . count($check['rows']) . ')';
+        }
+        echo '</span>';
+        echo '</div>';
+        gmk_dbg_print_table($check['headers'], $check['rows']);
+    }
+}
 
 // Listado dinamico de estudiantes (sin necesidad de busqueda manual).
 $searchsql = '';
@@ -252,6 +768,12 @@ if ($hasprev || $hasnext) {
 }
 
 if ($userid <= 0) {
+    if ($runmass) {
+        echo '<div class="dbg-card"><span class="muted">Puedes seleccionar un estudiante de la lista para ver también el diagnóstico individual.</span></div>';
+        echo '</div>';
+        echo $OUTPUT->footer();
+        exit;
+    }
     echo '<div class="dbg-card"><span class="muted">Selecciona un estudiante de la lista para ejecutar el diagnostico completo.</span></div>';
     echo '</div>';
     echo $OUTPUT->footer();
