@@ -109,7 +109,7 @@ Vue.component('grademodal', {
                                                     <th class="text-left text-overline" style="width: 52%">Asignatura</th>
                                                     <th class="text-center text-overline">Estado</th>
                                                     <th class="text-right text-overline">Nota</th>
-                                                    <th class="text-center text-overline">Inscribir</th>
+                                                    <th class="text-center text-overline">Acción</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -129,6 +129,17 @@ Vue.component('grademodal', {
                                                     </td>
                                                     <td class="text-center py-1">
                                                         <v-btn
+                                                            v-if="canWithdrawFromCourse(course)"
+                                                            x-small
+                                                            color="error"
+                                                            :loading="withdrawingCourseKey === getCourseKey(course)"
+                                                            :disabled="!!withdrawingCourseKey"
+                                                            @click.stop="withdrawFromCourse(course)"
+                                                        >
+                                                            Retirar
+                                                        </v-btn>
+                                                        <v-btn
+                                                            v-else
                                                             x-small
                                                             color="primary"
                                                             :disabled="!canEnrollInCourse(course)"
@@ -264,7 +275,8 @@ Vue.component('grademodal', {
             enrollingClassId: null,
             enrollClasses: [],
             enrollClassesError: '',
-            selectedCourse: null
+            selectedCourse: null,
+            withdrawingCourseKey: null
         };
     },
     props: {
@@ -494,6 +506,71 @@ Vue.component('grademodal', {
                 return false;
             }
             return Number(item.enrolled || 0) > cap;
+        },
+        canWithdrawFromCourse(course) {
+            const label = String((course && course.statusLabel) ? course.statusLabel : '').trim().toLowerCase();
+            return label === 'cursando' && Number(course && course.progressclassid ? course.progressclassid : 0) > 0;
+        },
+        getCourseKey(course) {
+            return String(course && course.progressclassid ? course.progressclassid : 0) + '_' + String(course && course.courseid ? course.courseid : 0);
+        },
+        async withdrawFromCourse(course) {
+            const classId = Number(course && course.progressclassid ? course.progressclassid : 0);
+            if (!classId || this.withdrawingCourseKey) return;
+
+            const courseName = course.coursename || 'esta asignatura';
+            const studentName = this.studentName;
+
+            const confirmed = await (async () => {
+                if (window.Swal) {
+                    const result = await window.Swal.fire({
+                        icon: 'warning',
+                        title: '¿Retirar estudiante?',
+                        html: `<b>${studentName}</b> será <b>retirado</b> de <b>${courseName}</b>.<br><br>` +
+                              `Se eliminará su inscripción en el grupo, se des-matriculará del curso en Moodle ` +
+                              `y su estado volverá a <em>Disponible</em> para poder inscribirse nuevamente.`,
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'Sí, retirar',
+                        cancelButtonText: 'Cancelar',
+                    });
+                    return result.isConfirmed;
+                }
+                return window.confirm(
+                    `¿Retirar a ${studentName} de ${courseName}?\n\n` +
+                    `Se eliminará su inscripción. El estado volverá a Disponible para re-inscripción.`
+                );
+            })();
+
+            if (!confirmed) return;
+
+            this.withdrawingCourseKey = this.getCourseKey(course);
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const params = {
+                    action:  'local_grupomakro_withdraw_student',
+                    sesskey: M.cfg.sesskey,
+                    classId: classId,
+                    userId:  Number(this.dataStudent.id),
+                };
+                const response = await window.axios.get(url, { params });
+                const payload  = response && response.data ? response.data : {};
+                const result   = (payload.status === 'success' && payload.data) ? payload.data : payload;
+
+                if (result.status === 'ok') {
+                    this.showMessage('success', result.message || 'Estudiante retirado correctamente.');
+                    // Reload pensum to reflect new status.
+                    await this.getpensum();
+                } else {
+                    this.showMessage('error', result.message || 'No se pudo retirar al estudiante.');
+                }
+            } catch (error) {
+                console.error('Error withdrawing student:', error);
+                this.showMessage('error', 'Error al retirar al estudiante.');
+            } finally {
+                this.withdrawingCourseKey = null;
+            }
         }
     },
     computed: {

@@ -800,6 +800,19 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_withdraw_student':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_student.php');
+            $classid = required_param('classId', PARAM_INT);
+            $userid  = required_param('userId', PARAM_INT);
+            $result  = \local_grupomakro_core\external\schedule\withdraw_student::execute($classid, $userid);
+            $response = [
+                'status' => 'success',
+                'data'   => $result,
+            ];
+            break;
+
         case 'local_grupomakro_get_student_course_pensum_activities':
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/student/get_student_course_pensum_activities.php');
             $userid = required_param('userId', PARAM_INT);
