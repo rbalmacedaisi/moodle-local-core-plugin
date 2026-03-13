@@ -160,6 +160,13 @@ function gmk_dbg_status_badge(string $status): string {
 echo $OUTPUT->header();
 
 echo '<h2 style="margin-top:0;">Checklist SQL de diagnostico de calificaciones</h2>';
+echo '<p style="margin:4px 0 10px 0;"><a href="' .
+    new moodle_url('/local/grupomakro_core/pages/debug_grade_repair.php', [
+        'courseid' => $courseid,
+        'classid' => $classid,
+        'maxrows' => $maxrows,
+    ]) .
+    '" style="font-weight:bold;">Ir a script de reparacion</a></p>';
 echo '<p style="margin-top:0;max-width:1100px;">'
     . 'Esta pagina ejecuta consultas de integridad para detectar condiciones que pueden producir notas finales '
     . 'incorrectas cuando se usa una arquitectura por clases/grupos/categorias. '
