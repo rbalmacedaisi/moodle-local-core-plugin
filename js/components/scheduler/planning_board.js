@@ -2199,9 +2199,12 @@ window.SchedulerComponents.PlanningBoard = {
         async viewStudents(cls) {
             if (!window.schedulerStore) return;
 
-            // For external courses or if we suspect local list is incomplete, fetch from backend
-            if (cls.isExternal || !cls.studentIds || cls.studentIds.length === 0 || (cls.studentCount > 0 && (!this.storeState.students || this.storeState.students.length === 0))) {
-                // If the class has students but we don't have metadata, fetch specifically for this class
+            const allStudents = window.schedulerStore.state.students || [];
+            const localStudents = allStudents.filter(s => (cls.studentIds || []).includes(s.id || s.dbId));
+            const localIncomplete = (Number(cls.studentCount || 0) > 0) && (localStudents.length < Number(cls.studentCount || 0));
+
+            // For external classes, empty local ids, or incomplete local metadata, fetch from backend.
+            if (cls.isExternal || !cls.studentIds || cls.studentIds.length === 0 || localIncomplete) {
                 const fetched = await window.schedulerStore.fetchClassStudents(cls.id);
                 if (fetched && fetched.length > 0) {
                     this.currentStudents = fetched;
@@ -2210,9 +2213,8 @@ window.SchedulerComponents.PlanningBoard = {
                 }
             }
 
-            // Fallback to local filter if fetch failed or if it's internal and we have the data
-            const allStudents = window.schedulerStore.state.students || [];
-            this.currentStudents = allStudents.filter(s => (cls.studentIds || []).includes(s.id || s.dbId));
+            // Fallback to local filter if fetch failed.
+            this.currentStudents = localStudents;
             this.studentsDialog = true;
         },
         viewAuditLog(cls) {

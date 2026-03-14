@@ -910,6 +910,15 @@
 
             for (const [key, items] of Object.entries(draftByKey)) {
                 const currentDemand = demandMap[key];
+                const hasApprovedItems = items.some(item => Number(item.approved || 0) > 0);
+
+                if (hasApprovedItems) {
+                    for (const item of items) {
+                        result.push(this._withCanonicalSubjectName({ ...item }));
+                    }
+                    coveredKeys.add(key);
+                    continue;
+                }
 
                 if (!currentDemand || currentDemand.students.length === 0) {
                     // No demand match — keep placed items, drop unplaced ones

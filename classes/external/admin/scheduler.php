@@ -1637,6 +1637,70 @@ class scheduler extends external_api {
             $institutionalPeriodId = (int)($c->institutional_period_id ?? 0);
             $finalPeriodId = $institutionalPeriodId ?: (int)($academic_period_id ?: 0);
 
+            $groupStudentUserIds = [];
+            if (!empty($c->groupid)) {
+                $groupSql = "SELECT gm.userid
+                               FROM {groups_members} gm
+                               JOIN {user} u ON gm.userid = u.id
+                              WHERE gm.groupid = ? AND u.deleted = 0";
+                $groupParams = [(int)$c->groupid];
+                if (!empty($c->instructorid)) {
+                    $groupSql .= " AND gm.userid <> ?";
+                    $groupParams[] = (int)$c->instructorid;
+                }
+                $groupStudentUserIds = $DB->get_fieldset_sql($groupSql, $groupParams);
+            }
+
+            $instructorId = (int)($c->instructorid ?? 0);
+            $classUserIds = array_values(array_unique(array_filter(array_merge(
+                // pre-registration users
+                $DB->get_fieldset_sql(
+                    "SELECT pr.userid
+                       FROM {gmk_class_pre_registration} pr
+                      WHERE pr.classid = ?",
+                    [$c->id]
+                ),
+                // queue users
+                $DB->get_fieldset_sql(
+                    "SELECT q.userid
+                       FROM {gmk_class_queue} q
+                      WHERE q.classid = ?",
+                    [$c->id]
+                ),
+                // enrolled users in Moodle group
+                $groupStudentUserIds,
+                // enrolled users in local progress
+                $DB->get_fieldset_sql(
+                    "SELECT p.userid
+                       FROM {gmk_course_progre} p
+                      WHERE p.classid = ?",
+                    [$c->id]
+                )
+            ), static function($userid) use ($instructorId) {
+                $uid = (int)$userid;
+                if ($uid <= 0) {
+                    return false;
+                }
+                if ($instructorId > 0 && $uid === $instructorId) {
+                    return false;
+                }
+                return true;
+            })));
+
+            $classStudentIds = [];
+            if (!empty($classUserIds)) {
+                $userRows = $DB->get_records_list('user', 'id', $classUserIds, '', 'id, idnumber, deleted');
+                foreach ($classUserIds as $uid) {
+                    $uid = (int)$uid;
+                    if (empty($userRows[$uid]) || !empty($userRows[$uid]->deleted)) {
+                        continue;
+                    }
+                    $idnumber = trim((string)$userRows[$uid]->idnumber);
+                    $classStudentIds[] = ($idnumber !== '') ? $idnumber : (string)$uid;
+                }
+                $classStudentIds = array_values(array_unique($classStudentIds));
+            }
+
             $result[] = [
                 'id' => (int)$c->id,
                 'courseid' => (int)$c->courseid,
@@ -1648,17 +1712,14 @@ class scheduler extends external_api {
                 'end' => empty($sessArr) ? '00:00' : $sessArr[0]['end'],
                 'room' => empty($sessArr) ? 'Sin aula' : $sessArr[0]['roomName'],
                 'corecourseid' => (int)($c->corecourseid ?? 0),
-                'studentIds' => ($classStudentIds = array_values(array_unique(array_filter(array_merge(
-                    // Get idnumbers (document numbers) instead of userids for consistent student identification
-                    $DB->get_fieldset_sql("SELECT u.idnumber FROM {user} u JOIN {gmk_class_queue} q ON u.id = q.userid WHERE q.classid = ? AND u.deleted = 0", [$c->id]),
-                    $DB->get_fieldset_sql("SELECT u.idnumber FROM {user} u JOIN {gmk_course_progre} p ON u.id = p.userid WHERE p.classid = ? AND u.deleted = 0", [$c->id])
-                ))))),
+                'studentIds' => $classStudentIds,
                 'studentCount' => count($classStudentIds),
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
                 'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
                 'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
                 'subGroup' => (int)($c->subgroup ?? 0),
                 'subperiod' => (int)($c->subperiod ?? 1),
+                'approved' => (int)($c->approved ?? 0),
                 'type' => (int)($c->type ?? 0),
                 'typeLabel' => $c->typelabel ?? 'Presencial',
                 'learningplanid' => (int)($c->learningplanid ?? 0),
