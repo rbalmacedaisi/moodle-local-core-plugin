@@ -83,9 +83,8 @@ class delete_course_class_schedule extends external_api {
         
         try{
             
-            $class = $DB->get_record('gmk_class',['id'=>$params['classId']]);
-            
-            delete_class($class,$params['deletionMessage'] );
+            $class = $DB->get_record('gmk_class', ['id' => $params['classId']], 'id', MUST_EXIST);
+            delete_class((int)$class->id, $params['deletionMessage']);
             
             // Return the result.
             return ['status' =>1];

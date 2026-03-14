@@ -1944,57 +1944,224 @@ function gmk_is_class_activity_stack_complete($class, &$reason = '')
     return true;
 }
 
-function delete_class($classId, $reason =  null)
+function delete_class($classId, $reason = null)
 {
-    global $DB, $USER;
+    global $DB, $USER, $CFG;
+
+    require_once($CFG->dirroot . '/course/lib.php');
+    require_once($CFG->libdir . '/gradelib.php');
+
+    if (is_object($classId) && !empty($classId->id)) {
+        $classId = (int)$classId->id;
+    }
+    $classId = (int)$classId;
+    if ($classId <= 0) {
+        throw new \Exception('Class ID invalido.');
+    }
 
     // Check if class is closed
     if (is_class_closed($classId)) {
         throw new \moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
     }
 
-    $class = $DB->get_record('gmk_class', ['id' => $classId]);
+    $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
+    $courseid = (int)($class->corecourseid ?? 0);
+    $courseexists = ($courseid > 0) && $DB->record_exists('course', ['id' => $courseid]);
+    $classtag = trim((string)$class->name) . '-' . (int)$class->id;
 
-    if ($class->gradecategoryid && !empty($class->corecourseid) && $DB->record_exists('course', ['id' => $class->corecourseid])) {
+    if ($class->gradecategoryid && $courseexists) {
         // Performance: avoid building full grade_tree (expensive recursive get_children on every class delete).
         $classGradeCategory = \grade_category::fetch([
             'id' => (int)$class->gradecategoryid,
-            'courseid' => (int)$class->corecourseid
+            'courseid' => $courseid
         ]);
         if ($classGradeCategory) {
             $classGradeCategory->delete();
         }
     }
 
-    //Delete section if it's already created and all the activities in it.
-    if ($class->coursesectionid && !empty($class->corecourseid) && $DB->record_exists('course', ['id' => $class->corecourseid])) {
-        $section = $DB->get_field('course_sections', 'section', ['id' => $class->coursesectionid]);
-        if ($section !== false) {
-            course_delete_section($class->corecourseid, $section, true, true);
+    // Build section/module/group targets with fallbacks to guarantee cleanup even when IDs are stale.
+    $sectionids = [];
+    $modulecmids = [];
+    $groupids = [];
+
+    if (!empty($class->coursesectionid)) {
+        $sectionids[(int)$class->coursesectionid] = (int)$class->coursesectionid;
+    }
+
+    if ($courseexists && $classtag !== '-' . (int)$class->id) {
+        $namedsection = $DB->get_record('course_sections', ['course' => $courseid, 'name' => $classtag], 'id', IGNORE_MULTIPLE);
+        if ($namedsection) {
+            $sectionids[(int)$namedsection->id] = (int)$namedsection->id;
         }
-        $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $class->id]);
     }
 
-    //Delete class group if it's already created
-    if ($class->groupid) {
-        groups_delete_group($class->groupid);
+    foreach (explode(',', (string)$class->bbbmoduleids) as $bbbcmid) {
+        $bbbcmid = (int)trim($bbbcmid);
+        if ($bbbcmid > 0) {
+            $modulecmids[$bbbcmid] = $bbbcmid;
+        }
+    }
+    if (!empty($class->attendancemoduleid)) {
+        $modulecmids[(int)$class->attendancemoduleid] = (int)$class->attendancemoduleid;
     }
 
-    //Delete registry and queue record related to the class
-    $DB->delete_records('gmk_class_pre_registration', ['classid' => $class->id]);
-    $DB->delete_records('gmk_class_queue', ['classid' => $class->id]);
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$class->id], '', 'bbbmoduleid, attendancemoduleid');
+    foreach ($relations as $rel) {
+        if (!empty($rel->bbbmoduleid)) {
+            $modulecmids[(int)$rel->bbbmoduleid] = (int)$rel->bbbmoduleid;
+        }
+        if (!empty($rel->attendancemoduleid)) {
+            $modulecmids[(int)$rel->attendancemoduleid] = (int)$rel->attendancemoduleid;
+        }
+    }
 
-    //Add the deletion message to the table
+    if ($courseexists) {
+        foreach ($sectionids as $sid) {
+            $cmsinsection = $DB->get_fieldset_select(
+                'course_modules',
+                'id',
+                'course = :courseid AND section = :sid',
+                ['courseid' => $courseid, 'sid' => (int)$sid]
+            );
+            foreach ($cmsinsection as $cmid) {
+                $cmid = (int)$cmid;
+                if ($cmid > 0) {
+                    $modulecmids[$cmid] = $cmid;
+                }
+            }
+        }
+
+        // Fallback by activity naming convention "<...>-<classid>" used by generated Attendance/BBB.
+        $suffix = '%-' . (int)$class->id;
+        $attmodid = gmk_get_module_id_by_name('attendance');
+        if ($attmodid) {
+            $attcmids = $DB->get_fieldset_sql(
+                "SELECT cm.id
+                   FROM {course_modules} cm
+                   JOIN {attendance} a ON a.id = cm.instance
+                  WHERE cm.course = :courseid
+                    AND cm.module = :modid
+                    AND " . $DB->sql_like('a.name', ':suffix'),
+                ['courseid' => $courseid, 'modid' => (int)$attmodid, 'suffix' => $suffix]
+            );
+            foreach ($attcmids as $cmid) {
+                $cmid = (int)$cmid;
+                if ($cmid > 0) {
+                    $modulecmids[$cmid] = $cmid;
+                }
+            }
+        }
+
+        $bbbmodid = gmk_get_module_id_by_name('bigbluebuttonbn');
+        if ($bbbmodid) {
+            $bbbcmids = $DB->get_fieldset_sql(
+                "SELECT cm.id
+                   FROM {course_modules} cm
+                   JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+                  WHERE cm.course = :courseid
+                    AND cm.module = :modid
+                    AND " . $DB->sql_like('b.name', ':suffix'),
+                ['courseid' => $courseid, 'modid' => (int)$bbbmodid, 'suffix' => $suffix]
+            );
+            foreach ($bbbcmids as $cmid) {
+                $cmid = (int)$cmid;
+                if ($cmid > 0) {
+                    $modulecmids[$cmid] = $cmid;
+                }
+            }
+        }
+    }
+
+    if (!empty($class->groupid)) {
+        $groupids[(int)$class->groupid] = (int)$class->groupid;
+    }
+    if ($courseexists && $classtag !== '-' . (int)$class->id) {
+        $groupbyidnumber = $DB->get_record('groups', ['courseid' => $courseid, 'idnumber' => $classtag], 'id', IGNORE_MULTIPLE);
+        if ($groupbyidnumber) {
+            $groupids[(int)$groupbyidnumber->id] = (int)$groupbyidnumber->id;
+        }
+    }
+
+    // Delete section(s) first to remove all activities in section.
+    if ($courseexists && !empty($sectionids)) {
+        foreach ($sectionids as $sid) {
+            $sectionnum = $DB->get_field('course_sections', 'section', ['id' => (int)$sid, 'course' => $courseid]);
+            if ($sectionnum !== false) {
+                course_delete_section($courseid, (int)$sectionnum, true, true);
+            }
+        }
+    }
+
+    // Ensure leftover module links are removed (handles stale/missing section references).
+    foreach ($modulecmids as $cmid) {
+        $cm = $DB->get_record_sql(
+            "SELECT cm.id, cm.course, m.name AS modname
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id = :cmid",
+            ['cmid' => (int)$cmid],
+            IGNORE_MISSING
+        );
+        if (!$cm) {
+            continue;
+        }
+        if ($courseexists && (int)$cm->course !== $courseid) {
+            continue;
+        }
+        if (!$courseexists && !in_array((string)$cm->modname, ['attendance', 'bigbluebuttonbn'], true)) {
+            continue;
+        }
+        course_delete_module((int)$cmid);
+    }
+
+    // Delete class groups.
+    foreach ($groupids as $gid) {
+        if ($DB->record_exists('groups', ['id' => (int)$gid])) {
+            groups_delete_group((int)$gid);
+        }
+    }
+
+    // Remove relation leftovers.
+    $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => (int)$class->id]);
+
+    // Reset student state to avoid orphan class/group references.
+    $progres = $DB->get_records('gmk_course_progre', ['classid' => (int)$class->id], '', 'id,status');
+    foreach ($progres as $p) {
+        $isterminal = in_array((int)$p->status, [3, 4, 5], true);
+        if ($isterminal) {
+            $DB->execute(
+                "UPDATE {gmk_course_progre}
+                    SET classid = 0, groupid = 0, timemodified = :now
+                  WHERE id = :id",
+                ['now' => time(), 'id' => (int)$p->id]
+            );
+        } else {
+            $DB->execute(
+                "UPDATE {gmk_course_progre}
+                    SET classid = 0, groupid = 0, status = 1, grade = 0, progress = 0, timemodified = :now
+                  WHERE id = :id",
+                ['now' => time(), 'id' => (int)$p->id]
+            );
+        }
+    }
+
+    // Delete plugin records related to the class.
+    $DB->delete_records('gmk_class_pre_registration', ['classid' => (int)$class->id]);
+    $DB->delete_records('gmk_class_queue', ['classid' => (int)$class->id]);
+    $DB->delete_records('gmk_class_schedules', ['classid' => (int)$class->id]);
+
+    // Add the deletion message to the table.
     $classDeletionMessage = new stdClass();
-    $classDeletionMessage->classid = $class->id;
+    $classDeletionMessage->classid = (int)$class->id;
     $classDeletionMessage->deletionmessage = $reason;
     $classDeletionMessage->usermodified = $USER->id;
     $classDeletionMessage->timecreated = time();
     $classDeletionMessage->timemodified = time();
     $DB->insert_record('gmk_class_deletion_message', $classDeletionMessage);
 
-    //Delete the class
-    return $DB->delete_records('gmk_class', ['id' => $class->id]);
+    // Delete the class.
+    return $DB->delete_records('gmk_class', ['id' => (int)$class->id]);
 }
 /**
  * Create or updated (delete and recreate) the activities for the given class
