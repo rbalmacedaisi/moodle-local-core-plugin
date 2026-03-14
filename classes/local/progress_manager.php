@@ -347,6 +347,26 @@ class local_grupomakro_progress_manager
         $groupId = (int)($class->groupid ?? 0);
         $resolvedLearningPlanId = (int)($class->learningplanid ?? 0);
 
+        // Prefer the learning plan tied to local_learning_courses.id when available.
+        // In legacy data, gmk_class.learningplanid can be stale while gmk_class.courseid still points
+        // to the correct local_learning_courses row.
+        $courseMapLearningPlanId = 0;
+        if (!empty($class->courseid)) {
+            $courseMapLearningPlanId = (int)$DB->get_field(
+                'local_learning_courses',
+                'learningplanid',
+                ['id' => (int)$class->courseid],
+                IGNORE_MISSING
+            );
+        }
+        if ($courseMapLearningPlanId > 0 && $courseMapLearningPlanId !== $resolvedLearningPlanId) {
+            gmk_log(
+                "assign_class_to_course_progress: overriding learningplanid class={$classId} from " .
+                ($resolvedLearningPlanId ?: 0) . " to {$courseMapLearningPlanId} using local_learning_courses.id={$class->courseid}"
+            );
+            $resolvedLearningPlanId = $courseMapLearningPlanId;
+        }
+
         gmk_log(
             "assign_class_to_course_progress: userid=$userId classid={$classId} corecourseid={$coreCourseId} learningplanid=" .
             ($resolvedLearningPlanId ?: 'NULL')

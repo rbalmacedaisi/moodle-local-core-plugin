@@ -465,6 +465,8 @@ Vue.component('grademodal', {
                     item.alreadyenrolled = true;
                     item.enrolled = Number(item.enrolled || 0) + (result.status === 'ok' ? 1 : 0);
                     this.showMessage(result.status === 'ok' ? 'success' : 'warning', result.message || 'Operacion finalizada.');
+                    // Refresh pensum immediately so status labels reflect "Cursando" without reopening the modal.
+                    await this.getpensum();
                 } else {
                     this.showMessage('error', result.message || 'No se pudo inscribir al estudiante.');
                 }
