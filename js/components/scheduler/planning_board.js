@@ -1835,6 +1835,21 @@ window.SchedulerComponents.PlanningBoard = {
                 };
                 const assignedDatesForPayload = (item, dayLabel, startTime, endTime) => {
                     const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+                    const foldToken = (value) => {
+                        const raw = String(value || '').trim().toUpperCase();
+                        if (!raw) return '';
+                        try {
+                            return raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                        } catch (e) {
+                            return raw
+                                .replace(/[\u00C1\u00C0\u00C4\u00C2]/g, 'A')
+                                .replace(/[\u00C9\u00C8\u00CB\u00CA]/g, 'E')
+                                .replace(/[\u00CD\u00CC\u00CF\u00CE]/g, 'I')
+                                .replace(/[\u00D3\u00D2\u00D6\u00D4]/g, 'O')
+                                .replace(/[\u00DA\u00D9\u00DC\u00DB]/g, 'U')
+                                .replace(/\u00D1/g, 'N');
+                        }
+                    };
                     const targetDay = this.normalizeDay(dayLabel);
                     const weekdayMap = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
                     const existing = Array.isArray(item.assignedDates)
@@ -1863,9 +1878,11 @@ window.SchedulerComponents.PlanningBoard = {
                         // Keep same load-based cap used by drag/drop and resize flows.
                         const duration = this.toMins(endTime) - this.toMins(startTime);
                         const loads = this.storeState.context?.loads || [];
-                        const loadData = loads.find(l =>
-                            (l.subjectname || l.subjectName) === item.subjectName
-                        );
+                        const itemSubjectToken = foldToken(item.subjectName);
+                        const loadData = loads.find(l => {
+                            const loadName = l.subjectname || l.subjectName;
+                            return foldToken(loadName) === itemSubjectToken;
+                        });
                         if (loadData && dates.length > 0 && duration > 0) {
                             const totalHours = parseFloat(loadData.total_hours || loadData.totalHours || 0);
                             const sessionHours = duration / 60;
