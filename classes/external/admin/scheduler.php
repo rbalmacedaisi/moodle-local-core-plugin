@@ -682,6 +682,7 @@ class scheduler extends external_api {
             $teachers_cache = [];
             $courses_cache = [];
             $classrooms_cache = [];
+            $payload_user_cache = [];
             
             $periodRec = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
             $periodName = $periodRec ? $periodRec->name : "ID: $periodid";
@@ -692,6 +693,35 @@ class scheduler extends external_api {
             $lp_names = $DB->get_records_menu('local_learning_plans', [], '', 'id, name');
             $lvl_names = $DB->get_records_menu('local_learning_periods', [], '', 'id, name');
             $course_fullnames = $DB->get_records_menu('course', [], '', 'id, fullname');
+
+            // Resolve payload student token (userid or idnumber) to real userid.
+            $resolve_payload_userid = function($token) use ($DB, &$payload_user_cache) {
+                $raw = trim((string)$token);
+                if ($raw === '') {
+                    return 0;
+                }
+                if (array_key_exists($raw, $payload_user_cache)) {
+                    return (int)$payload_user_cache[$raw];
+                }
+
+                $uid = 0;
+                if (is_numeric($raw) && (int)$raw > 0) {
+                    $candidate = (int)$raw;
+                    $exists = $DB->record_exists('user', ['id' => $candidate, 'deleted' => 0]);
+                    if ($exists) {
+                        $uid = $candidate;
+                    } else {
+                        $byidnum = $DB->get_field('user', 'id', ['idnumber' => (string)$raw, 'deleted' => 0], IGNORE_MULTIPLE);
+                        $uid = $byidnum ? (int)$byidnum : 0;
+                    }
+                } else {
+                    $byidnum = $DB->get_field('user', 'id', ['idnumber' => $raw, 'deleted' => 0], IGNORE_MULTIPLE);
+                    $uid = $byidnum ? (int)$byidnum : 0;
+                }
+
+                $payload_user_cache[$raw] = $uid;
+                return $uid;
+            };
 
             // Pre-clean: remove grade_categories (and their grade_items/grade_grades) that were left over
             // from partial previous publish attempts. These are categories whose fullname ends with
@@ -764,20 +794,85 @@ class scheduler extends external_api {
                 $coreCourseId = (!empty($cls['corecourseid']) && is_numeric($cls['corecourseid'])) ? (int)$cls['corecourseid'] : 0;
 
                 if ($courseId > 0) {
-                    $subjById = $DB->get_record('local_learning_courses', ['id' => $courseId], 'id, courseid', IGNORE_MULTIPLE);
+                    $subjById = $DB->get_record('local_learning_courses', ['id' => $courseId], 'id, courseid, learningplanid', IGNORE_MULTIPLE);
                     if (!$subjById) {
                         $courseId = 0;
-                    } else if ($coreCourseId > 0 && (int)$subjById->courseid !== $coreCourseId) {
-                        $searchParams = ['courseid' => $coreCourseId];
-                        if ($lpid > 0) $searchParams['learningplanid'] = $lpid;
-                        $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
-                        if (!$subjByCore) {
-                            $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $coreCourseId], 'id', IGNORE_MULTIPLE);
+                    } else {
+                        if ($coreCourseId <= 0) {
+                            $coreCourseId = (int)$subjById->courseid;
                         }
-                        $courseId = $subjByCore ? (int)$subjByCore->id : 0;
-                        if ($courseId > 0) {
-                            gmk_log("HEALING: Corrected mismatched courseid using corecourseid {$coreCourseId} -> subject {$courseId}");
+                        if ($lpid <= 0 && !empty($subjById->learningplanid)) {
+                            $lpid = (int)$subjById->learningplanid;
                         }
+                        if ($coreCourseId > 0 && (int)$subjById->courseid !== $coreCourseId) {
+                            $searchParams = ['courseid' => $coreCourseId];
+                            if ($lpid > 0) {
+                                $searchParams['learningplanid'] = $lpid;
+                            }
+                            $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
+                            if (!$subjByCore) {
+                                $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $coreCourseId], 'id', IGNORE_MULTIPLE);
+                            }
+                            $courseId = $subjByCore ? (int)$subjByCore->id : 0;
+                            if ($courseId > 0) {
+                                gmk_log("HEALING: Corrected mismatched courseid using corecourseid {$coreCourseId} -> subject {$courseId}");
+                            }
+                        }
+                    }
+                }
+
+                // Choose class learningplanid based on the majority of linked students for this subject.
+                // This avoids assigning classes to an unrelated plan when the subject exists in multiple plans.
+                if ($coreCourseId > 0 && !empty($cls['studentIds']) && is_array($cls['studentIds'])) {
+                    $linkedUserIds = [];
+                    foreach ($cls['studentIds'] as $token) {
+                        $uid = $resolve_payload_userid($token);
+                        if ($uid > 0) {
+                            $linkedUserIds[$uid] = $uid;
+                        }
+                    }
+                    $linkedUserIds = array_values($linkedUserIds);
+
+                    if (!empty($linkedUserIds)) {
+                        list($insql, $inparams) = $DB->get_in_or_equal($linkedUserIds, SQL_PARAMS_NAMED, 'stu');
+                        $planrows = $DB->get_records_sql(
+                            "SELECT lu.learningplanid, COUNT(DISTINCT lu.userid) AS studentcount
+                               FROM {local_learning_users} lu
+                               JOIN {local_learning_courses} lpc
+                                 ON lpc.learningplanid = lu.learningplanid
+                                AND lpc.courseid = :corecourseid
+                              WHERE lu.userid {$insql}
+                                AND (lu.userroleid = :studentrole OR lu.userrolename = :studentrolename)
+                                AND lu.status = :activestatus
+                           GROUP BY lu.learningplanid
+                           ORDER BY studentcount DESC, lu.learningplanid ASC",
+                            ['corecourseid' => $coreCourseId, 'studentrole' => 5, 'studentrolename' => 'student', 'activestatus' => 'activo'] + $inparams
+                        );
+
+                        if (!empty($planrows)) {
+                            $top = reset($planrows);
+                            $majorityPlanId = (int)$top->learningplanid;
+                            if ($majorityPlanId > 0 && $majorityPlanId !== $lpid) {
+                                $oldPlanName = $lp_names[$lpid] ?? ('Plan ' . $lpid);
+                                $newPlanName = $lp_names[$majorityPlanId] ?? ('Plan ' . $majorityPlanId);
+                                gmk_log("HEALING: Reassigned class plan by student majority for corecourse {$coreCourseId}: {$oldPlanName} ({$lpid}) -> {$newPlanName} ({$majorityPlanId})");
+                                $lpid = $majorityPlanId;
+                            }
+                        }
+                    }
+                }
+
+                // Normalize subject link to the selected plan when subject exists in multiple plans.
+                if ($coreCourseId > 0 && $lpid > 0) {
+                    $preferredSubj = $DB->get_record(
+                        'local_learning_courses',
+                        ['courseid' => $coreCourseId, 'learningplanid' => $lpid],
+                        'id',
+                        IGNORE_MULTIPLE
+                    );
+                    if ($preferredSubj && (int)$preferredSubj->id !== (int)$courseId) {
+                        gmk_log("HEALING: Adjusted subject link by plan/core match for corecourse {$coreCourseId}, plan {$lpid}: {$courseId} -> {$preferredSubj->id}");
+                        $courseId = (int)$preferredSubj->id;
                     }
                 }
 
@@ -806,14 +901,16 @@ class scheduler extends external_api {
                             }
                         }
                     }
-                    if ((empty($courseId) || $courseId == "0") && !empty($cls['corecourseid'])) {
+                    if ((empty($courseId) || $courseId == "0") && $coreCourseId > 0) {
                         // Try with learningplanid first
-                        $searchParams = ['courseid' => $cls['corecourseid']];
-                        if ($lpid) $searchParams['learningplanid'] = $lpid;
+                        $searchParams = ['courseid' => $coreCourseId];
+                        if ($lpid) {
+                            $searchParams['learningplanid'] = $lpid;
+                        }
                         $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
                         // Fallback: ignore learningplanid (it may be confused with periodid)
                         if (!$subjByCore) {
-                            $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $cls['corecourseid']], 'id', IGNORE_MULTIPLE);
+                            $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $coreCourseId], 'id', IGNORE_MULTIPLE);
                         }
                         if ($subjByCore) $courseId = $subjByCore->id;
                     }
@@ -821,10 +918,30 @@ class scheduler extends external_api {
                         gmk_log("HEALING: Resolved courseid " . $courseId . " for class: " . ($cls['subjectName'] ?? 'unnamed'));
                     }
                 }
+
+                if ($coreCourseId <= 0 && !empty($courseId)) {
+                    $tmpCore = $DB->get_field('local_learning_courses', 'courseid', ['id' => $courseId], IGNORE_MISSING);
+                    if ($tmpCore) {
+                        $coreCourseId = (int)$tmpCore;
+                    }
+                }
+
+                if ($coreCourseId > 0 && $lpid > 0) {
+                    $preferredSubj = $DB->get_record(
+                        'local_learning_courses',
+                        ['courseid' => $coreCourseId, 'learningplanid' => $lpid],
+                        'id',
+                        IGNORE_MULTIPLE
+                    );
+                    if ($preferredSubj && (int)$preferredSubj->id !== (int)$courseId) {
+                        gmk_log("HEALING: Final subject link normalization by plan/core for corecourse {$coreCourseId}, plan {$lpid}: {$courseId} -> {$preferredSubj->id}");
+                        $courseId = (int)$preferredSubj->id;
+                    }
+                }
                 
                 $classRec->periodid = $periodid;
                 $classRec->courseid = $courseId;
-                $classRec->learningplanid = $cls['learningplanid'] ?? 0;
+                $classRec->learningplanid = $lpid;
                 $classRec->name = $cls['subjectName'] ?? 'Clase Auto';
 
                 // Lookup corecourseid and other metadata using courseid (Subject ID)
@@ -857,7 +974,7 @@ class scheduler extends external_api {
                 // Core Moodle Course ID
                 $classRec->corecourseid = $subjMeta ? $subjMeta->courseid : ($cls['corecourseid'] ?? 0);
                 // Learning Plan: always trust meta over frontend value (frontend may send period id instead of plan id)
-                $classRec->learningplanid = $subjMeta ? (int)$subjMeta->learningplanid : (int)($cls['learningplanid'] ?? 0);
+                $classRec->learningplanid = $subjMeta ? (int)$subjMeta->learningplanid : (int)$lpid;
                 // Subject name: always use the real Moodle course fullname to avoid double-building the nomenclature name
                 if ($subjMeta && !empty($subjMeta->courseid)) {
                     $realCourseName = $course_fullnames[$subjMeta->courseid] ?? null;
@@ -895,7 +1012,7 @@ class scheduler extends external_api {
                 // Metadata Persistence
                 $classRec->shift = $cls['shift'] ?? '';
                 $classRec->level_label = $cls['levelDisplay'] ?? '';
-                $classRec->career_label = $cls['career'] ?? '';
+                $classRec->career_label = $lp_names[(int)$classRec->learningplanid] ?? ($cls['career'] ?? '');
 
                 $classRec->inittime = $cls['start'] ?? '';
                 $classRec->endtime = $cls['end'] ?? '';
@@ -1724,6 +1841,13 @@ class scheduler extends external_api {
                 foreach ($ids as $id) {
                     if (isset($validSet[(int)$id])) {
                         $count++;
+                    }
+                }
+
+                if ($coreCourseId <= 0 && !empty($courseId)) {
+                    $tmpCore = $DB->get_field('local_learning_courses', 'courseid', ['id' => $courseId], IGNORE_MISSING);
+                    if ($tmpCore) {
+                        $coreCourseId = (int)$tmpCore;
                     }
                 }
                 return $count;
