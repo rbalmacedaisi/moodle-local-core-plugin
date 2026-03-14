@@ -914,17 +914,74 @@ try {
             $class = $DB->get_record('gmk_class', ['id' => $classid]);
             if (!$class) throw new Exception("Clase no encontrada.");
 
-            // Pull only attendance + BBB events for the class group.
-            $sql = "SELECT e.*
-                      FROM {event} e
-                     WHERE e.courseid = :courseid
-                       AND e.groupid = :groupid
-                       AND e.modulename IN ('attendance','bigbluebuttonbn')
-                  ORDER BY e.timestart ASC";
-            $events = $DB->get_records_sql($sql, [
-                'courseid' => $class->corecourseid,
-                'groupid'  => $class->groupid,
-            ]);
+            // Prefer strict event scope using the class activity instances.
+            // This avoids leaking stale events from previous republishes that reused the same group.
+            $classAttendanceInstance = 0;
+            if (!empty($class->attendancemoduleid)) {
+                $attcm = $DB->get_record('course_modules', ['id' => (int)$class->attendancemoduleid], 'id,course,instance', IGNORE_MISSING);
+                if ($attcm && (int)$attcm->course === (int)$class->corecourseid) {
+                    $classAttendanceInstance = (int)$attcm->instance;
+                }
+            }
+
+            $classBbbInstanceIds = [];
+            if (!empty($class->bbbmoduleids)) {
+                foreach (explode(',', (string)$class->bbbmoduleids) as $bbbcmidraw) {
+                    $bbbcmid = (int)trim((string)$bbbcmidraw);
+                    if ($bbbcmid <= 0) continue;
+                    $bbbinstance = $DB->get_field_sql(
+                        "SELECT cm.instance
+                           FROM {course_modules} cm
+                           JOIN {modules} m ON m.id = cm.module
+                          WHERE cm.id = :cmid
+                            AND m.name = 'bigbluebuttonbn'",
+                        ['cmid' => $bbbcmid]
+                    );
+                    if (!empty($bbbinstance)) {
+                        $classBbbInstanceIds[(int)$bbbinstance] = (int)$bbbinstance;
+                    }
+                }
+            }
+            // Relation fallback (covers cases where bbbmoduleids is stale/empty).
+            $relBbbIds = $DB->get_fieldset_select('gmk_bbb_attendance_relation', 'bbbid', 'classid = :cid AND bbbid > 0', ['cid' => (int)$classid]);
+            foreach ($relBbbIds as $rid) {
+                $rid = (int)$rid;
+                if ($rid > 0) $classBbbInstanceIds[$rid] = $rid;
+            }
+
+            $events = [];
+            $eventParts = [];
+            $eventParams = ['courseid' => (int)$class->corecourseid];
+            if ($classAttendanceInstance > 0) {
+                $eventParts[] = "(e.modulename = 'attendance' AND e.instance = :attinstance)";
+                $eventParams['attinstance'] = $classAttendanceInstance;
+            }
+            if (!empty($classBbbInstanceIds)) {
+                list($bbbInSql, $bbbInParams) = $DB->get_in_or_equal(array_values($classBbbInstanceIds), SQL_PARAMS_NAMED, 'bbinst');
+                $eventParts[] = "(e.modulename = 'bigbluebuttonbn' AND e.instance {$bbbInSql})";
+                $eventParams = array_merge($eventParams, $bbbInParams);
+            }
+
+            if (!empty($eventParts)) {
+                $sql = "SELECT e.*
+                          FROM {event} e
+                         WHERE e.courseid = :courseid
+                           AND (" . implode(' OR ', $eventParts) . ")
+                      ORDER BY e.timestart ASC";
+                $events = $DB->get_records_sql($sql, $eventParams);
+            } else {
+                // Fallback for legacy rows with missing linkage fields.
+                $sql = "SELECT e.*
+                          FROM {event} e
+                         WHERE e.courseid = :courseid
+                           AND e.groupid = :groupid
+                           AND e.modulename IN ('attendance','bigbluebuttonbn')
+                      ORDER BY e.timestart ASC";
+                $events = $DB->get_records_sql($sql, [
+                    'courseid' => $class->corecourseid,
+                    'groupid'  => $class->groupid,
+                ]);
+            }
 
             // Pre-scan: attendance timestamps for de-duplication and BBB instance IDs for batched lookup.
             $attendanceTimes = [];
