@@ -598,11 +598,12 @@ class scheduler extends external_api {
     public static function save_generation_result_parameters() {
          return new external_function_parameters([
             'periodid' => new external_value(PARAM_INT, 'Academic Period ID'),
-            'schedules' => new external_value(PARAM_RAW, 'JSON array of schedule objects')
+            'schedules' => new external_value(PARAM_RAW, 'JSON array of schedule objects'),
+            'preserveexisting' => new external_value(PARAM_BOOL, 'When true, do not delete classes not present in payload', VALUE_DEFAULT, false)
          ]);
     }
     
-    public static function save_generation_result($periodid, $schedules, bool $phase1only = false) {
+    public static function save_generation_result($periodid, $schedules, bool $phase1only = false, bool $preserveexisting = false) {
         global $DB;
         $context = \context_system::instance();
         self::validate_context($context);
@@ -662,7 +663,9 @@ class scheduler extends external_api {
 
             // 2. Delete classes that belong to this period and are NOT in the payload.
             //    Never touch classes from other periods — they are "external" in the board.
-            if (!empty($validIds)) {
+            if ($preserveexisting) {
+                gmk_log("INFO: preserveexisting=true, skipping destructive cleanup for period {$periodid}");
+            } else if (!empty($validIds)) {
                 $placeholders = implode(',', array_fill(0, count($validIds), '?'));
                 $DB->delete_records_select(
                     'gmk_class',
@@ -1180,9 +1183,14 @@ class scheduler extends external_api {
             gmk_log("Guardado exitoso para Periodo $periodid");
             $transaction->allow_commit();
 
-            // Clear draft after successful publish so the board doesn't show duplicates on reload
-            $DB->set_field('gmk_academic_periods', 'draft_schedules', null, ['id' => $periodid]);
-            gmk_log("Draft limpiado para Periodo $periodid");
+            // Clear draft only in full publish mode.
+            // Single-class republish keeps draft and frontend re-saves explicitly.
+            if (!$preserveexisting) {
+                $DB->set_field('gmk_academic_periods', 'draft_schedules', null, ['id' => $periodid]);
+                gmk_log("Draft limpiado para Periodo $periodid");
+            } else {
+                gmk_log("INFO: preserveexisting=true, draft preservado para periodo {$periodid}");
+            }
 
         } catch (\Exception $e) {
             $transaction->rollback($e);

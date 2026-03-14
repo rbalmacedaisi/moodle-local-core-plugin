@@ -1790,11 +1790,9 @@ window.SchedulerComponents.PlanningBoard = {
                 const store    = window.schedulerStore;
                 const periodId = store.state.activePeriod;
 
-                // FASE 1: guardar TODAS las clases en BD
-                // CRITICAL: we must pass ALL placed classes so the backend does NOT delete
-                // the ones missing from the list. Passing only [cls] would wipe every other
-                // class for this period.
-                this._publishLog(`Preparando lista de clases...`);
+                // FASE 1: guardar SOLO la ficha seleccionada en modo preserveexisting.
+                // El backend no debe borrar ni modificar otras clases del periodo.
+                this._publishLog(`Preparando ficha seleccionada...`);
                 this.publishProgress = 10;
 
                 const essentialKeys = [
@@ -1805,7 +1803,7 @@ window.SchedulerComponents.PlanningBoard = {
                     'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
                     'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
                 ];
-                const allPlaced = this.allClasses
+                const singlePayload = [cls]
                     .filter(s => {
                         if (s.isExternal) return false;
                         return (typeof store._isProgrammedSchedule === 'function')
@@ -1817,30 +1815,22 @@ window.SchedulerComponents.PlanningBoard = {
                         essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
                         return clean;
                     });
-
-                // Find where our target cls sits in the allPlaced list (by index -> classid mapping)
-                const targetIdx = allPlaced.findIndex(s => {
-                    if (cls.id && s.id && cls.id === s.id) return true;
-                    return s.corecourseid === cls.corecourseid &&
-                           s.shift        === cls.shift &&
-                           s.day          === cls.day;
-                });
-
-                if (targetIdx === -1) {
-                    throw new Error(`No se encontró "${cls.subjectName}" en la lista de clases colocadas.`);
+                if (singlePayload.length !== 1) {
+                    throw new Error(`No se pudo preparar la ficha "${cls.subjectName}" para publicar.`);
                 }
-                const targetPayload = allPlaced[targetIdx];
+                const targetPayload = singlePayload[0];
 
-                this._publishLog(`Guardando ${allPlaced.length} clases en base de datos...`);
+                this._publishLog(`Guardando ficha en base de datos...`);
                 this.publishProgress = 20;
 
                 const phase1   = await store._fetch('local_grupomakro_save_generation_result', {
                     periodid:  periodId,
-                    schedules: JSON.stringify(allPlaced),
+                    schedules: JSON.stringify(singlePayload),
                     phase1only: 1,
+                    preserveexisting: 1,
                 });
                 const classids = (phase1 && Array.isArray(phase1.classids)) ? phase1.classids : [];
-                this._publishLog(`Fase 1: ${classids.length} clases guardadas en BD.`, 'success');
+                this._publishLog('Fase 1 completada para la ficha seleccionada.', 'success');
                 this.publishProgress = 40;
 
                 this._publishLog('Sincronizando estado con base de datos...', 'info');

@@ -3686,11 +3686,17 @@ try {
             $periodid       = required_param('periodid', PARAM_INT);
             $schedules_json = required_param('schedules', PARAM_RAW);
             $phase1only     = optional_param('phase1only', 0, PARAM_INT); // 1 = skip Moodle structures
+            $preserveexisting = optional_param('preserveexisting', 0, PARAM_INT); // 1 = do not delete other classes in period
             $schedules = json_decode($schedules_json, true);
             if (!is_array($schedules)) $schedules = [];
 
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/admin/scheduler.php');
-            $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result($periodid, $schedules, (bool)$phase1only);
+            $result = \local_grupomakro_core\external\admin\scheduler::save_generation_result(
+                $periodid,
+                $schedules,
+                (bool)$phase1only,
+                (bool)$preserveexisting
+            );
             if ($result === true) {
                 // Return the list of classids created/updated so the frontend can drive phase 2.
                 $classids = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid', ['pid' => $periodid]);
