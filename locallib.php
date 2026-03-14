@@ -2288,9 +2288,9 @@ function delete_class($classId, $reason = null)
                            FROM {gmk_bbb_attendance_relation} r
                            JOIN {gmk_class} c ON c.id = r.classid
                           WHERE c.id <> :classid
-                            AND (r.bbbmoduleid = :cmid OR r.attendancemoduleid = :cmid)
+                            AND (r.bbbmoduleid = :cmid1 OR r.attendancemoduleid = :cmid2)
                           LIMIT 1",
-                        ['classid' => $classid, 'cmid' => $cmid]
+                        ['classid' => $classid, 'cmid1' => $cmid, 'cmid2' => $cmid]
                     )) {
                         continue;
                     }
@@ -2354,9 +2354,9 @@ function delete_class($classId, $reason = null)
                FROM {gmk_bbb_attendance_relation} r
                JOIN {gmk_class} c ON c.id = r.classid
               WHERE c.id <> :classid
-                AND (r.bbbmoduleid = :cmid OR r.attendancemoduleid = :cmid)
+                AND (r.bbbmoduleid = :cmid1 OR r.attendancemoduleid = :cmid2)
               LIMIT 1",
-            ['classid' => $classid, 'cmid' => $cmid]
+            ['classid' => $classid, 'cmid1' => $cmid, 'cmid2' => $cmid]
         )) {
             continue;
         }
