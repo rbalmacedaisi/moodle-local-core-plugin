@@ -793,6 +793,39 @@ try {
                 $activeclasses = $buildClasses($where, $params);
             }
 
+            // Second fallback: same core course in student's current period, regardless of class plan.
+            if (empty($activeclasses) && $learningplanid > 0) {
+                $currentperiodid = (int)$DB->get_field_sql(
+                    "SELECT MAX(lu.currentperiodid)
+                       FROM {local_learning_users} lu
+                      WHERE lu.userid = :userid
+                        AND lu.learningplanid = :learningplanid
+                        AND (lu.userroleid = :studentrole OR lu.userrolename = :studentrolename)",
+                    [
+                        'userid' => $userid,
+                        'learningplanid' => $learningplanid,
+                        'studentrole' => 5,
+                        'studentrolename' => 'student',
+                    ]
+                );
+
+                if ($currentperiodid > 0) {
+                    $where = $baseWhere . " AND c.corecourseid = :corecourseid AND c.periodid = :periodid";
+                    $params = $baseParams + [
+                        'corecourseid' => $corecourseid,
+                        'periodid' => $currentperiodid,
+                    ];
+                    $activeclasses = $buildClasses($where, $params);
+                }
+            }
+
+            // Last fallback: any active class for the same core course.
+            if (empty($activeclasses)) {
+                $where = $baseWhere . " AND c.corecourseid = :corecourseid";
+                $params = $baseParams + ['corecourseid' => $corecourseid];
+                $activeclasses = $buildClasses($where, $params);
+            }
+
             $response = [
                 'status' => 'success',
                 'classes' => $activeclasses,

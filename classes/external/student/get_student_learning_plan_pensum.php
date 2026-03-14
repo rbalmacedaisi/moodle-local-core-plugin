@@ -123,6 +123,8 @@ class get_student_learning_plan_pensum extends external_api
             // Precompute active class counts using index-friendly queries.
             $activeClassCountByLearningCourse = [];
             $activeClassCountByCoreCourse = [];
+            $activeClassCountByCoreCourseCurrentPeriod = [];
+            $activeClassCountByCoreCourseAnyPlan = [];
             $courseNamesById = [];
             $gradesByCourseId = [];
             $classGradeByClassId = [];
@@ -153,6 +155,19 @@ class get_student_learning_plan_pensum extends external_api
                 $learningcourseids = array_values(array_unique($learningcourseids));
                 $corecourseids = array_values(array_unique($corecourseids));
                 $progressclassids = array_values(array_unique($progressclassids));
+                $currentperiodid = (int)$DB->get_field_sql(
+                    "SELECT MAX(lu.currentperiodid)
+                       FROM {local_learning_users} lu
+                      WHERE lu.userid = :userid
+                        AND lu.learningplanid = :learningplanid
+                        AND (lu.userroleid = :studentrole OR lu.userrolename = :studentrolename)",
+                    [
+                        'userid' => $params['userId'],
+                        'learningplanid' => $params['learningPlanId'],
+                        'studentrole' => 5,
+                        'studentrolename' => 'student',
+                    ]
+                );
 
                 // Bulk fetch course names.
                 if (!empty($corecourseids)) {
@@ -480,6 +495,42 @@ class get_student_learning_plan_pensum extends external_api
                     foreach ($coreCounts as $row) {
                         $activeClassCountByCoreCourse[(int)$row->corecourseid] = (int)$row->total;
                     }
+
+                    // Fallback count: same core course in student's current period, independent of class plan.
+                    if ($currentperiodid > 0) {
+                        $coreCountsCurrentPeriod = $DB->get_records_sql(
+                            "SELECT c.corecourseid, COUNT(1) AS total
+                               FROM {gmk_class} c
+                              WHERE c.approved = 1
+                                AND c.closed = 0
+                                AND c.enddate >= :now
+                                AND c.periodid = :periodid
+                                AND c.corecourseid $inCoreSql
+                           GROUP BY c.corecourseid",
+                            [
+                                'now' => time(),
+                                'periodid' => $currentperiodid,
+                            ] + $inCoreParams
+                        );
+                        foreach ($coreCountsCurrentPeriod as $row) {
+                            $activeClassCountByCoreCourseCurrentPeriod[(int)$row->corecourseid] = (int)$row->total;
+                        }
+                    }
+
+                    // Last fallback count: any active class for the same core course.
+                    $coreCountsAnyPlan = $DB->get_records_sql(
+                        "SELECT c.corecourseid, COUNT(1) AS total
+                           FROM {gmk_class} c
+                          WHERE c.approved = 1
+                            AND c.closed = 0
+                            AND c.enddate >= :now
+                            AND c.corecourseid $inCoreSql
+                       GROUP BY c.corecourseid",
+                        ['now' => time()] + $inCoreParams
+                    );
+                    foreach ($coreCountsAnyPlan as $row) {
+                        $activeClassCountByCoreCourseAnyPlan[(int)$row->corecourseid] = (int)$row->total;
+                    }
                 }
             }
             
@@ -598,7 +649,13 @@ class get_student_learning_plan_pensum extends external_api
                 // Number of active classes available for manual enrollment from Academic Panel.
                 $learningKey = (int)$userPensumCourse->learningcourseid;
                 $coreKey = (int)$userPensumCourse->courseid;
-                $userPensumCourse->activeclasscount = (int)($activeClassCountByLearningCourse[$learningKey] ?? $activeClassCountByCoreCourse[$coreKey] ?? 0);
+                $userPensumCourse->activeclasscount = (int)(
+                    $activeClassCountByLearningCourse[$learningKey]
+                    ?? $activeClassCountByCoreCourse[$coreKey]
+                    ?? $activeClassCountByCoreCourseCurrentPeriod[$coreKey]
+                    ?? $activeClassCountByCoreCourseAnyPlan[$coreKey]
+                    ?? 0
+                );
                 
                 // Handle prerequisites safely
                 $userPensumCourse->prerequisites = !empty($userPensumCourse->prerequisites) ? json_decode($userPensumCourse->prerequisites) : [];

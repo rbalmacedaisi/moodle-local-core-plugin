@@ -181,6 +181,39 @@ function dbg_get_active_classes_like_api(stdClass $classrow, int $userid): array
         $classes = $fetch($where2, $params2);
     }
 
+    // Second fallback: same core course in student's current period.
+    if (empty($classes)) {
+        $currentperiodid = (int)$DB->get_field_sql(
+            "SELECT MAX(lu.currentperiodid)
+               FROM {local_learning_users} lu
+              WHERE lu.userid = :userid
+                AND lu.learningplanid = :learningplanid
+                AND (lu.userroleid = :studentrole OR lu.userrolename = :studentrolename)",
+            [
+                'userid' => $userid,
+                'learningplanid' => (int)$classrow->learningplanid,
+                'studentrole' => 5,
+                'studentrolename' => 'student',
+            ]
+        );
+
+        if ($currentperiodid > 0) {
+            $where3 = $base . ' AND c.corecourseid = :ccid AND c.periodid = :periodid';
+            $params3 = $paramsbase + [
+                'ccid' => (int)$classrow->corecourseid,
+                'periodid' => $currentperiodid,
+            ];
+            $classes = $fetch($where3, $params3);
+        }
+    }
+
+    // Last fallback: any active class for the same core course.
+    if (empty($classes)) {
+        $where4 = $base . ' AND c.corecourseid = :ccid';
+        $params4 = $paramsbase + ['ccid' => (int)$classrow->corecourseid];
+        $classes = $fetch($where4, $params4);
+    }
+
     return $classes;
 }
 
