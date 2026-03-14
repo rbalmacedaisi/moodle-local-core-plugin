@@ -716,6 +716,10 @@
                     notify(`Fase 2 completada. Grupos y actividades creados para ${total} clases.`, 'success', 92);
                 }
 // ── Re-guardar borrador ───────────────────────────────────────────────────
+                notify('Sincronizando tablero con base de datos...', 'info', 94);
+                await this.loadGeneratedSchedules(periodId);
+                await this.loadGeneration(periodId);
+
                 notify('Re-guardando borrador...', 'info', 95);
                 await this.saveGeneration(periodId, this.state.generatedSchedules);
                 notify('Borrador actualizado.', 'success', 100);
