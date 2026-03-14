@@ -1,43 +1,17 @@
 <?php
-// Página de diagnóstico y reparación del draft de planificación.
+// Página de diagnóstico y reparación del draft de planificación:
+//   1. Detecta entradas duplicadas en draft_schedules y deduplica (conserva la más reciente por id).
+//   2. Detecta grupos Moodle huérfanos (sin gmk_class activa asociada) en cursos gestionados
+//      por el plugin, y los elimina junto con su sección de curso.
+//   3. Detecta secciones de curso huérfanas (con actividades) sin gmk_class apuntando a ellas.
 
-// Captura errores fatales y excepciones no capturadas para mostrarlos como HTML en lugar de 500.
-register_shutdown_function(function() {
-    $err = error_get_last();
-    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-        if (!headers_sent()) {
-            header('HTTP/1.1 200 OK');
-            header('Content-Type: text/html; charset=utf-8');
-        }
-        echo '<div style="background:#fde;border:2px solid red;padding:16px;font-family:monospace;margin:20px;">'
-           . '<b>PHP Fatal Error:</b><br>'
-           . htmlspecialchars($err['message'])
-           . '<br><small>' . htmlspecialchars($err['file'] . ':' . $err['line']) . '</small>'
-           . '</div>';
-    }
-});
-set_exception_handler(function($e) {
-    if (!headers_sent()) {
-        header('HTTP/1.1 200 OK');
-        header('Content-Type: text/html; charset=utf-8');
-    }
-    echo '<div style="background:#fde;border:2px solid red;padding:16px;font-family:monospace;margin:20px;">'
-       . '<b>Uncaught Exception:</b> ' . htmlspecialchars(get_class($e)) . '<br>'
-       . htmlspecialchars($e->getMessage())
-       . '<br><small>' . htmlspecialchars($e->getFile() . ':' . $e->getLine()) . '</small>'
-       . '<pre style="font-size:11px;overflow:auto;max-height:300px">' . htmlspecialchars($e->getTraceAsString()) . '</pre>'
-       . '</div>';
-});
-
-$config_path = __DIR__ . '/../../config.php';
-if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../config.php';
-if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../../config.php';
-require_once($config_path);
+require_once(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/adminlib.php');
 
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
-$PAGE->set_url('/local/grupomakro_core/pages/debug_fix_draft.php');
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php'));
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title('Debug: Fix Draft & Grupos Huérfanos');
 $PAGE->set_heading('Debug: Fix Draft & Grupos Huérfanos');
@@ -67,7 +41,6 @@ if ($action === 'fixdraft') {
         exit;
     }
 
-    // Agrupar por clave corecourseid|shift|day, conservar el de mayor id
     $byKey   = [];
     $removed = 0;
     foreach ($draft as $entry) {
@@ -75,7 +48,6 @@ if ($action === 'fixdraft') {
         if (!isset($byKey[$key])) {
             $byKey[$key] = $entry;
         } else {
-            // Conservar el que tiene el id más alto (publicado más recientemente)
             $currentId  = (int)($byKey[$key]['id'] ?? 0);
             $incomingId = (int)($entry['id'] ?? 0);
             if ($incomingId > $currentId) {
@@ -108,7 +80,6 @@ if ($action === 'deletesection') {
     $courseid      = required_param('courseid',      PARAM_INT);
     $sectionnumber = required_param('sectionnumber', PARAM_INT);
 
-    // Doble-check: no debe tener gmk_class activa
     if ($DB->record_exists('gmk_class', ['coursesectionid' => $sectionid])) {
         echo json_encode(['ok' => false, 'msg' => "Sección $sectionid tiene gmk_class activa; no se elimina."]);
         exit;
@@ -144,14 +115,12 @@ if ($action === 'deletegroup') {
         exit;
     }
 
-    // Verificar que sigue sin gmk_class asociada (evita carreras de condición)
     if ($DB->record_exists('gmk_class', ['groupid' => $groupid])) {
         echo json_encode(['ok' => false, 'msg' => "Grupo $groupid ahora tiene una gmk_class activa; no se elimina."]);
         exit;
     }
 
     try {
-        // Buscar sección cuyo name coincide con el nombre del grupo
         if ($DB->record_exists('course', ['id' => $courseid])) {
             $section = $DB->get_record_sql(
                 "SELECT id, section FROM {course_sections}
@@ -165,7 +134,6 @@ if ($action === 'deletegroup') {
             }
         }
 
-        // Eliminar el grupo (también quita membresías automáticamente)
         groups_delete_group($groupid);
         $log[] = "Grupo $groupid ('{$group->name}') eliminado";
 
@@ -207,11 +175,11 @@ echo '<style>
   code { background:#f0f0f0; padding: 1px 5px; border-radius:3px; font-size:12px; }
   #progress-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
                       z-index:9999; align-items:center; justify-content:center; }
-  #progress-box { background:#fff; border-radius:8px; padding:28px 32px; width:580px;
+  #progress-box { background:#fff; border-radius:8px; padding:28px 32px; width:480px;
                   max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,.3); }
   #prog-bar-wrap { background:#e9ecef; border-radius:4px; height:18px; overflow:hidden; margin-bottom:8px; }
   #prog-bar { height:100%; background:#1a73e8; width:0%; transition:width .3s; }
-  #prog-log { font-size:12px; line-height:1.9; max-height:300px; overflow-y:auto;
+  #prog-log { font-size:12px; line-height:1.9; max-height:200px; overflow-y:auto;
               border:1px solid #ddd; border-radius:4px; padding:8px 12px;
               background:#f8f9fa; margin-top:8px; font-family:monospace; }
   .row-log { font-size:12px; color:#555; font-family:monospace; margin-left:6px; }
@@ -308,10 +276,8 @@ echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos<
 echo "<div class='box info'>
   Grupos con <code>idnumber</code> no vacío que <b>no tienen ninguna clase activa asociada</b>
   (<code>gmk_class.groupid</code>). Se revisan los cursos gestionados por el plugin.
-  Usa los checkboxes para excluir grupos manuales que quieras conservar (ej. <code>rev-INGAA</code>).
 </div>";
 
-// Restringe a cursos del plugin para evitar escanear todos los grupos del LMS.
 $orphanedGroups = [];
 $groupsQueryError = null;
 if (!empty($pluginCourseIds)) {
@@ -347,33 +313,18 @@ if ($groupsQueryError) {
         $byCourse[$og->courseid][] = $og;
     }
 
-    $allGroupsJson = json_encode(array_values(array_map(
-        function($og) { return ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]; },
-        $orphanedGroups
-    )));
-
-    echo "<p style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
-      <button class='btn-danger btn' onclick='deleteCheckedGroups()'>
-        🗑 Eliminar seleccionados
-      </button>
-      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(true)'>✔ Todos</button>
-      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(false)'>✘ Ninguno</button>
-    </p>";
-
     foreach ($byCourse as $cid => $groups) {
         $first = $groups[0];
         echo "<div class='subsection'>Curso: " . htmlspecialchars($first->coursename) .
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
-          <th style='width:32px'><input type='checkbox' checked onchange='toggleCourseGroups($cid, this.checked)' title='Seleccionar/deseleccionar curso'></th>
           <th>Group ID</th><th>Nombre del grupo</th><th>idnumber</th><th>Acción</th>
         </tr></thead><tbody>";
 
         foreach ($groups as $og) {
             $groupJson = json_encode(['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]);
             echo "<tr id='grow-{$og->groupid}'>
-              <td><input type='checkbox' class='grp-chk' data-groupid='{$og->groupid}' data-courseid='{$og->courseid}' checked></td>
               <td>{$og->groupid}</td>
               <td>" . htmlspecialchars($og->groupname) . "</td>
               <td><code style='font-size:11px'>" . htmlspecialchars($og->groupidnumber) . "</code></td>
@@ -394,10 +345,9 @@ echo "<div class='box info'>
   Secciones (section &gt; 0, con nombre) que <b>tienen actividades</b> y
   <b>ninguna gmk_class</b> apunta a ellas (<code>coursesectionid</code>).
   Aparecen cuando el grupo fue eliminado pero la sección con actividades quedó sin limpiar
-  (muestra «grupo que falta» en el curso). Usa checkboxes para excluir las que no son del plugin.
+  (muestra «grupo que falta» en el curso).
 </div>";
 
-// $pluginCourseIds ya calculado arriba (sección 2). Se reutiliza aquí.
 $orphanedSections = [];
 $sectionsQueryError = null;
 if (!empty($pluginCourseIds)) {
@@ -438,32 +388,12 @@ if ($sectionsQueryError) {
         $byCourseS[$os->courseid][] = $os;
     }
 
-    $allSectionsJson = json_encode(array_values(array_map(
-        function($os) {
-            return [
-                'sectionid'     => (int)$os->sectionid,
-                'courseid'      => (int)$os->courseid,
-                'sectionnumber' => (int)$os->sectionnumber,
-            ];
-        },
-        $orphanedSections
-    )));
-
-    echo "<p style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
-      <button class='btn-danger btn' onclick='deleteCheckedSections()'>
-        🗑 Eliminar seleccionadas
-      </button>
-      <button class='btn' style='background:#6c757d' onclick='toggleAllSections(true)'>✔ Todas</button>
-      <button class='btn' style='background:#6c757d' onclick='toggleAllSections(false)'>✘ Ninguna</button>
-    </p>";
-
     foreach ($byCourseS as $cid => $sections) {
         $first = $sections[0];
         echo "<div class='subsection'>Curso: " . htmlspecialchars($first->coursename) .
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
-          <th style='width:32px'><input type='checkbox' checked onchange='toggleCourseSections($cid, this.checked)' title='Seleccionar/deseleccionar curso'></th>
           <th>Section ID</th><th>Nombre de la sección</th><th>Actividades</th><th>Acción</th>
         </tr></thead><tbody>";
 
@@ -474,8 +404,6 @@ if ($sectionsQueryError) {
                 'sectionnumber' => (int)$os->sectionnumber,
             ]);
             echo "<tr id='srow-{$os->sectionid}'>
-              <td><input type='checkbox' class='sec-chk' data-sectionid='{$os->sectionid}'
-                   data-courseid='{$os->courseid}' data-sectionnumber='{$os->sectionnumber}' checked></td>
               <td>{$os->sectionid}</td>
               <td>" . htmlspecialchars($os->sectionname) . "</td>
               <td>{$os->module_count}</td>
@@ -489,13 +417,12 @@ if ($sectionsQueryError) {
     }
 }
 
-// ── Overlay de progreso ───────────────────────────────────────────────────────
+// ── Overlay de progreso (usado por fixDraft) ──────────────────────────────────
 echo "
 <div id='progress-overlay'>
   <div id='progress-box'>
     <div style='font-size:16px;font-weight:bold;margin-bottom:14px;' id='prog-title'>Procesando...</div>
     <div id='prog-bar-wrap'><div id='prog-bar'></div></div>
-    <div style='font-size:13px;color:#555;margin-bottom:4px;' id='prog-counter'></div>
     <div id='prog-log'></div>
     <div style='margin-top:16px;text-align:right;'>
       <button id='prog-reload' onclick='window.location.reload()' class='btn'
@@ -527,7 +454,6 @@ function logLine(msg, ok) {
 function showOverlay(title) {
     document.getElementById('prog-title').textContent = title;
     document.getElementById('prog-log').innerHTML = '';
-    document.getElementById('prog-counter').textContent = '';
     document.getElementById('prog-bar').style.width = '0%';
     document.getElementById('prog-bar').style.background = '#1a73e8';
     document.getElementById('prog-reload').style.display = 'none';
@@ -535,14 +461,14 @@ function showOverlay(title) {
 }
 
 function finishOverlay(ok) {
+    document.getElementById('prog-bar').style.width = '100%';
     document.getElementById('prog-bar').style.background = ok ? '#28a745' : '#fd7e14';
     document.getElementById('prog-reload').style.display = 'inline-block';
 }
 
-// ── Fetch con timeout (AbortController) ──────────────────────────────────────
 async function fetchWithTimeout(url, timeoutMs) {
     var ctrl = new AbortController();
-    var timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    var timer = setTimeout(function() { ctrl.abort(); }, timeoutMs);
     try {
         var resp = await fetch(url, { method: 'POST', signal: ctrl.signal });
         clearTimeout(timer);
@@ -555,7 +481,6 @@ async function fetchWithTimeout(url, timeoutMs) {
     }
 }
 
-// ── Fix draft ─────────────────────────────────────────────────────────────────
 async function fixDraft(periodid) {
     if (!confirm('¿Desduplicar el draft del período ' + periodid + '?\\nSe conservará el ID más alto por cada clave única.')) return;
     showOverlay('Reparando draft...');
@@ -569,9 +494,8 @@ async function fixDraft(periodid) {
     }
 }
 
-// ── Eliminar un grupo ─────────────────────────────────────────────────────────
 async function deleteOneGroup(info, btn) {
-    if (!confirm('¿Eliminar grupo ' + info.groupid + '?')) return;
+    if (!confirm('¿Eliminar grupo ' + info.groupid + ' (' + info.groupid + ')?\\nTambién se eliminará su sección si existe.')) return;
     btn.disabled = true;
     var statusEl = document.getElementById('gstatus-' + info.groupid);
     statusEl.textContent = ' Eliminando...';
@@ -596,7 +520,6 @@ async function deleteOneGroup(info, btn) {
     }
 }
 
-// ── Eliminar una sección ──────────────────────────────────────────────────────
 async function deleteOneSection(info, btn) {
     if (!confirm('¿Eliminar sección id=' + info.sectionid + ' con todas sus actividades?')) return;
     btn.disabled = true;
@@ -622,102 +545,6 @@ async function deleteOneSection(info, btn) {
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
-}
-
-// ── Helpers de selección — grupos ────────────────────────────────────────────
-function toggleAllGroups(checked) {
-    document.querySelectorAll('.grp-chk').forEach(cb => cb.checked = checked);
-}
-function toggleCourseGroups(courseid, checked) {
-    document.querySelectorAll('.grp-chk[data-courseid=\"' + courseid + '\"]')
-            .forEach(cb => cb.checked = checked);
-}
-
-// ── Helpers de selección — secciones ─────────────────────────────────────────
-function toggleAllSections(checked) {
-    document.querySelectorAll('.sec-chk').forEach(cb => cb.checked = checked);
-}
-function toggleCourseSections(courseid, checked) {
-    document.querySelectorAll('.sec-chk[data-courseid=\"' + courseid + '\"]')
-            .forEach(cb => cb.checked = checked);
-}
-
-// ── Eliminar grupos seleccionados ─────────────────────────────────────────────
-async function deleteCheckedGroups() {
-    var checked = Array.from(document.querySelectorAll('.grp-chk:checked'));
-    if (!checked.length) { alert('No hay grupos seleccionados.'); return; }
-    var groups = checked.map(cb => ({
-        groupid:   +cb.dataset.groupid,
-        courseid:  +cb.dataset.courseid,
-        label: cb.closest('tr').children[2].textContent.trim(),
-    }));
-    if (!confirm('¿Eliminar ' + groups.length + ' grupo(s) seleccionado(s)?\\nEsta acción no se puede deshacer.')) return;
-    showOverlay('Eliminando grupos...');
-    var bar = document.getElementById('prog-bar');
-    var counter = document.getElementById('prog-counter');
-    var done = 0, errors = 0, total = groups.length;
-
-    for (var i = 0; i < groups.length; i++) {
-        var g = groups[i];
-        counter.textContent = (i + 1) + ' / ' + total + ' — ' + g.label.substring(0, 60);
-        bar.style.width = Math.round((i / total) * 100) + '%';
-        try {
-            var data = await fetchWithTimeout(
-                BASE + '?action=deletegroup&groupid=' + g.groupid + '&courseid=' + g.courseid + '&sesskey=' + SESS,
-                45000
-            );
-            logLine(data.msg, data.ok);
-            if (data.ok) done++; else errors++;
-        } catch(e) {
-            logLine('grupo ' + g.groupid + ' (' + g.label.substring(0,40) + '): ' + e.message, false);
-            errors++;
-        }
-        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
-    }
-    counter.textContent = total + ' / ' + total;
-    document.getElementById('prog-title').textContent =
-        'Completado: ' + done + ' eliminado(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
-    finishOverlay(errors === 0);
-}
-
-// ── Eliminar secciones seleccionadas ──────────────────────────────────────────
-async function deleteCheckedSections() {
-    var checked = Array.from(document.querySelectorAll('.sec-chk:checked'));
-    if (!checked.length) { alert('No hay secciones seleccionadas.'); return; }
-    var sections = checked.map(cb => ({
-        sectionid:     +cb.dataset.sectionid,
-        courseid:      +cb.dataset.courseid,
-        sectionnumber: +cb.dataset.sectionnumber,
-        label: cb.closest('tr').children[2].textContent.trim(),
-    }));
-    if (!confirm('¿Eliminar ' + sections.length + ' sección(es) con todas sus actividades?\\nEsta acción no se puede deshacer.')) return;
-    showOverlay('Eliminando secciones...');
-    var bar = document.getElementById('prog-bar');
-    var counter = document.getElementById('prog-counter');
-    var done = 0, errors = 0, total = sections.length;
-
-    for (var i = 0; i < sections.length; i++) {
-        var s = sections[i];
-        counter.textContent = (i + 1) + ' / ' + total + ' — ' + s.label.substring(0, 60);
-        bar.style.width = Math.round((i / total) * 100) + '%';
-        try {
-            var data = await fetchWithTimeout(
-                BASE + '?action=deletesection&sectionid=' + s.sectionid +
-                       '&courseid=' + s.courseid + '&sectionnumber=' + s.sectionnumber + '&sesskey=' + SESS,
-                45000
-            );
-            logLine(data.msg, data.ok);
-            if (data.ok) done++; else errors++;
-        } catch(e) {
-            logLine('sección ' + s.sectionid + ' (' + s.label.substring(0,40) + '): ' + e.message, false);
-            errors++;
-        }
-        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
-    }
-    counter.textContent = total + ' / ' + total;
-    document.getElementById('prog-title').textContent =
-        'Completado: ' + done + ' eliminada(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
-    finishOverlay(errors === 0);
 }
 </script>";
 
