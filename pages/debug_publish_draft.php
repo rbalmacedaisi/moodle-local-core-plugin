@@ -67,6 +67,55 @@ function gmk_dbg_pub_bool($value): bool {
 }
 
 /**
+ * Validate day token used by draft payload.
+ *
+ * @param mixed $day
+ * @return bool
+ */
+function gmk_dbg_pub_is_valid_day($day): bool {
+    $d = gmk_dbg_pub_norm_token((string)$day);
+    return !in_array($d, ['', 'n/a', 'na', 'n-a', 'sin asignar', 'sinasignar'], true);
+}
+
+/**
+ * Validate time token used by draft payload.
+ *
+ * @param mixed $time
+ * @return bool
+ */
+function gmk_dbg_pub_is_valid_time($time): bool {
+    $t = trim((string)$time);
+    if ($t === '' || $t === '00:00' || $t === '00:00:00') {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Count valid schedule sessions in payload item.
+ *
+ * @param array $item
+ * @return int
+ */
+function gmk_dbg_pub_valid_session_count(array $item): int {
+    $count = 0;
+    if (empty($item['sessions']) || !is_array($item['sessions'])) {
+        return 0;
+    }
+    foreach ($item['sessions'] as $sess) {
+        if (!is_array($sess)) {
+            continue;
+        }
+        if (gmk_dbg_pub_is_valid_day($sess['day'] ?? '')
+            && gmk_dbg_pub_is_valid_time($sess['start'] ?? '')
+            && gmk_dbg_pub_is_valid_time($sess['end'] ?? '')) {
+            $count++;
+        }
+    }
+    return $count;
+}
+
+/**
  * Whether draft item is external to selected period.
  *
  * @param array $item
@@ -91,30 +140,30 @@ function gmk_dbg_pub_is_external(array $item, int $periodid): bool {
  * @return bool
  */
 function gmk_dbg_pub_is_programmed(array $item): bool {
-    $isvalidday = static function($day): bool {
-        $d = gmk_dbg_pub_norm_token((string)$day);
-        return !in_array($d, ['', 'n/a', 'na', 'n-a', 'sin asignar', 'sinasignar'], true);
-    };
-    $isvalidtime = static function($time): bool {
-        $t = trim((string)$time);
-        if ($t === '' || $t === '00:00' || $t === '00:00:00') {
-            return false;
-        }
+    if (gmk_dbg_pub_valid_session_count($item) > 0) {
         return true;
-    };
-
-    if (!empty($item['sessions']) && is_array($item['sessions'])) {
-        foreach ($item['sessions'] as $sess) {
-            if (!is_array($sess)) {
-                continue;
-            }
-            if ($isvalidday($sess['day'] ?? '') && $isvalidtime($sess['start'] ?? '') && $isvalidtime($sess['end'] ?? '')) {
-                return true;
-            }
-        }
     }
 
-    return $isvalidday($item['day'] ?? '') && $isvalidtime($item['start'] ?? '') && $isvalidtime($item['end'] ?? '');
+    return gmk_dbg_pub_is_valid_day($item['day'] ?? '')
+        && gmk_dbg_pub_is_valid_time($item['start'] ?? '')
+        && gmk_dbg_pub_is_valid_time($item['end'] ?? '');
+}
+
+/**
+ * Detect stale programmed rows with root day "N/A" shape.
+ * Rule: programmed by sessions, but root day is invalid and row has 1 or fewer valid sessions.
+ *
+ * @param array $item
+ * @return bool
+ */
+function gmk_dbg_pub_is_na_programmed_row(array $item): bool {
+    if (!gmk_dbg_pub_is_programmed($item)) {
+        return false;
+    }
+    if (gmk_dbg_pub_is_valid_day($item['day'] ?? '')) {
+        return false;
+    }
+    return gmk_dbg_pub_valid_session_count($item) <= 1;
 }
 
 /**
@@ -428,6 +477,21 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
         gmk_dbg_pub_save_draft($periodid, $kept);
         $message = "Action drop_without_db completed. Dropped rows: {$dropped}.";
         $messageclass = 'alert-success';
+    } else if ($action === 'drop_na_programmed') {
+        $before = count($draftitems);
+        $draftitems = array_values(array_filter($draftitems, static function($item) use ($periodid) {
+            if (!is_array($item)) {
+                return false;
+            }
+            if (gmk_dbg_pub_is_external($item, $periodid)) {
+                return true;
+            }
+            return !gmk_dbg_pub_is_na_programmed_row($item);
+        }));
+        gmk_dbg_pub_save_draft($periodid, $draftitems);
+        $removed = $before - count($draftitems);
+        $message = "Action drop_na_programmed completed. Removed: {$removed}.";
+        $messageclass = 'alert-success';
     } else if ($action === 'clear_bad_ids' || $action === 'normalize_publish') {
         $idlist = [];
         foreach ($draftitems as $it) {
@@ -525,6 +589,12 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             }));
             $droppedunassigned = $beforeunassigned - count($draftitems);
 
+            $beforena = count($draftitems);
+            $draftitems = array_values(array_filter($draftitems, static function($item) {
+                return is_array($item) && !gmk_dbg_pub_is_na_programmed_row($item);
+            }));
+            $droppedna = $beforena - count($draftitems);
+
             $dstats = [];
             $draftitems = gmk_dbg_pub_dedupe($draftitems, $periodid, $dstats);
 
@@ -618,7 +688,7 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             unset($it3);
 
             gmk_dbg_pub_save_draft($periodid, $draftitems);
-            $message = "Action normalize_publish completed. missing_id_rows_dropped={$droppedmissing} stale_unpublished_rows_dropped={$stalebydraft} ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
+            $message = "Action normalize_publish completed. missing_id_rows_dropped={$droppedmissing} stale_unpublished_rows_dropped={$stalebydraft} ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} na_programmed_dropped={$droppedna} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
             $messageclass = 'alert-success';
         } else {
             gmk_dbg_pub_save_draft($periodid, $draftitems);
@@ -722,6 +792,7 @@ if ($periodid > 0) {
     $total = count($draftitems);
     $programmed = 0;
     $unassigned = 0;
+    $naprogrammed = 0;
     $external = 0;
     $internal = 0;
     $numericids = 0;
@@ -745,6 +816,9 @@ if ($periodid > 0) {
             $programmed++;
         } else {
             $unassigned++;
+        }
+        if (!$isext && gmk_dbg_pub_is_na_programmed_row($item)) {
+            $naprogrammed++;
         }
 
         if (!empty($item['id']) && is_numeric($item['id']) && (int)$item['id'] > 0) {
@@ -856,7 +930,7 @@ if ($periodid > 0) {
         if (gmk_dbg_pub_is_external($item, $periodid) || !gmk_dbg_pub_is_programmed($item)) {
             continue;
         }
-        $key = gmk_dbg_pub_identity_key($item);
+        $key = gmk_dbg_pub_identity_key_relaxed($item);
         $draftkeyset[$key] = true;
         if (!isset($draftkeymeta[$key])) {
             $draftkeymeta[$key] = [
@@ -916,6 +990,7 @@ if ($periodid > 0) {
     echo '<span class="dbg-tag">external=' . $external . '</span>';
     echo '<span class="dbg-tag">programmed=' . $programmed . '</span>';
     echo '<span class="dbg-tag">unassigned=' . $unassigned . '</span>';
+    echo '<span class="dbg-tag">na_programmed=' . $naprogrammed . '</span>';
     echo '<span class="dbg-tag">numeric_ids=' . $numericids . '</span>';
     echo '<span class="dbg-tag">id_issues=' . count($idissues) . '</span>';
     echo '<span class="dbg-tag">duplicate_keys=' . count($dupkeys) . '</span>';
@@ -932,6 +1007,7 @@ if ($periodid > 0) {
     echo '<div class="dbg-row" style="margin-top:8px;">';
     $actions = [
         'normalize_publish' => 'Normalize for publish',
+        'drop_na_programmed' => 'Drop N/A programmed',
         'drop_without_db' => 'Drop rows without DB class',
         'dedupe_programmed' => 'Dedupe programmed',
         'clear_bad_ids' => 'Clear bad ids',
