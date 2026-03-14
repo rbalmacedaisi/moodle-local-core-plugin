@@ -143,6 +143,7 @@
                     // Standardize isExternal flag
                     const itemPid = Number(cls.periodid) || Number(periodId); // Fallback 0 to current
                     cls.isExternal = (cls.isExternal === true || cls.isExternal === 1 || String(cls.isExternal).toUpperCase() === 'YES' || itemPid !== Number(periodId));
+                    cls.subjectName = this._resolveSubjectName(cls);
 
                     return cls;
                 });
@@ -747,8 +748,10 @@
                     // Purge draft items that are DB externals
                     const cleanedDraft = draft.filter(item => !externalIds.has(Number(item.id)));
                     const processedDraft = cleanedDraft.map(item => {
-                        item.isExternal = (Number(item.periodid) || pIdNum) !== pIdNum;
-                        return item;
+                        const next = Object.assign({}, item);
+                        next.isExternal = (Number(next.periodid) || pIdNum) !== pIdNum;
+                        next.subjectName = this._resolveSubjectName(next);
+                        return next;
                     });
 
                     // Split draft into: items already in DB vs truly new (temp id / no id)
@@ -767,10 +770,10 @@
                     const POSITION_KEYS = ['sessions', 'day', 'start', 'end', 'room', 'assignedDates', 'classdays'];
                     const mergedDb = dbSchedules.map(s => {
                         const d = draftById[Number(s.id)];
-                        if (!d) return s;
+                        if (!d) return this._withCanonicalSubjectName(Object.assign({}, s));
                         const merged = Object.assign({}, s);
                         POSITION_KEYS.forEach(k => { if (d[k] !== undefined) merged[k] = d[k]; });
-                        return merged;
+                        return this._withCanonicalSubjectName(merged);
                     });
 
                     // Reconcile draft items (temp id / no DB id) against demand.
@@ -781,7 +784,8 @@
 
                     console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length} → reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
 
-                    this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...externalSchedules];
+                    const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
+                    this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...normalizedExternal];
                 } else {
                     // No draft — generate unassigned items from demand for subjects not yet in DB
                     console.log("DEBUG Draft: No draft found — generating unassigned items from demand.");
@@ -790,7 +794,9 @@
                     const reconciledNew = this._reconcileDraftWithDemand([], dbSchedules);
                     console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, new from demand=${reconciledNew.length}`);
                     if (reconciledNew.length > 0) {
-                        this.state.generatedSchedules = [...dbSchedules, ...reconciledNew, ...externalSchedules];
+                        const normalizedDb = dbSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
+                        const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
+                        this.state.generatedSchedules = [...normalizedDb, ...reconciledNew, ...normalizedExternal];
                     }
                 }
             } catch (e) {
@@ -906,7 +912,7 @@
                                          (Array.isArray(item.sessions) && item.sessions.length > 0);
                         if (isPlaced) {
                             console.log(`DEBUG Reconcile: Keeping placed "${item.subjectName}" (${key}) — no demand match.`);
-                            result.push({ ...item });
+                            result.push(this._withCanonicalSubjectName({ ...item }));
                         } else {
                             console.log(`DEBUG Reconcile: Removing unplaced "${item.subjectName}" (${key}) — no demand.`);
                         }
@@ -935,12 +941,12 @@
                     const groupStudents = allStudents.slice(offset, offset + groupSize);
                     offset += groupSize;
 
-                    result.push({
+                    result.push(this._withCanonicalSubjectName({
                         ...items[i],
                         ...sharedMeta,
                         studentIds: groupStudents,
                         studentCount: groupStudents.length,
-                    });
+                    }));
                 }
                 coveredKeys.add(key);
             }
@@ -965,7 +971,7 @@
                 if (demandData.plan_map[planId]) resolvedSubjectId = demandData.plan_map[planId].subjectid;
 
                 console.log(`DEBUG Reconcile: Adding new draft item "${courseName}" (${key}) — ${demandData.students.length} students.`);
-                result.push({
+                result.push(this._withCanonicalSubjectName({
                     id: `rec-${newIdCounter++}`,
                     courseid: resolvedSubjectId || demandData.courseid,
                     corecourseid: demandData.courseid,
@@ -987,7 +993,7 @@
                     typeLabel: 'Presencial',
                     classdays: '0/0/0/0/0/0/0',
                     isExternal: false
-                });
+                }));
             }
 
             return result;
@@ -1158,6 +1164,29 @@
                 console.error("Error fetching class students", e);
                 return [];
             }
+        },
+
+        _resolveSubjectName(item) {
+            const subjects = this.state.subjects || {};
+            const coreId = String(item && (item.corecourseid || ''));
+            const courseId = String(item && (item.courseid || ''));
+
+            if (coreId && subjects[coreId] && subjects[coreId].name) {
+                return String(subjects[coreId].name).trim();
+            }
+            if (courseId && subjects[courseId] && subjects[courseId].name) {
+                return String(subjects[courseId].name).trim();
+            }
+            if (item && item.subjectName) {
+                return String(item.subjectName).trim();
+            }
+            return '';
+        },
+
+        _withCanonicalSubjectName(item) {
+            const resolved = this._resolveSubjectName(item);
+            if (resolved) item.subjectName = resolved;
+            return item;
         },
 
         // --- Utils ---
