@@ -308,10 +308,12 @@ if (empty($orphanedGroups)) {
         $orphanedGroups
     )));
 
-    echo "<p>
-      <button class='btn-danger btn' onclick='deleteAllGroups($allGroupsJson)'>
-        🗑 Eliminar todos los grupos huérfanos ($orphanCount)
+    echo "<p style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
+      <button class='btn-danger btn' onclick='deleteCheckedGroups()'>
+        🗑 Eliminar seleccionados
       </button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(true)'>✔ Todos</button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(false)'>✘ Ninguno</button>
     </p>";
 
     foreach ($byCourse as $cid => $groups) {
@@ -320,12 +322,14 @@ if (empty($orphanedGroups)) {
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
+          <th style='width:32px'><input type='checkbox' checked onchange='toggleCourseGroups($cid, this.checked)' title='Seleccionar/deseleccionar curso'></th>
           <th>Group ID</th><th>Nombre del grupo</th><th>idnumber</th><th>Acción</th>
         </tr></thead><tbody>";
 
         foreach ($groups as $og) {
             $groupJson = json_encode(['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]);
             echo "<tr id='grow-{$og->groupid}'>
+              <td><input type='checkbox' class='grp-chk' data-groupid='{$og->groupid}' data-courseid='{$og->courseid}' checked></td>
               <td>{$og->groupid}</td>
               <td>" . htmlspecialchars($og->groupname) . "</td>
               <td><code style='font-size:11px'>" . htmlspecialchars($og->groupidnumber) . "</code></td>
@@ -386,10 +390,12 @@ if (empty($orphanedSections)) {
         $orphanedSections
     )));
 
-    echo "<p>
-      <button class='btn-danger btn' onclick='deleteAllSections($allSectionsJson)'>
-        🗑 Eliminar todas las secciones huérfanas ($secCount)
+    echo "<p style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
+      <button class='btn-danger btn' onclick='deleteCheckedSections()'>
+        🗑 Eliminar seleccionadas
       </button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllSections(true)'>✔ Todas</button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllSections(false)'>✘ Ninguna</button>
     </p>";
 
     foreach ($byCourseS as $cid => $sections) {
@@ -398,6 +404,7 @@ if (empty($orphanedSections)) {
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
+          <th style='width:32px'><input type='checkbox' checked onchange='toggleCourseSections($cid, this.checked)' title='Seleccionar/deseleccionar curso'></th>
           <th>Section ID</th><th>Nombre de la sección</th><th>Actividades</th><th>Acción</th>
         </tr></thead><tbody>";
 
@@ -408,6 +415,8 @@ if (empty($orphanedSections)) {
                 'sectionnumber' => (int)$os->sectionnumber,
             ]);
             echo "<tr id='srow-{$os->sectionid}'>
+              <td><input type='checkbox' class='sec-chk' data-sectionid='{$os->sectionid}'
+                   data-courseid='{$os->courseid}' data-sectionnumber='{$os->sectionnumber}' checked></td>
               <td>{$os->sectionid}</td>
               <td>" . htmlspecialchars($os->sectionname) . "</td>
               <td>{$os->module_count}</td>
@@ -471,33 +480,47 @@ function finishOverlay(ok) {
     document.getElementById('prog-reload').style.display = 'inline-block';
 }
 
+// ── Fetch con timeout (AbortController) ──────────────────────────────────────
+async function fetchWithTimeout(url, timeoutMs) {
+    var ctrl = new AbortController();
+    var timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+        var resp = await fetch(url, { method: 'POST', signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return await resp.json();
+    } catch(e) {
+        clearTimeout(timer);
+        if (e.name === 'AbortError') throw new Error('Timeout (' + (timeoutMs/1000) + 's)');
+        throw e;
+    }
+}
+
 // ── Fix draft ─────────────────────────────────────────────────────────────────
 async function fixDraft(periodid) {
     if (!confirm('¿Desduplicar el draft del período ' + periodid + '?\\nSe conservará el ID más alto por cada clave única.')) return;
     showOverlay('Reparando draft...');
     try {
-        var resp = await fetch(BASE + '?action=fixdraft&periodid=' + periodid + '&sesskey=' + SESS, { method: 'POST' });
-        var data = await resp.json();
+        var data = await fetchWithTimeout(BASE + '?action=fixdraft&periodid=' + periodid + '&sesskey=' + SESS, 30000);
         logLine(data.msg, data.ok);
         finishOverlay(data.ok);
     } catch(e) {
-        logLine('Error de red: ' + e.message, false);
+        logLine('Error: ' + e.message, false);
         finishOverlay(false);
     }
 }
 
 // ── Eliminar un grupo ─────────────────────────────────────────────────────────
 async function deleteOneGroup(info, btn) {
-    if (!confirm('¿Eliminar grupo ' + info.groupid + ' (\"' + (btn.closest ? btn.closest('tr').children[1].textContent : '') + '\")?')) return;
+    if (!confirm('¿Eliminar grupo ' + info.groupid + '?')) return;
     btn.disabled = true;
     var statusEl = document.getElementById('gstatus-' + info.groupid);
     statusEl.textContent = ' Eliminando...';
     try {
-        var resp = await fetch(
+        var data = await fetchWithTimeout(
             BASE + '?action=deletegroup&groupid=' + info.groupid + '&courseid=' + info.courseid + '&sesskey=' + SESS,
-            { method: 'POST' }
+            45000
         );
-        var data = await resp.json();
         if (data.ok) {
             statusEl.textContent = ' ✔ ' + data.msg;
             statusEl.style.color = 'green';
@@ -508,7 +531,7 @@ async function deleteOneGroup(info, btn) {
             btn.disabled = false;
         }
     } catch(e) {
-        statusEl.textContent = ' ✘ Error de red: ' + e.message;
+        statusEl.textContent = ' ✘ ' + e.message;
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
@@ -521,13 +544,11 @@ async function deleteOneSection(info, btn) {
     var statusEl = document.getElementById('sstatus-' + info.sectionid);
     statusEl.textContent = ' Eliminando...';
     try {
-        var resp = await fetch(
+        var data = await fetchWithTimeout(
             BASE + '?action=deletesection&sectionid=' + info.sectionid +
-                   '&courseid=' + info.courseid + '&sectionnumber=' + info.sectionnumber +
-                   '&sesskey=' + SESS,
-            { method: 'POST' }
+                   '&courseid=' + info.courseid + '&sectionnumber=' + info.sectionnumber + '&sesskey=' + SESS,
+            45000
         );
-        var data = await resp.json();
         if (data.ok) {
             statusEl.textContent = ' ✔ ' + data.msg;
             statusEl.style.color = 'green';
@@ -538,73 +559,105 @@ async function deleteOneSection(info, btn) {
             btn.disabled = false;
         }
     } catch(e) {
-        statusEl.textContent = ' ✘ Error de red: ' + e.message;
+        statusEl.textContent = ' ✘ ' + e.message;
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
 }
 
-// ── Eliminar todas las secciones huérfanas ────────────────────────────────────
-async function deleteAllSections(sections) {
+// ── Helpers de selección — grupos ────────────────────────────────────────────
+function toggleAllGroups(checked) {
+    document.querySelectorAll('.grp-chk').forEach(cb => cb.checked = checked);
+}
+function toggleCourseGroups(courseid, checked) {
+    document.querySelectorAll('.grp-chk[data-courseid="' + courseid + '"]')
+            .forEach(cb => cb.checked = checked);
+}
+
+// ── Helpers de selección — secciones ─────────────────────────────────────────
+function toggleAllSections(checked) {
+    document.querySelectorAll('.sec-chk').forEach(cb => cb.checked = checked);
+}
+function toggleCourseSections(courseid, checked) {
+    document.querySelectorAll('.sec-chk[data-courseid="' + courseid + '"]')
+            .forEach(cb => cb.checked = checked);
+}
+
+// ── Eliminar grupos seleccionados ─────────────────────────────────────────────
+async function deleteCheckedGroups() {
+    var checked = Array.from(document.querySelectorAll('.grp-chk:checked'));
+    if (!checked.length) { alert('No hay grupos seleccionados.'); return; }
+    var groups = checked.map(cb => ({
+        groupid:   +cb.dataset.groupid,
+        courseid:  +cb.dataset.courseid,
+        label: cb.closest('tr').children[2].textContent.trim(),
+    }));
+    if (!confirm('¿Eliminar ' + groups.length + ' grupo(s) seleccionado(s)?\\nEsta acción no se puede deshacer.')) return;
+    showOverlay('Eliminando grupos...');
+    var bar = document.getElementById('prog-bar');
+    var counter = document.getElementById('prog-counter');
+    var done = 0, errors = 0, total = groups.length;
+
+    for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        counter.textContent = (i + 1) + ' / ' + total + ' — ' + g.label.substring(0, 60);
+        bar.style.width = Math.round((i / total) * 100) + '%';
+        try {
+            var data = await fetchWithTimeout(
+                BASE + '?action=deletegroup&groupid=' + g.groupid + '&courseid=' + g.courseid + '&sesskey=' + SESS,
+                45000
+            );
+            logLine(data.msg, data.ok);
+            if (data.ok) done++; else errors++;
+        } catch(e) {
+            logLine('grupo ' + g.groupid + ' (' + g.label.substring(0,40) + '): ' + e.message, false);
+            errors++;
+        }
+        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }
+    counter.textContent = total + ' / ' + total;
+    document.getElementById('prog-title').textContent =
+        'Completado: ' + done + ' eliminado(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
+    finishOverlay(errors === 0);
+}
+
+// ── Eliminar secciones seleccionadas ──────────────────────────────────────────
+async function deleteCheckedSections() {
+    var checked = Array.from(document.querySelectorAll('.sec-chk:checked'));
+    if (!checked.length) { alert('No hay secciones seleccionadas.'); return; }
+    var sections = checked.map(cb => ({
+        sectionid:     +cb.dataset.sectionid,
+        courseid:      +cb.dataset.courseid,
+        sectionnumber: +cb.dataset.sectionnumber,
+        label: cb.closest('tr').children[2].textContent.trim(),
+    }));
     if (!confirm('¿Eliminar ' + sections.length + ' sección(es) con todas sus actividades?\\nEsta acción no se puede deshacer.')) return;
-    showOverlay('Eliminando ' + sections.length + ' secciones...');
+    showOverlay('Eliminando secciones...');
     var bar = document.getElementById('prog-bar');
     var counter = document.getElementById('prog-counter');
     var done = 0, errors = 0, total = sections.length;
 
     for (var i = 0; i < sections.length; i++) {
         var s = sections[i];
-        counter.textContent = (i + 1) + ' / ' + total;
+        counter.textContent = (i + 1) + ' / ' + total + ' — ' + s.label.substring(0, 60);
+        bar.style.width = Math.round((i / total) * 100) + '%';
         try {
-            var resp = await fetch(
+            var data = await fetchWithTimeout(
                 BASE + '?action=deletesection&sectionid=' + s.sectionid +
-                       '&courseid=' + s.courseid + '&sectionnumber=' + s.sectionnumber +
-                       '&sesskey=' + SESS,
-                { method: 'POST' }
+                       '&courseid=' + s.courseid + '&sectionnumber=' + s.sectionnumber + '&sesskey=' + SESS,
+                45000
             );
-            var data = await resp.json();
             logLine(data.msg, data.ok);
             if (data.ok) done++; else errors++;
         } catch(e) {
-            logLine('sección ' + s.sectionid + ': Error de red — ' + e.message, false);
+            logLine('sección ' + s.sectionid + ' (' + s.label.substring(0,40) + '): ' + e.message, false);
             errors++;
         }
         bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
     }
-
+    counter.textContent = total + ' / ' + total;
     document.getElementById('prog-title').textContent =
         'Completado: ' + done + ' eliminada(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
-    finishOverlay(errors === 0);
-}
-
-// ── Eliminar todos los grupos huérfanos ───────────────────────────────────────
-async function deleteAllGroups(groups) {
-    if (!confirm('¿Eliminar ' + groups.length + ' grupo(s) huérfano(s)?\\nEsta acción no se puede deshacer.')) return;
-    showOverlay('Eliminando ' + groups.length + ' grupos...');
-    var bar     = document.getElementById('prog-bar');
-    var counter = document.getElementById('prog-counter');
-    var done = 0, errors = 0, total = groups.length;
-
-    for (var i = 0; i < groups.length; i++) {
-        var g = groups[i];
-        counter.textContent = (i + 1) + ' / ' + total;
-        try {
-            var resp = await fetch(
-                BASE + '?action=deletegroup&groupid=' + g.groupid + '&courseid=' + g.courseid + '&sesskey=' + SESS,
-                { method: 'POST' }
-            );
-            var data = await resp.json();
-            logLine(data.msg, data.ok);
-            if (data.ok) done++; else errors++;
-        } catch(e) {
-            logLine('grupo ' + g.groupid + ': Error de red — ' + e.message, false);
-            errors++;
-        }
-        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
-    }
-
-    document.getElementById('prog-title').textContent =
-        'Completado: ' + done + ' eliminado(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
     finishOverlay(errors === 0);
 }
 </script>";
