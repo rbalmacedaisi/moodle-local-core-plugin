@@ -19,6 +19,7 @@ $PAGE->set_heading('Debug Draft Publish');
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHAEXT);
+$rowidx = optional_param('rowidx', -1, PARAM_INT);
 $limit = optional_param('limit', 200, PARAM_INT);
 if ($limit < 20) {
     $limit = 20;
@@ -404,7 +405,18 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
         }
     }
 
-    if ($action === 'drop_external') {
+    if ($action === 'delete_row') {
+        if ($rowidx < 0 || !array_key_exists($rowidx, $draftitems)) {
+            $message = 'Invalid row index.';
+            $messageclass = 'alert-danger';
+        } else {
+            unset($draftitems[$rowidx]);
+            $draftitems = array_values($draftitems);
+            gmk_dbg_pub_save_draft($periodid, $draftitems);
+            $message = "Action delete_row completed. Removed idx={$rowidx}.";
+            $messageclass = 'alert-success';
+        }
+    } else if ($action === 'drop_external') {
         $before = count($draftitems);
         $draftitems = array_values(array_filter($draftitems, static function($item) use ($periodid) {
             return is_array($item) && !gmk_dbg_pub_is_external($item, $periodid);
@@ -1130,7 +1142,7 @@ if ($periodid > 0) {
     echo '<div class="dbg-box">';
     echo '<strong>Draft rows (first ' . (int)$limit . ')</strong>';
     echo '<table class="dbg-grid"><thead><tr>';
-    echo '<th>idx</th><th>id</th><th>subject</th><th>corecourseid</th><th>shift</th><th>day</th><th>sessions</th><th>external</th><th>programmed</th><th>keyhash</th>';
+    echo '<th>idx</th><th>id</th><th>subject</th><th>corecourseid</th><th>shift</th><th>day</th><th>sessions</th><th>external</th><th>programmed</th><th>keyhash</th><th>action</th>';
     echo '</tr></thead><tbody>';
     foreach ($draftitems as $idx => $item) {
         if ($idx >= $limit) {
@@ -1154,6 +1166,16 @@ if ($periodid > 0) {
         echo '<td>' . ($isext ? '<span class="dbg-err">YES</span>' : '<span class="dbg-ok">NO</span>') . '</td>';
         echo '<td>' . ($isprog ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-warn">NO</span>') . '</td>';
         echo '<td class="dbg-mono">' . s($keyhash) . '</td>';
+        echo '<td>';
+        echo '<form method="post" style="margin:0;">';
+        echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+        echo '<input type="hidden" name="periodid" value="' . (int)$periodid . '">';
+        echo '<input type="hidden" name="limit" value="' . (int)$limit . '">';
+        echo '<input type="hidden" name="action" value="delete_row">';
+        echo '<input type="hidden" name="rowidx" value="' . (int)$idx . '">';
+        echo '<button type="submit" class="btn btn-danger btn-sm" onclick="return confirm(\'Delete row idx=' . (int)$idx . ' from draft?\');">Delete row</button>';
+        echo '</form>';
+        echo '</td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
