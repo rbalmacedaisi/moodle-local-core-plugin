@@ -7,6 +7,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
 
 require_login();
 $context = context_system::instance();
@@ -20,6 +21,7 @@ $PAGE->set_heading('Debug Draft Publish');
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHAEXT);
 $rowidx = optional_param('rowidx', -1, PARAM_INT);
+$classid = optional_param('classid', 0, PARAM_INT);
 $limit = optional_param('limit', 200, PARAM_INT);
 if ($limit < 20) {
     $limit = 20;
@@ -416,6 +418,98 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             $message = "Action delete_row completed. Removed idx={$rowidx}.";
             $messageclass = 'alert-success';
         }
+    } else if ($action === 'delete_db_class') {
+        if ($classid <= 0) {
+            $message = 'Invalid class id.';
+            $messageclass = 'alert-danger';
+        } else {
+            $dbclass = $DB->get_record('gmk_class', ['id' => $classid], 'id,periodid', IGNORE_MISSING);
+            if (!$dbclass) {
+                $message = "Class {$classid} not found.";
+                $messageclass = 'alert-warning';
+            } else if ((int)$dbclass->periodid !== (int)$periodid) {
+                $message = "Class {$classid} does not belong to period {$periodid}.";
+                $messageclass = 'alert-danger';
+            } else {
+                try {
+                    delete_class((int)$classid, 'Deleted from debug_publish_draft');
+                    $message = "Action delete_db_class completed. Deleted class {$classid}.";
+                    $messageclass = 'alert-success';
+                } catch (Throwable $e) {
+                    $message = "Action delete_db_class failed for class {$classid}: " . $e->getMessage();
+                    $messageclass = 'alert-danger';
+                }
+            }
+        }
+    } else if ($action === 'delete_db_not_in_draft') {
+        $draftkeyset = [];
+        foreach ($draftitems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if (gmk_dbg_pub_is_external($item, $periodid) || !gmk_dbg_pub_is_programmed($item)) {
+                continue;
+            }
+            $draftkeyset[gmk_dbg_pub_identity_key_relaxed($item)] = true;
+        }
+
+        $dbclasses = $DB->get_records(
+            'gmk_class',
+            ['periodid' => $periodid],
+            '',
+            'id,periodid,name,corecourseid,courseid,learningplanid,shift,subperiodid,type,instructorid,inittime,endtime,classdays'
+        );
+        $dbids = array_values(array_map('intval', array_keys($dbclasses)));
+        $dbsessions = [];
+        if (!empty($dbids)) {
+            $dbsessionsrows = $DB->get_records_list(
+                'gmk_class_schedules',
+                'classid',
+                $dbids,
+                'id ASC',
+                'id,classid,day,start_time,end_time,classroomid'
+            );
+            foreach ($dbsessionsrows as $srow) {
+                $dbsessions[(int)$srow->classid][] = $srow;
+            }
+        }
+
+        $todelete = [];
+        foreach ($dbclasses as $dbclass) {
+            $dbitem = [
+                'corecourseid' => (int)($dbclass->corecourseid ?? 0),
+                'courseid' => (int)($dbclass->courseid ?? 0),
+                'learningplanid' => (int)($dbclass->learningplanid ?? 0),
+                'shift' => (string)($dbclass->shift ?? ''),
+                'subperiod' => (int)($dbclass->subperiodid ?? 0),
+                'type' => (int)($dbclass->type ?? 0),
+                'instructorid' => (int)($dbclass->instructorid ?? 0),
+                'sessions' => gmk_dbg_pub_db_sessions($dbclass, $dbsessions),
+                'day' => '',
+                'start' => '',
+                'end' => ''
+            ];
+            $key = gmk_dbg_pub_identity_key_relaxed($dbitem);
+            if (!isset($draftkeyset[$key])) {
+                $todelete[] = (int)$dbclass->id;
+            }
+        }
+
+        $deleted = 0;
+        $failed = [];
+        foreach ($todelete as $cid) {
+            try {
+                delete_class((int)$cid, 'Deleted from debug_publish_draft: db_not_in_draft');
+                $deleted++;
+            } catch (Throwable $e) {
+                $failed[] = (int)$cid;
+            }
+        }
+
+        $message = "Action delete_db_not_in_draft completed. candidates=" . count($todelete) .
+            " deleted={$deleted} failed=" . count($failed) .
+            (empty($failed) ? '' : ' failed_ids=' . implode(',', $failed));
+        $messageclass = empty($failed) ? 'alert-success' : 'alert-warning';
     } else if ($action === 'drop_external') {
         $before = count($draftitems);
         $draftitems = array_values(array_filter($draftitems, static function($item) use ($periodid) {
@@ -1020,6 +1114,7 @@ if ($periodid > 0) {
     $actions = [
         'normalize_publish' => 'Normalize for publish',
         'drop_na_programmed' => 'Drop N/A programmed',
+        'delete_db_not_in_draft' => 'Delete DB not in draft',
         'drop_without_db' => 'Drop rows without DB class',
         'dedupe_programmed' => 'Dedupe programmed',
         'clear_bad_ids' => 'Clear bad ids',
@@ -1138,6 +1233,62 @@ if ($periodid > 0) {
     echo '<tr><td class="dbg-warn">DB classes not in programmed draft</td><td>' . count($dbnotindraft) . '</td><td>' . s(implode(' | ', $samples)) . '</td></tr>';
     echo '</tbody></table>';
     echo '</div>';
+
+    $dbnotindraftrows = [];
+    foreach ($dbclasses as $dbclass) {
+        $dbitem = [
+            'corecourseid' => (int)($dbclass->corecourseid ?? 0),
+            'courseid' => (int)($dbclass->courseid ?? 0),
+            'learningplanid' => (int)($dbclass->learningplanid ?? 0),
+            'career' => '',
+            'shift' => (string)($dbclass->shift ?? ''),
+            'subperiod' => (int)($dbclass->subperiodid ?? 0),
+            'type' => (int)($dbclass->type ?? 0),
+            'instructorid' => (int)($dbclass->instructorid ?? 0),
+            'sessions' => gmk_dbg_pub_db_sessions($dbclass, $dbsessionsbyclass),
+            'day' => '',
+            'start' => '',
+            'end' => '',
+            'room' => ''
+        ];
+        $key = gmk_dbg_pub_identity_key_relaxed($dbitem);
+        if (!isset($draftkeyset[$key])) {
+            $dbnotindraftrows[] = [
+                'id' => (int)$dbclass->id,
+                'name' => (string)$dbclass->name,
+                'keyhash' => substr(sha1($key), 0, 10)
+            ];
+        }
+    }
+    if (!empty($dbnotindraftrows)) {
+        echo '<div class="dbg-box">';
+        echo '<strong>DB classes not in programmed draft (first ' . (int)$limit . ')</strong>';
+        echo '<table class="dbg-grid"><thead><tr><th>id</th><th>name</th><th>keyhash</th><th>action</th></tr></thead><tbody>';
+        $shown = 0;
+        foreach ($dbnotindraftrows as $row) {
+            if ($shown >= $limit) {
+                break;
+            }
+            echo '<tr>';
+            echo '<td>' . (int)$row['id'] . '</td>';
+            echo '<td>' . s(gmk_dbg_pub_short($row['name'], 110)) . '</td>';
+            echo '<td class="dbg-mono">' . s($row['keyhash']) . '</td>';
+            echo '<td>';
+            echo '<form method="post" style="margin:0;">';
+            echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+            echo '<input type="hidden" name="periodid" value="' . (int)$periodid . '">';
+            echo '<input type="hidden" name="limit" value="' . (int)$limit . '">';
+            echo '<input type="hidden" name="action" value="delete_db_class">';
+            echo '<input type="hidden" name="classid" value="' . (int)$row['id'] . '">';
+            echo '<button type="submit" class="btn btn-danger btn-sm" onclick="return confirm(\'Delete DB class id=' . (int)$row['id'] . ' and related Moodle data?\');">Delete class</button>';
+            echo '</form>';
+            echo '</td>';
+            echo '</tr>';
+            $shown++;
+        }
+        echo '</tbody></table>';
+        echo '</div>';
+    }
 
     echo '<div class="dbg-box">';
     echo '<strong>Draft rows (first ' . (int)$limit . ')</strong>';
