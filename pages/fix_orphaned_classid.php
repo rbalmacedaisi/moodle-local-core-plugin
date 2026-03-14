@@ -97,7 +97,7 @@ if ($action === 'fix_one') {
         if ($isTerminal) {
             $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, timemodified=:now WHERE id=:id",
                          ['now' => time(), 'id' => $id]);
-            $desc = 'classid/groupid â†’ 0 (nota preservada)';
+            $desc = 'classid/groupid -> 0 (nota preservada)';
         } else {
             $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, status=1, grade=0, progress=0, timemodified=:now WHERE id=:id",
                          ['now' => time(), 'id' => $id]);
@@ -124,8 +124,8 @@ if ($action === 'fix_one') {
 
 $PAGE->set_url('/local/grupomakro_core/pages/fix_orphaned_classid.php');
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title('Fix: classid huÃ©rfano en gmk_course_progre');
-$PAGE->set_heading('CorrecciÃ³n: Registros con Clase Eliminada');
+$PAGE->set_title('Fix: classid huerfano en gmk_course_progre');
+$PAGE->set_heading('Correccion: Registros con Clase Eliminada');
 echo $OUTPUT->header();
 
 echo '<style>
@@ -219,8 +219,8 @@ if ($action === 'fix') {
     $selectedIds = array_filter($selectedIds, fn($id) => $id > 0);
 
     if (empty($selectedIds)) {
-        echo "<div class='box warn'>No seleccionaste ningÃºn registro.</div>";
-        echo "<p><a href='?' class='btn'>â† Volver</a></p>";
+        echo "<div class='box warn'>No seleccionaste ningun registro.</div>";
+        echo "<p><a href='?' class='btn'><- Volver</a></p>";
         echo $OUTPUT->footer();
         exit;
     }
@@ -236,7 +236,7 @@ if ($action === 'fix') {
 
     foreach ($selectedIds as $id) {
         if (!isset($candidateMap[$id])) {
-            $log[] = "<span class='err'>âœ˜ id=$id no encontrado entre candidatos</span>";
+            $log[] = "<span class='err'>[ERR] id=$id no encontrado entre candidatos</span>";
             $errors++;
             continue;
         }
@@ -271,7 +271,7 @@ if ($action === 'fix') {
                       WHERE id = :id",
                     ['now' => time(), 'id' => $id]
                 );
-                $action_desc = "classid/groupid â†’ 0 (status {$status} preservado)";
+                $action_desc = "classid/groupid -> 0 (status {$status} preservado)";
             } else {
                 $DB->execute(
                     "UPDATE {gmk_course_progre}
@@ -279,7 +279,7 @@ if ($action === 'fix') {
                       WHERE id = :id",
                     ['now' => time(), 'id' => $id]
                 );
-                $action_desc = "status â†’ Disponible, classid/groupid/grade/progress â†’ 0";
+                $action_desc = "status -> Disponible, classid/groupid/grade/progress -> 0";
             }
 
             // 4. Limpiar pre_registration y queue.
@@ -288,18 +288,18 @@ if ($action === 'fix') {
 
             $fixed++;
             $statusLabel = STATUS_LABELS[$status] ?? "status=$status";
-            $log[] = "<span class='ok'>âœ” {$row->firstname} {$row->lastname} â€” " . htmlspecialchars($row->coursename) . " ({$statusLabel}) â†’ {$action_desc}</span>";
+            $log[] = "<span class='ok'>[OK] {$row->firstname} {$row->lastname} - " . htmlspecialchars($row->coursename) . " ({$statusLabel}) -> {$action_desc}</span>";
         } catch (Exception $e) {
             $errors++;
-            $log[] = "<span class='err'>âœ˜ Error id={$id}: " . htmlspecialchars($e->getMessage()) . "</span>";
+            $log[] = "<span class='err'>[ERR] Error id={$id}: " . htmlspecialchars($e->getMessage()) . "</span>";
         }
     }
 
-    echo "<div class='section'>Resultado de la correcciÃ³n</div>";
+    echo "<div class='section'>Resultado de la correccion</div>";
     echo "<div class='box " . ($errors === 0 ? 'ok' : 'warn') . "'>";
     echo "<b>$fixed corregidos</b>" . ($errors > 0 ? ", <b class='err'>$errors errores</b>" : "") . "</div>";
     echo "<div style='font-size:13px;line-height:1.9;'>" . implode('<br>', $log) . "</div>";
-    echo "<p style='margin-top:16px;'><a href='?' class='btn'>â† Volver al anÃ¡lisis</a></p>";
+    echo "<p style='margin-top:16px;'><a href='?' class='btn'><- Volver al analisis</a></p>";
     echo $OUTPUT->footer();
     exit;
 }
