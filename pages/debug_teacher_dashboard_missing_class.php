@@ -51,6 +51,23 @@ function dbg_norm(string $text): string {
 }
 
 /**
+ * Read value from array or stdClass.
+ * @param mixed $src
+ * @param string $key
+ * @param mixed $default
+ * @return mixed
+ */
+function dbg_getv($src, string $key, $default = null) {
+    if (is_array($src)) {
+        return array_key_exists($key, $src) ? $src[$key] : $default;
+    }
+    if (is_object($src) && property_exists($src, $key)) {
+        return $src->{$key};
+    }
+    return $default;
+}
+
+/**
  * Resolve teacher users by query or explicit id.
  * @param int $teacherid
  * @param string $teacherquery
@@ -282,13 +299,13 @@ if ($selectedteacher) {
         $calendar = isset($dashdata['calendar_events']) && is_array($dashdata['calendar_events']) ? $dashdata['calendar_events'] : [];
 
         foreach ($activeclasses as $ac) {
-            $acid = (int)($ac['id'] ?? 0);
+            $acid = (int)dbg_getv($ac, 'id', 0);
             if ($acid > 0) {
                 $dashboardactive[$acid] = $ac;
             }
         }
         foreach ($calendar as $ev) {
-            $cid = (int)($ev['classid'] ?? 0);
+            $cid = (int)dbg_getv($ev, 'classid', 0);
             if ($cid <= 0) {
                 continue;
             }
@@ -533,4 +550,3 @@ table.dbg-table th { background: #f3f4f6; }
 
 <?php
 echo $OUTPUT->footer();
-
