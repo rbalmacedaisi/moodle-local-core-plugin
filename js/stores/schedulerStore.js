@@ -711,7 +711,8 @@
 // ── Re-guardar borrador ───────────────────────────────────────────────────
                 notify('Sincronizando tablero con base de datos...', 'info', 94);
                 await this.loadGeneratedSchedules(periodId);
-                await this.loadGeneration(periodId);
+                // Do not re-load draft after publish.
+                // Draft may contain stale positions that overwrite fresh DB data.
 
                 notify('Re-guardando borrador...', 'info', 95);
                 await this.saveGeneration(periodId, this.state.generatedSchedules);

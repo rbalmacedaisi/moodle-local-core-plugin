@@ -1845,7 +1845,7 @@ window.SchedulerComponents.PlanningBoard = {
 
                 this._publishLog('Sincronizando estado con base de datos...', 'info');
                 await store.loadGeneratedSchedules(periodId);
-                await store.loadGeneration(periodId);
+                // Do not merge draft here; it can re-apply stale positions over DB rows.
                 this.publishProgress = 50;
 
                 const internalSchedules = (store.state.generatedSchedules || []).filter(s => !s.isExternal);
@@ -1913,7 +1913,7 @@ window.SchedulerComponents.PlanningBoard = {
                 // Re-sincronizar y guardar draft limpio (sin IDs temporales).
                 this._publishLog('Sincronizando estado final...', 'info');
                 await store.loadGeneratedSchedules(periodId);
-                await store.loadGeneration(periodId);
+                // Do not merge draft here; keep DB state as source of truth after publish.
                 this.publishProgress = 95;
 
                 this._publishLog('Re-guardando borrador...', 'info');
