@@ -3768,7 +3768,9 @@ try {
                 $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
             }
             try {
-                create_class_activities($class, $hasActivities);
+                // Single-class republish should always rebuild activity dates
+                // from current board day/time/date-range, not stale assigned_dates.
+                create_class_activities($class, $hasActivities, true);
                 $commitok = gmk_best_effort_db_commit("ajax_create_class_moodle_structures_class_{$classid}");
                 $log[] = "COMMIT best-effort " . ($commitok ? "OK" : "WARN");
                 $class = $DB->get_record('gmk_class', ['id' => $classid]);

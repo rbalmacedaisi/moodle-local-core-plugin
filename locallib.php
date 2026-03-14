@@ -2437,9 +2437,10 @@ function delete_class($classId, $reason = null)
 /**
  * Create or updated (delete and recreate) the activities for the given class
  *
+ * @param bool $forceRebuildDates When true, ignore stored assigned_dates and rebuild from day/range.
  * @return array
  */
-function create_class_activities($class, $updating = false)
+function create_class_activities($class, $updating = false, $forceRebuildDates = false)
 {
     global $DB, $USER;
     // if($classParams["classroomId"]!== ''){
@@ -2653,8 +2654,21 @@ function create_class_activities($class, $updating = false)
             }
             $sessionStartTime = !empty($sched->start_time) ? $sched->start_time : $class->inittime;
 
-            // Build candidate date list: use assigned_dates when present, else fall back to bitmask.
-            $assignedDates  = (!empty($sched->assigned_dates))  ? json_decode($sched->assigned_dates,  true) : null;
+            // Build candidate date list: use assigned_dates when valid, else fall back to bitmask.
+            $assignedDates = (!empty($sched->assigned_dates)) ? json_decode($sched->assigned_dates, true) : null;
+            if ($forceRebuildDates) {
+                $assignedDates = null;
+            }
+            $normalizedAssignedDates = gmk_normalize_assigned_dates_for_schedule(
+                $assignedDates,
+                (string)$sched->day,
+                (int)$class->initdate,
+                (int)$class->enddate
+            );
+            if (!empty($assignedDates) && empty($normalizedAssignedDates)) {
+                gmk_log("INFO: class {$class->id} schedule {$sched->id} dropping stale assigned_dates and rebuilding by day/range");
+            }
+            $assignedDates = !empty($normalizedAssignedDates) ? $normalizedAssignedDates : null;
             $excludedDates  = (!empty($sched->excluded_dates))  ? json_decode($sched->excluded_dates,  true) : [];
             $excludedSet    = array_flip(is_array($excludedDates) ? $excludedDates : []);
 
@@ -3292,6 +3306,91 @@ function gmk_get_enabled_schedule_days_from_bitmask($classdays)
         }
     }
     return $enabled;
+}
+
+/**
+ * Normalize assigned date list for a schedule row.
+ * Keeps only valid YYYY-MM-DD values that match the schedule day and class date range.
+ *
+ * @param mixed $assignedDates
+ * @param string $scheduleDay
+ * @param int $initDateTs
+ * @param int $endDateTs
+ * @return array
+ */
+function gmk_normalize_assigned_dates_for_schedule($assignedDates, $scheduleDay, $initDateTs, $endDateTs)
+{
+    if (!is_array($assignedDates) || empty($assignedDates)) {
+        return [];
+    }
+
+    $dayMap = [
+        'lunes' => 1,
+        'monday' => 1,
+        'martes' => 2,
+        'tuesday' => 2,
+        'miercoles' => 3,
+        'wednesday' => 3,
+        'jueves' => 4,
+        'thursday' => 4,
+        'viernes' => 5,
+        'friday' => 5,
+        'sabado' => 6,
+        'saturday' => 6,
+        'domingo' => 7,
+        'sunday' => 7
+    ];
+
+    $dayToken = cleanString((string)$scheduleDay);
+    $targetDay = $dayMap[$dayToken] ?? 0; // 1=Mon ... 7=Sun
+
+    $rangeStart = null;
+    $rangeEnd = null;
+    if (!empty($initDateTs)) {
+        $rangeStart = strtotime(date('Y-m-d', (int)$initDateTs) . ' 00:00:00');
+    }
+    if (!empty($endDateTs)) {
+        $rangeEnd = strtotime(date('Y-m-d', (int)$endDateTs) . ' 23:59:59');
+    }
+
+    $seen = [];
+    $normalized = [];
+    foreach ($assignedDates as $rawDate) {
+        if (!is_string($rawDate) && !is_numeric($rawDate)) {
+            continue;
+        }
+
+        $dateStr = trim((string)$rawDate);
+        if (strlen($dateStr) >= 10) {
+            $dateStr = substr($dateStr, 0, 10);
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            continue;
+        }
+
+        $dateTs = strtotime($dateStr . ' 00:00:00');
+        if ($dateTs === false) {
+            continue;
+        }
+        if ($rangeStart !== null && $dateTs < $rangeStart) {
+            continue;
+        }
+        if ($rangeEnd !== null && $dateTs > $rangeEnd) {
+            continue;
+        }
+        if ($targetDay > 0 && (int)date('N', $dateTs) !== $targetDay) {
+            continue;
+        }
+        if (isset($seen[$dateStr])) {
+            continue;
+        }
+
+        $seen[$dateStr] = true;
+        $normalized[] = $dateStr;
+    }
+
+    sort($normalized, SORT_STRING);
+    return $normalized;
 }
 
 /**
