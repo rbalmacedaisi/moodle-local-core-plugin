@@ -271,28 +271,47 @@ if ($periodid > 0) {
     }
 }
 
+// ── Cursos del plugin (base para ambas consultas) ─────────────────────────────
+$pluginCourseIds = $DB->get_fieldset_sql(
+    "SELECT DISTINCT corecourseid FROM {gmk_class}
+      WHERE corecourseid IS NOT NULL AND corecourseid > 0"
+);
+
 // ── Sección 2: Grupos huérfanos ───────────────────────────────────────────────
 echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
 
 echo "<div class='box info'>
   Grupos con <code>idnumber</code> no vacío que <b>no tienen ninguna clase activa asociada</b>
-  (<code>gmk_class.groupid</code>). Se revisan <b>todos los cursos</b>. Usa los checkboxes
-  para excluir grupos manuales que quieras conservar (ej. <code>rev-INGAA</code>).
+  (<code>gmk_class.groupid</code>). Se revisan los cursos gestionados por el plugin.
+  Usa los checkboxes para excluir grupos manuales que quieras conservar (ej. <code>rev-INGAA</code>).
 </div>";
 
-// Identifica grupos con idnumber no vacío que no tienen gmk_class activa.
-// El plugin siempre asigna idnumber = "{nombre_clase}-{classid}".
-$orphanedGroups = $DB->get_records_sql(
-    "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
-            c.fullname AS coursename, c.shortname AS courseshortname
-       FROM {groups} g
-       JOIN {course} c ON c.id = g.courseid
-      WHERE g.idnumber IS NOT NULL AND g.idnumber != ''
-        AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
-      ORDER BY c.fullname, g.name"
-);
+// Restringe a cursos del plugin para evitar escanear todos los grupos del LMS.
+$orphanedGroups = [];
+$groupsQueryError = null;
+if (!empty($pluginCourseIds)) {
+    try {
+        list($gInSql, $gInParams) = $DB->get_in_or_equal($pluginCourseIds, SQL_PARAMS_NAMED, 'gc');
+        $orphanedGroups = $DB->get_records_sql(
+            "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
+                    c.fullname AS coursename, c.shortname AS courseshortname
+               FROM {groups} g
+               JOIN {course} c ON c.id = g.courseid
+          LEFT JOIN {gmk_class} gmc ON gmc.groupid = g.id
+              WHERE g.courseid $gInSql
+                AND g.idnumber IS NOT NULL AND g.idnumber != ''
+                AND gmc.id IS NULL
+              ORDER BY c.fullname, g.name",
+            $gInParams
+        );
+    } catch (Exception $e) {
+        $groupsQueryError = $e->getMessage();
+    }
+}
 
-if (empty($orphanedGroups)) {
+if ($groupsQueryError) {
+    echo "<div class='box err'>✘ Error al consultar grupos: <code>" . htmlspecialchars($groupsQueryError) . "</code></div>";
+} elseif (empty($orphanedGroups)) {
     echo "<div class='box ok'>✔ No se encontraron grupos huérfanos en cursos del plugin.</div>";
 } else {
     $orphanCount = count($orphanedGroups);
@@ -353,24 +372,37 @@ echo "<div class='box info'>
   (muestra «grupo que falta» en el curso). Usa checkboxes para excluir las que no son del plugin.
 </div>";
 
-// Identifica secciones con nombre no vacío (section > 0) sin gmk_class activa.
-// Se busca en todos los cursos; el nombre de la sección = nombre de la clase en el plugin.
-$orphanedSections = $DB->get_records_sql(
-    "SELECT cs.id AS sectionid, cs.name AS sectionname, cs.section AS sectionnumber,
-            cs.course AS courseid, c.fullname AS coursename, c.shortname AS courseshortname,
-            COUNT(cm.id) AS module_count
-       FROM {course_sections} cs
-       JOIN {course} c ON c.id = cs.course
-  LEFT JOIN {course_modules} cm ON cm.section = cs.id
-      WHERE cs.section > 0
-        AND cs.name IS NOT NULL AND cs.name != ''
-        AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE coursesectionid = cs.id)
-      GROUP BY cs.id, cs.name, cs.section, cs.course, c.fullname, c.shortname
-     HAVING COUNT(cm.id) > 0
-      ORDER BY c.fullname, cs.name"
-);
+// $pluginCourseIds ya calculado arriba (sección 2). Se reutiliza aquí.
+$orphanedSections = [];
+$sectionsQueryError = null;
+if (!empty($pluginCourseIds)) {
+    try {
+        list($inSql, $inParams) = $DB->get_in_or_equal($pluginCourseIds, SQL_PARAMS_NAMED, 'sc');
+        $orphanedSections = $DB->get_records_sql(
+            "SELECT cs.id AS sectionid, cs.name AS sectionname, cs.section AS sectionnumber,
+                    cs.course AS courseid, c.fullname AS coursename, c.shortname AS courseshortname,
+                    COUNT(cm.id) AS module_count
+               FROM {course_sections} cs
+               JOIN {course} c ON c.id = cs.course
+          LEFT JOIN {course_modules} cm ON cm.section = cs.id
+          LEFT JOIN {gmk_class} gmc ON gmc.coursesectionid = cs.id
+              WHERE cs.course $inSql
+                AND cs.section > 0
+                AND cs.name IS NOT NULL AND cs.name != ''
+                AND gmc.id IS NULL
+              GROUP BY cs.id, cs.name, cs.section, cs.course, c.fullname, c.shortname
+             HAVING COUNT(cm.id) > 0
+              ORDER BY c.fullname, cs.name",
+            $inParams
+        );
+    } catch (Exception $e) {
+        $sectionsQueryError = $e->getMessage();
+    }
+}
 
-if (empty($orphanedSections)) {
+if ($sectionsQueryError) {
+    echo "<div class='box err'>✘ Error al consultar secciones: <code>" . htmlspecialchars($sectionsQueryError) . "</code></div>";
+} elseif (empty($orphanedSections)) {
     echo "<div class='box ok'>✔ No se encontraron secciones huérfanas con actividades.</div>";
 } else {
     $secCount = count($orphanedSections);
