@@ -1,0 +1,3 @@
+<?php
+// Debug page placeholder.
+
