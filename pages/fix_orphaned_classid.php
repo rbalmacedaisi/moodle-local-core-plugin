@@ -41,7 +41,7 @@ function gmk_fix_orphaned_send_json(array $payload, $oblevel = 0) {
     exit;
 }
 
-$action = optional_param('action', '', PARAM_ALPHANUM);
+$action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
 // â”€â”€ Endpoint AJAX: procesa UN registro y devuelve JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($action === 'fix_one') {
