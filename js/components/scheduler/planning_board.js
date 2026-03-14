@@ -2069,22 +2069,26 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog('Sincronizando ficha publicada con el tablero actual...', 'info');
 
                 const normalizeToken = (v) => String(v || '').trim();
+                const normalizeDayToken = (v) => this.normalizeDay(v);
                 const sameScheduleIdentity = (a, b) => (
                     String(a.corecourseid || '') === String(b.corecourseid || '') &&
                     normalizeToken(a.shift) === normalizeToken(b.shift) &&
-                    normalizeToken(a.day) === normalizeToken(b.day) &&
+                    normalizeDayToken(a.day) === normalizeDayToken(b.day) &&
                     normalizeToken(a.start) === normalizeToken(b.start) &&
                     normalizeToken(a.end) === normalizeToken(b.end) &&
                     String(a.subperiod || 0) === String(b.subperiod || 0)
                 );
 
                 let updated = false;
+                const currentIdRaw = String(cls.id ?? '').trim();
                 const currentIdNum = Number(cls.id || 0);
                 const mergedBoard = boardSnapshot.map(item => {
+                    const itemIdRaw = String(item.id ?? '').trim();
                     const itemIdNum = Number(item.id || 0);
+                    const isTargetByRawId = currentIdRaw !== '' && itemIdRaw === currentIdRaw;
                     const isTargetById = currentIdNum > 0 && itemIdNum === currentIdNum;
-                    const isTargetByIdentity = sameScheduleIdentity(item, targetPayload);
-                    if (isTargetById || (currentIdNum <= 0 && isTargetByIdentity)) {
+                    const isTargetByIdentity = !updated && !isTargetByRawId && !isTargetById && (currentIdNum <= 0) && sameScheduleIdentity(item, targetPayload);
+                    if (isTargetByRawId || isTargetById || isTargetByIdentity) {
                         updated = true;
                         return Object.assign({}, item, {
                             id: targetClassId,
