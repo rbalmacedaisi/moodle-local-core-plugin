@@ -2115,13 +2115,13 @@ function delete_class($classId, $reason = null)
     // 2) Add fallback groups by class suffix in candidate courses.
     $classsuffix = '%-' . $classid;
     if (!empty($candidatecourseids)) {
-        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_NAMED, 'cid');
+        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_QM);
         $groupfallback = $DB->get_records_sql(
             "SELECT id
                FROM {groups}
               WHERE courseid {$courseinsql}
-                AND (" . $DB->sql_like('idnumber', ':suffix1') . " OR " . $DB->sql_like('name', ':suffix2') . ")",
-            $courseparams + ['suffix1' => $classsuffix, 'suffix2' => $classsuffix]
+                AND (" . $DB->sql_like('idnumber', '?') . " OR " . $DB->sql_like('name', '?') . ")",
+            array_merge($courseparams, [$classsuffix, $classsuffix])
         );
         foreach ($groupfallback as $gfb) {
             $groupids[(int)$gfb->id] = (int)$gfb->id;
@@ -2210,7 +2210,7 @@ function delete_class($classId, $reason = null)
     // 5) Name suffix fallback: generated attendance/BBB ending in "-<classid>".
     $suffix = '%-' . $classid;
     if (!empty($candidatecourseids)) {
-        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_NAMED, 'ccid');
+        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_QM);
 
         $attmodid = gmk_get_module_id_by_name('attendance');
         if ($attmodid) {
@@ -2219,9 +2219,9 @@ function delete_class($classId, $reason = null)
                    FROM {course_modules} cm
                    JOIN {attendance} a ON a.id = cm.instance
                   WHERE cm.course {$courseinsql}
-                    AND cm.module = :attmodid
-                    AND " . $DB->sql_like('a.name', ':attsuffix'),
-                $courseparams + ['attmodid' => (int)$attmodid, 'attsuffix' => $suffix]
+                    AND cm.module = ?
+                    AND " . $DB->sql_like('a.name', '?'),
+                array_merge($courseparams, [(int)$attmodid, $suffix])
             );
             foreach ($attcmids as $cmid) {
                 $cmid = (int)$cmid;
@@ -2238,9 +2238,9 @@ function delete_class($classId, $reason = null)
                    FROM {course_modules} cm
                    JOIN {bigbluebuttonbn} b ON b.id = cm.instance
                   WHERE cm.course {$courseinsql}
-                    AND cm.module = :bbbmodid
-                    AND " . $DB->sql_like('b.name', ':bbbsuffix'),
-                $courseparams + ['bbbmodid' => (int)$bbbmodid, 'bbbsuffix' => $suffix]
+                    AND cm.module = ?
+                    AND " . $DB->sql_like('b.name', '?'),
+                array_merge($courseparams, [(int)$bbbmodid, $suffix])
             );
             foreach ($bbbcmids as $cmid) {
                 $cmid = (int)$cmid;
