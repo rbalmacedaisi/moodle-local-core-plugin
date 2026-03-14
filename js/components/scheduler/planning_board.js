@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Planning Board Component (Vue 3 + Tailwind)
  * Interactive drag-and-drop interface for scheduling classes.
  */
@@ -24,20 +24,57 @@ window.SchedulerComponents.PlanningBoard = {
                                  <input type="text" v-model="search" placeholder="Busca..." class="w-full pl-7 pr-2 py-1 text-xs border rounded-lg focus:ring-1 focus:ring-blue-500 outline-none" />
                                  <i data-lucide="search" class="absolute left-2 top-1.5 w-3 h-3 text-slate-400"></i>
                             </div>
-                            <button @click="openAddSubject" class="flex items-center gap-1 px-2 py-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors" title="Añadir asignatura sin demanda real">
-                                <i data-lucide="plus" class="w-3 h-3"></i> Añadir
+                            <button @click="openAddSubject" class="flex items-center gap-1 px-2 py-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors" title="Anadir asignatura sin demanda real">
+                                <i data-lucide="plus" class="w-3 h-3"></i> Anadir
                             </button>
                         </div>
+                    </div>
+                    <div class="px-3 py-2 border-b border-gray-200 bg-slate-50 flex flex-wrap items-center gap-2">
+                        <button @click="selectVisibleUnassigned"
+                                class="px-2 py-1 text-[10px] font-bold rounded border border-slate-300 bg-white hover:bg-slate-100 transition-colors">
+                            Sel. visibles
+                        </button>
+                        <button @click="clearJoinSplitSelection"
+                                class="px-2 py-1 text-[10px] font-bold rounded border border-slate-300 bg-white hover:bg-slate-100 transition-colors">
+                            Limpiar sel.
+                        </button>
+                        <label class="text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                            Max
+                            <input type="number" min="1" max="40" step="1" v-model.number="joinSplitMaxCapacity"
+                                   class="w-14 px-1 py-0.5 rounded border border-slate-300 bg-white text-slate-700" />
+                        </label>
+                        <button @click="joinAndSplitSelected"
+                                :disabled="selectedForJoinSplit.length < 2"
+                                class="px-2 py-1 text-[10px] font-bold rounded text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                :class="selectedForJoinSplit.length < 2 ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'">
+                            Join+Split
+                        </button>
+                        <span class="ml-auto text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                            Sel: {{ selectedForJoinSplit.length }}
+                        </span>
                     </div>
                     
                     <div class="flex-1 overflow-y-auto p-2 space-y-2">
                         <div v-for="cls in filteredUnassigned" :key="cls.id"
                             draggable="true"
                             @dragstart="onDragStart($event, cls)"
-                            class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 transition-colors group relative"
+                            :class="[
+                                'bg-white p-3 rounded-lg border shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 transition-colors group relative',
+                                isClassSelected(cls) ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'
+                            ]"
                         >
+                            <label class="absolute left-2 top-2 z-10 flex items-center"
+                                   :title="cls.isExternal ? 'No editable' : 'Seleccionar para join+split'">
+                                <input type="checkbox"
+                                       class="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                       :disabled="cls.isExternal"
+                                       :checked="isClassSelected(cls)"
+                                       @mousedown.stop
+                                       @click.stop
+                                       @change="toggleJoinSplitSelection(cls, $event.target.checked)" />
+                            </label>
                             <div class="flex justify-between items-start mb-1">
-                                <span class="font-bold text-slate-800 text-sm leading-tight line-clamp-2" :title="cls.subjectName">{{ cls.subjectName }}</span>
+                                <span class="font-bold text-slate-800 text-sm leading-tight line-clamp-2 pl-5" :title="cls.subjectName">{{ cls.subjectName }}</span>
                                 <span class="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ cls.studentCount }}</span>
                             </div>
                             <div class="text-[10px] flex flex-wrap gap-1 items-center text-slate-500">
@@ -45,7 +82,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 <span>{{ cls.shift }}</span>
                                 <span v-if="loadsMap[cls.subjectName]"
                                     class="flex items-center gap-0.5 bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-semibold"
-                                    :title="'Carga horaria: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales · intensidad: ' + (loadsMap[cls.subjectName].intensity) + 'h/ses'">
+                                    :title="'Carga horaria: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales Â· intensidad: ' + (loadsMap[cls.subjectName].intensity) + 'h/ses'">
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i>
                                     {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
                                 </span>
@@ -53,7 +90,7 @@ window.SchedulerComponents.PlanningBoard = {
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i> def.
                                 </span>
                                 <div class="ml-auto flex gap-1">
-                                    <button @click.stop="openAddQuorum(cls)" class="text-slate-400 hover:text-green-600 transition-colors" title="Añadir quórum proyectado">
+                                    <button @click.stop="openAddQuorum(cls)" class="text-slate-400 hover:text-green-600 transition-colors" title="AÃ±adir quÃ³rum proyectado">
                                         <i data-lucide="user-plus" class="w-3 h-3"></i>
                                     </button>
                                     <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
@@ -72,7 +109,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         @click.stop="viewAuditLog(cls)" 
                                         class="text-left text-orange-800 font-bold hover:underline flex items-center gap-1">
                                     <i data-lucide="scroll" class="w-3 h-3"></i>
-                                    Ver Bitácora de Intentos
+                                    Ver BitÃ¡cora de Intentos
                                 </button>
                             </div>
 
@@ -98,7 +135,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 <i data-lucide="save" class="w-3 h-3"></i>
                                 {{ saving ? 'Guardando...' : 'Guardar Borrador' }}
                              </button>
-                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en Gestión de Clases">
+                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en GestiÃ³n de Clases">
                                 <i data-lucide="send" class="w-3 h-3"></i>
                                 {{ publishing ? 'Publicando...' : 'Publicar Horarios' }}
                              </button>
@@ -163,7 +200,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : (cls.isExternal ? 'text-amber-800' : 'text-blue-800')">
                                             {{ cls.subjectName }}
                                             <span v-show="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
-                                            <span v-show="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
+                                            <span v-show="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="DÃ­as liberados">
                                                 {{ cls.excluded_dates ? cls.excluded_dates.length : '' }}
                                             </span>
                                         </div>
@@ -175,7 +212,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
-                                                <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
+                                                <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="QuÃ³rum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
                                             </div>
@@ -188,11 +225,11 @@ window.SchedulerComponents.PlanningBoard = {
                                                         :title="getLoadCoverage(cls).under
                                                             ? 'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
                                                             : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
-                                                        {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' · ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
+                                                        {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' Â· ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
                                                     </span>
                                                     <i v-show="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
                                                 </div>
-                                                <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
+                                                <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuraciÃ³n por defecto">
                                                     <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
                                                     <span class="italic">defecto</span>
                                                 </div>
@@ -201,7 +238,7 @@ window.SchedulerComponents.PlanningBoard = {
 
                                         <!-- Actions -->
                                         <div class="absolute bottom-5 right-1 flex gap-1">
-                                            <button @click.stop="openAddQuorum(cls)" class="p-0.5 bg-white rounded shadow hover:bg-green-50 transition-colors" title="Añadir quórum proyectado">
+                                            <button @click.stop="openAddQuorum(cls)" class="p-0.5 bg-white rounded shadow hover:bg-green-50 transition-colors" title="AÃ±adir quÃ³rum proyectado">
                                                 <i data-lucide="user-plus" class="w-3 h-3 text-slate-400 hover:text-green-600"></i>
                                             </button>
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
@@ -229,7 +266,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div v-show="!cls.isExternal"
                                             class="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center group/resize"
                                             @mousedown.stop="onResizeStart($event, cls)"
-                                            title="Arrastrar para cambiar duración"
+                                            title="Arrastrar para cambiar duraciÃ³n"
                                         >
                                             <div class="w-8 h-1 rounded-full bg-blue-300 group-hover/resize:bg-blue-500 transition-colors"></div>
                                         </div>
@@ -367,7 +404,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 </div>
                                 <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex items-center gap-1 col-span-2">
                                     <i data-lucide="arrow-right" class="w-3 h-3 text-slate-400 shrink-0"></i>
-                                    <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                                    <span>{{ formatDate(selectedClass.assignedDates[0]) }} â†’ {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -414,7 +451,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 </tr>
                                 <tr v-if="currentStudents.length === 0">
                                     <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">
-                                        No hay información de estudiantes disponible.
+                                        No hay informaciÃ³n de estudiantes disponible.
                                     </td>
                                 </tr>
                             </tbody>
@@ -442,11 +479,11 @@ window.SchedulerComponents.PlanningBoard = {
                         <!-- Current state summary -->
                         <div class="bg-slate-50 rounded-lg p-3 text-xs space-y-1 text-slate-600">
                             <div class="flex justify-between">
-                                <span class="font-medium text-slate-700">Día programado:</span>
-                                <span>{{ selectedClass.day }} {{ selectedClass.start }} – {{ selectedClass.end }}</span>
+                                <span class="font-medium text-slate-700">DÃ­a programado:</span>
+                                <span>{{ selectedClass.day }} {{ selectedClass.start }} â€“ {{ selectedClass.end }}</span>
                             </div>
                             <div class="flex justify-between">
-                                <span class="font-medium text-slate-700">Duración sesión:</span>
+                                <span class="font-medium text-slate-700">DuraciÃ³n sesiÃ³n:</span>
                                 <span>{{ selectedClassDuration }} min</span>
                             </div>
                             <div class="flex justify-between" v-if="loadsMap[selectedClass.subjectName]">
@@ -456,12 +493,12 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="flex justify-between">
                                 <span class="font-medium text-slate-700">Sesiones actuales:</span>
                                 <span :class="effectiveSessionCount === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
-                                    {{ effectiveSessionCount }}{{ optimalSessions ? ' (óptimo: ' + optimalSessions + ')' : '' }}
+                                    {{ effectiveSessionCount }}{{ optimalSessions ? ' (Ã³ptimo: ' + optimalSessions + ')' : '' }}
                                 </span>
                             </div>
                             <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex justify-between">
                                 <span class="font-medium text-slate-700">Rango actual:</span>
-                                <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                                <span>{{ formatDate(selectedClass.assignedDates[0]) }} â†’ {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
                             </div>
                         </div>
 
@@ -490,7 +527,7 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                         </div>
                         <div v-else class="text-center text-slate-400 text-xs py-4 italic">
-                            No hay sugerencias disponibles — la configuración ya es óptima.
+                            No hay sugerencias disponibles â€” la configuraciÃ³n ya es Ã³ptima.
                         </div>
                     </div>
                     <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
@@ -504,7 +541,7 @@ window.SchedulerComponents.PlanningBoard = {
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                          <div>
-                            <h4 class="font-bold text-slate-800">Bitácora de Intentos</h4>
+                            <h4 class="font-bold text-slate-800">BitÃ¡cora de Intentos</h4>
                             <p class="text-[10px] text-slate-500">{{ selectedClass?.subjectName }}</p>
                          </div>
                          <button @click="logDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
@@ -513,7 +550,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <table class="w-full text-xs text-left">
                             <thead class="bg-slate-50 text-slate-500 uppercase font-bold sticky top-0">
                                 <tr>
-                                    <th class="px-4 py-2 border-b">Día</th>
+                                    <th class="px-4 py-2 border-b">DÃ­a</th>
                                     <th class="px-4 py-2 border-b">Hora</th>
                                     <th class="px-4 py-2 border-b">Estado</th>
                                     <th class="px-4 py-2 border-b">Detalle del Fallo</th>
@@ -543,12 +580,12 @@ window.SchedulerComponents.PlanningBoard = {
                 </div>
              </div>
 
-            <!-- Modal: Añadir Quórum Proyectado -->
+            <!-- Modal: AÃ±adir QuÃ³rum Proyectado -->
             <div v-if="quorumDialog"
                  class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
                  @click.self="quorumDialog = false">
                 <div class="bg-white rounded-xl shadow-2xl p-6 w-80">
-                    <h3 class="font-bold text-slate-800 mb-1">Añadir Quórum Proyectado</h3>
+                    <h3 class="font-bold text-slate-800 mb-1">AÃ±adir QuÃ³rum Proyectado</h3>
                     <p class="text-xs text-slate-500 mb-4">
                         Estudiantes adicionales para <strong>{{ quorumTarget?.subjectName }}</strong>.
                         Actual: <span class="font-mono">{{ quorumTarget?.studentCount || 0 }}</span>
@@ -564,20 +601,20 @@ window.SchedulerComponents.PlanningBoard = {
                         <button @click="confirmAddQuorum"
                                 :disabled="!quorumAmount || quorumAmount < 1"
                                 class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
-                            Añadir
+                            AÃ±adir
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Modal: Añadir Asignatura al Tablero -->
+            <!-- Modal: AÃ±adir Asignatura al Tablero -->
             <div v-if="addSubjectDialog"
                  class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
                  @click.self="addSubjectDialog = false">
                 <div class="bg-white rounded-xl shadow-2xl p-6 w-[480px]">
-                    <h3 class="font-bold text-slate-800 mb-1">Añadir Asignatura al Tablero</h3>
+                    <h3 class="font-bold text-slate-800 mb-1">AÃ±adir Asignatura al Tablero</h3>
                     <p class="text-xs text-slate-500 mb-4">
-                        Busca una asignatura del catálogo para agregar al tablero con quórum proyectado.
+                        Busca una asignatura del catÃ¡logo para agregar al tablero con quÃ³rum proyectado.
                     </p>
                     <input type="text" v-model="subjectSearch"
                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none mb-2"
@@ -594,12 +631,12 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="font-medium text-slate-800">{{ subj.name }}</div>
                             <div class="text-xs text-slate-500">
                                 {{ (subj.careers || []).map(c => c.name).join(', ') }}
-                                — {{ subj.semester_name }}
+                                â€” {{ subj.semester_name }}
                             </div>
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Quórum proyectado</label>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">QuÃ³rum proyectado</label>
                         <input type="number" v-model.number="addSubjectCount" min="1"
                                class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center text-lg font-mono focus:ring-2 focus:ring-green-500 outline-none"
                                placeholder="0" />
@@ -612,7 +649,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <button @click="confirmAddSubject"
                                 :disabled="!selectedSubjectToAdd || !addSubjectCount || addSubjectCount < 1"
                                 class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
-                            Añadir al Tablero
+                            AÃ±adir al Tablero
                         </button>
                     </div>
                 </div>
@@ -629,7 +666,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <i v-else data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0"></i>
                         <div>
                             <h4 class="font-bold text-slate-800 text-sm">
-                                {{ publishError ? 'Error al publicar' : publishDone ? 'Publicación completada' : 'Publicando horarios...' }}
+                                {{ publishError ? 'Error al publicar' : publishDone ? 'PublicaciÃ³n completada' : 'Publicando horarios...' }}
                             </h4>
                             <p class="text-[11px] text-slate-500">{{ publishStatusText }}</p>
                         </div>
@@ -666,7 +703,7 @@ window.SchedulerComponents.PlanningBoard = {
     data() {
         return {
             search: '',
-            days: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+            days: ['Lunes', 'Martes', 'MiÃ©rcoles', 'Jueves', 'Viernes', 'SÃ¡bado'],
             startHour: 7,
             endHour: 22,
             draggedClass: null,
@@ -694,15 +731,17 @@ window.SchedulerComponents.PlanningBoard = {
             showRoomList: false,
             optimizeDialog: false,
             optimizeSuggestions: [],
-            // Modal +Quórum (ficha existente)
+            // Modal +QuÃ³rum (ficha existente)
             quorumDialog: false,
             quorumTarget: null,
             quorumAmount: 1,
-            // Modal Añadir Asignatura
+            // Modal AÃ±adir Asignatura
             addSubjectDialog: false,
             subjectSearch: '',
             selectedSubjectToAdd: null,
             addSubjectCount: 1,
+            joinSplitSelectedIds: [],
+            joinSplitMaxCapacity: 40,
         };
     },
     computed: {
@@ -711,6 +750,10 @@ window.SchedulerComponents.PlanningBoard = {
         },
         allClasses() {
             return this.storeState.generatedSchedules || [];
+        },
+        selectedForJoinSplit() {
+            const wanted = new Set((this.joinSplitSelectedIds || []).map(id => String(id)));
+            return this.allClasses.filter(c => wanted.has(String(c.id)) && !c.isExternal);
         },
         filteredSubjectList() {
             const allSubjects = Object.values(this.storeState.subjects || {});
@@ -773,9 +816,9 @@ window.SchedulerComponents.PlanningBoard = {
         loadsMap() {
             const loads = this.storeState.context?.loads || [];
             const map = {};
-            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" → "SUBJECT"
+            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" â†’ "SUBJECT"
             const stripNomenclature = (name) => name
-                .replace(/^\S+[-–]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
+                .replace(/^\S+[-â€“]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
                 .replace(/\s+\((PRESENCIAL|VIRTUAL|MIXTA)\).*$/i, '') // remove " (PRESENCIAL) AULA X"
                 .trim();
             loads.forEach(l => {
@@ -785,8 +828,8 @@ window.SchedulerComponents.PlanningBoard = {
                 map[raw.toUpperCase()] = l;
             });
             // Also index by the nomenclature-stripped version of each schedule's subjectName
-            // so that "2026-II (S) INGLÉS I (PRESENCIAL) AULA L" resolves to the "INGLÉS I" load entry.
-            // We do this by iterating generatedSchedules and mapping their full name → load entry.
+            // so that "2026-II (S) INGLÃ‰S I (PRESENCIAL) AULA L" resolves to the "INGLÃ‰S I" load entry.
+            // We do this by iterating generatedSchedules and mapping their full name â†’ load entry.
             const schedules = this.storeState.generatedSchedules || [];
             schedules.forEach(cls => {
                 if (!cls.subjectName || map[cls.subjectName]) return; // already indexed
@@ -812,7 +855,7 @@ window.SchedulerComponents.PlanningBoard = {
             if (!this.selectedClass) return 0;
             const ad = this.selectedClass.assignedDates;
             if (Array.isArray(ad) && ad.length > 0) return ad.length;
-            // assignedDates missing/empty → compute from period dates
+            // assignedDates missing/empty â†’ compute from period dates
             if (!this.selectedClass.day || this.selectedClass.day === 'N/A' || !window.SchedulerAlgorithm?.getDatesForDay) return 0;
             const normalizedDay = this.selectedClass.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             return window.SchedulerAlgorithm.getDatesForDay(normalizedDay, this.storeState.context, this.selectedClass.subperiod || 0).length;
@@ -915,7 +958,7 @@ window.SchedulerComponents.PlanningBoard = {
         },
 
         // Overlap layout cache: { id -> { top, height, left, width, zIndex } }
-        // Column-packing sweep (Google Calendar style) — cards never visually overlap:
+        // Column-packing sweep (Google Calendar style) â€” cards never visually overlap:
         // 1. Assign each card the first free column (greedy, sorted by start time).
         // 2. Expand each card rightward to fill empty adjacent columns within its time range.
         eventStyleMap() {
@@ -1003,7 +1046,7 @@ window.SchedulerComponents.PlanningBoard = {
             if (!d) return '';
             return d.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
         },
-        // Internal toMins — used by computed maps (not reactive, just pure util)
+        // Internal toMins â€” used by computed maps (not reactive, just pure util)
         _toMins(t) {
             if (!t || typeof t !== 'string') return 0;
             const parts = t.trim().split(':');
@@ -1015,7 +1058,7 @@ window.SchedulerComponents.PlanningBoard = {
             return this.classesByDay[nd] || [];
         },
         getEventStyle(cls) {
-            // Use pre-computed style — fall back to inline calculation if not cached yet
+            // Use pre-computed style â€” fall back to inline calculation if not cached yet
             if (this.eventStyleMap[cls.id]) return this.eventStyleMap[cls.id];
             // Fallback (first render before computed settles)
             const pixelsPerHour = 56;
@@ -1030,6 +1073,197 @@ window.SchedulerComponents.PlanningBoard = {
         },
         toMins(t) {
             return this._toMins(t);
+        },
+        isClassSelected(cls) {
+            if (!cls) return false;
+            return (this.joinSplitSelectedIds || []).map(id => String(id)).includes(String(cls.id));
+        },
+        toggleJoinSplitSelection(cls, checked) {
+            if (!cls || cls.isExternal) return;
+            const id = String(cls.id);
+            const next = new Set((this.joinSplitSelectedIds || []).map(v => String(v)));
+            if (checked) next.add(id);
+            else next.delete(id);
+            this.joinSplitSelectedIds = Array.from(next);
+        },
+        clearJoinSplitSelection() {
+            this.joinSplitSelectedIds = [];
+        },
+        selectVisibleUnassigned() {
+            const next = new Set((this.joinSplitSelectedIds || []).map(v => String(v)));
+            (this.filteredUnassigned || []).forEach(cls => {
+                if (!cls.isExternal) next.add(String(cls.id));
+            });
+            this.joinSplitSelectedIds = Array.from(next);
+        },
+        getJoinSplitKey(cls) {
+            const cid = String(cls.corecourseid || cls.courseid || '');
+            const subj = String(cls.subjectName || '').trim().toLowerCase();
+            const shift = String(cls.shift || '').trim().toLowerCase();
+            const careers = Array.isArray(cls.careerList) && cls.careerList.length
+                ? cls.careerList.map(c => String(c).trim().toLowerCase()).sort().join('|')
+                : String(cls.career || '').trim().toLowerCase();
+            const subperiod = String(cls.subperiod || 0);
+            return [cid, subj, shift, careers, subperiod].join('||');
+        },
+        splitCountsEquitably(total, maxPerGroup) {
+            const safeTotal = Math.max(0, parseInt(total, 10) || 0);
+            const safeMax = Math.min(40, Math.max(1, parseInt(maxPerGroup, 10) || 40));
+            if (safeTotal <= 0) return [];
+
+            const groupCount = Math.max(1, Math.ceil(safeTotal / safeMax));
+            const base = Math.floor(safeTotal / groupCount);
+            const remainder = safeTotal % groupCount;
+            const result = [];
+
+            for (let i = 0; i < groupCount; i++) {
+                result.push(base + (i < remainder ? 1 : 0));
+            }
+            return result;
+        },
+        buildJoinSplitCopies(group, maxPerGroup) {
+            if (!Array.isArray(group) || group.length === 0) return [];
+
+            const uniqueIds = [];
+            const seenIds = new Set();
+            group.forEach(cls => {
+                const ids = Array.isArray(cls.studentIds) ? cls.studentIds : [];
+                ids.forEach(rawId => {
+                    const key = String(rawId);
+                    if (!seenIds.has(key)) {
+                        seenIds.add(key);
+                        uniqueIds.push(rawId);
+                    }
+                });
+            });
+
+            const sumCount = group.reduce((acc, cls) => acc + Math.max(0, parseInt(cls.studentCount, 10) || 0), 0);
+            const totalCount = Math.max(sumCount, uniqueIds.length);
+            if (totalCount <= 0) return [];
+
+            const targetSizes = this.splitCountsEquitably(totalCount, maxPerGroup);
+            const first = group[0];
+            const careers = Array.isArray(first.careerList) ? [...first.careerList] : [];
+            const levels = Array.isArray(first.levelList) ? [...first.levelList] : [];
+
+            const sameSchedule = group.every(cls =>
+                cls.day === first.day &&
+                cls.start === first.start &&
+                cls.end === first.end &&
+                cls.room === first.room &&
+                cls.teacherName === first.teacherName &&
+                String(cls.instructorId || cls.instructorid || '') === String(first.instructorId || first.instructorid || '')
+            );
+
+            const keepPlacement = sameSchedule && first.day && first.day !== 'N/A';
+            const created = [];
+            let studentCursor = 0;
+            const stamp = Date.now();
+
+            for (let i = 0; i < targetSizes.length; i++) {
+                const target = targetSizes[i];
+                const assignedIds = uniqueIds.slice(studentCursor, studentCursor + target);
+                studentCursor += assignedIds.length;
+                const projectedOnly = Math.max(0, target - assignedIds.length);
+
+                const copy = {
+                    ...first,
+                    id: `join-${stamp}-${i + 1}-${Math.floor(Math.random() * 1000000)}`,
+                    studentCount: target,
+                    studentIds: assignedIds,
+                    extraQuorum: projectedOnly > 0 ? projectedOnly : 0,
+                    subGroup: i + 1,
+                    isExternal: false,
+                    careerList: [...careers],
+                    levelList: [...levels],
+                };
+
+                if (!keepPlacement) {
+                    copy.day = 'N/A';
+                    copy.start = '00:00';
+                    copy.end = '00:00';
+                    copy.room = 'Sin aula';
+                    copy.teacherName = null;
+                    copy.instructorId = null;
+                    copy.instructorid = null;
+                    copy.sessions = [];
+                    copy.assignedDates = undefined;
+                    copy.maxSessions = undefined;
+                    copy.classdays = '0/0/0/0/0/0/0';
+                } else {
+                    copy.sessions = Array.isArray(first.sessions)
+                        ? JSON.parse(JSON.stringify(first.sessions))
+                        : [];
+                    copy.assignedDates = Array.isArray(first.assignedDates)
+                        ? [...first.assignedDates]
+                        : undefined;
+                    copy.classdays = first.classdays || copy.classdays || '0/0/0/0/0/0/0';
+                }
+
+                created.push(copy);
+            }
+
+            return created;
+        },
+        joinAndSplitSelected() {
+            if (!window.schedulerStore) return;
+            const selected = this.selectedForJoinSplit;
+            if (!selected || selected.length < 2) {
+                alert('Selecciona al menos 2 fichas.');
+                return;
+            }
+
+            const maxPerGroup = Math.min(40, Math.max(1, parseInt(this.joinSplitMaxCapacity, 10) || 40));
+            this.joinSplitMaxCapacity = maxPerGroup;
+
+            const grouped = {};
+            selected.forEach(cls => {
+                const key = this.getJoinSplitKey(cls);
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(cls);
+            });
+
+            const targets = Object.values(grouped).filter(g => g.length >= 2);
+            if (targets.length === 0) {
+                alert('Las fichas seleccionadas no comparten la misma asignatura/carrera/jornada/subperiodo.');
+                return;
+            }
+
+            const lines = targets.map(g => {
+                const first = g[0];
+                const total = g.reduce((acc, cls) => acc + (parseInt(cls.studentCount, 10) || 0), 0);
+                const groups = Math.ceil(Math.max(1, total) / maxPerGroup);
+                return `- ${first.subjectName} | ${first.shift || 'N/A'} | fichas ${g.length} | estudiantes ${total} -> grupos ${groups}`;
+            }).join('\n');
+
+            if (!confirm(`Se procesaran ${targets.length} conjunto(s) con maximo ${maxPerGroup} por grupo.\n\n${lines}\n\nContinuar?`)) {
+                return;
+            }
+
+            let schedules = [...(window.schedulerStore.state.generatedSchedules || [])];
+            let processed = 0;
+            let removed = 0;
+            let created = 0;
+
+            targets.forEach(group => {
+                const newCopies = this.buildJoinSplitCopies(group, maxPerGroup);
+                if (!newCopies.length) return;
+
+                const oldIds = new Set(group.map(cls => String(cls.id)));
+                const insertAt = schedules.findIndex(cls => oldIds.has(String(cls.id)));
+                schedules = schedules.filter(cls => !oldIds.has(String(cls.id)));
+                const safeIndex = insertAt >= 0 ? insertAt : schedules.length;
+                schedules.splice(safeIndex, 0, ...newCopies);
+
+                processed += 1;
+                removed += group.length;
+                created += newCopies.length;
+            });
+
+            window.schedulerStore.state.generatedSchedules = schedules;
+            this.joinSplitSelectedIds = [];
+
+            alert(`Join+split completado.\nConjuntos procesados: ${processed}\nFichas removidas: ${removed}\nFichas nuevas: ${created}`);
         },
         getConflicts(cls) {
             return this.conflictMap[cls.id] || [];
@@ -1053,7 +1287,7 @@ window.SchedulerComponents.PlanningBoard = {
             if (!load || cls.isExternal) return { required: null, actual: null, under: false };
             const totalH = parseFloat(load.total_hours || load.totalHours || 0);
             if (!totalH) return { required: null, actual: null, under: false };
-            // Use assignedDates length if available — avoids calling getDatesForDay on every render
+            // Use assignedDates length if available â€” avoids calling getDatesForDay on every render
             let actual = 0;
             if (Array.isArray(cls.assignedDates) && cls.assignedDates.length > 0) {
                 actual = cls.assignedDates.length;
@@ -1143,7 +1377,7 @@ window.SchedulerComponents.PlanningBoard = {
                 const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
                 const height = (duration / 60) * pixelsPerHour;
 
-                this._showGhost(day, top, height, `${start} – ${end}`);
+                this._showGhost(day, top, height, `${start} â€“ ${end}`);
             });
         },
         onDragLeave(day) {
@@ -1270,7 +1504,7 @@ window.SchedulerComponents.PlanningBoard = {
 
             const context = this.storeState.context;
             const load = this.loadsMap[cls.subjectName];
-            // Normalize day: remove accents so 'Miércoles' → 'Miercoles' matches getDatesForDay's dayMap
+            // Normalize day: remove accents so 'MiÃ©rcoles' â†’ 'Miercoles' matches getDatesForDay's dayMap
             const normalizedDay = cls.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             const allDates = window.SchedulerAlgorithm.getDatesForDay(normalizedDay, context, cls.subperiod || 0);
             const durMins = this.toMins(cls.end) - this.toMins(cls.start);
@@ -1292,13 +1526,13 @@ window.SchedulerComponents.PlanningBoard = {
                     if (current !== optimal) {
                         const dates = allDates.slice(0, optimal);
                         const label = current > optimal
-                            ? `Reducir a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`
-                            : `Ampliar a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`;
+                            ? `Reducir a ${optimal} sesiones (${totalH}h Ã· ${durH}h/ses)`
+                            : `Ampliar a ${optimal} sesiones (${totalH}h Ã· ${durH}h/ses)`;
                         suggestions.push({
                             type: 'adjust',
                             label,
                             description: `Ajusta las sesiones exactamente a la carga horaria de ${totalH}h.`,
-                            dateRange: dates.length > 0 ? `${this.formatDate(dates[0])} → ${this.formatDate(dates[dates.length - 1])}` : '',
+                            dateRange: dates.length > 0 ? `${this.formatDate(dates[0])} â†’ ${this.formatDate(dates[dates.length - 1])}` : '',
                             dates,
                             targetClass: cls
                         });
@@ -1314,9 +1548,9 @@ window.SchedulerComponents.PlanningBoard = {
                     );
 
                     if (optimal < allDates.length && siblings.length > 0) {
-                        // There are sibling classes on other days — just suggest adjusting
+                        // There are sibling classes on other days â€” just suggest adjusting
                     } else if (optimal < allDates.length) {
-                        // No siblings — offer to split into 2 consecutive blocks on the same day
+                        // No siblings â€” offer to split into 2 consecutive blocks on the same day
                         const half = Math.ceil(optimal / 2);
                         if (half >= 1 && half < allDates.length) {
                             const blockA = allDates.slice(0, half);
@@ -1325,8 +1559,8 @@ window.SchedulerComponents.PlanningBoard = {
                                 suggestions.push({
                                     type: 'split',
                                     label: `Dividir en 2 bloques consecutivos (${half} ses. c/u)`,
-                                    description: `Bloque A: primeras ${half} semanas. Bloque B: siguientes ${blockB.length} semanas en el mismo día y hora.`,
-                                    dateRange: `Bloque A: ${this.formatDate(blockA[0])} → ${this.formatDate(blockA[blockA.length-1])} | Bloque B: ${this.formatDate(blockB[0])} → ${this.formatDate(blockB[blockB.length-1])}`,
+                                    description: `Bloque A: primeras ${half} semanas. Bloque B: siguientes ${blockB.length} semanas en el mismo dÃ­a y hora.`,
+                                    dateRange: `Bloque A: ${this.formatDate(blockA[0])} â†’ ${this.formatDate(blockA[blockA.length-1])} | Bloque B: ${this.formatDate(blockB[0])} â†’ ${this.formatDate(blockB[blockB.length-1])}`,
                                     dates: blockA,
                                     datesB: blockB,
                                     targetClass: cls
@@ -1338,7 +1572,7 @@ window.SchedulerComponents.PlanningBoard = {
             }
 
             // --- Suggestion type C: consecutive sibling detection ---
-            // Find classes with same subjectName placed on same day — suggest they use consecutive date windows
+            // Find classes with same subjectName placed on same day â€” suggest they use consecutive date windows
             const sameSubjectSameDay = this.allClasses.filter(c =>
                 c.id !== cls.id &&
                 c.subjectName === cls.subjectName &&
@@ -1370,8 +1604,8 @@ window.SchedulerComponents.PlanningBoard = {
                             suggestions.push({
                                 type: 'consecutive',
                                 label: `Distribuir consecutivamente con ${sameSubjectSameDay.length} ficha(s) hermana(s)`,
-                                description: `Asigna ventanas de ${optimal} sesiones sin solapamiento a cada grupo en el mismo día/hora.`,
-                                dateRange: windows[myIdx]?.length > 0 ? `Esta ficha: ${this.formatDate(windows[myIdx][0])} → ${this.formatDate(windows[myIdx][windows[myIdx].length-1])}` : '',
+                                description: `Asigna ventanas de ${optimal} sesiones sin solapamiento a cada grupo en el mismo dÃ­a/hora.`,
+                                dateRange: windows[myIdx]?.length > 0 ? `Esta ficha: ${this.formatDate(windows[myIdx][0])} â†’ ${this.formatDate(windows[myIdx][windows[myIdx].length-1])}` : '',
                                 windows,
                                 siblings: allSiblings,
                                 targetClass: cls
@@ -1388,7 +1622,7 @@ window.SchedulerComponents.PlanningBoard = {
                 sug.targetClass.assignedDates = sug.dates;
                 sug.targetClass.maxSessions = sug.dates.length;
             } else if (sug.type === 'split') {
-                // Apply block A to this class; block B requires a sibling — just apply A for now
+                // Apply block A to this class; block B requires a sibling â€” just apply A for now
                 sug.targetClass.assignedDates = sug.dates;
                 sug.targetClass.maxSessions = sug.dates.length;
             } else if (sug.type === 'consecutive') {
@@ -1496,11 +1730,11 @@ window.SchedulerComponents.PlanningBoard = {
             const hasSession = (Array.isArray(cls.sessions) && cls.sessions.length > 0) ||
                                (cls.day && cls.day !== 'N/A');
             if (!hasSession) {
-                alert('Esta ficha no tiene horario asignado. Ubícala en el calendario antes de publicar.');
+                alert('Esta ficha no tiene horario asignado. UbÃ­cala en el calendario antes de publicar.');
                 return;
             }
 
-            if (!confirm(`¿Publicar "${cls.subjectName}"?\n\nSe creará o actualizará su registro en Gestión de Clases.`)) return;
+            if (!confirm(`Â¿Publicar "${cls.subjectName}"?\n\nSe crearÃ¡ o actualizarÃ¡ su registro en GestiÃ³n de Clases.`)) return;
 
             this.publishDialog = true;
             this.publishDone   = false;
@@ -1514,7 +1748,7 @@ window.SchedulerComponents.PlanningBoard = {
                 const store    = window.schedulerStore;
                 const periodId = store.state.activePeriod;
 
-                // ── FASE 1: guardar TODAS las clases en BD ──────────────────────────────
+                // â”€â”€ FASE 1: guardar TODAS las clases en BD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 // CRITICAL: we must pass ALL placed classes so the backend does NOT delete
                 // the ones missing from the list. Passing only [cls] would wipe every other
                 // class for this period.
@@ -1540,7 +1774,7 @@ window.SchedulerComponents.PlanningBoard = {
                         return clean;
                     });
 
-                // Find where our target cls sits in the allPlaced list (by index → classid mapping)
+                // Find where our target cls sits in the allPlaced list (by index â†’ classid mapping)
                 const targetIdx = allPlaced.findIndex(s => {
                     if (cls.id && s.id && cls.id === s.id) return true;
                     return s.corecourseid === cls.corecourseid &&
@@ -1549,7 +1783,7 @@ window.SchedulerComponents.PlanningBoard = {
                 });
 
                 if (targetIdx === -1) {
-                    throw new Error(`No se encontró "${cls.subjectName}" en la lista de clases colocadas.`);
+                    throw new Error(`No se encontrÃ³ "${cls.subjectName}" en la lista de clases colocadas.`);
                 }
 
                 this._publishLog(`Guardando ${allPlaced.length} clases en base de datos...`);
@@ -1581,7 +1815,7 @@ window.SchedulerComponents.PlanningBoard = {
                     throw new Error(`No se obtuvo ID de BD para "${cls.subjectName}".`);
                 }
 
-                // ── FASE 2: crear estructuras Moodle SOLO para la clase target ──────────
+                // â”€â”€ FASE 2: crear estructuras Moodle SOLO para la clase target â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 this._publishLog(`Creando estructura Moodle para "${cls.subjectName}" (ID: ${targetClassId})...`);
                 this.publishStatusText = `Publicando "${cls.subjectName}"...`;
                 this.publishProgress = 60;
@@ -1613,13 +1847,13 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog('Borrador actualizado.', 'success');
 
                 this.publishProgress = 100;
-                this._publishLog(`¡"${cls.subjectName}" publicada correctamente!`, 'success');
-                this.publishStatusText = `"${cls.subjectName}" publicada en Gestión de Clases.`;
+                this._publishLog(`Â¡"${cls.subjectName}" publicada correctamente!`, 'success');
+                this.publishStatusText = `"${cls.subjectName}" publicada en GestiÃ³n de Clases.`;
                 this.publishDone = true;
 
             } catch (e) {
                 this.publishError = true;
-                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
+                this.publishStatusText = 'La publicaciÃ³n fallÃ³. Revisa el error a continuaciÃ³n.';
                 this._publishLog('ERROR: ' + e.message, 'error');
             } finally {
                 this.publishing = false;
@@ -1633,7 +1867,7 @@ window.SchedulerComponents.PlanningBoard = {
                 alert('No hay clases asignadas para publicar. Ubica al menos una ficha en el calendario antes de publicar.');
                 return;
             }
-            if (!confirm(`¿Publicar ${assignedCount} clase(s) programada(s)? Esto creará o actualizará los registros en Gestión de Clases.`)) return;
+            if (!confirm(`Â¿Publicar ${assignedCount} clase(s) programada(s)? Esto crearÃ¡ o actualizarÃ¡ los registros en GestiÃ³n de Clases.`)) return;
 
             // Open modal
             this.publishDialog = true;
@@ -1647,7 +1881,7 @@ window.SchedulerComponents.PlanningBoard = {
             try {
                 const periodId = window.schedulerStore.state.activePeriod;
 
-                this._publishLog(`Guardando borrador (${this.allClasses.length} ítems)...`);
+                this._publishLog(`Guardando borrador (${this.allClasses.length} Ã­tems)...`);
                 this.publishProgress = 5;
                 this.publishStatusText = 'Guardando borrador...';
                 await window.schedulerStore.saveGeneration(periodId, this.allClasses);
@@ -1670,15 +1904,15 @@ window.SchedulerComponents.PlanningBoard = {
                 );
 
                 this.publishProgress = 95;
-                this._publishLog('Re-guardando borrador post-publicación...', 'info');
+                this._publishLog('Re-guardando borrador post-publicaciÃ³n...', 'info');
                 this.publishProgress = 100;
-                this._publishLog(`¡Publicación completada! ${assignedCount} clases disponibles en Gestión de Clases.`, 'success');
+                this._publishLog(`Â¡PublicaciÃ³n completada! ${assignedCount} clases disponibles en GestiÃ³n de Clases.`, 'success');
                 this.publishStatusText = `${assignedCount} clases publicadas correctamente.`;
                 this.publishDone = true;
 
             } catch (e) {
                 this.publishError = true;
-                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
+                this.publishStatusText = 'La publicaciÃ³n fallÃ³. Revisa el error a continuaciÃ³n.';
                 this._publishLog('ERROR: ' + e.message, 'error');
                 // Show technical detail
                 if (e.message && e.message.length > 120) {
@@ -1712,7 +1946,7 @@ window.SchedulerComponents.PlanningBoard = {
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
         },
-        // --- Quórum en ficha existente ---
+        // --- QuÃ³rum en ficha existente ---
         openAddQuorum(cls) {
             this.quorumTarget = cls;
             this.quorumAmount = 1;
@@ -1726,7 +1960,7 @@ window.SchedulerComponents.PlanningBoard = {
             this.quorumTarget = null;
             this.quorumAmount = 1;
         },
-        // --- Añadir asignatura sin demanda ---
+        // --- AÃ±adir asignatura sin demanda ---
         openAddSubject() {
             this.subjectSearch = '';
             this.selectedSubjectToAdd = null;
@@ -1751,6 +1985,10 @@ window.SchedulerComponents.PlanningBoard = {
             immediate: true,
             handler(newVal) {
                 if (!newVal) return;
+                const validIds = new Set(newVal.map(c => String(c.id)));
+                this.joinSplitSelectedIds = (this.joinSplitSelectedIds || [])
+                    .map(id => String(id))
+                    .filter(id => validIds.has(id));
                 const externals = newVal.filter(c => c.isExternal);
                 console.log(`DEBUG PlanningBoard: allClasses updated. Length: ${newVal.length}, Externals found: ${externals.length}`);
                 if (externals.length > 0) {
