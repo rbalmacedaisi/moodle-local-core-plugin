@@ -40,7 +40,7 @@ window.SchedulerComponents.PlanningBoard = {
                         </button>
                         <label class="text-[10px] font-bold text-slate-600 flex items-center gap-1">
                             Max
-                            <input type="number" min="1" max="40" step="1" v-model.number="joinSplitMaxCapacity"
+                            <input type="number" min="1" step="1" v-model.number="joinSplitMaxCapacity"
                                    class="w-14 px-1 py-0.5 rounded border border-slate-300 bg-white text-slate-700" />
                         </label>
                         <button @click="joinAndSplitSelected"
@@ -1135,7 +1135,7 @@ window.SchedulerComponents.PlanningBoard = {
         },
         splitCountsEquitably(total, maxPerGroup) {
             const safeTotal = Math.max(0, parseInt(total, 10) || 0);
-            const safeMax = Math.min(40, Math.max(1, parseInt(maxPerGroup, 10) || 40));
+            const safeMax = Math.max(1, parseInt(maxPerGroup, 10) || 40);
             if (safeTotal <= 0) return [];
 
             const groupCount = Math.max(1, Math.ceil(safeTotal / safeMax));
@@ -1240,7 +1240,7 @@ window.SchedulerComponents.PlanningBoard = {
                 return;
             }
 
-            const maxPerGroup = Math.min(40, Math.max(1, parseInt(this.joinSplitMaxCapacity, 10) || 40));
+            const maxPerGroup = Math.max(1, parseInt(this.joinSplitMaxCapacity, 10) || 40);
             this.joinSplitMaxCapacity = maxPerGroup;
 
             const grouped = {};
