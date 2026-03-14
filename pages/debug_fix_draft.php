@@ -1,9 +1,9 @@
 <?php
-// Página de diagnóstico y reparación del draft de planificación:
-//   1. Detecta entradas duplicadas en draft_schedules y deduplica (conserva la más reciente por id).
-//   2. Detecta grupos Moodle huérfanos (sin gmk_class activa asociada) en cursos gestionados
-//      por el plugin, y los elimina junto con su sección de curso.
-//   3. Detecta secciones de curso huérfanas (con actividades) sin gmk_class apuntando a ellas.
+// P�gina de diagn�stico y reparaci�n del draft de planificaci�n:
+//   1. Detecta entradas duplicadas en draft_schedules y deduplica (conserva la m�s reciente por id).
+//   2. Detecta grupos Moodle hu�rfanos (sin gmk_class activa asociada) en cursos gestionados
+//      por el plugin, y los elimina junto con su secci�n de curso.
+//   3. Detecta secciones de curso hu�rfanas (con actividades) sin gmk_class apuntando a ellas.
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
@@ -13,13 +13,58 @@ require_capability('moodle/site:config', context_system::instance());
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php'));
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title('Debug: Fix Draft & Grupos Huérfanos');
-$PAGE->set_heading('Debug: Fix Draft & Grupos Huérfanos');
+$PAGE->set_title('Debug: Fix Draft & Grupos Hu�rfanos');
+$PAGE->set_heading('Debug: Fix Draft & Grupos Hu�rfanos');
 
 $action   = optional_param('action',   '', PARAM_ALPHA);
 $periodid = optional_param('periodid', 0,  PARAM_INT);
 
-// ── AJAX: Deduplica el draft del período ──────────────────────────────────────
+/**
+ * Busca recursivamente una condicion de disponibilidad de tipo group.
+ *
+ * @param mixed $node
+ * @param int $groupid
+ * @return bool
+ */
+function gmk_debug_fix_availability_node_has_group($node, $groupid) {
+    if (!is_array($node)) {
+        return false;
+    }
+
+    if (($node['type'] ?? '') === 'group' && (int)($node['id'] ?? 0) === (int)$groupid) {
+        return true;
+    }
+
+    foreach ($node as $child) {
+        if (is_array($child) && gmk_debug_fix_availability_node_has_group($child, $groupid)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Verifica si el JSON de availability de una seccion referencia al grupo dado.
+ *
+ * @param string|null $availability
+ * @param int $groupid
+ * @return bool
+ */
+function gmk_debug_fix_availability_has_group($availability, $groupid) {
+    if (empty($availability) || !is_string($availability)) {
+        return false;
+    }
+
+    $decoded = json_decode($availability, true);
+    if (!is_array($decoded)) {
+        return false;
+    }
+
+    return gmk_debug_fix_availability_node_has_group($decoded, (int)$groupid);
+}
+
+// ?"??"? AJAX: Deduplica el draft del per�odo ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 if ($action === 'fixdraft') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
@@ -31,13 +76,13 @@ if ($action === 'fixdraft') {
 
     $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
     if (!$period || empty($period->draft_schedules)) {
-        echo json_encode(['ok' => false, 'msg' => 'Período no encontrado o draft vacío.']);
+        echo json_encode(['ok' => false, 'msg' => 'Per�odo no encontrado o draft vac�o.']);
         exit;
     }
 
     $draft = json_decode($period->draft_schedules, true);
     if (!is_array($draft)) {
-        echo json_encode(['ok' => false, 'msg' => 'Draft no es un array JSON válido.']);
+        echo json_encode(['ok' => false, 'msg' => 'Draft no es un array JSON v�lido.']);
         exit;
     }
 
@@ -62,14 +107,14 @@ if ($action === 'fixdraft') {
 
     echo json_encode([
         'ok'      => true,
-        'msg'     => "Draft reparado: $removed entradas duplicadas eliminadas. Quedaron " . count($newDraft) . " clases únicas.",
+        'msg'     => "Draft reparado: $removed entradas duplicadas eliminadas. Quedaron " . count($newDraft) . " clases �nicas.",
         'removed' => $removed,
         'kept'    => count($newDraft),
     ]);
     exit;
 }
 
-// ── AJAX: Elimina una sección huérfana (con todas sus actividades) ────────────
+// ?"??"? AJAX: Elimina una secci�n hu�rfana (con todas sus actividades) ?"??"??"??"??"??"??"??"??"??"??"??"?
 if ($action === 'deletesection') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
@@ -81,7 +126,7 @@ if ($action === 'deletesection') {
     $sectionnumber = required_param('sectionnumber', PARAM_INT);
 
     if ($DB->record_exists('gmk_class', ['coursesectionid' => $sectionid])) {
-        echo json_encode(['ok' => false, 'msg' => "Sección $sectionid tiene gmk_class activa; no se elimina."]);
+        echo json_encode(['ok' => false, 'msg' => "Secci�n $sectionid tiene gmk_class activa; no se elimina."]);
         exit;
     }
     if (!$DB->record_exists('course', ['id' => $courseid])) {
@@ -90,14 +135,14 @@ if ($action === 'deletesection') {
     }
     try {
         course_delete_section($courseid, $sectionnumber, true, true);
-        echo json_encode(['ok' => true, 'msg' => "Sección id=$sectionid eliminada con todas sus actividades."]);
+        echo json_encode(['ok' => true, 'msg' => "Secci�n id=$sectionid eliminada con todas sus actividades."]);
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
     }
     exit;
 }
 
-// ── AJAX: Elimina un grupo huérfano (y su sección si existe) ─────────────────
+// ?"??"? AJAX: Elimina un grupo hu�rfano (y su secci�n si existe) ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 if ($action === 'deletegroup') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
@@ -106,10 +151,10 @@ if ($action === 'deletegroup') {
     require_once($CFG->dirroot . '/course/lib.php');
 
     $groupid  = required_param('groupid', PARAM_INT);
-    $courseid = required_param('courseid', PARAM_INT);
+    $courseid = optional_param('courseid', 0, PARAM_INT);
     $log      = [];
 
-    $group = $DB->get_record('groups', ['id' => $groupid]);
+    $group = $DB->get_record('groups', ['id' => $groupid], 'id,courseid,name,idnumber');
     if (!$group) {
         echo json_encode(['ok' => false, 'msg' => "Grupo $groupid no encontrado (ya eliminado)."]);
         exit;
@@ -121,21 +166,49 @@ if ($action === 'deletegroup') {
     }
 
     try {
-        if ($DB->record_exists('course', ['id' => $courseid])) {
-            $section = $DB->get_record_sql(
-                "SELECT id, section FROM {course_sections}
-                  WHERE course = :cid AND name = :gname
-                  LIMIT 1",
-                ['cid' => $courseid, 'gname' => $group->name]
-            );
-            if ($section) {
-                course_delete_section($courseid, $section->section, true, true);
-                $log[] = "Sección '{$group->name}' (id={$section->id}) eliminada con sus actividades";
+        if ($courseid > 0 && (int)$courseid !== (int)$group->courseid) {
+            $log[] = "Aviso: courseid recibido ($courseid) no coincide con curso real del grupo ({$group->courseid}).";
+        }
+
+        $sections = $DB->get_records(
+            'course_sections',
+            ['course' => (int)$group->courseid],
+            'section ASC',
+            'id,section,name,availability'
+        );
+        $deletedsections = 0;
+        $skippedsections = 0;
+
+        foreach ($sections as $section) {
+            if ((int)$section->section <= 0) {
+                continue;
+            }
+
+            $matchesname = !empty($group->idnumber) && trim((string)$section->name) === trim((string)$group->idnumber);
+            $matchesavailability = gmk_debug_fix_availability_has_group($section->availability, (int)$groupid);
+            if (!$matchesname && !$matchesavailability) {
+                continue;
+            }
+
+            if ($DB->record_exists('gmk_class', ['coursesectionid' => (int)$section->id])) {
+                $skippedsections++;
+                $log[] = "Seccion id={$section->id} omitida: tiene gmk_class activa.";
+                continue;
+            }
+
+            try {
+                course_delete_section((int)$group->courseid, (int)$section->section, true, true);
+                $deletedsections++;
+                $log[] = "Seccion id={$section->id} (num={$section->section}) eliminada con sus actividades.";
+            } catch (Exception $se) {
+                $skippedsections++;
+                $log[] = "ERROR al eliminar seccion id={$section->id}: " . $se->getMessage();
             }
         }
 
         groups_delete_group($groupid);
-        $log[] = "Grupo $groupid ('{$group->name}') eliminado";
+        $log[] = "Grupo $groupid ('{$group->name}') eliminado.";
+        $log[] = "Resumen secciones: eliminadas=$deletedsections, omitidas/error=$skippedsections.";
 
         echo json_encode(['ok' => true, 'msg' => implode('; ', $log)]);
     } catch (Exception $e) {
@@ -143,8 +216,7 @@ if ($action === 'deletegroup') {
     }
     exit;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 echo $OUTPUT->header();
 
 echo '<style>
@@ -185,17 +257,17 @@ echo '<style>
   .row-log { font-size:12px; color:#555; font-family:monospace; margin-left:6px; }
 </style>';
 
-// ── Selector de período ───────────────────────────────────────────────────────
+// ?"??"? Selector de per�odo ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 $periods = $DB->get_records_sql(
     "SELECT id, name FROM {gmk_academic_periods}
       WHERE draft_schedules IS NOT NULL AND draft_schedules != ''
       ORDER BY id DESC"
 );
 
-echo "<div class='section'>1. Duplicados en el Draft de Planificación</div>";
+echo "<div class='section'>1. Duplicados en el Draft de Planificaci�n</div>";
 
 echo "<div style='margin:12px 0; display:flex; gap:10px; align-items:center;'>
-  <select id='period-select'><option value=''>— Selecciona un período —</option>";
+  <select id='period-select'><option value=''>-- Selecciona un periodo --</option>";
 foreach ($periods as $p) {
     $sel = ($p->id == $periodid) ? 'selected' : '';
     echo "<option value='{$p->id}' $sel>" . htmlspecialchars($p->name) . "</option>";
@@ -204,17 +276,17 @@ echo "  </select>
   <button class='btn' onclick='loadPeriod()'>Analizar</button>
 </div>";
 
-// ── Análisis del draft ────────────────────────────────────────────────────────
+// ?"??"? An�lisis del draft ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 if ($periodid > 0) {
     $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
 
     if (!$period || empty($period->draft_schedules)) {
-        echo "<div class='box warn'>⚠ El período no tiene draft guardado.</div>";
+        echo "<div class='box warn'>?s? El per�odo no tiene draft guardado.</div>";
     } else {
         $draft = json_decode($period->draft_schedules, true);
 
         if (!is_array($draft)) {
-            echo "<div class='box err'>✘ El campo draft_schedules no contiene un JSON válido.</div>";
+            echo "<div class='box err'>?o~ El campo draft_schedules no contiene un JSON v�lido.</div>";
         } else {
             $total  = count($draft);
             $byKey  = [];
@@ -228,9 +300,9 @@ if ($periodid > 0) {
             $totalDuplicates = array_sum(array_map(function($g) { return count($g) - 1; }, $duplicateGroups));
 
             if ($dupCount === 0) {
-                echo "<div class='box ok'>✔ El draft no tiene duplicados. Total: $total clases únicas.</div>";
+                echo "<div class='box ok'>OK: El draft no tiene duplicados. Total: $total clases unicas.</div>";
             } else {
-                echo "<div class='box warn'>⚠ Se encontraron <b>$dupCount claves duplicadas</b>
+                echo "<div class='box warn'>Se encontraron <b>$dupCount claves duplicadas</b>
                 ($totalDuplicates entradas extras de $total totales).</div>";
 
                 echo "<table>
@@ -238,7 +310,7 @@ if ($periodid > 0) {
                   <th>Clave (corecourseid|shift|day)</th>
                   <th>Copias</th>
                   <th>IDs en draft</th>
-                  <th>Se conservará</th>
+                  <th>Se conservar�</th>
                 </tr></thead><tbody>";
 
                 foreach ($duplicateGroups as $key => $group) {
@@ -256,7 +328,7 @@ if ($periodid > 0) {
 
                 echo "<p>
                   <button class='btn-danger btn' onclick='fixDraft($periodid)'>
-                    🔧 Reparar Draft (eliminar duplicados)
+                    Reparar Draft (eliminar duplicados)
                   </button>
                 </p>";
             }
@@ -264,48 +336,50 @@ if ($periodid > 0) {
     }
 }
 
-// ── Cursos del plugin (base para ambas consultas) ─────────────────────────────
+// ?"??"? Cursos del plugin (base para ambas consultas) ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 $pluginCourseIds = $DB->get_fieldset_sql(
     "SELECT DISTINCT corecourseid FROM {gmk_class}
       WHERE corecourseid IS NOT NULL AND corecourseid > 0"
 );
 
-// ── Sección 2: Grupos huérfanos ───────────────────────────────────────────────
-echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
+// ?"??"? Secci�n 2: Grupos hu�rfanos ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
+echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huerfanos</div>";
 
 echo "<div class='box info'>
-  Grupos con <code>idnumber</code> no vacío que <b>no tienen ninguna clase activa asociada</b>
-  (<code>gmk_class.groupid</code>). Se revisan los cursos gestionados por el plugin.
+  Se listan <b>todos</b> los grupos de Moodle que no tienen ninguna fila en
+  <code>gmk_class.groupid</code>. Puedes seleccionarlos por curso o masivamente,
+  y eliminarlos junto con sus secciones/actividades relacionadas.
 </div>";
 
 $orphanedGroups = [];
 $groupsQueryError = null;
-if (!empty($pluginCourseIds)) {
-    try {
-        list($gInSql, $gInParams) = $DB->get_in_or_equal($pluginCourseIds, SQL_PARAMS_NAMED, 'gc');
-        $orphanedGroups = $DB->get_records_sql(
-            "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
-                    c.fullname AS coursename, c.shortname AS courseshortname
-               FROM {groups} g
-               JOIN {course} c ON c.id = g.courseid
-              WHERE g.courseid $gInSql
-                AND g.idnumber IS NOT NULL AND g.idnumber != ''
-                AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
-              ORDER BY c.fullname, g.name",
-            $gInParams
-        );
-    } catch (Exception $e) {
-        $groupsQueryError = $e->getMessage();
-    }
+try {
+    $orphanedGroups = $DB->get_records_sql(
+        "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
+                c.fullname AS coursename, c.shortname AS courseshortname
+           FROM {groups} g
+           JOIN {course} c ON c.id = g.courseid
+      LEFT JOIN {gmk_class} gc ON gc.groupid = g.id
+          WHERE gc.id IS NULL
+          ORDER BY c.fullname, g.name"
+    );
+} catch (Exception $e) {
+    $groupsQueryError = $e->getMessage();
 }
 
 if ($groupsQueryError) {
-    echo "<div class='box err'>✘ Error al consultar grupos: <code>" . htmlspecialchars($groupsQueryError) . "</code></div>";
+    echo "<div class='box err'>Error al consultar grupos: <code>" . htmlspecialchars($groupsQueryError) . "</code></div>";
 } elseif (empty($orphanedGroups)) {
-    echo "<div class='box ok'>✔ No se encontraron grupos huérfanos en cursos del plugin.</div>";
+    echo "<div class='box ok'>No se encontraron grupos huerfanos.</div>";
 } else {
     $orphanCount = count($orphanedGroups);
-    echo "<div class='box warn'>⚠ Se encontraron <b>$orphanCount grupo(s) huérfano(s)</b>.</div>";
+    echo "<div class='box warn'>Se encontraron <b>$orphanCount grupo(s) huerfano(s)</b>.</div>";
+
+    echo "<p style='display:flex;gap:10px;align-items:center;flex-wrap:wrap;'>
+      <button class='btn-danger btn' onclick='deleteCheckedGroups()'>Eliminar seleccionados</button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(true)'>Todos</button>
+      <button class='btn' style='background:#6c757d' onclick='toggleAllGroups(false)'>Ninguno</button>
+    </p>";
 
     $byCourse = [];
     foreach ($orphanedGroups as $og) {
@@ -318,15 +392,20 @@ if ($groupsQueryError) {
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
-          <th>Group ID</th><th>Nombre del grupo</th><th>idnumber</th><th>Acción</th>
+          <th style='width:32px'><input type='checkbox' checked onchange='toggleCourseGroups($cid, this.checked)' title='Seleccionar/deseleccionar curso'></th>
+          <th>Group ID</th><th>Nombre del grupo</th><th>idnumber</th><th>Accion</th>
         </tr></thead><tbody>";
 
         foreach ($groups as $og) {
-            $groupJson = json_encode(['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]);
+            $groupJson = json_encode(
+                ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid],
+                JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+            );
             echo "<tr id='grow-{$og->groupid}'>
+              <td><input type='checkbox' class='grp-chk' data-groupid='{$og->groupid}' data-courseid='{$og->courseid}' checked></td>
               <td>{$og->groupid}</td>
               <td>" . htmlspecialchars($og->groupname) . "</td>
-              <td><code style='font-size:11px'>" . htmlspecialchars($og->groupidnumber) . "</code></td>
+              <td><code style='font-size:11px'>" . htmlspecialchars((string)$og->groupidnumber) . "</code></td>
               <td>
                 <button class='btn btn-danger btn-sm' onclick='deleteOneGroup($groupJson, this)'>Eliminar</button>
                 <span id='gstatus-{$og->groupid}' class='row-log'></span>
@@ -336,15 +415,14 @@ if ($groupsQueryError) {
         echo "</tbody></table>";
     }
 }
-
-// ── Sección 3: Secciones de curso huérfanas ───────────────────────────────────
-echo "<div class='section' style='margin-top:32px;'>3. Secciones de Curso Huérfanas (con actividades)</div>";
+// ?"??"? Secci�n 3: Secciones de curso hu�rfanas ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
+echo "<div class='section' style='margin-top:32px;'>3. Secciones de Curso Hu�rfanas (con actividades)</div>";
 
 echo "<div class='box info'>
   Secciones (section &gt; 0, con nombre) que <b>tienen actividades</b> y
   <b>ninguna gmk_class</b> apunta a ellas (<code>coursesectionid</code>).
-  Aparecen cuando el grupo fue eliminado pero la sección con actividades quedó sin limpiar
-  (muestra «grupo que falta» en el curso).
+  Aparecen cuando el grupo fue eliminado pero la secci�n con actividades qued� sin limpiar
+  (muestra �grupo que falta� en el curso).
 </div>";
 
 $orphanedSections = [];
@@ -374,12 +452,12 @@ if (!empty($pluginCourseIds)) {
 }
 
 if ($sectionsQueryError) {
-    echo "<div class='box err'>✘ Error al consultar secciones: <code>" . htmlspecialchars($sectionsQueryError) . "</code></div>";
+    echo "<div class='box err'>Error al consultar secciones: <code>" . htmlspecialchars($sectionsQueryError) . "</code></div>";
 } elseif (empty($orphanedSections)) {
-    echo "<div class='box ok'>✔ No se encontraron secciones huérfanas con actividades.</div>";
+    echo "<div class='box ok'>No se encontraron secciones huerfanas con actividades.</div>";
 } else {
     $secCount = count($orphanedSections);
-    echo "<div class='box warn'>⚠ Se encontraron <b>$secCount sección(es) huérfana(s) con actividades</b>.</div>";
+    echo "<div class='box warn'>Se encontraron <b>$secCount seccion(es) huerfana(s) con actividades</b>.</div>";
 
     $byCourseS = [];
     foreach ($orphanedSections as $os) {
@@ -392,7 +470,7 @@ if ($sectionsQueryError) {
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
         echo "<table><thead><tr>
-          <th>Section ID</th><th>Nombre de la sección</th><th>Actividades</th><th>Acción</th>
+          <th>Section ID</th><th>Nombre de la secci�n</th><th>Actividades</th><th>Acci�n</th>
         </tr></thead><tbody>";
 
         foreach ($sections as $os) {
@@ -415,7 +493,7 @@ if ($sectionsQueryError) {
     }
 }
 
-// ── Overlay de progreso (usado por fixDraft) ──────────────────────────────────
+// ?"??"? Overlay de progreso (usado por fixDraft) ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 echo "
 <div id='progress-overlay'>
   <div id='progress-box'>
@@ -424,7 +502,7 @@ echo "
     <div id='prog-log'></div>
     <div style='margin-top:16px;text-align:right;'>
       <button id='prog-reload' onclick='window.location.reload()' class='btn'
-              style='display:none;background:#28a745;'>✔ Listo — Recargar</button>
+              style='display:none;background:#28a745;'>Listo - Recargar</button>
     </div>
   </div>
 </div>";
@@ -444,7 +522,7 @@ function logLine(msg, ok) {
     var d = document.getElementById('prog-log');
     var line = document.createElement('div');
     line.style.color = ok ? '#2e7d32' : '#c62828';
-    line.textContent = (ok ? '✔ ' : '✘ ') + msg;
+    line.textContent = (ok ? '[OK] ' : '[ERR] ') + msg;
     d.appendChild(line);
     d.scrollTop = d.scrollHeight;
 }
@@ -480,7 +558,7 @@ async function fetchWithTimeout(url, timeoutMs) {
 }
 
 async function fixDraft(periodid) {
-    if (!confirm('¿Desduplicar el draft del período ' + periodid + '?\\nSe conservará el ID más alto por cada clave única.')) return;
+    if (!confirm('�Desduplicar el draft del per�odo ' + periodid + '?\\nSe conservar� el ID m�s alto por cada clave �nica.')) return;
     showOverlay('Reparando draft...');
     try {
         var data = await fetchWithTimeout(BASE + '?action=fixdraft&periodid=' + periodid + '&sesskey=' + SESS, 30000);
@@ -493,7 +571,7 @@ async function fixDraft(periodid) {
 }
 
 async function deleteOneGroup(info, btn) {
-    if (!confirm('¿Eliminar grupo ' + info.groupid + ' (' + info.groupid + ')?\\nTambién se eliminará su sección si existe.')) return;
+    if (!confirm('Eliminar grupo ' + info.groupid + '?\\nTambien se eliminaran sus secciones y actividades relacionadas.')) return;
     btn.disabled = true;
     var statusEl = document.getElementById('gstatus-' + info.groupid);
     statusEl.textContent = ' Eliminando...';
@@ -503,23 +581,90 @@ async function deleteOneGroup(info, btn) {
             45000
         );
         if (data.ok) {
-            statusEl.textContent = ' ✔ ' + data.msg;
+            statusEl.textContent = ' [OK] ' + data.msg;
             statusEl.style.color = 'green';
             document.getElementById('grow-' + info.groupid).style.opacity = '0.4';
         } else {
-            statusEl.textContent = ' ✘ ' + data.msg;
+            statusEl.textContent = ' [ERR] ' + data.msg;
             statusEl.style.color = 'red';
             btn.disabled = false;
         }
     } catch(e) {
-        statusEl.textContent = ' ✘ ' + e.message;
+        statusEl.textContent = ' [ERR] ' + e.message;
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
 }
 
+function toggleAllGroups(checked) {
+    document.querySelectorAll('.grp-chk').forEach(function(cb) {
+        cb.checked = checked;
+    });
+}
+
+function toggleCourseGroups(courseid, checked) {
+    document.querySelectorAll('.grp-chk[data-courseid=\"' + courseid + '\"]').forEach(function(cb) {
+        cb.checked = checked;
+    });
+}
+
+async function deleteCheckedGroups() {
+    var checked = Array.from(document.querySelectorAll('.grp-chk:checked'));
+    if (!checked.length) {
+        alert('No hay grupos seleccionados.');
+        return;
+    }
+
+    var groups = checked.map(function(cb) {
+        return {
+            groupid: +cb.dataset.groupid,
+            courseid: +cb.dataset.courseid
+        };
+    });
+
+    if (!confirm('Eliminar ' + groups.length + ' grupo(s) seleccionado(s)?\\nEsta accion no se puede deshacer.')) {
+        return;
+    }
+
+    showOverlay('Eliminando grupos seleccionados...');
+    var bar = document.getElementById('prog-bar');
+    var done = 0;
+    var errors = 0;
+    var total = groups.length;
+
+    for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        document.getElementById('prog-title').textContent = 'Eliminando grupos... ' + (i + 1) + '/' + total;
+        bar.style.width = Math.round((i / total) * 100) + '%';
+        try {
+            var data = await fetchWithTimeout(
+                BASE + '?action=deletegroup&groupid=' + g.groupid + '&courseid=' + g.courseid + '&sesskey=' + SESS,
+                45000
+            );
+            logLine('Grupo ' + g.groupid + ': ' + data.msg, data.ok);
+            if (data.ok) {
+                done++;
+                var row = document.getElementById('grow-' + g.groupid);
+                if (row) {
+                    row.style.opacity = '0.4';
+                }
+            } else {
+                errors++;
+            }
+        } catch(e) {
+            logLine('Grupo ' + g.groupid + ': ' + e.message, false);
+            errors++;
+        }
+        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }
+
+    document.getElementById('prog-title').textContent =
+        'Completado: ' + done + ' eliminado(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
+    finishOverlay(errors === 0);
+}
+
 async function deleteOneSection(info, btn) {
-    if (!confirm('¿Eliminar sección id=' + info.sectionid + ' con todas sus actividades?')) return;
+    if (!confirm('�Eliminar secci�n id=' + info.sectionid + ' con todas sus actividades?')) return;
     btn.disabled = true;
     var statusEl = document.getElementById('sstatus-' + info.sectionid);
     statusEl.textContent = ' Eliminando...';
@@ -530,16 +675,16 @@ async function deleteOneSection(info, btn) {
             45000
         );
         if (data.ok) {
-            statusEl.textContent = ' ✔ ' + data.msg;
+            statusEl.textContent = ' [OK] ' + data.msg;
             statusEl.style.color = 'green';
             document.getElementById('srow-' + info.sectionid).style.opacity = '0.4';
         } else {
-            statusEl.textContent = ' ✘ ' + data.msg;
+            statusEl.textContent = ' [ERR] ' + data.msg;
             statusEl.style.color = 'red';
             btn.disabled = false;
         }
     } catch(e) {
-        statusEl.textContent = ' ✘ ' + e.message;
+        statusEl.textContent = ' [ERR] ' + e.message;
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
@@ -547,3 +692,4 @@ async function deleteOneSection(info, btn) {
 </script>";
 
 echo $OUTPUT->footer();
+
