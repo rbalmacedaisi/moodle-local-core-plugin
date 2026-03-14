@@ -201,6 +201,7 @@
 
                 // Reload demand to reflect changes
                 await this.loadDemand(periodId);
+                this._reconcileCurrentSchedulesWithDemand();
                 this.state.successMessage = "Proyecciones guardadas";
             } catch (e) {
                 this.state.error = e.message;
@@ -775,34 +776,38 @@
                         return this._withCanonicalSubjectName(merged);
                     });
 
-                    // Reconcile draft items (temp id / no DB id) against demand.
-                    // Always pass mergedDb so reconcile knows which demand keys are already covered.
-                    // Even when filteredNewDraftItems is empty, this generates "sin asignar" cards for
-                    // demand entries that have no DB class yet.
+                    // Reconcile all internal items (DB + draft-only) against demand.
                     const dbIdentity = new Set(mergedDb.map(item => this._scheduleIdentityKey(item)));
                     const filteredNewDraftItems = newDraftItems.filter(item => !dbIdentity.has(this._scheduleIdentityKey(item)));
-                    const reconciledNew = this._reconcileDraftWithDemand(filteredNewDraftItems, mergedDb);
+                    const internalItems = [...mergedDb, ...filteredNewDraftItems];
+                    const reconciledInternal = this._reconcileDraftWithDemand(internalItems, []);
 
-                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length}, filtered=${filteredNewDraftItems.length}, reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
+                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length}, filtered=${filteredNewDraftItems.length}, reconciled_internal=${reconciledInternal.length}, externals=${externalSchedules.length}`);
 
                     const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
-                    this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...normalizedExternal];
+                    this.state.generatedSchedules = [...reconciledInternal, ...normalizedExternal];
                 } else {
                     // No draft — generate unassigned items from demand for subjects not yet in DB
                     console.log("DEBUG Draft: No draft found — generating unassigned items from demand.");
                     const dbSchedules = this.state.generatedSchedules.filter(s => !s.isExternal);
                     const externalSchedules = this.state.generatedSchedules.filter(s => s.isExternal);
-                    const reconciledNew = this._reconcileDraftWithDemand([], dbSchedules);
-                    console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, new from demand=${reconciledNew.length}`);
-                    if (reconciledNew.length > 0) {
-                        const normalizedDb = dbSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
-                        const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
-                        this.state.generatedSchedules = [...normalizedDb, ...reconciledNew, ...normalizedExternal];
-                    }
+                    const reconciledInternal = this._reconcileDraftWithDemand(dbSchedules, []);
+                    console.log(`DEBUG Draft: No draft. DB=${dbSchedules.length}, reconciled_internal=${reconciledInternal.length}`);
+                    const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
+                    this.state.generatedSchedules = [...reconciledInternal, ...normalizedExternal];
                 }
             } catch (e) {
                 console.error("Load generation error:", e);
             }
+        },
+
+        _reconcileCurrentSchedulesWithDemand() {
+            const externalSchedules = this.state.generatedSchedules
+                .filter(item => item.isExternal)
+                .map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
+            const internalSchedules = this.state.generatedSchedules.filter(item => !item.isExternal);
+            const reconciledInternal = this._reconcileDraftWithDemand(internalSchedules, []);
+            this.state.generatedSchedules = [...reconciledInternal, ...externalSchedules];
         },
 
         /**
