@@ -629,7 +629,7 @@ function toggleAllGroups(checked) {
     document.querySelectorAll('.grp-chk').forEach(cb => cb.checked = checked);
 }
 function toggleCourseGroups(courseid, checked) {
-    document.querySelectorAll('.grp-chk[data-courseid="' + courseid + '"]')
+    document.querySelectorAll('.grp-chk[data-courseid=\"' + courseid + '\"]')
             .forEach(cb => cb.checked = checked);
 }
 
@@ -638,7 +638,7 @@ function toggleAllSections(checked) {
     document.querySelectorAll('.sec-chk').forEach(cb => cb.checked = checked);
 }
 function toggleCourseSections(courseid, checked) {
-    document.querySelectorAll('.sec-chk[data-courseid="' + courseid + '"]')
+    document.querySelectorAll('.sec-chk[data-courseid=\"' + courseid + '\"]')
             .forEach(cb => cb.checked = checked);
 }
 
