@@ -123,6 +123,11 @@ if ($hassiteconfig) {
         '🔍 Debug: Fix Draft & Grupos Huérfanos',
         new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php')
     );
+    $debugPublishDraftPage = new admin_externalpage(
+        'grupomakro_core_debug_publish_draft',
+        'Debug: Draft Publish Inspector',
+        new moodle_url('/local/grupomakro_core/pages/debug_publish_draft.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -142,6 +147,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $fixOrphanedClassidPage);
     $ADMIN->add('grupomakrocore_plugin', $resetPeriodPublishPage);
     $ADMIN->add('grupomakrocore_plugin', $debugFixDraftPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugPublishDraftPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
@@ -312,4 +318,3 @@ if ($hassiteconfig) {
      * End of settings page: Email Templates.
      */
 }
-
