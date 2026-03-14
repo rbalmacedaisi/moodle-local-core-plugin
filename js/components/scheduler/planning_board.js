@@ -703,7 +703,7 @@ window.SchedulerComponents.PlanningBoard = {
     data() {
         return {
             search: '',
-            days: ['Lunes', 'Martes', 'MiÃ©rcoles', 'Jueves', 'Viernes', 'SÃ¡bado'],
+            days: ['Lunes', 'Martes', 'Mi\u00e9rcoles', 'Jueves', 'Viernes', 'S\u00e1bado'],
             startHour: 7,
             endHour: 22,
             draggedClass: null,

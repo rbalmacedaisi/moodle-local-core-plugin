@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/teacher/get_dashboard_data.php');
 

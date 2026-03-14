@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Debug: Estado de publicacion de horarios
  *
