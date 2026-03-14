@@ -3768,6 +3768,7 @@ try {
         // Called once per class by the frontend so each call is short and there is no global timeout.
         case 'local_grupomakro_create_class_moodle_structures':
             $classid = required_param('classid', PARAM_INT);
+            $forcerebuilddates = optional_param('forcerebuilddates', 0, PARAM_INT); // 1 = ignore assigned_dates and rebuild from day/range
             require_once($CFG->dirroot . '/local/grupomakro_core/locallib.php');
             core_php_time_limit::raise(120);
             $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
@@ -3824,8 +3825,11 @@ try {
             if (!$hasActivities && !empty($class->attendancemoduleid)) {
                 $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
             }
+            if (!empty($forcerebuilddates)) {
+                $log[] = "Modo fechas: recalc forzado desde day/range (assigned_dates ignorado).";
+            }
             try {
-                create_class_activities($class, $hasActivities);
+                create_class_activities($class, $hasActivities, !empty($forcerebuilddates));
                 $commitok = gmk_best_effort_db_commit("ajax_create_class_moodle_structures_class_{$classid}");
                 $log[] = "COMMIT best-effort " . ($commitok ? "OK" : "WARN");
                 $class = $DB->get_record('gmk_class', ['id' => $classid]);

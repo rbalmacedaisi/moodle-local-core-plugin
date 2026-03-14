@@ -2043,7 +2043,10 @@ window.SchedulerComponents.PlanningBoard = {
                 let lastErr = null;
                 for (let attempt = 1; attempt <= 2; attempt++) {
                     try {
-                        res = await store._fetch('local_grupomakro_create_class_moodle_structures', { classid: targetClassId });
+                        res = await store._fetch('local_grupomakro_create_class_moodle_structures', {
+                            classid: targetClassId,
+                            forcerebuilddates: 1
+                        });
                         lastErr = null;
                         break;
                     } catch (e) {
