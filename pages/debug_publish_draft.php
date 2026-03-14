@@ -424,6 +424,12 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
                 return is_array($item) && !gmk_dbg_pub_is_external($item, $periodid);
             }));
 
+            $beforeunassigned = count($draftitems);
+            $draftitems = array_values(array_filter($draftitems, static function($item) {
+                return is_array($item) && gmk_dbg_pub_is_programmed($item);
+            }));
+            $droppedunassigned = $beforeunassigned - count($draftitems);
+
             $dstats = [];
             $draftitems = gmk_dbg_pub_dedupe($draftitems, $periodid, $dstats);
 
@@ -458,7 +464,7 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             unset($it3);
 
             gmk_dbg_pub_save_draft($periodid, $draftitems);
-            $message = "Action normalize_publish completed. ids_cleared={$cleared} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
+            $message = "Action normalize_publish completed. ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
             $messageclass = 'alert-success';
         } else {
             gmk_dbg_pub_save_draft($periodid, $draftitems);
