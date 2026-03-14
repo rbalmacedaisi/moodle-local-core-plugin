@@ -698,7 +698,8 @@ class scheduler extends external_api {
             // '-{classid} grade category' where classid belongs to this period but gradecategoryid=0 in gmk_class
             // (i.e. the category was created but the id was never saved back).
             // This prevents 'Duplicate entry' errors on grade_grades during retries.
-            $periodClassIds = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid AND gradecategoryid = 0', ['pid' => $periodid]);
+            if (!$preserveexisting) {
+                $periodClassIds = $DB->get_fieldset_select('gmk_class', 'id', 'periodid = :pid AND gradecategoryid = 0', ['pid' => $periodid]);
             if (!empty($periodClassIds)) {
                 foreach ($periodClassIds as $cid) {
                     $orphanCats = $DB->get_records_sql(
@@ -718,6 +719,9 @@ class scheduler extends external_api {
                         gmk_log("INFO: Pre-clean eliminó grade_category id={$ocat->id} huérfana para clase $cid");
                     }
                 }
+            }
+            } else {
+                gmk_log("INFO: preserveexisting=true, skipping period-wide pre-clean in save_generation_result");
             }
 
             // Load academic calendar once for the period (outside the loop to avoid multiple-records error).

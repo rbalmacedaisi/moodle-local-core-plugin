@@ -1789,6 +1789,7 @@ window.SchedulerComponents.PlanningBoard = {
             try {
                 const store    = window.schedulerStore;
                 const periodId = store.state.activePeriod;
+                const boardSnapshot = JSON.parse(JSON.stringify(this.allClasses || []));
 
                 // FASE 1: guardar SOLO la ficha seleccionada en modo preserveexisting.
                 // El backend no debe borrar ni modificar otras clases del periodo.
@@ -1900,14 +1901,52 @@ window.SchedulerComponents.PlanningBoard = {
                 const logLine = (res && res.log && res.log.length) ? res.log[res.log.length - 1] : 'OK';
                 this._publishLog(`Clase ${targetClassId}: ${logLine}`, 'info');
 
-                // Re-sincronizar y guardar draft limpio (sin IDs temporales).
-                this._publishLog('Sincronizando estado final...', 'info');
-                await store.loadGeneratedSchedules(periodId);
-                // Do not merge draft here; keep DB state as source of truth after publish.
+                // Re-guardar draft preservando el tablero actual.
+                // Do not use full DB reload here, because that can reintroduce stale positions
+                // for other classes not involved in this single-class republish.
+                this._publishLog('Sincronizando ficha publicada con el tablero actual...', 'info');
+
+                const normalizeToken = (v) => String(v || '').trim();
+                const sameScheduleIdentity = (a, b) => (
+                    String(a.corecourseid || '') === String(b.corecourseid || '') &&
+                    normalizeToken(a.shift) === normalizeToken(b.shift) &&
+                    normalizeToken(a.day) === normalizeToken(b.day) &&
+                    normalizeToken(a.start) === normalizeToken(b.start) &&
+                    normalizeToken(a.end) === normalizeToken(b.end) &&
+                    String(a.subperiod || 0) === String(b.subperiod || 0)
+                );
+
+                let updated = false;
+                const currentIdNum = Number(cls.id || 0);
+                const mergedBoard = boardSnapshot.map(item => {
+                    const itemIdNum = Number(item.id || 0);
+                    const isTargetById = currentIdNum > 0 && itemIdNum === currentIdNum;
+                    const isTargetByIdentity = sameScheduleIdentity(item, targetPayload);
+                    if (isTargetById || (currentIdNum <= 0 && isTargetByIdentity)) {
+                        updated = true;
+                        return Object.assign({}, item, {
+                            id: targetClassId,
+                            periodid: periodId,
+                            isExternal: false
+                        });
+                    }
+                    return item;
+                });
+
+                if (!updated) {
+                    const fallback = Object.assign({}, targetPayload, {
+                        id: targetClassId,
+                        periodid: periodId,
+                        isExternal: false
+                    });
+                    mergedBoard.push(fallback);
+                }
+
+                store.state.generatedSchedules = mergedBoard;
                 this.publishProgress = 95;
 
                 this._publishLog('Re-guardando borrador...', 'info');
-                await store.saveGeneration(periodId, store.state.generatedSchedules);
+                await store.saveGeneration(periodId, mergedBoard);
                 this._publishLog('Borrador actualizado.', 'success');
 
                 this.publishProgress = 100;
