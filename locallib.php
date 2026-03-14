@@ -3042,6 +3042,7 @@ function list_classes($filters)
     $fetchedLearningPlanPeriods = [];
     $fetchedCourses = [];
     $fetchedInstructors = [];
+    $fetchedClassrooms = [];
 
     $classes = $DB->get_records('gmk_class', $filters);
     
@@ -3255,6 +3256,40 @@ function list_classes($filters)
         $class->preRegisteredStudents = count($classParticipants->preRegisteredStudents);
         $class->queuedStudents = count($classParticipants->queuedStudents);
         $class->classFull = $class->preRegisteredStudents >= $class->classroomcapacity;
+
+        // Resolve classroom name for consumers that need room labels (student schedule cards, planner, etc.).
+        $resolvedClassroomId = !empty($class->classroomid) ? (int)$class->classroomid : 0;
+        if ($resolvedClassroomId <= 0 && !empty($class->id)) {
+            $resolvedClassroomId = (int)$DB->get_field_sql(
+                "SELECT s.classroomid
+                   FROM {gmk_class_schedules} s
+                  WHERE s.classid = :classid
+                    AND s.classroomid IS NOT NULL
+                    AND s.classroomid > 0
+               ORDER BY s.id ASC",
+                ['classid' => (int)$class->id],
+                IGNORE_MULTIPLE
+            );
+        }
+
+        $classroomName = 'Sin aula';
+        if ($resolvedClassroomId > 0) {
+            if (!array_key_exists($resolvedClassroomId, $fetchedClassrooms)) {
+                $fetchedClassrooms[$resolvedClassroomId] = $DB->get_field(
+                    'gmk_classrooms',
+                    'name',
+                    ['id' => $resolvedClassroomId],
+                    IGNORE_MISSING
+                );
+            }
+            $classroomName = !empty($fetchedClassrooms[$resolvedClassroomId])
+                ? (string)$fetchedClassrooms[$resolvedClassroomId]
+                : 'Sin aula';
+            $class->classroomid = $resolvedClassroomId;
+        }
+
+        $class->classroomName = $classroomName;
+        $class->room = $classroomName;
 
         //Instructor profile image
         $class->instructorProfileImage = $OUTPUT->image_url('u/f1'); // Default fallback
@@ -5303,6 +5338,9 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->instructorlpid = $gmkClass->instructorlpid;
     $event->instructorid = $gmkClass->instructorid;
     $event->groupid = $gmkClass->groupid;
+    $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+    $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+    $event->room = $event->classroomName;
     $event->coursename = $gmkClass->course->fullname;
     $event->courseShortName = $gmkClass->course->shortname;
     $event->timeduration = $gmkClass->classduration;
@@ -6908,6 +6946,9 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         // Need basic fields to prevent JS errors if it expects them
         $event->instructorName = '';
         $event->instructorid = 0;
+        $event->classroomid = 0;
+        $event->classroomName = 'Sin aula';
+        $event->room = 'Sin aula';
         $event->timeRange = date('H:i', $event->timestart) . ' - ' . date('H:i', $event->timestart + $event->timeduration);
         $event->classDaysES = [];
         $event->classDaysEN = [];
@@ -6936,6 +6977,9 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         $event->coursename = $gmkClass->course->fullname ?? $event->className;
         $event->classId = $gmkClass->id;
         $event->groupid = $gmkClass->groupid;
+        $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+        $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+        $event->room = $event->classroomName;
         $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
         $event->timeduration = $gmkClass->classduration ?? $event->timeduration;
     }
@@ -7016,6 +7060,9 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
         $event->className = $course ? $course->fullname : 'Actividad';
         $event->coursename = $event->className;
         $event->classId = 0;
+        $event->classroomid = 0;
+        $event->classroomName = 'Sin aula';
+        $event->room = 'Sin aula';
     } else {
         // Populate from Class
         // Ensure class has helper fields
@@ -7034,6 +7081,9 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
         $event->courseShortName = $gmkClass->course->shortname ?? '';
         $event->classId = $gmkClass->id;
         $event->groupid = $gmkClass->groupid;
+        $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+        $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+        $event->room = $event->classroomName;
     }
 
     // Set specialized colors and prefixes based on event type
@@ -7062,6 +7112,9 @@ function complete_generic_module_event_information($event, &$fetchedClasses) {
     $event->timeRange     = $event->timeRange     ?? date('H:i', $event->timestart);
     $event->typelabel     = $event->typelabel     ?? 'Actividad';
     $event->instructorName = $event->instructorName ?? '';
+    $event->classroomid = $event->classroomid ?? 0;
+    $event->classroomName = $event->classroomName ?? 'Sin aula';
+    $event->room = $event->room ?? $event->classroomName;
 
     if ($cm && !empty($cm->id)) {
         $event->cmid = (int)$cm->id;
