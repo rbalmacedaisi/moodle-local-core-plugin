@@ -134,7 +134,7 @@ if ($action === 'deletesection') {
         exit;
     }
     try {
-        course_delete_section($courseid, $sectionnumber, true, true);
+        course_delete_section($courseid, $sectionnumber, true, false);
         echo json_encode(['ok' => true, 'msg' => "Seccin id=$sectionid eliminada con todas sus actividades."]);
     } catch (Exception $e) {
         echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
@@ -197,7 +197,7 @@ if ($action === 'deletegroup') {
             }
 
             try {
-                course_delete_section((int)$group->courseid, (int)$section->section, true, true);
+                course_delete_section((int)$group->courseid, (int)$section->section, true, false);
                 $deletedsections++;
                 $log[] = "Seccion id={$section->id} (num={$section->section}) eliminada con sus actividades.";
             } catch (Exception $se) {
@@ -206,9 +206,58 @@ if ($action === 'deletegroup') {
             }
         }
 
+        // Fallback: elimina actividades del curso que sigan vinculadas al grupo por disponibilidad.
+        $modules = $DB->get_records(
+            'course_modules',
+            ['course' => (int)$group->courseid],
+            'id ASC',
+            'id,section,availability'
+        );
+        $deletedmodules = 0;
+        $skippedmodules = 0;
+        foreach ($modules as $cm) {
+            if (!gmk_debug_fix_availability_has_group($cm->availability, (int)$groupid)) {
+                continue;
+            }
+
+            // Defensa: no tocar modulos todavia referenciados por una clase activa.
+            if ($DB->record_exists('gmk_class', ['attendancemoduleid' => (int)$cm->id])) {
+                $skippedmodules++;
+                $log[] = "Modulo cmid={$cm->id} omitido: es attendancemoduleid de gmk_class activa.";
+                continue;
+            }
+            if (!empty($cm->section) && $DB->record_exists('gmk_class', ['coursesectionid' => (int)$cm->section])) {
+                $skippedmodules++;
+                $log[] = "Modulo cmid={$cm->id} omitido: su seccion ({$cm->section}) pertenece a gmk_class activa.";
+                continue;
+            }
+            if ($DB->record_exists_sql(
+                "SELECT 1
+                   FROM {gmk_bbb_attendance_relation} r
+                   JOIN {gmk_class} c ON c.id = r.classid
+                  WHERE r.bbbmoduleid = :cmid
+                  LIMIT 1",
+                ['cmid' => (int)$cm->id]
+            )) {
+                $skippedmodules++;
+                $log[] = "Modulo cmid={$cm->id} omitido: referenciado por gmk_bbb_attendance_relation activa.";
+                continue;
+            }
+
+            try {
+                course_delete_module((int)$cm->id);
+                $deletedmodules++;
+                $log[] = "Modulo cmid={$cm->id} eliminado por disponibilidad de grupo.";
+            } catch (Exception $me) {
+                $skippedmodules++;
+                $log[] = "ERROR al eliminar modulo cmid={$cm->id}: " . $me->getMessage();
+            }
+        }
+
         groups_delete_group($groupid);
         $log[] = "Grupo $groupid ('{$group->name}') eliminado.";
         $log[] = "Resumen secciones: eliminadas=$deletedsections, omitidas/error=$skippedsections.";
+        $log[] = "Resumen modulos: eliminados=$deletedmodules, omitidos/error=$skippedmodules.";
 
         echo json_encode(['ok' => true, 'msg' => implode('; ', $log)]);
     } catch (Exception $e) {
