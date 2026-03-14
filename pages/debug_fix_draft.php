@@ -72,6 +72,35 @@ if ($action === 'fixdraft') {
     exit;
 }
 
+// ── AJAX: Elimina una sección huérfana (con todas sus actividades) ────────────
+if ($action === 'deletesection') {
+    require_sesskey();
+    header('Content-Type: application/json; charset=utf-8');
+
+    require_once($CFG->dirroot . '/course/lib.php');
+
+    $sectionid     = required_param('sectionid',     PARAM_INT);
+    $courseid      = required_param('courseid',      PARAM_INT);
+    $sectionnumber = required_param('sectionnumber', PARAM_INT);
+
+    // Doble-check: no debe tener gmk_class activa
+    if ($DB->record_exists('gmk_class', ['coursesectionid' => $sectionid])) {
+        echo json_encode(['ok' => false, 'msg' => "Sección $sectionid tiene gmk_class activa; no se elimina."]);
+        exit;
+    }
+    if (!$DB->record_exists('course', ['id' => $courseid])) {
+        echo json_encode(['ok' => false, 'msg' => "Curso $courseid no existe."]);
+        exit;
+    }
+    try {
+        course_delete_section($courseid, $sectionnumber, true, true);
+        echo json_encode(['ok' => true, 'msg' => "Sección id=$sectionid eliminada con todas sus actividades."]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
+    }
+    exit;
+}
+
 // ── AJAX: Elimina un grupo huérfano (y su sección si existe) ─────────────────
 if ($action === 'deletegroup') {
     require_sesskey();
@@ -246,14 +275,13 @@ if ($periodid > 0) {
 echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
 
 echo "<div class='box info'>
-  Se muestran <b>solo grupos creados por el plugin</b> (su <code>description</code> comienza con
-  <code>\"Group for the \"</code>) que ya <b>no tienen ninguna clase activa asociada</b>
-  (<code>gmk_class.groupid</code>). Grupos como «Revalida» u otros manuales se excluyen automáticamente.
+  Grupos en <b>cursos gestionados por el plugin</b> (con <code>idnumber</code> asignado por el plugin)
+  que <b>no tienen ninguna clase activa asociada</b> (<code>gmk_class.groupid</code>).
+  Grupos manuales sin <code>idnumber</code> (ej. «Revalida») se excluyen automáticamente.
 </div>";
 
 $orphanedGroups = $DB->get_records_sql(
-    "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber,
-            g.description AS groupdesc, g.courseid,
+    "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
             c.fullname AS coursename, c.shortname AS courseshortname
        FROM {groups} g
        JOIN {course} c ON c.id = g.courseid
@@ -261,7 +289,7 @@ $orphanedGroups = $DB->get_records_sql(
               SELECT DISTINCT corecourseid FROM {gmk_class}
                WHERE corecourseid IS NOT NULL AND corecourseid > 0
             )
-        AND g.description LIKE 'Group for the %'
+        AND g.idnumber IS NOT NULL AND g.idnumber != ''
         AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
       ORDER BY c.fullname, g.name"
 );
@@ -272,13 +300,11 @@ if (empty($orphanedGroups)) {
     $orphanCount = count($orphanedGroups);
     echo "<div class='box warn'>⚠ Se encontraron <b>$orphanCount grupo(s) huérfano(s)</b>.</div>";
 
-    // Agrupar por curso
     $byCourse = [];
     foreach ($orphanedGroups as $og) {
         $byCourse[$og->courseid][] = $og;
     }
 
-    // JSON para eliminar todos
     $allGroupsJson = json_encode(array_values(array_map(
         fn($og) => ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid],
         $orphanedGroups
@@ -286,7 +312,7 @@ if (empty($orphanedGroups)) {
 
     echo "<p>
       <button class='btn-danger btn' onclick='deleteAllGroups($allGroupsJson)'>
-        🗑 Eliminar todos los grupos huérfanos (" . $orphanCount . ")
+        🗑 Eliminar todos los grupos huérfanos ($orphanCount)
       </button>
     </p>";
 
@@ -295,12 +321,8 @@ if (empty($orphanedGroups)) {
         echo "<div class='subsection'>Curso: " . htmlspecialchars($first->coursename) .
              " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
 
-        echo "<table>
-        <thead><tr>
-          <th>Group ID</th>
-          <th>Nombre del grupo</th>
-          <th>idnumber (clase origen)</th>
-          <th>Acción</th>
+        echo "<table><thead><tr>
+          <th>Group ID</th><th>Nombre del grupo</th><th>idnumber</th><th>Acción</th>
         </tr></thead><tbody>";
 
         foreach ($groups as $og) {
@@ -310,10 +332,92 @@ if (empty($orphanedGroups)) {
               <td>" . htmlspecialchars($og->groupname) . "</td>
               <td><code style='font-size:11px'>" . htmlspecialchars($og->groupidnumber) . "</code></td>
               <td>
-                <button class='btn btn-danger btn-sm' onclick='deleteOneGroup($groupJson, this)'>
-                  Eliminar
-                </button>
+                <button class='btn btn-danger btn-sm' onclick='deleteOneGroup($groupJson, this)'>Eliminar</button>
                 <span id='gstatus-{$og->groupid}' class='row-log'></span>
+              </td>
+            </tr>";
+        }
+        echo "</tbody></table>";
+    }
+}
+
+// ── Sección 3: Secciones de curso huérfanas ───────────────────────────────────
+echo "<div class='section' style='margin-top:32px;'>3. Secciones de Curso Huérfanas (con actividades)</div>";
+
+echo "<div class='box info'>
+  Secciones de curso en cursos del plugin que <b>tienen actividades</b> pero
+  <b>ninguna gmk_class</b> apunta a ellas (<code>gmk_class.coursesectionid</code>).
+  Esto ocurre cuando el grupo fue eliminado pero la sección quedó sin limpiar
+  (muestra «grupo que falta» en el curso).
+</div>";
+
+$orphanedSections = $DB->get_records_sql(
+    "SELECT cs.id AS sectionid, cs.name AS sectionname, cs.section AS sectionnumber,
+            cs.course AS courseid, c.fullname AS coursename, c.shortname AS courseshortname,
+            COUNT(cm.id) AS module_count
+       FROM {course_sections} cs
+       JOIN {course} c ON c.id = cs.course
+  LEFT JOIN {course_modules} cm ON cm.section = cs.id
+      WHERE cs.course IN (
+              SELECT DISTINCT corecourseid FROM {gmk_class}
+               WHERE corecourseid IS NOT NULL AND corecourseid > 0
+            )
+        AND cs.section > 0
+        AND cs.name IS NOT NULL AND cs.name != ''
+        AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE coursesectionid = cs.id)
+      GROUP BY cs.id, cs.name, cs.section, cs.course, c.fullname, c.shortname
+     HAVING COUNT(cm.id) > 0
+      ORDER BY c.fullname, cs.name"
+);
+
+if (empty($orphanedSections)) {
+    echo "<div class='box ok'>✔ No se encontraron secciones huérfanas con actividades.</div>";
+} else {
+    $secCount = count($orphanedSections);
+    echo "<div class='box warn'>⚠ Se encontraron <b>$secCount sección(es) huérfana(s) con actividades</b>.</div>";
+
+    $byCourseS = [];
+    foreach ($orphanedSections as $os) {
+        $byCourseS[$os->courseid][] = $os;
+    }
+
+    $allSectionsJson = json_encode(array_values(array_map(
+        fn($os) => [
+            'sectionid'     => (int)$os->sectionid,
+            'courseid'      => (int)$os->courseid,
+            'sectionnumber' => (int)$os->sectionnumber,
+        ],
+        $orphanedSections
+    )));
+
+    echo "<p>
+      <button class='btn-danger btn' onclick='deleteAllSections($allSectionsJson)'>
+        🗑 Eliminar todas las secciones huérfanas ($secCount)
+      </button>
+    </p>";
+
+    foreach ($byCourseS as $cid => $sections) {
+        $first = $sections[0];
+        echo "<div class='subsection'>Curso: " . htmlspecialchars($first->coursename) .
+             " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
+
+        echo "<table><thead><tr>
+          <th>Section ID</th><th>Nombre de la sección</th><th>Actividades</th><th>Acción</th>
+        </tr></thead><tbody>";
+
+        foreach ($sections as $os) {
+            $secJson = json_encode([
+                'sectionid'     => (int)$os->sectionid,
+                'courseid'      => (int)$os->courseid,
+                'sectionnumber' => (int)$os->sectionnumber,
+            ]);
+            echo "<tr id='srow-{$os->sectionid}'>
+              <td>{$os->sectionid}</td>
+              <td>" . htmlspecialchars($os->sectionname) . "</td>
+              <td>{$os->module_count}</td>
+              <td>
+                <button class='btn btn-danger btn-sm' onclick='deleteOneSection($secJson, this)'>Eliminar</button>
+                <span id='sstatus-{$os->sectionid}' class='row-log'></span>
               </td>
             </tr>";
         }
@@ -412,6 +516,69 @@ async function deleteOneGroup(info, btn) {
         statusEl.style.color = 'red';
         btn.disabled = false;
     }
+}
+
+// ── Eliminar una sección ──────────────────────────────────────────────────────
+async function deleteOneSection(info, btn) {
+    if (!confirm('¿Eliminar sección id=' + info.sectionid + ' con todas sus actividades?')) return;
+    btn.disabled = true;
+    var statusEl = document.getElementById('sstatus-' + info.sectionid);
+    statusEl.textContent = ' Eliminando...';
+    try {
+        var resp = await fetch(
+            BASE + '?action=deletesection&sectionid=' + info.sectionid +
+                   '&courseid=' + info.courseid + '&sectionnumber=' + info.sectionnumber +
+                   '&sesskey=' + SESS,
+            { method: 'POST' }
+        );
+        var data = await resp.json();
+        if (data.ok) {
+            statusEl.textContent = ' ✔ ' + data.msg;
+            statusEl.style.color = 'green';
+            document.getElementById('srow-' + info.sectionid).style.opacity = '0.4';
+        } else {
+            statusEl.textContent = ' ✘ ' + data.msg;
+            statusEl.style.color = 'red';
+            btn.disabled = false;
+        }
+    } catch(e) {
+        statusEl.textContent = ' ✘ Error de red: ' + e.message;
+        statusEl.style.color = 'red';
+        btn.disabled = false;
+    }
+}
+
+// ── Eliminar todas las secciones huérfanas ────────────────────────────────────
+async function deleteAllSections(sections) {
+    if (!confirm('¿Eliminar ' + sections.length + ' sección(es) con todas sus actividades?\\nEsta acción no se puede deshacer.')) return;
+    showOverlay('Eliminando ' + sections.length + ' secciones...');
+    var bar = document.getElementById('prog-bar');
+    var counter = document.getElementById('prog-counter');
+    var done = 0, errors = 0, total = sections.length;
+
+    for (var i = 0; i < sections.length; i++) {
+        var s = sections[i];
+        counter.textContent = (i + 1) + ' / ' + total;
+        try {
+            var resp = await fetch(
+                BASE + '?action=deletesection&sectionid=' + s.sectionid +
+                       '&courseid=' + s.courseid + '&sectionnumber=' + s.sectionnumber +
+                       '&sesskey=' + SESS,
+                { method: 'POST' }
+            );
+            var data = await resp.json();
+            logLine(data.msg, data.ok);
+            if (data.ok) done++; else errors++;
+        } catch(e) {
+            logLine('sección ' + s.sectionid + ': Error de red — ' + e.message, false);
+            errors++;
+        }
+        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }
+
+    document.getElementById('prog-title').textContent =
+        'Completado: ' + done + ' eliminada(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
+    finishOverlay(errors === 0);
 }
 
 // ── Eliminar todos los grupos huérfanos ───────────────────────────────────────
