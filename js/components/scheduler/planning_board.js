@@ -60,6 +60,7 @@ window.SchedulerComponents.PlanningBoard = {
                             @dragstart="onDragStart($event, cls)"
                             :class="[
                                 'bg-white p-3 rounded-lg border shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 transition-colors group relative',
+                                hasPendingEnrollment(cls) ? 'bg-cyan-50 border-cyan-300' : '',
                                 isClassSelected(cls) ? 'border-indigo-400 ring-2 ring-indigo-200' : 'border-slate-200'
                             ]"
                         >
@@ -75,7 +76,12 @@ window.SchedulerComponents.PlanningBoard = {
                             </label>
                             <div class="flex justify-between items-start mb-1">
                                 <span class="font-bold text-slate-800 text-sm leading-tight line-clamp-2 pl-5" :title="cls.subjectName">{{ cls.subjectName }}</span>
-                                <span class="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ cls.studentCount }}</span>
+                                <div class="flex items-center gap-1">
+                                    <span v-if="getPendingEnrollmentCount(cls) > 0" class="text-[10px] font-bold bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded">
+                                        Pend {{ getPendingEnrollmentCount(cls) }}
+                                    </span>
+                                    <span class="text-[10px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{{ cls.studentCount }}</span>
+                                </div>
                             </div>
                             <div class="text-[10px] flex flex-wrap gap-1 items-center text-slate-500">
                                 <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{{ cls.levelDisplay }}</span>
@@ -188,6 +194,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             cls.isExternal && getConflicts(cls).length > 0 ? 'bg-red-50 border-red-400 ring-2 ring-red-200' :
                                             cls.isExternal ? 'bg-amber-100 border-amber-500 ring-2 ring-amber-200' :
                                             getConflicts(cls).length > 0 ? 'bg-red-50 border-red-300' :
+                                            hasPendingEnrollment(cls) ? 'bg-cyan-50 border-cyan-400 ring-2 ring-cyan-200' :
                                             getLoadCoverage(cls).under ? 'bg-orange-50 border-orange-300 hover:border-orange-400' :
                                             'bg-blue-50 border-blue-200 hover:border-blue-400'
                                         ]"
@@ -212,6 +219,9 @@ window.SchedulerComponents.PlanningBoard = {
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
+                                                <span v-show="getPendingEnrollmentCount(cls) > 0" class="bg-cyan-100 text-cyan-700 px-1 rounded font-bold" title="Pendientes por inscribir">
+                                                    Pend: {{ getPendingEnrollmentCount(cls) }}
+                                                </span>
                                                 <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
@@ -429,10 +439,26 @@ window.SchedulerComponents.PlanningBoard = {
 
              <!-- View Students Modal -->
              <div v-if="studentsDialog" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm" @click.self="studentsDialog = false">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-200">
                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                         <h4 class="font-bold text-slate-800">Estudiantes Asignados ({{ currentStudents.length }})</h4>
+                         <div>
+                            <h4 class="font-bold text-slate-800">Estudiantes Asignados ({{ currentStudents.length }})</h4>
+                            <p v-if="canManageCurrentStudents" class="text-xs text-slate-500">
+                                Pendientes por inscribir: <strong>{{ currentPendingStudents.length }}</strong>
+                            </p>
+                         </div>
                          <button @click="studentsDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
+                    </div>
+                    <div v-if="canManageCurrentStudents" class="px-4 py-2 border-b border-slate-200 bg-cyan-50 flex items-center justify-between gap-2">
+                        <span class="text-xs font-semibold text-cyan-800">Ficha publicada: puedes inscribir pendientes desde aqui.</span>
+                        <div class="flex gap-2">
+                            <button @click="refreshCurrentStudents" :disabled="enrollingStudents" class="px-3 py-1.5 text-xs font-bold bg-slate-200 text-slate-700 rounded hover:bg-slate-300 disabled:opacity-50">
+                                Actualizar
+                            </button>
+                            <button @click="enrollAllPendingStudents" :disabled="enrollingStudents || currentPendingStudents.length === 0" class="px-3 py-1.5 text-xs font-bold bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:opacity-50">
+                                {{ enrollingStudents ? 'Inscribiendo...' : ('Inscribir pendientes (' + currentPendingStudents.length + ')') }}
+                            </button>
+                        </div>
                     </div>
                     <div class="p-0 max-h-[60vh] overflow-y-auto">
                         <table class="w-full text-sm text-left">
@@ -441,16 +467,33 @@ window.SchedulerComponents.PlanningBoard = {
                                     <th class="px-4 py-2 border-b">ID</th>
                                     <th class="px-4 py-2 border-b">Nombre</th>
                                     <th class="px-4 py-2 border-b">Carrera</th>
+                                    <th class="px-4 py-2 border-b">Estado</th>
+                                    <th class="px-4 py-2 border-b">Fuente</th>
+                                    <th v-if="canManageCurrentStudents" class="px-4 py-2 border-b text-right">Accion</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
-                                <tr v-for="stu in currentStudents" :key="stu.id" class="hover:bg-slate-50">
+                                <tr v-for="stu in currentStudents" :key="stu.dbId || stu.id" class="hover:bg-slate-50">
                                     <td class="px-4 py-2 font-mono text-xs text-slate-500">{{ stu.id }}</td>
                                     <td class="px-4 py-2 font-medium text-slate-800">{{ stu.name }}</td>
                                     <td class="px-4 py-2 text-xs text-slate-500">{{ stu.career }}</td>
+                                    <td class="px-4 py-2 text-xs">
+                                        <span v-if="stu.pending" class="px-2 py-0.5 rounded bg-cyan-100 text-cyan-700 font-bold">Pendiente</span>
+                                        <span v-else class="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold">Inscrito</span>
+                                    </td>
+                                    <td class="px-4 py-2 text-xs text-slate-500">{{ getStudentSourceLabel(stu.source) }}</td>
+                                    <td v-if="canManageCurrentStudents" class="px-4 py-2 text-right">
+                                        <button v-if="stu.pending"
+                                                @click="enrollPendingStudent(stu)"
+                                                :disabled="enrollingStudents"
+                                                class="px-2 py-1 text-xs font-bold bg-cyan-600 text-white rounded hover:bg-cyan-700 disabled:opacity-50">
+                                            Inscribir
+                                        </button>
+                                        <span v-else class="text-[11px] text-slate-400">-</span>
+                                    </td>
                                 </tr>
                                 <tr v-if="currentStudents.length === 0">
-                                    <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">
+                                    <td :colspan="canManageCurrentStudents ? 6 : 5" class="px-4 py-8 text-center text-slate-400 italic">
                                         No hay información de estudiantes disponible.
                                     </td>
                                 </tr>
@@ -723,6 +766,8 @@ window.SchedulerComponents.PlanningBoard = {
             publishStatusText: '',
             studentsDialog: false,
             currentStudents: [],
+            currentStudentsClass: null,
+            enrollingStudents: false,
             logDialog: false,
             currentLog: [],
             teacherSearch: '',
@@ -750,6 +795,12 @@ window.SchedulerComponents.PlanningBoard = {
         },
         allClasses() {
             return this.storeState.generatedSchedules || [];
+        },
+        canManageCurrentStudents() {
+            return this.canManageEnrollment(this.currentStudentsClass);
+        },
+        currentPendingStudents() {
+            return (this.currentStudents || []).filter(stu => !!stu.pending);
         },
         selectedForJoinSplit() {
             const wanted = new Set((this.joinSplitSelectedIds || []).map(id => String(id)));
@@ -1100,6 +1151,132 @@ window.SchedulerComponents.PlanningBoard = {
         },
         toMins(t) {
             return this._toMins(t);
+        },
+        canManageEnrollment(cls) {
+            if (!cls || cls.isExternal) return false;
+            const classId = Number(cls.id || 0);
+            return classId > 0;
+        },
+        getPendingEnrollmentCount(cls) {
+            return Math.max(0, Number(cls?.pendingEnrollmentCount || 0));
+        },
+        hasPendingEnrollment(cls) {
+            return this.getPendingEnrollmentCount(cls) > 0;
+        },
+        getStudentSourceLabel(source) {
+            if (source === 'prereg') return 'Pre-registro';
+            if (source === 'queue') return 'Cola';
+            if (source === 'enrolled') return 'Inscrito';
+            return 'N/A';
+        },
+        _findStudentCareer(stu) {
+            const allStudents = this.storeState.students || [];
+            const dbId = Number(stu?.userid || stu?.dbId || 0);
+            if (dbId > 0) {
+                const byDb = allStudents.find(s => Number(s.dbId || 0) === dbId);
+                if (byDb && byDb.career) return byDb.career;
+            }
+            const sid = String(stu?.idnumber || stu?.id || '').trim();
+            if (sid) {
+                const byId = allStudents.find(s => String(s.id || '').trim() === sid);
+                if (byId && byId.career) return byId.career;
+            }
+            return 'N/A';
+        },
+        async loadPublishedClassStudents(cls) {
+            if (!window.schedulerStore || !this.canManageEnrollment(cls)) return false;
+            const classId = Number(cls.id || 0);
+            if (classId <= 0) return false;
+
+            const data = await window.schedulerStore._fetch('local_grupomakro_get_planned_students', { classid: classId });
+            const students = Array.isArray(data?.students) ? data.students : [];
+            const alreadySet = new Set((data?.already_enrolled || []).map(v => Number(v)));
+
+            this.currentStudents = students.map(stu => {
+                const uid = Number(stu.userid || 0);
+                const source = String(stu.source || '');
+                const isEnrolled = alreadySet.has(uid) || source === 'enrolled';
+                const pending = !isEnrolled;
+                return {
+                    id: stu.idnumber || String(uid),
+                    dbId: uid,
+                    name: stu.fullname || '',
+                    career: this._findStudentCareer(stu),
+                    source: source,
+                    pending: pending
+                };
+            });
+
+            this.currentStudents.sort((a, b) => {
+                if (a.pending !== b.pending) return a.pending ? -1 : 1;
+                return String(a.name || '').localeCompare(String(b.name || ''));
+            });
+
+            if (cls) {
+                cls.pendingEnrollmentCount = this.currentPendingStudents.length;
+            }
+            return true;
+        },
+        async refreshCurrentStudents() {
+            if (!this.currentStudentsClass) return;
+            if (this.canManageEnrollment(this.currentStudentsClass)) {
+                await this.loadPublishedClassStudents(this.currentStudentsClass);
+                return;
+            }
+            await this.viewStudents(this.currentStudentsClass);
+        },
+        async _enrollUserIdsInCurrentClass(userIds) {
+            if (!window.schedulerStore || !this.currentStudentsClass) return;
+            const classId = Number(this.currentStudentsClass.id || 0);
+            const normalized = Array.from(new Set((userIds || []).map(v => Number(v)).filter(v => v > 0)));
+            if (classId <= 0 || normalized.length === 0) return;
+
+            this.enrollingStudents = true;
+            try {
+                let res = await window.schedulerStore._fetch('local_grupomakro_bulk_enroll_students', {
+                    classid: classId,
+                    userids: JSON.stringify(normalized),
+                    force_over_quota: 0
+                });
+
+                if (res && res.status === 'quota_exceeded') {
+                    const msg = res.message || 'Se excede el cupo. Desea continuar y ampliar cupo?';
+                    if (!confirm(msg)) {
+                        return;
+                    }
+                    res = await window.schedulerStore._fetch('local_grupomakro_bulk_enroll_students', {
+                        classid: classId,
+                        userids: JSON.stringify(normalized),
+                        force_over_quota: 1
+                    });
+                }
+
+                if (!res || res.status !== 'success') {
+                    throw new Error(res?.message || 'No se pudo completar la inscripcion.');
+                }
+
+                await this.loadPublishedClassStudents(this.currentStudentsClass);
+            } finally {
+                this.enrollingStudents = false;
+            }
+        },
+        async enrollPendingStudent(stu) {
+            if (!stu || !stu.pending) return;
+            try {
+                await this._enrollUserIdsInCurrentClass([stu.dbId]);
+            } catch (e) {
+                alert('Error al inscribir estudiante: ' + (e.message || 'desconocido'));
+            }
+        },
+        async enrollAllPendingStudents() {
+            const pendingIds = this.currentPendingStudents.map(stu => Number(stu.dbId || 0)).filter(v => v > 0);
+            if (pendingIds.length === 0) return;
+            if (!confirm(`Inscribir ${pendingIds.length} estudiante(s) pendientes?`)) return;
+            try {
+                await this._enrollUserIdsInCurrentClass(pendingIds);
+            } catch (e) {
+                alert('Error en inscripcion masiva: ' + (e.message || 'desconocido'));
+            }
         },
         isClassSelected(cls) {
             if (!cls) return false;
@@ -2198,16 +2375,44 @@ window.SchedulerComponents.PlanningBoard = {
         },
         async viewStudents(cls) {
             if (!window.schedulerStore) return;
+            this.currentStudentsClass = cls || null;
+
+            if (this.canManageEnrollment(cls)) {
+                try {
+                    const loaded = await this.loadPublishedClassStudents(cls);
+                    if (loaded) {
+                        this.studentsDialog = true;
+                        return;
+                    }
+                } catch (e) {
+                    console.error('loadPublishedClassStudents failed', e);
+                }
+            }
 
             const allStudents = window.schedulerStore.state.students || [];
-            const localStudents = allStudents.filter(s => (cls.studentIds || []).includes(s.id || s.dbId));
+            const localStudents = allStudents.filter(s => (cls.studentIds || []).includes(s.id || s.dbId))
+                .map(s => ({
+                    id: s.id,
+                    dbId: s.dbId || 0,
+                    name: s.name,
+                    career: s.career || 'N/A',
+                    source: 'demand',
+                    pending: false
+                }));
             const localIncomplete = (Number(cls.studentCount || 0) > 0) && (localStudents.length < Number(cls.studentCount || 0));
 
             // For external classes, empty local ids, or incomplete local metadata, fetch from backend.
             if (cls.isExternal || !cls.studentIds || cls.studentIds.length === 0 || localIncomplete) {
                 const fetched = await window.schedulerStore.fetchClassStudents(cls.id);
                 if (fetched && fetched.length > 0) {
-                    this.currentStudents = fetched;
+                    this.currentStudents = fetched.map(stu => ({
+                        id: stu.id,
+                        dbId: stu.dbId || 0,
+                        name: stu.name,
+                        career: stu.career || 'N/A',
+                        source: 'assigned',
+                        pending: false
+                    }));
                     this.studentsDialog = true;
                     return;
                 }

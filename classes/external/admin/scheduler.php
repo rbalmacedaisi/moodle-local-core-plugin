@@ -1637,6 +1637,22 @@ class scheduler extends external_api {
             $institutionalPeriodId = (int)($c->institutional_period_id ?? 0);
             $finalPeriodId = $institutionalPeriodId ?: (int)($academic_period_id ?: 0);
 
+            $instructorId = (int)($c->instructorid ?? 0);
+            $normalizeUserIds = static function(array $ids, $instructorId) {
+                $out = [];
+                foreach ($ids as $raw) {
+                    $uid = (int)$raw;
+                    if ($uid <= 0) {
+                        continue;
+                    }
+                    if ($instructorId > 0 && $uid === (int)$instructorId) {
+                        continue;
+                    }
+                    $out[$uid] = $uid;
+                }
+                return array_values($out);
+            };
+
             $groupStudentUserIds = [];
             if (!empty($c->groupid)) {
                 $groupSql = "SELECT gm.userid
@@ -1651,43 +1667,44 @@ class scheduler extends external_api {
                 $groupStudentUserIds = $DB->get_fieldset_sql($groupSql, $groupParams);
             }
 
-            $instructorId = (int)($c->instructorid ?? 0);
-            $classUserIds = array_values(array_unique(array_filter(array_merge(
-                // pre-registration users
-                $DB->get_fieldset_sql(
-                    "SELECT pr.userid
-                       FROM {gmk_class_pre_registration} pr
-                      WHERE pr.classid = ?",
-                    [$c->id]
-                ),
-                // queue users
-                $DB->get_fieldset_sql(
-                    "SELECT q.userid
-                       FROM {gmk_class_queue} q
-                      WHERE q.classid = ?",
-                    [$c->id]
-                ),
-                // enrolled users in Moodle group
-                $groupStudentUserIds,
-                // enrolled users in local progress
-                $DB->get_fieldset_sql(
-                    "SELECT p.userid
-                       FROM {gmk_course_progre} p
-                      WHERE p.classid = ?",
-                    [$c->id]
-                )
-            ), static function($userid) use ($instructorId) {
-                $uid = (int)$userid;
-                if ($uid <= 0) {
-                    return false;
-                }
-                if ($instructorId > 0 && $uid === $instructorId) {
-                    return false;
-                }
-                return true;
-            })));
+            $preRegUserIds = $DB->get_fieldset_sql(
+                "SELECT pr.userid
+                   FROM {gmk_class_pre_registration} pr
+                  WHERE pr.classid = ?",
+                [$c->id]
+            );
+            $queuedUserIds = $DB->get_fieldset_sql(
+                "SELECT q.userid
+                   FROM {gmk_class_queue} q
+                  WHERE q.classid = ?",
+                [$c->id]
+            );
+            $progreUserIds = $DB->get_fieldset_sql(
+                "SELECT p.userid
+                   FROM {gmk_course_progre} p
+                  WHERE p.classid = ?",
+                [$c->id]
+            );
+
+            $preRegUserIds = $normalizeUserIds((array)$preRegUserIds, $instructorId);
+            $queuedUserIds = $normalizeUserIds((array)$queuedUserIds, $instructorId);
+            $groupStudentUserIds = $normalizeUserIds((array)$groupStudentUserIds, $instructorId);
+            $progreUserIds = $normalizeUserIds((array)$progreUserIds, $instructorId);
+
+            $enrolledUserIds = array_values(array_unique(array_merge($groupStudentUserIds, $progreUserIds)));
+            $pendingCandidateUserIds = array_values(array_diff(
+                array_values(array_unique(array_merge($preRegUserIds, $queuedUserIds))),
+                $enrolledUserIds
+            ));
+
+            $classUserIds = array_values(array_unique(array_merge(
+                $preRegUserIds,
+                $queuedUserIds,
+                $enrolledUserIds
+            )));
 
             $classStudentIds = [];
+            $validUserIds = [];
             if (!empty($classUserIds)) {
                 $userRows = $DB->get_records_list('user', 'id', $classUserIds, '', 'id, idnumber, deleted');
                 foreach ($classUserIds as $uid) {
@@ -1695,11 +1712,30 @@ class scheduler extends external_api {
                     if (empty($userRows[$uid]) || !empty($userRows[$uid]->deleted)) {
                         continue;
                     }
+                    $validUserIds[$uid] = $uid;
                     $idnumber = trim((string)$userRows[$uid]->idnumber);
                     $classStudentIds[] = ($idnumber !== '') ? $idnumber : (string)$uid;
                 }
                 $classStudentIds = array_values(array_unique($classStudentIds));
             }
+
+            $countValid = static function(array $ids, array $validSet) {
+                $count = 0;
+                foreach ($ids as $id) {
+                    if (isset($validSet[(int)$id])) {
+                        $count++;
+                    }
+                }
+                return $count;
+            };
+            $validSet = [];
+            foreach ($validUserIds as $uid) {
+                $validSet[(int)$uid] = true;
+            }
+            $preRegisteredCount = $countValid($preRegUserIds, $validSet);
+            $queuedCount = $countValid($queuedUserIds, $validSet);
+            $enrolledCount = $countValid($enrolledUserIds, $validSet);
+            $pendingEnrollmentCount = $countValid($pendingCandidateUserIds, $validSet);
 
             $result[] = [
                 'id' => (int)$c->id,
@@ -1714,6 +1750,10 @@ class scheduler extends external_api {
                 'corecourseid' => (int)($c->corecourseid ?? 0),
                 'studentIds' => $classStudentIds,
                 'studentCount' => count($classStudentIds),
+                'preRegisteredCount' => (int)$preRegisteredCount,
+                'queuedCount' => (int)$queuedCount,
+                'enrolledCount' => (int)$enrolledCount,
+                'pendingEnrollmentCount' => (int)$pendingEnrollmentCount,
                 'career' => !empty($c->career_label) ? $c->career_label : ($c->career ?? 'General'),
                 'shift' => !empty($c->shift) ? $c->shift : 'No Definida', 
                 'levelDisplay' => !empty($c->level_label) ? $c->level_label : 'Nivel X', 
