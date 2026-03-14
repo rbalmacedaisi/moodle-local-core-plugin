@@ -1810,6 +1810,77 @@ window.SchedulerComponents.PlanningBoard = {
                     'careerList', 'levelList', 'levelDisplay', 'isQuorumException',
                     'assignedDates', 'maxSessions', 'isExternal', 'sessions', 'classdays'
                 ];
+                const roomToSessionClassroom = (room) => {
+                    const token = String(room || '').trim();
+                    if (!token) return null;
+                    if (token.toUpperCase() === 'SIN AULA') return null;
+                    return room;
+                };
+                const classdaysFromDay = (dayLabel) => {
+                    const mask = [0, 0, 0, 0, 0, 0, 0];
+                    const key = this.normalizeDay(dayLabel);
+                    const idxMap = {
+                        LUNES: 0,
+                        MARTES: 1,
+                        MIERCOLES: 2,
+                        JUEVES: 3,
+                        VIERNES: 4,
+                        SABADO: 5,
+                        DOMINGO: 6
+                    };
+                    const idx = idxMap[key];
+                    if (idx === undefined) return '0/0/0/0/0/0/0';
+                    mask[idx] = 1;
+                    return mask.join('/');
+                };
+                const assignedDatesForPayload = (item, dayLabel, startTime, endTime) => {
+                    const isoPattern = /^\d{4}-\d{2}-\d{2}$/;
+                    const targetDay = this.normalizeDay(dayLabel);
+                    const weekdayMap = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
+                    const existing = Array.isArray(item.assignedDates)
+                        ? item.assignedDates
+                            .map(d => String(d || '').trim())
+                            .filter(d => isoPattern.test(d))
+                        : [];
+                    const matching = existing.filter(d => {
+                        const dt = new Date(`${d}T12:00:00`);
+                        if (Number.isNaN(dt.getTime())) return false;
+                        return weekdayMap[dt.getDay()] === targetDay;
+                    });
+                    if (matching.length > 0 && matching.length === existing.length) {
+                        return [...matching];
+                    }
+
+                    // Recompute when assignedDates are missing or stale for the current day.
+                    if (window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
+                        const schedulerDay = this.toSchedulerDay(dayLabel);
+                        let dates = window.SchedulerAlgorithm.getDatesForDay(
+                            schedulerDay || dayLabel,
+                            this.storeState.context,
+                            item.subperiod || 0
+                        );
+
+                        // Keep same load-based cap used by drag/drop and resize flows.
+                        const duration = this.toMins(endTime) - this.toMins(startTime);
+                        const loads = this.storeState.context?.loads || [];
+                        const loadData = loads.find(l =>
+                            (l.subjectname || l.subjectName) === item.subjectName
+                        );
+                        if (loadData && dates.length > 0 && duration > 0) {
+                            const totalHours = parseFloat(loadData.total_hours || loadData.totalHours || 0);
+                            const sessionHours = duration / 60;
+                            if (totalHours > 0 && sessionHours > 0) {
+                                const maxSessions = Math.ceil(totalHours / sessionHours);
+                                dates = dates.slice(0, maxSessions);
+                            }
+                        }
+                        if (dates.length > 0) {
+                            return dates;
+                        }
+                    }
+
+                    return matching;
+                };
                 const singlePayload = [cls]
                     .filter(s => {
                         if (s.isExternal) return false;
@@ -1820,6 +1891,47 @@ window.SchedulerComponents.PlanningBoard = {
                     .map(s => {
                         const clean = {};
                         essentialKeys.forEach(k => { if (s[k] !== undefined) clean[k] = s[k]; });
+
+                        // Canonicalize schedule payload from current card placement.
+                        // Do not trust historical sessions[] because it may keep stale dates.
+                        const day = String(s.day || '').trim();
+                        const start = String(s.start || '').trim();
+                        const end = String(s.end || '').trim();
+                        const hasPlacement = (
+                            day !== '' &&
+                            day !== 'N/A' &&
+                            start !== '' &&
+                            end !== '' &&
+                            start !== '00:00' &&
+                            end !== '00:00'
+                        );
+
+                        if (hasPlacement) {
+                            const session = {
+                                day: day,
+                                start: start,
+                                end: end
+                            };
+                            const sessionClassroom = roomToSessionClassroom(s.room);
+                            if (sessionClassroom !== null) {
+                                session.classroomid = sessionClassroom;
+                            }
+                            const payloadAssignedDates = assignedDatesForPayload(s, day, start, end);
+                            if (payloadAssignedDates.length > 0) {
+                                session.assignedDates = [...payloadAssignedDates];
+                                clean.assignedDates = [...payloadAssignedDates];
+                            } else {
+                                delete clean.assignedDates;
+                            }
+
+                            clean.sessions = [session];
+                            clean.classdays = classdaysFromDay(day);
+                        } else {
+                            clean.sessions = [];
+                            clean.classdays = '0/0/0/0/0/0/0';
+                            delete clean.assignedDates;
+                        }
+
                         return clean;
                     });
                 if (singlePayload.length !== 1) {
