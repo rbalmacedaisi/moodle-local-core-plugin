@@ -655,17 +655,10 @@
                 // Crítico: si alguna clase tenía un ID stale (registro borrado → INSERT con nuevo ID),
                 // actualizar state.generatedSchedules para que el re-guardado del draft use el ID correcto
                 // y no genere duplicados en la próxima publicación.
-                classids.forEach((newId, idx) => {
-                    if (!newId || !optimized[idx]) return;
-                    const cls = optimized[idx];
-                    const match = this.state.generatedSchedules.find(s =>
-                        !s.isExternal &&
-                        String(s.corecourseid) === String(cls.corecourseid) &&
-                        s.shift === cls.shift &&
-                        s.day   === cls.day
-                    );
-                    if (match) match.id = newId;
-                });
+                // IMPORTANT:
+                // Backend classids are not guaranteed to follow payload order.
+                // Never remap local schedule IDs by array index here.
+                // We reload from DB after publish, which is the source of truth.
 
                 // ── FASE 2: crear estructuras Moodle clase por clase ─────────────────────
                 const total    = classids.length;
