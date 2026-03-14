@@ -1,8 +1,33 @@
 <?php
-// Página de diagnóstico y reparación del draft de planificación:
-//   1. Detecta entradas duplicadas en draft_schedules y deduplica (conserva la más reciente por id).
-//   2. Detecta grupos Moodle huérfanos (sin gmk_class activa asociada) en cursos gestionados
-//      por el plugin, y los elimina junto con su sección de curso.
+// Página de diagnóstico y reparación del draft de planificación.
+
+// Captura errores fatales y excepciones no capturadas para mostrarlos como HTML en lugar de 500.
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        if (!headers_sent()) {
+            header('HTTP/1.1 200 OK');
+            header('Content-Type: text/html; charset=utf-8');
+        }
+        echo '<div style="background:#fde;border:2px solid red;padding:16px;font-family:monospace;margin:20px;">'
+           . '<b>PHP Fatal Error:</b><br>'
+           . htmlspecialchars($err['message'])
+           . '<br><small>' . htmlspecialchars($err['file'] . ':' . $err['line']) . '</small>'
+           . '</div>';
+    }
+});
+set_exception_handler(function($e) {
+    if (!headers_sent()) {
+        header('HTTP/1.1 200 OK');
+        header('Content-Type: text/html; charset=utf-8');
+    }
+    echo '<div style="background:#fde;border:2px solid red;padding:16px;font-family:monospace;margin:20px;">'
+       . '<b>Uncaught Exception:</b> ' . htmlspecialchars(get_class($e)) . '<br>'
+       . htmlspecialchars($e->getMessage())
+       . '<br><small>' . htmlspecialchars($e->getFile() . ':' . $e->getLine()) . '</small>'
+       . '<pre style="font-size:11px;overflow:auto;max-height:300px">' . htmlspecialchars($e->getTraceAsString()) . '</pre>'
+       . '</div>';
+});
 
 $config_path = __DIR__ . '/../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../config.php';
