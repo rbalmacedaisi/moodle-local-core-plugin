@@ -365,7 +365,8 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
         }
 
         $cleared = 0;
-        foreach ($draftitems as &$it) {
+        $droppedmissing = 0;
+        foreach ($draftitems as $k => &$it) {
             if (!is_array($it)) {
                 continue;
             }
@@ -375,13 +376,23 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             $id = (int)$it['id'];
             $dbrow = $dbbyid[$id] ?? null;
             if (!$dbrow) {
-                unset($it['id']);
-                $cleared++;
+                if ($action === 'normalize_publish') {
+                    unset($draftitems[$k]);
+                    $droppedmissing++;
+                } else {
+                    unset($it['id']);
+                    $cleared++;
+                }
                 continue;
             }
             if ((int)$dbrow->periodid !== $periodid) {
-                unset($it['id']);
-                $cleared++;
+                if ($action === 'normalize_publish') {
+                    unset($draftitems[$k]);
+                    $droppedmissing++;
+                } else {
+                    unset($it['id']);
+                    $cleared++;
+                }
                 continue;
             }
 
@@ -420,6 +431,7 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
         unset($it);
 
         if ($action === 'normalize_publish') {
+            $draftitems = array_values($draftitems);
             $draftitems = array_values(array_filter($draftitems, static function($item) use ($periodid) {
                 return is_array($item) && !gmk_dbg_pub_is_external($item, $periodid);
             }));
@@ -464,7 +476,7 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             unset($it3);
 
             gmk_dbg_pub_save_draft($periodid, $draftitems);
-            $message = "Action normalize_publish completed. ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
+            $message = "Action normalize_publish completed. missing_id_rows_dropped={$droppedmissing} ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
             $messageclass = 'alert-success';
         } else {
             gmk_dbg_pub_save_draft($periodid, $draftitems);
