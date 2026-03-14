@@ -51,11 +51,7 @@ class manual_enroll extends external_api {
              return ['status' => 'error', 'message' => 'Class is closed. Cannot enroll students.'];
         }
 
-        // Logic from enrolApprovedScheduleStudents
-        // 1. Add to group when available
-        if (!empty($class->groupid) && groups_is_member($class->groupid, $params['userId'])) {
-            return ['status' => 'warning', 'message' => 'User is already in this class group.'];
-        }
+        $alreadyInGroup = (!empty($class->groupid) && groups_is_member((int)$class->groupid, (int)$params['userId']));
 
         // Before adding to group, ensure user is enrolled in the core course
         $enrolplugin = enrol_get_plugin('manual');
@@ -66,49 +62,25 @@ class manual_enroll extends external_api {
             $enrolplugin->enrol_user($courseInstance, $params['userId'], $studentRoleId);
         }
 
-        if (!empty($class->groupid)) {
-            $added = groups_add_member($class->groupid, $params['userId']);
-        } else {
-            // Some repaired classes may not have Moodle group; course enrollment/progress is still valid.
-            $added = true;
+        $added = true;
+        if (!empty($class->groupid) && !$alreadyInGroup) {
+            $added = groups_add_member((int)$class->groupid, (int)$params['userId']);
         }
-        
-        if ($added) {
-            // 2. Assign to course progress
-            // Note: assign_class_to_course_progress typically expects a record in gmk_course_progre to exist.
-            // If the user hasn't started the course/plan, this record might be missing.
-            // Let's check if we need to create it.
-            
-            $progress = $DB->get_record('gmk_course_progre', ['userid' => $params['userId'], 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
-            if (!$progress) {
-                 // Create base progress record if missing?
-                 // Usually created when assigned a plan?
-                 // For now, let's try to update, if it fails, maybe we need to create it.
-                 // But assign_class_to_course_progress does get_record first.
-                 
-                 // If no progress record, we probably should create one or fail?
-                 // Let's assume manual enrollment implies they should have one.
-                 // Let's create a default one if missing.
-                 $newProgress = new \stdClass();
-                 $newProgress->userid = $params['userId'];
-                 $newProgress->courseid = $class->corecourseid;
-                 $newProgress->classid = $class->id;
-                 $newProgress->groupid = $class->groupid;
-                 $newProgress->progress = 0;
-                 $newProgress->grade = 0;
-                 $newProgress->status = 1; // COURSE_IN_PROGRESS (Assuming 1)
-                 $newProgress->learningplanid = $class->learningplanid;
-                 $newProgress->timecreated = time();
-                 $newProgress->timemodified = time();
-                 $DB->insert_record('gmk_course_progre', $newProgress);
-            } else {
-                \local_grupomakro_progress_manager::assign_class_to_course_progress($params['userId'], $class);
-            }
-            
-            return ['status' => 'ok', 'message' => 'User enrolled successfully.'];
-        } else {
+
+        if (!$added) {
             return ['status' => 'error', 'message' => 'Failed to add user to group.'];
         }
+
+        try {
+            \local_grupomakro_progress_manager::assign_class_to_course_progress((int)$params['userId'], $class);
+        } catch (\Throwable $t) {
+            return ['status' => 'error', 'message' => 'Failed to sync course progress: ' . $t->getMessage()];
+        }
+
+        if ($alreadyInGroup) {
+            return ['status' => 'ok', 'message' => 'User was already in group. Progress synced.'];
+        }
+        return ['status' => 'ok', 'message' => 'User enrolled successfully.'];
     }
 
     /**
