@@ -20,6 +20,7 @@ $teacherid = optional_param('teacherid', 0, PARAM_INT);
 $teacherquery = trim(optional_param('teacher', 'LORENZO GONZALEZ PALMA', PARAM_RAW_TRIMMED));
 $classid = optional_param('classid', 0, PARAM_INT);
 $classquery = trim(optional_param('classname', '2026-II (D) DESARROLLO DE LA PERSONALIDAD (PRESENCIAL) C', PARAM_RAW_TRIMMED));
+$dbgversion = '2026-03-14-03';
 
 /**
  * Escape text.
@@ -318,8 +319,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== '') {
                 throw new moodle_exception('Source and target user cannot be the same.');
             }
 
-            $sourceuser = $DB->get_record('user', ['id' => $sourceuserid, 'deleted' => 0], 'id,firstname,lastname,username', MUST_EXIST);
+            $sourceuser = $DB->get_record('user', ['id' => $sourceuserid], 'id,firstname,lastname,username,deleted', IGNORE_MISSING);
             $targetuser = $DB->get_record('user', ['id' => $targetuserid, 'deleted' => 0], 'id,firstname,lastname,username', MUST_EXIST);
+            $sourcelabel = 'id=' . $sourceuserid;
+            if ($sourceuser) {
+                $name = trim((string)$sourceuser->firstname . ' ' . (string)$sourceuser->lastname);
+                if ($name !== '') {
+                    $sourcelabel .= ' (' . $name . ')';
+                }
+                if ((int)$sourceuser->deleted === 1) {
+                    $sourcelabel .= ' [deleted]';
+                }
+            } else {
+                $sourcelabel .= ' [missing]';
+            }
+            $targetlabel = 'id=' . (int)$targetuser->id . ' (' . trim((string)$targetuser->firstname . ' ' . (string)$targetuser->lastname) . ')';
 
             $affected = 0;
             $tx = $DB->start_delegated_transaction();
@@ -354,7 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== '') {
             $tx->allow_commit();
 
             if ($affected > 0) {
-                $messagesok[] = 'Reassigned ' . $affected . ' class(es) from user ' . (int)$sourceuser->id . ' to ' . (int)$targetuser->id . '.';
+                $messagesok[] = 'Reassigned ' . $affected . ' class(es) from ' . $sourcelabel . ' to ' . $targetlabel . '.';
             } else {
                 $messageswarn[] = 'No classes were reassigned.';
             }
@@ -376,24 +390,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== '') {
                 throw new moodle_exception('Cannot delete the selected target teacher user.');
             }
 
-            $deleteuser = $DB->get_record('user', ['id' => $deleteuserid, 'deleted' => 0], '*', MUST_EXIST);
-            if (is_siteadmin($deleteuserid)) {
-                throw new moodle_exception('Cannot delete a site admin user.');
+            $deleteuser = $DB->get_record('user', ['id' => $deleteuserid], '*', IGNORE_MISSING);
+            if (!$deleteuser) {
+                $messageswarn[] = 'User id=' . $deleteuserid . ' does not exist in user table.';
+                $deleteuser = null;
             }
-            if ((int)$deleteuserid === 1) {
-                throw new moodle_exception('Cannot delete guest/admin protected account.');
+            if ($deleteuser && (int)$deleteuser->deleted === 1) {
+                $messageswarn[] = 'User id=' . $deleteuserid . ' is already deleted.';
+                $deleteuser = null;
             }
-
-            $remainingclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $deleteuserid]);
-            if ($remainingclasses > 0) {
-                throw new moodle_exception('User still has ' . $remainingclasses . ' class(es) assigned. Reassign first.');
-            }
-
-            $ok = delete_user($deleteuser);
-            if ($ok) {
-                $messagesok[] = 'User ' . (int)$deleteuserid . ' deleted successfully.';
+            if (!$deleteuser) {
+                // Nothing else to delete from Moodle user table.
+                $remainingclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $deleteuserid]);
+                if ($remainingclasses > 0) {
+                    $messageswarn[] = 'There are still ' . $remainingclasses . ' class(es) pointing to this missing/deleted user id.';
+                }
             } else {
-                throw new moodle_exception('delete_user returned false.');
+                if (is_siteadmin($deleteuserid)) {
+                    throw new moodle_exception('Cannot delete a site admin user.');
+                }
+                if ((int)$deleteuserid === 1) {
+                    throw new moodle_exception('Cannot delete guest/admin protected account.');
+                }
+
+                $remainingclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $deleteuserid]);
+                if ($remainingclasses > 0) {
+                    throw new moodle_exception('User still has ' . $remainingclasses . ' class(es) assigned. Reassign first.');
+                }
+
+                $ok = delete_user($deleteuser);
+                if ($ok) {
+                    $messagesok[] = 'User ' . (int)$deleteuserid . ' deleted successfully.';
+                } else {
+                    throw new moodle_exception('delete_user returned false.');
+                }
             }
         } else {
             $messageswarn[] = 'Unknown action ignored: ' . $action;
@@ -499,8 +529,10 @@ if ($selectedteacher) {
 
     if (!empty($candidateids)) {
         $users = $DB->get_records_list('user', 'id', array_values($candidateids), 'id ASC', 'id,username,firstname,lastname,email,idnumber,suspended,deleted');
+        $foundids = [];
         foreach ($users as $u) {
             $uid = (int)$u->id;
+            $foundids[$uid] = $uid;
             $totalclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $uid]);
             $matchedclasses = 0;
             foreach ($classes as $c) {
@@ -511,6 +543,36 @@ if ($selectedteacher) {
             $sourcecandidates[$uid] = [
                 'user' => $u,
                 'reasons' => array_keys($reasonsbyid[$uid] ?? []),
+                'totalclasses' => $totalclasses,
+                'matchedclasses' => $matchedclasses,
+            ];
+        }
+
+        // Include orphan instructor ids that are referenced in gmk_class but missing from user table.
+        foreach ($candidateids as $uid) {
+            if (isset($foundids[$uid])) {
+                continue;
+            }
+            $synthetic = (object)[
+                'id' => (int)$uid,
+                'username' => '[missing]',
+                'firstname' => '[missing user]',
+                'lastname' => '',
+                'email' => '',
+                'idnumber' => '',
+                'suspended' => 0,
+                'deleted' => 1,
+            ];
+            $totalclasses = (int)$DB->count_records('gmk_class', ['instructorid' => (int)$uid]);
+            $matchedclasses = 0;
+            foreach ($classes as $c) {
+                if ((int)$c->instructorid === (int)$uid) {
+                    $matchedclasses++;
+                }
+            }
+            $sourcecandidates[(int)$uid] = [
+                'user' => $synthetic,
+                'reasons' => array_keys($reasonsbyid[(int)$uid] ?? []),
                 'totalclasses' => $totalclasses,
                 'matchedclasses' => $matchedclasses,
             ];
@@ -551,6 +613,7 @@ table.dbg-table th { background: #f3f4f6; }
             <input id="classid" name="classid" type="number" min="0" step="1" value="<?php echo (int)$classid; ?>" />
             <button type="submit">Diagnose</button>
         </form>
+        <p class="dbg-note"><strong>Debug version:</strong> <?php echo dbg_h($dbgversion); ?></p>
         <p class="dbg-note">Rules used here are the same as <code>get_dashboard_data.php</code>: <code>closed=0</code>, <code>enddate &gt;= now-7d</code>, <code>exists gmk_bbb_attendance_relation</code>, and instructor match unless admin.</p>
     </div>
 
@@ -657,6 +720,7 @@ table.dbg-table th { background: #f3f4f6; }
                     <tr>
                         <th>Source user</th>
                         <th>Reasons</th>
+                        <th>Deleted</th>
                         <th>Classes assigned</th>
                         <th>Classes in current filter</th>
                         <th>Reassign matched</th>
@@ -674,6 +738,7 @@ table.dbg-table th { background: #f3f4f6; }
                                 <span class="dbg-note"><?php echo dbg_h($su->username . ' | ' . $su->email); ?></span>
                             </td>
                             <td><?php echo dbg_h(empty($cand['reasons']) ? '-' : implode(', ', $cand['reasons'])); ?></td>
+                            <td><?php echo ((int)$su->deleted === 1) ? '<span class="dbg-warn">YES</span>' : '<span class="dbg-ok">NO</span>'; ?></td>
                             <td><?php echo (int)$cand['totalclasses']; ?></td>
                             <td><?php echo (int)$cand['matchedclasses']; ?></td>
                             <td>
