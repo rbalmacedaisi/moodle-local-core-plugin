@@ -25,6 +25,65 @@ let secondarycolordark;
 let bgcolordark;
 let darkMode = false;
 
+function mountVueApp() {
+  // Verify that the DOM element exists before creating Vue instance
+  const appElement = document.querySelector('#gmk-app');
+  if (!appElement) {
+    console.error('Cannot find #gmk-app element. Vue initialization aborted.');
+    return;
+  }
+
+  // Add SweetAlert2 to Vue prototype
+  if (typeof Swal !== 'undefined') {
+    window.Vue.prototype.$swal = Swal;
+  } else {
+    console.warn('SweetAlert2 is not loaded. Alerts will not work.');
+  }
+
+  const app = new window.Vue({
+    el: '#gmk-app',
+    vuetify: new window.Vuetify({
+      treeShake: true,
+      theme: {
+        dark: darkMode,
+        themes: {
+          light: {
+            primary: primarycolor,
+            secondary: secondarycolor,
+            availabilityColor: '#0ed456',
+            success: '#3cd4a0',
+            base: '#f8f9fa'
+          },
+          dark: {
+            primary: darkPrimarycolor,
+            secondary: secondarycolordark,
+            availabilityColor: '#0ed456',
+            success: '#3cd4a0',
+            base: bgcolordark
+          }
+        },
+      },
+    }),
+    data: {},
+    mounted() {},
+    created() {},
+    methods: {},
+  });
+
+  // Set up a MutationObserver to detect changes in light/dark mode
+  const observer = new window.MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.attributeName === 'data-preset') {
+        // Update the Vuetify theme based on the current light/dark mode.
+        const newValue = mutation.target.getAttribute('data-preset');
+        app.$vuetify.theme.dark = newValue === 'dark';
+      }
+    });
+  });
+
+  observer.observe(document.documentElement, { attributes: true });
+}
+
 // Wrap initialization in DOMContentLoaded to ensure DOM is ready
 function initVueApp() {
   // Make a GET request to the API using Axios and the specified parameters.
@@ -45,67 +104,17 @@ function initVueApp() {
       if (preset === 'dark') {
         darkMode = true;
       }
-
-      // Verify that the DOM element exists before creating Vue instance
-      const appElement = document.querySelector('#gmk-app');
-      if (!appElement) {
-        console.error('Cannot find #gmk-app element. Vue initialization aborted.');
-        return;
-      }
-
-      // Add SweetAlert2 to Vue prototype
-      if (typeof Swal !== 'undefined') {
-        window.Vue.prototype.$swal = Swal;
-      } else {
-        console.warn('SweetAlert2 is not loaded. Alerts will not work.');
-      }
-
-      // Create a Vue instance for the application.
-      const app = new window.Vue({
-        el: '#gmk-app',
-        vuetify: new window.Vuetify({
-        treeShake: true,
-        theme: {
-          dark: darkMode,
-          themes: {
-            light: {
-              primary: primarycolor,
-              secondary: secondarycolor,
-              availabilityColor: '#0ed456',
-              success: '#3cd4a0',
-              base: '#f8f9fa'
-            },
-            dark: {
-              primary: darkPrimarycolor,
-              secondary: secondarycolordark,
-              availabilityColor: '#0ed456',
-              success: '#3cd4a0',
-              base: bgcolordark
-            }
-          },
-        },
-      }),
-      data: {
-      },
-      mounted() { },
-      created() { },
-      methods: {},
-    });
-      // Set up a MutationObserver to detect changes in light/dark mode
-      const observer = new window.MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.attributeName === 'data-preset') {
-            // Update the Vuetify theme based on the current light/dark mode.
-            const newValue = mutation.target.getAttribute('data-preset');
-            app.$vuetify.theme.dark = newValue === 'dark';
-          }
-        });
-      });
-
-      observer.observe(document.documentElement, { attributes: true });
+      mountVueApp();
     })
     .catch(error => {
       console.error(error);
+      // Fallback defaults so schedule page still loads even if theme API fails.
+      primarycolor = primarycolor || '#1976d2';
+      darkPrimarycolor = darkPrimarycolor || '#1e88e5';
+      secondarycolor = secondarycolor || '#424242';
+      secondarycolordark = secondarycolordark || '#bdbdbd';
+      bgcolordark = bgcolordark || '#121212';
+      mountVueApp();
     });
 }
 

@@ -73,12 +73,24 @@ class get_calendar_events extends external_api
         try {
             $requesteduserid = !empty($params['userId']) ? (int)$params['userId'] : 0;
             $currentuserid = !empty($USER->id) ? (int)$USER->id : 0;
+            $isadmin = $currentuserid > 0 ? is_siteadmin($currentuserid) : false;
 
-            // Defensive fallback for clients that occasionally send userId empty/0.
-            // In that case we must scope events to the authenticated token user.
-            $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
+            // Admin behavior:
+            // - userId provided -> scope to that user.
+            // - userId empty/null -> global calendar (all classes).
+            // Non-admin behavior:
+            // - always scope to authenticated user to avoid cross-user reads.
+            if ($isadmin) {
+                $targetuserid = $requesteduserid > 0 ? $requesteduserid : null;
+            } else {
+                if ($requesteduserid > 0 && $requesteduserid !== $currentuserid) {
+                    $targetuserid = $currentuserid;
+                } else {
+                    $targetuserid = $requesteduserid > 0 ? $requesteduserid : $currentuserid;
+                }
+            }
 
-            if ($targetuserid <= 0) {
+            if (!$isadmin && $targetuserid <= 0) {
                 throw new Exception('No se pudo resolver el usuario para consultar eventos.');
             }
 
