@@ -1768,8 +1768,9 @@ window.SchedulerComponents.PlanningBoard = {
         async publishSingleClass(cls) {
             if (!window.schedulerStore || !cls || cls.isExternal) return;
 
-            const hasSession = (Array.isArray(cls.sessions) && cls.sessions.length > 0) ||
-                               (cls.day && cls.day !== 'N/A');
+            const hasSession = (typeof window.schedulerStore._isProgrammedSchedule === 'function')
+                ? window.schedulerStore._isProgrammedSchedule(cls)
+                : ((Array.isArray(cls.sessions) && cls.sessions.length > 0) || (cls.day && cls.day !== 'N/A'));
             if (!hasSession) {
                 alert('Esta ficha no tiene horario asignado. Ubícala en el calendario antes de publicar.');
                 return;
@@ -1807,7 +1808,9 @@ window.SchedulerComponents.PlanningBoard = {
                 const allPlaced = this.allClasses
                     .filter(s => {
                         if (s.isExternal) return false;
-                        return (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                        return (typeof store._isProgrammedSchedule === 'function')
+                            ? store._isProgrammedSchedule(s)
+                            : ((s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0));
                     })
                     .map(s => {
                         const clean = {};
@@ -1933,7 +1936,12 @@ window.SchedulerComponents.PlanningBoard = {
 
         async publishSchedules() {
             if (!window.schedulerStore) return;
-            const assignedCount = this.allClasses.filter(c => !c.isExternal && c.sessions && c.sessions.length > 0).length;
+            const assignedCount = this.allClasses.filter(c =>
+                !c.isExternal &&
+                ((typeof window.schedulerStore._isProgrammedSchedule === 'function')
+                    ? window.schedulerStore._isProgrammedSchedule(c)
+                    : (c.sessions && c.sessions.length > 0))
+            ).length;
             if (assignedCount === 0) {
                 alert('No hay clases asignadas para publicar. Ubica al menos una ficha en el calendario antes de publicar.');
                 return;

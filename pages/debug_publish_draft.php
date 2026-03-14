@@ -91,9 +91,30 @@ function gmk_dbg_pub_is_external(array $item, int $periodid): bool {
  * @return bool
  */
 function gmk_dbg_pub_is_programmed(array $item): bool {
-    $hassessions = !empty($item['sessions']) && is_array($item['sessions']) && count($item['sessions']) > 0;
-    $day = trim((string)($item['day'] ?? ''));
-    return $hassessions || ($day !== '' && gmk_dbg_pub_norm_token($day) !== 'n/a');
+    $isvalidday = static function($day): bool {
+        $d = gmk_dbg_pub_norm_token((string)$day);
+        return !in_array($d, ['', 'n/a', 'na', 'n-a', 'sin asignar', 'sinasignar'], true);
+    };
+    $isvalidtime = static function($time): bool {
+        $t = trim((string)$time);
+        if ($t === '' || $t === '00:00' || $t === '00:00:00') {
+            return false;
+        }
+        return true;
+    };
+
+    if (!empty($item['sessions']) && is_array($item['sessions'])) {
+        foreach ($item['sessions'] as $sess) {
+            if (!is_array($sess)) {
+                continue;
+            }
+            if ($isvalidday($sess['day'] ?? '') && $isvalidtime($sess['start'] ?? '') && $isvalidtime($sess['end'] ?? '')) {
+                return true;
+            }
+        }
+    }
+
+    return $isvalidday($item['day'] ?? '') && $isvalidtime($item['start'] ?? '') && $isvalidtime($item['end'] ?? '');
 }
 
 /**

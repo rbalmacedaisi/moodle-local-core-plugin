@@ -578,7 +578,7 @@
                     .filter(s => {
                         if (s.isExternal) return false; // never save externals in draft
                         const hasRealId = s.id && !String(s.id).startsWith('rec-') && !String(s.id).startsWith('gen-') && Number(s.id) > 0;
-                        const isPlaced = (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                        const isPlaced = this._isProgrammedSchedule(s);
                         // Save if: has real DB id (published) OR has been placed on the board
                         return hasRealId || isPlaced;
                     })
@@ -633,7 +633,7 @@
                 const optimized = Array.isArray(schedules) ? schedules
                     .filter(s => {
                         if (s.isExternal) return false;
-                        return (s.day && s.day !== 'N/A') || (Array.isArray(s.sessions) && s.sessions.length > 0);
+                        return this._isProgrammedSchedule(s);
                     })
                     .map(s => {
                         const clean = {};
@@ -1163,6 +1163,41 @@
                 console.error("Error fetching class students", e);
                 return [];
             }
+        },
+
+        _isValidDayToken(day) {
+            const norm = String(day || '').trim().toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/\s+/g, '');
+            if (!norm) return false;
+            return !['n/a', 'na', 'n-a', 'sinasignar'].includes(norm);
+        },
+
+        _isValidTimeToken(time) {
+            const token = String(time || '').trim();
+            if (!token) return false;
+            if (token === '00:00' || token === '00:00:00') return false;
+            return true;
+        },
+
+        _hasValidSession(sess) {
+            if (!sess || typeof sess !== 'object') return false;
+            return this._isValidDayToken(sess.day) &&
+                   this._isValidTimeToken(sess.start) &&
+                   this._isValidTimeToken(sess.end);
+        },
+
+        _isProgrammedSchedule(schedule) {
+            if (!schedule || typeof schedule !== 'object') return false;
+            if (Array.isArray(schedule.sessions)) {
+                if (schedule.sessions.some(sess => this._hasValidSession(sess))) {
+                    return true;
+                }
+            }
+            return this._isValidDayToken(schedule.day) &&
+                   this._isValidTimeToken(schedule.start) &&
+                   this._isValidTimeToken(schedule.end);
         },
 
         _scheduleIdentityKey(item) {

@@ -643,8 +643,7 @@ class scheduler extends external_api {
                 if (self::is_payload_external($cls)) {
                     continue;
                 }
-                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
-                                (!empty($cls['day']) && $cls['day'] !== 'N/A');
+                $isProgrammed = self::is_payload_programmed($cls);
                 if (!$isProgrammed) {
                     continue;
                 }
@@ -735,8 +734,7 @@ class scheduler extends external_api {
                 }
 
                 // Skip classes that are not programmed (unassigned)
-                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
-                                (!empty($cls['day']) && $cls['day'] !== 'N/A');
+                $isProgrammed = self::is_payload_programmed($cls);
 
                 if (!$isProgrammed) {
                     continue;
@@ -950,12 +948,15 @@ class scheduler extends external_api {
                     
                     if (isset($cls['sessions']) && is_array($cls['sessions'])) {
                         foreach ($cls['sessions'] as $sess) {
+                            if (!self::has_payload_valid_session($sess)) {
+                                continue;
+                            }
                             $sdaykey = cleanString((string)($sess['day'] ?? ''));
                             if (isset($dayNameMap[$sdaykey])) {
                                 $mask[$dayNameMap[$sdaykey]] = 1;
                             }
                         }
-                    } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
+                    } else if (self::is_payload_valid_day($cls['day'] ?? '')) {
                         $sdaykey = cleanString((string)$cls['day']);
                         if (isset($dayNameMap[$sdaykey])) {
                             $mask[$dayNameMap[$sdaykey]] = 1;
@@ -1123,8 +1124,15 @@ class scheduler extends external_api {
                 }
 
                 if (isset($cls['sessions']) && is_array($cls['sessions']) && count($cls['sessions']) > 0) {
-                    $sessionsToSave = $cls['sessions'];
-                } else if (!empty($cls['day']) && $cls['day'] !== 'N/A') {
+                    foreach ($cls['sessions'] as $sess) {
+                        if (!self::has_payload_valid_session($sess)) {
+                            continue;
+                        }
+                        $sessionsToSave[] = $sess;
+                    }
+                } else if (self::is_payload_valid_day($cls['day'] ?? '')
+                    && self::is_payload_valid_time($cls['start'] ?? '')
+                    && self::is_payload_valid_time($cls['end'] ?? '')) {
                     $sessionsToSave[] = [
                         'day' => $cls['day'],
                         'start' => $cls['start'],
@@ -1288,6 +1296,55 @@ class scheduler extends external_api {
     }
 
     // --- Helpers ---
+    private static function payload_day_token($day): string {
+        $token = core_text::strtolower(trim((string)$day));
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $token);
+        if ($ascii !== false && is_string($ascii)) {
+            $token = $ascii;
+        }
+        $token = preg_replace('/\s+/', '', $token);
+        if ($token === null) {
+            return '';
+        }
+        return $token;
+    }
+
+    private static function is_payload_valid_day($day): bool {
+        $token = self::payload_day_token($day);
+        return !in_array($token, ['', 'n/a', 'na', 'n-a', 'sinasignar', 'sinasignar.'], true);
+    }
+
+    private static function is_payload_valid_time($time): bool {
+        $token = trim((string)$time);
+        if ($token === '' || $token === '00:00' || $token === '00:00:00') {
+            return false;
+        }
+        return true;
+    }
+
+    private static function has_payload_valid_session($session): bool {
+        if (!is_array($session)) {
+            return false;
+        }
+        return self::is_payload_valid_day($session['day'] ?? '')
+            && self::is_payload_valid_time($session['start'] ?? '')
+            && self::is_payload_valid_time($session['end'] ?? '');
+    }
+
+    private static function is_payload_programmed(array $cls): bool {
+        if (!empty($cls['sessions']) && is_array($cls['sessions'])) {
+            foreach ($cls['sessions'] as $sess) {
+                if (self::has_payload_valid_session($sess)) {
+                    return true;
+                }
+            }
+        }
+
+        return self::is_payload_valid_day($cls['day'] ?? '')
+            && self::is_payload_valid_time($cls['start'] ?? '')
+            && self::is_payload_valid_time($cls['end'] ?? '');
+    }
+
     private static function payload_schedule_key(array $cls): string {
         $core = (string)($cls['corecourseid'] ?? '');
         if ($core === '' || $core === '0') {
@@ -1341,8 +1398,7 @@ class scheduler extends external_api {
                 continue;
             }
 
-            $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
-                            (!empty($cls['day']) && $cls['day'] !== 'N/A');
+            $isProgrammed = self::is_payload_programmed($cls);
             if (!$isProgrammed) {
                 $out[] = $cls;
                 continue;
