@@ -694,3 +694,111 @@ foreach ($matchedClasses as $classid => $class) {
         }
     }
     echo '</tbody></table>';
+
+    echo '<h4 class="dbg-sub">Notas modal checks (pensum + active classes)</h4>';
+    echo '<table class="dbg-table"><thead><tr><th>Plan</th><th>Pensum has subject?</th><th>StatusLabel</th><th>ActiveClassCount (pensum)</th><th>Allowed status?</th><th>API active classes</th><th>API includes this class?</th><th>Reason</th></tr></thead><tbody>';
+
+    if (empty($studentplanids)) {
+        echo '<tr><td colspan="8" class="dbg-bad">No student plans.</td></tr>';
+    } else {
+        foreach ($studentplanids as $pid) {
+            $planname = $planNames[$pid] ?? ('Plan ' . $pid);
+            $pensum = $pensumByPlan[$pid] ?? [];
+            $pensummatch = null;
+
+            $candidateLpc = $DB->get_record(
+                'local_learning_courses',
+                ['learningplanid' => $pid, 'courseid' => $corecourseid],
+                'id,learningplanid,courseid',
+                IGNORE_MULTIPLE
+            );
+            $candidateLpcId = $candidateLpc ? (int)$candidateLpc->id : 0;
+
+            if (is_array($pensum)) {
+                foreach ($pensum as $bucket) {
+                    if (!is_array($bucket)) {
+                        continue;
+                    }
+                    $courses = (isset($bucket['courses']) && is_array($bucket['courses'])) ? $bucket['courses'] : [];
+                    foreach ($courses as $pc) {
+                        $pcore = (int)($pc['courseid'] ?? 0);
+                        $plc = (int)($pc['learningcourseid'] ?? 0);
+                        if ($pcore === $corecourseid || ($candidateLpcId > 0 && $plc === $candidateLpcId)) {
+                            $pensummatch = $pc;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            $statusLabel = $pensummatch ? (string)($pensummatch['statusLabel'] ?? '') : '';
+            $activeclasscount = $pensummatch ? (int)($pensummatch['activeclasscount'] ?? 0) : 0;
+            $allowedstatus = dbg_allowed_status_for_enroll($statusLabel);
+
+            $apiClasses = dbg_get_active_classes_like_api($userid, $corecourseid, $candidateLpcId, $pid);
+            $apiHasClass = false;
+            foreach ($apiClasses as $ac) {
+                if ((int)$ac['id'] === $classid) {
+                    $apiHasClass = true;
+                    break;
+                }
+            }
+
+            $reason = 'eligible';
+            if (!$pensummatch) {
+                $reason = 'not_in_pensum';
+            } else if (!$allowedstatus) {
+                $reason = 'status_not_allowed';
+            } else if ($activeclasscount <= 0) {
+                $reason = 'no_active_classes_in_pensum';
+            } else if (!$apiHasClass) {
+                $reason = 'api_active_classes_missing_target';
+            }
+
+            echo '<tr>';
+            echo '<td>' . (int)$pid . ' - ' . dbg_es($planname) . '</td>';
+            echo '<td>' . ($pensummatch ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+            echo '<td>' . dbg_es($statusLabel === '' ? '-' : $statusLabel) . '</td>';
+            echo '<td>' . $activeclasscount . '</td>';
+            echo '<td>' . ($allowedstatus ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+            echo '<td>' . count($apiClasses) . '</td>';
+            echo '<td>' . ($apiHasClass ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+            echo '<td>' . dbg_es($reason) . '</td>';
+            echo '</tr>';
+        }
+    }
+
+    echo '</tbody></table>';
+
+    $gcpRows = $DB->get_records_sql(
+        "SELECT id, learningplanid, status, classid, groupid, timemodified
+           FROM {gmk_course_progre}
+          WHERE userid = :userid
+            AND courseid = :courseid
+       ORDER BY learningplanid ASC, id ASC",
+        ['userid' => $userid, 'courseid' => $corecourseid]
+    );
+    echo '<h4 class="dbg-sub">gmk_course_progre rows for this core course</h4>';
+    echo '<table class="dbg-table"><thead><tr><th>id</th><th>learningplanid</th><th>status</th><th>classid</th><th>groupid</th><th>modified</th></tr></thead><tbody>';
+    if (empty($gcpRows)) {
+        echo '<tr><td colspan="6" class="dbg-warn">No progress rows for this student/core course.</td></tr>';
+    } else {
+        foreach ($gcpRows as $r) {
+            echo '<tr>';
+            echo '<td>' . (int)$r->id . '</td>';
+            echo '<td>' . (int)$r->learningplanid . '</td>';
+            echo '<td>' . (int)$r->status . '</td>';
+            echo '<td>' . (int)$r->classid . '</td>';
+            echo '<td>' . (int)$r->groupid . '</td>';
+            echo '<td>' . userdate((int)$r->timemodified) . '</td>';
+            echo '</tr>';
+        }
+    }
+    echo '</tbody></table>';
+
+    echo '</div>';
+}
+?>
+</div>
+<?php
+echo $OUTPUT->footer();
