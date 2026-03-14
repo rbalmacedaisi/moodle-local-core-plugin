@@ -136,6 +136,11 @@ if ($action === 'fixdraft') {
 if ($action === 'deletesection') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
+    $oblevel = ob_get_level();
+    ob_start();
+    $preverrorhandler = set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+    });
 
     require_once($CFG->dirroot . '/course/lib.php');
 
@@ -144,18 +149,57 @@ if ($action === 'deletesection') {
     $sectionnumber = required_param('sectionnumber', PARAM_INT);
 
     if ($DB->record_exists('gmk_class', ['coursesectionid' => $sectionid])) {
-        echo json_encode(['ok' => false, 'msg' => "Seccin $sectionid tiene gmk_class activa; no se elimina."]);
-        exit;
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => "Seccion $sectionid tiene gmk_class activa; no se elimina."], $oblevel);
     }
     if (!$DB->record_exists('course', ['id' => $courseid])) {
-        echo json_encode(['ok' => false, 'msg' => "Curso $courseid no existe."]);
-        exit;
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => "Curso $courseid no existe."], $oblevel);
     }
+
     try {
-        course_delete_section($courseid, $sectionnumber, true, false);
-        echo json_encode(['ok' => true, 'msg' => "Seccin id=$sectionid eliminada con todas sus actividades."]);
-    } catch (Exception $e) {
-        echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
+        $ok = course_delete_section($courseid, $sectionnumber, true, false);
+        if (!$ok) {
+            throw new \Exception("No se pudo eliminar la seccion $sectionid.");
+        }
+        gmk_debug_fix_send_json(['ok' => true, 'msg' => "Seccion id=$sectionid eliminada con todas sus actividades."], $oblevel);
+    } catch (Throwable $e) {
+        // Fallback: intenta borrar modulos de la seccion uno por uno y reintenta borrar la seccion.
+        $deletedmodules = 0;
+        $moduleerrors = [];
+        try {
+            $cms = $DB->get_records('course_modules', ['course' => (int)$courseid, 'section' => (int)$sectionid], 'id ASC', 'id');
+            foreach ($cms as $cm) {
+                try {
+                    course_delete_module((int)$cm->id, false);
+                    $deletedmodules++;
+                } catch (Throwable $cmerr) {
+                    $moduleerrors[] = "cmid={$cm->id}: " . $cmerr->getMessage();
+                }
+            }
+
+            if (!$DB->record_exists('course_modules', ['section' => (int)$sectionid])) {
+                $okretry = course_delete_section($courseid, $sectionnumber, true, false);
+                if ($okretry) {
+                    $msg = "Seccion id=$sectionid eliminada en fallback. Modulos eliminados=$deletedmodules.";
+                    if (!empty($moduleerrors)) {
+                        $msg .= " Errores modulos: " . implode(' | ', array_slice($moduleerrors, 0, 3));
+                    }
+                    gmk_debug_fix_send_json(['ok' => true, 'msg' => $msg], $oblevel);
+                }
+            }
+        } catch (Throwable $fallbackerr) {
+            $moduleerrors[] = "fallback: " . $fallbackerr->getMessage();
+        }
+
+        $msg = "ERROR eliminando seccion $sectionid: " . $e->getMessage()
+            . ". Fallback modulos eliminados=$deletedmodules, errores=" . count($moduleerrors) . ".";
+        if (!empty($moduleerrors)) {
+            $msg .= " Detalle: " . implode(' | ', array_slice($moduleerrors, 0, 3));
+        }
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => $msg], $oblevel);
+    } finally {
+        if ($preverrorhandler !== null) {
+            restore_error_handler();
+        }
     }
     exit;
 }
