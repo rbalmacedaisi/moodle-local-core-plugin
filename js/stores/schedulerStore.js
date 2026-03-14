@@ -889,6 +889,62 @@
                 return `${cid}|${shift}`;
             };
 
+            // Student ID normalization bridge:
+            // demand students are usually DB IDs, class studentIds can be idnumber or DB ID.
+            const studentIdToDb = new Map();
+            const dbToPreferredId = new Map();
+            (this.state.students || []).forEach(stu => {
+                const sid = String(stu.id ?? '').trim();
+                const dbIdNum = Number(stu.dbId ?? 0);
+                if (sid !== '') {
+                    if (Number.isFinite(dbIdNum) && dbIdNum > 0) {
+                        studentIdToDb.set(sid, dbIdNum);
+                        if (!dbToPreferredId.has(dbIdNum)) {
+                            dbToPreferredId.set(dbIdNum, sid);
+                        }
+                    } else {
+                        studentIdToDb.set(sid, null);
+                    }
+                }
+                const sidNum = Number(stu.id ?? 0);
+                if (Number.isFinite(sidNum) && sidNum > 0 && !dbToPreferredId.has(sidNum)) {
+                    dbToPreferredId.set(sidNum, String(stu.id));
+                }
+            });
+
+            const toStudentIdentityKey = (rawId) => {
+                const token = String(rawId ?? '').trim();
+                if (!token) return null;
+                if (studentIdToDb.has(token)) {
+                    const db = Number(studentIdToDb.get(token) || 0);
+                    return db > 0 ? `db:${db}` : `raw:${token}`;
+                }
+                if (/^\d+$/.test(token)) {
+                    const num = Number(token);
+                    if (dbToPreferredId.has(num)) return `db:${num}`;
+                }
+                return `raw:${token}`;
+            };
+
+            const mergeStudentIds = (...lists) => {
+                const out = [];
+                const seen = new Set();
+                lists.forEach(list => {
+                    (list || []).forEach(rawId => {
+                        const key = toStudentIdentityKey(rawId);
+                        if (!key || seen.has(key)) return;
+                        seen.add(key);
+                        if (key.startsWith('db:')) {
+                            const db = Number(key.slice(3));
+                            out.push(dbToPreferredId.get(db) || String(db));
+                        } else {
+                            out.push(String(rawId).trim());
+                        }
+                    });
+                });
+                return out;
+            };
+
             // Group draft items by aggKey to correctly handle subdivisions (>40 students → N groups).
             // Items with the same key are sibling groups of the same subject+shift that must share
             // the total student pool, not each receive the full list.
@@ -910,15 +966,7 @@
 
             for (const [key, items] of Object.entries(draftByKey)) {
                 const currentDemand = demandMap[key];
-                const hasApprovedItems = items.some(item => Number(item.approved || 0) > 0);
-
-                if (hasApprovedItems) {
-                    for (const item of items) {
-                        result.push(this._withCanonicalSubjectName({ ...item }));
-                    }
-                    coveredKeys.add(key);
-                    continue;
-                }
+                const existingStudentsForKey = mergeStudentIds(...items.map(item => item.studentIds || []));
 
                 if (!currentDemand || currentDemand.students.length === 0) {
                     // No demand match — keep placed items, drop unplaced ones
@@ -938,7 +986,7 @@
 
                 // Distribute current students evenly across all sibling groups for this key.
                 // This preserves subdivisions created by the algorithm for >40-student subjects.
-                const allStudents = currentDemand.students;
+                const allStudents = mergeStudentIds(currentDemand.students || [], existingStudentsForKey);
                 const numGroups = items.length;
                 const baseSize = Math.floor(allStudents.length / numGroups);
                 const remainder = allStudents.length % numGroups;
@@ -970,7 +1018,8 @@
             const subjectNames = this.state.subjects || {};
             let newIdCounter = Date.now(); // Unique enough for temp IDs
             for (const [key, demandData] of Object.entries(demandMap)) {
-                if (coveredKeys.has(key) || demandData.students.length === 0) continue;
+                const demandStudents = mergeStudentIds(demandData.students || []);
+                if (coveredKeys.has(key) || demandStudents.length === 0) continue;
 
                 const courseName = subjectNames[demandData.courseid]
                     ? subjectNames[demandData.courseid].name
@@ -996,8 +1045,8 @@
                     start: '00:00',
                     end: '00:00',
                     room: 'Sin aula',
-                    studentCount: demandData.students.length,
-                    studentIds: demandData.students,
+                    studentCount: demandStudents.length,
+                    studentIds: demandStudents,
                     career: Array.from(demandData.careers).join(', '),
                     careerList: Array.from(demandData.careers),
                     shift: demandData.shift,
