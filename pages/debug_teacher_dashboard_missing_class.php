@@ -20,7 +20,7 @@ $teacherid = optional_param('teacherid', 0, PARAM_INT);
 $teacherquery = trim(optional_param('teacher', 'LORENZO GONZALEZ PALMA', PARAM_RAW_TRIMMED));
 $classid = optional_param('classid', 0, PARAM_INT);
 $classquery = trim(optional_param('classname', '2026-II (D) DESARROLLO DE LA PERSONALIDAD (PRESENCIAL) C', PARAM_RAW_TRIMMED));
-$dbgversion = '2026-03-14-03';
+$dbgversion = '2026-03-14-04';
 
 /**
  * Escape text.
