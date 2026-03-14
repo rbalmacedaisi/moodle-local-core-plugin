@@ -3589,7 +3589,7 @@ try {
                     'quota'        => $quota,
                     'requested'    => count($userids),
                     'new_total'    => $newTotal,
-                    'message'      => "Al inscribir {$newTotal} estudiantes se superarÃ¡ el cupo de {$quota}. Â¿Desea aumentar el cupo automÃ¡ticamente?",
+                    'message'      => "Al inscribir {$newTotal} estudiantes se superara el cupo de {$quota}. Desea aumentar el cupo automaticamente?",
                 ];
                 break;
             }
@@ -3612,6 +3612,28 @@ try {
 
             $enrolled = count(array_filter($results));
 
+            // Ensure progress is synced even if a student was already in the Moodle group.
+            // In that case groups_add_member can return false, but we still need status "cursando".
+            $progresssynced = 0;
+            $progresssyncerrors = [];
+            foreach ($userids as $uid) {
+                $uid = (int)$uid;
+                $hadEnrollSuccess = !empty($results[$uid]);
+                $alreadyInGroup = (!empty($class->groupid) && groups_is_member((int)$class->groupid, $uid));
+                $shouldSyncProgress = $hadEnrollSuccess || $alreadyInGroup || empty($class->groupid);
+                if (!$shouldSyncProgress) {
+                    continue;
+                }
+
+                try {
+                    local_grupomakro_progress_manager::assign_class_to_course_progress($uid, $class);
+                    $progresssynced++;
+                } catch (\Throwable $t) {
+                    $progresssyncerrors[] = "userid {$uid}: " . $t->getMessage();
+                    gmk_log('bulk_enroll_students progress sync error: userid=' . $uid . ' classid=' . (int)$class->id . ' error=' . $t->getMessage());
+                }
+            }
+
             // NOTE: We intentionally do NOT delete queue/pre_reg records after enrolment.
             // Those records represent the academic planning ("who is assigned to this class")
             // and must persist so the student list reappears correctly if the dialog is reopened.
@@ -3627,6 +3649,8 @@ try {
                 'total'    => count($userids),
                 'message'  => "Se inscribieron {$enrolled} de " . count($userids) . " estudiantes.",
                 'new_quota'=> (int)$class->classroomcapacity,
+                'progress_synced' => $progresssynced,
+                'progress_sync_errors' => $progresssyncerrors,
             ];
             break;
 
@@ -4474,4 +4498,5 @@ $output = ob_get_clean();
 header('Content-Type: application/json');
 echo json_encode($response);
 die();
+
 

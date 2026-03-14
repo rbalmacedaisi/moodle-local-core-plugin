@@ -342,51 +342,201 @@ class local_grupomakro_progress_manager
     {
         global $DB, $USER;
 
-        gmk_log("assign_class_to_course_progress: userid=$userId classid={$class->id} corecourseid={$class->corecourseid} learningplanid=" . ($class->learningplanid ?? 'NULL'));
+        $classId = (int)($class->id ?? 0);
+        $coreCourseId = (int)($class->corecourseid ?? 0);
+        $groupId = (int)($class->groupid ?? 0);
+        $resolvedLearningPlanId = (int)($class->learningplanid ?? 0);
 
-        $courseProgress = $DB->get_record('gmk_course_progre', [
-            'userid' => $userId,
-            'courseid' => $class->corecourseid,
-            'learningplanid' => $class->learningplanid
-        ]);
+        gmk_log(
+            "assign_class_to_course_progress: userid=$userId classid={$classId} corecourseid={$coreCourseId} learningplanid=" .
+            ($resolvedLearningPlanId ?: 'NULL')
+        );
 
-        gmk_log("assign_class_to_course_progress: existing record=" . ($courseProgress ? "id={$courseProgress->id}" : 'none'));
+        $progressCandidates = [];
+        if ($resolvedLearningPlanId > 0) {
+            $progressCandidates = $DB->get_records(
+                'gmk_course_progre',
+                [
+                    'userid' => (int)$userId,
+                    'courseid' => $coreCourseId,
+                    'learningplanid' => $resolvedLearningPlanId
+                ],
+                'id ASC'
+            );
+        }
 
-        // If no progress record exists, create one
+        // Fallback 1: any progress rows for this user+course with a non-zero plan.
+        if (empty($progressCandidates)) {
+            $progressCandidates = $DB->get_records_select(
+                'gmk_course_progre',
+                'userid = :userid AND courseid = :courseid AND learningplanid > 0',
+                [
+                    'userid' => (int)$userId,
+                    'courseid' => $coreCourseId
+                ],
+                'timemodified DESC, id DESC'
+            );
+            if (!empty($progressCandidates)) {
+                $first = reset($progressCandidates);
+                $resolvedLearningPlanId = (int)($first->learningplanid ?? 0);
+            }
+        }
+
+        // Fallback 2: include rows with learningplanid=0 if needed.
+        if (empty($progressCandidates)) {
+            $progressCandidates = $DB->get_records(
+                'gmk_course_progre',
+                [
+                    'userid' => (int)$userId,
+                    'courseid' => $coreCourseId
+                ],
+                'timemodified DESC, id DESC'
+            );
+            if (!empty($progressCandidates) && $resolvedLearningPlanId <= 0) {
+                $first = reset($progressCandidates);
+                $resolvedLearningPlanId = (int)($first->learningplanid ?? 0);
+            }
+        }
+
+        // Resolve learning plan when class metadata is incomplete.
+        if ($resolvedLearningPlanId <= 0 && !empty($class->courseid)) {
+            $resolvedLearningPlanId = (int)$DB->get_field(
+                'local_learning_courses',
+                'learningplanid',
+                ['id' => (int)$class->courseid],
+                IGNORE_MISSING
+            );
+        }
+        if ($resolvedLearningPlanId <= 0) {
+            $resolvedLearningPlanId = (int)$DB->get_field_select(
+                'local_learning_courses',
+                'learningplanid',
+                'courseid = :courseid',
+                ['courseid' => $coreCourseId],
+                IGNORE_MULTIPLE
+            );
+        }
+        if ($resolvedLearningPlanId <= 0) {
+            $sql = "SELECT lu.learningplanid
+                      FROM {local_learning_users} lu
+                      JOIN {local_learning_courses} lc
+                        ON lc.learningplanid = lu.learningplanid
+                       AND lc.courseid = :courseid
+                     WHERE lu.userid = :userid
+                       AND lu.userroleid = :studentrole
+                  ORDER BY lu.id ASC";
+            $resolvedLearningPlanId = (int)$DB->get_field_sql(
+                $sql,
+                [
+                    'courseid' => $coreCourseId,
+                    'userid' => (int)$userId,
+                    'studentrole' => 5
+                ],
+                IGNORE_MULTIPLE
+            );
+        }
+
+        $courseProgress = null;
+        if (!empty($progressCandidates)) {
+            $courseProgress = reset($progressCandidates);
+            if ($resolvedLearningPlanId > 0) {
+                foreach ($progressCandidates as $candidate) {
+                    if ((int)$candidate->learningplanid === $resolvedLearningPlanId) {
+                        $courseProgress = $candidate;
+                        break;
+                    }
+                }
+            }
+        }
+
+        gmk_log(
+            "assign_class_to_course_progress: existing record=" .
+            ($courseProgress ? "id={$courseProgress->id}" : 'none') .
+            " resolvedLearningPlanId=" . ($resolvedLearningPlanId ?: 0) .
+            " candidates=" . count($progressCandidates)
+        );
+
+        $terminalStatuses = [COURSE_COMPLETED, COURSE_APPROVED];
+
+        // If no progress record exists, create one.
         if (!$courseProgress) {
             $courseProgress = new \stdClass();
-            $courseProgress->userid = $userId;
-            $courseProgress->courseid = $class->corecourseid;
-            $courseProgress->learningplanid = $class->learningplanid;
-            $courseProgress->classid = $class->id;
-            $courseProgress->groupid = $class->groupid;
+            $courseProgress->userid = (int)$userId;
+            $courseProgress->courseid = $coreCourseId;
+            $courseProgress->learningplanid = max(0, $resolvedLearningPlanId);
+            $courseProgress->classid = $classId;
+            $courseProgress->groupid = $groupId;
             $courseProgress->progress = 0;
             $courseProgress->grade = 0;
             $courseProgress->status = COURSE_IN_PROGRESS;
             $courseProgress->timecreated = time();
             $courseProgress->timemodified = time();
             $courseProgress->usermodified = $USER->id;
-
             return $DB->insert_record('gmk_course_progre', $courseProgress);
         }
 
-        // Update existing progress record
-        $courseProgress->classid = $class->id;
-        $courseProgress->groupid = $class->groupid;
+        // Update canonical progress record.
+        if ($resolvedLearningPlanId > 0 && (int)$courseProgress->learningplanid <= 0) {
+            $courseProgress->learningplanid = $resolvedLearningPlanId;
+        }
+        $courseProgress->classid = $classId;
+        $courseProgress->groupid = $groupId;
         $courseProgress->timemodified = time();
         $courseProgress->usermodified = $USER->id;
 
-        // No degradar un curso ya aprobado o completado a "en curso".
-        // Si el estudiante fue re-matriculado en una clase para un curso que ya aprobó,
-        // se actualiza la asignación de clase pero se preserva el status, nota y progreso.
-        $terminalStatuses = [COURSE_COMPLETED, COURSE_APPROVED];
-        if (!in_array((int)$courseProgress->status, $terminalStatuses)) {
+        // Keep terminal statuses untouched; all others become in-progress.
+        if (!in_array((int)$courseProgress->status, $terminalStatuses, true)) {
             $courseProgress->progress = 0;
-            $courseProgress->grade    = 0;
-            $courseProgress->status   = COURSE_IN_PROGRESS;
+            $courseProgress->grade = 0;
+            $courseProgress->status = COURSE_IN_PROGRESS;
         }
 
-        return $DB->update_record('gmk_course_progre', $courseProgress);
+        $ok = $DB->update_record('gmk_course_progre', $courseProgress);
+
+        // Keep duplicate rows aligned so joins do not show stale status.
+        foreach ($progressCandidates as $candidate) {
+            if ((int)$candidate->id === (int)$courseProgress->id) {
+                continue;
+            }
+            $dup = clone $candidate;
+            $changed = false;
+
+            if ($resolvedLearningPlanId > 0 && (int)$dup->learningplanid <= 0) {
+                $dup->learningplanid = $resolvedLearningPlanId;
+                $changed = true;
+            }
+            if ((int)$dup->classid !== $classId) {
+                $dup->classid = $classId;
+                $changed = true;
+            }
+            if ((int)$dup->groupid !== $groupId) {
+                $dup->groupid = $groupId;
+                $changed = true;
+            }
+
+            if (!in_array((int)$dup->status, $terminalStatuses, true)) {
+                if ((int)$dup->status !== COURSE_IN_PROGRESS) {
+                    $dup->status = COURSE_IN_PROGRESS;
+                    $changed = true;
+                }
+                if ((float)$dup->progress !== 0.0) {
+                    $dup->progress = 0;
+                    $changed = true;
+                }
+                if ((float)$dup->grade !== 0.0) {
+                    $dup->grade = 0;
+                    $changed = true;
+                }
+            }
+
+            if ($changed) {
+                $dup->timemodified = time();
+                $dup->usermodified = $USER->id;
+                $DB->update_record('gmk_course_progre', $dup);
+            }
+        }
+
+        return $ok;
     }
 
     public static function unassign_class_from_course_progress($userId, $class)
@@ -1167,3 +1317,4 @@ class local_grupomakro_progress_manager
         }
     }
 }
+
