@@ -68,6 +68,26 @@ function dbg_getv($src, string $key, $default = null) {
 }
 
 /**
+ * Parse comma-separated integer list.
+ * @param string $raw
+ * @return int[]
+ */
+function dbg_parse_int_list(string $raw): array {
+    $pieces = preg_split('/[^0-9]+/', $raw);
+    $ids = [];
+    foreach ($pieces as $p) {
+        if ($p === '' || !is_numeric($p)) {
+            continue;
+        }
+        $v = (int)$p;
+        if ($v > 0) {
+            $ids[$v] = $v;
+        }
+    }
+    return array_values($ids);
+}
+
+/**
  * Resolve teacher users by query or explicit id.
  * @param int $teacherid
  * @param string $teacherquery
@@ -277,6 +297,112 @@ function dbg_find_classes(int $classid, string $classquery): array {
     return $out;
 }
 
+$action = optional_param('action', '', PARAM_ALPHANUMEXT);
+$messagesok = [];
+$messageswarn = [];
+$messageserr = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== '') {
+    require_sesskey();
+    try {
+        if ($action === 'reassign_classes') {
+            $sourceuserid = optional_param('sourceuserid', 0, PARAM_INT);
+            $targetuserid = optional_param('targetuserid', 0, PARAM_INT);
+            $scope = optional_param('scope', 'matched', PARAM_ALPHA);
+            $selectedclassidsraw = optional_param('selectedclassids', '', PARAM_RAW_TRIMMED);
+
+            if ($sourceuserid <= 0 || $targetuserid <= 0) {
+                throw new moodle_exception('Invalid source or target user.');
+            }
+            if ($sourceuserid === $targetuserid) {
+                throw new moodle_exception('Source and target user cannot be the same.');
+            }
+
+            $sourceuser = $DB->get_record('user', ['id' => $sourceuserid, 'deleted' => 0], 'id,firstname,lastname,username', MUST_EXIST);
+            $targetuser = $DB->get_record('user', ['id' => $targetuserid, 'deleted' => 0], 'id,firstname,lastname,username', MUST_EXIST);
+
+            $affected = 0;
+            $tx = $DB->start_delegated_transaction();
+            if ($scope === 'all') {
+                $affected = (int)$DB->count_records('gmk_class', ['instructorid' => $sourceuserid]);
+                if ($affected > 0) {
+                    $DB->set_field('gmk_class', 'instructorid', $targetuserid, ['instructorid' => $sourceuserid]);
+                }
+            } else {
+                $classids = dbg_parse_int_list($selectedclassidsraw);
+                if (empty($classids)) {
+                    throw new moodle_exception('No class ids provided for matched scope.');
+                }
+                list($insql, $inparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cid');
+                $affected = (int)$DB->count_records_sql(
+                    "SELECT COUNT(1)
+                       FROM {gmk_class}
+                      WHERE instructorid = :sourceuserid
+                        AND id $insql",
+                    ['sourceuserid' => $sourceuserid] + $inparams
+                );
+                if ($affected > 0) {
+                    $DB->execute(
+                        "UPDATE {gmk_class}
+                            SET instructorid = :targetuserid
+                          WHERE instructorid = :sourceuserid
+                            AND id $insql",
+                        ['targetuserid' => $targetuserid, 'sourceuserid' => $sourceuserid] + $inparams
+                    );
+                }
+            }
+            $tx->allow_commit();
+
+            if ($affected > 0) {
+                $messagesok[] = 'Reassigned ' . $affected . ' class(es) from user ' . (int)$sourceuser->id . ' to ' . (int)$targetuser->id . '.';
+            } else {
+                $messageswarn[] = 'No classes were reassigned.';
+            }
+        } else if ($action === 'delete_user') {
+            $deleteuserid = optional_param('deleteuserid', 0, PARAM_INT);
+            $targetuserid = optional_param('targetuserid', 0, PARAM_INT);
+            $confirmdelete = trim(optional_param('confirm_delete', '', PARAM_RAW_TRIMMED));
+
+            if ($deleteuserid <= 0) {
+                throw new moodle_exception('Invalid delete user id.');
+            }
+            if ($confirmdelete !== 'DELETE') {
+                throw new moodle_exception('Type DELETE to confirm user deletion.');
+            }
+            if ($deleteuserid === (int)$USER->id) {
+                throw new moodle_exception('You cannot delete your own user from this page.');
+            }
+            if ($targetuserid > 0 && $deleteuserid === $targetuserid) {
+                throw new moodle_exception('Cannot delete the selected target teacher user.');
+            }
+
+            $deleteuser = $DB->get_record('user', ['id' => $deleteuserid, 'deleted' => 0], '*', MUST_EXIST);
+            if (is_siteadmin($deleteuserid)) {
+                throw new moodle_exception('Cannot delete a site admin user.');
+            }
+            if ((int)$deleteuserid === 1) {
+                throw new moodle_exception('Cannot delete guest/admin protected account.');
+            }
+
+            $remainingclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $deleteuserid]);
+            if ($remainingclasses > 0) {
+                throw new moodle_exception('User still has ' . $remainingclasses . ' class(es) assigned. Reassign first.');
+            }
+
+            $ok = delete_user($deleteuser);
+            if ($ok) {
+                $messagesok[] = 'User ' . (int)$deleteuserid . ' deleted successfully.';
+            } else {
+                throw new moodle_exception('delete_user returned false.');
+            }
+        } else {
+            $messageswarn[] = 'Unknown action ignored: ' . $action;
+        }
+    } catch (\Throwable $t) {
+        $messageserr[] = $t->getMessage();
+    }
+}
+
 $resolve = dbg_resolve_teacher($teacherid, $teacherquery);
 $selectedteacher = $resolve['selected'];
 $teachercandidates = $resolve['candidates'];
@@ -321,6 +447,77 @@ if ($selectedteacher) {
 
 $classes = dbg_find_classes($classid, $classquery);
 
+$matchedclassidscsv = '';
+if (!empty($classes)) {
+    $matchedclassidscsv = implode(',', array_map('intval', array_keys($classes)));
+}
+
+$sourcecandidates = [];
+if ($selectedteacher) {
+    $tid = (int)$selectedteacher->id;
+    $candidateids = [];
+    $reasonsbyid = [];
+
+    foreach ($classes as $c) {
+        $iid = (int)$c->instructorid;
+        if ($iid > 0 && $iid !== $tid) {
+            $candidateids[$iid] = $iid;
+            if (!isset($reasonsbyid[$iid])) {
+                $reasonsbyid[$iid] = [];
+            }
+            $reasonsbyid[$iid]['class_instructor_mismatch'] = true;
+        }
+    }
+
+    $namehintrows = $DB->get_records_sql(
+        "SELECT id, username, firstname, lastname, email, idnumber, suspended, deleted
+           FROM {user}
+          WHERE deleted = 0
+            AND id <> :id
+            AND (" . $DB->sql_like('lastname', ':ln', false, false) . "
+                 OR " . $DB->sql_like('firstname', ':fn', false, false) . ")",
+        [
+            'id' => $tid,
+            'ln' => '%' . (string)$selectedteacher->lastname . '%',
+            'fn' => '%' . (string)$selectedteacher->firstname . '%',
+        ]
+    );
+    $selectednorm = dbg_norm(trim((string)$selectedteacher->firstname . ' ' . (string)$selectedteacher->lastname));
+    foreach ($namehintrows as $u) {
+        $unorm = dbg_norm(trim((string)$u->firstname . ' ' . (string)$u->lastname));
+        if ($selectednorm !== '' && $unorm === $selectednorm) {
+            $uid = (int)$u->id;
+            if ($uid > 0 && $uid !== $tid) {
+                $candidateids[$uid] = $uid;
+                if (!isset($reasonsbyid[$uid])) {
+                    $reasonsbyid[$uid] = [];
+                }
+                $reasonsbyid[$uid]['same_normalized_name'] = true;
+            }
+        }
+    }
+
+    if (!empty($candidateids)) {
+        $users = $DB->get_records_list('user', 'id', array_values($candidateids), 'id ASC', 'id,username,firstname,lastname,email,idnumber,suspended,deleted');
+        foreach ($users as $u) {
+            $uid = (int)$u->id;
+            $totalclasses = (int)$DB->count_records('gmk_class', ['instructorid' => $uid]);
+            $matchedclasses = 0;
+            foreach ($classes as $c) {
+                if ((int)$c->instructorid === $uid) {
+                    $matchedclasses++;
+                }
+            }
+            $sourcecandidates[$uid] = [
+                'user' => $u,
+                'reasons' => array_keys($reasonsbyid[$uid] ?? []),
+                'totalclasses' => $totalclasses,
+                'matchedclasses' => $matchedclasses,
+            ];
+        }
+    }
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -356,6 +553,21 @@ table.dbg-table th { background: #f3f4f6; }
         </form>
         <p class="dbg-note">Rules used here are the same as <code>get_dashboard_data.php</code>: <code>closed=0</code>, <code>enddate &gt;= now-7d</code>, <code>exists gmk_bbb_attendance_relation</code>, and instructor match unless admin.</p>
     </div>
+
+    <?php if (!empty($messagesok) || !empty($messageswarn) || !empty($messageserr)): ?>
+        <div class="dbg-card">
+            <h2 class="dbg-sub">Action result</h2>
+            <?php foreach ($messagesok as $msg): ?>
+                <div class="dbg-ok"><?php echo dbg_h($msg); ?></div>
+            <?php endforeach; ?>
+            <?php foreach ($messageswarn as $msg): ?>
+                <div class="dbg-warn"><?php echo dbg_h($msg); ?></div>
+            <?php endforeach; ?>
+            <?php foreach ($messageserr as $msg): ?>
+                <div class="dbg-bad"><?php echo dbg_h($msg); ?></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 
     <div class="dbg-card">
         <h2 class="dbg-sub">Teacher resolution</h2>
@@ -432,6 +644,89 @@ table.dbg-table th { background: #f3f4f6; }
             <p class="dbg-bad"><strong>get_dashboard_data error:</strong> <?php echo dbg_h($dasherror); ?></p>
         <?php endif; ?>
         <p class="dbg-note">Time now: <?php echo dbg_h(userdate($now)); ?> | Buffer threshold (now-7d): <?php echo dbg_h(userdate($nowwithbuffer)); ?></p>
+    </div>
+
+    <div class="dbg-card">
+        <h2 class="dbg-sub">Repair actions</h2>
+        <p class="dbg-note">Use this section to reassign classes from duplicate users to selected teacher, and delete obsolete users after reassignment.</p>
+        <?php if (empty($sourcecandidates)): ?>
+            <p class="dbg-warn">No candidate source users detected from current class filter or same normalized name.</p>
+        <?php else: ?>
+            <table class="dbg-table">
+                <thead>
+                    <tr>
+                        <th>Source user</th>
+                        <th>Reasons</th>
+                        <th>Classes assigned</th>
+                        <th>Classes in current filter</th>
+                        <th>Reassign matched</th>
+                        <th>Reassign all</th>
+                        <th>Delete user</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($sourcecandidates as $sid => $cand): ?>
+                        <?php $su = $cand['user']; ?>
+                        <tr>
+                            <td>
+                                id=<?php echo (int)$su->id; ?><br>
+                                <?php echo dbg_h(trim((string)$su->firstname . ' ' . (string)$su->lastname)); ?><br>
+                                <span class="dbg-note"><?php echo dbg_h($su->username . ' | ' . $su->email); ?></span>
+                            </td>
+                            <td><?php echo dbg_h(empty($cand['reasons']) ? '-' : implode(', ', $cand['reasons'])); ?></td>
+                            <td><?php echo (int)$cand['totalclasses']; ?></td>
+                            <td><?php echo (int)$cand['matchedclasses']; ?></td>
+                            <td>
+                                <form method="post" onsubmit="return confirm('Reassign matched classes from source user to selected teacher?');">
+                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                                    <input type="hidden" name="action" value="reassign_classes">
+                                    <input type="hidden" name="scope" value="matched">
+                                    <input type="hidden" name="sourceuserid" value="<?php echo (int)$sid; ?>">
+                                    <input type="hidden" name="targetuserid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="selectedclassids" value="<?php echo dbg_h($matchedclassidscsv); ?>">
+                                    <input type="hidden" name="teacherid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="teacher" value="<?php echo dbg_h($teacherquery); ?>">
+                                    <input type="hidden" name="classname" value="<?php echo dbg_h($classquery); ?>">
+                                    <input type="hidden" name="classid" value="<?php echo (int)$classid; ?>">
+                                    <button type="submit"<?php echo ((int)$cand['matchedclasses'] <= 0 ? ' disabled' : ''); ?>>Reassign matched</button>
+                                </form>
+                            </td>
+                            <td>
+                                <form method="post" onsubmit="return confirm('Reassign ALL classes from source user to selected teacher?');">
+                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                                    <input type="hidden" name="action" value="reassign_classes">
+                                    <input type="hidden" name="scope" value="all">
+                                    <input type="hidden" name="sourceuserid" value="<?php echo (int)$sid; ?>">
+                                    <input type="hidden" name="targetuserid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="teacherid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="teacher" value="<?php echo dbg_h($teacherquery); ?>">
+                                    <input type="hidden" name="classname" value="<?php echo dbg_h($classquery); ?>">
+                                    <input type="hidden" name="classid" value="<?php echo (int)$classid; ?>">
+                                    <button type="submit"<?php echo ((int)$cand['totalclasses'] <= 0 ? ' disabled' : ''); ?>>Reassign all</button>
+                                </form>
+                            </td>
+                            <td>
+                                <form method="post" onsubmit="return confirm('Delete source user? This action is irreversible.');">
+                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                                    <input type="hidden" name="action" value="delete_user">
+                                    <input type="hidden" name="deleteuserid" value="<?php echo (int)$sid; ?>">
+                                    <input type="hidden" name="targetuserid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="teacherid" value="<?php echo (int)$tid; ?>">
+                                    <input type="hidden" name="teacher" value="<?php echo dbg_h($teacherquery); ?>">
+                                    <input type="hidden" name="classname" value="<?php echo dbg_h($classquery); ?>">
+                                    <input type="hidden" name="classid" value="<?php echo (int)$classid; ?>">
+                                    <input type="text" name="confirm_delete" value="" size="8" placeholder="DELETE">
+                                    <button type="submit"<?php echo ((int)$cand['totalclasses'] > 0 ? ' disabled' : ''); ?>>Delete user</button>
+                                </form>
+                                <?php if ((int)$cand['totalclasses'] > 0): ?>
+                                    <div class="dbg-note">Reassign classes first.</div>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
     </div>
 
     <div class="dbg-card">
