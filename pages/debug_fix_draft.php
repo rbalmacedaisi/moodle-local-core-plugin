@@ -64,6 +64,24 @@ function gmk_debug_fix_availability_has_group($availability, $groupid) {
     return gmk_debug_fix_availability_node_has_group($decoded, (int)$groupid);
 }
 
+/**
+ * Envia respuesta JSON limpiando output intermedio para evitar parse errors en JS.
+ *
+ * @param array $payload
+ * @param int $oblevel
+ * @return void
+ */
+function gmk_debug_fix_send_json(array $payload, $oblevel = 0) {
+    while (ob_get_level() > (int)$oblevel) {
+        @ob_end_clean();
+    }
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($payload);
+    exit;
+}
+
 // ?"??"? AJAX: Deduplica el draft del perodo ?"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"??"?
 if ($action === 'fixdraft') {
     require_sesskey();
@@ -146,6 +164,11 @@ if ($action === 'deletesection') {
 if ($action === 'deletegroup') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
+    $oblevel = ob_get_level();
+    ob_start();
+    $preverrorhandler = set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+    });
 
     require_once($CFG->dirroot . '/group/lib.php');
     require_once($CFG->dirroot . '/course/lib.php');
@@ -156,13 +179,11 @@ if ($action === 'deletegroup') {
 
     $group = $DB->get_record('groups', ['id' => $groupid], 'id,courseid,name,idnumber');
     if (!$group) {
-        echo json_encode(['ok' => false, 'msg' => "Grupo $groupid no encontrado (ya eliminado)."]);
-        exit;
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => "Grupo $groupid no encontrado (ya eliminado)."], $oblevel);
     }
 
     if ($DB->record_exists('gmk_class', ['groupid' => $groupid])) {
-        echo json_encode(['ok' => false, 'msg' => "Grupo $groupid ahora tiene una gmk_class activa; no se elimina."]);
-        exit;
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => "Grupo $groupid ahora tiene una gmk_class activa; no se elimina."], $oblevel);
     }
 
     try {
@@ -200,7 +221,7 @@ if ($action === 'deletegroup') {
                 course_delete_section((int)$group->courseid, (int)$section->section, true, false);
                 $deletedsections++;
                 $log[] = "Seccion id={$section->id} (num={$section->section}) eliminada con sus actividades.";
-            } catch (Exception $se) {
+            } catch (Throwable $se) {
                 $skippedsections++;
                 $log[] = "ERROR al eliminar seccion id={$section->id}: " . $se->getMessage();
             }
@@ -248,7 +269,7 @@ if ($action === 'deletegroup') {
                 course_delete_module((int)$cm->id);
                 $deletedmodules++;
                 $log[] = "Modulo cmid={$cm->id} eliminado por disponibilidad de grupo.";
-            } catch (Exception $me) {
+            } catch (Throwable $me) {
                 $skippedmodules++;
                 $log[] = "ERROR al eliminar modulo cmid={$cm->id}: " . $me->getMessage();
             }
@@ -259,9 +280,13 @@ if ($action === 'deletegroup') {
         $log[] = "Resumen secciones: eliminadas=$deletedsections, omitidas/error=$skippedsections.";
         $log[] = "Resumen modulos: eliminados=$deletedmodules, omitidos/error=$skippedmodules.";
 
-        echo json_encode(['ok' => true, 'msg' => implode('; ', $log)]);
-    } catch (Exception $e) {
-        echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
+        gmk_debug_fix_send_json(['ok' => true, 'msg' => implode('; ', $log)], $oblevel);
+    } catch (Throwable $e) {
+        gmk_debug_fix_send_json(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()], $oblevel);
+    } finally {
+        if ($preverrorhandler !== null) {
+            restore_error_handler();
+        }
     }
     exit;
 }
@@ -598,7 +623,12 @@ async function fetchWithTimeout(url, timeoutMs) {
         var resp = await fetch(url, { method: 'POST', signal: ctrl.signal });
         clearTimeout(timer);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return await resp.json();
+        var raw = await resp.text();
+        try {
+            return JSON.parse(raw);
+        } catch (jsonErr) {
+            throw new Error('Respuesta no JSON: ' + raw.substring(0, 180).replace(/\\s+/g, ' '));
+        }
     } catch(e) {
         clearTimeout(timer);
         if (e.name === 'AbortError') throw new Error('Timeout (' + (timeoutMs/1000) + 's)');
