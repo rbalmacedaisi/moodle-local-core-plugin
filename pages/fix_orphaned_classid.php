@@ -1,7 +1,7 @@
 <?php
 // Detecta registros en gmk_course_progre con classid apuntando a una gmk_class
-// que ya no existe (clase eliminada). Muestra filtros + checkboxes para corrección masiva.
-// Acción: classid=0, groupid=0, status=COURSE_AVAILABLE (1), grade=0, progress=0
+// que ya no existe (clase eliminada). Muestra filtros + checkboxes para correcciÃ³n masiva.
+// AcciÃ³n: classid=0, groupid=0, status=COURSE_AVAILABLE (1), grade=0, progress=0
 // para los que estaban cursando (status=2). Registros en estado terminal (3/4/5)
 // solo se les limpia classid/groupid sin tocar status/grade/progress.
 
@@ -43,37 +43,40 @@ function gmk_fix_orphaned_send_json(array $payload, $oblevel = 0) {
 
 $action = optional_param('action', '', PARAM_ALPHANUM);
 
-// ── Endpoint AJAX: procesa UN registro y devuelve JSON ─────────────────────
+// â”€â”€ Endpoint AJAX: procesa UN registro y devuelve JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($action === 'fix_one') {
-    require_sesskey();
-    header('Content-Type: application/json; charset=utf-8');
     $oblevel = ob_get_level();
     ob_start();
     $preverrorhandler = set_error_handler(function($errno, $errstr, $errfile, $errline) {
         throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
     });
 
-    $id = required_param('id', PARAM_INT);
-
-    $statusLabels = [0=>'No disponible',1=>'Disponible',2=>'Cursando',
-                     3=>'Completada',4=>'Aprobada',5=>'Reprobada',6=>'Revalidando'];
-
-    $row = $DB->get_record_sql("
-        SELECT gcp.id AS progre_id, gcp.userid, gcp.courseid,
-               gcp.classid AS orphaned_classid, gcp.groupid, gcp.status,
-               u.firstname, u.lastname, c.fullname AS coursename
-          FROM {gmk_course_progre} gcp
-          JOIN {user}   u   ON u.id  = gcp.userid  AND u.deleted = 0
-          JOIN {course} c   ON c.id  = gcp.courseid
-     LEFT JOIN {gmk_class} cls ON cls.id = gcp.classid
-         WHERE gcp.id = :id AND gcp.classid > 0 AND cls.id IS NULL
-    ", ['id' => $id]);
-
-    if (!$row) {
-        gmk_fix_orphaned_send_json(['ok' => false, 'msg' => "id=$id: no encontrado o ya corregido."], $oblevel);
-    }
-
     try {
+        require_sesskey();
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        $id = required_param('id', PARAM_INT);
+
+        $statusLabels = [0=>'No disponible',1=>'Disponible',2=>'Cursando',
+                         3=>'Completada',4=>'Aprobada',5=>'Reprobada',6=>'Revalidando'];
+
+        $row = $DB->get_record_sql("
+            SELECT gcp.id AS progre_id, gcp.userid, gcp.courseid,
+                   gcp.classid AS orphaned_classid, gcp.groupid, gcp.status,
+                   u.firstname, u.lastname, c.fullname AS coursename
+              FROM {gmk_course_progre} gcp
+              JOIN {user}   u   ON u.id  = gcp.userid  AND u.deleted = 0
+              JOIN {course} c   ON c.id  = gcp.courseid
+         LEFT JOIN {gmk_class} cls ON cls.id = gcp.classid
+             WHERE gcp.id = :id AND gcp.classid > 0 AND cls.id IS NULL
+        ", ['id' => $id]);
+
+        if (!$row) {
+            gmk_fix_orphaned_send_json(['ok' => false, 'msg' => "id=$id: no encontrado o ya corregido."], $oblevel);
+        }
+
         $status     = (int)$row->status;
         $isTerminal = in_array($status, [3, 4, 5]);
 
@@ -94,7 +97,7 @@ if ($action === 'fix_one') {
         if ($isTerminal) {
             $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, timemodified=:now WHERE id=:id",
                          ['now' => time(), 'id' => $id]);
-            $desc = 'classid/groupid → 0 (nota preservada)';
+            $desc = 'classid/groupid â†’ 0 (nota preservada)';
         } else {
             $DB->execute("UPDATE {gmk_course_progre} SET classid=0, groupid=0, status=1, grade=0, progress=0, timemodified=:now WHERE id=:id",
                          ['now' => time(), 'id' => $id]);
@@ -105,20 +108,24 @@ if ($action === 'fix_one') {
         $DB->delete_records('gmk_class_queue',            ['userid' => $row->userid, 'classid' => $row->orphaned_classid]);
 
         $statusLabel = $statusLabels[$status] ?? "status=$status";
-        echo json_encode([
+        gmk_fix_orphaned_send_json([
             'ok'  => true,
-            'msg' => "{$row->firstname} {$row->lastname} — {$row->coursename} ({$statusLabel}) → {$desc}",
-        ]);
-    } catch (Exception $e) {
-        echo json_encode(['ok' => false, 'msg' => 'Error: ' . $e->getMessage()]);
+            'msg' => "{$row->firstname} {$row->lastname} - {$row->coursename} ({$statusLabel}) -> {$desc}",
+        ], $oblevel);
+    } catch (Throwable $e) {
+        gmk_fix_orphaned_send_json(['ok' => false, 'msg' => 'Error: ' . $e->getMessage()], $oblevel);
+    } finally {
+        if ($preverrorhandler !== null) {
+            restore_error_handler();
+        }
     }
     exit;
 }
 
 $PAGE->set_url('/local/grupomakro_core/pages/fix_orphaned_classid.php');
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title('Fix: classid huérfano en gmk_course_progre');
-$PAGE->set_heading('Corrección: Registros con Clase Eliminada');
+$PAGE->set_title('Fix: classid huÃ©rfano en gmk_course_progre');
+$PAGE->set_heading('CorrecciÃ³n: Registros con Clase Eliminada');
 echo $OUTPUT->header();
 
 echo '<style>
@@ -163,7 +170,7 @@ echo '<style>
   .filter-counter b { color:#1a73e8; }
 </style>';
 
-// ── Constantes de status ───────────────────────────────────────────────────
+// â”€â”€ Constantes de status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 define('STATUS_LABELS', [
     0 => 'No disponible',
     1 => 'Disponible',
@@ -180,7 +187,7 @@ define('STATUS_TAGS', [
     5 => 'reprobada',
 ]);
 
-// ── Obtener todos los candidatos ──────────────────────────────────────────
+// â”€â”€ Obtener todos los candidatos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $candidatesSql = "
     SELECT gcp.id        AS progre_id,
            gcp.userid,
@@ -206,14 +213,14 @@ $candidatesSql = "
 ";
 $candidates = $DB->get_records_sql($candidatesSql);
 
-// ── ACCIÓN: corregir los seleccionados ─────────────────────────────────────
+// â”€â”€ ACCIÃ“N: corregir los seleccionados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 if ($action === 'fix') {
     $selectedIds = optional_param_array('ids', [], PARAM_INT);
     $selectedIds = array_filter($selectedIds, fn($id) => $id > 0);
 
     if (empty($selectedIds)) {
-        echo "<div class='box warn'>No seleccionaste ningún registro.</div>";
-        echo "<p><a href='?' class='btn'>← Volver</a></p>";
+        echo "<div class='box warn'>No seleccionaste ningÃºn registro.</div>";
+        echo "<p><a href='?' class='btn'>â† Volver</a></p>";
         echo $OUTPUT->footer();
         exit;
     }
@@ -229,7 +236,7 @@ if ($action === 'fix') {
 
     foreach ($selectedIds as $id) {
         if (!isset($candidateMap[$id])) {
-            $log[] = "<span class='err'>✘ id=$id no encontrado entre candidatos</span>";
+            $log[] = "<span class='err'>âœ˜ id=$id no encontrado entre candidatos</span>";
             $errors++;
             continue;
         }
@@ -238,7 +245,7 @@ if ($action === 'fix') {
         $isTerminal = in_array($status, [3, 4, 5]);
 
         try {
-            // 1. Quitar del grupo Moodle si aún existe.
+            // 1. Quitar del grupo Moodle si aÃºn existe.
             if (!empty($row->groupid)) {
                 if ($DB->record_exists('groups', ['id' => $row->groupid])) {
                     if (groups_is_member($row->groupid, $row->userid)) {
@@ -264,7 +271,7 @@ if ($action === 'fix') {
                       WHERE id = :id",
                     ['now' => time(), 'id' => $id]
                 );
-                $action_desc = "classid/groupid → 0 (status {$status} preservado)";
+                $action_desc = "classid/groupid â†’ 0 (status {$status} preservado)";
             } else {
                 $DB->execute(
                     "UPDATE {gmk_course_progre}
@@ -272,7 +279,7 @@ if ($action === 'fix') {
                       WHERE id = :id",
                     ['now' => time(), 'id' => $id]
                 );
-                $action_desc = "status → Disponible, classid/groupid/grade/progress → 0";
+                $action_desc = "status â†’ Disponible, classid/groupid/grade/progress â†’ 0";
             }
 
             // 4. Limpiar pre_registration y queue.
@@ -281,39 +288,39 @@ if ($action === 'fix') {
 
             $fixed++;
             $statusLabel = STATUS_LABELS[$status] ?? "status=$status";
-            $log[] = "<span class='ok'>✔ {$row->firstname} {$row->lastname} — " . htmlspecialchars($row->coursename) . " ({$statusLabel}) → {$action_desc}</span>";
+            $log[] = "<span class='ok'>âœ” {$row->firstname} {$row->lastname} â€” " . htmlspecialchars($row->coursename) . " ({$statusLabel}) â†’ {$action_desc}</span>";
         } catch (Exception $e) {
             $errors++;
-            $log[] = "<span class='err'>✘ Error id={$id}: " . htmlspecialchars($e->getMessage()) . "</span>";
+            $log[] = "<span class='err'>âœ˜ Error id={$id}: " . htmlspecialchars($e->getMessage()) . "</span>";
         }
     }
 
-    echo "<div class='section'>Resultado de la corrección</div>";
+    echo "<div class='section'>Resultado de la correcciÃ³n</div>";
     echo "<div class='box " . ($errors === 0 ? 'ok' : 'warn') . "'>";
     echo "<b>$fixed corregidos</b>" . ($errors > 0 ? ", <b class='err'>$errors errores</b>" : "") . "</div>";
     echo "<div style='font-size:13px;line-height:1.9;'>" . implode('<br>', $log) . "</div>";
-    echo "<p style='margin-top:16px;'><a href='?' class='btn'>← Volver al análisis</a></p>";
+    echo "<p style='margin-top:16px;'><a href='?' class='btn'>â† Volver al anÃ¡lisis</a></p>";
     echo $OUTPUT->footer();
     exit;
 }
 
-// ── VISTA ─────────────────────────────────────────────────────────────────
-echo "<div class='box info'><b>¿Qué detecta esta página?</b><br>
+// â”€â”€ VISTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+echo "<div class='box info'><b>Â¿QuÃ© detecta esta pÃ¡gina?</b><br>
 Registros en <code>gmk_course_progre</code> cuyo <code>classid</code> apunta a una <code>gmk_class</code>
 que ya <b>no existe</b> (fue eliminada). Esto causa errores al intentar retirar o gestionar al estudiante.<br><br>
-<b>Acción según el estado del registro:</b><br>
-• <b>Cursando (2):</b> se des-matricula del curso Moodle, se limpia classid/groupid y se restablece a <em>Disponible</em>.<br>
-• <b>Completada/Aprobada/Reprobada (3/4/5):</b> solo se limpia classid/groupid; se preservan status, nota y progreso.</div>";
+<b>AcciÃ³n segÃºn el estado del registro:</b><br>
+â€¢ <b>Cursando (2):</b> se des-matricula del curso Moodle, se limpia classid/groupid y se restablece a <em>Disponible</em>.<br>
+â€¢ <b>Completada/Aprobada/Reprobada (3/4/5):</b> solo se limpia classid/groupid; se preservan status, nota y progreso.</div>";
 
 $total = count($candidates);
 
 if ($total === 0) {
-    echo "<div class='box ok'><b>✔ No se encontraron registros con classid huérfano.</b></div>";
+    echo "<div class='box ok'><b>âœ” No se encontraron registros con classid huÃ©rfano.</b></div>";
     echo $OUTPUT->footer();
     exit;
 }
 
-// Resumen por estado y lista de materias únicas para los filtros.
+// Resumen por estado y lista de materias Ãºnicas para los filtros.
 $byStatus    = [];
 $courseNames = [];
 foreach ($candidates as $row) {
@@ -325,7 +332,7 @@ ksort($byStatus);
 $courseNames = array_keys($courseNames);
 sort($courseNames);
 
-echo "<div class='box warn'>⚠ Se encontraron <b>$total registros</b> con classid huérfano.</div>";
+echo "<div class='box warn'>âš  Se encontraron <b>$total registros</b> con classid huÃ©rfano.</div>";
 
 echo "<div class='box info'><b>Resumen por estado:</b><br>";
 foreach ($byStatus as $s => $cnt) {
@@ -337,12 +344,12 @@ echo "</div>";
 
 echo '<form method="post" action="?action=fix" id="fix-form">';
 
-// ── Barra de filtros ───────────────────────────────────────────────────────
+// â”€â”€ Barra de filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo "<div class='filter-bar'>
   <div>
     <label for='filter-status'>Estado</label>
     <select id='filter-status'>
-      <option value=''>— Todos los estados —</option>";
+      <option value=''>â€” Todos los estados â€”</option>";
 foreach ($byStatus as $s => $cnt) {
     $label = STATUS_LABELS[$s] ?? "status=$s";
     echo "<option value='$s'>$label ($cnt)</option>";
@@ -358,23 +365,23 @@ echo "    </select>
     <input type='text' id='filter-student' placeholder='Buscar estudiante...' autocomplete='off'>
   </div>
   <div style='align-self:flex-end;display:flex;gap:6px;'>
-    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='clearFilters()'>✕ Limpiar</button>
-    <button type='button' class='btn btn-sm' style='background:#28a745' onclick='selectVisible()'>✔ Sel. visibles</button>
-    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='deselectVisible()'>✕ Desel. visibles</button>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='clearFilters()'>âœ• Limpiar</button>
+    <button type='button' class='btn btn-sm' style='background:#28a745' onclick='selectVisible()'>âœ” Sel. visibles</button>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='deselectVisible()'>âœ• Desel. visibles</button>
   </div>
   <div class='filter-counter'>Mostrando <b id='visible-count'>$total</b> de <b>$total</b> &nbsp;|&nbsp; Marcados: <b id='checked-count'>0</b></div>
 </div>";
 
-// ── Tabla ─────────────────────────────────────────────────────────────────
+// â”€â”€ Tabla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo "<div class='section' id='table-heading'>Candidatos ($total)</div>";
 echo "<table id='candidates-table'>
 <thead>
 <tr>
   <th><input type='checkbox' id='chk-all' class='cb' title='Marcar/desmarcar visibles'></th>
   <th>#</th><th>Estudiante</th><th>Materia</th>
-  <th>classid huérfano</th><th>groupid</th>
+  <th>classid huÃ©rfano</th><th>groupid</th>
   <th>Estado</th><th>Nota</th><th>Progreso</th>
-  <th>Acción que se aplicará</th>
+  <th>AcciÃ³n que se aplicarÃ¡</th>
 </tr>
 </thead>
 <tbody id='candidates-body'>";
@@ -413,9 +420,9 @@ echo "</tbody></table>";
 
 echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
     <button type='button' class='btn-danger btn' onclick='startFix()'>
-        🔧 Corregir seleccionados
+        ðŸ”§ Corregir seleccionados
     </button>
-    <a href='?' class='btn' style='background:#6c757d'>↺ Reanalizar</a>
+    <a href='?' class='btn' style='background:#6c757d'>â†º Reanalizar</a>
 </div>
 </form>
 
@@ -433,7 +440,7 @@ echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
          border:1px solid #ddd;border-radius:4px;padding:8px 12px;background:#f8f9fa;'></div>
 
     <div style='margin-top:16px;display:flex;gap:8px;justify-content:flex-end;'>
-      <button id='fix-close-btn' onclick='closeFixOverlay()' class='btn' style='display:none;background:#28a745;'>✔ Listo — Reanalizar</button>
+      <button id='fix-close-btn' onclick='closeFixOverlay()' class='btn' style='display:none;background:#28a745;'>âœ” Listo â€” Reanalizar</button>
     </div>
   </div>
 </div>";
@@ -538,7 +545,7 @@ var fixCloseBtn = document.getElementById('fix-close-btn');
 function appendLog(msg, ok) {
     var line = document.createElement('div');
     line.style.color = ok ? '#2e7d32' : '#c62828';
-    line.textContent = (ok ? '✔ ' : '✘ ') + msg;
+    line.textContent = (ok ? 'âœ” ' : 'âœ˜ ') + msg;
     fixLog.appendChild(line);
     fixLog.scrollTop = fixLog.scrollHeight;
 }
@@ -546,7 +553,7 @@ function appendLog(msg, ok) {
 async function startFix() {
     var checked = Array.from(document.querySelectorAll('.row-cb:checked'));
     if (checked.length === 0) { alert('Selecciona al menos un registro.'); return; }
-    if (!confirm('¿Corregir ' + checked.length + ' registro(s) seleccionado(s)?')) return;
+    if (!confirm('Â¿Corregir ' + checked.length + ' registro(s) seleccionado(s)?')) return;
 
     var ids = checked.map(function(cb) { return parseInt(cb.value); });
 
@@ -564,12 +571,19 @@ async function startFix() {
         fixCounter.textContent = (i + 1) + ' / ' + total;
         try {
             var resp = await fetch(FIX_URL + '&id=' + id, { method: 'POST' });
-            var data = await resp.json();
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var raw = await resp.text();
+            var data;
+            try {
+                data = JSON.parse(raw);
+            } catch (jsonErr) {
+                throw new Error('Respuesta no JSON: ' + raw.substring(0, 200).replace(/\\s+/g, ' '));
+            }
             appendLog(data.msg, data.ok);
             if (!data.ok) errors++;
             else done++;
         } catch(e) {
-            appendLog('id=' + id + ': Error de red — ' + e.message, false);
+            appendLog('id=' + id + ': Error de red â€” ' + e.message, false);
             errors++;
         }
         fixBar.style.width = Math.round(((i + 1) / total) * 100) + '%';
