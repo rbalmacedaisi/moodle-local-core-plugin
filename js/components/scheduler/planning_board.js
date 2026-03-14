@@ -82,7 +82,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 <span>{{ cls.shift }}</span>
                                 <span v-if="loadsMap[cls.subjectName]"
                                     class="flex items-center gap-0.5 bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-semibold"
-                                    :title="'Carga horaria: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales Â· intensidad: ' + (loadsMap[cls.subjectName].intensity) + 'h/ses'">
+                                    :title="'Carga horaria: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h totales · intensidad: ' + (loadsMap[cls.subjectName].intensity) + 'h/ses'">
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i>
                                     {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h
                                 </span>
@@ -90,7 +90,7 @@ window.SchedulerComponents.PlanningBoard = {
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i> def.
                                 </span>
                                 <div class="ml-auto flex gap-1">
-                                    <button @click.stop="openAddQuorum(cls)" class="text-slate-400 hover:text-green-600 transition-colors" title="AÃ±adir quÃ³rum proyectado">
+                                    <button @click.stop="openAddQuorum(cls)" class="text-slate-400 hover:text-green-600 transition-colors" title="Añadir quórum proyectado">
                                         <i data-lucide="user-plus" class="w-3 h-3"></i>
                                     </button>
                                     <button @click.stop="viewStudents(cls)" class="text-slate-400 hover:text-blue-600" title="Ver Estudiantes">
@@ -109,7 +109,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         @click.stop="viewAuditLog(cls)" 
                                         class="text-left text-orange-800 font-bold hover:underline flex items-center gap-1">
                                     <i data-lucide="scroll" class="w-3 h-3"></i>
-                                    Ver BitÃ¡cora de Intentos
+                                    Ver Bitácora de Intentos
                                 </button>
                             </div>
 
@@ -135,7 +135,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 <i data-lucide="save" class="w-3 h-3"></i>
                                 {{ saving ? 'Guardando...' : 'Guardar Borrador' }}
                              </button>
-                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en GestiÃ³n de Clases">
+                             <button @click="publishSchedules" :disabled="saving || publishing" class="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-colors disabled:opacity-50" title="Crear clases en Moodle y hacerlas visibles en Gestión de Clases">
                                 <i data-lucide="send" class="w-3 h-3"></i>
                                 {{ publishing ? 'Publicando...' : 'Publicar Horarios' }}
                              </button>
@@ -200,7 +200,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div class="text-[10px] font-bold leading-tight line-clamp-2" :class="getConflicts(cls).length > 0 ? 'text-red-800' : (cls.isExternal ? 'text-amber-800' : 'text-blue-800')">
                                             {{ cls.subjectName }}
                                             <span v-show="cls.isExternal" class="inline-block bg-amber-500 text-white text-[7px] px-1 rounded uppercase font-black ml-1">Externo</span>
-                                            <span v-show="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="DÃ­as liberados">
+                                            <span v-show="cls.excluded_dates && cls.excluded_dates.length > 0" class="inline-block bg-red-500 text-white text-[8px] px-1 rounded-full animate-pulse" title="Días liberados">
                                                 {{ cls.excluded_dates ? cls.excluded_dates.length : '' }}
                                             </span>
                                         </div>
@@ -212,7 +212,7 @@ window.SchedulerComponents.PlanningBoard = {
                                             <div class="flex items-center justify-between">
                                                 <span class="truncate">{{ cls.room || 'Sin aula' }}</span>
                                                 <span class="bg-blue-100 text-blue-700 font-bold px-1 rounded ml-1">{{ cls.typeLabel }}</span>
-                                                <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="QuÃ³rum Insuficiente">
+                                                <span v-show="cls.studentCount < 12" class="bg-red-100 text-red-600 px-1 rounded font-bold" title="Quórum Insuficiente">
                                                     <i data-lucide="users" class="w-2 h-2 inline-block -mt-1"></i> {{ cls.studentCount }}
                                                 </span>
                                             </div>
@@ -225,11 +225,11 @@ window.SchedulerComponents.PlanningBoard = {
                                                         :title="getLoadCoverage(cls).under
                                                             ? 'Carga incompleta: ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' sesiones (' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h requeridas)'
                                                             : 'Carga cubierta: ' + (loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours) + 'h'">
-                                                        {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' Â· ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
+                                                        {{ loadsMap[cls.subjectName].total_hours || loadsMap[cls.subjectName].totalHours }}h{{ getLoadCoverage(cls).required ? ' · ' + getLoadCoverage(cls).actual + '/' + getLoadCoverage(cls).required + ' ses.' : '' }}
                                                     </span>
                                                     <i v-show="getLoadCoverage(cls).under" data-lucide="alert-circle" class="w-2.5 h-2.5 shrink-0 text-orange-500"></i>
                                                 </div>
-                                                <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuraciÃ³n por defecto">
+                                                <div v-else-if="!cls.isExternal" class="flex items-center gap-1 text-slate-400" title="Sin carga horaria definida, usa configuración por defecto">
                                                     <i data-lucide="clock" class="w-2.5 h-2.5 shrink-0"></i>
                                                     <span class="italic">defecto</span>
                                                 </div>
@@ -238,7 +238,7 @@ window.SchedulerComponents.PlanningBoard = {
 
                                         <!-- Actions -->
                                         <div class="absolute bottom-5 right-1 flex gap-1">
-                                            <button @click.stop="openAddQuorum(cls)" class="p-0.5 bg-white rounded shadow hover:bg-green-50 transition-colors" title="AÃ±adir quÃ³rum proyectado">
+                                            <button @click.stop="openAddQuorum(cls)" class="p-0.5 bg-white rounded shadow hover:bg-green-50 transition-colors" title="Añadir quórum proyectado">
                                                 <i data-lucide="user-plus" class="w-3 h-3 text-slate-400 hover:text-green-600"></i>
                                             </button>
                                             <button @click.stop="viewStudents(cls)" class="p-0.5 bg-white rounded shadow text-slate-500 hover:text-blue-600" title="Ver Estudiantes">
@@ -266,7 +266,7 @@ window.SchedulerComponents.PlanningBoard = {
                                         <div v-show="!cls.isExternal"
                                             class="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center group/resize"
                                             @mousedown.stop="onResizeStart($event, cls)"
-                                            title="Arrastrar para cambiar duraciÃ³n"
+                                            title="Arrastrar para cambiar duración"
                                         >
                                             <div class="w-8 h-1 rounded-full bg-blue-300 group-hover/resize:bg-blue-500 transition-colors"></div>
                                         </div>
@@ -404,7 +404,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 </div>
                                 <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex items-center gap-1 col-span-2">
                                     <i data-lucide="arrow-right" class="w-3 h-3 text-slate-400 shrink-0"></i>
-                                    <span>{{ formatDate(selectedClass.assignedDates[0]) }} â†’ {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                                    <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
                                 </div>
                             </div>
                         </div>
@@ -451,7 +451,7 @@ window.SchedulerComponents.PlanningBoard = {
                                 </tr>
                                 <tr v-if="currentStudents.length === 0">
                                     <td colspan="3" class="px-4 py-8 text-center text-slate-400 italic">
-                                        No hay informaciÃ³n de estudiantes disponible.
+                                        No hay información de estudiantes disponible.
                                     </td>
                                 </tr>
                             </tbody>
@@ -479,11 +479,11 @@ window.SchedulerComponents.PlanningBoard = {
                         <!-- Current state summary -->
                         <div class="bg-slate-50 rounded-lg p-3 text-xs space-y-1 text-slate-600">
                             <div class="flex justify-between">
-                                <span class="font-medium text-slate-700">DÃ­a programado:</span>
-                                <span>{{ selectedClass.day }} {{ selectedClass.start }} â€“ {{ selectedClass.end }}</span>
+                                <span class="font-medium text-slate-700">Día programado:</span>
+                                <span>{{ selectedClass.day }} {{ selectedClass.start }} - {{ selectedClass.end }}</span>
                             </div>
                             <div class="flex justify-between">
-                                <span class="font-medium text-slate-700">DuraciÃ³n sesiÃ³n:</span>
+                                <span class="font-medium text-slate-700">Duración sesión:</span>
                                 <span>{{ selectedClassDuration }} min</span>
                             </div>
                             <div class="flex justify-between" v-if="loadsMap[selectedClass.subjectName]">
@@ -493,12 +493,12 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="flex justify-between">
                                 <span class="font-medium text-slate-700">Sesiones actuales:</span>
                                 <span :class="effectiveSessionCount === optimalSessions ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'">
-                                    {{ effectiveSessionCount }}{{ optimalSessions ? ' (Ã³ptimo: ' + optimalSessions + ')' : '' }}
+                                    {{ effectiveSessionCount }}{{ optimalSessions ? ' (óptimo: ' + optimalSessions + ')' : '' }}
                                 </span>
                             </div>
                             <div v-if="selectedClass.assignedDates && selectedClass.assignedDates.length > 0" class="flex justify-between">
                                 <span class="font-medium text-slate-700">Rango actual:</span>
-                                <span>{{ formatDate(selectedClass.assignedDates[0]) }} â†’ {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
+                                <span>{{ formatDate(selectedClass.assignedDates[0]) }} → {{ formatDate(selectedClass.assignedDates[selectedClass.assignedDates.length - 1]) }}</span>
                             </div>
                         </div>
 
@@ -527,7 +527,7 @@ window.SchedulerComponents.PlanningBoard = {
                             </div>
                         </div>
                         <div v-else class="text-center text-slate-400 text-xs py-4 italic">
-                            No hay sugerencias disponibles â€” la configuraciÃ³n ya es Ã³ptima.
+                            No hay sugerencias disponibles — la configuración ya es óptima.
                         </div>
                     </div>
                     <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
@@ -541,7 +541,7 @@ window.SchedulerComponents.PlanningBoard = {
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                     <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                          <div>
-                            <h4 class="font-bold text-slate-800">BitÃ¡cora de Intentos</h4>
+                            <h4 class="font-bold text-slate-800">Bitácora de Intentos</h4>
                             <p class="text-[10px] text-slate-500">{{ selectedClass?.subjectName }}</p>
                          </div>
                          <button @click="logDialog = false"><i data-lucide="x" class="w-4 h-4 text-slate-400"></i></button>
@@ -550,7 +550,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <table class="w-full text-xs text-left">
                             <thead class="bg-slate-50 text-slate-500 uppercase font-bold sticky top-0">
                                 <tr>
-                                    <th class="px-4 py-2 border-b">DÃ­a</th>
+                                    <th class="px-4 py-2 border-b">Día</th>
                                     <th class="px-4 py-2 border-b">Hora</th>
                                     <th class="px-4 py-2 border-b">Estado</th>
                                     <th class="px-4 py-2 border-b">Detalle del Fallo</th>
@@ -580,12 +580,12 @@ window.SchedulerComponents.PlanningBoard = {
                 </div>
              </div>
 
-            <!-- Modal: AÃ±adir QuÃ³rum Proyectado -->
+            <!-- Modal: Añadir Quórum Proyectado -->
             <div v-if="quorumDialog"
                  class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
                  @click.self="quorumDialog = false">
                 <div class="bg-white rounded-xl shadow-2xl p-6 w-80">
-                    <h3 class="font-bold text-slate-800 mb-1">AÃ±adir QuÃ³rum Proyectado</h3>
+                    <h3 class="font-bold text-slate-800 mb-1">Añadir Quórum Proyectado</h3>
                     <p class="text-xs text-slate-500 mb-4">
                         Estudiantes adicionales para <strong>{{ quorumTarget?.subjectName }}</strong>.
                         Actual: <span class="font-mono">{{ quorumTarget?.studentCount || 0 }}</span>
@@ -601,20 +601,20 @@ window.SchedulerComponents.PlanningBoard = {
                         <button @click="confirmAddQuorum"
                                 :disabled="!quorumAmount || quorumAmount < 1"
                                 class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
-                            AÃ±adir
+                            Añadir
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Modal: AÃ±adir Asignatura al Tablero -->
+            <!-- Modal: Añadir Asignatura al Tablero -->
             <div v-if="addSubjectDialog"
                  class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
                  @click.self="addSubjectDialog = false">
                 <div class="bg-white rounded-xl shadow-2xl p-6 w-[480px]">
-                    <h3 class="font-bold text-slate-800 mb-1">AÃ±adir Asignatura al Tablero</h3>
+                    <h3 class="font-bold text-slate-800 mb-1">Añadir Asignatura al Tablero</h3>
                     <p class="text-xs text-slate-500 mb-4">
-                        Busca una asignatura del catÃ¡logo para agregar al tablero con quÃ³rum proyectado.
+                        Busca una asignatura del catálogo para agregar al tablero con quórum proyectado.
                     </p>
                     <input type="text" v-model="subjectSearch"
                            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none mb-2"
@@ -631,12 +631,12 @@ window.SchedulerComponents.PlanningBoard = {
                             <div class="font-medium text-slate-800">{{ subj.name }}</div>
                             <div class="text-xs text-slate-500">
                                 {{ (subj.careers || []).map(c => c.name).join(', ') }}
-                                â€” {{ subj.semester_name }}
+                                — {{ subj.semester_name }}
                             </div>
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">QuÃ³rum proyectado</label>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Quórum proyectado</label>
                         <input type="number" v-model.number="addSubjectCount" min="1"
                                class="w-full border border-slate-300 rounded-lg px-3 py-2 text-center text-lg font-mono focus:ring-2 focus:ring-green-500 outline-none"
                                placeholder="0" />
@@ -649,7 +649,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <button @click="confirmAddSubject"
                                 :disabled="!selectedSubjectToAdd || !addSubjectCount || addSubjectCount < 1"
                                 class="px-4 py-2 text-sm font-bold bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white rounded-lg">
-                            AÃ±adir al Tablero
+                            Añadir al Tablero
                         </button>
                     </div>
                 </div>
@@ -666,7 +666,7 @@ window.SchedulerComponents.PlanningBoard = {
                         <i v-else data-lucide="alert-triangle" class="w-5 h-5 text-red-600 shrink-0"></i>
                         <div>
                             <h4 class="font-bold text-slate-800 text-sm">
-                                {{ publishError ? 'Error al publicar' : publishDone ? 'PublicaciÃ³n completada' : 'Publicando horarios...' }}
+                                {{ publishError ? 'Error al publicar' : publishDone ? 'Publicación completada' : 'Publicando horarios...' }}
                             </h4>
                             <p class="text-[11px] text-slate-500">{{ publishStatusText }}</p>
                         </div>
@@ -731,11 +731,11 @@ window.SchedulerComponents.PlanningBoard = {
             showRoomList: false,
             optimizeDialog: false,
             optimizeSuggestions: [],
-            // Modal +QuÃ³rum (ficha existente)
+            // Modal +Quórum (ficha existente)
             quorumDialog: false,
             quorumTarget: null,
             quorumAmount: 1,
-            // Modal AÃ±adir Asignatura
+            // Modal Añadir Asignatura
             addSubjectDialog: false,
             subjectSearch: '',
             selectedSubjectToAdd: null,
@@ -816,9 +816,9 @@ window.SchedulerComponents.PlanningBoard = {
         loadsMap() {
             const loads = this.storeState.context?.loads || [];
             const map = {};
-            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" â†’ "SUBJECT"
+            // Helper: strip nomenclature wrapper "PERIOD (S) SUBJECT (TYPE) ROOM" -> "SUBJECT"
             const stripNomenclature = (name) => name
-                .replace(/^\S+[-â€“]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
+                .replace(/^\S+[\-\u2013\u2014]\S+\s+\([A-Z]\)\s+/i, '') // remove "2026-II (S) "
                 .replace(/\s+\((PRESENCIAL|VIRTUAL|MIXTA)\).*$/i, '') // remove " (PRESENCIAL) AULA X"
                 .trim();
             loads.forEach(l => {
@@ -828,8 +828,8 @@ window.SchedulerComponents.PlanningBoard = {
                 map[raw.toUpperCase()] = l;
             });
             // Also index by the nomenclature-stripped version of each schedule's subjectName
-            // so that "2026-II (S) INGLÃ‰S I (PRESENCIAL) AULA L" resolves to the "INGLÃ‰S I" load entry.
-            // We do this by iterating generatedSchedules and mapping their full name â†’ load entry.
+            // so that "2026-II (S) INGLÉS I (PRESENCIAL) AULA L" resolves to the "INGLÉS I" load entry.
+            // We do this by iterating generatedSchedules and mapping their full name -> load entry.
             const schedules = this.storeState.generatedSchedules || [];
             schedules.forEach(cls => {
                 if (!cls.subjectName || map[cls.subjectName]) return; // already indexed
@@ -855,7 +855,7 @@ window.SchedulerComponents.PlanningBoard = {
             if (!this.selectedClass) return 0;
             const ad = this.selectedClass.assignedDates;
             if (Array.isArray(ad) && ad.length > 0) return ad.length;
-            // assignedDates missing/empty â†’ compute from period dates
+            // assignedDates missing/empty -> compute from period dates
             if (!this.selectedClass.day || this.selectedClass.day === 'N/A' || !window.SchedulerAlgorithm?.getDatesForDay) return 0;
             const schedulerDay = this.toSchedulerDay(this.selectedClass.day);
             if (!schedulerDay) return 0;
@@ -959,7 +959,7 @@ window.SchedulerComponents.PlanningBoard = {
         },
 
         // Overlap layout cache: { id -> { top, height, left, width, zIndex } }
-        // Column-packing sweep (Google Calendar style) â€” cards never visually overlap:
+        // Column-packing sweep (Google Calendar style): cards never visually overlap.
         // 1. Assign each card the first free column (greedy, sorted by start time).
         // 2. Expand each card rightward to fill empty adjacent columns within its time range.
         eventStyleMap() {
@@ -1073,7 +1073,7 @@ window.SchedulerComponents.PlanningBoard = {
             };
             return map[key] || '';
         },
-        // Internal toMins â€” used by computed maps (not reactive, just pure util)
+        // Internal toMins: used by computed maps (not reactive, just pure util).
         _toMins(t) {
             if (!t || typeof t !== 'string') return 0;
             const parts = t.trim().split(':');
@@ -1085,7 +1085,7 @@ window.SchedulerComponents.PlanningBoard = {
             return this.classesByDay[nd] || [];
         },
         getEventStyle(cls) {
-            // Use pre-computed style â€” fall back to inline calculation if not cached yet
+            // Use pre-computed style; fall back to inline calculation if not cached yet.
             if (this.eventStyleMap[cls.id]) return this.eventStyleMap[cls.id];
             // Fallback (first render before computed settles)
             const pixelsPerHour = 56;
@@ -1327,7 +1327,7 @@ window.SchedulerComponents.PlanningBoard = {
             if (!load || cls.isExternal) return { required: null, actual: null, under: false };
             const totalH = parseFloat(load.total_hours || load.totalHours || 0);
             if (!totalH) return { required: null, actual: null, under: false };
-            // Use assignedDates length if available â€” avoids calling getDatesForDay on every render
+            // Use assignedDates length if available; avoids calling getDatesForDay on every render.
             let actual = 0;
             if (Array.isArray(cls.assignedDates) && cls.assignedDates.length > 0) {
                 actual = cls.assignedDates.length;
@@ -1417,7 +1417,7 @@ window.SchedulerComponents.PlanningBoard = {
                 const top = ((this.toMins(start) - dayStartMins) / 60) * pixelsPerHour;
                 const height = (duration / 60) * pixelsPerHour;
 
-                this._showGhost(day, top, height, `${start} â€“ ${end}`);
+                this._showGhost(day, top, height, `${start} - ${end}`);
             });
         },
         onDragLeave(day) {
@@ -1567,13 +1567,13 @@ window.SchedulerComponents.PlanningBoard = {
                     if (current !== optimal) {
                         const dates = allDates.slice(0, optimal);
                         const label = current > optimal
-                            ? `Reducir a ${optimal} sesiones (${totalH}h Ã· ${durH}h/ses)`
-                            : `Ampliar a ${optimal} sesiones (${totalH}h Ã· ${durH}h/ses)`;
+                            ? `Reducir a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`
+                            : `Ampliar a ${optimal} sesiones (${totalH}h ÷ ${durH}h/ses)`;
                         suggestions.push({
                             type: 'adjust',
                             label,
                             description: `Ajusta las sesiones exactamente a la carga horaria de ${totalH}h.`,
-                            dateRange: dates.length > 0 ? `${this.formatDate(dates[0])} â†’ ${this.formatDate(dates[dates.length - 1])}` : '',
+                            dateRange: dates.length > 0 ? `${this.formatDate(dates[0])} -> ${this.formatDate(dates[dates.length - 1])}` : '',
                             dates,
                             targetClass: cls
                         });
@@ -1589,9 +1589,9 @@ window.SchedulerComponents.PlanningBoard = {
                     );
 
                     if (optimal < allDates.length && siblings.length > 0) {
-                        // There are sibling classes on other days â€” just suggest adjusting
+                        // There are sibling classes on other days; just suggest adjusting.
                     } else if (optimal < allDates.length) {
-                        // No siblings â€” offer to split into 2 consecutive blocks on the same day
+                        // No siblings; offer to split into 2 consecutive blocks on the same day.
                         const half = Math.ceil(optimal / 2);
                         if (half >= 1 && half < allDates.length) {
                             const blockA = allDates.slice(0, half);
@@ -1600,8 +1600,8 @@ window.SchedulerComponents.PlanningBoard = {
                                 suggestions.push({
                                     type: 'split',
                                     label: `Dividir en 2 bloques consecutivos (${half} ses. c/u)`,
-                                    description: `Bloque A: primeras ${half} semanas. Bloque B: siguientes ${blockB.length} semanas en el mismo dÃ­a y hora.`,
-                                    dateRange: `Bloque A: ${this.formatDate(blockA[0])} â†’ ${this.formatDate(blockA[blockA.length-1])} | Bloque B: ${this.formatDate(blockB[0])} â†’ ${this.formatDate(blockB[blockB.length-1])}`,
+                                    description: `Bloque A: primeras ${half} semanas. Bloque B: siguientes ${blockB.length} semanas en el mismo día y hora.`,
+                                    dateRange: `Bloque A: ${this.formatDate(blockA[0])} -> ${this.formatDate(blockA[blockA.length-1])} | Bloque B: ${this.formatDate(blockB[0])} -> ${this.formatDate(blockB[blockB.length-1])}`,
                                     dates: blockA,
                                     datesB: blockB,
                                     targetClass: cls
@@ -1613,7 +1613,7 @@ window.SchedulerComponents.PlanningBoard = {
             }
 
             // --- Suggestion type C: consecutive sibling detection ---
-            // Find classes with same subjectName placed on same day â€” suggest they use consecutive date windows
+            // Find classes with same subjectName placed on same day; suggest consecutive date windows.
             const sameSubjectSameDay = this.allClasses.filter(c =>
                 c.id !== cls.id &&
                 c.subjectName === cls.subjectName &&
@@ -1645,8 +1645,8 @@ window.SchedulerComponents.PlanningBoard = {
                             suggestions.push({
                                 type: 'consecutive',
                                 label: `Distribuir consecutivamente con ${sameSubjectSameDay.length} ficha(s) hermana(s)`,
-                                description: `Asigna ventanas de ${optimal} sesiones sin solapamiento a cada grupo en el mismo dÃ­a/hora.`,
-                                dateRange: windows[myIdx]?.length > 0 ? `Esta ficha: ${this.formatDate(windows[myIdx][0])} â†’ ${this.formatDate(windows[myIdx][windows[myIdx].length-1])}` : '',
+                                description: `Asigna ventanas de ${optimal} sesiones sin solapamiento a cada grupo en el mismo día/hora.`,
+                                dateRange: windows[myIdx]?.length > 0 ? `Esta ficha: ${this.formatDate(windows[myIdx][0])} -> ${this.formatDate(windows[myIdx][windows[myIdx].length-1])}` : '',
                                 windows,
                                 siblings: allSiblings,
                                 targetClass: cls
@@ -1663,7 +1663,7 @@ window.SchedulerComponents.PlanningBoard = {
                 sug.targetClass.assignedDates = sug.dates;
                 sug.targetClass.maxSessions = sug.dates.length;
             } else if (sug.type === 'split') {
-                // Apply block A to this class; block B requires a sibling â€” just apply A for now
+                // Apply block A to this class; block B requires a sibling, so apply A only.
                 sug.targetClass.assignedDates = sug.dates;
                 sug.targetClass.maxSessions = sug.dates.length;
             } else if (sug.type === 'consecutive') {
@@ -1771,11 +1771,11 @@ window.SchedulerComponents.PlanningBoard = {
             const hasSession = (Array.isArray(cls.sessions) && cls.sessions.length > 0) ||
                                (cls.day && cls.day !== 'N/A');
             if (!hasSession) {
-                alert('Esta ficha no tiene horario asignado. UbÃ­cala en el calendario antes de publicar.');
+                alert('Esta ficha no tiene horario asignado. Ubícala en el calendario antes de publicar.');
                 return;
             }
 
-            if (!confirm(`Â¿Publicar "${cls.subjectName}"?\n\nSe crearÃ¡ o actualizarÃ¡ su registro en GestiÃ³n de Clases.`)) return;
+            if (!confirm(`¿Publicar "${cls.subjectName}"?\n\nSe creará o actualizará su registro en Gestión de Clases.`)) return;
 
             this.publishDialog = true;
             this.publishDone   = false;
@@ -1789,7 +1789,7 @@ window.SchedulerComponents.PlanningBoard = {
                 const store    = window.schedulerStore;
                 const periodId = store.state.activePeriod;
 
-                // â”€â”€ FASE 1: guardar TODAS las clases en BD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // FASE 1: guardar TODAS las clases en BD
                 // CRITICAL: we must pass ALL placed classes so the backend does NOT delete
                 // the ones missing from the list. Passing only [cls] would wipe every other
                 // class for this period.
@@ -1815,7 +1815,7 @@ window.SchedulerComponents.PlanningBoard = {
                         return clean;
                     });
 
-                // Find where our target cls sits in the allPlaced list (by index â†’ classid mapping)
+                // Find where our target cls sits in the allPlaced list (by index -> classid mapping)
                 const targetIdx = allPlaced.findIndex(s => {
                     if (cls.id && s.id && cls.id === s.id) return true;
                     return s.corecourseid === cls.corecourseid &&
@@ -1824,7 +1824,7 @@ window.SchedulerComponents.PlanningBoard = {
                 });
 
                 if (targetIdx === -1) {
-                    throw new Error(`No se encontrÃ³ "${cls.subjectName}" en la lista de clases colocadas.`);
+                    throw new Error(`No se encontró "${cls.subjectName}" en la lista de clases colocadas.`);
                 }
 
                 this._publishLog(`Guardando ${allPlaced.length} clases en base de datos...`);
@@ -1856,7 +1856,7 @@ window.SchedulerComponents.PlanningBoard = {
                     throw new Error(`No se obtuvo ID de BD para "${cls.subjectName}".`);
                 }
 
-                // â”€â”€ FASE 2: crear estructuras Moodle SOLO para la clase target â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                // FASE 2: crear estructuras Moodle SOLO para la clase target
                 this._publishLog(`Creando estructura Moodle para "${cls.subjectName}" (ID: ${targetClassId})...`);
                 this.publishStatusText = `Publicando "${cls.subjectName}"...`;
                 this.publishProgress = 60;
@@ -1888,13 +1888,13 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog('Borrador actualizado.', 'success');
 
                 this.publishProgress = 100;
-                this._publishLog(`Â¡"${cls.subjectName}" publicada correctamente!`, 'success');
-                this.publishStatusText = `"${cls.subjectName}" publicada en GestiÃ³n de Clases.`;
+                this._publishLog(`¡"${cls.subjectName}" publicada correctamente!`, 'success');
+                this.publishStatusText = `"${cls.subjectName}" publicada en Gestión de Clases.`;
                 this.publishDone = true;
 
             } catch (e) {
                 this.publishError = true;
-                this.publishStatusText = 'La publicaciÃ³n fallÃ³. Revisa el error a continuaciÃ³n.';
+                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
                 this._publishLog('ERROR: ' + e.message, 'error');
             } finally {
                 this.publishing = false;
@@ -1908,7 +1908,7 @@ window.SchedulerComponents.PlanningBoard = {
                 alert('No hay clases asignadas para publicar. Ubica al menos una ficha en el calendario antes de publicar.');
                 return;
             }
-            if (!confirm(`Â¿Publicar ${assignedCount} clase(s) programada(s)? Esto crearÃ¡ o actualizarÃ¡ los registros en GestiÃ³n de Clases.`)) return;
+            if (!confirm(`¿Publicar ${assignedCount} clase(s) programada(s)? Esto creará o actualizará los registros en Gestión de Clases.`)) return;
 
             // Open modal
             this.publishDialog = true;
@@ -1922,7 +1922,7 @@ window.SchedulerComponents.PlanningBoard = {
             try {
                 const periodId = window.schedulerStore.state.activePeriod;
 
-                this._publishLog(`Guardando borrador (${this.allClasses.length} Ã­tems)...`);
+                this._publishLog(`Guardando borrador (${this.allClasses.length} ítems)...`);
                 this.publishProgress = 5;
                 this.publishStatusText = 'Guardando borrador...';
                 await window.schedulerStore.saveGeneration(periodId, this.allClasses);
@@ -1945,15 +1945,15 @@ window.SchedulerComponents.PlanningBoard = {
                 );
 
                 this.publishProgress = 95;
-                this._publishLog('Re-guardando borrador post-publicaciÃ³n...', 'info');
+                this._publishLog('Re-guardando borrador post-publicación...', 'info');
                 this.publishProgress = 100;
-                this._publishLog(`Â¡PublicaciÃ³n completada! ${assignedCount} clases disponibles en GestiÃ³n de Clases.`, 'success');
+                this._publishLog(`¡Publicación completada! ${assignedCount} clases disponibles en Gestión de Clases.`, 'success');
                 this.publishStatusText = `${assignedCount} clases publicadas correctamente.`;
                 this.publishDone = true;
 
             } catch (e) {
                 this.publishError = true;
-                this.publishStatusText = 'La publicaciÃ³n fallÃ³. Revisa el error a continuaciÃ³n.';
+                this.publishStatusText = 'La publicación falló. Revisa el error a continuación.';
                 this._publishLog('ERROR: ' + e.message, 'error');
                 // Show technical detail
                 if (e.message && e.message.length > 120) {
@@ -1987,7 +1987,7 @@ window.SchedulerComponents.PlanningBoard = {
             this.currentLog = cls.auditLog || [];
             this.logDialog = true;
         },
-        // --- QuÃ³rum en ficha existente ---
+        // --- Quórum en ficha existente ---
         openAddQuorum(cls) {
             this.quorumTarget = cls;
             this.quorumAmount = 1;
@@ -2001,7 +2001,7 @@ window.SchedulerComponents.PlanningBoard = {
             this.quorumTarget = null;
             this.quorumAmount = 1;
         },
-        // --- AÃ±adir asignatura sin demanda ---
+        // --- Añadir asignatura sin demanda ---
         openAddSubject() {
             this.subjectSearch = '';
             this.selectedSubjectToAdd = null;
