@@ -152,19 +152,31 @@ function dbg_get_active_classes_like_api(stdClass $classrow, int $userid): array
     };
 
     // Preferred path: by learningcourseid in this learning plan.
-    $where = $base . ' AND c.courseid = :lcid AND c.learningplanid = :lpid';
+    $where = $base . ' AND c.courseid = :lcid AND (c.learningplanid = :lpid OR EXISTS (
+                        SELECT 1
+                          FROM {local_learning_courses} lpcmap
+                         WHERE lpcmap.id = c.courseid
+                           AND lpcmap.learningplanid = :lpidmap
+                    ))';
     $params = $paramsbase + [
         'lcid' => (int)$classrow->learningcourseid,
         'lpid' => (int)$classrow->learningplanid,
+        'lpidmap' => (int)$classrow->learningplanid,
     ];
     $classes = $fetch($where, $params);
 
     // Fallback path: by corecourseid in this learning plan.
     if (empty($classes)) {
-        $where2 = $base . ' AND c.corecourseid = :ccid AND c.learningplanid = :lpid';
+        $where2 = $base . ' AND c.corecourseid = :ccid AND (c.learningplanid = :lpid OR EXISTS (
+                            SELECT 1
+                              FROM {local_learning_courses} lpcmap
+                             WHERE lpcmap.id = c.courseid
+                               AND lpcmap.learningplanid = :lpidmap
+                        ))';
         $params2 = $paramsbase + [
             'ccid' => (int)$classrow->corecourseid,
             'lpid' => (int)$classrow->learningplanid,
+            'lpidmap' => (int)$classrow->learningplanid,
         ];
         $classes = $fetch($where2, $params2);
     }
@@ -552,4 +564,3 @@ echo '</div>';
 </div>
 <?php
 echo $OUTPUT->footer();
-

@@ -162,17 +162,29 @@ class get_student_learning_plan_pensum extends external_api
                         $courseNamesById[(int)$courserecord->id] = $courserecord->fullname;
                     }
 
+                    // Effective plan match: tolerate stale gmk_class.learningplanid when courseid maps to the plan.
+                    $effectiveplanwhere = "(c.learningplanid = :lpid OR EXISTS (
+                                              SELECT 1
+                                                FROM {local_learning_courses} lpcmap
+                                               WHERE lpcmap.id = c.courseid
+                                                 AND lpcmap.learningplanid = :lpidmap
+                                            ))";
+                    $effectiveplanparams = [
+                        'lpid' => $params['learningPlanId'],
+                        'lpidmap' => $params['learningPlanId'],
+                    ];
+
                     // Candidate classes by real group membership (handles old progress rows with classid/groupid empty).
                     $membershipclasses = $DB->get_records_sql(
                         "SELECT c.id, c.corecourseid
                            FROM {gmk_class} c
                            JOIN {groups_members} gm ON gm.groupid = c.groupid
                           WHERE gm.userid = :userid
-                            AND c.learningplanid = :lpid
+                            AND $effectiveplanwhere
                             AND c.gradecategoryid > 0
                             AND c.corecourseid $courseInSql
                        ORDER BY c.id ASC",
-                        ['userid' => $params['userId'], 'lpid' => $params['learningPlanId']] + $courseInParams
+                        ['userid' => $params['userId']] + $effectiveplanparams + $courseInParams
                     );
                     foreach ($membershipclasses as $mclass) {
                         $cid = (int)$mclass->id;
@@ -193,12 +205,12 @@ class get_student_learning_plan_pensum extends external_api
                       LEFT JOIN {grade_grades} gg
                              ON gg.itemid = gi.id
                             AND gg.userid = :userid
-                          WHERE c.learningplanid = :lpid
+                          WHERE $effectiveplanwhere
                             AND c.gradecategoryid > 0
                             AND c.corecourseid $courseInSql
                        GROUP BY c.corecourseid
                        ORDER BY c.corecourseid ASC",
-                        ['userid' => $params['userId'], 'lpid' => $params['learningPlanId']] + $courseInParams
+                        ['userid' => $params['userId']] + $effectiveplanparams + $courseInParams
                     );
                     foreach ($plancategorygrades as $pcg) {
                         if (!is_null($pcg->gradeval)) {
@@ -431,10 +443,15 @@ class get_student_learning_plan_pensum extends external_api
                           WHERE c.approved = 1
                             AND c.closed = 0
                             AND c.enddate >= :now
-                            AND c.learningplanid = :lpid
+                            AND (c.learningplanid = :lpid OR EXISTS (
+                                  SELECT 1
+                                    FROM {local_learning_courses} lpcmap
+                                   WHERE lpcmap.id = c.courseid
+                                     AND lpcmap.learningplanid = :lpidmap
+                                ))
                             AND c.courseid $inLearningSql
                        GROUP BY c.courseid",
-                        ['now' => time(), 'lpid' => $params['learningPlanId']] + $inLearningParams
+                        ['now' => time(), 'lpid' => $params['learningPlanId'], 'lpidmap' => $params['learningPlanId']] + $inLearningParams
                     );
                     foreach ($learningCounts as $row) {
                         $activeClassCountByLearningCourse[(int)$row->learningcourseid] = (int)$row->total;
@@ -450,10 +467,15 @@ class get_student_learning_plan_pensum extends external_api
                           WHERE c.approved = 1
                             AND c.closed = 0
                             AND c.enddate >= :now
-                            AND c.learningplanid = :lpid
+                            AND (c.learningplanid = :lpid OR EXISTS (
+                                  SELECT 1
+                                    FROM {local_learning_courses} lpcmap
+                                   WHERE lpcmap.id = c.courseid
+                                     AND lpcmap.learningplanid = :lpidmap
+                                ))
                             AND c.corecourseid $inCoreSql
                        GROUP BY c.corecourseid",
-                        ['now' => time(), 'lpid' => $params['learningPlanId']] + $inCoreParams
+                        ['now' => time(), 'lpid' => $params['learningPlanId'], 'lpidmap' => $params['learningPlanId']] + $inCoreParams
                     );
                     foreach ($coreCounts as $row) {
                         $activeClassCountByCoreCourse[(int)$row->corecourseid] = (int)$row->total;

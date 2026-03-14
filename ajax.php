@@ -764,8 +764,14 @@ try {
                 $where = $baseWhere . " AND c.courseid = :learningcourseid";
                 $params = $baseParams + ['learningcourseid' => $learningcourseid];
                 if ($learningplanid > 0) {
-                    $where .= " AND c.learningplanid = :learningplanid";
+                    $where .= " AND (c.learningplanid = :learningplanid OR EXISTS (
+                                  SELECT 1
+                                    FROM {local_learning_courses} lpcmap
+                                   WHERE lpcmap.id = c.courseid
+                                     AND lpcmap.learningplanid = :learningplanidmap
+                                ))";
                     $params['learningplanid'] = $learningplanid;
+                    $params['learningplanidmap'] = $learningplanid;
                 }
                 $activeclasses = $buildClasses($where, $params);
             }
@@ -775,8 +781,14 @@ try {
                 $where = $baseWhere . " AND c.corecourseid = :corecourseid";
                 $params = $baseParams + ['corecourseid' => $corecourseid];
                 if ($learningplanid > 0) {
-                    $where .= " AND c.learningplanid = :learningplanid";
+                    $where .= " AND (c.learningplanid = :learningplanid OR EXISTS (
+                                  SELECT 1
+                                    FROM {local_learning_courses} lpcmap
+                                   WHERE lpcmap.id = c.courseid
+                                     AND lpcmap.learningplanid = :learningplanidmap
+                                ))";
                     $params['learningplanid'] = $learningplanid;
+                    $params['learningplanidmap'] = $learningplanid;
                 }
                 $activeclasses = $buildClasses($where, $params);
             }
