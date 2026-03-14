@@ -1297,7 +1297,7 @@ class scheduler extends external_api {
 
     // --- Helpers ---
     private static function payload_day_token($day): string {
-        $token = core_text::strtolower(trim((string)$day));
+        $token = \core_text::strtolower(trim((string)$day));
         $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $token);
         if ($ascii !== false && is_string($ascii)) {
             $token = $ascii;
