@@ -23,18 +23,20 @@ class manual_enroll extends external_api {
         return new external_function_parameters([
             'classId' => new external_value(PARAM_INT, 'The class ID'),
             'userId' => new external_value(PARAM_INT, 'The user ID to enroll'),
+            'learningPlanId' => new external_value(PARAM_INT, 'Preferred learning plan for progress mapping', VALUE_DEFAULT, 0),
         ]);
     }
 
     /**
      * Execute.
      */
-    public static function execute($classId, $userId) {
+    public static function execute($classId, $userId, $learningPlanId = 0) {
         global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId' => $classId,
-            'userId' => $userId
+            'userId' => $userId,
+            'learningPlanId' => $learningPlanId
         ]);
 
         $context = context_system::instance();
@@ -72,7 +74,12 @@ class manual_enroll extends external_api {
         }
 
         try {
-            \local_grupomakro_progress_manager::assign_class_to_course_progress((int)$params['userId'], $class, true);
+            \local_grupomakro_progress_manager::assign_class_to_course_progress(
+                (int)$params['userId'],
+                $class,
+                true,
+                (int)$params['learningPlanId']
+            );
         } catch (\Throwable $t) {
             return ['status' => 'error', 'message' => 'Failed to sync course progress: ' . $t->getMessage()];
         }

@@ -3,6 +3,7 @@
 
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
+require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/progress_manager.php');
 
 global $DB, $PAGE, $OUTPUT;
 
@@ -20,6 +21,7 @@ $PAGE->set_pagelayout('admin');
 $classid = optional_param('classid', 0, PARAM_INT);
 $classname = optional_param('classname', '2026-II (N) GEOGRAFIA DE PANAMA (PRESENCIAL) A', PARAM_RAW_TRIMMED);
 $limit = optional_param('limit', 500, PARAM_INT);
+$repair = optional_param('repair', 0, PARAM_INT);
 $limit = max(1, min(5000, (int)$limit));
 
 /**
@@ -63,6 +65,7 @@ function dbg_reason_label(string $reason): string {
         'course_not_in_student_plans' => 'Course not linked to student plans',
         'no_progress_for_course' => 'No gmk_course_progre rows for this course',
         'progress_plan_mismatch' => 'Progress rows exist but in different plan',
+        'status2_plan_mismatch' => 'Status=2 exists but in non-panel plan',
         'status2_other_class' => 'Status=2 but linked to another class',
         'terminal_status' => 'Terminal status (3/4/5/6/7/99) in student plan',
         'status_available' => 'Status is 0/1 in student plan',
@@ -155,7 +158,9 @@ details { margin-top: 4px; }
       <input id="classname" name="classname" type="text" size="70" value="<?php echo dbg_h($classname); ?>" />
       <label for="limit"><strong>Limit</strong></label>
       <input id="limit" name="limit" type="number" value="<?php echo (int)$limit; ?>" min="1" max="5000" />
-      <button type="submit">Run</button>
+      <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>" />
+      <button type="submit" name="repair" value="0">Run</button>
+      <button type="submit" name="repair" value="1">Run + Repair Cursando Mapping</button>
     </form>
     <p class="dbg-muted">Tip: if multiple classes match by name, click one Class ID from the results table.</p>
   </div>
@@ -215,12 +220,118 @@ foreach ($subjectbycourse as $sb) {
     $courseplanids[(int)$sb->learningplanid] = (int)$sb->learningplanid;
 }
 $courseplanids = array_values($courseplanids);
+$repairreport = null;
+
+if ((int)$repair === 1) {
+    if (!confirm_sesskey()) {
+        $repairreport = [
+            'ok' => false,
+            'message' => 'Invalid sesskey for repair action.',
+        ];
+    } else {
+        $repairtotal = 0;
+        $repairupdated = 0;
+        $repairskippednoplan = 0;
+        $repairerrors = [];
+
+        $repairuids = [];
+        if (!empty($class->groupid)) {
+            $gusers = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => (int)$class->groupid]);
+            foreach ($gusers as $ruid) {
+                $ruid = (int)$ruid;
+                if ($ruid > 0 && $ruid !== (int)$class->instructorid) {
+                    $repairuids[$ruid] = $ruid;
+                }
+            }
+        }
+        $progreuids = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => (int)$class->id]);
+        foreach ($progreuids as $ruid) {
+            $ruid = (int)$ruid;
+            if ($ruid > 0 && $ruid !== (int)$class->instructorid) {
+                $repairuids[$ruid] = $ruid;
+            }
+        }
+
+        foreach (array_values($repairuids) as $ruid) {
+            $repairtotal++;
+            $llurowsrepair = $DB->get_records('local_learning_users', ['userid' => (int)$ruid], 'id ASC', 'id,learningplanid,userroleid,userrolename');
+            $studentplansrepair = [];
+            foreach ($llurowsrepair as $lrr) {
+                $isstudentrole = ((int)$lrr->userroleid === 5) || (strtolower((string)$lrr->userrolename) === 'student');
+                if ($isstudentrole) {
+                    $lpid = (int)$lrr->learningplanid;
+                    if ($lpid > 0) {
+                        $studentplansrepair[$lpid] = $lpid;
+                    }
+                }
+            }
+            $studentplansrepair = array_values($studentplansrepair);
+            $panelplansrepair = array_values(array_intersect($studentplansrepair, $courseplanids));
+            sort($panelplansrepair);
+
+            if (empty($panelplansrepair)) {
+                $repairskippednoplan++;
+                continue;
+            }
+
+            $preferredplan = 0;
+            if (in_array((int)$class->learningplanid, $panelplansrepair, true)) {
+                $preferredplan = (int)$class->learningplanid;
+            } else {
+                $preferredplan = (int)$panelplansrepair[0];
+            }
+
+            try {
+                \local_grupomakro_progress_manager::assign_class_to_course_progress(
+                    (int)$ruid,
+                    $class,
+                    true,
+                    (int)$preferredplan
+                );
+                $repairupdated++;
+            } catch (\Throwable $t) {
+                $repairerrors[] = 'uid=' . (int)$ruid . ' error=' . $t->getMessage();
+            }
+        }
+
+        $repairreport = [
+            'ok' => true,
+            'total' => $repairtotal,
+            'updated' => $repairupdated,
+            'skipped_no_panel_plan' => $repairskippednoplan,
+            'errors' => $repairerrors,
+        ];
+    }
+}
+
 $expectedplan = $subjectbyid ? (int)$subjectbyid->learningplanid : 0;
 $classplan = (int)$class->learningplanid;
 $classplanok = ($classplan > 0 && in_array($classplan, $courseplanids, true));
 $courseidok = ($subjectbyid && (int)$subjectbyid->courseid === (int)$class->corecourseid);
 
 $sameclassname = $DB->get_records('gmk_class', ['name' => (string)$class->name], 'id DESC', 'id,periodid,approved,closed,groupid,learningplanid');
+
+if (is_array($repairreport)) {
+    echo '<div class="dbg-card">';
+    echo '<h2 class="dbg-sub">Repair Result</h2>';
+    if (empty($repairreport['ok'])) {
+        echo '<p class="dbg-bad">' . dbg_h($repairreport['message'] ?? 'Repair failed') . '</p>';
+    } else {
+        echo '<p><strong>Total candidates:</strong> ' . (int)$repairreport['total'] . '</p>';
+        echo '<p><strong>Updated:</strong> <span class="dbg-ok">' . (int)$repairreport['updated'] . '</span></p>';
+        echo '<p><strong>Skipped (no panel plan):</strong> ' . (int)$repairreport['skipped_no_panel_plan'] . '</p>';
+        if (!empty($repairreport['errors'])) {
+            echo '<details><summary>Errors (' . count($repairreport['errors']) . ')</summary>';
+            echo '<ul>';
+            foreach ($repairreport['errors'] as $err) {
+                echo '<li class="dbg-bad">' . dbg_h($err) . '</li>';
+            }
+            echo '</ul>';
+            echo '</details>';
+        }
+    }
+    echo '</div>';
+}
 
 echo '<div class="dbg-card">';
 echo '<h2 class="dbg-sub">Selected Class</h2>';
@@ -344,6 +455,7 @@ foreach ($studentids as $uid) {
     $hasanyinstudentplans = false;
     $hasstatus2exact = false;
     $hasstatus2otherclass = false;
+    $hasstatus2outsidepanel = false;
     $hasterminalinstudentplan = false;
     $hasavailableinstudentplan = false;
     $planmismatchrows = false;
@@ -378,6 +490,9 @@ foreach ($studentids as $uid) {
         } else {
             $planmismatchrows = true;
         }
+        if ((int)$gp->status === 2 && !in_array($lpid, $panelplans, true)) {
+            $hasstatus2outsidepanel = true;
+        }
     }
 
     $hasduplicateplanrows = false;
@@ -409,6 +524,8 @@ foreach ($studentids as $uid) {
         $reason = 'no_progress_for_course';
     } else if (!$hasanyinstudentplans && $planmismatchrows) {
         $reason = 'progress_plan_mismatch';
+    } else if ($hasstatus2outsidepanel && !$panelseescursando) {
+        $reason = 'status2_plan_mismatch';
     } else if ($hasstatus2otherclass && !$hasstatus2exact) {
         $reason = 'status2_other_class';
     } else if ($hasterminalinstudentplan) {

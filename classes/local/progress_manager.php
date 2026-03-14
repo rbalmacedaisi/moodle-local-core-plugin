@@ -338,14 +338,17 @@ class local_grupomakro_progress_manager
         return 'https://lxp' . $envDic[$CFG->environment_type] . '.soluttolabs.com/local/grupomakro_core/pages/payment.php?courseId=' . $courseId . '&userId=' . $userId . '&progreId=' . $progreCourseId;
     }
 
-    public static function assign_class_to_course_progress($userId, $class, $forceInProgress = false)
+    public static function assign_class_to_course_progress($userId, $class, $forceInProgress = false, $preferredLearningPlanId = 0)
     {
         global $DB, $USER;
 
         $classId = (int)($class->id ?? 0);
         $coreCourseId = (int)($class->corecourseid ?? 0);
         $groupId = (int)($class->groupid ?? 0);
-        $resolvedLearningPlanId = (int)($class->learningplanid ?? 0);
+        $preferredLearningPlanId = (int)$preferredLearningPlanId;
+        $resolvedLearningPlanId = $preferredLearningPlanId > 0
+            ? $preferredLearningPlanId
+            : (int)($class->learningplanid ?? 0);
 
         // Prefer the learning plan tied to local_learning_courses.id when available.
         // In legacy data, gmk_class.learningplanid can be stale while gmk_class.courseid still points
@@ -359,12 +362,53 @@ class local_grupomakro_progress_manager
                 IGNORE_MISSING
             );
         }
-        if ($courseMapLearningPlanId > 0 && $courseMapLearningPlanId !== $resolvedLearningPlanId) {
-            gmk_log(
-                "assign_class_to_course_progress: overriding learningplanid class={$classId} from " .
-                ($resolvedLearningPlanId ?: 0) . " to {$courseMapLearningPlanId} using local_learning_courses.id={$class->courseid}"
-            );
+        if ($resolvedLearningPlanId <= 0 && $courseMapLearningPlanId > 0) {
             $resolvedLearningPlanId = $courseMapLearningPlanId;
+        }
+
+        // Student plans that contain this core course.
+        $studentCoursePlanIds = [];
+        $sqlStudentPlans = "SELECT DISTINCT lu.learningplanid
+                              FROM {local_learning_users} lu
+                              JOIN {local_learning_courses} lc
+                                ON lc.learningplanid = lu.learningplanid
+                               AND lc.courseid = :courseid
+                             WHERE lu.userid = :userid
+                               AND (lu.userroleid = :studentrole OR lu.userrolename = :studentrolename)
+                          ORDER BY lu.learningplanid ASC";
+        $studentPlans = $DB->get_records_sql(
+            $sqlStudentPlans,
+            [
+                'courseid' => $coreCourseId,
+                'userid' => (int)$userId,
+                'studentrole' => 5,
+                'studentrolename' => 'student'
+            ]
+        );
+        foreach ($studentPlans as $sp) {
+            $lpid = (int)$sp->learningplanid;
+            if ($lpid > 0) {
+                $studentCoursePlanIds[] = $lpid;
+            }
+        }
+        $studentCoursePlanIds = array_values(array_unique($studentCoursePlanIds));
+
+        // If caller did not force a target plan, prioritize student plans for this course.
+        if ($preferredLearningPlanId <= 0 && !empty($studentCoursePlanIds)) {
+            if (!in_array($resolvedLearningPlanId, $studentCoursePlanIds, true)) {
+                if ($courseMapLearningPlanId > 0 && in_array($courseMapLearningPlanId, $studentCoursePlanIds, true)) {
+                    $resolvedLearningPlanId = $courseMapLearningPlanId;
+                } else if (count($studentCoursePlanIds) === 1) {
+                    $resolvedLearningPlanId = (int)$studentCoursePlanIds[0];
+                } else {
+                    // Keep deterministic but explicit on ambiguity.
+                    $resolvedLearningPlanId = (int)$studentCoursePlanIds[0];
+                }
+                gmk_log(
+                    "assign_class_to_course_progress: adjusted learningplanid for user={$userId} class={$classId} course={$coreCourseId} to {$resolvedLearningPlanId} (student course plans: " .
+                    implode(',', $studentCoursePlanIds) . ")"
+                );
+            }
         }
 
         gmk_log(
@@ -385,8 +429,10 @@ class local_grupomakro_progress_manager
             );
         }
 
+        $strictPlanResolution = ($preferredLearningPlanId > 0) || !empty($studentCoursePlanIds);
+
         // Fallback 1: any progress rows for this user+course with a non-zero plan.
-        if (empty($progressCandidates)) {
+        if (empty($progressCandidates) && !$strictPlanResolution) {
             $progressCandidates = $DB->get_records_select(
                 'gmk_course_progre',
                 'userid = :userid AND courseid = :courseid AND learningplanid > 0',
@@ -403,7 +449,7 @@ class local_grupomakro_progress_manager
         }
 
         // Fallback 2: include rows with learningplanid=0 if needed.
-        if (empty($progressCandidates)) {
+        if (empty($progressCandidates) && !$strictPlanResolution) {
             $progressCandidates = $DB->get_records(
                 'gmk_course_progre',
                 [
