@@ -44,10 +44,10 @@ window.SchedulerComponents.PlanningBoard = {
                                    class="w-14 px-1 py-0.5 rounded border border-slate-300 bg-white text-slate-700" />
                         </label>
                         <button @click="joinAndSplitSelected"
-                                :disabled="selectedForJoinSplit.length < 2"
+                                :disabled="selectedForJoinSplit.length < 1"
                                 class="px-2 py-1 text-[10px] font-bold rounded text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                :class="selectedForJoinSplit.length < 2 ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'">
-                            Join+Split
+                                :class="selectedForJoinSplit.length < 1 ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'">
+                            {{ selectedForJoinSplit.length <= 1 ? 'Split' : 'Join+Split' }}
                         </button>
                         <span class="ml-auto text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
                             Sel: {{ selectedForJoinSplit.length }}
@@ -1235,8 +1235,8 @@ window.SchedulerComponents.PlanningBoard = {
         joinAndSplitSelected() {
             if (!window.schedulerStore) return;
             const selected = this.selectedForJoinSplit;
-            if (!selected || selected.length < 2) {
-                alert('Selecciona al menos 2 fichas.');
+            if (!selected || selected.length < 1) {
+                alert('Selecciona al menos 1 ficha.');
                 return;
             }
 
@@ -1250,7 +1250,7 @@ window.SchedulerComponents.PlanningBoard = {
                 grouped[key].push(cls);
             });
 
-            const targets = Object.values(grouped).filter(g => g.length >= 2);
+            const targets = Object.values(grouped).filter(g => g.length >= 1);
             if (targets.length === 0) {
                 alert('Las fichas seleccionadas no comparten la misma asignatura/carrera/jornada/subperiodo.');
                 return;
@@ -1271,8 +1271,16 @@ window.SchedulerComponents.PlanningBoard = {
             let processed = 0;
             let removed = 0;
             let created = 0;
+            let skippedNoChange = 0;
 
             targets.forEach(group => {
+                const total = group.reduce((acc, cls) => acc + (parseInt(cls.studentCount, 10) || 0), 0);
+                const neededGroups = Math.ceil(Math.max(1, total) / maxPerGroup);
+                if (group.length === 1 && neededGroups <= 1) {
+                    skippedNoChange++;
+                    return;
+                }
+
                 const newCopies = this.buildJoinSplitCopies(group, maxPerGroup);
                 if (!newCopies.length) return;
 
@@ -1290,7 +1298,12 @@ window.SchedulerComponents.PlanningBoard = {
             window.schedulerStore.state.generatedSchedules = schedules;
             this.joinSplitSelectedIds = [];
 
-            alert(`Join+split completado.\nConjuntos procesados: ${processed}\nFichas removidas: ${removed}\nFichas nuevas: ${created}`);
+            if (processed === 0 && skippedNoChange > 0) {
+                alert('No hubo cambios. La(s) ficha(s) seleccionada(s) ya cumplen el maximo por grupo.');
+                return;
+            }
+
+            alert(`Join+split completado.\nConjuntos procesados: ${processed}\nFichas removidas: ${removed}\nFichas nuevas: ${created}${skippedNoChange > 0 ? `\nSin cambios: ${skippedNoChange}` : ''}`);
         },
         getConflicts(cls) {
             return this.conflictMap[cls.id] || [];
