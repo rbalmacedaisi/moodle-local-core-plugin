@@ -759,42 +759,36 @@ try {
                 return $result;
             };
 
+            // Return all active classes for the subject, regardless of plan.
+            // We merge multiple strategies and dedupe by class id.
             $activeclasses = [];
+            $activeclassids = [];
+            $mergeclasses = function(array $rows) use (&$activeclasses, &$activeclassids) {
+                foreach ($rows as $row) {
+                    $cid = (int)($row['id'] ?? 0);
+                    if ($cid <= 0 || isset($activeclassids[$cid])) {
+                        continue;
+                    }
+                    $activeclassids[$cid] = true;
+                    $activeclasses[] = $row;
+                }
+            };
+
+            // Strategy 1: exact learning-course map (most precise, plan-linked id).
             if ($learningcourseid > 0) {
                 $where = $baseWhere . " AND c.courseid = :learningcourseid";
                 $params = $baseParams + ['learningcourseid' => $learningcourseid];
-                if ($learningplanid > 0) {
-                    $where .= " AND (c.learningplanid = :learningplanid OR EXISTS (
-                                  SELECT 1
-                                    FROM {local_learning_courses} lpcmap
-                                   WHERE lpcmap.id = c.courseid
-                                     AND lpcmap.learningplanid = :learningplanidmap
-                                ))";
-                    $params['learningplanid'] = $learningplanid;
-                    $params['learningplanidmap'] = $learningplanid;
-                }
-                $activeclasses = $buildClasses($where, $params);
+                $mergeclasses($buildClasses($where, $params));
             }
 
-            // Fallback for legacy rows where gmk_class.courseid may not match lpc.id.
-            if (empty($activeclasses)) {
-                $where = $baseWhere . " AND c.corecourseid = :corecourseid";
-                $params = $baseParams + ['corecourseid' => $corecourseid];
-                if ($learningplanid > 0) {
-                    $where .= " AND (c.learningplanid = :learningplanid OR EXISTS (
-                                  SELECT 1
-                                    FROM {local_learning_courses} lpcmap
-                                   WHERE lpcmap.id = c.courseid
-                                     AND lpcmap.learningplanid = :learningplanidmap
-                                ))";
-                    $params['learningplanid'] = $learningplanid;
-                    $params['learningplanidmap'] = $learningplanid;
-                }
-                $activeclasses = $buildClasses($where, $params);
-            }
+            // Strategy 2: any active class for the same core subject (no plan restriction).
+            // This is required so the Academic Director modal can show classes across plans.
+            $where = $baseWhere . " AND c.corecourseid = :corecourseid";
+            $params = $baseParams + ['corecourseid' => $corecourseid];
+            $mergeclasses($buildClasses($where, $params));
 
-            // Second fallback: same core course in student's current period, regardless of class plan.
-            if (empty($activeclasses) && $learningplanid > 0) {
+            // Strategy 3: student's current period in selected plan (kept for legacy data).
+            if ($learningplanid > 0) {
                 $currentperiodid = (int)$DB->get_field_sql(
                     "SELECT MAX(lu.currentperiodid)
                        FROM {local_learning_users} lu
@@ -808,23 +802,24 @@ try {
                         'studentrolename' => 'student',
                     ]
                 );
-
                 if ($currentperiodid > 0) {
                     $where = $baseWhere . " AND c.corecourseid = :corecourseid AND c.periodid = :periodid";
                     $params = $baseParams + [
                         'corecourseid' => $corecourseid,
                         'periodid' => $currentperiodid,
                     ];
-                    $activeclasses = $buildClasses($where, $params);
+                    $mergeclasses($buildClasses($where, $params));
                 }
             }
 
-            // Last fallback: any active class for the same core course.
-            if (empty($activeclasses)) {
-                $where = $baseWhere . " AND c.corecourseid = :corecourseid";
-                $params = $baseParams + ['corecourseid' => $corecourseid];
-                $activeclasses = $buildClasses($where, $params);
-            }
+            usort($activeclasses, function($a, $b) {
+                $ai = (int)($a['initdate'] ?? 0);
+                $bi = (int)($b['initdate'] ?? 0);
+                if ($ai === $bi) {
+                    return (int)($a['id'] ?? 0) <=> (int)($b['id'] ?? 0);
+                }
+                return $ai <=> $bi;
+            });
 
             $response = [
                 'status' => 'success',
