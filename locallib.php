@@ -1944,11 +1944,59 @@ function gmk_is_class_activity_stack_complete($class, &$reason = '')
     return true;
 }
 
+/**
+ * Recursively checks if availability JSON node contains a group condition.
+ *
+ * @param mixed $node
+ * @param int $groupid
+ * @return bool
+ */
+function gmk_availability_node_has_group($node, $groupid)
+{
+    if (!is_array($node)) {
+        return false;
+    }
+
+    if (($node['type'] ?? '') === 'group' && (int)($node['id'] ?? 0) === (int)$groupid) {
+        return true;
+    }
+
+    foreach ($node as $child) {
+        if (is_array($child) && gmk_availability_node_has_group($child, (int)$groupid)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Checks if section/module availability JSON references the given group.
+ *
+ * @param string|null $availability
+ * @param int $groupid
+ * @return bool
+ */
+function gmk_availability_has_group($availability, $groupid)
+{
+    if (empty($availability) || !is_string($availability)) {
+        return false;
+    }
+
+    $decoded = json_decode($availability, true);
+    if (!is_array($decoded)) {
+        return false;
+    }
+
+    return gmk_availability_node_has_group($decoded, (int)$groupid);
+}
+
 function delete_class($classId, $reason = null)
 {
     global $DB, $USER, $CFG;
 
     require_once($CFG->dirroot . '/course/lib.php');
+    require_once($CFG->dirroot . '/group/lib.php');
     require_once($CFG->libdir . '/gradelib.php');
 
     if (is_object($classId) && !empty($classId->id)) {
@@ -1956,21 +2004,22 @@ function delete_class($classId, $reason = null)
     }
     $classId = (int)$classId;
     if ($classId <= 0) {
-        throw new \Exception('Class ID invalido.');
+        throw new \Exception('Invalid class ID.');
     }
 
-    // Check if class is closed
+    // Check if class is closed.
     if (is_class_closed($classId)) {
         throw new \moodle_exception('error_class_closed_modification', 'local_grupomakro_core');
     }
 
     $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
+    $classid = (int)$class->id;
     $courseid = (int)($class->corecourseid ?? 0);
     $courseexists = ($courseid > 0) && $DB->record_exists('course', ['id' => $courseid]);
-    $classtag = trim((string)$class->name) . '-' . (int)$class->id;
+    $classtag = trim((string)$class->name) . '-' . $classid;
 
     if ($class->gradecategoryid && $courseexists) {
-        // Performance: avoid building full grade_tree (expensive recursive get_children on every class delete).
+        // Avoid building full grade_tree to keep class deletion fast.
         $classGradeCategory = \grade_category::fetch([
             'id' => (int)$class->gradecategoryid,
             'courseid' => $courseid
@@ -1980,10 +2029,18 @@ function delete_class($classId, $reason = null)
         }
     }
 
-    // Build section/module/group targets with fallbacks to guarantee cleanup even when IDs are stale.
+    // Build section/module/group targets with fallbacks so stale IDs are still cleaned.
     $sectionids = [];
     $modulecmids = [];
+    $sectioncmids = [];
+    $groupavailabilitycmids = [];
     $groupids = [];
+    $candidatecourseids = [];
+    $processedsections = [];
+
+    if ($courseexists) {
+        $candidatecourseids[$courseid] = $courseid;
+    }
 
     if (!empty($class->coursesectionid)) {
         $sectionids[(int)$class->coursesectionid] = (int)$class->coursesectionid;
@@ -1993,6 +2050,16 @@ function delete_class($classId, $reason = null)
         $namedsection = $DB->get_record('course_sections', ['course' => $courseid, 'name' => $classtag], 'id', IGNORE_MULTIPLE);
         if ($namedsection) {
             $sectionids[(int)$namedsection->id] = (int)$namedsection->id;
+        }
+    }
+
+    if (!empty($class->groupid)) {
+        $groupids[(int)$class->groupid] = (int)$class->groupid;
+    }
+    if ($courseexists && $classtag !== '-' . $classid) {
+        $groupbyidnumber = $DB->get_record('groups', ['courseid' => $courseid, 'idnumber' => $classtag], 'id', IGNORE_MULTIPLE);
+        if ($groupbyidnumber) {
+            $groupids[(int)$groupbyidnumber->id] = (int)$groupbyidnumber->id;
         }
     }
 
@@ -2016,34 +2083,145 @@ function delete_class($classId, $reason = null)
         }
     }
 
-    if ($courseexists) {
-        foreach ($sectionids as $sid) {
-            $cmsinsection = $DB->get_fieldset_select(
-                'course_modules',
-                'id',
-                'course = :courseid AND section = :sid',
-                ['courseid' => $courseid, 'sid' => (int)$sid]
-            );
-            foreach ($cmsinsection as $cmid) {
-                $cmid = (int)$cmid;
-                if ($cmid > 0) {
-                    $modulecmids[$cmid] = $cmid;
-                }
+    // 1) Collect course IDs + modules from known section IDs.
+    foreach ($sectionids as $sid) {
+        $sid = (int)$sid;
+        if ($sid <= 0 || isset($processedsections[$sid])) {
+            continue;
+        }
+        $processedsections[$sid] = $sid;
+
+        $sectionrec = $DB->get_record('course_sections', ['id' => $sid], 'id,course', IGNORE_MISSING);
+        if (!$sectionrec || empty($sectionrec->course)) {
+            continue;
+        }
+        $candidatecourseids[(int)$sectionrec->course] = (int)$sectionrec->course;
+
+        $cmsinsection = $DB->get_fieldset_select(
+            'course_modules',
+            'id',
+            'section = :sid',
+            ['sid' => $sid]
+        );
+        foreach ($cmsinsection as $cmid) {
+            $cmid = (int)$cmid;
+            if ($cmid > 0) {
+                $modulecmids[$cmid] = $cmid;
+                $sectioncmids[$cmid] = $cmid;
             }
         }
+    }
 
-        // Fallback by activity naming convention "<...>-<classid>" used by generated Attendance/BBB.
-        $suffix = '%-' . (int)$class->id;
+    // 2) Add fallback groups by class suffix in candidate courses.
+    $classsuffix = '%-' . $classid;
+    if (!empty($candidatecourseids)) {
+        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_NAMED, 'cid');
+        $groupfallback = $DB->get_records_sql(
+            "SELECT id
+               FROM {groups}
+              WHERE courseid {$courseinsql}
+                AND (" . $DB->sql_like('idnumber', ':suffix1') . " OR " . $DB->sql_like('name', ':suffix2') . ")",
+            $courseparams + ['suffix1' => $classsuffix, 'suffix2' => $classsuffix]
+        );
+        foreach ($groupfallback as $gfb) {
+            $groupids[(int)$gfb->id] = (int)$gfb->id;
+        }
+    }
+
+    // 3) Expand targets from each discovered group (same strategy as debug_fix_draft).
+    foreach ($groupids as $gid) {
+        $gid = (int)$gid;
+        if ($gid <= 0) {
+            continue;
+        }
+
+        $group = $DB->get_record('groups', ['id' => $gid], 'id,courseid,idnumber', IGNORE_MISSING);
+        if (!$group || empty($group->courseid)) {
+            continue;
+        }
+        $groupcourseid = (int)$group->courseid;
+        $candidatecourseids[$groupcourseid] = $groupcourseid;
+
+        $sections = $DB->get_records(
+            'course_sections',
+            ['course' => $groupcourseid],
+            '',
+            'id,section,name,availability'
+        );
+        foreach ($sections as $section) {
+            if ((int)$section->section <= 0) {
+                continue;
+            }
+            $matchesname = !empty($group->idnumber) && trim((string)$section->name) === trim((string)$group->idnumber);
+            $matchesavailability = gmk_availability_has_group($section->availability, $gid);
+            if (!$matchesname && !$matchesavailability) {
+                continue;
+            }
+            $sectionids[(int)$section->id] = (int)$section->id;
+        }
+
+        $modules = $DB->get_records(
+            'course_modules',
+            ['course' => $groupcourseid],
+            '',
+            'id,availability'
+        );
+        foreach ($modules as $cm) {
+            if (!gmk_availability_has_group($cm->availability, $gid)) {
+                continue;
+            }
+            $cmid = (int)$cm->id;
+            if ($cmid > 0) {
+                $modulecmids[$cmid] = $cmid;
+                $groupavailabilitycmids[$cmid] = $cmid;
+            }
+        }
+    }
+
+    // 4) Re-scan any new sections discovered from group-based fallback.
+    foreach ($sectionids as $sid) {
+        $sid = (int)$sid;
+        if ($sid <= 0 || isset($processedsections[$sid])) {
+            continue;
+        }
+        $processedsections[$sid] = $sid;
+
+        $sectionrec = $DB->get_record('course_sections', ['id' => $sid], 'id,course', IGNORE_MISSING);
+        if (!$sectionrec || empty($sectionrec->course)) {
+            continue;
+        }
+        $candidatecourseids[(int)$sectionrec->course] = (int)$sectionrec->course;
+
+        $cmsinsection = $DB->get_fieldset_select(
+            'course_modules',
+            'id',
+            'section = :sid',
+            ['sid' => $sid]
+        );
+        foreach ($cmsinsection as $cmid) {
+            $cmid = (int)$cmid;
+            if ($cmid > 0) {
+                $modulecmids[$cmid] = $cmid;
+                $sectioncmids[$cmid] = $cmid;
+            }
+        }
+    }
+
+    // 5) Name suffix fallback: generated attendance/BBB ending in "-<classid>".
+    $suffix = '%-' . $classid;
+    if (!empty($candidatecourseids)) {
+        list($courseinsql, $courseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_NAMED, 'ccid');
+
         $attmodid = gmk_get_module_id_by_name('attendance');
         if ($attmodid) {
             $attcmids = $DB->get_fieldset_sql(
                 "SELECT cm.id
                    FROM {course_modules} cm
                    JOIN {attendance} a ON a.id = cm.instance
-                  WHERE cm.course = :courseid
-                    AND cm.module = :modid
-                    AND " . $DB->sql_like('a.name', ':suffix'),
-                ['courseid' => $courseid, 'modid' => (int)$attmodid, 'suffix' => $suffix]
+                  WHERE cm.course {$courseinsql}
+                    AND cm.module = :attmodid
+                    AND " . $DB->sql_like('a.name', ':attsuffix'),
+                $courseparams + ['attmodid' => (int)$attmodid, 'attsuffix' => $suffix]
             );
             foreach ($attcmids as $cmid) {
                 $cmid = (int)$cmid;
@@ -2059,10 +2237,10 @@ function delete_class($classId, $reason = null)
                 "SELECT cm.id
                    FROM {course_modules} cm
                    JOIN {bigbluebuttonbn} b ON b.id = cm.instance
-                  WHERE cm.course = :courseid
-                    AND cm.module = :modid
-                    AND " . $DB->sql_like('b.name', ':suffix'),
-                ['courseid' => $courseid, 'modid' => (int)$bbbmodid, 'suffix' => $suffix]
+                  WHERE cm.course {$courseinsql}
+                    AND cm.module = :bbbmodid
+                    AND " . $DB->sql_like('b.name', ':bbbsuffix'),
+                $courseparams + ['bbbmodid' => (int)$bbbmodid, 'bbbsuffix' => $suffix]
             );
             foreach ($bbbcmids as $cmid) {
                 $cmid = (int)$cmid;
@@ -2073,60 +2251,155 @@ function delete_class($classId, $reason = null)
         }
     }
 
-    if (!empty($class->groupid)) {
-        $groupids[(int)$class->groupid] = (int)$class->groupid;
-    }
-    if ($courseexists && $classtag !== '-' . (int)$class->id) {
-        $groupbyidnumber = $DB->get_record('groups', ['courseid' => $courseid, 'idnumber' => $classtag], 'id', IGNORE_MULTIPLE);
-        if ($groupbyidnumber) {
-            $groupids[(int)$groupbyidnumber->id] = (int)$groupbyidnumber->id;
-        }
-    }
-
-    // Delete section(s) first to remove all activities in section.
-    if ($courseexists && !empty($sectionids)) {
+    // Delete section(s) first to remove activities in bulk.
+    if (!empty($sectionids)) {
         foreach ($sectionids as $sid) {
-            $sectionnum = $DB->get_field('course_sections', 'section', ['id' => (int)$sid, 'course' => $courseid]);
-            if ($sectionnum !== false) {
-                course_delete_section($courseid, (int)$sectionnum, true, true);
+            $sectionrec = $DB->get_record('course_sections', ['id' => (int)$sid], 'id,course,section', IGNORE_MISSING);
+            if (!$sectionrec) {
+                continue;
+            }
+
+            // Do not delete section if currently used by another class.
+            if ($DB->record_exists_select(
+                'gmk_class',
+                'coursesectionid = :sid AND id <> :classid',
+                ['sid' => (int)$sectionrec->id, 'classid' => $classid]
+            )) {
+                continue;
+            }
+
+            try {
+                course_delete_section((int)$sectionrec->course, (int)$sectionrec->section, true, false);
+            } catch (\Throwable $e) {
+                // Fallback used in debug page: delete section modules one by one, then retry.
+                $cms = $DB->get_records('course_modules', ['section' => (int)$sectionrec->id], '', 'id');
+                foreach ($cms as $cm) {
+                    $cmid = (int)$cm->id;
+
+                    if ($DB->record_exists_select(
+                        'gmk_class',
+                        'id <> :classid AND attendancemoduleid = :cmid',
+                        ['classid' => $classid, 'cmid' => $cmid]
+                    )) {
+                        continue;
+                    }
+                    if ($DB->record_exists_sql(
+                        "SELECT 1
+                           FROM {gmk_bbb_attendance_relation} r
+                           JOIN {gmk_class} c ON c.id = r.classid
+                          WHERE c.id <> :classid
+                            AND (r.bbbmoduleid = :cmid OR r.attendancemoduleid = :cmid)
+                          LIMIT 1",
+                        ['classid' => $classid, 'cmid' => $cmid]
+                    )) {
+                        continue;
+                    }
+
+                    try {
+                        course_delete_module($cmid, false);
+                    } catch (\Throwable $ignored) {
+                        // Keep going; final cleanup below retries module deletion too.
+                    }
+                }
+
+                try {
+                    course_delete_section((int)$sectionrec->course, (int)$sectionrec->section, true, false);
+                } catch (\Throwable $ignored) {
+                    // Final module cleanup loop below may still remove leftovers.
+                }
             }
         }
     }
 
-    // Ensure leftover module links are removed (handles stale/missing section references).
+    // Ensure leftover modules are removed (stale IDs, deleted section retries, availability links).
     foreach ($modulecmids as $cmid) {
+        $cmid = (int)$cmid;
+        if ($cmid <= 0) {
+            continue;
+        }
+
         $cm = $DB->get_record_sql(
-            "SELECT cm.id, cm.course, m.name AS modname
+            "SELECT cm.id, cm.course, cm.section, m.name AS modname
                FROM {course_modules} cm
                JOIN {modules} m ON m.id = cm.module
               WHERE cm.id = :cmid",
-            ['cmid' => (int)$cmid],
+            ['cmid' => $cmid],
             IGNORE_MISSING
         );
         if (!$cm) {
             continue;
         }
-        if ($courseexists && (int)$cm->course !== $courseid) {
+
+        if (!empty($candidatecourseids) && empty($candidatecourseids[(int)$cm->course])) {
             continue;
         }
-        if (!$courseexists && !in_array((string)$cm->modname, ['attendance', 'bigbluebuttonbn'], true)) {
+
+        // Never remove modules still attached to another active class.
+        if ($DB->record_exists_select(
+            'gmk_class',
+            'id <> :classid AND attendancemoduleid = :cmid',
+            ['classid' => $classid, 'cmid' => $cmid]
+        )) {
             continue;
         }
-        course_delete_module((int)$cmid);
+        if (!empty($cm->section) && $DB->record_exists_select(
+            'gmk_class',
+            'id <> :classid AND coursesectionid = :sid',
+            ['classid' => $classid, 'sid' => (int)$cm->section]
+        )) {
+            continue;
+        }
+        if ($DB->record_exists_sql(
+            "SELECT 1
+               FROM {gmk_bbb_attendance_relation} r
+               JOIN {gmk_class} c ON c.id = r.classid
+              WHERE c.id <> :classid
+                AND (r.bbbmoduleid = :cmid OR r.attendancemoduleid = :cmid)
+              LIMIT 1",
+            ['classid' => $classid, 'cmid' => $cmid]
+        )) {
+            continue;
+        }
+
+        // Extra safety: only delete non-Attendance/BBB when scoped by section or group availability.
+        if (!in_array((string)$cm->modname, ['attendance', 'bigbluebuttonbn'], true)
+            && empty($sectioncmids[$cmid])
+            && empty($groupavailabilitycmids[$cmid])) {
+            continue;
+        }
+
+        try {
+            course_delete_module($cmid, false);
+        } catch (\Throwable $ignored) {
+            // Ignore and continue cleanup.
+        }
     }
 
     // Delete class groups.
     foreach ($groupids as $gid) {
-        if ($DB->record_exists('groups', ['id' => (int)$gid])) {
-            groups_delete_group((int)$gid);
+        $gid = (int)$gid;
+        if ($gid <= 0 || !$DB->record_exists('groups', ['id' => $gid])) {
+            continue;
+        }
+        if ($DB->record_exists_select(
+            'gmk_class',
+            'id <> :classid AND groupid = :gid',
+            ['classid' => $classid, 'gid' => $gid]
+        )) {
+            continue;
+        }
+        try {
+            groups_delete_group($gid);
+        } catch (\Throwable $ignored) {
+            // Keep cleanup running even if one group cannot be removed.
         }
     }
 
     // Remove relation leftovers.
-    $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => (int)$class->id]);
+    $DB->delete_records('gmk_bbb_attendance_relation', ['classid' => $classid]);
 
     // Reset student state to avoid orphan class/group references.
-    $progres = $DB->get_records('gmk_course_progre', ['classid' => (int)$class->id], '', 'id,status');
+    $progres = $DB->get_records('gmk_course_progre', ['classid' => $classid], '', 'id,status');
     foreach ($progres as $p) {
         $isterminal = in_array((int)$p->status, [3, 4, 5], true);
         if ($isterminal) {
@@ -2147,13 +2420,13 @@ function delete_class($classId, $reason = null)
     }
 
     // Delete plugin records related to the class.
-    $DB->delete_records('gmk_class_pre_registration', ['classid' => (int)$class->id]);
-    $DB->delete_records('gmk_class_queue', ['classid' => (int)$class->id]);
-    $DB->delete_records('gmk_class_schedules', ['classid' => (int)$class->id]);
+    $DB->delete_records('gmk_class_pre_registration', ['classid' => $classid]);
+    $DB->delete_records('gmk_class_queue', ['classid' => $classid]);
+    $DB->delete_records('gmk_class_schedules', ['classid' => $classid]);
 
     // Add the deletion message to the table.
     $classDeletionMessage = new stdClass();
-    $classDeletionMessage->classid = (int)$class->id;
+    $classDeletionMessage->classid = $classid;
     $classDeletionMessage->deletionmessage = $reason;
     $classDeletionMessage->usermodified = $USER->id;
     $classDeletionMessage->timecreated = time();
@@ -2161,7 +2434,7 @@ function delete_class($classId, $reason = null)
     $DB->insert_record('gmk_class_deletion_message', $classDeletionMessage);
 
     // Delete the class.
-    return $DB->delete_records('gmk_class', ['id' => (int)$class->id]);
+    return $DB->delete_records('gmk_class', ['id' => $classid]);
 }
 /**
  * Create or updated (delete and recreate) the activities for the given class

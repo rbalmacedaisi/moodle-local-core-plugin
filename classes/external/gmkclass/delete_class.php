@@ -66,22 +66,33 @@ class delete_class extends external_api {
      * @return mixed TODO document
      */
     public static function execute(string $id) {
-            
+
         // Validate the parameters passed to the function.
         $params = self::validate_parameters(self::execute_parameters(), [
             'id' => $id,
         ]);
-        // Global variables.
-        global $DB;
-        
-        try{
-        
-            delete_class($params['id'],'Class deleted from class management');
-            
+
+        $oblevel = ob_get_level();
+        ob_start();
+        set_error_handler(function($errno, $errstr, $errfile, $errline) {
+            throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+        });
+
+        try {
+            delete_class((int)$params['id'], 'Class deleted from class management');
+
+            while (ob_get_level() > $oblevel) {
+                @ob_end_clean();
+            }
+            restore_error_handler();
+
             // Return the result.
-            return ['status' => $id];
-        }
-        catch (Exception $e) {
+            return ['status' => (int)$params['id']];
+        } catch (\Throwable $e) {
+            while (ob_get_level() > $oblevel) {
+                @ob_end_clean();
+            }
+            restore_error_handler();
             return ['status' => -1, 'message' => $e->getMessage()];
         }
     }
