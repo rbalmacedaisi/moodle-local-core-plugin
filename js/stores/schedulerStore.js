@@ -608,6 +608,7 @@
             } catch (e) {
                 console.error("Save generation error", e);
                 this.state.error = e.message;
+                throw e;
             } finally {
                 this.state.loading = false;
             }

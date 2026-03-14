@@ -1790,6 +1790,12 @@ window.SchedulerComponents.PlanningBoard = {
                 const store    = window.schedulerStore;
                 const periodId = store.state.activePeriod;
                 const boardSnapshot = JSON.parse(JSON.stringify(this.allClasses || []));
+                const existingInternalIds = new Set(
+                    boardSnapshot
+                        .filter(item => !item.isExternal)
+                        .map(item => Number(item.id || 0))
+                        .filter(id => id > 0)
+                );
 
                 // FASE 1: guardar SOLO la ficha seleccionada en modo preserveexisting.
                 // El backend no debe borrar ni modificar otras clases del periodo.
@@ -1834,20 +1840,44 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog('Fase 1 completada para la ficha seleccionada.', 'success');
                 this.publishProgress = 40;
 
-                this._publishLog('Sincronizando estado con base de datos...', 'info');
-                await store.loadGeneratedSchedules(periodId);
-                // Do not merge draft here; it can re-apply stale positions over DB rows.
+                this._publishLog('Resolviendo ID de la ficha publicada...', 'info');
                 this.publishProgress = 50;
 
-                const internalSchedules = (store.state.generatedSchedules || []).filter(s => !s.isExternal);
                 let targetClassId = 0;
 
                 const currentId = Number(cls.id || 0);
-                if (currentId > 0 && internalSchedules.some(s => Number(s.id) === currentId)) {
+                if (currentId > 0) {
                     targetClassId = currentId;
                 }
 
+                if (!targetClassId && classids.length > 0) {
+                    const numericClassIds = classids
+                        .map(id => Number(id || 0))
+                        .filter(id => id > 0);
+                    const createdIds = numericClassIds.filter(id => !existingInternalIds.has(id));
+                    if (createdIds.length === 1) {
+                        targetClassId = createdIds[0];
+                    }
+                }
+
                 if (!targetClassId) {
+                    // Read-only query to resolve the saved class id without mutating board state.
+                    const dbRes = await store._fetch('local_grupomakro_get_generated_schedules', {
+                        periodid: periodId,
+                        includeoverlaps: 1
+                    });
+                    const dbRaw = Array.isArray(dbRes) ? dbRes : (dbRes.data || []);
+                    const internalSchedules = dbRaw.filter(s => {
+                        const itemPid = Number(s.periodid) || Number(periodId);
+                        const isExternal = (
+                            s.isExternal === true ||
+                            s.isExternal === 1 ||
+                            String(s.isExternal).toUpperCase() === 'YES' ||
+                            itemPid !== Number(periodId)
+                        );
+                        return !isExternal;
+                    });
+
                     const candidates = internalSchedules.filter(s =>
                         String(s.corecourseid) === String(targetPayload.corecourseid) &&
                         String(s.shift || '') === String(targetPayload.shift || '') &&
