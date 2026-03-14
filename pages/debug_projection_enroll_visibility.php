@@ -668,6 +668,95 @@ foreach ($matchedClasses as $classid => $class) {
     echo '<tr><td>local_learning_courses map</td><td>' . ($lpcmap ? ('id=' . (int)$lpcmap->id . ' plan=' . (int)$lpcmap->learningplanid . ' core=' . (int)$lpcmap->courseid) : '-') . '</td></tr>';
     echo '</tbody></table>';
 
+    // Show all plan mappings for this subject corecourseid.
+    $subjectPlanRows = $DB->get_records_sql(
+        "SELECT lpc.id, lpc.learningplanid, lpc.periodid, lpc.courseid, lp.name AS planname
+           FROM {local_learning_courses} lpc
+      LEFT JOIN {local_learning_plans} lp ON lp.id = lpc.learningplanid
+          WHERE lpc.courseid = :corecourseid
+       ORDER BY lpc.learningplanid ASC, lpc.id ASC",
+        ['corecourseid' => $corecourseid]
+    );
+    echo '<h4 class="dbg-sub">Subject mapping across plans (local_learning_courses by corecourseid)</h4>';
+    echo '<table class="dbg-table"><thead><tr><th>lpc.id</th><th>learningplanid</th><th>Plan name</th><th>periodid</th><th>Is class plan?</th></tr></thead><tbody>';
+    if (empty($subjectPlanRows)) {
+        echo '<tr><td colspan="5" class="dbg-bad">No local_learning_courses rows for this corecourseid.</td></tr>';
+    } else {
+        foreach ($subjectPlanRows as $spr) {
+            $isclassplan = ((int)$spr->learningplanid === $classplanid);
+            echo '<tr>';
+            echo '<td>' . (int)$spr->id . '</td>';
+            echo '<td>' . (int)$spr->learningplanid . '</td>';
+            echo '<td>' . dbg_es((string)($spr->planname ?? '-')) . '</td>';
+            echo '<td>' . (int)$spr->periodid . '</td>';
+            echo '<td>' . ($isclassplan ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+            echo '</tr>';
+        }
+    }
+    echo '</tbody></table>';
+
+    // Distribution of users currently linked to this class by student plan.
+    $linkedUserIds = [];
+    $qids = $DB->get_fieldset_select('gmk_class_queue', 'userid', 'classid = :cid', ['cid' => $classid]);
+    $prids = $DB->get_fieldset_select('gmk_class_pre_registration', 'userid', 'classid = :cid', ['cid' => $classid]);
+    $pids = $DB->get_fieldset_select('gmk_course_progre', 'userid', 'classid = :cid', ['cid' => $classid]);
+    foreach (array_merge((array)$qids, (array)$prids, (array)$pids) as $uid) {
+        $uid = (int)$uid;
+        if ($uid > 0) {
+            $linkedUserIds[$uid] = $uid;
+        }
+    }
+    if ($groupid > 0) {
+        $gmids = $DB->get_fieldset_select('groups_members', 'userid', 'groupid = :gid', ['gid' => $groupid]);
+        foreach ((array)$gmids as $uid) {
+            $uid = (int)$uid;
+            if ($uid > 0) {
+                $linkedUserIds[$uid] = $uid;
+            }
+        }
+    }
+    $linkedUserIds = array_values($linkedUserIds);
+
+    $planDist = [];
+    if (!empty($linkedUserIds)) {
+        list($uidsql, $uidparams) = $DB->get_in_or_equal($linkedUserIds, SQL_PARAMS_NAMED, 'lu');
+        $luRows = $DB->get_records_sql(
+            "SELECT userid, learningplanid
+               FROM {local_learning_users}
+              WHERE userid {$uidsql}
+                AND (userroleid = 5 OR userrolename = 'student')",
+            $uidparams
+        );
+        foreach ($luRows as $lur) {
+            $pid = (int)$lur->learningplanid;
+            if ($pid <= 0) {
+                continue;
+            }
+            if (!isset($planDist[$pid])) {
+                $planDist[$pid] = 0;
+            }
+            $planDist[$pid]++;
+        }
+        ksort($planDist);
+    }
+    echo '<h4 class="dbg-sub">Class-linked students distribution by plan</h4>';
+    echo '<table class="dbg-table"><thead><tr><th>Plan ID</th><th>Plan name</th><th>Student count in this class</th><th>Is class plan?</th></tr></thead><tbody>';
+    if (empty($planDist)) {
+        echo '<tr><td colspan="4" class="dbg-warn">No linked students resolved to plan distribution.</td></tr>';
+    } else {
+        foreach ($planDist as $pid => $count) {
+            $pname = $DB->get_field('local_learning_plans', 'name', ['id' => (int)$pid], IGNORE_MISSING);
+            $isclassplan = ((int)$pid === $classplanid);
+            echo '<tr>';
+            echo '<td>' . (int)$pid . '</td>';
+            echo '<td>' . dbg_es((string)($pname ?: '-')) . '</td>';
+            echo '<td>' . (int)$count . '</td>';
+            echo '<td>' . ($isclassplan ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+            echo '</tr>';
+        }
+    }
+    echo '</tbody></table>';
+
     echo '<h4 class="dbg-sub">Student enrollment/pending state for this class</h4>';
     echo '<table class="dbg-table"><thead><tr><th>in_prereg</th><th>in_queue</th><th>in_progre(classid)</th><th>in_group</th><th>is_enrolled</th><th>is_pending</th></tr></thead><tbody>';
     echo '<tr>';
