@@ -3619,8 +3619,14 @@ try {
             foreach ($userids as $uid) {
                 $uid = (int)$uid;
                 $hadEnrollSuccess = !empty($results[$uid]);
+                if ($hadEnrollSuccess) {
+                    // enrolApprovedScheduleStudents() already synced progress in this path.
+                    $progresssynced++;
+                    continue;
+                }
+
                 $alreadyInGroup = (!empty($class->groupid) && groups_is_member((int)$class->groupid, $uid));
-                $shouldSyncProgress = $hadEnrollSuccess || $alreadyInGroup || empty($class->groupid);
+                $shouldSyncProgress = $alreadyInGroup || empty($class->groupid);
                 if (!$shouldSyncProgress) {
                     continue;
                 }
