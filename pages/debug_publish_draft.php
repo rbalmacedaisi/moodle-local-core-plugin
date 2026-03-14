@@ -176,6 +176,46 @@ function gmk_dbg_pub_identity_key(array $item): string {
 }
 
 /**
+ * Relaxed key for diagnostics:
+ * Ignores career and room, keeps core/shift/plan/subperiod/type/instructor + day/time.
+ *
+ * @param array $item
+ * @return string
+ */
+function gmk_dbg_pub_identity_key_relaxed(array $item): string {
+    $core = (string)($item['corecourseid'] ?? '');
+    if ($core === '' || $core === '0') {
+        $core = 'subject:' . (string)($item['courseid'] ?? '');
+    }
+    $shift = gmk_dbg_pub_norm_token((string)($item['shift'] ?? ''));
+    $learningplan = (string)($item['learningplanid'] ?? '');
+    $subperiod = (string)($item['subperiod'] ?? 0);
+    $type = (string)($item['type'] ?? 0);
+    $instructor = (string)($item['instructorid'] ?? ($item['instructorId'] ?? ''));
+
+    $parts = [];
+    if (!empty($item['sessions']) && is_array($item['sessions'])) {
+        foreach ($item['sessions'] as $sess) {
+            if (!is_array($sess)) {
+                continue;
+            }
+            $day = gmk_dbg_pub_norm_token((string)($sess['day'] ?? ''));
+            $start = trim((string)($sess['start'] ?? ''));
+            $end = trim((string)($sess['end'] ?? ''));
+            $parts[] = $day . '|' . $start . '|' . $end;
+        }
+        sort($parts, SORT_STRING);
+    } else {
+        $day = gmk_dbg_pub_norm_token((string)($item['day'] ?? ''));
+        $start = trim((string)($item['start'] ?? ''));
+        $end = trim((string)($item['end'] ?? ''));
+        $parts[] = $day . '|' . $start . '|' . $end;
+    }
+
+    return implode('||', [$core, $shift, $learningplan, $subperiod, $type, $instructor, implode(';', $parts)]);
+}
+
+/**
  * Build schedule sessions array from DB rows.
  *
  * @param stdClass $classrec
@@ -243,7 +283,7 @@ function gmk_dbg_pub_dedupe(array $items, int $periodid, array &$stats): array {
             continue;
         }
 
-        $key = gmk_dbg_pub_identity_key($item);
+        $key = gmk_dbg_pub_identity_key_relaxed($item);
         $hasnumericid = !empty($item['id']) && is_numeric($item['id']) && (int)$item['id'] > 0;
         if (!isset($seen[$key])) {
             $seen[$key] = count($out);
@@ -345,6 +385,49 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
         gmk_dbg_pub_save_draft($periodid, $deduped);
         $message = "Action dedupe_programmed completed. kept={$stats['kept']} replaced={$stats['replaced']} skipped={$stats['skipped']}.";
         $messageclass = 'alert-success';
+    } else if ($action === 'drop_without_db') {
+        $idlist = [];
+        foreach ($draftitems as $it) {
+            if (!is_array($it)) {
+                continue;
+            }
+            if (!empty($it['id']) && is_numeric($it['id']) && (int)$it['id'] > 0) {
+                $idlist[(int)$it['id']] = (int)$it['id'];
+            }
+        }
+        $dbbyid = [];
+        if (!empty($idlist)) {
+            $dbrows = $DB->get_records_list('gmk_class', 'id', array_values($idlist), '', 'id,periodid');
+            foreach ($dbrows as $r) {
+                $dbbyid[(int)$r->id] = $r;
+            }
+        }
+        $kept = [];
+        $dropped = 0;
+        foreach ($draftitems as $it) {
+            if (!is_array($it)) {
+                $dropped++;
+                continue;
+            }
+            if (gmk_dbg_pub_is_external($it, $periodid)) {
+                $kept[] = $it;
+                continue;
+            }
+            $id = (int)($it['id'] ?? 0);
+            if ($id <= 0) {
+                $dropped++;
+                continue;
+            }
+            $dbrow = $dbbyid[$id] ?? null;
+            if (!$dbrow || (int)$dbrow->periodid !== $periodid) {
+                $dropped++;
+                continue;
+            }
+            $kept[] = $it;
+        }
+        gmk_dbg_pub_save_draft($periodid, $kept);
+        $message = "Action drop_without_db completed. Dropped rows: {$dropped}.";
+        $messageclass = 'alert-success';
     } else if ($action === 'clear_bad_ids' || $action === 'normalize_publish') {
         $idlist = [];
         foreach ($draftitems as $it) {
@@ -445,6 +528,65 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             $dstats = [];
             $draftitems = gmk_dbg_pub_dedupe($draftitems, $periodid, $dstats);
 
+            $dbclassesforperiod = $DB->get_records(
+                'gmk_class',
+                ['periodid' => $periodid],
+                '',
+                'id,corecourseid,courseid,learningplanid,shift,subperiodid,type,instructorid,inittime,endtime,classdays'
+            );
+            $dbids = array_values(array_map('intval', array_keys($dbclassesforperiod)));
+            $dbsessions = [];
+            if (!empty($dbids)) {
+                $dbsessionsrows = $DB->get_records_list(
+                    'gmk_class_schedules',
+                    'classid',
+                    $dbids,
+                    'id ASC',
+                    'id,classid,day,start_time,end_time,classroomid'
+                );
+                foreach ($dbsessionsrows as $srow) {
+                    $dbsessions[(int)$srow->classid][] = $srow;
+                }
+            }
+
+            $dbrelaxedkeys = [];
+            foreach ($dbclassesforperiod as $dbclass) {
+                $dbitem = [
+                    'corecourseid' => (int)($dbclass->corecourseid ?? 0),
+                    'courseid' => (int)($dbclass->courseid ?? 0),
+                    'learningplanid' => (int)($dbclass->learningplanid ?? 0),
+                    'shift' => (string)($dbclass->shift ?? ''),
+                    'subperiod' => (int)($dbclass->subperiodid ?? 0),
+                    'type' => (int)($dbclass->type ?? 0),
+                    'instructorid' => (int)($dbclass->instructorid ?? 0),
+                    'sessions' => gmk_dbg_pub_db_sessions($dbclass, $dbsessions),
+                    'day' => '',
+                    'start' => '',
+                    'end' => ''
+                ];
+                $dbrelaxedkeys[gmk_dbg_pub_identity_key_relaxed($dbitem)] = true;
+            }
+
+            $stalebydraft = 0;
+            foreach ($draftitems as $k => $it4) {
+                if (!is_array($it4)) {
+                    continue;
+                }
+                $id = (int)($it4['id'] ?? 0);
+                if ($id > 0) {
+                    continue;
+                }
+                if (!gmk_dbg_pub_is_programmed($it4)) {
+                    continue;
+                }
+                $rkey = gmk_dbg_pub_identity_key_relaxed($it4);
+                if (isset($dbrelaxedkeys[$rkey])) {
+                    unset($draftitems[$k]);
+                    $stalebydraft++;
+                }
+            }
+            $draftitems = array_values($draftitems);
+
             $coreids = [];
             foreach ($draftitems as $it2) {
                 if (!is_array($it2)) {
@@ -476,7 +618,7 @@ if ($periodid > 0 && $action !== '' && confirm_sesskey()) {
             unset($it3);
 
             gmk_dbg_pub_save_draft($periodid, $draftitems);
-            $message = "Action normalize_publish completed. missing_id_rows_dropped={$droppedmissing} ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
+            $message = "Action normalize_publish completed. missing_id_rows_dropped={$droppedmissing} stale_unpublished_rows_dropped={$stalebydraft} ids_cleared={$cleared} unassigned_dropped={$droppedunassigned} dedupe_replaced={$dstats['replaced']} dedupe_skipped={$dstats['skipped']} names_updated={$renamed}.";
             $messageclass = 'alert-success';
         } else {
             gmk_dbg_pub_save_draft($periodid, $draftitems);
@@ -743,7 +885,7 @@ if ($periodid > 0) {
             'end' => '',
             'room' => ''
         ];
-        $key = gmk_dbg_pub_identity_key($dbitem);
+        $key = gmk_dbg_pub_identity_key_relaxed($dbitem);
         $dbkeyset[$key] = true;
         if (!isset($dbkeymeta[$key])) {
             $dbkeymeta[$key] = [
@@ -790,6 +932,7 @@ if ($periodid > 0) {
     echo '<div class="dbg-row" style="margin-top:8px;">';
     $actions = [
         'normalize_publish' => 'Normalize for publish',
+        'drop_without_db' => 'Drop rows without DB class',
         'dedupe_programmed' => 'Dedupe programmed',
         'clear_bad_ids' => 'Clear bad ids',
         'canonical_names' => 'Canonical subject names',
