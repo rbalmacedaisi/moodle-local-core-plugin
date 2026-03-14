@@ -77,6 +77,9 @@ if ($action === 'deletegroup') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
 
+    require_once($CFG->dirroot . '/group/lib.php');
+    require_once($CFG->dirroot . '/course/lib.php');
+
     $groupid  = required_param('groupid', PARAM_INT);
     $courseid = required_param('courseid', PARAM_INT);
     $log      = [];
