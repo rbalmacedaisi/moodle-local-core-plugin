@@ -549,6 +549,56 @@ if (empty($subjectrowsinstudentplans)) {
 }
 echo '</div>';
 
+echo '<div class="dbg-card">';
+echo '<h2 class="dbg-sub">Global Classes Audit by Subject</h2>';
+if (empty($subjectrowsinstudentplans)) {
+    echo '<p class="dbg-bad">Skipped: no subject rows in student plans.</p>';
+} else {
+    foreach ($subjectrowsinstudentplans as $sr) {
+        $planid = (int)$sr->learningplanid;
+        $currentperiodid = isset($lluByPlan[$planid]) ? (int)$lluByPlan[$planid]->currentperiodid : 0;
+        $classrows = $DB->get_records_sql(
+            "SELECT c.id, c.name, c.learningplanid, c.courseid, c.corecourseid, c.periodid, c.approved, c.closed,
+                    c.groupid, c.initdate, c.enddate, lpc.learningplanid AS mappedplanid
+               FROM {gmk_class} c
+          LEFT JOIN {local_learning_courses} lpc ON lpc.id = c.courseid
+              WHERE c.corecourseid = :ccid
+           ORDER BY c.enddate DESC, c.id DESC",
+            ['ccid' => (int)$sr->corecourseid]
+        );
+
+        echo '<h3 class="dbg-sub">Plan ' . $planid . ' | Core course ' . (int)$sr->corecourseid . ' | Current period ' . ($currentperiodid > 0 ? $currentperiodid : '-') . '</h3>';
+        echo '<table class="dbg-table"><thead><tr><th>Class ID</th><th>Name</th><th>Plan</th><th>Mapped Plan</th><th>Period</th><th>Approved</th><th>Closed</th><th>End >= now</th><th>Plan match</th><th>Period match</th><th>Would be eligible?</th></tr></thead><tbody>';
+
+        if (empty($classrows)) {
+            echo '<tr><td colspan="11" class="dbg-bad">No gmk_class rows found for this core course.</td></tr>';
+        } else {
+            foreach ($classrows as $cr) {
+                $active = ((int)$cr->approved === 1) && ((int)$cr->closed === 0) && ((int)$cr->enddate >= time());
+                $planmatch = ((int)$cr->learningplanid === $planid) || ((int)$cr->mappedplanid === $planid);
+                $periodmatch = ($currentperiodid > 0) && ((int)$cr->periodid === $currentperiodid);
+                $eligible = $active && ($planmatch || $periodmatch);
+
+                echo '<tr>';
+                echo '<td>' . (int)$cr->id . '</td>';
+                echo '<td>' . dbg_es($cr->name) . '</td>';
+                echo '<td>' . (int)$cr->learningplanid . '</td>';
+                echo '<td>' . ((int)$cr->mappedplanid > 0 ? (int)$cr->mappedplanid : '-') . '</td>';
+                echo '<td>' . (int)$cr->periodid . '</td>';
+                echo '<td>' . ((int)$cr->approved === 1 ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+                echo '<td>' . ((int)$cr->closed === 0 ? '<span class="dbg-ok">NO</span>' : '<span class="dbg-bad">YES</span>') . '</td>';
+                echo '<td>' . ((int)$cr->enddate >= time() ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+                echo '<td>' . ($planmatch ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+                echo '<td>' . ($periodmatch ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+                echo '<td>' . ($eligible ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+                echo '</tr>';
+            }
+        }
+        echo '</tbody></table>';
+    }
+}
+echo '</div>';
+
 // Progress rows for this subject across all plans.
 $coreids = [];
 foreach ($subjectrowsglobal as $sg) {
