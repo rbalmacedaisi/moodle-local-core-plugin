@@ -556,6 +556,7 @@ Vue.component('grademodal', {
                     sesskey: M.cfg.sesskey,
                     classId: classId,
                     userId:  Number(this.dataStudent.id),
+                    learningPlanId: Number(course && course.learningplanid ? course.learningplanid : 0),
                 };
                 const response = await window.axios.get(url, { params });
                 const payload  = response && response.data ? response.data : {};

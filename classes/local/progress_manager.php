@@ -606,20 +606,154 @@ class local_grupomakro_progress_manager
         return $ok;
     }
 
-    public static function unassign_class_from_course_progress($userId, $class)
+    public static function unassign_class_from_course_progress($userId, $class, $preferredLearningPlanId = 0)
     {
-        global $DB;
-        $courseProgress = $DB->get_record('gmk_course_progre', ['userid' => $userId, 'courseid' => $class->corecourseid, 'learningplanid' => $class->learningplanid]);
-        if ($courseProgress) {
-            $courseProgress->classid = 0; // Or null if allowed, but assign uses integer
-            $courseProgress->groupid = 0;
-            $courseProgress->progress = 0;
-            $courseProgress->grade = 0;
-            $courseProgress->status = COURSE_AVAILABLE; 
+        global $DB, $USER;
 
-            return $DB->update_record('gmk_course_progre', $courseProgress);
+        $userId = (int)$userId;
+        $classId = (int)($class->id ?? 0);
+        $coreCourseId = (int)($class->corecourseid ?? 0);
+        $groupId = (int)($class->groupid ?? 0);
+        $preferredLearningPlanId = (int)$preferredLearningPlanId;
+
+        $resolvedLearningPlanId = $preferredLearningPlanId > 0
+            ? $preferredLearningPlanId
+            : (int)($class->learningplanid ?? 0);
+
+        if ($resolvedLearningPlanId <= 0 && !empty($class->courseid)) {
+            $resolvedLearningPlanId = (int)$DB->get_field(
+                'local_learning_courses',
+                'learningplanid',
+                ['id' => (int)$class->courseid],
+                IGNORE_MISSING
+            );
         }
-        return false;
+
+        if ($resolvedLearningPlanId <= 0 && $coreCourseId > 0) {
+            $resolvedLearningPlanId = (int)$DB->get_field_select(
+                'local_learning_courses',
+                'learningplanid',
+                'courseid = :courseid',
+                ['courseid' => $coreCourseId],
+                IGNORE_MULTIPLE
+            );
+        }
+
+        $candidatesById = [];
+        $mergeCandidates = function($rows) use (&$candidatesById) {
+            foreach ($rows as $row) {
+                $candidatesById[(int)$row->id] = $row;
+            }
+        };
+
+        // Primary target: exact class link.
+        if ($classId > 0) {
+            $mergeCandidates(
+                $DB->get_records(
+                    'gmk_course_progre',
+                    ['userid' => $userId, 'classid' => $classId],
+                    'id ASC'
+                )
+            );
+        }
+
+        // Fallback: same course + resolved plan, only rows that can belong to current enrollment.
+        if (empty($candidatesById) && $coreCourseId > 0 && $resolvedLearningPlanId > 0) {
+            $rows = $DB->get_records(
+                'gmk_course_progre',
+                [
+                    'userid' => $userId,
+                    'courseid' => $coreCourseId,
+                    'learningplanid' => $resolvedLearningPlanId
+                ],
+                'timemodified DESC, id DESC'
+            );
+
+            $filtered = [];
+            foreach ($rows as $row) {
+                $isInProgress = ((int)$row->status === COURSE_IN_PROGRESS);
+                $isSameGroup = ($groupId > 0 && (int)$row->groupid === $groupId);
+                if ($isInProgress || $isSameGroup) {
+                    $filtered[(int)$row->id] = $row;
+                }
+            }
+
+            $mergeCandidates($filtered);
+        }
+
+        // Last fallback: any in-progress row for the same core course.
+        if (empty($candidatesById) && $coreCourseId > 0) {
+            $where = 'userid = :userid AND courseid = :courseid AND status = :status';
+            $params = [
+                'userid' => $userId,
+                'courseid' => $coreCourseId,
+                'status' => COURSE_IN_PROGRESS
+            ];
+
+            if ($classId > 0) {
+                $where .= ' AND (classid = :classid OR classid = 0';
+                $params['classid'] = $classId;
+                if ($groupId > 0) {
+                    $where .= ' OR groupid = :groupid';
+                    $params['groupid'] = $groupId;
+                }
+                $where .= ')';
+            }
+
+            $mergeCandidates(
+                $DB->get_records_select(
+                    'gmk_course_progre',
+                    $where,
+                    $params,
+                    'timemodified DESC, id DESC'
+                )
+            );
+        }
+
+        if (empty($candidatesById)) {
+            return false;
+        }
+
+        $updated = false;
+        $modifier = isset($USER->id) ? (int)$USER->id : 0;
+
+        foreach ($candidatesById as $candidate) {
+            $changed = false;
+
+            if ((int)$candidate->classid !== 0) {
+                $candidate->classid = 0;
+                $changed = true;
+            }
+            if ((int)$candidate->groupid !== 0) {
+                $candidate->groupid = 0;
+                $changed = true;
+            }
+            if ((float)$candidate->progress !== 0.0) {
+                $candidate->progress = 0;
+                $changed = true;
+            }
+            if ((float)$candidate->grade !== 0.0) {
+                $candidate->grade = 0;
+                $changed = true;
+            }
+            if ((int)$candidate->status !== COURSE_AVAILABLE) {
+                $candidate->status = COURSE_AVAILABLE;
+                $changed = true;
+            }
+            if ($resolvedLearningPlanId > 0 && (int)$candidate->learningplanid <= 0) {
+                $candidate->learningplanid = $resolvedLearningPlanId;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $candidate->timemodified = time();
+                $candidate->usermodified = $modifier;
+                $DB->update_record('gmk_course_progre', $candidate);
+                $updated = true;
+            }
+        }
+
+        return $updated;
     }
 
     public static function get_revalids_for_user($userId)

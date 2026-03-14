@@ -847,7 +847,8 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_student.php');
             $classid = required_param('classId', PARAM_INT);
             $userid  = required_param('userId', PARAM_INT);
-            $result  = \local_grupomakro_core\external\schedule\withdraw_student::execute($classid, $userid);
+            $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
+            $result  = \local_grupomakro_core\external\schedule\withdraw_student::execute($classid, $userid, $learningplanid);
             $response = [
                 'status' => 'success',
                 'data'   => $result,
