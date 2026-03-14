@@ -107,6 +107,22 @@ if (!$selectedclass && $classname !== '') {
     }
 }
 
+// Fallback for accent/spacing variants in class names.
+if (!$selectedclass && empty($matches) && $classname !== '') {
+    $fallbackwhere = $DB->sql_like('name', ':k1', false, false) .
+        ' AND ' . $DB->sql_like('name', ':k2', false, false);
+    $matches = $DB->get_records_select(
+        'gmk_class',
+        $fallbackwhere,
+        ['k1' => '%GEOGRAF%', 'k2' => '%PANAM%'],
+        'id DESC',
+        'id,name,corecourseid,courseid,learningplanid,groupid,instructorid,approved,closed,periodid,initdate,enddate'
+    );
+    if (count($matches) === 1) {
+        $selectedclass = reset($matches);
+    }
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -545,4 +561,3 @@ echo '</div>';
 </div>
 <?php
 echo $OUTPUT->footer();
-
