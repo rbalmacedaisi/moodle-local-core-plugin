@@ -184,7 +184,17 @@
                 // Normalization helper for accents in day names
                 const normalizeDay = (day) => {
                     if (!day) return '';
-                    return day.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                    let s = String(day).trim().toUpperCase();
+                    s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    s = s.replace(/[^A-Z]/g, '');
+                    if (s.startsWith('LUN')) return 'LUNES';
+                    if (s.startsWith('MAR')) return 'MARTES';
+                    if (s.startsWith('MIE') || s.startsWith('MIA') || s.includes('MIER')) return 'MIERCOLES';
+                    if (s.startsWith('JUE')) return 'JUEVES';
+                    if (s.startsWith('VIE')) return 'VIERNES';
+                    if (s.startsWith('SAB') || s.startsWith('SA')) return 'SABADO';
+                    if (s.startsWith('DOM')) return 'DOMINGO';
+                    return s;
                 };
 
                 const dayMap = { 'LUNES': 1, 'MARTES': 2, 'MIERCOLES': 3, 'JUEVES': 4, 'VIERNES': 5, 'SABADO': 6, 'DOMINGO': 0 };

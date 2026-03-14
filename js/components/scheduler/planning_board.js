@@ -857,8 +857,9 @@ window.SchedulerComponents.PlanningBoard = {
             if (Array.isArray(ad) && ad.length > 0) return ad.length;
             // assignedDates missing/empty â†’ compute from period dates
             if (!this.selectedClass.day || this.selectedClass.day === 'N/A' || !window.SchedulerAlgorithm?.getDatesForDay) return 0;
-            const normalizedDay = this.selectedClass.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            return window.SchedulerAlgorithm.getDatesForDay(normalizedDay, this.storeState.context, this.selectedClass.subperiod || 0).length;
+            const schedulerDay = this.toSchedulerDay(this.selectedClass.day);
+            if (!schedulerDay) return 0;
+            return window.SchedulerAlgorithm.getDatesForDay(schedulerDay, this.storeState.context, this.selectedClass.subperiod || 0).length;
         },
         timeSlots() {
             const slots = [];
@@ -1044,7 +1045,33 @@ window.SchedulerComponents.PlanningBoard = {
     methods: {
         normalizeDay(d) {
             if (!d) return '';
-            return d.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+            let s = String(d).trim().toUpperCase();
+            s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            s = s.replace(/[^A-Z]/g, '');
+
+            // Canonicalize common variants, including mojibake remnants.
+            if (s.startsWith('LUN')) return 'LUNES';
+            if (s.startsWith('MAR')) return 'MARTES';
+            if (s.startsWith('MIE') || s.startsWith('MIA') || s.includes('MIER')) return 'MIERCOLES';
+            if (s.startsWith('JUE')) return 'JUEVES';
+            if (s.startsWith('VIE')) return 'VIERNES';
+            if (s.startsWith('SAB') || s.startsWith('SA')) return 'SABADO';
+            if (s.startsWith('DOM')) return 'DOMINGO';
+
+            return s;
+        },
+        toSchedulerDay(d) {
+            const key = this.normalizeDay(d);
+            const map = {
+                LUNES: 'Lunes',
+                MARTES: 'Martes',
+                MIERCOLES: 'Miercoles',
+                JUEVES: 'Jueves',
+                VIERNES: 'Viernes',
+                SABADO: 'Sabado',
+                DOMINGO: 'Domingo'
+            };
+            return map[key] || '';
         },
         // Internal toMins â€” used by computed maps (not reactive, just pure util)
         _toMins(t) {
@@ -1416,8 +1443,9 @@ window.SchedulerComponents.PlanningBoard = {
 
             // Recalculate assignedDates
             if (window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
+                const schedulerDay = this.toSchedulerDay(day);
                 let newDates = window.SchedulerAlgorithm.getDatesForDay(
-                    day, this.storeState.context, this.draggedClass.subperiod || 0
+                    schedulerDay || day, this.storeState.context, this.draggedClass.subperiod || 0
                 );
                 // Apply course load limit (total_hours / session_duration)
                 const loads = this.storeState.context?.loads || [];
@@ -1462,8 +1490,9 @@ window.SchedulerComponents.PlanningBoard = {
                 // Recalculate assignedDates with new duration after resize
                 if (this.resizingClass && window.SchedulerAlgorithm?.getDatesForDay && this.storeState.context) {
                     const resized = this.resizingClass;
+                    const schedulerDay = this.toSchedulerDay(resized.day);
                     let newDates = window.SchedulerAlgorithm.getDatesForDay(
-                        resized.day, this.storeState.context, resized.subperiod || 0
+                        schedulerDay || resized.day, this.storeState.context, resized.subperiod || 0
                     );
                     const loads = this.storeState.context?.loads || [];
                     const loadData = loads.find(l =>
@@ -1504,9 +1533,8 @@ window.SchedulerComponents.PlanningBoard = {
 
             const context = this.storeState.context;
             const load = this.loadsMap[cls.subjectName];
-            // Normalize day: remove accents so 'MiÃ©rcoles' â†’ 'Miercoles' matches getDatesForDay's dayMap
-            const normalizedDay = cls.day.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const allDates = window.SchedulerAlgorithm.getDatesForDay(normalizedDay, context, cls.subperiod || 0);
+            const schedulerDay = this.toSchedulerDay(cls.day);
+            const allDates = window.SchedulerAlgorithm.getDatesForDay(schedulerDay || cls.day, context, cls.subperiod || 0);
             const durMins = this.toMins(cls.end) - this.toMins(cls.start);
             const durH = durMins / 60;
 
