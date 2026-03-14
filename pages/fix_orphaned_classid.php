@@ -1,7 +1,7 @@
 <?php
 // Detecta registros en gmk_course_progre con classid apuntando a una gmk_class
-// que ya no existe (clase eliminada). Muestra filtros + checkboxes para correcciÃ³n masiva.
-// AcciÃ³n: classid=0, groupid=0, status=COURSE_AVAILABLE (1), grade=0, progress=0
+// que ya no existe (clase eliminada). Muestra filtros + checkboxes para correccion masiva.
+// Accion: classid=0, groupid=0, status=COURSE_AVAILABLE (1), grade=0, progress=0
 // para los que estaban cursando (status=2). Registros en estado terminal (3/4/5)
 // solo se les limpia classid/groupid sin tocar status/grade/progress.
 
@@ -43,7 +43,7 @@ function gmk_fix_orphaned_send_json(array $payload, $oblevel = 0) {
 
 $action = optional_param('action', '', PARAM_ALPHANUMEXT);
 
-// â”€â”€ Endpoint AJAX: procesa UN registro y devuelve JSON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Endpoint AJAX: procesa UN registro y devuelve JSON.
 if ($action === 'fix_one') {
     $oblevel = ob_get_level();
     ob_start();
@@ -170,7 +170,7 @@ echo '<style>
   .filter-counter b { color:#1a73e8; }
 </style>';
 
-// â”€â”€ Constantes de status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Constantes de status.
 define('STATUS_LABELS', [
     0 => 'No disponible',
     1 => 'Disponible',
@@ -187,7 +187,7 @@ define('STATUS_TAGS', [
     5 => 'reprobada',
 ]);
 
-// â”€â”€ Obtener todos los candidatos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Obtener todos los candidatos.
 $candidatesSql = "
     SELECT gcp.id        AS progre_id,
            gcp.userid,
@@ -213,14 +213,14 @@ $candidatesSql = "
 ";
 $candidates = $DB->get_records_sql($candidatesSql);
 
-// â”€â”€ ACCIÃ“N: corregir los seleccionados â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ACCION: corregir los seleccionados.
 if ($action === 'fix') {
     $selectedIds = optional_param_array('ids', [], PARAM_INT);
     $selectedIds = array_filter($selectedIds, fn($id) => $id > 0);
 
     if (empty($selectedIds)) {
         echo "<div class='box warn'>No seleccionaste ningun registro.</div>";
-        echo "<p><a href='?' class='btn'><- Volver</a></p>";
+        echo "<p><a href='?' class='btn'>&lt;- Volver</a></p>";
         echo $OUTPUT->footer();
         exit;
     }
@@ -245,7 +245,7 @@ if ($action === 'fix') {
         $isTerminal = in_array($status, [3, 4, 5]);
 
         try {
-            // 1. Quitar del grupo Moodle si aÃºn existe.
+            // 1. Quitar del grupo Moodle si aun existe.
             if (!empty($row->groupid)) {
                 if ($DB->record_exists('groups', ['id' => $row->groupid])) {
                     if (groups_is_member($row->groupid, $row->userid)) {
@@ -299,28 +299,28 @@ if ($action === 'fix') {
     echo "<div class='box " . ($errors === 0 ? 'ok' : 'warn') . "'>";
     echo "<b>$fixed corregidos</b>" . ($errors > 0 ? ", <b class='err'>$errors errores</b>" : "") . "</div>";
     echo "<div style='font-size:13px;line-height:1.9;'>" . implode('<br>', $log) . "</div>";
-    echo "<p style='margin-top:16px;'><a href='?' class='btn'><- Volver al analisis</a></p>";
+    echo "<p style='margin-top:16px;'><a href='?' class='btn'>&lt;- Volver al analisis</a></p>";
     echo $OUTPUT->footer();
     exit;
 }
 
-// â”€â”€ VISTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-echo "<div class='box info'><b>Â¿QuÃ© detecta esta pÃ¡gina?</b><br>
+// VISTA.
+echo "<div class='box info'><b>Que detecta esta pagina?</b><br>
 Registros en <code>gmk_course_progre</code> cuyo <code>classid</code> apunta a una <code>gmk_class</code>
 que ya <b>no existe</b> (fue eliminada). Esto causa errores al intentar retirar o gestionar al estudiante.<br><br>
-<b>AcciÃ³n segÃºn el estado del registro:</b><br>
-â€¢ <b>Cursando (2):</b> se des-matricula del curso Moodle, se limpia classid/groupid y se restablece a <em>Disponible</em>.<br>
-â€¢ <b>Completada/Aprobada/Reprobada (3/4/5):</b> solo se limpia classid/groupid; se preservan status, nota y progreso.</div>";
+<b>Accion segun el estado del registro:</b><br>
+- <b>Cursando (2):</b> se des-matricula del curso Moodle, se limpia classid/groupid y se restablece a <em>Disponible</em>.<br>
+- <b>Completada/Aprobada/Reprobada (3/4/5):</b> solo se limpia classid/groupid; se preservan status, nota y progreso.</div>";
 
 $total = count($candidates);
 
 if ($total === 0) {
-    echo "<div class='box ok'><b>âœ” No se encontraron registros con classid huÃ©rfano.</b></div>";
+    echo "<div class='box ok'><b>[OK] No se encontraron registros con classid huerfano.</b></div>";
     echo $OUTPUT->footer();
     exit;
 }
 
-// Resumen por estado y lista de materias Ãºnicas para los filtros.
+// Resumen por estado y lista de materias unicas para los filtros.
 $byStatus    = [];
 $courseNames = [];
 foreach ($candidates as $row) {
@@ -332,7 +332,7 @@ ksort($byStatus);
 $courseNames = array_keys($courseNames);
 sort($courseNames);
 
-echo "<div class='box warn'>âš  Se encontraron <b>$total registros</b> con classid huÃ©rfano.</div>";
+echo "<div class='box warn'>[WARN] Se encontraron <b>$total registros</b> con classid huerfano.</div>";
 
 echo "<div class='box info'><b>Resumen por estado:</b><br>";
 foreach ($byStatus as $s => $cnt) {
@@ -344,12 +344,12 @@ echo "</div>";
 
 echo '<form method="post" action="?action=fix" id="fix-form">';
 
-// â”€â”€ Barra de filtros â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Barra de filtros.
 echo "<div class='filter-bar'>
   <div>
     <label for='filter-status'>Estado</label>
     <select id='filter-status'>
-      <option value=''>â€” Todos los estados â€”</option>";
+      <option value=''>-- Todos los estados --</option>";
 foreach ($byStatus as $s => $cnt) {
     $label = STATUS_LABELS[$s] ?? "status=$s";
     echo "<option value='$s'>$label ($cnt)</option>";
@@ -365,23 +365,23 @@ echo "    </select>
     <input type='text' id='filter-student' placeholder='Buscar estudiante...' autocomplete='off'>
   </div>
   <div style='align-self:flex-end;display:flex;gap:6px;'>
-    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='clearFilters()'>âœ• Limpiar</button>
-    <button type='button' class='btn btn-sm' style='background:#28a745' onclick='selectVisible()'>âœ” Sel. visibles</button>
-    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='deselectVisible()'>âœ• Desel. visibles</button>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='clearFilters()'>Limpiar</button>
+    <button type='button' class='btn btn-sm' style='background:#28a745' onclick='selectVisible()'>Sel. visibles</button>
+    <button type='button' class='btn btn-sm' style='background:#6c757d' onclick='deselectVisible()'>Desel. visibles</button>
   </div>
   <div class='filter-counter'>Mostrando <b id='visible-count'>$total</b> de <b>$total</b> &nbsp;|&nbsp; Marcados: <b id='checked-count'>0</b></div>
 </div>";
 
-// â”€â”€ Tabla â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Tabla.
 echo "<div class='section' id='table-heading'>Candidatos ($total)</div>";
 echo "<table id='candidates-table'>
 <thead>
 <tr>
   <th><input type='checkbox' id='chk-all' class='cb' title='Marcar/desmarcar visibles'></th>
   <th>#</th><th>Estudiante</th><th>Materia</th>
-  <th>classid huÃ©rfano</th><th>groupid</th>
+  <th>classid huerfano</th><th>groupid</th>
   <th>Estado</th><th>Nota</th><th>Progreso</th>
-  <th>AcciÃ³n que se aplicarÃ¡</th>
+  <th>Accion que se aplicara</th>
 </tr>
 </thead>
 <tbody id='candidates-body'>";
@@ -420,9 +420,9 @@ echo "</tbody></table>";
 
 echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
     <button type='button' class='btn-danger btn' onclick='startFix()'>
-        ðŸ”§ Corregir seleccionados
+        Corregir seleccionados
     </button>
-    <a href='?' class='btn' style='background:#6c757d'>â†º Reanalizar</a>
+    <a href='?' class='btn' style='background:#6c757d'>Reanalizar</a>
 </div>
 </form>
 
@@ -440,7 +440,7 @@ echo "<div style='margin-top:12px;display:flex;gap:10px;align-items:center;'>
          border:1px solid #ddd;border-radius:4px;padding:8px 12px;background:#f8f9fa;'></div>
 
     <div style='margin-top:16px;display:flex;gap:8px;justify-content:flex-end;'>
-      <button id='fix-close-btn' onclick='closeFixOverlay()' class='btn' style='display:none;background:#28a745;'>âœ” Listo â€” Reanalizar</button>
+      <button id='fix-close-btn' onclick='closeFixOverlay()' class='btn' style='display:none;background:#28a745;'>Listo - Reanalizar</button>
     </div>
   </div>
 </div>";
@@ -545,7 +545,7 @@ var fixCloseBtn = document.getElementById('fix-close-btn');
 function appendLog(msg, ok) {
     var line = document.createElement('div');
     line.style.color = ok ? '#2e7d32' : '#c62828';
-    line.textContent = (ok ? 'âœ” ' : 'âœ˜ ') + msg;
+    line.textContent = (ok ? '[OK] ' : '[ERR] ') + msg;
     fixLog.appendChild(line);
     fixLog.scrollTop = fixLog.scrollHeight;
 }
@@ -553,7 +553,7 @@ function appendLog(msg, ok) {
 async function startFix() {
     var checked = Array.from(document.querySelectorAll('.row-cb:checked'));
     if (checked.length === 0) { alert('Selecciona al menos un registro.'); return; }
-    if (!confirm('Â¿Corregir ' + checked.length + ' registro(s) seleccionado(s)?')) return;
+    if (!confirm('Corregir ' + checked.length + ' registro(s) seleccionado(s)?')) return;
 
     var ids = checked.map(function(cb) { return parseInt(cb.value); });
 
@@ -583,7 +583,7 @@ async function startFix() {
             if (!data.ok) errors++;
             else done++;
         } catch(e) {
-            appendLog('id=' + id + ': Error de red â€” ' + e.message, false);
+            appendLog('id=' + id + ': Error de red - ' + e.message, false);
             errors++;
         }
         fixBar.style.width = Math.round(((i + 1) / total) * 100) + '%';
