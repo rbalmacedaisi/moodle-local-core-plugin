@@ -246,13 +246,14 @@ if ($periodid > 0) {
 echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
 
 echo "<div class='box info'>
-  Se muestran grupos de Moodle en <b>cursos gestionados por el plugin</b> (con registros en
-  <code>gmk_class</code>) que <b>no tienen ninguna clase activa asociada</b> (<code>gmk_class.groupid</code>).
-  Generalmente son residuos de clases eliminadas sin limpieza adecuada.
+  Se muestran <b>solo grupos creados por el plugin</b> (su <code>description</code> comienza con
+  <code>\"Group for the \"</code>) que ya <b>no tienen ninguna clase activa asociada</b>
+  (<code>gmk_class.groupid</code>). Grupos como «Revalida» u otros manuales se excluyen automáticamente.
 </div>";
 
 $orphanedGroups = $DB->get_records_sql(
-    "SELECT g.id AS groupid, g.name AS groupname, g.courseid,
+    "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber,
+            g.description AS groupdesc, g.courseid,
             c.fullname AS coursename, c.shortname AS courseshortname
        FROM {groups} g
        JOIN {course} c ON c.id = g.courseid
@@ -260,6 +261,7 @@ $orphanedGroups = $DB->get_records_sql(
               SELECT DISTINCT corecourseid FROM {gmk_class}
                WHERE corecourseid IS NOT NULL AND corecourseid > 0
             )
+        AND g.description LIKE 'Group for the %'
         AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
       ORDER BY c.fullname, g.name"
 );
@@ -297,6 +299,7 @@ if (empty($orphanedGroups)) {
         <thead><tr>
           <th>Group ID</th>
           <th>Nombre del grupo</th>
+          <th>idnumber (clase origen)</th>
           <th>Acción</th>
         </tr></thead><tbody>";
 
@@ -305,6 +308,7 @@ if (empty($orphanedGroups)) {
             echo "<tr id='grow-{$og->groupid}'>
               <td>{$og->groupid}</td>
               <td>" . htmlspecialchars($og->groupname) . "</td>
+              <td><code style='font-size:11px'>" . htmlspecialchars($og->groupidnumber) . "</code></td>
               <td>
                 <button class='btn btn-danger btn-sm' onclick='deleteOneGroup($groupJson, this)'>
                   Eliminar
