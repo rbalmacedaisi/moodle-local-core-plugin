@@ -72,7 +72,7 @@ class manual_enroll extends external_api {
         }
 
         try {
-            \local_grupomakro_progress_manager::assign_class_to_course_progress((int)$params['userId'], $class);
+            \local_grupomakro_progress_manager::assign_class_to_course_progress((int)$params['userId'], $class, true);
         } catch (\Throwable $t) {
             return ['status' => 'error', 'message' => 'Failed to sync course progress: ' . $t->getMessage()];
         }

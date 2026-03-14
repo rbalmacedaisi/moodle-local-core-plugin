@@ -3632,7 +3632,7 @@ try {
                 }
 
                 try {
-                    local_grupomakro_progress_manager::assign_class_to_course_progress($uid, $class);
+                    local_grupomakro_progress_manager::assign_class_to_course_progress($uid, $class, true);
                     $progresssynced++;
                 } catch (\Throwable $t) {
                     $progresssyncerrors[] = "userid {$uid}: " . $t->getMessage();

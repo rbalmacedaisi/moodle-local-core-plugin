@@ -4066,7 +4066,7 @@ function enrolApprovedScheduleStudents($students, $class)
 
         if ($enrolmentResults[$student->userid]) {
             gmk_log("enrolApprovedScheduleStudents: calling assign_class_to_course_progress userid={$student->userid} classid={$class->id}");
-            local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class);
+            local_grupomakro_progress_manager::assign_class_to_course_progress($student->userid, $class, true);
         } else {
             gmk_log("enrolApprovedScheduleStudents: enrolment FAILED for userid={$student->userid}");
         }

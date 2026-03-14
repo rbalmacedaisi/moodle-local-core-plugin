@@ -338,7 +338,7 @@ class local_grupomakro_progress_manager
         return 'https://lxp' . $envDic[$CFG->environment_type] . '.soluttolabs.com/local/grupomakro_core/pages/payment.php?courseId=' . $courseId . '&userId=' . $userId . '&progreId=' . $progreCourseId;
     }
 
-    public static function assign_class_to_course_progress($userId, $class)
+    public static function assign_class_to_course_progress($userId, $class, $forceInProgress = false)
     {
         global $DB, $USER;
 
@@ -484,8 +484,9 @@ class local_grupomakro_progress_manager
         $courseProgress->timemodified = time();
         $courseProgress->usermodified = $USER->id;
 
-        // Keep terminal statuses untouched; all others become in-progress.
-        if (!in_array((int)$courseProgress->status, $terminalStatuses, true)) {
+        // For enrollment flows, we may need to force "cursando" even if there is
+        // an old terminal status row linked to a stale class mapping.
+        if ($forceInProgress || !in_array((int)$courseProgress->status, $terminalStatuses, true)) {
             $courseProgress->progress = 0;
             $courseProgress->grade = 0;
             $courseProgress->status = COURSE_IN_PROGRESS;
@@ -514,7 +515,7 @@ class local_grupomakro_progress_manager
                 $changed = true;
             }
 
-            if (!in_array((int)$dup->status, $terminalStatuses, true)) {
+            if ($forceInProgress || !in_array((int)$dup->status, $terminalStatuses, true)) {
                 if ((int)$dup->status !== COURSE_IN_PROGRESS) {
                     $dup->status = COURSE_IN_PROGRESS;
                     $changed = true;
