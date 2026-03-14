@@ -288,10 +288,9 @@ if (!empty($pluginCourseIds)) {
                     c.fullname AS coursename, c.shortname AS courseshortname
                FROM {groups} g
                JOIN {course} c ON c.id = g.courseid
-          LEFT JOIN {gmk_class} gmc ON gmc.groupid = g.id
               WHERE g.courseid $gInSql
                 AND g.idnumber IS NOT NULL AND g.idnumber != ''
-                AND gmc.id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
               ORDER BY c.fullname, g.name",
             $gInParams
         );
@@ -360,11 +359,10 @@ if (!empty($pluginCourseIds)) {
                FROM {course_sections} cs
                JOIN {course} c ON c.id = cs.course
           LEFT JOIN {course_modules} cm ON cm.section = cs.id
-          LEFT JOIN {gmk_class} gmc ON gmc.coursesectionid = cs.id
               WHERE cs.course $inSql
                 AND cs.section > 0
                 AND cs.name IS NOT NULL AND cs.name != ''
-                AND gmc.id IS NULL
+                AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE coursesectionid = cs.id)
               GROUP BY cs.id, cs.name, cs.section, cs.course, c.fullname, c.shortname
              HAVING COUNT(cm.id) > 0
               ORDER BY c.fullname, cs.name",
