@@ -23,12 +23,35 @@ if (!function_exists('get_manual_enroll')) {
     }
 }
 
+/**
+ * Envia JSON limpiando cualquier salida previa (debug HTML/warnings) para no romper fetch().
+ *
+ * @param array $payload
+ * @param int $oblevel
+ * @return void
+ */
+function gmk_fix_orphaned_send_json(array $payload, $oblevel = 0) {
+    while (ob_get_level() > (int)$oblevel) {
+        @ob_end_clean();
+    }
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($payload);
+    exit;
+}
+
 $action = optional_param('action', '', PARAM_ALPHANUM);
 
 // ── Endpoint AJAX: procesa UN registro y devuelve JSON ─────────────────────
 if ($action === 'fix_one') {
     require_sesskey();
     header('Content-Type: application/json; charset=utf-8');
+    $oblevel = ob_get_level();
+    ob_start();
+    $preverrorhandler = set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        throw new \ErrorException($errstr, 0, $errno, $errfile, $errline);
+    });
 
     $id = required_param('id', PARAM_INT);
 
@@ -47,8 +70,7 @@ if ($action === 'fix_one') {
     ", ['id' => $id]);
 
     if (!$row) {
-        echo json_encode(['ok' => false, 'msg' => "id=$id: no encontrado o ya corregido."]);
-        exit;
+        gmk_fix_orphaned_send_json(['ok' => false, 'msg' => "id=$id: no encontrado o ya corregido."], $oblevel);
     }
 
     try {
