@@ -639,12 +639,21 @@ class scheduler extends external_api {
                 if (self::is_payload_external($cls)) {
                     continue;
                 }
+                $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
+                                (!empty($cls['day']) && $cls['day'] !== 'N/A');
+                if (!$isProgrammed) {
+                    continue;
+                }
+
+                $processablePayloadCount++;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
-                    $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
-                                    (!empty($cls['day']) && $cls['day'] !== 'N/A');
-                    if ($isProgrammed) {
-                        $validIds[] = $cls['id'];
+                    $candidateId = (int)$cls['id'];
+                    $existingPeriod = $getClassPeriod($candidateId);
+                    if ($existingPeriod !== null && $existingPeriod !== (int)$periodid) {
+                        gmk_log("INFO: Skip foreign class id={$candidateId} (period {$existingPeriod}) while publishing period {$periodid}");
+                        continue;
                     }
+                    $validIds[] = $candidateId;
                 }
             }
 
@@ -657,9 +666,11 @@ class scheduler extends external_api {
                     "periodid = ? AND id NOT IN ($placeholders)",
                     array_merge([$periodid], $validIds)
                 );
-            } else {
+            } else if ($processablePayloadCount > 0 || empty($data)) {
                 // No programmed ids in payload → wipe all classes of this period
                 $DB->delete_records('gmk_class', ['periodid' => $periodid]);
+            } else {
+                gmk_log("INFO: Skip destructive cleanup for period {$periodid}: payload had no processable internal classes.");
             }
 
             $teachers_cache = [];
@@ -730,8 +741,13 @@ class scheduler extends external_api {
                 $classRec = new stdClass();
                 $isUpdate = false;
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
-                    $classRec->id = $cls['id'];
+                    $classRec->id = (int)$cls['id'];
                     $isUpdate = true;
+                    $existingPeriod = $getClassPeriod((int)$classRec->id);
+                    if ($existingPeriod !== null && $existingPeriod !== (int)$periodid) {
+                        gmk_log("INFO: Ignoring update for foreign class id={$classRec->id} (period {$existingPeriod}), target period={$periodid}");
+                        continue;
+                    }
                 }
 
                 $courseId = $cls['courseid'];
@@ -1249,6 +1265,25 @@ class scheduler extends external_api {
     }
 
     // --- Helpers ---
+    private static function is_payload_external(array $cls): bool {
+        if (!array_key_exists('isExternal', $cls)) {
+            return false;
+        }
+
+        $flag = $cls['isExternal'];
+        if (is_bool($flag)) {
+            return $flag;
+        }
+        if (is_int($flag) || is_float($flag)) {
+            return ((int)$flag) === 1;
+        }
+        if (is_string($flag)) {
+            $norm = strtolower(trim($flag));
+            return in_array($norm, ['1', 'true', 'yes', 'y', 'si', 'on'], true);
+        }
+        return false;
+    }
+
     private static function parse_semester_number($name) {
         if (preg_match('/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)$/i', $name, $matches)) {
             $romans = [
