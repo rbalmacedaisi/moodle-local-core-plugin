@@ -230,9 +230,9 @@ if ($periodid > 0) {
                 $byKey[$key][] = ['idx' => $idx, 'entry' => $entry];
             }
 
-            $duplicateGroups = array_filter($byKey, fn($g) => count($g) > 1);
+            $duplicateGroups = array_filter($byKey, function($g) { return count($g) > 1; });
             $dupCount        = count($duplicateGroups);
-            $totalDuplicates = array_sum(array_map(fn($g) => count($g) - 1, $duplicateGroups));
+            $totalDuplicates = array_sum(array_map(function($g) { return count($g) - 1; }, $duplicateGroups));
 
             if ($dupCount === 0) {
                 echo "<div class='box ok'>✔ El draft no tiene duplicados. Total: $total clases únicas.</div>";
@@ -249,8 +249,8 @@ if ($periodid > 0) {
                 </tr></thead><tbody>";
 
                 foreach ($duplicateGroups as $key => $group) {
-                    $ids    = array_map(fn($g) => $g['entry']['id'] ?? '(sin id)', $group);
-                    $maxId  = max(array_map(fn($g) => (int)($g['entry']['id'] ?? 0), $group));
+                    $ids    = array_map(function($g) { return isset($g['entry']['id']) ? $g['entry']['id'] : '(sin id)'; }, $group);
+                    $maxId  = max(array_map(function($g) { return (int)(isset($g['entry']['id']) ? $g['entry']['id'] : 0); }, $group));
                     $keepId = $maxId ?: end($ids);
                     echo "<tr>
                       <td><code>" . htmlspecialchars($key) . "</code></td>
@@ -304,7 +304,7 @@ if (empty($orphanedGroups)) {
     }
 
     $allGroupsJson = json_encode(array_values(array_map(
-        fn($og) => ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid],
+        function($og) { return ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]; },
         $orphanedGroups
     )));
 
@@ -382,11 +382,13 @@ if (empty($orphanedSections)) {
     }
 
     $allSectionsJson = json_encode(array_values(array_map(
-        fn($os) => [
-            'sectionid'     => (int)$os->sectionid,
-            'courseid'      => (int)$os->courseid,
-            'sectionnumber' => (int)$os->sectionnumber,
-        ],
+        function($os) {
+            return [
+                'sectionid'     => (int)$os->sectionid,
+                'courseid'      => (int)$os->courseid,
+                'sectionnumber' => (int)$os->sectionnumber,
+            ];
+        },
         $orphanedSections
     )));
 
