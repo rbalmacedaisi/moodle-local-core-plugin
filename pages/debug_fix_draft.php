@@ -1,576 +1,442 @@
 <?php
+// Página de diagnóstico y reparación del draft de planificación:
+//   1. Detecta entradas duplicadas en draft_schedules y deduplica (conserva la más reciente por id).
+//   2. Detecta grupos Moodle huérfanos (sin gmk_class activa asociada) en cursos gestionados
+//      por el plugin, y los elimina junto con su sección de curso.
+
 $config_path = __DIR__ . '/../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../config.php';
 if (!file_exists($config_path)) $config_path = __DIR__ . '/../../../../config.php';
 require_once($config_path);
+
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
-$action     = optional_param('action',    '', PARAM_ALPHA);
-$periodid   = optional_param('periodid',   0, PARAM_INT);
-$fixclassid = optional_param('fixclassid', 0, PARAM_INT);
-$fixtopid   = optional_param('fixtopid',   0, PARAM_INT);
-
-// ── Download draft (before any output) ────────────────────────────────────────
-if ($action === 'download' && $periodid > 0 && confirm_sesskey()) {
-    $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
-    $draft  = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
-    if ($period && $draft) {
-        $filename = 'draft_' . preg_replace('/[^a-z0-9_-]/i', '_', $period->name) . '_' . date('Ymd_His') . '.json';
-        header('Content-Type: application/json; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Content-Length: ' . strlen($draft));
-        echo $draft;
-        exit;
-    }
-    // If no draft, fall through to normal page
-}
-
 $PAGE->set_url('/local/grupomakro_core/pages/debug_fix_draft.php');
 $PAGE->set_context(context_system::instance());
-$PAGE->set_title('Fix Draft / Horarios');
+$PAGE->set_title('Debug: Fix Draft & Grupos Huérfanos');
+$PAGE->set_heading('Debug: Fix Draft & Grupos Huérfanos');
+
+$action   = optional_param('action',   '', PARAM_ALPHA);
+$periodid = optional_param('periodid', 0,  PARAM_INT);
+
+// ── AJAX: Deduplica el draft del período ──────────────────────────────────────
+if ($action === 'fixdraft') {
+    require_sesskey();
+    header('Content-Type: application/json; charset=utf-8');
+
+    if (!$periodid) {
+        echo json_encode(['ok' => false, 'msg' => 'periodid requerido.']);
+        exit;
+    }
+
+    $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+    if (!$period || empty($period->draft_schedules)) {
+        echo json_encode(['ok' => false, 'msg' => 'Período no encontrado o draft vacío.']);
+        exit;
+    }
+
+    $draft = json_decode($period->draft_schedules, true);
+    if (!is_array($draft)) {
+        echo json_encode(['ok' => false, 'msg' => 'Draft no es un array JSON válido.']);
+        exit;
+    }
+
+    // Agrupar por clave corecourseid|shift|day, conservar el de mayor id
+    $byKey   = [];
+    $removed = 0;
+    foreach ($draft as $entry) {
+        $key = ($entry['corecourseid'] ?? '') . '|' . ($entry['shift'] ?? '') . '|' . ($entry['day'] ?? '');
+        if (!isset($byKey[$key])) {
+            $byKey[$key] = $entry;
+        } else {
+            // Conservar el que tiene el id más alto (publicado más recientemente)
+            $currentId  = (int)($byKey[$key]['id'] ?? 0);
+            $incomingId = (int)($entry['id'] ?? 0);
+            if ($incomingId > $currentId) {
+                $byKey[$key] = $entry;
+            }
+            $removed++;
+        }
+    }
+
+    $newDraft = array_values($byKey);
+    $DB->set_field('gmk_academic_periods', 'draft_schedules', json_encode($newDraft), ['id' => $periodid]);
+
+    echo json_encode([
+        'ok'      => true,
+        'msg'     => "Draft reparado: $removed entradas duplicadas eliminadas. Quedaron " . count($newDraft) . " clases únicas.",
+        'removed' => $removed,
+        'kept'    => count($newDraft),
+    ]);
+    exit;
+}
+
+// ── AJAX: Elimina un grupo huérfano (y su sección si existe) ─────────────────
+if ($action === 'deletegroup') {
+    require_sesskey();
+    header('Content-Type: application/json; charset=utf-8');
+
+    $groupid  = required_param('groupid', PARAM_INT);
+    $courseid = required_param('courseid', PARAM_INT);
+    $log      = [];
+
+    $group = $DB->get_record('groups', ['id' => $groupid]);
+    if (!$group) {
+        echo json_encode(['ok' => false, 'msg' => "Grupo $groupid no encontrado (ya eliminado)."]);
+        exit;
+    }
+
+    // Verificar que sigue sin gmk_class asociada (evita carreras de condición)
+    if ($DB->record_exists('gmk_class', ['groupid' => $groupid])) {
+        echo json_encode(['ok' => false, 'msg' => "Grupo $groupid ahora tiene una gmk_class activa; no se elimina."]);
+        exit;
+    }
+
+    try {
+        // Buscar sección cuyo name coincide con el nombre del grupo
+        if ($DB->record_exists('course', ['id' => $courseid])) {
+            $section = $DB->get_record_sql(
+                "SELECT id, section FROM {course_sections}
+                  WHERE course = :cid AND name = :gname
+                  LIMIT 1",
+                ['cid' => $courseid, 'gname' => $group->name]
+            );
+            if ($section) {
+                course_delete_section($courseid, $section->section, true, true);
+                $log[] = "Sección '{$group->name}' (id={$section->id}) eliminada con sus actividades";
+            }
+        }
+
+        // Eliminar el grupo (también quita membresías automáticamente)
+        groups_delete_group($groupid);
+        $log[] = "Grupo $groupid ('{$group->name}') eliminado";
+
+        echo json_encode(['ok' => true, 'msg' => implode('; ', $log)]);
+    } catch (Exception $e) {
+        echo json_encode(['ok' => false, 'msg' => "ERROR: " . $e->getMessage()]);
+    }
+    exit;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 echo $OUTPUT->header();
 
-// ── Reload periods helper ──────────────────────────────────────────────────────
-function load_periods_list($DB) {
-    return $DB->get_records_sql(
-        "SELECT id, name,
-                CASE WHEN draft_schedules IS NOT NULL AND draft_schedules != '' AND draft_schedules != '[]'
-                     THEN 1 ELSE 0 END AS has_draft,
-                LENGTH(draft_schedules) AS draft_len
-         FROM {gmk_academic_periods}
-         ORDER BY id DESC"
-    );
-}
-
-$periods = load_periods_list($DB);
-$message = '';
-
-// ── Handle clear draft ─────────────────────────────────────────────────────────
-if ($action === 'clear' && $periodid > 0 && confirm_sesskey()) {
-    $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
-    if ($period) {
-        $DB->set_field('gmk_academic_periods', 'draft_schedules', null, ['id' => $periodid]);
-        $message = '<p class="msg-ok">✅ Draft del periodo <b>' . s($period->name) . '</b> (id=' . $periodid . ') borrado.</p>';
-        $periods = load_periods_list($DB);
-    } else {
-        $message = '<p class="msg-err">❌ Periodo no encontrado.</p>';
-    }
-}
-
-// ── Handle import draft ────────────────────────────────────────────────────────
-if ($action === 'import' && $periodid > 0 && confirm_sesskey()) {
-    $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
-    $uploaded = $_FILES['draftfile'] ?? null;
-    if ($period && $uploaded && $uploaded['error'] === UPLOAD_ERR_OK) {
-        $content = file_get_contents($uploaded['tmp_name']);
-        $decoded = json_decode($content, true);
-        if (is_array($decoded)) {
-            $DB->set_field('gmk_academic_periods', 'draft_schedules', $content, ['id' => $periodid]);
-            $message = '<p class="msg-ok">✅ Draft importado para <b>' . s($period->name) . '</b> (' . count($decoded) . ' clases). Recarga el tablero.</p>';
-            $periods = load_periods_list($DB);
-        } else {
-            $message = '<p class="msg-err">❌ El archivo no es un JSON válido.</p>';
-        }
-    } else {
-        $message = '<p class="msg-err">❌ Error al subir archivo o periodo no encontrado.</p>';
-    }
-}
-
-// ── Handle fix class periodid ──────────────────────────────────────────────────
-if ($action === 'fixclass' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
-    $cls      = $DB->get_record('gmk_class', ['id' => $fixclassid]);
-    $toPeriod = $DB->get_record('gmk_academic_periods', ['id' => $fixtopid]);
-    if ($cls && $toPeriod) {
-        $DB->set_field('gmk_class', 'periodid', $fixtopid, ['id' => $fixclassid]);
-        $message = '<p class="msg-ok">✅ Clase id=' . $fixclassid . ' movida al periodo <b>' . s($toPeriod->name) . '</b>.</p>';
-    } else {
-        $message = '<p class="msg-err">❌ Clase o periodo no encontrado.</p>';
-    }
-}
-
-// ── Handle fix class courseid (single) ────────────────────────────────────────
-if ($action === 'fixcourseid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
-    $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
-    $lc  = $DB->get_record('local_learning_courses', ['id' => $fixtopid]);
-    if ($cls && $lc) {
-        $DB->set_field('gmk_class', 'courseid', $fixtopid, ['id' => $fixclassid]);
-        $message = '<p class="msg-ok">✅ Clase id=' . $fixclassid . ' — courseid corregido a <b>' . $fixtopid . '</b>.</p>';
-    } else {
-        $message = '<p class="msg-err">❌ Clase o subject no encontrado.</p>';
-    }
-}
-
-// ── Handle merge unassigned items from uploaded draft into current draft ───────
-if ($action === 'mergedraft' && $periodid > 0 && confirm_sesskey()) {
-    $period   = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
-    $uploaded = $_FILES['mergefile'] ?? null;
-    if ($period && $uploaded && $uploaded['error'] === UPLOAD_ERR_OK) {
-        $content = file_get_contents($uploaded['tmp_name']);
-        $uploaded_items = json_decode($content, true);
-        if (!is_array($uploaded_items)) {
-            $message = '<p class="msg-err">❌ El archivo no es un JSON válido.</p>';
-        } else {
-            // Extract only unassigned items (no real DB id: id is 0, null, or a temp string like "rec-...")
-            $unassigned = array_filter($uploaded_items, function($item) {
-                $id = $item['id'] ?? null;
-                return empty($id) || !is_numeric($id) || (int)$id <= 0;
-            });
-
-            if (empty($unassigned)) {
-                $message = '<p class="msg-ok">ℹ️ No se encontraron items sin asignar en el archivo.</p>';
-            } else {
-                // Load current draft
-                $currentDraft = $DB->get_field('gmk_academic_periods', 'draft_schedules', ['id' => $periodid]);
-                $currentItems = (!empty($currentDraft)) ? (json_decode($currentDraft, true) ?: []) : [];
-
-                // Merge: append unassigned items that don't already exist by subjectName+shift+subperiod
-                $existingKeys = [];
-                foreach ($currentItems as $ci) {
-                    $key = ($ci['subjectName'] ?? '') . '|' . ($ci['shift'] ?? '') . '|' . ($ci['subperiod'] ?? 0);
-                    $existingKeys[$key] = true;
-                }
-                $added = 0;
-                foreach ($unassigned as $item) {
-                    $key = ($item['subjectName'] ?? '') . '|' . ($item['shift'] ?? '') . '|' . ($item['subperiod'] ?? 0);
-                    if (!isset($existingKeys[$key])) {
-                        $currentItems[] = $item;
-                        $existingKeys[$key] = true;
-                        $added++;
-                    }
-                }
-
-                $DB->set_field('gmk_academic_periods', 'draft_schedules', json_encode(array_values($currentItems)), ['id' => $periodid]);
-                $message = '<p class="msg-ok">✅ Fusionados <b>' . $added . '</b> items sin asignar al draft de <b>' . s($period->name) . '</b>. Total items en draft: ' . count($currentItems) . '.</p>';
-                $periods = load_periods_list($DB);
-            }
-        }
-    } else {
-        $message = '<p class="msg-err">❌ Error al subir archivo o periodo no encontrado.</p>';
-    }
-}
-
-// ── Handle copy loads from one period to another ──────────────────────────────
-if ($action === 'copyloads' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
-    $fromPeriod = $DB->get_record('gmk_academic_periods', ['id' => $fixclassid]);
-    $toPeriod   = $DB->get_record('gmk_academic_periods', ['id' => $fixtopid]);
-    if ($fromPeriod && $toPeriod) {
-        $sourceLoads = $DB->get_records('gmk_subject_loads', ['academicperiodid' => $fixclassid]);
-        $DB->delete_records('gmk_subject_loads', ['academicperiodid' => $fixtopid]);
-        $copied = 0;
-        foreach ($sourceLoads as $sl) {
-            $new = clone $sl;
-            unset($new->id);
-            $new->academicperiodid = $fixtopid;
-            $DB->insert_record('gmk_subject_loads', $new);
-            $copied++;
-        }
-        $message = '<p class="msg-ok">✅ Copiadas <b>' . $copied . '</b> cargas desde <b>' . s($fromPeriod->name) . '</b> → <b>' . s($toPeriod->name) . '</b>.</p>';
-    } else {
-        $message = '<p class="msg-err">❌ Periodo origen o destino no encontrado.</p>';
-    }
-}
-
-// ── Handle fix class learningplanid ───────────────────────────────────────────
-if ($action === 'fixlpid' && $fixclassid > 0 && $fixtopid > 0 && confirm_sesskey()) {
-    $cls = $DB->get_record('gmk_class', ['id' => $fixclassid]);
-    if ($cls) {
-        $DB->set_field('gmk_class', 'learningplanid', $fixtopid, ['id' => $fixclassid]);
-        $message = '<p class="msg-ok">✅ Clase id=' . $fixclassid . ' — learningplanid corregido a <b>' . $fixtopid . '</b>.</p>';
-    } else {
-        $message = '<p class="msg-err">❌ Clase no encontrada.</p>';
-    }
-}
-
-// ── Handle fix all mismatched learningplanids at once ─────────────────────────
-if ($action === 'fixalllpids' && confirm_sesskey()) {
-    $rows = $DB->get_records_sql(
-        "SELECT c.id, c.learningplanid as class_lpid, lc.learningplanid as lc_lpid
-         FROM {gmk_class} c
-         JOIN {local_learning_courses} lc ON lc.id = c.courseid
-         WHERE c.learningplanid != lc.learningplanid"
-    );
-    $fixed = 0;
-    foreach ($rows as $r) {
-        $DB->set_field('gmk_class', 'learningplanid', (int)$r->lc_lpid, ['id' => $r->id]);
-        $fixed++;
-    }
-    $message = '<p class="msg-ok">✅ learningplanid corregido en <b>' . $fixed . '</b> clases.</p>';
-}
-
-// ── Handle fix all broken courseids at once ────────────────────────────────────
-if ($action === 'fixallcourseids' && confirm_sesskey()) {
-    $broken = $DB->get_records_sql(
-        "SELECT c.id, c.courseid, c.corecourseid, c.learningplanid
-         FROM {gmk_class} c
-         LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
-         WHERE lc.id IS NULL AND c.corecourseid > 0"
-    );
-    $fixed = 0; $skipped = 0;
-    foreach ($broken as $b) {
-        $params = ['courseid' => $b->corecourseid];
-        if ($b->learningplanid) $params['learningplanid'] = $b->learningplanid;
-        $lc = $DB->get_record('local_learning_courses', $params, 'id', IGNORE_MULTIPLE);
-        if (!$lc) {
-            $lc = $DB->get_record('local_learning_courses', ['courseid' => $b->corecourseid], 'id', IGNORE_MULTIPLE);
-        }
-        if ($lc) {
-            $DB->set_field('gmk_class', 'courseid', $lc->id, ['id' => $b->id]);
-            $fixed++;
-        } else {
-            $skipped++;
-        }
-    }
-    $message = '<p class="msg-ok">✅ Corregidas: <b>' . $fixed . '</b> clases. Sin sugerencia: <b>' . $skipped . '</b>.</p>';
-}
-
-?>
-<style>
+echo '<style>
   body { font-family: sans-serif; }
-  .msg-ok  { background:#e6f4ea; border:1px solid #34a853; padding:10px 16px; border-radius:4px; margin:8px 0; }
-  .msg-err { background:#fce8e6; border:1px solid #d93025; padding:10px 16px; border-radius:4px; margin:8px 0; }
-  table { border-collapse:collapse; font-size:13px; margin-top:8px; }
-  th { background:#1a73e8; color:white; padding:6px 10px; }
-  td { padding:5px 10px; border:1px solid #ccc; }
-  tr:hover td { background:#f5f5f5; }
-  .btn-red  { background:#d93025; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px; border:none; cursor:pointer; }
-  .btn-blue { background:#1a73e8; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px; border:none; cursor:pointer; }
-  .btn-green{ background:#34a853; color:white; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px; border:none; cursor:pointer; }
-  section { margin-top:36px; }
-  h2 { border-bottom:2px solid #1a73e8; padding-bottom:4px; }
-</style>
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; }
+  th { background: #1a73e8; color: white; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  .ok   { color: green; font-weight: bold; }
+  .err  { color: red; font-weight: bold; }
+  .warn { color: orange; font-weight: bold; }
+  .box { padding: 10px 14px; border-radius: 4px; margin: 8px 0; border: 1px solid; }
+  .box.ok    { background:#dfd; border-color:green; }
+  .box.err   { background:#fde; border-color:red; }
+  .box.warn  { background:#fff3cd; border-color:#ffc107; }
+  .box.info  { background:#e8f0fe; border-color:#1a73e8; }
+  .section { margin: 22px 0 8px; font-size: 16px; font-weight: bold;
+             border-bottom: 2px solid #1a73e8; padding-bottom: 4px; }
+  .subsection { margin: 14px 0 6px; font-size: 14px; font-weight: bold; color: #555; }
+  button, .btn { padding: 7px 18px; background:#1a73e8; color:white; border:none;
+                 border-radius:3px; cursor:pointer; font-size:13px; display:inline-block;
+                 text-decoration:none; }
+  button:hover, .btn:hover { background:#1558b0; }
+  .btn-danger { background:#c0392b; }
+  .btn-danger:hover { background:#962d22; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; }
+  select { padding: 7px 12px; border: 1px solid #ccc; border-radius:4px; font-size:14px; min-width:320px; }
+  code { background:#f0f0f0; padding: 1px 5px; border-radius:3px; font-size:12px; }
+  #progress-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55);
+                      z-index:9999; align-items:center; justify-content:center; }
+  #progress-box { background:#fff; border-radius:8px; padding:28px 32px; width:580px;
+                  max-width:95vw; box-shadow:0 8px 32px rgba(0,0,0,.3); }
+  #prog-bar-wrap { background:#e9ecef; border-radius:4px; height:18px; overflow:hidden; margin-bottom:8px; }
+  #prog-bar { height:100%; background:#1a73e8; width:0%; transition:width .3s; }
+  #prog-log { font-size:12px; line-height:1.9; max-height:300px; overflow-y:auto;
+              border:1px solid #ddd; border-radius:4px; padding:8px 12px;
+              background:#f8f9fa; margin-top:8px; font-family:monospace; }
+  .row-log { font-size:12px; color:#555; font-family:monospace; margin-left:6px; }
+</style>';
 
-<?php if ($message) echo $message; ?>
+// ── Selector de período ───────────────────────────────────────────────────────
+$periods = $DB->get_records_sql(
+    "SELECT id, name FROM {gmk_academic_periods}
+      WHERE draft_schedules IS NOT NULL AND draft_schedules != ''
+      ORDER BY id DESC"
+);
 
-<!-- ══ SECTION 1: Draft backup ════════════════════════════════════════════════ -->
-<section>
-<h2>1. Backup y restauración de Draft</h2>
-<p>Descarga el draft de un periodo como archivo JSON. Si algo sale mal, impórtalo de nuevo.</p>
-<table>
-<tr>
-  <th>ID</th><th>Periodo</th><th>¿Tiene draft?</th><th>Tamaño</th><th>Descargar</th><th>Importar</th><th>Limpiar</th>
-</tr>
-<?php foreach ($periods as $p):
-    $hasDraft = (int)$p->has_draft;
-    $draftLen = $p->draft_len ? number_format((int)$p->draft_len) . ' chars' : '-';
-    $dlUrl    = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'download', 'periodid' => $p->id, 'sesskey' => sesskey()
-    ]);
-    $clearUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'clear', 'periodid' => $p->id, 'sesskey' => sesskey()
-    ]);
-    $importUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'import', 'periodid' => $p->id, 'sesskey' => sesskey()
-    ]);
-?>
-<tr style="<?= $hasDraft ? 'background:#fffde7' : '' ?>">
-  <td><?= (int)$p->id ?></td>
-  <td><?= s($p->name) ?></td>
-  <td style="text-align:center"><?= $hasDraft
-      ? '<b style="color:#d93025">⚠ Sí</b>'
-      : '<span style="color:#34a853">✅ Limpio</span>' ?></td>
-  <td style="text-align:right"><?= $draftLen ?></td>
-  <td>
-    <?php if ($hasDraft): ?>
-      <a href="<?= $dlUrl ?>" class="btn-blue">⬇ Descargar JSON</a>
-    <?php else: ?>
-      <span style="color:#999">Sin draft</span>
-    <?php endif ?>
-  </td>
-  <td>
-    <form method="post" action="<?= $importUrl ?>" enctype="multipart/form-data" style="display:inline-flex;gap:4px;align-items:center;">
-      <input type="hidden" name="sesskey" value="<?= sesskey() ?>">
-      <input type="file" name="draftfile" accept=".json" style="font-size:11px;" required>
-      <button type="submit" class="btn-green" onclick="return confirm('¿Importar draft para <?= s(addslashes($p->name)) ?>?')">⬆ Importar</button>
-    </form>
-  </td>
-  <td>
-    <?php if ($hasDraft): ?>
-      <a href="<?= $clearUrl ?>" class="btn-red"
-         onclick="return confirm('¿Borrar draft de <?= s(addslashes($p->name)) ?>?')">🗑 Limpiar</a>
-    <?php else: ?>
-      <span style="color:#999">—</span>
-    <?php endif ?>
-  </td>
-</tr>
-<?php endforeach ?>
-</table>
-</section>
+echo "<div class='section'>1. Duplicados en el Draft de Planificación</div>";
 
-<!-- ══ SECTION 1b: Fusionar items sin asignar desde draft anterior ═══════════ -->
-<section>
-<h2>1b. Recuperar items sin asignar desde draft descargado</h2>
-<p>Sube un JSON de draft guardado anteriormente. Solo se importarán los items <b>sin ID real</b> (no publicados/sin asignar) que no existan ya en el draft actual del periodo.</p>
-<table>
-<tr><th>Periodo destino</th><th>Subir draft anterior</th></tr>
-<?php foreach ($periods as $p):
-    $mergeUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'mergedraft', 'periodid' => $p->id, 'sesskey' => sesskey()
-    ]);
-?>
-<tr>
-  <td><?= s($p->name) ?> (id=<?= (int)$p->id ?>)</td>
-  <td>
-    <form method="post" action="<?= $mergeUrl ?>" enctype="multipart/form-data" style="display:inline-flex;gap:4px;align-items:center;">
-      <input type="hidden" name="sesskey" value="<?= sesskey() ?>">
-      <input type="file" name="mergefile" accept=".json" style="font-size:11px;" required>
-      <button type="submit" class="btn-green"
-        onclick="return confirm('¿Fusionar items sin asignar al draft de <?= s(addslashes($p->name)) ?>?')">
-        ⬆ Fusionar sin asignados
-      </button>
-    </form>
-  </td>
-</tr>
-<?php endforeach ?>
-</table>
-</section>
-
-<!-- ══ SECTION 2: Fix periodid de clases ══════════════════════════════════════ -->
-<section>
-<h2>2. Fix: Clases con periodid incorrecto</h2>
-<p>Mueve clases al periodo correcto si fueron publicadas con el periodo equivocado.</p>
-<?php
-$allPeriods = $DB->get_records_sql("SELECT id, name FROM {gmk_academic_periods} ORDER BY id DESC");
-$periodOptions = '';
-foreach ($allPeriods as $ap) {
-    $periodOptions .= '<option value="' . $ap->id . '">' . s($ap->name) . ' (id=' . $ap->id . ')</option>';
+echo "<div style='margin:12px 0; display:flex; gap:10px; align-items:center;'>
+  <select id='period-select'><option value=''>— Selecciona un período —</option>";
+foreach ($periods as $p) {
+    $sel = ($p->id == $periodid) ? 'selected' : '';
+    echo "<option value='{$p->id}' $sel>" . htmlspecialchars($p->name) . "</option>";
 }
-$allClasses = $DB->get_records_sql(
-    "SELECT c.id, c.name, c.periodid, ap.name as period_name
-     FROM {gmk_class} c
-     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
-     ORDER BY c.periodid ASC, c.id ASC"
-);
-?>
-<table>
-<tr><th>id</th><th>name</th><th>Periodo actual</th><th>Mover a</th></tr>
-<?php foreach ($allClasses as $c):
-    $formUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
-?>
-<tr>
-  <td><?= (int)$c->id ?></td>
-  <td><?= s($c->name) ?></td>
-  <td><?= s($c->period_name ?: '?') ?> (id=<?= (int)$c->periodid ?>)</td>
-  <td>
-    <form method="get" action="<?= $formUrl ?>" style="display:inline-flex;gap:4px;align-items:center;">
-      <input type="hidden" name="action"     value="fixclass">
-      <input type="hidden" name="fixclassid" value="<?= (int)$c->id ?>">
-      <input type="hidden" name="sesskey"    value="<?= sesskey() ?>">
-      <select name="fixtopid" style="font-size:11px;padding:2px;"><?= $periodOptions ?></select>
-      <button type="submit" class="btn-blue">Mover</button>
-    </form>
-  </td>
-</tr>
-<?php endforeach ?>
-</table>
-</section>
+echo "  </select>
+  <button class='btn' onclick='loadPeriod()'>Analizar</button>
+</div>";
 
-<!-- ══ SECTION 3: Diagnóstico de clases con courseid roto ═════════════════════ -->
-<section>
-<h2>3. Diagnóstico: Clases con courseid sin referencia</h2>
-<p>Clases cuyo <code>courseid</code> no existe en <code>local_learning_courses</code> — estas rompen <b>editclass.php</b>.</p>
-<?php
-$broken = $DB->get_records_sql(
-    "SELECT c.id, c.name, c.courseid, c.corecourseid, c.learningplanid, c.periodid,
-            ap.name as period_name,
-            lc.id as lc_id, mc.fullname as moodle_course_name
-     FROM {gmk_class} c
-     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
-     LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
-     LEFT JOIN {course} mc ON mc.id = c.corecourseid
-     WHERE lc.id IS NULL
-     ORDER BY c.id DESC"
-);
-if (empty($broken)) {
-    echo '<p style="color:#34a853;font-weight:bold;">✅ Todas las clases tienen courseid válido.</p>';
-} else {
-    $fixAllUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'fixallcourseids', 'sesskey' => sesskey()
-    ]);
-    echo '<p style="color:#d93025;font-weight:bold;">⚠ Se encontraron ' . count($broken) . ' clases con courseid sin referencia:</p>';
-    echo '<p><a href="' . $fixAllUrl . '" class="btn-green" style="font-size:14px;padding:6px 16px;"
-              onclick="return confirm(\'¿Corregir automáticamente todas las clases con courseid roto?\')">
-              ✔ Corregir todas automáticamente
-         </a></p>';
-    echo '<table><tr>
-        <th>id</th><th>name</th><th>courseid (roto)</th><th>corecourseid</th><th>moodle_course</th><th>learningplanid</th><th>periodo</th><th>Fix courseid</th>
-    </tr>';
-    foreach ($broken as $b) {
-        // Try to find the correct local_learning_courses.id from corecourseid
-        $suggestion = null;
-        if ($b->corecourseid) {
-            // Try with learningplanid first, then without
-            $params = ['courseid' => $b->corecourseid];
-            if ($b->learningplanid) $params['learningplanid'] = $b->learningplanid;
-            $suggestion = $DB->get_record('local_learning_courses', $params, 'id', IGNORE_MULTIPLE);
-            if (!$suggestion) {
-                $suggestion = $DB->get_record('local_learning_courses', ['courseid' => $b->corecourseid], 'id', IGNORE_MULTIPLE);
+// ── Análisis del draft ────────────────────────────────────────────────────────
+if ($periodid > 0) {
+    $period = $DB->get_record('gmk_academic_periods', ['id' => $periodid]);
+
+    if (!$period || empty($period->draft_schedules)) {
+        echo "<div class='box warn'>⚠ El período no tiene draft guardado.</div>";
+    } else {
+        $draft = json_decode($period->draft_schedules, true);
+
+        if (!is_array($draft)) {
+            echo "<div class='box err'>✘ El campo draft_schedules no contiene un JSON válido.</div>";
+        } else {
+            $total  = count($draft);
+            $byKey  = [];
+            foreach ($draft as $idx => $entry) {
+                $key = ($entry['corecourseid'] ?? '') . '|' . ($entry['shift'] ?? '') . '|' . ($entry['day'] ?? '');
+                $byKey[$key][] = ['idx' => $idx, 'entry' => $entry];
+            }
+
+            $duplicateGroups = array_filter($byKey, fn($g) => count($g) > 1);
+            $dupCount        = count($duplicateGroups);
+            $totalDuplicates = array_sum(array_map(fn($g) => count($g) - 1, $duplicateGroups));
+
+            if ($dupCount === 0) {
+                echo "<div class='box ok'>✔ El draft no tiene duplicados. Total: $total clases únicas.</div>";
+            } else {
+                echo "<div class='box warn'>⚠ Se encontraron <b>$dupCount claves duplicadas</b>
+                ($totalDuplicates entradas extras de $total totales).</div>";
+
+                echo "<table>
+                <thead><tr>
+                  <th>Clave (corecourseid|shift|day)</th>
+                  <th>Copias</th>
+                  <th>IDs en draft</th>
+                  <th>Se conservará</th>
+                </tr></thead><tbody>";
+
+                foreach ($duplicateGroups as $key => $group) {
+                    $ids    = array_map(fn($g) => $g['entry']['id'] ?? '(sin id)', $group);
+                    $maxId  = max(array_map(fn($g) => (int)($g['entry']['id'] ?? 0), $group));
+                    $keepId = $maxId ?: end($ids);
+                    echo "<tr>
+                      <td><code>" . htmlspecialchars($key) . "</code></td>
+                      <td>" . count($group) . "</td>
+                      <td><code>" . htmlspecialchars(implode(', ', $ids)) . "</code></td>
+                      <td><code>id=$keepId</code></td>
+                    </tr>";
+                }
+                echo "</tbody></table>";
+
+                echo "<p>
+                  <button class='btn-danger btn' onclick='fixDraft($periodid)'>
+                    🔧 Reparar Draft (eliminar duplicados)
+                  </button>
+                </p>";
             }
         }
-        $fixUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
-        echo '<tr style="background:#fce8e6;">
-            <td>' . (int)$b->id . '</td>
-            <td>' . s($b->name) . '</td>
-            <td style="color:#d93025;font-weight:bold;">' . (int)$b->courseid . '</td>
-            <td>' . (int)$b->corecourseid . '</td>
-            <td>' . s($b->moodle_course_name ?: '-') . '</td>
-            <td>' . (int)$b->learningplanid . '</td>
-            <td>' . s($b->period_name ?: $b->periodid) . '</td>
-            <td>';
-        if ($suggestion) {
-            echo '<form method="get" action="' . $fixUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
-                <input type="hidden" name="action" value="fixcourseid">
-                <input type="hidden" name="fixclassid" value="' . (int)$b->id . '">
-                <input type="hidden" name="fixtopid" value="' . (int)$suggestion->id . '">
-                <input type="hidden" name="sesskey" value="' . sesskey() . '">
-                <span style="font-size:11px;">→ lc.id=' . (int)$suggestion->id . '</span>
-                <button type="submit" class="btn-green">✔ Aplicar</button>
-            </form>';
-        } else {
-            echo '<span style="color:#999;font-size:11px;">Sin sugerencia</span>';
+    }
+}
+
+// ── Sección 2: Grupos huérfanos ───────────────────────────────────────────────
+echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
+
+echo "<div class='box info'>
+  Se muestran grupos de Moodle en <b>cursos gestionados por el plugin</b> (con registros en
+  <code>gmk_class</code>) que <b>no tienen ninguna clase activa asociada</b> (<code>gmk_class.groupid</code>).
+  Generalmente son residuos de clases eliminadas sin limpieza adecuada.
+</div>";
+
+$orphanedGroups = $DB->get_records_sql(
+    "SELECT g.id AS groupid, g.name AS groupname, g.courseid,
+            c.fullname AS coursename, c.shortname AS courseshortname
+       FROM {groups} g
+       JOIN {course} c ON c.id = g.courseid
+      WHERE g.courseid IN (
+              SELECT DISTINCT corecourseid FROM {gmk_class}
+               WHERE corecourseid IS NOT NULL AND corecourseid > 0
+            )
+        AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
+      ORDER BY c.fullname, g.name"
+);
+
+if (empty($orphanedGroups)) {
+    echo "<div class='box ok'>✔ No se encontraron grupos huérfanos en cursos del plugin.</div>";
+} else {
+    $orphanCount = count($orphanedGroups);
+    echo "<div class='box warn'>⚠ Se encontraron <b>$orphanCount grupo(s) huérfano(s)</b>.</div>";
+
+    // Agrupar por curso
+    $byCourse = [];
+    foreach ($orphanedGroups as $og) {
+        $byCourse[$og->courseid][] = $og;
+    }
+
+    // JSON para eliminar todos
+    $allGroupsJson = json_encode(array_values(array_map(
+        fn($og) => ['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid],
+        $orphanedGroups
+    )));
+
+    echo "<p>
+      <button class='btn-danger btn' onclick='deleteAllGroups($allGroupsJson)'>
+        🗑 Eliminar todos los grupos huérfanos (" . $orphanCount . ")
+      </button>
+    </p>";
+
+    foreach ($byCourse as $cid => $groups) {
+        $first = $groups[0];
+        echo "<div class='subsection'>Curso: " . htmlspecialchars($first->coursename) .
+             " <small style='color:#888'>(" . htmlspecialchars($first->courseshortname) . ", id=$cid)</small></div>";
+
+        echo "<table>
+        <thead><tr>
+          <th>Group ID</th>
+          <th>Nombre del grupo</th>
+          <th>Acción</th>
+        </tr></thead><tbody>";
+
+        foreach ($groups as $og) {
+            $groupJson = json_encode(['groupid' => (int)$og->groupid, 'courseid' => (int)$og->courseid]);
+            echo "<tr id='grow-{$og->groupid}'>
+              <td>{$og->groupid}</td>
+              <td>" . htmlspecialchars($og->groupname) . "</td>
+              <td>
+                <button class='btn btn-danger btn-sm' onclick='deleteOneGroup($groupJson, this)'>
+                  Eliminar
+                </button>
+                <span id='gstatus-{$og->groupid}' class='row-log'></span>
+              </td>
+            </tr>";
         }
-        echo '</td></tr>';
-    }
-    echo '</table>';
-}
-?>
-</section>
-
-<!-- ══ SECTION 4: Diagnóstico de learningplanid ════════════════════════════════ -->
-<section>
-<h2>4. Diagnóstico: Clases con learningplanid incorrecto</h2>
-<p>Clases cuyo <code>learningplanid</code> en <code>gmk_class</code> no coincide con lo que dice <code>local_learning_courses</code>.
-   Esto rompe el dropdown de <b>Período</b> y <b>Curso</b> en <code>editclass.php</code>.</p>
-<?php
-$classesForLp = $DB->get_records_sql(
-    "SELECT c.id, c.name, c.courseid, c.corecourseid, c.learningplanid as class_lpid,
-            c.periodid as class_periodid,
-            ap.name as period_name,
-            lc.id as lc_id, lc.learningplanid as lc_lpid, lc.periodid as lc_period,
-            mc.fullname as moodle_course_name,
-            mc2.fullname as lc_course_name
-     FROM {gmk_class} c
-     LEFT JOIN {local_learning_courses} lc ON lc.id = c.courseid
-     LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
-     LEFT JOIN {course} mc ON mc.id = c.corecourseid
-     LEFT JOIN {course} mc2 ON mc2.id = lc.courseid
-     ORDER BY c.id DESC"
-);
-
-$mismatched = [];
-foreach ($classesForLp as $row) {
-    if ($row->lc_id && (int)$row->class_lpid !== (int)$row->lc_lpid) {
-        $mismatched[] = $row;
+        echo "</tbody></table>";
     }
 }
 
-if (empty($mismatched)) {
-    echo '<p style="color:#34a853;font-weight:bold;">✅ Todos los learningplanid de clases coinciden con local_learning_courses.</p>';
-} else {
-    $fixAllLpUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php', [
-        'action' => 'fixalllpids', 'sesskey' => sesskey()
-    ]);
-    echo '<p style="color:#d93025;font-weight:bold;">⚠ Se encontraron ' . count($mismatched) . ' clases con learningplanid incorrecto:</p>';
-    echo '<p><a href="' . $fixAllLpUrl . '" class="btn-green" style="font-size:14px;padding:6px 16px;"
-              onclick="return confirm(\'¿Corregir el learningplanid de todas las clases con mismatch?\')">
-              ✔ Corregir todas automáticamente
-         </a></p>';
-    echo '<table><tr>
-        <th>id</th><th>name</th><th>courseid</th><th>lpid en gmk_class</th><th>lpid correcto (lc)</th><th>período actual</th><th>Curso Moodle</th><th>Fix</th>
-    </tr>';
-    foreach ($mismatched as $row) {
-        $fixUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
-        $correctLpId = (int)$row->lc_lpid;
+// ── Overlay de progreso ───────────────────────────────────────────────────────
+echo "
+<div id='progress-overlay'>
+  <div id='progress-box'>
+    <div style='font-size:16px;font-weight:bold;margin-bottom:14px;' id='prog-title'>Procesando...</div>
+    <div id='prog-bar-wrap'><div id='prog-bar'></div></div>
+    <div style='font-size:13px;color:#555;margin-bottom:4px;' id='prog-counter'></div>
+    <div id='prog-log'></div>
+    <div style='margin-top:16px;text-align:right;'>
+      <button id='prog-reload' onclick='window.location.reload()' class='btn'
+              style='display:none;background:#28a745;'>✔ Listo — Recargar</button>
+    </div>
+  </div>
+</div>";
 
-        echo '<tr style="background:#fff3e0;">
-            <td>' . (int)$row->id . '</td>
-            <td>' . s($row->name) . '</td>
-            <td>' . (int)$row->courseid . ' (' . s($row->lc_course_name ?: '?') . ')</td>
-            <td style="color:#d93025;">LP=' . (int)$row->class_lpid . '</td>
-            <td style="color:#34a853;font-weight:bold;">LP=' . $correctLpId . '</td>
-            <td>' . s($row->period_name ?: $row->class_periodid) . '</td>
-            <td>' . s($row->moodle_course_name ?: '-') . '</td>
-            <td>
-                <form method="get" action="' . $fixUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
-                    <input type="hidden" name="action" value="fixlpid">
-                    <input type="hidden" name="fixclassid" value="' . (int)$row->id . '">
-                    <input type="hidden" name="fixtopid" value="' . $correctLpId . '">
-                    <input type="hidden" name="sesskey" value="' . sesskey() . '">
-                    <button type="submit" class="btn-green">✔ Corregir LP</button>
-                </form>
-            </td>
-        </tr>';
+$sesskey = sesskey();
+echo "<script>
+var SESS = '$sesskey';
+var BASE = window.location.pathname;
+
+function loadPeriod() {
+    var pid = document.getElementById('period-select').value;
+    if (!pid) return;
+    window.location.href = BASE + '?periodid=' + pid;
+}
+
+function logLine(msg, ok) {
+    var d = document.getElementById('prog-log');
+    var line = document.createElement('div');
+    line.style.color = ok ? '#2e7d32' : '#c62828';
+    line.textContent = (ok ? '✔ ' : '✘ ') + msg;
+    d.appendChild(line);
+    d.scrollTop = d.scrollHeight;
+}
+
+function showOverlay(title) {
+    document.getElementById('prog-title').textContent = title;
+    document.getElementById('prog-log').innerHTML = '';
+    document.getElementById('prog-counter').textContent = '';
+    document.getElementById('prog-bar').style.width = '0%';
+    document.getElementById('prog-bar').style.background = '#1a73e8';
+    document.getElementById('prog-reload').style.display = 'none';
+    document.getElementById('progress-overlay').style.display = 'flex';
+}
+
+function finishOverlay(ok) {
+    document.getElementById('prog-bar').style.background = ok ? '#28a745' : '#fd7e14';
+    document.getElementById('prog-reload').style.display = 'inline-block';
+}
+
+// ── Fix draft ─────────────────────────────────────────────────────────────────
+async function fixDraft(periodid) {
+    if (!confirm('¿Desduplicar el draft del período ' + periodid + '?\\nSe conservará el ID más alto por cada clave única.')) return;
+    showOverlay('Reparando draft...');
+    try {
+        var resp = await fetch(BASE + '?action=fixdraft&periodid=' + periodid + '&sesskey=' + SESS, { method: 'POST' });
+        var data = await resp.json();
+        logLine(data.msg, data.ok);
+        finishOverlay(data.ok);
+    } catch(e) {
+        logLine('Error de red: ' + e.message, false);
+        finishOverlay(false);
     }
-    echo '</table>';
 }
 
-// Also show all classes with their meta for reference
-echo '<h3 style="margin-top:24px;">Todas las clases — referencia rápida</h3>';
-echo '<table><tr>
-    <th>id</th><th>name</th><th>courseid</th><th>corecourseid</th><th>lpid (clase)</th>
-    <th>periodid (clase)</th><th>periodo inst.</th>
-    <th>lc.lpid</th><th>lc.period</th><th>Curso (lc)</th><th>¿Match LP?</th>
-</tr>';
-foreach ($classesForLp as $row) {
-    $match = (!$row->lc_id) ? '⚠ Sin lc' : ((int)$row->class_lpid === (int)$row->lc_lpid ? '✅' : '❌');
-    $bg = (!$row->lc_id || (int)$row->class_lpid !== (int)$row->lc_lpid) ? 'background:#fce8e6' : '';
-    echo '<tr style="' . $bg . '">
-        <td>' . (int)$row->id . '</td>
-        <td>' . s($row->name) . '</td>
-        <td>' . (int)$row->courseid . '</td>
-        <td>' . (int)$row->corecourseid . '</td>
-        <td>' . (int)$row->class_lpid . '</td>
-        <td>' . (int)$row->class_periodid . '</td>
-        <td>' . s($row->period_name ?: '-') . '</td>
-        <td>' . ($row->lc_id ? (int)$row->lc_lpid : '-') . '</td>
-        <td>' . ($row->lc_id ? (int)$row->lc_period : '-') . '</td>
-        <td>' . s($row->lc_course_name ?: '-') . '</td>
-        <td style="text-align:center;font-weight:bold;">' . $match . '</td>
-    </tr>';
-}
-echo '</table>';
-?>
-</section>
-
-<!-- ══ SECTION 5: Diagnóstico de cargas horarias ══════════════════════════════ -->
-<section>
-<h2>5. Diagnóstico: Cargas horarias por periodo</h2>
-<p>Muestra cuántas cargas hay guardadas por periodo. Si el tablero no muestra carga horaria, probablemente las cargas están guardadas en un periodo diferente al activo.</p>
-<?php
-$loadCounts = $DB->get_records_sql(
-    "SELECT sl.academicperiodid, ap.name as period_name, COUNT(*) as total
-     FROM {gmk_subject_loads} sl
-     LEFT JOIN {gmk_academic_periods} ap ON ap.id = sl.academicperiodid
-     GROUP BY sl.academicperiodid, ap.name
-     ORDER BY sl.academicperiodid DESC"
-);
-if (empty($loadCounts)) {
-    echo '<p style="color:#d93025;font-weight:bold;">⚠ No hay cargas horarias guardadas en ningún periodo.</p>';
-} else {
-    echo '<table><tr><th>periodid</th><th>Periodo</th><th>Total cargas</th><th>Copiar cargas a otro periodo</th></tr>';
-    foreach ($loadCounts as $lc) {
-        $copyUrl = new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php');
-        echo '<tr>
-            <td>' . (int)$lc->academicperiodid . '</td>
-            <td>' . s($lc->period_name ?: '?') . '</td>
-            <td style="font-weight:bold;">' . (int)$lc->total . '</td>
-            <td>
-                <form method="get" action="' . $copyUrl . '" style="display:inline-flex;gap:4px;align-items:center;">
-                    <input type="hidden" name="action" value="copyloads">
-                    <input type="hidden" name="fixclassid" value="' . (int)$lc->academicperiodid . '">
-                    <input type="hidden" name="sesskey" value="' . sesskey() . '">
-                    <select name="fixtopid" style="font-size:11px;padding:2px;">' . $periodOptions . '</select>
-                    <button type="submit" class="btn-blue"
-                        onclick="return confirm(\'¿Copiar ' . (int)$lc->total . ' cargas a ese periodo? Se reemplazarán las existentes.\')">
-                        ➡ Copiar
-                    </button>
-                </form>
-            </td>
-        </tr>';
+// ── Eliminar un grupo ─────────────────────────────────────────────────────────
+async function deleteOneGroup(info, btn) {
+    if (!confirm('¿Eliminar grupo ' + info.groupid + ' (\"' + (btn.closest ? btn.closest('tr').children[1].textContent : '') + '\")?')) return;
+    btn.disabled = true;
+    var statusEl = document.getElementById('gstatus-' + info.groupid);
+    statusEl.textContent = ' Eliminando...';
+    try {
+        var resp = await fetch(
+            BASE + '?action=deletegroup&groupid=' + info.groupid + '&courseid=' + info.courseid + '&sesskey=' + SESS,
+            { method: 'POST' }
+        );
+        var data = await resp.json();
+        if (data.ok) {
+            statusEl.textContent = ' ✔ ' + data.msg;
+            statusEl.style.color = 'green';
+            document.getElementById('grow-' + info.groupid).style.opacity = '0.4';
+        } else {
+            statusEl.textContent = ' ✘ ' + data.msg;
+            statusEl.style.color = 'red';
+            btn.disabled = false;
+        }
+    } catch(e) {
+        statusEl.textContent = ' ✘ Error de red: ' + e.message;
+        statusEl.style.color = 'red';
+        btn.disabled = false;
     }
-    echo '</table>';
 }
-?>
-</section>
 
-<?php echo $OUTPUT->footer();
+// ── Eliminar todos los grupos huérfanos ───────────────────────────────────────
+async function deleteAllGroups(groups) {
+    if (!confirm('¿Eliminar ' + groups.length + ' grupo(s) huérfano(s)?\\nEsta acción no se puede deshacer.')) return;
+    showOverlay('Eliminando ' + groups.length + ' grupos...');
+    var bar     = document.getElementById('prog-bar');
+    var counter = document.getElementById('prog-counter');
+    var done = 0, errors = 0, total = groups.length;
+
+    for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        counter.textContent = (i + 1) + ' / ' + total;
+        try {
+            var resp = await fetch(
+                BASE + '?action=deletegroup&groupid=' + g.groupid + '&courseid=' + g.courseid + '&sesskey=' + SESS,
+                { method: 'POST' }
+            );
+            var data = await resp.json();
+            logLine(data.msg, data.ok);
+            if (data.ok) done++; else errors++;
+        } catch(e) {
+            logLine('grupo ' + g.groupid + ': Error de red — ' + e.message, false);
+            errors++;
+        }
+        bar.style.width = Math.round(((i + 1) / total) * 100) + '%';
+    }
+
+    document.getElementById('prog-title').textContent =
+        'Completado: ' + done + ' eliminado(s)' + (errors > 0 ? ', ' + errors + ' error(es)' : '') + '.';
+    finishOverlay(errors === 0);
+}
+</script>";
+
+echo $OUTPUT->footer();

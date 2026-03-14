@@ -1564,6 +1564,18 @@ window.SchedulerComponents.PlanningBoard = {
                 this._publishLog(`Fase 1: ${classids.length} clases guardadas en BD.`, 'success');
                 this.publishProgress = 40;
 
+                // Sincronizar IDs devueltos al estado (igual que publishGeneration)
+                classids.forEach((newId, idx) => {
+                    if (!newId || !allPlaced[idx]) return;
+                    const c = allPlaced[idx];
+                    const match = store.state.generatedSchedules.find(s =>
+                        !s.isExternal &&
+                        String(s.corecourseid) === String(c.corecourseid) &&
+                        s.shift === c.shift && s.day === c.day
+                    );
+                    if (match) match.id = newId;
+                });
+
                 const targetClassId = classids[targetIdx];
                 if (!targetClassId) {
                     throw new Error(`No se obtuvo ID de BD para "${cls.subjectName}".`);

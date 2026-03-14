@@ -118,6 +118,11 @@ if ($hassiteconfig) {
         '🗑 Reset: Limpiar Publicación de Período',
         new moodle_url('/local/grupomakro_core/pages/reset_period_publish.php')
     );
+    $debugFixDraftPage = new admin_externalpage(
+        'grupomakro_core_debug_fix_draft',
+        '🔍 Debug: Fix Draft & Grupos Huérfanos',
+        new moodle_url('/local/grupomakro_core/pages/debug_fix_draft.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -136,6 +141,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugPublishStatusPage);
     $ADMIN->add('grupomakrocore_plugin', $fixOrphanedClassidPage);
     $ADMIN->add('grupomakrocore_plugin', $resetPeriodPublishPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugFixDraftPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
