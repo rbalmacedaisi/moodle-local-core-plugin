@@ -782,11 +782,13 @@
 
                     // Reconcile draft items (temp id / no DB id) against demand.
                     // Always pass mergedDb so reconcile knows which demand keys are already covered.
-                    // Even when newDraftItems is empty, this generates "sin asignar" cards for
+                    // Even when filteredNewDraftItems is empty, this generates "sin asignar" cards for
                     // demand entries that have no DB class yet.
-                    const reconciledNew = this._reconcileDraftWithDemand(newDraftItems, mergedDb);
+                    const dbIdentity = new Set(mergedDb.map(item => this._scheduleIdentityKey(item)));
+                    const filteredNewDraftItems = newDraftItems.filter(item => !dbIdentity.has(this._scheduleIdentityKey(item)));
+                    const reconciledNew = this._reconcileDraftWithDemand(filteredNewDraftItems, mergedDb);
 
-                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length} → reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
+                    console.log(`DEBUG Draft: DB items=${mergedDb.length}, new draft=${newDraftItems.length}, filtered=${filteredNewDraftItems.length}, reconciled=${reconciledNew.length}, externals=${externalSchedules.length}`);
 
                     const normalizedExternal = externalSchedules.map(item => this._withCanonicalSubjectName(Object.assign({}, item)));
                     this.state.generatedSchedules = [...mergedDb, ...reconciledNew, ...normalizedExternal];
@@ -1170,16 +1172,43 @@
             }
         },
 
+        _scheduleIdentityKey(item) {
+            const core = String(item && (item.corecourseid || ''));
+            const shift = String(item && (item.shift || ''));
+            const learningplan = String(item && (item.learningplanid || ''));
+            const career = Array.isArray(item && item.careerList)
+                ? item.careerList.map(v => String(v).trim()).sort().join(',')
+                : String(item && (item.career || ''));
+            const subperiod = String(item && (item.subperiod || 0));
+            const type = String(item && (item.type !== undefined ? item.type : ''));
+            const instructor = String(item && (item.instructorId || item.instructorid || ''));
+
+            let timing = '';
+            if (item && Array.isArray(item.sessions) && item.sessions.length > 0) {
+                timing = item.sessions.map(sess => {
+                    const day = String(sess.day || '').trim().toLowerCase();
+                    const start = String(sess.start || '').trim();
+                    const end = String(sess.end || '').trim();
+                    const room = String((sess.classroomid !== undefined ? sess.classroomid : (sess.room || ''))).trim().toLowerCase();
+                    return `${day}|${start}|${end}|${room}`;
+                }).sort().join(';');
+            } else {
+                const day = String(item && (item.day || '')).trim().toLowerCase();
+                const start = String(item && (item.start || '')).trim();
+                const end = String(item && (item.end || '')).trim();
+                const room = String(item && (item.room || '')).trim().toLowerCase();
+                timing = `${day}|${start}|${end}|${room}`;
+            }
+
+            return [core, shift, learningplan, career, subperiod, type, instructor, timing].join('||');
+        },
+
         _resolveSubjectName(item) {
             const subjects = this.state.subjects || {};
             const coreId = String(item && (item.corecourseid || ''));
-            const courseId = String(item && (item.courseid || ''));
 
             if (coreId && subjects[coreId] && subjects[coreId].name) {
                 return String(subjects[coreId].name).trim();
-            }
-            if (courseId && subjects[courseId] && subjects[courseId].name) {
-                return String(subjects[courseId].name).trim();
             }
             if (item && item.subjectName) {
                 return String(item.subjectName).trim();

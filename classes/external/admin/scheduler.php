@@ -609,6 +609,10 @@ class scheduler extends external_api {
         require_capability('moodle/site:config', $context);
         
         $data = is_string($schedules) ? json_decode($schedules, true) : $schedules;
+        if (!is_array($data)) {
+            $data = [];
+        }
+        $data = self::dedupe_payload_schedules($data);
         gmk_log("Iniciando guardado para Periodo Institucional: $periodid. Clases en payload: " . count($data));
         
         $transaction = $DB->start_delegated_transaction();
@@ -750,10 +754,29 @@ class scheduler extends external_api {
                     }
                 }
 
-                $courseId = $cls['courseid'];
-                
+                $courseId = (!empty($cls['courseid']) && is_numeric($cls['courseid'])) ? (int)$cls['courseid'] : 0;
+                $lpid = (int)($cls['learningplanid'] ?? 0);
+                $coreCourseId = (!empty($cls['corecourseid']) && is_numeric($cls['corecourseid'])) ? (int)$cls['corecourseid'] : 0;
+
+                if ($courseId > 0) {
+                    $subjById = $DB->get_record('local_learning_courses', ['id' => $courseId], 'id, courseid', IGNORE_MULTIPLE);
+                    if (!$subjById) {
+                        $courseId = 0;
+                    } else if ($coreCourseId > 0 && (int)$subjById->courseid !== $coreCourseId) {
+                        $searchParams = ['courseid' => $coreCourseId];
+                        if ($lpid > 0) $searchParams['learningplanid'] = $lpid;
+                        $subjByCore = $DB->get_record('local_learning_courses', $searchParams, 'id', IGNORE_MULTIPLE);
+                        if (!$subjByCore) {
+                            $subjByCore = $DB->get_record('local_learning_courses', ['courseid' => $coreCourseId], 'id', IGNORE_MULTIPLE);
+                        }
+                        $courseId = $subjByCore ? (int)$subjByCore->id : 0;
+                        if ($courseId > 0) {
+                            gmk_log("HEALING: Corrected mismatched courseid using corecourseid {$coreCourseId} -> subject {$courseId}");
+                        }
+                    }
+                }
+
                 if (empty($courseId) || $courseId == "0") {
-                    $lpid = $cls['learningplanid'] ?? 0;
                     if (!empty($cls['subjectName'])) {
                         $subjByRef = $DB->get_record_sql("SELECT lc.id, lc.courseid FROM {local_learning_courses} lc
                                                          JOIN {course} c ON c.id = lc.courseid
@@ -1265,6 +1288,89 @@ class scheduler extends external_api {
     }
 
     // --- Helpers ---
+    private static function payload_schedule_key(array $cls): string {
+        $core = (string)($cls['corecourseid'] ?? '');
+        if ($core === '' || $core === '0') {
+            $core = 'subject:' . (string)($cls['courseid'] ?? '');
+        }
+
+        $shift = trim((string)($cls['shift'] ?? ''));
+        $learningplan = (string)($cls['learningplanid'] ?? '');
+        $career = trim((string)($cls['career'] ?? ''));
+        $subperiod = (string)($cls['subperiod'] ?? 0);
+        $type = (string)($cls['type'] ?? 0);
+        $instructor = (string)($cls['instructorid'] ?? ($cls['instructorId'] ?? ''));
+
+        $timingParts = [];
+        if (!empty($cls['sessions']) && is_array($cls['sessions'])) {
+            foreach ($cls['sessions'] as $sess) {
+                $day = strtolower(trim((string)($sess['day'] ?? '')));
+                $start = trim((string)($sess['start'] ?? ''));
+                $end = trim((string)($sess['end'] ?? ''));
+                $room = '';
+                if (array_key_exists('classroomid', $sess)) {
+                    $room = strtolower(trim((string)$sess['classroomid']));
+                } else if (array_key_exists('room', $sess)) {
+                    $room = strtolower(trim((string)$sess['room']));
+                }
+                $timingParts[] = $day . '|' . $start . '|' . $end . '|' . $room;
+            }
+            sort($timingParts, SORT_STRING);
+        } else {
+            $day = strtolower(trim((string)($cls['day'] ?? '')));
+            $start = trim((string)($cls['start'] ?? ''));
+            $end = trim((string)($cls['end'] ?? ''));
+            $room = strtolower(trim((string)($cls['room'] ?? '')));
+            $timingParts[] = $day . '|' . $start . '|' . $end . '|' . $room;
+        }
+
+        return implode('||', [$core, $shift, $learningplan, $career, $subperiod, $type, $instructor, implode(';', $timingParts)]);
+    }
+
+    private static function dedupe_payload_schedules(array $data): array {
+        $out = [];
+        $seen = [];
+
+        foreach ($data as $cls) {
+            if (!is_array($cls)) {
+                continue;
+            }
+
+            if (self::is_payload_external($cls)) {
+                $out[] = $cls;
+                continue;
+            }
+
+            $isProgrammed = (!empty($cls['sessions']) && is_array($cls['sessions'])) ||
+                            (!empty($cls['day']) && $cls['day'] !== 'N/A');
+            if (!$isProgrammed) {
+                $out[] = $cls;
+                continue;
+            }
+
+            $key = self::payload_schedule_key($cls);
+            $keyhash = substr(sha1($key), 0, 12);
+            $hasNumericId = !empty($cls['id']) && is_numeric($cls['id']) && (int)$cls['id'] > 0;
+
+            if (!isset($seen[$key])) {
+                $seen[$key] = ['idx' => count($out), 'hasNumericId' => $hasNumericId];
+                $out[] = $cls;
+                continue;
+            }
+
+            $prev = $seen[$key];
+            if ($hasNumericId && !$prev['hasNumericId']) {
+                $out[$prev['idx']] = $cls;
+                $seen[$key]['hasNumericId'] = true;
+                gmk_log("INFO: Dedup payload replaced temp item with numeric item (key={$keyhash})");
+            } else {
+                gmk_log("INFO: Dedup payload skipped duplicate item (key={$keyhash})");
+            }
+        }
+
+        return $out;
+    }
+
     private static function is_payload_external(array $cls): bool {
         if (!array_key_exists('isExternal', $cls)) {
             return false;
