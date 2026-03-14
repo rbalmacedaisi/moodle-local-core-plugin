@@ -3790,13 +3790,28 @@ function get_class_schedules_overview($params)
     $learningPlansCoursesSchedules = array_map(function ($course) {
         $course->numberOfClasses = count($course->schedules);
         $course->totalParticipants = 0;
+        $course->totalQueued = 0;
         $course->totalCapacity = 0;
         foreach ($course->schedules as $schedule) {
-            $course->totalCapacity += $schedule->classroomcapacity;
-            $course->totalParticipants += $schedule->preRegisteredStudents + $schedule->queuedStudents;
+            $capacity = (int)($schedule->classroomcapacity ?? 0);
+            $approved = (int)($schedule->approved ?? 0) > 0;
+            $enrolled = (int)($schedule->enroledStudents ?? 0);
+            $preregistered = (int)($schedule->preRegisteredStudents ?? 0);
+            $queued = (int)($schedule->queuedStudents ?? 0);
+
+            // Keep the same semantics shown in scheduleapproval cards:
+            // approved class -> users = enrolled
+            // non-approved class -> users = preregistered
+            $schedule->displayUsers = $approved ? $enrolled : $preregistered;
+
+            $course->totalCapacity += $capacity;
+            $course->totalParticipants += (int)$schedule->displayUsers;
+            $course->totalQueued += $queued;
         }
         $course->remainingCapacity = $course->totalCapacity - $course->totalParticipants;
-        $course->capacityPercent = $course->remainingCapacity / $course->totalCapacity;
+        $course->capacityPercent = $course->totalCapacity > 0
+            ? ($course->remainingCapacity / $course->totalCapacity)
+            : 1;
 
         $course->capacityColor = '#FFECB3';
         $course->capacityPercent === 1 ? $course->capacityColor = '#00E676' : ($course->capacityPercent < 0.20 ? '#FF5252' : null);

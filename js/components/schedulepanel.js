@@ -254,7 +254,13 @@ Vue.component('scheduletable',{
                     // Calculate the percentage capacity for each schedule and round to a whole number.
                     this.items.forEach((item) => {
                         item.schedules.forEach((schedule) => {
-                            const percent = Math.round((schedule.preRegisteredStudents / schedule.classroomcapacity) * 100);
+                            const users = Number.isFinite(Number(schedule.displayUsers))
+                                ? Number(schedule.displayUsers)
+                                : ((Number(schedule.approved) > 0)
+                                    ? Number(schedule.enroledStudents || 0)
+                                    : Number(schedule.preRegisteredStudents || 0));
+                            const cap = Number(schedule.classroomcapacity || 0);
+                            const percent = cap > 0 ? Math.round((users / cap) * 100) : 0;
                             schedule.capacitypercentage = percent;
                         });
                     });
