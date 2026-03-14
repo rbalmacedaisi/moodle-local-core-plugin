@@ -275,19 +275,19 @@ if ($periodid > 0) {
 echo "<div class='section' style='margin-top:32px;'>2. Grupos Moodle Huérfanos</div>";
 
 echo "<div class='box info'>
-  Grupos cuyo <code>idnumber</code> termina en <code>-{número}</code> (patrón del plugin) que
-  <b>no tienen ninguna clase activa asociada</b> (<code>gmk_class.groupid</code>).
-  Se revisan <b>todos los cursos</b>. Grupos manuales (ej. <code>rev-INGAA</code>) se excluyen.
+  Grupos con <code>idnumber</code> no vacío que <b>no tienen ninguna clase activa asociada</b>
+  (<code>gmk_class.groupid</code>). Se revisan <b>todos los cursos</b>. Usa los checkboxes
+  para excluir grupos manuales que quieras conservar (ej. <code>rev-INGAA</code>).
 </div>";
 
-// Identifica grupos creados por el plugin: su idnumber termina en -<número> (ej. "Clase A-512")
-// Funciona en cualquier curso, sin requerir que el curso tenga gmk_class activa.
+// Identifica grupos con idnumber no vacío que no tienen gmk_class activa.
+// El plugin siempre asigna idnumber = "{nombre_clase}-{classid}".
 $orphanedGroups = $DB->get_records_sql(
     "SELECT g.id AS groupid, g.name AS groupname, g.idnumber AS groupidnumber, g.courseid,
             c.fullname AS coursename, c.shortname AS courseshortname
        FROM {groups} g
        JOIN {course} c ON c.id = g.courseid
-      WHERE g.idnumber REGEXP '-[0-9]+\$'
+      WHERE g.idnumber IS NOT NULL AND g.idnumber != ''
         AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE groupid = g.id)
       ORDER BY c.fullname, g.name"
 );
@@ -347,14 +347,14 @@ if (empty($orphanedGroups)) {
 echo "<div class='section' style='margin-top:32px;'>3. Secciones de Curso Huérfanas (con actividades)</div>";
 
 echo "<div class='box info'>
-  Secciones cuyo nombre termina en <code>-{número}</code> (patrón del plugin), que
-  <b>tienen actividades</b> y <b>ninguna gmk_class</b> apunta a ellas.
-  Se revisan <b>todos los cursos</b>. Aparecen cuando el grupo fue eliminado pero la
-  sección con actividades quedó sin limpiar (muestra «grupo que falta» en el curso).
+  Secciones (section &gt; 0, con nombre) que <b>tienen actividades</b> y
+  <b>ninguna gmk_class</b> apunta a ellas (<code>coursesectionid</code>).
+  Aparecen cuando el grupo fue eliminado pero la sección con actividades quedó sin limpiar
+  (muestra «grupo que falta» en el curso). Usa checkboxes para excluir las que no son del plugin.
 </div>";
 
-// Identifica secciones creadas por el plugin: su nombre termina en -<número> igual que el idnumber.
-// Se busca en todos los cursos, no solo los que tienen gmk_class activa.
+// Identifica secciones con nombre no vacío (section > 0) sin gmk_class activa.
+// Se busca en todos los cursos; el nombre de la sección = nombre de la clase en el plugin.
 $orphanedSections = $DB->get_records_sql(
     "SELECT cs.id AS sectionid, cs.name AS sectionname, cs.section AS sectionnumber,
             cs.course AS courseid, c.fullname AS coursename, c.shortname AS courseshortname,
@@ -363,7 +363,7 @@ $orphanedSections = $DB->get_records_sql(
        JOIN {course} c ON c.id = cs.course
   LEFT JOIN {course_modules} cm ON cm.section = cs.id
       WHERE cs.section > 0
-        AND cs.name REGEXP '-[0-9]+\$'
+        AND cs.name IS NOT NULL AND cs.name != ''
         AND NOT EXISTS (SELECT 1 FROM {gmk_class} WHERE coursesectionid = cs.id)
       GROUP BY cs.id, cs.name, cs.section, cs.course, c.fullname, c.shortname
      HAVING COUNT(cm.id) > 0
