@@ -426,6 +426,19 @@ foreach ($classqueries as $q) {
     }
 }
 
+$targetClassPlanIds = [];
+foreach ($matchedClasses as $mc) {
+    $pid = (int)($mc->learningplanid ?? 0);
+    if ($pid > 0) {
+        $targetClassPlanIds[$pid] = $pid;
+    }
+}
+$targetClassPlanNames = [];
+if (!empty($targetClassPlanIds)) {
+    list($cpsql, $cpparams) = $DB->get_in_or_equal(array_values($targetClassPlanIds), SQL_PARAMS_NAMED, 'cp');
+    $targetClassPlanNames = $DB->get_records_select_menu('local_learning_plans', "id {$cpsql}", $cpparams, '', 'id,name');
+}
+
 echo '<div class="dbg-card">';
 echo '<h3 class="dbg-sub">Target class resolution in selected period</h3>';
 echo '<table class="dbg-table"><thead><tr><th>Query</th><th>Matches</th><th>Class IDs</th></tr></thead><tbody>';
@@ -437,6 +450,19 @@ foreach ($matchedByQuery as $q => $ids) {
     echo '</tr>';
 }
 echo '</tbody></table>';
+if (!empty($targetClassPlanIds)) {
+    echo '<h4 class="dbg-sub">Target class plan names</h4>';
+    echo '<table class="dbg-table"><thead><tr><th>Plan ID</th><th>Plan Name</th><th>Student has this plan?</th></tr></thead><tbody>';
+    foreach ($targetClassPlanIds as $pid) {
+        $has = in_array((int)$pid, $studentplanids, true);
+        echo '<tr>';
+        echo '<td>' . (int)$pid . '</td>';
+        echo '<td>' . dbg_es($targetClassPlanNames[$pid] ?? '-') . '</td>';
+        echo '<td>' . ($has ? '<span class="dbg-ok">YES</span>' : '<span class="dbg-bad">NO</span>') . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+}
 echo '</div>';
 
 if (empty($matchedClasses)) {
@@ -516,6 +542,7 @@ foreach ($matchedClasses as $classid => $class) {
     $corecourseid = (int)($class->corecourseid ?? 0);
     $groupid = (int)($class->groupid ?? 0);
     $classplanid = (int)($class->learningplanid ?? 0);
+    $classplanname = $targetClassPlanNames[$classplanid] ?? '-';
 
     $session = $DB->get_record('gmk_class_schedules', ['classid' => $classid], 'id,day,start_time,end_time', IGNORE_MULTIPLE);
     $classday = $session ? (string)$session->day : 'N/A';
@@ -633,7 +660,7 @@ foreach ($matchedClasses as $classid => $class) {
     echo '<table class="dbg-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
     echo '<tr><td>corecourseid</td><td>' . $corecourseid . '</td></tr>';
     echo '<tr><td>courseid map (gmk_class.courseid)</td><td>' . (int)($class->courseid ?? 0) . '</td></tr>';
-    echo '<tr><td>learningplanid</td><td>' . $classplanid . '</td></tr>';
+    echo '<tr><td>learningplanid</td><td>' . $classplanid . ' - ' . dbg_es($classplanname) . '</td></tr>';
     echo '<tr><td>shift</td><td>' . dbg_es((string)($class->shift ?? '')) . '</td></tr>';
     echo '<tr><td>day/start/end</td><td>' . dbg_es($classday . ' ' . $classstart . ' - ' . $classend) . '</td></tr>';
     echo '<tr><td>approved/closed</td><td>' . (int)($class->approved ?? 0) . '/' . (int)($class->closed ?? 0) . '</td></tr>';
