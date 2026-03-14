@@ -625,9 +625,18 @@ class scheduler extends external_api {
             // To avoid duplicates while allowing updates:
             // 1. Identify existing numeric IDs in the payload that ARE programmed
             $validIds = [];
+            $processablePayloadCount = 0;
+            $classPeriodCache = [];
+            $getClassPeriod = function(int $classid) use (&$classPeriodCache, $DB) {
+                if (!array_key_exists($classid, $classPeriodCache)) {
+                    $pid = $DB->get_field('gmk_class', 'periodid', ['id' => $classid], IGNORE_MISSING);
+                    $classPeriodCache[$classid] = ($pid === false || $pid === null) ? null : (int)$pid;
+                }
+                return $classPeriodCache[$classid];
+            };
             foreach ($data as $cls) {
                 // External classes belong to other periods — never include in validIds (they are never deleted).
-                if (!empty($cls['isExternal'])) {
+                if (self::is_payload_external($cls)) {
                     continue;
                 }
                 if (!empty($cls['id']) && is_numeric($cls['id'])) {
@@ -706,7 +715,7 @@ class scheduler extends external_api {
             foreach ($data as $cls) {
                 // Skip classes from other periods (external/overlap classes shown on the board for reference only).
                 // Their periodid differs from the current publish target — never modify them.
-                if (!empty($cls['isExternal'])) {
+                if (self::is_payload_external($cls)) {
                     continue;
                 }
 
