@@ -3603,9 +3603,24 @@ function update_class($classParams)
 
 function update_class_group($class, $oldInstructorId)
 {
+    global $DB;
+
+    $groupReason = '';
+    if (!gmk_is_valid_class_group($class, $groupReason)) {
+        $newGroupId = create_class_group($class);
+        $class->groupid = (int)$newGroupId;
+        if (!empty($class->id)) {
+            $DB->set_field('gmk_class', 'groupid', (int)$newGroupId, ['id' => (int)$class->id]);
+        }
+        gmk_log("INFO: update_class_group repaired group for class {$class->id}: groupid={$newGroupId} reason={$groupReason}");
+    }
+
+    if (empty($class->groupid)) {
+        throw new Exception('Error updating class group: missing groupid');
+    }
 
     $updatedClassGroup = new stdClass();
-    $updatedClassGroup->id = $class->groupid;
+    $updatedClassGroup->id = (int)$class->groupid;
     $updatedClassGroup->name = $class->name . '-' . $class->id;
     $updatedClassGroup->courseid = $class->corecourseid;
     $updatedClassGroup->description = 'Group for the ' . $updatedClassGroup->name . ' class';
@@ -3617,8 +3632,12 @@ function update_class_group($class, $oldInstructorId)
     }
 
     //Remove the previous instructor and add the new one to the group
-    $groupInstructorRemoved = groups_remove_member($class->groupid, $oldInstructorId);
-    $groupInstructorAdded = groups_add_member($class->groupid, $class->instructorid);
+    if (!empty($oldInstructorId) && (int)$oldInstructorId > 0) {
+        groups_remove_member((int)$class->groupid, (int)$oldInstructorId);
+    }
+    if (!empty($class->instructorid) && (int)$class->instructorid > 0) {
+        groups_add_member((int)$class->groupid, (int)$class->instructorid);
+    }
 
     return $updatedClassGroup->updatedGroup;
 }
