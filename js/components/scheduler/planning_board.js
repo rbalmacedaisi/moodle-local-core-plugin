@@ -1191,8 +1191,7 @@ window.SchedulerComponents.PlanningBoard = {
             const data = await window.schedulerStore._fetch('local_grupomakro_get_planned_students', { classid: classId });
             const students = Array.isArray(data?.students) ? data.students : [];
             const alreadySet = new Set((data?.already_enrolled || []).map(v => Number(v)));
-
-            this.currentStudents = students.map(stu => {
+            const backendRows = students.map(stu => {
                 const uid = Number(stu.userid || 0);
                 const source = String(stu.source || '');
                 const isEnrolled = alreadySet.has(uid) || source === 'enrolled';
@@ -1206,6 +1205,56 @@ window.SchedulerComponents.PlanningBoard = {
                     pending: pending
                 };
             });
+
+            // Merge demand-assigned students from board card so they appear as pending
+            // even before they are inserted into queue/pre_registration.
+            const byDbId = new Map();
+            backendRows.forEach(row => {
+                const dbId = Number(row.dbId || 0);
+                if (dbId > 0) byDbId.set(dbId, row);
+            });
+
+            const allStudents = this.storeState.students || [];
+            const byStudentToken = new Map();
+            const byDb = new Map();
+            allStudents.forEach(stu => {
+                const db = Number(stu?.dbId || 0);
+                if (db > 0) {
+                    byDb.set(db, stu);
+                }
+                const token = String(stu?.id || '').trim();
+                if (token) {
+                    byStudentToken.set(token, stu);
+                }
+            });
+
+            const classStudentIds = Array.isArray(cls?.studentIds) ? cls.studentIds : [];
+            classStudentIds.forEach(rawId => {
+                const token = String(rawId || '').trim();
+                if (!token) return;
+
+                let dbId = 0;
+                const n = Number(token);
+                if (Number.isFinite(n) && n > 0 && byDb.has(n)) {
+                    dbId = n;
+                } else if (byStudentToken.has(token)) {
+                    dbId = Number(byStudentToken.get(token)?.dbId || 0);
+                }
+                if (dbId <= 0 || byDbId.has(dbId)) return;
+
+                const stu = byDb.get(dbId) || byStudentToken.get(token) || null;
+                const fullname = stu?.name || [stu?.firstname, stu?.lastname].filter(Boolean).join(' ').trim();
+                byDbId.set(dbId, {
+                    id: String(stu?.id || token || dbId),
+                    dbId: dbId,
+                    name: fullname || `Usuario ${dbId}`,
+                    career: String(stu?.career || 'N/A'),
+                    source: 'demand',
+                    pending: !alreadySet.has(dbId)
+                });
+            });
+
+            this.currentStudents = Array.from(byDbId.values());
 
             this.currentStudents.sort((a, b) => {
                 if (a.pending !== b.pending) return a.pending ? -1 : 1;

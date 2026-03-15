@@ -945,6 +945,15 @@
                 return out;
             };
 
+            const isPersistedSchedule = (item) => {
+                if (!item) return false;
+                const token = String(item.id ?? '').trim();
+                if (!token) return false;
+                if (/^(rec-|gen-|manual-)/i.test(token)) return false;
+                const numericId = Number(token);
+                return Number.isFinite(numericId) && numericId > 0;
+            };
+
             // Group draft items by aggKey to correctly handle subdivisions (>40 students → N groups).
             // Items with the same key are sibling groups of the same subject+shift that must share
             // the total student pool, not each receive the full list.
@@ -979,6 +988,60 @@
                         } else {
                             console.log(`DEBUG Reconcile: Removing unplaced "${item.subjectName}" (${key}) — no demand.`);
                         }
+                    }
+                    coveredKeys.add(key);
+                    continue;
+                }
+
+                // If there are persisted DB classes, keep already assigned students on their
+                // same class and distribute only missing demand students as pending candidates.
+                const persistedItems = items.filter(it => isPersistedSchedule(it));
+                if (persistedItems.length > 0) {
+                    const demandStudents = mergeStudentIds(currentDemand.students || []);
+                    const itemStudents = items.map(item => mergeStudentIds(item.studentIds || []));
+
+                    const assignedSet = new Set();
+                    itemStudents.forEach(list => {
+                        list.forEach(rawId => {
+                            const sid = toStudentIdentityKey(rawId);
+                            if (sid) assignedSet.add(sid);
+                        });
+                    });
+
+                    const remainingDemand = demandStudents.filter(rawId => {
+                        const sid = toStudentIdentityKey(rawId);
+                        return !!sid && !assignedSet.has(sid);
+                    });
+
+                    // Greedy balancing: append each remaining demand student to the currently
+                    // smallest sibling group to avoid overloading one class.
+                    remainingDemand.forEach(rawId => {
+                        let target = 0;
+                        let minSize = Number.POSITIVE_INFINITY;
+                        for (let i = 0; i < itemStudents.length; i++) {
+                            const size = itemStudents[i].length;
+                            if (size < minSize) {
+                                minSize = size;
+                                target = i;
+                            }
+                        }
+                        itemStudents[target].push(rawId);
+                    });
+
+                    const sharedMeta = {
+                        career: Array.from(currentDemand.careers).join(', '),
+                        careerList: Array.from(currentDemand.careers),
+                        levelDisplay: Array.from(currentDemand.levels).join(', '),
+                        levelList: Array.from(currentDemand.levels),
+                    };
+
+                    for (let i = 0; i < items.length; i++) {
+                        result.push(this._withCanonicalSubjectName({
+                            ...items[i],
+                            ...sharedMeta,
+                            studentIds: itemStudents[i],
+                            studentCount: itemStudents[i].length,
+                        }));
                     }
                     coveredKeys.add(key);
                     continue;
