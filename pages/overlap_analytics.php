@@ -627,7 +627,8 @@ $periodid = 0;
 $base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'includepending' => $includepending, 'maxconflicts' => $maxconflicts];
 
 if (data_submitted() && confirm_sesskey()) {
-    $op = optional_param('op', '', PARAM_ALPHA);
+    // Keep underscores in action names (bulk_suggested, withdraw_a, ...).
+    $op = optional_param('op', '', PARAM_ALPHANUMEXT);
     $targets = [];
     $rowsel = optional_param('rowop', '', PARAM_RAW_TRIMMED);
     $parseSelection = function($sel) {
@@ -717,7 +718,17 @@ if (data_submitted() && confirm_sesskey()) {
         }
     }
 
-    if ($op !== '' || !empty($targets)) {
+    if (($op !== '' || $rowsel !== '') && empty($targets)) {
+        redirect(new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php', $base + [
+            'flash' => ov_flash_enc([
+                'ok' => 0,
+                'error' => 1,
+                'messages' => ['No se encontraron filas validas para procesar la accion.'],
+            ]),
+        ]));
+    }
+
+    if (!empty($targets)) {
 
         $ok = 0;
         $err = 0;
