@@ -305,12 +305,37 @@ class attendance_manager extends external_api {
             $session = $DB->get_record('attendance_sessions', ['id' => $sessionid], '*', MUST_EXIST);
             $att = $DB->get_record('attendance', ['id' => $session->attendanceid], '*', MUST_EXIST);
             $cm = get_coursemodule_from_instance('attendance', $att->id, $att->course);
+            $attconfig = get_config('attendance');
             
-            // Passwords logic
-            if (function_exists('attendance_generate_passwords')) {
-               $password = attendance_generate_passwords($session);
-            } else {
-               $password = $session->studentpassword;
+            // Resolve the password embedded in QR.
+            // For rotate QR sessions, attendance.php validates against attendance_rotate_passwords.
+            $password = (string)($session->studentpassword ?? '');
+            if (!empty($session->rotateqrcode)) {
+                $margin = (int)($attconfig->rotateqrcodeexpirymargin ?? 0);
+                $sql = "SELECT password
+                          FROM {attendance_rotate_passwords}
+                         WHERE attendanceid = :sessionid
+                           AND expirytime > :mintime
+                      ORDER BY expirytime ASC";
+                $rotrow = $DB->get_record_sql($sql, [
+                    'sessionid' => (int)$session->id,
+                    'mintime' => time() - $margin
+                ], IGNORE_MULTIPLE);
+                if (empty($rotrow->password) && function_exists('attendance_generate_passwords')) {
+                    attendance_generate_passwords($session);
+                    $rotrow = $DB->get_record_sql($sql, [
+                        'sessionid' => (int)$session->id,
+                        'mintime' => time() - $margin
+                    ], IGNORE_MULTIPLE);
+                }
+                if (!empty($rotrow->password)) {
+                    $password = (string)$rotrow->password;
+                    // attendance_renderqrcode reads session->studentpassword.
+                    $session->studentpassword = $password;
+                }
+            } else if (function_exists('attendance_generate_passwords') && empty($password)) {
+                attendance_generate_passwords($session);
+                $password = (string)($session->studentpassword ?? '');
             }
 
             // Fix: Ensure TCPDF Barcode class is loaded
@@ -321,7 +346,7 @@ class attendance_manager extends external_api {
             // Capture Output
             ob_start();
             if (function_exists('attendance_renderqrcode')) {
-                attendance_renderqrcode($session, $password);
+                attendance_renderqrcode($session);
             } else {
                 echo "Error: Función QR no encontrada. Asegúrese de que el plugin attendance está instalado.";
             }
@@ -331,7 +356,8 @@ class attendance_manager extends external_api {
                 'status' => 'success', 
                 'html' => $html, 
                 'password' => $password,
-                'rotate' => $session->rotateqrcode ?? 0
+                'rotate' => $session->rotateqrcode ?? 0,
+                'rotate_interval' => (int)($attconfig->rotateqrcodeinterval ?? 10)
             ];
         } catch (\Throwable $e) {
             return [

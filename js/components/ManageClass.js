@@ -779,7 +779,7 @@ const ManageClass = {
                     // console.log('QR Loop Check:', this.currentQR.rotate);
                     if (this.currentQR.rotate) {
                         console.log('Starting Rotation...');
-                        this.startQRRotation();
+                        this.startQRRotation(this.currentQR.rotate_interval);
                     }
                 } else {
                     console.error('QR Logic Error:', response.data);
@@ -795,10 +795,11 @@ const ManageClass = {
                 this.loadingQR = false;
             }
         },
-        startQRRotation() {
+        startQRRotation(intervalSeconds = 10) {
             console.log('startQRRotation called');
             if (this.qrTimer) clearInterval(this.qrTimer);
-            this.qrTotalSeconds = 10;
+            const parsed = parseInt(intervalSeconds, 10);
+            this.qrTotalSeconds = (!isNaN(parsed) && parsed > 1) ? parsed : 10;
             this.qrSecondsLeft = this.qrTotalSeconds;
 
             this.qrTimer = setInterval(() => {
