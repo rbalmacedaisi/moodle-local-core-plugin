@@ -99,16 +99,17 @@ const ManageClass = {
                                                 
                                                 <v-spacer></v-spacer>
                                                 
-                                                <!-- Attendance QR Button (Merged) -->
+                                                <!-- Attendance QR Button -->
                                                 <v-btn
                                                     v-if="session.attendance && session.attendance.has_qr"
                                                     small
-                                                    outlined
-                                                    color="secondary"
+                                                    depressed
+                                                    color="teal darken-1"
+                                                    class="rounded-lg white--text"
                                                     @click="showQR(session)"
                                                     :disabled="!isSessionActive(session)"
                                                 >
-                                                    <v-icon left small>mdi-qrcode</v-icon> Mostrar QR
+                                                    <v-icon left small>mdi-qrcode</v-icon> QR
                                                 </v-btn>
 
                                             </v-card-actions>
@@ -728,8 +729,8 @@ const ManageClass = {
                             description: att.description || best?.description || 'Sesion programada',
                             startdate: start,
                             enddate: start + duration,
-                            // Unified experience: entry action is BBB-style for every modality.
                             type: 'virtual',
+                            bbb_cmid: att.bbb_cmid || best?.bbb_cmid || 0,
                             join_url: att.join_url || best?.join_url || '',
                             guest_url: att.guest_url || best?.guest_url || '',
                             attendance: att

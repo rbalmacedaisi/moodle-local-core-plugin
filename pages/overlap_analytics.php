@@ -313,7 +313,7 @@ if ($periodid === 0 || $selectedperiod) {
         $schedules = [];
         if (!empty($daycol) && !empty($startcol) && !empty($endcol)) {
             $schedules = $DB->get_records_sql(
-                "SELECT classid, {$daycol} AS dayvalue, {$startcol} AS startvalue, {$endcol} AS endvalue
+                "SELECT id AS schedid, classid, {$daycol} AS dayvalue, {$startcol} AS startvalue, {$endcol} AS endvalue
                    FROM {gmk_class_schedules}
                   WHERE classid $ins1
                ORDER BY classid, {$daycol}, {$startcol}",
@@ -335,8 +335,10 @@ if ($periodid === 0 || $selectedperiod) {
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
         list($ins2b, $par2b) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cb');
+        $linkkeyexpr = $DB->sql_concat('x.classid', "'-'", 'x.userid');
         $links = $DB->get_records_sql(
-            "SELECT x.classid,x.userid,MAX(x.learningplanid) AS learningplanid,MAX(x.fromgroup) AS fromgroup,MAX(x.fromprogre) AS fromprogre
+            "SELECT {$linkkeyexpr} AS linkkey,
+                    x.classid,x.userid,MAX(x.learningplanid) AS learningplanid,MAX(x.fromgroup) AS fromgroup,MAX(x.fromprogre) AS fromprogre
                FROM (
                     SELECT c.id AS classid,gm.userid,0 AS learningplanid,1 AS fromgroup,0 AS fromprogre FROM {gmk_class} c JOIN {groups_members} gm ON gm.groupid=c.groupid WHERE c.id $ins2a
                     UNION ALL
@@ -367,7 +369,7 @@ if ($periodid === 0 || $selectedperiod) {
         if (!empty($userset)) {
             list($uins, $upar) = $DB->get_in_or_equal(array_values($userset), SQL_PARAMS_NAMED, 'u');
             $users = $DB->get_records_sql("SELECT id,firstname,lastname,idnumber,email,username FROM {user} WHERE deleted=0 AND id $uins", $upar);
-            $lp = $DB->get_records_sql("SELECT userid,learningplanid FROM {local_learning_users} WHERE userid $uins AND status=:active", $upar + ['active' => 'activo']);
+            $lp = $DB->get_records_sql("SELECT id,userid,learningplanid FROM {local_learning_users} WHERE userid $uins AND status=:active", $upar + ['active' => 'activo']);
             foreach ($lp as $r) {
                 $activeplans[(int)$r->userid][] = (int)$r->learningplanid;
             }
