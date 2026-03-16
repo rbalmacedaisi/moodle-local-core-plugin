@@ -211,6 +211,29 @@ function gmk_dbg_sd_dup_values_text(array $values): string {
     return empty($out) ? '-' : implode(', ', $out);
 }
 
+function gmk_dbg_sd_period_sql_parts(): array {
+    global $DB;
+    $dbman = $DB->get_manager();
+
+    if ($dbman->table_exists(new xmldb_table('gmk_academic_periods'))) {
+        return [
+            'select' => 'p.name AS periodname',
+            'join' => 'LEFT JOIN {gmk_academic_periods} p ON p.id = c.periodid',
+        ];
+    }
+    if ($dbman->table_exists(new xmldb_table('local_learning_periods'))) {
+        return [
+            'select' => 'p.name AS periodname',
+            'join' => 'LEFT JOIN {local_learning_periods} p ON p.id = c.periodid',
+        ];
+    }
+
+    return [
+        'select' => "'' AS periodname",
+        'join' => '',
+    ];
+}
+
 $notices = [];
 $errors = [];
 
@@ -595,13 +618,16 @@ if ($hasselecteduser) {
 $maxstudents = max(10, min(5000, (int)$maxstudents));
 $targetclass = null;
 $classcandidates = [];
+$periodsqlparts = gmk_dbg_sd_period_sql_parts();
+$periodselect = $periodsqlparts['select'];
+$periodjoin = $periodsqlparts['join'];
 
 if ($classid > 0) {
     $targetclass = $DB->get_record_sql(
         "SELECT c.id, c.name, c.periodid, c.corecourseid, c.learningplanid, c.shift, c.groupid, c.approved, c.closed, c.attendancemoduleid,
-                p.name AS periodname, lp.name AS planname, crs.fullname AS corecoursename
+                {$periodselect}, lp.name AS planname, crs.fullname AS corecoursename
            FROM {gmk_class} c
-      LEFT JOIN {gmk_periods} p ON p.id = c.periodid
+      {$periodjoin}
       LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
       LEFT JOIN {course} crs ON crs.id = c.corecourseid
           WHERE c.id = :id",
@@ -613,9 +639,9 @@ if (!$targetclass && trim($classname) !== '') {
     $clike = '%' . $DB->sql_like_escape(trim($classname)) . '%';
     $classcandidates = $DB->get_records_sql(
         "SELECT c.id, c.name, c.periodid, c.corecourseid, c.learningplanid, c.shift, c.groupid, c.approved, c.closed,
-                p.name AS periodname, lp.name AS planname, crs.fullname AS corecoursename
+                {$periodselect}, lp.name AS planname, crs.fullname AS corecoursename
            FROM {gmk_class} c
-      LEFT JOIN {gmk_periods} p ON p.id = c.periodid
+      {$periodjoin}
       LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
       LEFT JOIN {course} crs ON crs.id = c.corecourseid
           WHERE " . $DB->sql_like('c.name', ':cl1', false, false) . "
