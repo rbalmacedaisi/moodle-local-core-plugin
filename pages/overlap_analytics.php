@@ -199,9 +199,8 @@ $runningonly = optional_param('runningonly', 1, PARAM_INT);
 $maxconflicts = min(max(optional_param('maxconflicts', 600, PARAM_INT), 50), 5000);
 
 $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC, id DESC', 'id,name,startdate,enddate,status');
-if ($periodid < 0) {
-    $periodid = 0;
-}
+// Analitica global: siempre comparar contra todos los periodos.
+$periodid = 0;
 
 $base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'maxconflicts' => $maxconflicts];
 
@@ -282,9 +281,8 @@ $rows = [];
 $truncated = false;
 $schemawarning = '';
 $stats = ['classes' => 0, 'students' => 0, 'studentswithconflicts' => 0, 'conflicts' => 0];
-$selectedperiod = ($periodid > 0) ? ($periods[$periodid] ?? null) : null;
-
-if ($periodid === 0 || $selectedperiod) {
+$selectedperiod = null;
+if (true) {
     $now = time();
     $sql = "SELECT c.id,c.name,c.periodid,c.learningplanid,c.shift,c.initdate,c.enddate,c.groupid,c.approved,c.closed,c.instructorid,
                    lp.name AS learningplanname,u.firstname AS instructorfirstname,u.lastname AS instructorlastname,
@@ -295,10 +293,6 @@ if ($periodid === 0 || $selectedperiod) {
          LEFT JOIN {gmk_academic_periods} ap ON ap.id=c.periodid
              WHERE c.approved=1 AND c.closed=0";
     $params = [];
-    if ($periodid > 0) {
-        $sql .= " AND c.periodid=:p";
-        $params['p'] = $periodid;
-    }
     if ((int)$runningonly === 1) {
         $sql .= " AND c.initdate<=:n1 AND c.enddate>=:n2";
         $params['n1'] = $now;
@@ -475,7 +469,7 @@ echo $OUTPUT->header();
 <style>
 .ov-wrap{background:#f6f8fc;border:1px solid #d7e1f1;border-radius:10px;padding:14px}
 .ov-head{margin:0 0 10px;font-size:24px;font-weight:800;color:#1a355b}
-.ov-grid{display:grid;grid-template-columns:1.2fr 1.2fr .6fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
+.ov-grid{display:grid;grid-template-columns:1.1fr 1.3fr .6fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
 .ov-grid input,.ov-grid select{width:100%;border:1px solid #c6d4ea;border-radius:7px;padding:7px 9px}.ov-btn{border:0;border-radius:7px;padding:8px 10px;background:#1f65dc;color:#fff;font-weight:700;cursor:pointer}.ov-btn.warn{background:#9e6100}.ov-btn.err{background:#b72a2a}.ov-btn.gray{background:#566b8b}
 .ov-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.ov-card{background:#fff;border:1px solid #d7e1f1;border-radius:8px;padding:8px}.ov-l{font-size:11px;text-transform:uppercase;color:#587093;font-weight:700}.ov-v{font-size:22px;font-weight:800;color:#18375e}
 .ov-alert{margin:8px 0;padding:8px;border-radius:8px;border:1px solid #cde4d5;background:#ecf8ef;color:#1b6b3e}.ov-alert.err{border-color:#f0cccc;background:#fff1f1;color:#8a2626}
@@ -486,10 +480,11 @@ echo $OUTPUT->header();
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
     <form method="get" class="ov-grid">
-        <div><label>Periodo</label><select name="periodid"><option value="0" <?php echo ((int)$periodid === 0 ? 'selected' : ''); ?>>Todos los periodos</option><?php foreach ($periods as $p): ?><option value="<?php echo (int)$p->id; ?>" <?php echo ((int)$p->id === (int)$periodid ? 'selected' : ''); ?>><?php echo s((string)$p->name) . ' (' . userdate((int)$p->startdate, '%d/%m/%Y') . ' - ' . userdate((int)$p->enddate, '%d/%m/%Y') . ')'; ?></option><?php endforeach; ?></select></div>
+        <div><label>Ambito</label><input type="text" value="Todos los periodos (global)" readonly /></div>
         <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
         <div><label>Solo en curso</label><select name="runningonly"><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option></select></div>
         <div><label>Max conflictos</label><input type="number" min="50" max="5000" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>" /></div>
+        <input type="hidden" name="periodid" value="0">
         <div><button class="ov-btn" type="submit">Analizar</button> <a class="ov-btn gray" style="text-decoration:none;display:inline-block" href="<?php echo (new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php'))->out(false); ?>">Limpiar</a></div>
     </form>
 
