@@ -645,17 +645,14 @@ function ov_recommend($row, $activeplans, $now) {
     return ['classid' => $withdraw, 'learningplanid' => $withdrawlp, 'reason' => $reason, 'scorea' => $sa, 'scoreb' => $sb];
 }
 
-$periodid = optional_param('periodid', 0, PARAM_INT);
-$studentq = optional_param('studentq', '', PARAM_TEXT);
-$runningonly = optional_param('runningonly', 0, PARAM_INT);
-$includepending = optional_param('includepending', 0, PARAM_INT);
-$maxconflicts = min(max(optional_param('maxconflicts', 600, PARAM_INT), 50), 5000);
-
-$periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC, id DESC', 'id,name,startdate,enddate,status');
-// Analitica global: siempre comparar contra todos los periodos.
+// Global analytics without user filters: always review all published/open classes.
 $periodid = 0;
+$studentq = '';
+$runningonly = 0;
+$includepending = 1;
+$maxconflicts = 0;
 
-$base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'includepending' => $includepending, 'maxconflicts' => $maxconflicts];
+$base = [];
 
 if (data_submitted() && confirm_sesskey()) {
     // Keep underscores in action names (bulk_suggested, withdraw_a, ...).
@@ -1011,7 +1008,7 @@ if (true) {
                     foreach (array_keys($wins) as $w) {
                         $conflicts[$k]['windows'][$w] = true;
                     }
-                    if (count($conflicts) >= $maxconflicts) {
+                    if ($maxconflicts > 0 && count($conflicts) >= $maxconflicts) {
                         $truncated = true;
                         break;
                     }
@@ -1236,66 +1233,11 @@ echo $OUTPUT->header();
 </style>
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
-    <form method="get" class="ov-grid">
-        <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
-        <div><label>Solo en curso</label><select name="runningonly"><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option></select></div>
-        <div><label>Incluir pendientes</label><select name="includepending"><option value="0" <?php echo ((int)$includepending === 0 ? 'selected' : ''); ?>>No (solo grupo/progreso)</option><option value="1" <?php echo ((int)$includepending === 1 ? 'selected' : ''); ?>>Si (queue y pre-reg)</option></select></div>
-        <div><label>Max conflictos</label><input type="number" min="50" max="5000" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>" /></div>
-        <input type="hidden" name="periodid" value="0">
-        <div><button class="ov-btn" type="submit">Analizar</button> <a class="ov-btn gray" style="text-decoration:none;display:inline-block" href="<?php echo (new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php'))->out(false); ?>">Limpiar</a></div>
-    </form>
+    <div class="ov-alert">Analisis global activo: sin filtros, todos los periodos, incluyendo pendientes.</div>
 
     <?php if ($flash): ?><div class="ov-alert<?php echo ((int)($flash['error'] ?? 0) > 0 ? ' err' : ''); ?>">Resultado: <?php echo (int)($flash['ok'] ?? 0); ?> exitoso(s), <?php echo (int)($flash['error'] ?? 0); ?> error(es).<?php if (!empty($flash['messages'])): ?><ul style="margin:6px 0 0 18px"><?php foreach ($flash['messages'] as $m): ?><li><?php echo s((string)$m); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
     <?php if (!empty($schemawarning)): ?><div class="ov-alert err"><?php echo s($schemawarning); ?></div><?php endif; ?>
-    <?php if ($truncated): ?><div class="ov-alert err">Se alcanzo el limite de <?php echo (int)$maxconflicts; ?> conflictos. Ajusta filtros.</div><?php endif; ?>
-    <?php if (!empty($studentdiagnostic)): ?>
-        <div class="ov-alert">
-            <strong>Diagnostico de estudiante:</strong>
-            <?php
-                $du = $studentdiagnostic['user'];
-                echo s(trim((string)$du->firstname . ' ' . (string)$du->lastname));
-            ?>
-            (uid=<?php echo (int)$du->id; ?>, idnumber=<?php echo s((string)($du->idnumber ?? '-')); ?>)
-            <br>
-            Clases detectadas por fuentes: <?php echo (int)$studentdiagnostic['sourcecount']; ?> |
-            Incluibles por filtros: <?php echo (int)($studentdiagnostic['reasons']['ok'] ?? 0); ?> |
-            Excluidas por estado: <?php echo (int)($studentdiagnostic['reasons']['status'] ?? 0); ?> |
-            Excluidas por ventana: <?php echo (int)($studentdiagnostic['reasons']['window'] ?? 0); ?> |
-            Excluidas por horario invalido/sin horario: <?php echo (int)($studentdiagnostic['reasons']['schedule'] ?? 0); ?>
-            <?php if (!empty($studentdiagnostic['sample'])): ?>
-                <details style="margin-top:8px;">
-                    <summary>Ver muestra de clases/fuentes</summary>
-                    <div style="margin-top:8px; overflow:auto;">
-                        <table class="ov-table" style="min-width:920px;">
-                            <thead>
-                                <tr>
-                                    <th>ID</th><th>Clase</th><th>Periodo</th><th>approved/closed</th><th>Fuentes</th><th>Horarios</th><th>Razon</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($studentdiagnostic['sample'] as $sc): ?>
-                                <tr>
-                                    <td><?php echo (int)$sc['id']; ?></td>
-                                    <td><?php echo s((string)$sc['name']); ?></td>
-                                    <td><?php echo (int)$sc['periodid']; ?></td>
-                                    <td><?php echo (int)$sc['approved']; ?>/<?php echo (int)$sc['closed']; ?></td>
-                                    <td>
-                                        <?php if (!empty($sc['fromgroup'])): ?><span class="ov-tag">grupo</span><?php endif; ?>
-                                        <?php if (!empty($sc['fromprogre'])): ?><span class="ov-tag">progreso</span><?php endif; ?>
-                                        <?php if (!empty($sc['fromqueue'])): ?><span class="ov-tag">queue</span><?php endif; ?>
-                                        <?php if (!empty($sc['fromprereg'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?>
-                                    </td>
-                                    <td><?php echo s((string)($sc['schedules'] ?? '')); ?></td>
-                                    <td><?php echo s((string)$sc['reason']); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </details>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
+    <?php if ($truncated): ?><div class="ov-alert err">Se alcanzo el limite de <?php echo (int)$maxconflicts; ?> conflictos.</div><?php endif; ?>
 
     <div class="ov-stats">
         <div class="ov-card"><div class="ov-l">Clases analizadas</div><div class="ov-v"><?php echo (int)$stats['classes']; ?></div></div>
@@ -1305,20 +1247,10 @@ echo $OUTPUT->header();
     </div>
 
     <?php if (empty($rows)): ?>
-        <div class="ov-alert">
-            No se detectaron solapamientos para los filtros actuales.
-            <?php if ((int)$runningonly === 1): ?>
-                <br><small>Sugerencia: cambia "Solo en curso" a "No" para incluir clases fuera de la ventana actual.</small>
-            <?php endif; ?>
-        </div>
+        <div class="ov-alert">No se detectaron solapamientos.</div>
     <?php else: ?>
         <form method="post" class="ov-table-wrap">
             <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
-            <input type="hidden" name="periodid" value="<?php echo (int)$periodid; ?>">
-            <input type="hidden" name="studentq" value="<?php echo s($studentq); ?>">
-            <input type="hidden" name="runningonly" value="<?php echo (int)$runningonly; ?>">
-            <input type="hidden" name="includepending" value="<?php echo (int)$includepending; ?>">
-            <input type="hidden" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>">
             <div class="ov-bulk">
                 <strong>Accion masiva:</strong>
                 <button class="ov-btn" type="submit" name="op" value="bulk_suggested">Retirar seleccionadas (Sugerida)</button>
