@@ -34,6 +34,7 @@ $classidaction = optional_param('classidaction', 0, PARAM_INT);
 $classid = optional_param('classid', 0, PARAM_INT);
 $classname = optional_param('classname', '', PARAM_TEXT);
 $maxstudents = optional_param('maxstudents', 150, PARAM_INT);
+$scanstudents = optional_param('scanstudents', 0, PARAM_INT);
 
 function gmk_dbg_sd_h($value): string {
     if ($value === null) {
@@ -352,6 +353,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userid > 0 && $action !== '') {
             }
         }
         $notices[] = "Auto fix completed. duplicate_groups={$dedupgroups}, demoted_rows={$demoted}.";
+    } else if ($action === 'rebuild_class_activities' && $classidaction > 0) {
+        $class = $DB->get_record('gmk_class', ['id' => (int)$classidaction], '*', IGNORE_MISSING);
+        if (!$class) {
+            $errors[] = "Class not found: id={$classidaction}.";
+        } else {
+            try {
+                // Full cleanup + recreate for this class to remove duplicated BBB rows/events.
+                create_class_activities($class, true);
+                $notices[] = "Class {$classidaction}: activities rebuilt successfully (attendance + BBB).";
+            } catch (Throwable $re) {
+                $errors[] = "Class {$classidaction}: rebuild failed - " . $re->getMessage();
+            }
+        }
     }
 }
 
@@ -413,6 +427,7 @@ echo '<input type="text" name="classname" value="' . gmk_dbg_sd_h($classname) . 
 echo '</div>';
 echo '<div style="margin-top:10px;"><label><strong>Max class students to scan</strong></label><br>';
 echo '<input type="number" min="10" max="5000" name="maxstudents" value="' . (int)$maxstudents . '" style="width:100%;max-width:260px;" /></div>';
+echo '<div style="margin-top:10px;"><label><input type="checkbox" name="scanstudents" value="1" ' . (!empty($scanstudents) ? 'checked' : '') . '> Run heavy class student scan</label></div>';
 echo '<div style="margin-top:10px;"><button type="submit" class="btn btn-primary">Diagnose</button></div>';
 echo '</form>';
 
@@ -457,7 +472,8 @@ foreach ($candidates as $c) {
         'enddate' => $enddate,
         'classid' => (int)$classid,
         'classname' => $classname,
-        'maxstudents' => (int)$maxstudents
+        'maxstudents' => (int)$maxstudents,
+        'scanstudents' => (int)$scanstudents
     ]);
     $candrows[] = [
         'User ID' => (int)$c->id,
@@ -567,10 +583,11 @@ if ($hasselecteduser) {
         echo '<input type="hidden" name="search" value="' . gmk_dbg_sd_h($search) . '">';
         echo '<input type="hidden" name="initdate" value="' . gmk_dbg_sd_h($initdate) . '">';
         echo '<input type="hidden" name="enddate" value="' . gmk_dbg_sd_h($enddate) . '">';
-        echo '<input type="hidden" name="classid" value="' . (int)$classid . '">';
-        echo '<input type="hidden" name="classname" value="' . gmk_dbg_sd_h($classname) . '">';
-        echo '<input type="hidden" name="maxstudents" value="' . (int)$maxstudents . '">';
-        echo '<input type="hidden" name="action" value="autofix_status2_dupes">';
+    echo '<input type="hidden" name="classid" value="' . (int)$classid . '">';
+    echo '<input type="hidden" name="classname" value="' . gmk_dbg_sd_h($classname) . '">';
+    echo '<input type="hidden" name="maxstudents" value="' . (int)$maxstudents . '">';
+    echo '<input type="hidden" name="scanstudents" value="' . (int)$scanstudents . '">';
+    echo '<input type="hidden" name="action" value="autofix_status2_dupes">';
         echo '<button type="submit" class="btn btn-primary">Auto-fix duplicate status=2 refs</button>';
         echo '</form>';
 
@@ -597,6 +614,7 @@ if ($hasselecteduser) {
                     . '<input type="hidden" name="classid" value="' . (int)$classid . '">'
                     . '<input type="hidden" name="classname" value="' . gmk_dbg_sd_h($classname) . '">'
                     . '<input type="hidden" name="maxstudents" value="' . (int)$maxstudents . '">'
+                    . '<input type="hidden" name="scanstudents" value="' . (int)$scanstudents . '">'
                     . '<input type="hidden" name="action" value="demote_row">'
                     . '<input type="hidden" name="rowid" value="' . (int)$p->id . '">'
                     . '<button type="submit" class="btn btn-secondary btn-sm">Demote row</button></form>';
@@ -672,7 +690,8 @@ if (!empty($classcandidates)) {
             'enddate' => $enddate,
             'classid' => (int)$cc->id,
             'classname' => $classname,
-            'maxstudents' => (int)$maxstudents
+            'maxstudents' => (int)$maxstudents,
+            'scanstudents' => (int)$scanstudents
         ]);
         $classcandrows[] = [
             'Class ID' => (int)$cc->id,
@@ -708,6 +727,21 @@ if ($targetclass) {
         . ' | Group=' . (int)$targetclass->groupid
         . ' | approved/closed=' . (int)$targetclass->approved . '/' . (int)$targetclass->closed
         . '</div>';
+
+    echo '<form method="post" class="gmk-sd-card" onsubmit="return confirm(\'Rebuild activities for this class? This will recreate attendance and BBB sessions.\');">';
+    echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+    echo '<input type="hidden" name="userid" value="' . (int)$userid . '">';
+    echo '<input type="hidden" name="search" value="' . gmk_dbg_sd_h($search) . '">';
+    echo '<input type="hidden" name="initdate" value="' . gmk_dbg_sd_h($initdate) . '">';
+    echo '<input type="hidden" name="enddate" value="' . gmk_dbg_sd_h($enddate) . '">';
+    echo '<input type="hidden" name="classid" value="' . (int)$targetclass->id . '">';
+    echo '<input type="hidden" name="classidaction" value="' . (int)$targetclass->id . '">';
+    echo '<input type="hidden" name="classname" value="' . gmk_dbg_sd_h($classname) . '">';
+    echo '<input type="hidden" name="maxstudents" value="' . (int)$maxstudents . '">';
+    echo '<input type="hidden" name="scanstudents" value="' . (int)$scanstudents . '">';
+    echo '<input type="hidden" name="action" value="rebuild_class_activities">';
+    echo '<button type="submit" class="btn btn-danger">Rebuild class activities</button>';
+    echo '</form>';
 
     $relrows = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => $targetclassid], 'id ASC',
         'id,attendanceid,attendancesessionid,attendancemoduleid,bbbmoduleid,bbbid,classid');
@@ -846,124 +880,128 @@ if ($targetclass) {
         $bbbeventrows
     );
 
-    $groupmembers = [];
-    if (!empty($targetclass->groupid)) {
-        $groupmembers = array_values($DB->get_records_sql(
-            "SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
-               FROM {groups_members} gm
-               JOIN {user} u ON u.id = gm.userid
-              WHERE gm.groupid = :gid
-                AND u.deleted = 0
-           ORDER BY u.lastname ASC, u.firstname ASC",
-            ['gid' => (int)$targetclass->groupid]
-        ));
-    }
-    $groupmembertotal = count($groupmembers);
-    if ($groupmembertotal > $maxstudents) {
-        $groupmembers = array_slice($groupmembers, 0, $maxstudents);
-    }
-
-    $affectedstudents = [];
-    $dupdetailrows = [];
-    $reasoncount = [];
-    foreach ($groupmembers as $gmuser) {
-        $stuevents = get_class_events((int)$gmuser->id, $initdate, $enddate);
-        $perstudentmap = [];
-
-        foreach ($stuevents as $sev) {
-            $sevclassid = !empty($sev->classId) ? (int)$sev->classId : 0;
-            $sevfrontname = gmk_dbg_sd_front_name($sev);
-            $sevfrontnorm = gmk_dbg_sd_norm($sevfrontname);
-            $istarget = false;
-
-            if ($sevclassid === $targetclassid) {
-                $istarget = true;
-            } else if ((int)($sev->courseid ?? 0) === (int)$targetclass->corecourseid && $sevfrontnorm === $targetcoursenorm) {
-                $istarget = true;
-            }
-
-            if (!$istarget) {
-                continue;
-            }
-
-            $sstart = gmk_dbg_sd_dt($sev->start ?? '', $sev->timestart ?? 0);
-            $send = gmk_dbg_sd_dt($sev->end ?? '', (!empty($sev->timestart) && !empty($sev->timeduration))
-                ? ((int)$sev->timestart + (int)$sev->timeduration) : 0);
-            $skey = $sevfrontnorm . '|' . $sstart . '|' . $send;
-
-            if (!isset($perstudentmap[$skey])) {
-                $perstudentmap[$skey] = [];
-            }
-            $perstudentmap[$skey][] = $sev;
+    if ((int)$scanstudents === 1) {
+        $groupmembers = [];
+        if (!empty($targetclass->groupid)) {
+            $groupmembers = array_values($DB->get_records_sql(
+                "SELECT u.id, u.firstname, u.lastname, u.email, u.idnumber
+                   FROM {groups_members} gm
+                   JOIN {user} u ON u.id = gm.userid
+                  WHERE gm.groupid = :gid
+                    AND u.deleted = 0
+               ORDER BY u.lastname ASC, u.firstname ASC",
+                ['gid' => (int)$targetclass->groupid]
+            ));
+        }
+        $groupmembertotal = count($groupmembers);
+        if ($groupmembertotal > $maxstudents) {
+            $groupmembers = array_slice($groupmembers, 0, $maxstudents);
         }
 
-        $studentdups = 0;
-        foreach ($perstudentmap as $skey => $items) {
-            if (count($items) <= 1) {
-                continue;
+        $affectedstudents = [];
+        $dupdetailrows = [];
+        $reasoncount = [];
+        foreach ($groupmembers as $gmuser) {
+            $stuevents = get_class_events((int)$gmuser->id, $initdate, $enddate);
+            $perstudentmap = [];
+
+            foreach ($stuevents as $sev) {
+                $sevclassid = !empty($sev->classId) ? (int)$sev->classId : 0;
+                $sevfrontname = gmk_dbg_sd_front_name($sev);
+                $sevfrontnorm = gmk_dbg_sd_norm($sevfrontname);
+                $istarget = false;
+
+                if ($sevclassid === $targetclassid) {
+                    $istarget = true;
+                } else if ((int)($sev->courseid ?? 0) === (int)$targetclass->corecourseid && $sevfrontnorm === $targetcoursenorm) {
+                    $istarget = true;
+                }
+
+                if (!$istarget) {
+                    continue;
+                }
+
+                $sstart = gmk_dbg_sd_dt($sev->start ?? '', $sev->timestart ?? 0);
+                $send = gmk_dbg_sd_dt($sev->end ?? '', (!empty($sev->timestart) && !empty($sev->timeduration))
+                    ? ((int)$sev->timestart + (int)$sev->timeduration) : 0);
+                $skey = $sevfrontnorm . '|' . $sstart . '|' . $send;
+
+                if (!isset($perstudentmap[$skey])) {
+                    $perstudentmap[$skey] = [];
+                }
+                $perstudentmap[$skey][] = $sev;
             }
-            $studentdups++;
-            $sample = reset($items);
-            $reason = gmk_dbg_sd_dup_reason($items);
-            if (!isset($reasoncount[$reason])) {
-                $reasoncount[$reason] = 0;
+
+            $studentdups = 0;
+            foreach ($perstudentmap as $skey => $items) {
+                if (count($items) <= 1) {
+                    continue;
+                }
+                $studentdups++;
+                $sample = reset($items);
+                $reason = gmk_dbg_sd_dup_reason($items);
+                if (!isset($reasoncount[$reason])) {
+                    $reasoncount[$reason] = 0;
+                }
+                $reasoncount[$reason]++;
+                $modnames = [];
+                $classidsmix = [];
+                $eventidsmix = [];
+                foreach ($items as $it) {
+                    $modnames[] = (string)($it->modulename ?? '');
+                    $classidsmix[] = (int)($it->classId ?? 0);
+                    $eventidsmix[] = (int)($it->id ?? 0);
+                }
+                $dupdetailrows[] = [
+                    'Student' => s(trim((string)$gmuser->firstname . ' ' . (string)$gmuser->lastname))
+                        . ' (uid=' . (int)$gmuser->id . ')',
+                    'Front name' => s(gmk_dbg_sd_front_name($sample)),
+                    'Start' => s(gmk_dbg_sd_dt($sample->start ?? '', $sample->timestart ?? 0)),
+                    'End' => s(gmk_dbg_sd_dt($sample->end ?? '', (!empty($sample->timestart) && !empty($sample->timeduration))
+                        ? ((int)$sample->timestart + (int)$sample->timeduration) : 0)),
+                    'Count' => count($items),
+                    'Modules' => s(implode(', ', array_unique($modnames))),
+                    'Class IDs' => s(implode(', ', array_unique($classidsmix))),
+                    'Event IDs' => s(implode(', ', $eventidsmix)),
+                    'Reason' => s($reason),
+                ];
             }
-            $reasoncount[$reason]++;
-            $modnames = [];
-            $classidsmix = [];
-            $eventidsmix = [];
-            foreach ($items as $it) {
-                $modnames[] = (string)($it->modulename ?? '');
-                $classidsmix[] = (int)($it->classId ?? 0);
-                $eventidsmix[] = (int)($it->id ?? 0);
+
+            if ($studentdups > 0) {
+                $affectedstudents[] = [
+                    'User ID' => (int)$gmuser->id,
+                    'Student' => s(trim((string)$gmuser->firstname . ' ' . (string)$gmuser->lastname)),
+                    'ID Number' => s((string)$gmuser->idnumber),
+                    'Duplicate groups' => $studentdups,
+                ];
             }
-            $dupdetailrows[] = [
-                'Student' => s(trim((string)$gmuser->firstname . ' ' . (string)$gmuser->lastname))
-                    . ' (uid=' . (int)$gmuser->id . ')',
-                'Front name' => s(gmk_dbg_sd_front_name($sample)),
-                'Start' => s(gmk_dbg_sd_dt($sample->start ?? '', $sample->timestart ?? 0)),
-                'End' => s(gmk_dbg_sd_dt($sample->end ?? '', (!empty($sample->timestart) && !empty($sample->timeduration))
-                    ? ((int)$sample->timestart + (int)$sample->timeduration) : 0)),
-                'Count' => count($items),
-                'Modules' => s(implode(', ', array_unique($modnames))),
-                'Class IDs' => s(implode(', ', array_unique($classidsmix))),
-                'Event IDs' => s(implode(', ', $eventidsmix)),
-                'Reason' => s($reason),
-            ];
         }
 
-        if ($studentdups > 0) {
-            $affectedstudents[] = [
-                'User ID' => (int)$gmuser->id,
-                'Student' => s(trim((string)$gmuser->firstname . ' ' . (string)$gmuser->lastname)),
-                'ID Number' => s((string)$gmuser->idnumber),
-                'Duplicate groups' => $studentdups,
-            ];
-        }
+        $summaryrows = [[
+            'group_members_total' => $groupmembertotal,
+            'group_members_scanned' => count($groupmembers),
+            'affected_students' => count($affectedstudents),
+            'duplicate_groups' => count($dupdetailrows),
+            'reason_breakdown' => empty($reasoncount) ? '-' : s(implode(' | ', array_map(static function($k, $v) {
+                return $k . ':' . $v;
+            }, array_keys($reasoncount), $reasoncount))),
+        ]];
+        echo '<div class="gmk-sd-card"><strong>Student impact for selected class</strong></div>';
+        gmk_dbg_sd_print_table(
+            ['group_members_total', 'group_members_scanned', 'affected_students', 'duplicate_groups', 'reason_breakdown'],
+            $summaryrows
+        );
+        gmk_dbg_sd_print_table(
+            ['User ID', 'Student', 'ID Number', 'Duplicate groups'],
+            $affectedstudents
+        );
+        gmk_dbg_sd_print_table(
+            ['Student', 'Front name', 'Start', 'End', 'Count', 'Modules', 'Class IDs', 'Event IDs', 'Reason'],
+            $dupdetailrows
+        );
+    } else {
+        echo '<div class="gmk-sd-card"><span class="badge warn">INFO</span> Student impact scan is disabled. Enable "Run heavy class student scan" to execute it.</div>';
     }
-
-    $summaryrows = [[
-        'group_members_total' => $groupmembertotal,
-        'group_members_scanned' => count($groupmembers),
-        'affected_students' => count($affectedstudents),
-        'duplicate_groups' => count($dupdetailrows),
-        'reason_breakdown' => empty($reasoncount) ? '-' : s(implode(' | ', array_map(static function($k, $v) {
-            return $k . ':' . $v;
-        }, array_keys($reasoncount), $reasoncount))),
-    ]];
-    echo '<div class="gmk-sd-card"><strong>Student impact for selected class</strong></div>';
-    gmk_dbg_sd_print_table(
-        ['group_members_total', 'group_members_scanned', 'affected_students', 'duplicate_groups', 'reason_breakdown'],
-        $summaryrows
-    );
-    gmk_dbg_sd_print_table(
-        ['User ID', 'Student', 'ID Number', 'Duplicate groups'],
-        $affectedstudents
-    );
-    gmk_dbg_sd_print_table(
-        ['Student', 'Front name', 'Start', 'End', 'Count', 'Modules', 'Class IDs', 'Event IDs', 'Reason'],
-        $dupdetailrows
-    );
 }
 
 if ($hasselecteduser) {

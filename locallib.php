@@ -5565,7 +5565,30 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
         $finalEvents[] = $event;
     }
 
-    return $finalEvents;
+    // Defensive dedupe: keep only one BBB event per class + start time + duration.
+    // This protects student calendar from historical duplicate BBB rows.
+    $dedupedEvents = [];
+    $seenBBB = [];
+    foreach ($finalEvents as $event) {
+        if (($event->modulename ?? '') === 'bigbluebuttonbn') {
+            $dedupeClassId = !empty($event->classId) ? (int)$event->classId : 0;
+            $dedupeStart = !empty($event->timestart) ? (int)$event->timestart : 0;
+            $dedupeDur = !empty($event->timeduration) ? (int)$event->timeduration : 0;
+            if ($dedupeClassId > 0) {
+                $bbbKey = 'class|' . $dedupeClassId . '|' . $dedupeStart . '|' . $dedupeDur;
+            } else {
+                $dedupeInstance = !empty($event->instance) ? (int)$event->instance : 0;
+                $bbbKey = 'instance|' . $dedupeInstance . '|' . $dedupeStart . '|' . $dedupeDur;
+            }
+            if (isset($seenBBB[$bbbKey])) {
+                continue;
+            }
+            $seenBBB[$bbbKey] = true;
+        }
+        $dedupedEvents[] = $event;
+    }
+
+    return $dedupedEvents;
 }
 
 function complete_class_event_information($event, &$fetchedClasses)
