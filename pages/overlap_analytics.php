@@ -43,6 +43,58 @@ function ov_day($d) {
     return $days[(int)$d] ?? ('Dia ' . (int)$d);
 }
 
+function ov_day_to_int($value) {
+    $value = trim((string)$value);
+    if ($value === '') {
+        return 0;
+    }
+    if (is_numeric($value)) {
+        $day = (int)$value;
+        return ($day >= 1 && $day <= 7) ? $day : 0;
+    }
+    $n = ov_norm($value);
+    $map = [
+        'lunes' => 1, 'lun' => 1,
+        'martes' => 2, 'mar' => 2,
+        'miercoles' => 3, 'mier' => 3, 'mie' => 3,
+        'jueves' => 4, 'jue' => 4,
+        'viernes' => 5, 'vie' => 5,
+        'sabado' => 6, 'sab' => 6,
+        'domingo' => 7, 'dom' => 7
+    ];
+    if (isset($map[$n])) {
+        return (int)$map[$n];
+    }
+    foreach ($map as $k => $v) {
+        if (strpos($n, $k) === 0) {
+            return (int)$v;
+        }
+    }
+    return 0;
+}
+
+function ov_get_schedule_columns() {
+    global $DB;
+    $cols = $DB->get_columns('gmk_class_schedules');
+    if (empty($cols)) {
+        return [null, null, null];
+    }
+    $keys = array_map('strtolower', array_keys($cols));
+    $find = function(array $candidates) use ($keys) {
+        foreach ($candidates as $candidate) {
+            $lc = strtolower($candidate);
+            if (in_array($lc, $keys, true)) {
+                return $candidate;
+            }
+        }
+        return null;
+    };
+    $daycol = $find(['day', 'weekday']);
+    $startcol = $find(['start_time', 'starttime', 'inittime', 'start']);
+    $endcol = $find(['end_time', 'endtime', 'end']);
+    return [$daycol, $startcol, $endcol];
+}
+
 function ov_overlap_dates($a, $b) {
     $as = (int)($a->initdate ?? 0);
     $ae = (int)($a->enddate ?? 0);
@@ -228,6 +280,7 @@ if (data_submitted() && confirm_sesskey()) {
 $flash = ov_flash_dec(optional_param('flash', '', PARAM_RAW_TRIMMED));
 $rows = [];
 $truncated = false;
+$schemawarning = '';
 $stats = ['classes' => 0, 'students' => 0, 'studentswithconflicts' => 0, 'conflicts' => 0];
 $selectedperiod = ($periodid > 0) ? ($periods[$periodid] ?? null) : null;
 
@@ -255,16 +308,29 @@ if ($periodid === 0 || $selectedperiod) {
     $stats['classes'] = count($classes);
     if (!empty($classes)) {
         $classids = array_map('intval', array_keys($classes));
+        list($daycol, $startcol, $endcol) = ov_get_schedule_columns();
         list($ins1, $par1) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'c1');
-        $schedules = $DB->get_records_sql("SELECT classid,day,starttime,endtime FROM {gmk_class_schedules} WHERE classid $ins1 ORDER BY classid,day,starttime", $par1);
+        $schedules = [];
+        if (!empty($daycol) && !empty($startcol) && !empty($endcol)) {
+            $schedules = $DB->get_records_sql(
+                "SELECT classid, {$daycol} AS dayvalue, {$startcol} AS startvalue, {$endcol} AS endvalue
+                   FROM {gmk_class_schedules}
+                  WHERE classid $ins1
+               ORDER BY classid, {$daycol}, {$startcol}",
+                $par1
+            );
+        } else {
+            $schemawarning = 'No se pudieron resolver columnas de horario en gmk_class_schedules. Verifica campos day/start/end en la tabla.';
+        }
         $sched = [];
         foreach ($schedules as $s) {
-            $start = ov_tmin($s->starttime);
-            $end = ov_tmin($s->endtime);
-            if ($start < 0 || $end <= $start) {
+            $day = ov_day_to_int($s->dayvalue ?? '');
+            $start = ov_tmin($s->startvalue ?? '');
+            $end = ov_tmin($s->endvalue ?? '');
+            if ($day <= 0 || $start < 0 || $end <= $start) {
                 continue;
             }
-            $sched[(int)$s->classid][] = ['day' => (int)$s->day, 'start' => $start, 'end' => $end];
+            $sched[(int)$s->classid][] = ['day' => $day, 'start' => $start, 'end' => $end];
         }
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
@@ -426,6 +492,7 @@ echo $OUTPUT->header();
     </form>
 
     <?php if ($flash): ?><div class="ov-alert<?php echo ((int)($flash['error'] ?? 0) > 0 ? ' err' : ''); ?>">Resultado: <?php echo (int)($flash['ok'] ?? 0); ?> exitoso(s), <?php echo (int)($flash['error'] ?? 0); ?> error(es).<?php if (!empty($flash['messages'])): ?><ul style="margin:6px 0 0 18px"><?php foreach ($flash['messages'] as $m): ?><li><?php echo s((string)$m); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
+    <?php if (!empty($schemawarning)): ?><div class="ov-alert err"><?php echo s($schemawarning); ?></div><?php endif; ?>
     <?php if ($truncated): ?><div class="ov-alert err">Se alcanzo el limite de <?php echo (int)$maxconflicts; ?> conflictos. Ajusta filtros.</div><?php endif; ?>
 
     <div class="ov-stats">
