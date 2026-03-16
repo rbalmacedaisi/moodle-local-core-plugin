@@ -28,6 +28,7 @@ $maxclasses = optional_param('maxclasses', 250, PARAM_INT);
 $maxdeltahours = optional_param('maxdeltahours', 48, PARAM_INT);
 $showonlyissues = optional_param('showonlyissues', 1, PARAM_INT);
 $deletemodules = optional_param('deletemodules', 1, PARAM_INT);
+$deleteextras = optional_param('deleteextras', 1, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHAEXT);
 
 function gmk_bbb_mc_h($v): string {
@@ -491,7 +492,7 @@ function gmk_bbb_mc_analyze_class(stdClass $class, int $maxdeltasecs): array {
     ];
 }
 
-function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
+function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $deleteextras): array {
     global $DB, $CFG;
     $class = $analysis['class'];
     $plan = $analysis['plan'];
@@ -510,7 +511,8 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
     $result['logs'][] = 'Plan updates=' . count($plan['updates'])
         . ' delete_rel=' . count($plan['delete_rel_ids'])
         . ' old_cmids=' . count($plan['old_cmids'])
-        . ' extra_cmids=' . count($plan['extra_cmids']);
+        . ' extra_cmids=' . count($plan['extra_cmids'])
+        . ' deleteextras=' . ($deleteextras ? '1' : '0');
 
     $tx = $DB->start_delegated_transaction();
     try {
@@ -561,6 +563,10 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
     if ($deletemodules) {
         $bbbmoduleid = gmk_bbb_mc_bbb_module_id();
         $deletecandidates = array_values(array_unique($plan['old_cmids']));
+        if ($deleteextras) {
+            $deletecandidates = array_values(array_unique(array_merge($deletecandidates, $plan['extra_cmids'])));
+        }
+        $result['logs'][] = 'Module delete candidates=' . count($deletecandidates);
         foreach ($deletecandidates as $cmid) {
             $cmid = (int)$cmid;
             if ($cmid <= 0) {
@@ -594,6 +600,8 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
                 $result['logs'][] = 'ERROR deleting cmid=' . $cmid . ': ' . $de->getMessage();
             }
         }
+    } else {
+        $result['logs'][] = 'Module deletion disabled by option';
     }
 
     try {
@@ -648,6 +656,7 @@ echo '<label style="margin-left:10px">Max classes: <input type="number" name="ma
 echo '<label style="margin-left:10px">Max delta hours: <input type="number" name="maxdeltahours" min="1" max="240" value="' . (int)$maxdeltahours . '" style="width:90px"></label> ';
 echo '<label style="margin-left:10px"><input type="checkbox" name="showonlyissues" value="1" ' . (!empty($showonlyissues) ? 'checked' : '') . '> Show only issues</label> ';
 echo '<label style="margin-left:10px"><input type="checkbox" name="deletemodules" value="1" ' . (!empty($deletemodules) ? 'checked' : '') . '> Delete orphan BBB modules</label> ';
+echo '<label style="margin-left:10px"><input type="checkbox" name="deleteextras" value="1" ' . (!empty($deleteextras) ? 'checked' : '') . '> Delete unmatched BBB candidates</label> ';
 echo '<button type="submit" class="btn btn-primary" style="margin-left:10px">Analyze</button>';
 echo '</form>';
 
@@ -753,9 +762,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected') {
             ];
             continue;
         }
-        $applyresults[] = gmk_bbb_mc_apply_plan($analyses[$sid], !empty($deletemodules));
+            $applyresults[] = gmk_bbb_mc_apply_plan($analyses[$sid], !empty($deletemodules), !empty($deleteextras));
+        }
     }
-}
 }
 
 echo '<div class="mc-card">';
@@ -794,6 +803,7 @@ echo '<input type="hidden" name="maxclasses" value="' . (int)$maxclasses . '">';
 echo '<input type="hidden" name="maxdeltahours" value="' . (int)$maxdeltahours . '">';
 echo '<input type="hidden" name="showonlyissues" value="' . (!empty($showonlyissues) ? '1' : '0') . '">';
 echo '<input type="hidden" name="deletemodules" value="' . (!empty($deletemodules) ? '1' : '0') . '">';
+echo '<input type="hidden" name="deleteextras" value="' . (!empty($deleteextras) ? '1' : '0') . '">';
 echo '<input type="hidden" name="repairone" value="0">';
 
 echo '<table class="mc-table"><thead><tr>'
