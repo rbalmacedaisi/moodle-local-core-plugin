@@ -540,13 +540,15 @@ function ov_withdraw($classid, $userid, $learningplanid) {
         $complete = ((int)$residual['ingroup'] === 0)
             && ((int)$residual['classrows'] === 0)
             && ((int)$residual['prereg'] === 0)
-            && ((int)$residual['queue'] === 0)
-            && ((int)$residual['floating'] === 0);
+            && ((int)$residual['queue'] === 0);
 
         if ($complete) {
             $msg = (string)($lastr['message'] ?? 'ok');
             if ((int)$pid > 0 && (int)$pid !== (int)$learningplanid) {
                 $msg .= ' (reintento con learningplanid=' . (int)$pid . ')';
+            }
+            if ((int)$residual['floating'] > 0) {
+                $msg .= ' | nota: filas floating=' . (int)$residual['floating'] . ' (no bloquean retiro de esta ficha)';
             }
             return ['status' => 'ok', 'message' => $msg];
         }
