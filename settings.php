@@ -133,6 +133,11 @@ if ($hassiteconfig) {
         'Analitica de Solapamientos',
         new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php')
     );
+    $debugOverlapStudentPage = new admin_externalpage(
+        'grupomakro_core_debug_overlap_student',
+        'Debug: Overlap Student Trace',
+        new moodle_url('/local/grupomakro_core/pages/debug_overlap_student_trace.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -154,6 +159,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugFixDraftPage);
     $ADMIN->add('grupomakrocore_plugin', $debugPublishDraftPage);
     $ADMIN->add('grupomakrocore_plugin', $overlapAnalyticsPage);
+    $ADMIN->add('grupomakrocore_plugin', $debugOverlapStudentPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
