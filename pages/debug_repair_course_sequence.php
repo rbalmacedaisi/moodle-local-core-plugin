@@ -13,9 +13,10 @@ $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 
-$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_repair_course_sequence.php', ['courseid' => $courseid]));
+$PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_repair_course_sequence.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_context($context);
 $PAGE->set_pagelayout('admin');
 $PAGE->set_title('Debug Repair Course Sequence');
@@ -82,6 +83,104 @@ function gmk_dbg_seq_collect(int $courseid): array {
     return $rows;
 }
 
+/**
+ * Remove one cmid from all section sequences in a course.
+ *
+ * @param int $courseid
+ * @param int $cmid
+ * @return int number of sections updated
+ */
+function gmk_dbg_remove_cmid_from_course_sequences(int $courseid, int $cmid): int {
+    global $DB;
+
+    $courseid = (int)$courseid;
+    $cmid = (int)$cmid;
+    if ($courseid <= 0 || $cmid <= 0) {
+        return 0;
+    }
+
+    $updated = 0;
+    $sections = $DB->get_records('course_sections', ['course' => $courseid], 'id ASC', 'id,sequence');
+    foreach ($sections as $section) {
+        $seq = gmk_dbg_seq_parse((string)$section->sequence);
+        if (!in_array($cmid, $seq, true)) {
+            continue;
+        }
+        $newseq = array_values(array_filter($seq, static function($id) use ($cmid) {
+            return (int)$id !== (int)$cmid;
+        }));
+        $DB->set_field('course_sections', 'sequence', implode(',', $newseq), ['id' => (int)$section->id]);
+        $updated++;
+    }
+
+    return $updated;
+}
+
+/**
+ * Collect diagnostics for one cmid in a course context.
+ *
+ * @param int $courseid
+ * @param int $cmid
+ * @return array<string,mixed>
+ */
+function gmk_dbg_collect_cmid_diag(int $courseid, int $cmid): array {
+    global $DB;
+
+    $out = [
+        'cmid' => (int)$cmid,
+        'courseid' => (int)$courseid,
+        'cm' => null,
+        'contexts' => [],
+        'in_sequences' => [],
+    ];
+
+    if ($cmid <= 0) {
+        return $out;
+    }
+
+    $cm = $DB->get_record('course_modules', ['id' => $cmid], 'id,course,section,module,instance,deletioninprogress,visible', IGNORE_MISSING);
+    if ($cm) {
+        $modname = $DB->get_field('modules', 'name', ['id' => (int)$cm->module]);
+        $out['cm'] = [
+            'id' => (int)$cm->id,
+            'course' => (int)$cm->course,
+            'section' => (int)$cm->section,
+            'module' => (int)$cm->module,
+            'modname' => (string)$modname,
+            'instance' => (int)$cm->instance,
+            'deletioninprogress' => (int)$cm->deletioninprogress,
+            'visible' => (int)$cm->visible,
+        ];
+    }
+
+    $ctxrows = $DB->get_records('context', ['contextlevel' => CONTEXT_MODULE, 'instanceid' => $cmid], 'id ASC', 'id,contextlevel,instanceid,path,depth');
+    foreach ($ctxrows as $ctx) {
+        $out['contexts'][] = [
+            'id' => (int)$ctx->id,
+            'contextlevel' => (int)$ctx->contextlevel,
+            'instanceid' => (int)$ctx->instanceid,
+            'path' => (string)$ctx->path,
+            'depth' => (int)$ctx->depth,
+        ];
+    }
+
+    if ($courseid > 0) {
+        $sections = $DB->get_records('course_sections', ['course' => $courseid], 'section ASC, id ASC', 'id,section,name,sequence');
+        foreach ($sections as $section) {
+            $seq = gmk_dbg_seq_parse((string)$section->sequence);
+            if (in_array($cmid, $seq, true)) {
+                $out['in_sequences'][] = [
+                    'id' => (int)$section->id,
+                    'section' => (int)$section->section,
+                    'name' => (string)$section->name,
+                ];
+            }
+        }
+    }
+
+    return $out;
+}
+
 $repairmessage = '';
 $repairclass = '';
 
@@ -95,12 +194,45 @@ if ($action === 'repair' && $courseid > 0) {
     $repairclass = 'alert alert-success';
 }
 
+if ($action === 'deeprepair' && $courseid > 0) {
+    require_sesskey();
+    $log = [];
+    $summary = gmk_prune_invalid_course_section_sequences((int)$courseid, false);
+    $log[] = 'sequence prune: updated sections=' . (int)($summary['updatedsections'] ?? 0)
+        . ', removed orphan cmids=' . (int)($summary['removedcmids'] ?? 0);
+
+    if ($cmid > 0) {
+        $cm = $DB->get_record('course_modules', ['id' => (int)$cmid], 'id,course', IGNORE_MISSING);
+        if (!$cm || (int)$cm->course !== (int)$courseid) {
+            $removedfromseq = gmk_dbg_remove_cmid_from_course_sequences((int)$courseid, (int)$cmid);
+            $log[] = 'force remove cmid ' . (int)$cmid . ' from sequence: sections updated=' . (int)$removedfromseq;
+        } else {
+            $log[] = 'cmid ' . (int)$cmid . ' belongs to course ' . (int)$courseid . ', not force-removed from sequence.';
+        }
+
+        if (!$cm) {
+            $ctxdeleted = $DB->delete_records('context', ['contextlevel' => CONTEXT_MODULE, 'instanceid' => (int)$cmid]);
+            $log[] = 'context rows removed for missing cmid ' . (int)$cmid . ': ' . ($ctxdeleted ? 'yes' : 'none');
+        }
+    }
+
+    if (!function_exists('rebuild_course_cache')) {
+        require_once($CFG->libdir . '/modinfolib.php');
+    }
+    rebuild_course_cache((int)$courseid, true);
+    $log[] = 'rebuild_course_cache executed for course ' . (int)$courseid . '.';
+
+    $repairmessage = 'Deep repair applied: ' . implode(' | ', $log);
+    $repairclass = 'alert alert-success';
+}
+
 $courserec = null;
 if ($courseid > 0) {
     $courserec = $DB->get_record('course', ['id' => $courseid], 'id,fullname,shortname', IGNORE_MISSING);
 }
 
 $rows = $courseid > 0 ? gmk_dbg_seq_collect((int)$courseid) : [];
+$cmdiag = ($courseid > 0 && $cmid > 0) ? gmk_dbg_collect_cmid_diag((int)$courseid, (int)$cmid) : null;
 
 echo $OUTPUT->header();
 
@@ -114,6 +246,8 @@ if (!empty($repairmessage)) {
 echo '<form method="get" style="margin:12px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
 echo '<label for="courseid"><strong>Course ID</strong></label>';
 echo '<input type="number" min="1" name="courseid" id="courseid" value="' . (int)$courseid . '" style="padding:6px 8px;width:140px">';
+echo '<label for="cmid"><strong>CMID (optional)</strong></label>';
+echo '<input type="number" min="1" name="cmid" id="cmid" value="' . (int)$cmid . '" style="padding:6px 8px;width:140px">';
 echo '<button type="submit" class="btn btn-primary">Inspect</button>';
 echo '</form>';
 
@@ -153,10 +287,49 @@ if ($sectionswithorphans > 0) {
 
 $repairurl = new moodle_url('/local/grupomakro_core/pages/debug_repair_course_sequence.php', [
     'courseid' => (int)$courseid,
+    'cmid' => (int)$cmid,
     'action' => 'repair',
     'sesskey' => sesskey(),
 ]);
 echo '<p><a class="btn btn-secondary" href="' . $repairurl->out(false) . '">Run Repair</a></p>';
+
+$deeprepairurl = new moodle_url('/local/grupomakro_core/pages/debug_repair_course_sequence.php', [
+    'courseid' => (int)$courseid,
+    'cmid' => (int)$cmid,
+    'action' => 'deeprepair',
+    'sesskey' => sesskey(),
+]);
+echo '<p><a class="btn btn-secondary" href="' . $deeprepairurl->out(false) . '">Run Deep Repair</a></p>';
+
+if ($cmdiag !== null) {
+    echo '<h3>CMID Diagnostics</h3>';
+    if (!empty($cmdiag['cm'])) {
+        $cm = $cmdiag['cm'];
+        echo '<div class="alert alert-info">';
+        echo 'CM exists: id=' . (int)$cm['id']
+            . ' course=' . (int)$cm['course']
+            . ' section=' . (int)$cm['section']
+            . ' module=' . s((string)$cm['modname'])
+            . ' instance=' . (int)$cm['instance']
+            . ' deletioninprogress=' . (int)$cm['deletioninprogress'];
+        echo '</div>';
+    } else {
+        echo '<div class="alert alert-warning">CM not found in course_modules for id ' . (int)$cmid . '.</div>';
+    }
+
+    $ctxcount = count($cmdiag['contexts']);
+    echo '<div class="alert alert-info">Context rows for CMID: ' . (int)$ctxcount . '</div>';
+
+    if (!empty($cmdiag['in_sequences'])) {
+        echo '<div class="alert alert-warning">CMID appears in section sequences:</div><ul>';
+        foreach ($cmdiag['in_sequences'] as $hit) {
+            echo '<li>sectionid=' . (int)$hit['id'] . ' section=' . (int)$hit['section'] . ' name=' . s((string)$hit['name']) . '</li>';
+        }
+        echo '</ul>';
+    } else {
+        echo '<div class="alert alert-success">CMID is not present in any section sequence for this course.</div>';
+    }
+}
 
 echo '<table class="generaltable">';
 echo '<thead><tr>';
@@ -180,4 +353,3 @@ foreach ($rows as $r) {
 echo '</tbody></table>';
 
 echo $OUTPUT->footer();
-

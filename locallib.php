@@ -2624,7 +2624,7 @@ function delete_class($classId, $reason = null)
  */
 function create_class_activities($class, $updating = false, $forceRebuildDates = false)
 {
-    global $DB, $USER;
+    global $DB, $USER, $CFG;
     // if($classParams["classroomId"]!== ''){
     //         $classroomsReservations = createClassroomReservations($newClass);
     //     }
@@ -2982,6 +2982,13 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
         $DB->insert_record('gmk_bbb_attendance_relation', $classAttendanceBBBRelation);
     }
     $DB->update_record('gmk_class', $class);
+
+    if (!empty($class->corecourseid)) {
+        if (!function_exists('rebuild_course_cache')) {
+            require_once($CFG->libdir . '/modinfolib.php');
+        }
+        rebuild_course_cache((int)$class->corecourseid, true);
+    }
 
     return ['status' => 'created'];
 }
