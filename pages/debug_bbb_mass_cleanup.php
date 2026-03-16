@@ -41,6 +41,30 @@ function gmk_bbb_mc_dt(int $ts): string {
     return userdate($ts, '%Y-%m-%d %H:%M');
 }
 
+function gmk_bbb_mc_period_name(int $periodid): string {
+    global $DB;
+    static $cache = [];
+    if ($periodid <= 0) {
+        return '';
+    }
+    if (isset($cache[$periodid])) {
+        return (string)$cache[$periodid];
+    }
+    $tables = ['gmk_academic_periods', 'gmk_periods', 'local_learning_periods'];
+    foreach ($tables as $t) {
+        if (!gmk_bbb_mc_table_exists($t)) {
+            continue;
+        }
+        $name = $DB->get_field($t, 'name', ['id' => $periodid], IGNORE_MISSING);
+        if ($name !== false && $name !== null) {
+            $cache[$periodid] = (string)$name;
+            return (string)$cache[$periodid];
+        }
+    }
+    $cache[$periodid] = '';
+    return '';
+}
+
 function gmk_bbb_mc_table_exists(string $tablename): bool {
     global $DB;
     try {
@@ -473,11 +497,20 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
     $plan = $analysis['plan'];
     $result = [
         'classid' => (int)$class->id,
+        'classname' => (string)$class->name,
         'updated' => 0,
         'deleted_rel' => 0,
         'deleted_cm' => 0,
         'errors' => [],
+        'logs' => [],
     ];
+
+    $result['logs'][] = 'Start at ' . userdate(time(), '%Y-%m-%d %H:%M:%S')
+        . ' class=' . (int)$class->id . ' name=' . (string)$class->name;
+    $result['logs'][] = 'Plan updates=' . count($plan['updates'])
+        . ' delete_rel=' . count($plan['delete_rel_ids'])
+        . ' old_cmids=' . count($plan['old_cmids'])
+        . ' extra_cmids=' . count($plan['extra_cmids']);
 
     $tx = $DB->start_delegated_transaction();
     try {
@@ -489,11 +522,16 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
             ];
             $DB->update_record('gmk_bbb_attendance_relation', $row);
             $result['updated']++;
+            $result['logs'][] = 'Updated relation id=' . (int)$u['relationid']
+                . ' session=' . (int)$u['sessionid']
+                . ' bbbid ' . (int)$u['oldbbbid'] . ' -> ' . (int)$u['newbbbid']
+                . ' cmid ' . (int)$u['oldbbbmoduleid'] . ' -> ' . (int)$u['newbbbmoduleid'];
         }
 
         foreach ($plan['delete_rel_ids'] as $rid) {
             $DB->delete_records('gmk_bbb_attendance_relation', ['id' => (int)$rid]);
             $result['deleted_rel']++;
+            $result['logs'][] = 'Deleted relation id=' . (int)$rid;
         }
 
         // Keep class.bbbmoduleids aligned with relation table.
@@ -509,11 +547,14 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
             'bbbmoduleids' => empty($cmids) ? null : implode(',', array_values($cmids)),
         ];
         $DB->update_record('gmk_class', $classupd);
+        $result['logs'][] = 'Updated gmk_class.bbbmoduleids=' . (empty($classupd->bbbmoduleids) ? 'NULL' : $classupd->bbbmoduleids);
 
         $tx->allow_commit();
+        $result['logs'][] = 'DB transaction committed';
     } catch (Throwable $t) {
         $tx->rollback($t);
         $result['errors'][] = 'DB plan apply failed: ' . $t->getMessage();
+        $result['logs'][] = 'ERROR DB plan apply failed: ' . $t->getMessage();
         return $result;
     }
 
@@ -526,25 +567,31 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
                 continue;
             }
             if ($DB->record_exists('gmk_bbb_attendance_relation', ['bbbmoduleid' => $cmid])) {
+                $result['logs'][] = 'Skipped cmid=' . $cmid . ' still referenced in relation';
                 continue;
             }
 
             $cm = $DB->get_record('course_modules', ['id' => $cmid], 'id,course,module', IGNORE_MISSING);
             if (!$cm) {
+                $result['logs'][] = 'Skipped cmid=' . $cmid . ' not found in course_modules';
                 continue;
             }
             if ((int)$cm->module !== (int)$bbbmoduleid) {
+                $result['logs'][] = 'Skipped cmid=' . $cmid . ' not BBB module';
                 continue;
             }
             if ((int)$cm->course !== (int)$class->corecourseid) {
+                $result['logs'][] = 'Skipped cmid=' . $cmid . ' course mismatch';
                 continue;
             }
 
             try {
                 course_delete_module($cmid, false);
                 $result['deleted_cm']++;
+                $result['logs'][] = 'Deleted BBB cmid=' . $cmid;
             } catch (Throwable $de) {
                 $result['errors'][] = 'cmid ' . $cmid . ': ' . $de->getMessage();
+                $result['logs'][] = 'ERROR deleting cmid=' . $cmid . ': ' . $de->getMessage();
             }
         }
     }
@@ -554,9 +601,16 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules): array {
             require_once($CFG->libdir . '/modinfolib.php');
         }
         rebuild_course_cache((int)$class->corecourseid, true);
+        $result['logs'][] = 'rebuild_course_cache done for course=' . (int)$class->corecourseid;
     } catch (Throwable $ce) {
         $result['errors'][] = 'cache rebuild: ' . $ce->getMessage();
+        $result['logs'][] = 'ERROR cache rebuild: ' . $ce->getMessage();
     }
+
+    $result['logs'][] = 'Finish updated=' . (int)$result['updated']
+        . ' deleted_rel=' . (int)$result['deleted_rel']
+        . ' deleted_cm=' . (int)$result['deleted_cm']
+        . ' errors=' . count($result['errors']);
 
     return $result;
 }
@@ -646,17 +700,62 @@ $applyresults = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected') {
     require_sesskey();
     $selected = optional_param_array('selected', [], PARAM_INT);
+    $repairone = optional_param('repairone', 0, PARAM_INT);
+    if ($repairone > 0) {
+        $selected = [$repairone];
+    }
     if (empty($selected)) {
         echo '<div class="mc-card"><span class="mc-warn">No classes selected for repair.</span></div>';
     } else {
-        foreach ($selected as $sid) {
-            $sid = (int)$sid;
-            if (!isset($analyses[$sid])) {
-                continue;
+    foreach ($selected as $sid) {
+        $sid = (int)$sid;
+        if (!isset($analyses[$sid])) {
+                $classrow = $DB->get_record('gmk_class', ['id' => $sid], '*', IGNORE_MISSING);
+                if ($classrow) {
+                    $classrow = (object)[
+                        'id' => (int)$classrow->id,
+                        'name' => (string)$classrow->name,
+                        'periodid' => (int)$classrow->periodid,
+                        'corecourseid' => (int)$classrow->corecourseid,
+                        'groupid' => (int)$classrow->groupid,
+                        'learningplanid' => (int)$classrow->learningplanid,
+                        'approved' => (int)$classrow->approved,
+                        'closed' => (int)$classrow->closed,
+                        'attendancemoduleid' => (int)$classrow->attendancemoduleid,
+                    ];
+                    $periodname = gmk_bbb_mc_period_name((int)$classrow->periodid);
+                    if ($periodname !== '') {
+                        $classrow->periodname = $periodname;
+                    }
+                    $analyses[$sid] = gmk_bbb_mc_analyze_class($classrow, $maxdeltasecs);
+                } else {
+                    $applyresults[] = [
+                        'classid' => $sid,
+                        'classname' => '',
+                        'updated' => 0,
+                        'deleted_rel' => 0,
+                        'deleted_cm' => 0,
+                        'errors' => ['Class not found'],
+                        'logs' => ['ERROR class not found id=' . $sid],
+                    ];
+                    continue;
             }
-            $applyresults[] = gmk_bbb_mc_apply_plan($analyses[$sid], !empty($deletemodules));
         }
+        if (empty($analyses[$sid]['summary']['has_issues'])) {
+            $applyresults[] = [
+                'classid' => $sid,
+                'classname' => (string)($analyses[$sid]['class']->name ?? ''),
+                'updated' => 0,
+                'deleted_rel' => 0,
+                'deleted_cm' => 0,
+                'errors' => [],
+                'logs' => ['No issues detected for this class; nothing to change.'],
+            ];
+            continue;
+        }
+        $applyresults[] = gmk_bbb_mc_apply_plan($analyses[$sid], !empty($deletemodules));
     }
+}
 }
 
 echo '<div class="mc-card">';
@@ -670,15 +769,17 @@ echo '</div>';
 if (!empty($applyresults)) {
     echo '<div class="mc-card"><strong>Repair results</strong></div>';
     echo '<table class="mc-table"><thead><tr>'
-        . '<th>Class</th><th>Updated rows</th><th>Deleted relation rows</th><th>Deleted modules</th><th>Errors</th>'
+        . '<th>Class</th><th>Updated rows</th><th>Deleted relation rows</th><th>Deleted modules</th><th>Errors</th><th>Log</th>'
         . '</tr></thead><tbody>';
     foreach ($applyresults as $r) {
         echo '<tr>';
-        echo '<td>' . (int)$r['classid'] . '</td>';
+        echo '<td>' . (int)$r['classid'] . ' ' . gmk_bbb_mc_h((string)($r['classname'] ?? '')) . '</td>';
         echo '<td>' . (int)$r['updated'] . '</td>';
         echo '<td>' . (int)$r['deleted_rel'] . '</td>';
         echo '<td>' . (int)$r['deleted_cm'] . '</td>';
         echo '<td>' . gmk_bbb_mc_h(empty($r['errors']) ? '-' : implode(' | ', $r['errors'])) . '</td>';
+        $logtxt = !empty($r['logs']) ? implode("\n", $r['logs']) : '-';
+        echo '<td><pre style="white-space:pre-wrap;max-width:480px;margin:0;">' . gmk_bbb_mc_h($logtxt) . '</pre></td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
@@ -693,15 +794,16 @@ echo '<input type="hidden" name="maxclasses" value="' . (int)$maxclasses . '">';
 echo '<input type="hidden" name="maxdeltahours" value="' . (int)$maxdeltahours . '">';
 echo '<input type="hidden" name="showonlyissues" value="' . (!empty($showonlyissues) ? '1' : '0') . '">';
 echo '<input type="hidden" name="deletemodules" value="' . (!empty($deletemodules) ? '1' : '0') . '">';
+echo '<input type="hidden" name="repairone" value="0">';
 
 echo '<table class="mc-table"><thead><tr>'
     . '<th>Select</th><th>Class</th><th>Period</th><th>Core course</th><th>Group</th>'
     . '<th>rel rows</th><th>sessions</th><th>dup session groups</th><th>mismatch rows</th>'
-    . '<th>updates</th><th>delete rel</th><th>extra cm</th><th>Status</th>'
+    . '<th>updates</th><th>delete rel</th><th>extra cm</th><th>Status</th><th>Action</th>'
     . '</tr></thead><tbody>';
 
 if (empty($analyses)) {
-    echo '<tr><td colspan="13">No rows</td></tr>';
+    echo '<tr><td colspan="14">No rows</td></tr>';
 } else {
     foreach ($analyses as $cid => $a) {
         $c = $a['class'];
@@ -727,6 +829,14 @@ if (empty($analyses)) {
         echo '<td>' . (int)$s['delete_rel_rows'] . '</td>';
         echo '<td>' . (int)$s['extra_cmid_candidates'] . '</td>';
         echo '<td>' . ($hasissues ? '<span class="mc-bad">ISSUE</span>' : '<span class="mc-ok">OK</span>') . '</td>';
+        echo '<td>';
+        if ($hasissues) {
+            echo '<button type="submit" name="repairone" value="' . (int)$cid . '" class="btn btn-warning btn-sm"'
+                . ' onclick="return confirm(\'Repair this class only?\');">Repair this class</button>';
+        } else {
+            echo '-';
+        }
+        echo '</td>';
         echo '</tr>';
     }
 }
