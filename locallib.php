@@ -1833,6 +1833,166 @@ function gmk_section_sequence_contains_cmid($sectionid, $cmid)
 }
 
 /**
+ * Remove invalid cmids from a section sequence.
+ * Invalid means cmid does not exist, or belongs to a different course/section.
+ *
+ * @param int $sectionid
+ * @param bool $rebuildcache
+ * @return array{updated:bool,courseid:int,sectionid:int,before:string,after:string,removed:int[]}
+ */
+function gmk_prune_invalid_section_sequence($sectionid, $rebuildcache = true)
+{
+    global $DB, $CFG;
+
+    $out = [
+        'updated' => false,
+        'courseid' => 0,
+        'sectionid' => (int)$sectionid,
+        'before' => '',
+        'after' => '',
+        'removed' => [],
+    ];
+
+    $sectionid = (int)$sectionid;
+    if ($sectionid <= 0) {
+        return $out;
+    }
+
+    $section = $DB->get_record('course_sections', ['id' => $sectionid], 'id,course,sequence', IGNORE_MISSING);
+    if (!$section) {
+        return $out;
+    }
+
+    $out['courseid'] = (int)$section->course;
+    $sequence = trim((string)$section->sequence);
+    $out['before'] = $sequence;
+    if ($sequence === '') {
+        $out['after'] = '';
+        return $out;
+    }
+
+    // Normalize input sequence first (remove invalid tokens and duplicates preserving order).
+    $parsed = [];
+    $seen = [];
+    foreach (explode(',', $sequence) as $raw) {
+        $cmid = (int)trim((string)$raw);
+        if ($cmid <= 0 || isset($seen[$cmid])) {
+            continue;
+        }
+        $seen[$cmid] = true;
+        $parsed[] = $cmid;
+    }
+
+    if (empty($parsed)) {
+        $newsequence = '';
+        if ($newsequence !== $sequence) {
+            $DB->set_field('course_sections', 'sequence', $newsequence, ['id' => $sectionid]);
+            $out['updated'] = true;
+            if (!empty($section->course) && $rebuildcache) {
+                if (!function_exists('rebuild_course_cache')) {
+                    require_once($CFG->libdir . '/modinfolib.php');
+                }
+                rebuild_course_cache((int)$section->course, true);
+            }
+        }
+        $out['after'] = $newsequence;
+        return $out;
+    }
+
+    list($insql, $inparams) = $DB->get_in_or_equal($parsed, SQL_PARAMS_NAMED, 'cmid');
+    $params = $inparams + [
+        'courseid' => (int)$section->course,
+        'sectionid' => $sectionid
+    ];
+    $validrows = $DB->get_records_sql(
+        "SELECT id
+           FROM {course_modules}
+          WHERE id {$insql}
+            AND course = :courseid
+            AND section = :sectionid",
+        $params
+    );
+    $validset = [];
+    foreach ($validrows as $row) {
+        $validset[(int)$row->id] = true;
+    }
+
+    $kept = [];
+    $removed = [];
+    foreach ($parsed as $cmid) {
+        if (!empty($validset[$cmid])) {
+            $kept[] = $cmid;
+        } else {
+            $removed[] = $cmid;
+        }
+    }
+
+    $newsequence = implode(',', $kept);
+    $out['after'] = $newsequence;
+    $out['removed'] = $removed;
+
+    if ($newsequence !== $sequence) {
+        $DB->set_field('course_sections', 'sequence', $newsequence, ['id' => $sectionid]);
+        $out['updated'] = true;
+        if (!empty($section->course) && $rebuildcache) {
+            if (!function_exists('rebuild_course_cache')) {
+                require_once($CFG->libdir . '/modinfolib.php');
+            }
+            rebuild_course_cache((int)$section->course, true);
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Repair sequences for all sections in a course, removing orphan cmids.
+ *
+ * @param int $courseid
+ * @param bool $rebuildcache
+ * @return array{updatedsections:int,removedcmids:int,removedlist:int[]}
+ */
+function gmk_prune_invalid_course_section_sequences($courseid, $rebuildcache = true)
+{
+    global $DB, $CFG;
+
+    $courseid = (int)$courseid;
+    $summary = [
+        'updatedsections' => 0,
+        'removedcmids' => 0,
+        'removedlist' => [],
+    ];
+    if ($courseid <= 0) {
+        return $summary;
+    }
+
+    $sections = $DB->get_records('course_sections', ['course' => $courseid], 'id ASC', 'id');
+    foreach ($sections as $section) {
+        $res = gmk_prune_invalid_section_sequence((int)$section->id, false);
+        if (!empty($res['updated'])) {
+            $summary['updatedsections']++;
+        }
+        if (!empty($res['removed'])) {
+            foreach ($res['removed'] as $rid) {
+                $summary['removedlist'][(int)$rid] = (int)$rid;
+            }
+        }
+    }
+
+    $summary['removedlist'] = array_values($summary['removedlist']);
+    $summary['removedcmids'] = count($summary['removedlist']);
+
+    if ($rebuildcache && ($summary['updatedsections'] > 0 || $summary['removedcmids'] > 0)) {
+        if (!function_exists('rebuild_course_cache')) {
+            require_once($CFG->libdir . '/modinfolib.php');
+        }
+        rebuild_course_cache($courseid, true);
+    }
+
+    return $summary;
+}
+
+/**
  * Ensure a course module id is present in section sequence for Moodle course display.
  */
 function gmk_ensure_cmid_in_section_sequence($sectionid, $cmid)
@@ -1843,6 +2003,12 @@ function gmk_ensure_cmid_in_section_sequence($sectionid, $cmid)
     $cmid = (int)$cmid;
     if ($sectionid <= 0 || $cmid <= 0) {
         return false;
+    }
+
+    static $sanitizedsections = [];
+    if (empty($sanitizedsections[$sectionid])) {
+        gmk_prune_invalid_section_sequence($sectionid, true);
+        $sanitizedsections[$sectionid] = true;
     }
 
     $section = $DB->get_record('course_sections', ['id' => $sectionid], 'id,sequence', MUST_EXIST);
@@ -2373,6 +2539,22 @@ function delete_class($classId, $reason = null)
         }
     }
 
+    // Remove orphan cmids left in section.sequence after bulk cleanup.
+    foreach ($candidatecourseids as $candidatecourseid) {
+        $candidatecourseid = (int)$candidatecourseid;
+        if ($candidatecourseid <= 0) {
+            continue;
+        }
+        $seqrepair = gmk_prune_invalid_course_section_sequences($candidatecourseid, true);
+        if (($seqrepair['updatedsections'] ?? 0) > 0 || ($seqrepair['removedcmids'] ?? 0) > 0) {
+            gmk_log(
+                "INFO: delete_class sequence repair course={$candidatecourseid}"
+                . " updatedsections=" . (int)$seqrepair['updatedsections']
+                . " removedcmids=" . (int)$seqrepair['removedcmids']
+            );
+        }
+    }
+
     // Delete class groups.
     foreach ($groupids as $gid) {
         $gid = (int)$gid;
@@ -2449,6 +2631,16 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     $attendanceStructure = null;
 
     $class->course = get_course($class->corecourseid);
+    if (!empty($class->corecourseid)) {
+        $seqrepair = gmk_prune_invalid_course_section_sequences((int)$class->corecourseid, true);
+        if (($seqrepair['updatedsections'] ?? 0) > 0 || ($seqrepair['removedcmids'] ?? 0) > 0) {
+            gmk_log(
+                "INFO: create_class_activities sequence repair course={$class->corecourseid}"
+                . " updatedsections=" . (int)$seqrepair['updatedsections']
+                . " removedcmids=" . (int)$seqrepair['removedcmids']
+            );
+        }
+    }
     $classSectionInfo = $DB->get_record('course_sections', ['id' => $class->coursesectionid], 'id,course,section');
     if (!$classSectionInfo) {
         throw new \Exception("La seccion {$class->coursesectionid} no existe para la clase {$class->id}");
