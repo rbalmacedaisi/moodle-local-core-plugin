@@ -2539,6 +2539,34 @@ function delete_class($classId, $reason = null)
         }
     }
 
+    // Remove course_modules rows whose module instance was deleted but the cm row was left behind.
+    // This happens when course_delete_module() removes the attendance/BBB instance record but
+    // fails before it can delete the course_modules row (caught silently above).
+    if (!empty($candidatecourseids)) {
+        list($orphancourseinsql, $orphancourseparams) = $DB->get_in_or_equal(array_values($candidatecourseids), SQL_PARAMS_QM);
+        foreach (['attendance', 'bigbluebuttonbn'] as $orphanmodname) {
+            $orphanmodid = gmk_get_module_id_by_name($orphanmodname);
+            if (!$orphanmodid) {
+                continue;
+            }
+            $orphancmids = $DB->get_fieldset_sql(
+                "SELECT cm.id
+                   FROM {course_modules} cm
+                  WHERE cm.course {$orphancourseinsql}
+                    AND cm.module = ?
+                    AND NOT EXISTS (SELECT 1 FROM {{$orphanmodname}} t WHERE t.id = cm.instance)",
+                array_merge($orphancourseparams, [(int)$orphanmodid])
+            );
+            foreach ($orphancmids as $orphancmid) {
+                $orphancmid = (int)$orphancmid;
+                if ($orphancmid > 0) {
+                    $DB->delete_records('course_modules', ['id' => $orphancmid]);
+                    gmk_log("INFO: delete_class removed orphaned course_module cmid={$orphancmid} modname={$orphanmodname}");
+                }
+            }
+        }
+    }
+
     // Remove orphan cmids left in section.sequence after bulk cleanup.
     foreach ($candidatecourseids as $candidatecourseid) {
         $candidatecourseid = (int)$candidatecourseid;

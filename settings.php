@@ -128,6 +128,11 @@ if ($hassiteconfig) {
         'Debug: Draft Publish Inspector',
         new moodle_url('/local/grupomakro_core/pages/debug_publish_draft.php')
     );
+    $overlapAnalyticsPage = new admin_externalpage(
+        'grupomakro_core_overlap_analytics',
+        'Analitica de Solapamientos',
+        new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -148,6 +153,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $resetPeriodPublishPage);
     $ADMIN->add('grupomakrocore_plugin', $debugFixDraftPage);
     $ADMIN->add('grupomakrocore_plugin', $debugPublishDraftPage);
+    $ADMIN->add('grupomakrocore_plugin', $overlapAnalyticsPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
