@@ -968,22 +968,39 @@ if (true) {
             ];
         }
 
-        // Fallback for classes created/edited outside planning board that have no gmk_class_schedules rows.
+        $mergesessionrows = function($cid, array $rows) use (&$sched) {
+            $cid = (int)$cid;
+            if (!isset($sched[$cid])) {
+                $sched[$cid] = [];
+            }
+            $seen = [];
+            foreach ($sched[$cid] as $r) {
+                $akey = implode(',', (array)($r['assigned'] ?? []));
+                $ekey = implode(',', (array)($r['excluded'] ?? []));
+                $seen[(int)($r['day'] ?? 0) . '|' . (int)($r['start'] ?? -1) . '|' . (int)($r['end'] ?? -1) . '|' . $akey . '|' . $ekey] = true;
+            }
+            foreach ($rows as $r) {
+                $akey = implode(',', (array)($r['assigned'] ?? []));
+                $ekey = implode(',', (array)($r['excluded'] ?? []));
+                $k = (int)($r['day'] ?? 0) . '|' . (int)($r['start'] ?? -1) . '|' . (int)($r['end'] ?? -1) . '|' . $akey . '|' . $ekey;
+                if (isset($seen[$k])) {
+                    continue;
+                }
+                $seen[$k] = true;
+                $sched[$cid][] = $r;
+            }
+        };
+
+        // Attendance-derived sessions are merged to reflect real scheduled attendance activities.
         $attfallback = ov_load_attendance_fallback_sessions($classes);
         foreach ($attfallback as $cid => $rowsatt) {
-            if (!empty($sched[(int)$cid])) {
-                continue;
-            }
-            $sched[(int)$cid] = $rowsatt;
+            $mergesessionrows((int)$cid, $rowsatt);
         }
 
-        // Fallback by attendance.course + attendance_sessions.groupid/date.
+        // Additional attendance fallback by attendance.course + attendance_sessions.groupid/date.
         $attcoursefallback = ov_load_attendance_course_fallback_sessions($classes, $sched);
         foreach ($attcoursefallback as $cid => $rowsatt) {
-            if (!empty($sched[(int)$cid])) {
-                continue;
-            }
-            $sched[(int)$cid] = $rowsatt;
+            $mergesessionrows((int)$cid, $rowsatt);
         }
 
         // Last fallback: classes created outside planner may only have classdays + inittime/endtime.
@@ -998,7 +1015,7 @@ if (true) {
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
         list($ins2b, $par2b) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cb');
         $pendingunion = '';
-        $linkparams = $par2a + $par2b + ['stinprogress' => COURSE_IN_PROGRESS];
+        $linkparams = $par2a + $par2b;
         if ((int)$includepending === 1) {
             list($ins2c, $par2c) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cc');
             list($ins2d, $par2d) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cd');
@@ -1030,7 +1047,6 @@ if (true) {
                       JOIN {gmk_class} ccp ON ccp.id = cp.classid
                      WHERE cp.classid $ins2b
                        AND cp.classid > 0
-                       AND cp.status = :stinprogress
                     {$pendingunion}
                ) x
               GROUP BY x.classid,x.userid",
@@ -1190,7 +1206,7 @@ if (trim((string)$studentq) !== '') {
     if ($studentcandidate) {
         $uid = (int)$studentcandidate->id;
         $pendingdiagunion = '';
-        $diagparams = ['uid1' => $uid, 'uid2' => $uid, 'stinprogress' => COURSE_IN_PROGRESS];
+        $diagparams = ['uid1' => $uid, 'uid2' => $uid];
         if ((int)$includepending === 1) {
             $pendingdiagunion = "
                     UNION ALL
@@ -1221,7 +1237,6 @@ if (trim((string)$studentq) !== '') {
                       JOIN {gmk_class} ccp ON ccp.id = cp.classid
                      WHERE cp.userid = :uid2
                        AND cp.classid > 0
-                       AND cp.status = :stinprogress
                     {$pendingdiagunion}
                ) x
               GROUP BY x.classid",
@@ -1269,7 +1284,7 @@ if (trim((string)$studentq) !== '') {
 
             $diagfallback = ov_load_attendance_fallback_sessions($srcclasses);
             foreach ($diagfallback as $cid => $rowsatt) {
-                if (empty($rowsatt) || !empty($validschedule[(int)$cid])) {
+                if (empty($rowsatt)) {
                     continue;
                 }
                 $validschedule[(int)$cid] = true;
@@ -1283,7 +1298,7 @@ if (trim((string)$studentq) !== '') {
 
             $diagattcourse = ov_load_attendance_course_fallback_sessions($srcclasses, $validschedule);
             foreach ($diagattcourse as $cid => $rowsatt) {
-                if (empty($rowsatt) || !empty($validschedule[(int)$cid])) {
+                if (empty($rowsatt)) {
                     continue;
                 }
                 $validschedule[(int)$cid] = true;
@@ -1378,7 +1393,7 @@ echo $OUTPUT->header();
 </style>
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
-    <div class="ov-alert">Analisis global activo: sin filtros, todos los periodos, incluyendo pendientes. Build: global-attendance-fallback-v2</div>
+    <div class="ov-alert">Analisis global activo: sin filtros, todos los periodos, incluyendo pendientes. Build: global-attendance-fallback-v3</div>
 
     <?php if ($flash): ?><div class="ov-alert<?php echo ((int)($flash['error'] ?? 0) > 0 ? ' err' : ''); ?>">Resultado: <?php echo (int)($flash['ok'] ?? 0); ?> exitoso(s), <?php echo (int)($flash['error'] ?? 0); ?> error(es).<?php if (!empty($flash['messages'])): ?><ul style="margin:6px 0 0 18px"><?php foreach ($flash['messages'] as $m): ?><li><?php echo s((string)$m); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
     <?php if (!empty($schemawarning)): ?><div class="ov-alert err"><?php echo s($schemawarning); ?></div><?php endif; ?>
