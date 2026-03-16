@@ -191,6 +191,201 @@ function dbg_schedule_date_overlap(array $sa, array $sb, $classa, $classb) {
     return true;
 }
 
+function dbg_load_attendance_fallback_sessions(array $classes) {
+    global $DB;
+
+    $out = [];
+    if (empty($classes)) {
+        return $out;
+    }
+
+    $classids = array_values(array_map('intval', array_keys($classes)));
+    list($cinsql, $cparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'dfc');
+    $relrows = $DB->get_records_sql(
+        "SELECT id, classid, attendanceid, attendancesessionid, attendancemoduleid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid $cinsql",
+        $cparams
+    );
+
+    $sessiontoclass = [];
+    $attendancebyclass = [];
+    $cmidsbyclass = [];
+    foreach ($relrows as $rel) {
+        $cid = (int)$rel->classid;
+        if (!isset($classes[$cid])) {
+            continue;
+        }
+        $sessid = (int)($rel->attendancesessionid ?? 0);
+        if ($sessid > 0) {
+            if (!isset($sessiontoclass[$sessid])) {
+                $sessiontoclass[$sessid] = [];
+            }
+            $sessiontoclass[$sessid][$cid] = $cid;
+        }
+        $attid = (int)($rel->attendanceid ?? 0);
+        if ($attid > 0) {
+            if (!isset($attendancebyclass[$cid])) {
+                $attendancebyclass[$cid] = [];
+            }
+            $attendancebyclass[$cid][$attid] = $attid;
+        }
+        $attcmid = (int)($rel->attendancemoduleid ?? 0);
+        if ($attcmid > 0) {
+            if (!isset($cmidsbyclass[$cid])) {
+                $cmidsbyclass[$cid] = [];
+            }
+            $cmidsbyclass[$cid][$attcmid] = $attcmid;
+        }
+    }
+
+    foreach ($classes as $cid => $class) {
+        $attcmid = (int)($class->attendancemoduleid ?? 0);
+        if ($attcmid > 0) {
+            if (!isset($cmidsbyclass[$cid])) {
+                $cmidsbyclass[$cid] = [];
+            }
+            $cmidsbyclass[$cid][$attcmid] = $attcmid;
+        }
+    }
+
+    $allcmids = [];
+    foreach ($cmidsbyclass as $cid => $set) {
+        foreach ($set as $cmid) {
+            $allcmids[$cmid] = (int)$cmid;
+        }
+    }
+    if (!empty($allcmids)) {
+        list($mins, $mpar) = $DB->get_in_or_equal(array_values($allcmids), SQL_PARAMS_NAMED, 'dfm');
+        $cmrows = $DB->get_records_sql(
+            "SELECT cm.id, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id $mins",
+            $mpar
+        );
+        $attbycm = [];
+        foreach ($cmrows as $cmr) {
+            if ((string)$cmr->modulename !== 'attendance') {
+                continue;
+            }
+            $attbycm[(int)$cmr->id] = (int)$cmr->instance;
+        }
+        foreach ($cmidsbyclass as $cid => $set) {
+            foreach ($set as $cmid) {
+                $attid = (int)($attbycm[(int)$cmid] ?? 0);
+                if ($attid <= 0) {
+                    continue;
+                }
+                if (!isset($attendancebyclass[$cid])) {
+                    $attendancebyclass[$cid] = [];
+                }
+                $attendancebyclass[$cid][$attid] = $attid;
+            }
+        }
+    }
+
+    $dedup = [];
+    $addsession = function($cid, $sess) use (&$out, &$dedup, $classes) {
+        if (!isset($classes[$cid])) {
+            return;
+        }
+        $class = $classes[$cid];
+        $ts = (int)($sess->sessdate ?? 0);
+        if ($ts <= 0) {
+            return;
+        }
+        $day = (int)date('N', $ts);
+        if ($day < 1 || $day > 7) {
+            return;
+        }
+        $start = ((int)date('G', $ts) * 60) + (int)date('i', $ts);
+        $duration = (int)($sess->duration ?? 0);
+        if ($duration <= 0) {
+            $duration = (int)($class->classduration ?? 0);
+        }
+        if ($duration <= 0) {
+            $duration = 3600;
+        }
+        $end = $start + max(1, (int)ceil($duration / 60));
+        if ($end <= $start) {
+            return;
+        }
+        $date = date('Y-m-d', $ts);
+        $key = $date . '|' . $start . '|' . $end;
+        if (isset($dedup[$cid][$key])) {
+            return;
+        }
+        $dedup[$cid][$key] = true;
+        if (!isset($out[$cid])) {
+            $out[$cid] = [];
+        }
+        $out[$cid][] = [
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+            'assigned' => [$date],
+            'excluded' => []
+        ];
+    };
+
+    if (!empty($sessiontoclass)) {
+        $sessionids = array_values(array_map('intval', array_keys($sessiontoclass)));
+        list($sins, $spar) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'dfs');
+        $sessrows = $DB->get_records_sql(
+            "SELECT id, attendanceid, groupid, sessdate, duration
+               FROM {attendance_sessions}
+              WHERE id $sins",
+            $spar
+        );
+        foreach ($sessrows as $sess) {
+            $sid = (int)$sess->id;
+            foreach (array_values($sessiontoclass[$sid] ?? []) as $cid) {
+                $classgroup = (int)($classes[$cid]->groupid ?? 0);
+                $sessiongroup = (int)($sess->groupid ?? 0);
+                if ($classgroup > 0 && $sessiongroup > 0 && $classgroup !== $sessiongroup) {
+                    continue;
+                }
+                $addsession((int)$cid, $sess);
+            }
+        }
+    }
+
+    $atttoclass = [];
+    foreach ($attendancebyclass as $cid => $set) {
+        foreach ($set as $attid) {
+            if (!isset($atttoclass[$attid])) {
+                $atttoclass[$attid] = [];
+            }
+            $atttoclass[$attid][$cid] = $cid;
+        }
+    }
+
+    if (!empty($atttoclass)) {
+        $attids = array_values(array_map('intval', array_keys($atttoclass)));
+        list($ains, $apar) = $DB->get_in_or_equal($attids, SQL_PARAMS_NAMED, 'dfa');
+        $attsessions = $DB->get_records_sql(
+            "SELECT id, attendanceid, groupid, sessdate, duration
+               FROM {attendance_sessions}
+              WHERE attendanceid $ains",
+            $apar
+        );
+        foreach ($attsessions as $sess) {
+            $attid = (int)$sess->attendanceid;
+            foreach (array_values($atttoclass[$attid] ?? []) as $cid) {
+                $classgroup = (int)($classes[$cid]->groupid ?? 0);
+                $sessiongroup = (int)($sess->groupid ?? 0);
+                if ($classgroup > 0 && $sessiongroup > 0 && $classgroup !== $sessiongroup) {
+                    continue;
+                }
+                $addsession((int)$cid, $sess);
+            }
+        }
+    }
+
+    return $out;
+}
+
 function dbg_build_conflicts(array $classids, array $classes, array $sched) {
     $out = [];
     $classids = array_values(array_unique(array_map('intval', $classids)));
@@ -349,7 +544,7 @@ if ($selecteduser) {
     if (!empty($classids)) {
         list($insql, $params) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cid');
         $classes = $DB->get_records_sql(
-            "SELECT c.id, c.name, c.periodid, c.learningplanid, c.initdate, c.enddate, c.approved, c.closed, c.shift,
+            "SELECT c.id, c.name, c.periodid, c.learningplanid, c.initdate, c.enddate, c.approved, c.closed, c.shift, c.groupid, c.classduration, c.attendancemoduleid,
                     ap.name AS periodname, lp.name AS learningplanname
                FROM {gmk_class} c
           LEFT JOIN {gmk_academic_periods} ap ON ap.id = c.periodid
@@ -398,6 +593,21 @@ if ($selecteduser) {
             $schedset->close();
         } else {
             $schemawarning = 'Schedule columns not resolved in gmk_class_schedules.';
+        }
+
+        $attfallback = dbg_load_attendance_fallback_sessions($classes);
+        foreach ($attfallback as $cid => $rowsatt) {
+            $cid = (int)$cid;
+            if (!empty($sched[$cid])) {
+                continue;
+            }
+            $sched[$cid] = $rowsatt;
+            if (!isset($schedtext[$cid])) {
+                $schedtext[$cid] = [];
+            }
+            foreach ($rowsatt as $sa) {
+                $schedtext[$cid][] = '[ATT] ' . dbg_day_label((int)$sa['day']) . ' ' . dbg_fmin((int)$sa['start']) . '-' . dbg_fmin((int)$sa['end']) . ' assigned=' . count((array)($sa['assigned'] ?? []));
+            }
         }
 
         $includedids = [];

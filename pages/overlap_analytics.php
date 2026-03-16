@@ -190,6 +190,201 @@ function ov_schedule_date_overlap(array $sa, array $sb, $classa, $classb) {
     return true;
 }
 
+function ov_load_attendance_fallback_sessions(array $classes) {
+    global $DB;
+
+    $out = [];
+    if (empty($classes)) {
+        return $out;
+    }
+
+    $classids = array_values(array_map('intval', array_keys($classes)));
+    list($cinsql, $cparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'afc');
+    $relrows = $DB->get_records_sql(
+        "SELECT id, classid, attendanceid, attendancesessionid, attendancemoduleid
+           FROM {gmk_bbb_attendance_relation}
+          WHERE classid $cinsql",
+        $cparams
+    );
+
+    $sessiontoclass = [];
+    $attendancebyclass = [];
+    $cmidsbyclass = [];
+    foreach ($relrows as $rel) {
+        $cid = (int)$rel->classid;
+        if (!isset($classes[$cid])) {
+            continue;
+        }
+        $sessid = (int)($rel->attendancesessionid ?? 0);
+        if ($sessid > 0) {
+            if (!isset($sessiontoclass[$sessid])) {
+                $sessiontoclass[$sessid] = [];
+            }
+            $sessiontoclass[$sessid][$cid] = $cid;
+        }
+        $attid = (int)($rel->attendanceid ?? 0);
+        if ($attid > 0) {
+            if (!isset($attendancebyclass[$cid])) {
+                $attendancebyclass[$cid] = [];
+            }
+            $attendancebyclass[$cid][$attid] = $attid;
+        }
+        $attcmid = (int)($rel->attendancemoduleid ?? 0);
+        if ($attcmid > 0) {
+            if (!isset($cmidsbyclass[$cid])) {
+                $cmidsbyclass[$cid] = [];
+            }
+            $cmidsbyclass[$cid][$attcmid] = $attcmid;
+        }
+    }
+
+    foreach ($classes as $cid => $class) {
+        $attcmid = (int)($class->attendancemoduleid ?? 0);
+        if ($attcmid > 0) {
+            if (!isset($cmidsbyclass[$cid])) {
+                $cmidsbyclass[$cid] = [];
+            }
+            $cmidsbyclass[$cid][$attcmid] = $attcmid;
+        }
+    }
+
+    $allcmids = [];
+    foreach ($cmidsbyclass as $cid => $set) {
+        foreach ($set as $cmid) {
+            $allcmids[$cmid] = (int)$cmid;
+        }
+    }
+    if (!empty($allcmids)) {
+        list($mins, $mpar) = $DB->get_in_or_equal(array_values($allcmids), SQL_PARAMS_NAMED, 'afm');
+        $cmrows = $DB->get_records_sql(
+            "SELECT cm.id, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.id $mins",
+            $mpar
+        );
+        $attbycm = [];
+        foreach ($cmrows as $cmr) {
+            if ((string)$cmr->modulename !== 'attendance') {
+                continue;
+            }
+            $attbycm[(int)$cmr->id] = (int)$cmr->instance;
+        }
+        foreach ($cmidsbyclass as $cid => $set) {
+            foreach ($set as $cmid) {
+                $attid = (int)($attbycm[(int)$cmid] ?? 0);
+                if ($attid <= 0) {
+                    continue;
+                }
+                if (!isset($attendancebyclass[$cid])) {
+                    $attendancebyclass[$cid] = [];
+                }
+                $attendancebyclass[$cid][$attid] = $attid;
+            }
+        }
+    }
+
+    $dedup = [];
+    $addsession = function($cid, $sess) use (&$out, &$dedup, $classes) {
+        if (!isset($classes[$cid])) {
+            return;
+        }
+        $class = $classes[$cid];
+        $ts = (int)($sess->sessdate ?? 0);
+        if ($ts <= 0) {
+            return;
+        }
+        $day = (int)date('N', $ts);
+        if ($day < 1 || $day > 7) {
+            return;
+        }
+        $start = ((int)date('G', $ts) * 60) + (int)date('i', $ts);
+        $duration = (int)($sess->duration ?? 0);
+        if ($duration <= 0) {
+            $duration = (int)($class->classduration ?? 0);
+        }
+        if ($duration <= 0) {
+            $duration = 3600;
+        }
+        $end = $start + max(1, (int)ceil($duration / 60));
+        if ($end <= $start) {
+            return;
+        }
+        $date = date('Y-m-d', $ts);
+        $key = $date . '|' . $start . '|' . $end;
+        if (isset($dedup[$cid][$key])) {
+            return;
+        }
+        $dedup[$cid][$key] = true;
+        if (!isset($out[$cid])) {
+            $out[$cid] = [];
+        }
+        $out[$cid][] = [
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+            'assigned' => [$date],
+            'excluded' => []
+        ];
+    };
+
+    if (!empty($sessiontoclass)) {
+        $sessionids = array_values(array_map('intval', array_keys($sessiontoclass)));
+        list($sins, $spar) = $DB->get_in_or_equal($sessionids, SQL_PARAMS_NAMED, 'afs');
+        $sessrows = $DB->get_records_sql(
+            "SELECT id, attendanceid, groupid, sessdate, duration
+               FROM {attendance_sessions}
+              WHERE id $sins",
+            $spar
+        );
+        foreach ($sessrows as $sess) {
+            $sid = (int)$sess->id;
+            foreach (array_values($sessiontoclass[$sid] ?? []) as $cid) {
+                $classgroup = (int)($classes[$cid]->groupid ?? 0);
+                $sessiongroup = (int)($sess->groupid ?? 0);
+                if ($classgroup > 0 && $sessiongroup > 0 && $classgroup !== $sessiongroup) {
+                    continue;
+                }
+                $addsession((int)$cid, $sess);
+            }
+        }
+    }
+
+    $atttoclass = [];
+    foreach ($attendancebyclass as $cid => $set) {
+        foreach ($set as $attid) {
+            if (!isset($atttoclass[$attid])) {
+                $atttoclass[$attid] = [];
+            }
+            $atttoclass[$attid][$cid] = $cid;
+        }
+    }
+
+    if (!empty($atttoclass)) {
+        $attids = array_values(array_map('intval', array_keys($atttoclass)));
+        list($ains, $apar) = $DB->get_in_or_equal($attids, SQL_PARAMS_NAMED, 'afa');
+        $attsessions = $DB->get_records_sql(
+            "SELECT id, attendanceid, groupid, sessdate, duration
+               FROM {attendance_sessions}
+              WHERE attendanceid $ains",
+            $apar
+        );
+        foreach ($attsessions as $sess) {
+            $attid = (int)$sess->attendanceid;
+            foreach (array_values($atttoclass[$attid] ?? []) as $cid) {
+                $classgroup = (int)($classes[$cid]->groupid ?? 0);
+                $sessiongroup = (int)($sess->groupid ?? 0);
+                if ($classgroup > 0 && $sessiongroup > 0 && $classgroup !== $sessiongroup) {
+                    continue;
+                }
+                $addsession((int)$cid, $sess);
+            }
+        }
+    }
+
+    return $out;
+}
+
 function ov_overlap_dates($a, $b) {
     $as = (int)($a->initdate ?? 0);
     $ae = (int)($a->enddate ?? 0);
@@ -381,7 +576,7 @@ $stats = ['classes' => 0, 'students' => 0, 'studentswithconflicts' => 0, 'confli
 $selectedperiod = null;
 if (true) {
     $now = time();
-    $sql = "SELECT c.id,c.name,c.periodid,c.learningplanid,c.shift,c.initdate,c.enddate,c.groupid,c.approved,c.closed,c.instructorid,
+    $sql = "SELECT c.id,c.name,c.periodid,c.learningplanid,c.shift,c.initdate,c.enddate,c.groupid,c.approved,c.closed,c.instructorid,c.classduration,c.attendancemoduleid,
                    lp.name AS learningplanname,u.firstname AS instructorfirstname,u.lastname AS instructorlastname,
                    ap.name AS periodname
               FROM {gmk_class} c
@@ -431,6 +626,15 @@ if (true) {
                 'assigned' => ov_parse_date_json($s->assignedvalue ?? ''),
                 'excluded' => ov_parse_date_json($s->excludedvalue ?? '')
             ];
+        }
+
+        // Fallback for classes created/edited outside planning board that have no gmk_class_schedules rows.
+        $attfallback = ov_load_attendance_fallback_sessions($classes);
+        foreach ($attfallback as $cid => $rowsatt) {
+            if (!empty($sched[(int)$cid])) {
+                continue;
+            }
+            $sched[(int)$cid] = $rowsatt;
         }
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
@@ -709,6 +913,20 @@ if (trim((string)$studentq) !== '') {
                 }
             }
 
+            $diagfallback = ov_load_attendance_fallback_sessions($srcclasses);
+            foreach ($diagfallback as $cid => $rowsatt) {
+                if (empty($rowsatt) || !empty($validschedule[(int)$cid])) {
+                    continue;
+                }
+                $validschedule[(int)$cid] = true;
+                if (!isset($scheduletexts[(int)$cid])) {
+                    $scheduletexts[(int)$cid] = [];
+                }
+                foreach ($rowsatt as $sa) {
+                    $scheduletexts[(int)$cid][] = '[ATT] ' . ov_day((int)$sa['day']) . ' ' . ov_fmin((int)$sa['start']) . '-' . ov_fmin((int)$sa['end']) . ' assigned=' . count((array)($sa['assigned'] ?? []));
+                }
+            }
+
             foreach ($srcrows as $classid => $src) {
                 $class = $srcclasses[$classid] ?? null;
                 if (!$class) {
@@ -768,7 +986,7 @@ echo $OUTPUT->header();
 <style>
 .ov-wrap{background:#f6f8fc;border:1px solid #d7e1f1;border-radius:10px;padding:14px}
 .ov-head{margin:0 0 10px;font-size:24px;font-weight:800;color:#1a355b}
-.ov-grid{display:grid;grid-template-columns:1.1fr 1.2fr .6fr .8fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
+.ov-grid{display:grid;grid-template-columns:1.4fr .7fr .9fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
 .ov-grid input,.ov-grid select{width:100%;border:1px solid #c6d4ea;border-radius:7px;padding:7px 9px}.ov-btn{border:0;border-radius:7px;padding:8px 10px;background:#1f65dc;color:#fff;font-weight:700;cursor:pointer}.ov-btn.warn{background:#9e6100}.ov-btn.err{background:#b72a2a}.ov-btn.gray{background:#566b8b}
 .ov-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.ov-card{background:#fff;border:1px solid #d7e1f1;border-radius:8px;padding:8px}.ov-l{font-size:11px;text-transform:uppercase;color:#587093;font-weight:700}.ov-v{font-size:22px;font-weight:800;color:#18375e}
 .ov-alert{margin:8px 0;padding:8px;border-radius:8px;border:1px solid #cde4d5;background:#ecf8ef;color:#1b6b3e}.ov-alert.err{border-color:#f0cccc;background:#fff1f1;color:#8a2626}
@@ -779,7 +997,6 @@ echo $OUTPUT->header();
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
     <form method="get" class="ov-grid">
-        <div><label>Ambito</label><input type="text" value="Todos los periodos (global)" readonly /></div>
         <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
         <div><label>Solo en curso</label><select name="runningonly"><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option></select></div>
         <div><label>Incluir pendientes</label><select name="includepending"><option value="0" <?php echo ((int)$includepending === 0 ? 'selected' : ''); ?>>No (solo grupo/progreso)</option><option value="1" <?php echo ((int)$includepending === 1 ? 'selected' : ''); ?>>Si (queue y pre-reg)</option></select></div>
