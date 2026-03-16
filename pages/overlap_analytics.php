@@ -385,6 +385,37 @@ function ov_load_attendance_fallback_sessions(array $classes) {
     return $out;
 }
 
+function ov_load_legacy_time_fallback_sessions(array $classes) {
+    $out = [];
+    foreach ($classes as $cid => $class) {
+        $start = ov_tmin($class->inittime ?? '');
+        $end = ov_tmin($class->endtime ?? '');
+        if ($start < 0 || $end <= $start) {
+            continue;
+        }
+        $mask = explode('/', trim((string)($class->classdays ?? '')));
+        if (count($mask) < 7) {
+            continue;
+        }
+        for ($i = 0; $i < 7; $i++) {
+            if ((string)($mask[$i] ?? '0') !== '1') {
+                continue;
+            }
+            if (!isset($out[(int)$cid])) {
+                $out[(int)$cid] = [];
+            }
+            $out[(int)$cid][] = [
+                'day' => $i + 1,
+                'start' => $start,
+                'end' => $end,
+                'assigned' => [],
+                'excluded' => []
+            ];
+        }
+    }
+    return $out;
+}
+
 function ov_overlap_dates($a, $b) {
     $as = (int)($a->initdate ?? 0);
     $ae = (int)($a->enddate ?? 0);
@@ -616,7 +647,7 @@ function ov_recommend($row, $activeplans, $now) {
 
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $studentq = optional_param('studentq', '', PARAM_TEXT);
-$runningonly = optional_param('runningonly', 1, PARAM_INT);
+$runningonly = optional_param('runningonly', 0, PARAM_INT);
 $includepending = optional_param('includepending', 0, PARAM_INT);
 $maxconflicts = min(max(optional_param('maxconflicts', 600, PARAM_INT), 50), 5000);
 
@@ -762,6 +793,7 @@ $selectedperiod = null;
 if (true) {
     $now = time();
     $sql = "SELECT c.id,c.name,c.periodid,c.learningplanid,c.shift,c.initdate,c.enddate,c.groupid,c.approved,c.closed,c.instructorid,c.classduration,c.attendancemoduleid,
+                   c.inittime,c.endtime,c.classdays,
                    lp.name AS learningplanname,u.firstname AS instructorfirstname,u.lastname AS instructorlastname,
                    ap.name AS periodname
               FROM {gmk_class} c
@@ -820,6 +852,15 @@ if (true) {
                 continue;
             }
             $sched[(int)$cid] = $rowsatt;
+        }
+
+        // Last fallback: classes created outside planner may only have classdays + inittime/endtime.
+        $legacyfallback = ov_load_legacy_time_fallback_sessions($classes);
+        foreach ($legacyfallback as $cid => $rowslegacy) {
+            if (!empty($sched[(int)$cid])) {
+                continue;
+            }
+            $sched[(int)$cid] = $rowslegacy;
         }
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
@@ -1112,6 +1153,20 @@ if (trim((string)$studentq) !== '') {
                 }
             }
 
+            $diaglegacy = ov_load_legacy_time_fallback_sessions($srcclasses);
+            foreach ($diaglegacy as $cid => $rowslegacy) {
+                if (empty($rowslegacy) || !empty($validschedule[(int)$cid])) {
+                    continue;
+                }
+                $validschedule[(int)$cid] = true;
+                if (!isset($scheduletexts[(int)$cid])) {
+                    $scheduletexts[(int)$cid] = [];
+                }
+                foreach ($rowslegacy as $sl) {
+                    $scheduletexts[(int)$cid][] = '[LEGACY] ' . ov_day((int)$sl['day']) . ' ' . ov_fmin((int)$sl['start']) . '-' . ov_fmin((int)$sl['end']);
+                }
+            }
+
             foreach ($srcrows as $classid => $src) {
                 $class = $srcclasses[$classid] ?? null;
                 if (!$class) {
@@ -1183,7 +1238,7 @@ echo $OUTPUT->header();
     <h2 class="ov-head">Analitica de Solapamientos</h2>
     <form method="get" class="ov-grid">
         <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
-        <div><label>Solo en curso</label><select name="runningonly"><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option></select></div>
+        <div><label>Solo en curso</label><select name="runningonly"><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option></select></div>
         <div><label>Incluir pendientes</label><select name="includepending"><option value="0" <?php echo ((int)$includepending === 0 ? 'selected' : ''); ?>>No (solo grupo/progreso)</option><option value="1" <?php echo ((int)$includepending === 1 ? 'selected' : ''); ?>>Si (queue y pre-reg)</option></select></div>
         <div><label>Max conflictos</label><input type="number" min="50" max="5000" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>" /></div>
         <input type="hidden" name="periodid" value="0">
@@ -1250,7 +1305,12 @@ echo $OUTPUT->header();
     </div>
 
     <?php if (empty($rows)): ?>
-        <div class="ov-alert">No se detectaron solapamientos para los filtros actuales.</div>
+        <div class="ov-alert">
+            No se detectaron solapamientos para los filtros actuales.
+            <?php if ((int)$runningonly === 1): ?>
+                <br><small>Sugerencia: cambia "Solo en curso" a "No" para incluir clases fuera de la ventana actual.</small>
+            <?php endif; ?>
+        </div>
     <?php else: ?>
         <form method="post" class="ov-table-wrap">
             <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
