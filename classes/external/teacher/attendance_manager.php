@@ -279,8 +279,10 @@ class attendance_manager extends external_api {
 
             $item->join_url = '';
             $item->guest_url = '';
+            $item->bbb_cmid = 0;
             $bbbmeta = $bbbBySessionId[(int)$s->id] ?? null;
             if ($bbbmeta && !empty($bbbmeta['cmid'])) {
+                $item->bbb_cmid = (int)$bbbmeta['cmid'];
                 $item->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$bbbmeta['cmid'];
                 if ($hasguestlogin && !empty($bbbmeta['guest'])) {
                     $item->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . (int)$bbbmeta['cmid'];

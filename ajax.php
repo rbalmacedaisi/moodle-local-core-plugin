@@ -1124,9 +1124,11 @@ try {
                         $linkedBbbId = (int)$e->instance;
                     }
 
+                    $session_data->bbb_cmid = 0;
                     if ($linkedBbbId > 0 && isset($bbbMetaByInstance[$linkedBbbId])) {
                         $cmid = (int)$bbbMetaByInstance[$linkedBbbId]['cmid'];
                         if ($cmid > 0) {
+                            $session_data->bbb_cmid = $cmid;
                             $session_data->join_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $cmid;
                             if ($hasguestlogin && !empty($bbbMetaByInstance[$linkedBbbId]['guest'])) {
                                 $session_data->guest_url = $CFG->wwwroot . '/mod/bigbluebuttonbn/guest_login.php?id=' . $cmid;
@@ -3109,6 +3111,16 @@ try {
                 $response = ['status' => 'error', 'message' => $e->getMessage()];
              }
              break;
+
+        case 'local_grupomakro_get_bbb_join_url':
+            $cmid = required_param('cmid', PARAM_INT);
+            try {
+                $result = \mod_bigbluebuttonbn\external\get_join_url::execute($cmid);
+                $response = ['status' => 'success', 'join_url' => $result['join_url'] ?? ''];
+            } catch (Exception $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage()];
+            }
+            break;
 
         case 'get_sync_log':
             $logFile = make_temp_directory('grupomakro') . '/sync_progress.log';

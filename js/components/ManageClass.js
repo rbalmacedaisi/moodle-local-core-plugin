@@ -84,13 +84,14 @@ const ManageClass = {
                                             <v-divider></v-divider>
                                             <v-divider></v-divider>
                                             <v-card-actions :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-5'">
-                                                <v-btn 
-                                                    small 
-                                                    depressed 
+                                                <v-btn
+                                                    small
+                                                    depressed
                                                     color="blue"
-                                                    class="rounded-lg px-4 white--text" 
+                                                    class="rounded-lg px-4 white--text"
                                                     @click="enterSession(session)"
-                                                    :disabled="!isSessionActive(session)"
+                                                    :disabled="!isSessionActive(session) || enteringSessionId === session.id"
+                                                    :loading="enteringSessionId === session.id"
                                                 >
                                                     <v-icon left x-small>mdi-video</v-icon>
                                                     Entrar
@@ -99,11 +100,11 @@ const ManageClass = {
                                                 <v-spacer></v-spacer>
                                                 
                                                 <!-- Attendance QR Button (Merged) -->
-                                                <v-btn 
-                                                    v-if="session.attendance && session.attendance.has_qr" 
-                                                    small 
-                                                    text
-                                                    color="secondary" 
+                                                <v-btn
+                                                    v-if="session.attendance && session.attendance.has_qr"
+                                                    small
+                                                    outlined
+                                                    color="secondary"
                                                     @click="showQR(session)"
                                                     :disabled="!isSessionActive(session)"
                                                 >
@@ -545,6 +546,8 @@ const ManageClass = {
             isEditing: false,
             snackbar: false,
             snackbarText: '',
+            // Enter session loading state
+            enteringSessionId: null,
             // QR / Attendance Data
             qrDialog: false,
             currentQR: null,
@@ -880,16 +883,30 @@ const ManageClass = {
                 minute: '2-digit'
             });
         },
-        enterSession(session) {
-            if (session.join_url && session.join_url !== '#') {
-                window.open(session.join_url, '_blank');
-            } else {
-                let msg = 'El enlace de la sesion no esta disponible.';
-                if (session.debug_error) {
-                    msg += '\nDetalles: ' + session.debug_error;
-                    console.error('BBB Join Error:', session.debug_error);
+        async enterSession(session) {
+            const cmid = session.bbb_cmid || 0;
+            if (!cmid) {
+                alert('El enlace de la sesión no está disponible.');
+                return;
+            }
+
+            this.enteringSessionId = session.id;
+            try {
+                const resp = await axios.post(
+                    this.config.wwwroot + '/local/grupomakro_core/ajax.php',
+                    new URLSearchParams({ action: 'local_grupomakro_get_bbb_join_url', cmid })
+                );
+                const data = resp.data || {};
+                if (data.status === 'success' && data.join_url) {
+                    window.open(data.join_url, '_blank');
+                } else {
+                    alert(data.message || 'No se pudo obtener el enlace de la reunión.');
                 }
-                alert(msg);
+            } catch (e) {
+                console.error('enterSession error', e);
+                alert('Error al conectar con el servidor.');
+            } finally {
+                this.enteringSessionId = null;
             }
         },
         openQuizQuestions(activity) {
