@@ -280,6 +280,7 @@ $flash = ov_flash_dec(optional_param('flash', '', PARAM_RAW_TRIMMED));
 $rows = [];
 $truncated = false;
 $schemawarning = '';
+$studentdiagnostic = null;
 $stats = ['classes' => 0, 'students' => 0, 'studentswithconflicts' => 0, 'conflicts' => 0];
 $selectedperiod = null;
 if (true) {
@@ -329,17 +330,39 @@ if (true) {
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
         list($ins2b, $par2b) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cb');
+        list($ins2c, $par2c) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cc');
+        list($ins2d, $par2d) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cd');
         $linkkeyexpr = $DB->sql_concat('x.classid', "'-'", 'x.userid');
         $links = $DB->get_records_sql(
             "SELECT {$linkkeyexpr} AS linkkey,
-                    x.classid,x.userid,MAX(x.learningplanid) AS learningplanid,MAX(x.fromgroup) AS fromgroup,MAX(x.fromprogre) AS fromprogre
+                    x.classid,x.userid,MAX(x.learningplanid) AS learningplanid,
+                    MAX(x.fromgroup) AS fromgroup,MAX(x.fromprogre) AS fromprogre,
+                    MAX(x.fromqueue) AS fromqueue,MAX(x.fromprereg) AS fromprereg
                FROM (
-                    SELECT c.id AS classid,gm.userid,0 AS learningplanid,1 AS fromgroup,0 AS fromprogre FROM {gmk_class} c JOIN {groups_members} gm ON gm.groupid=c.groupid WHERE c.id $ins2a
+                    SELECT c.id AS classid,gm.userid,0 AS learningplanid,1 AS fromgroup,0 AS fromprogre,0 AS fromqueue,0 AS fromprereg
+                      FROM {gmk_class} c
+                      JOIN {groups_members} gm ON gm.groupid=c.groupid
+                     WHERE c.id $ins2a
                     UNION ALL
-                    SELECT cp.classid,cp.userid,cp.learningplanid,0 AS fromgroup,1 AS fromprogre FROM {gmk_course_progre} cp WHERE cp.classid $ins2b AND cp.status=:st
+                    SELECT cp.classid,cp.userid,cp.learningplanid,0 AS fromgroup,1 AS fromprogre,0 AS fromqueue,0 AS fromprereg
+                      FROM {gmk_course_progre} cp
+                     WHERE cp.classid $ins2b
+                       AND cp.classid > 0
+                       AND cp.status IN (:stavailable, :stinprogress)
+                    UNION ALL
+                    SELECT q.classid,q.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,1 AS fromqueue,0 AS fromprereg
+                      FROM {gmk_class_queue} q
+                     WHERE q.classid $ins2c
+                    UNION ALL
+                    SELECT pr.classid,pr.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,0 AS fromqueue,1 AS fromprereg
+                      FROM {gmk_class_pre_registration} pr
+                     WHERE pr.classid $ins2d
                ) x
               GROUP BY x.classid,x.userid",
-            $par2a + $par2b + ['st' => COURSE_IN_PROGRESS]
+            $par2a + $par2b + $par2c + $par2d + [
+                'stavailable' => COURSE_AVAILABLE,
+                'stinprogress' => COURSE_IN_PROGRESS
+            ]
         );
 
         $studentclasses = [];
@@ -353,7 +376,13 @@ if (true) {
             }
             $studentclasses[$uid][$cid] = true;
             $userset[$uid] = $uid;
-            $meta[$uid . ':' . $cid] = ['learningplanid' => (int)$l->learningplanid, 'fromgroup' => (int)$l->fromgroup, 'fromprogre' => (int)$l->fromprogre];
+            $meta[$uid . ':' . $cid] = [
+                'learningplanid' => (int)$l->learningplanid,
+                'fromgroup' => (int)$l->fromgroup,
+                'fromprogre' => (int)$l->fromprogre,
+                'fromqueue' => (int)($l->fromqueue ?? 0),
+                'fromprereg' => (int)($l->fromprereg ?? 0)
+            ];
         }
         $stats['students'] = count($studentclasses);
 
@@ -421,13 +450,14 @@ if (true) {
                     }
                     $k = $uid . '|' . $a . '|' . $b;
                     if (!isset($conflicts[$k])) {
-                        $ma = $meta[$uid . ':' . $a] ?? ['learningplanid' => 0, 'fromgroup' => 0, 'fromprogre' => 0];
-                        $mb = $meta[$uid . ':' . $b] ?? ['learningplanid' => 0, 'fromgroup' => 0, 'fromprogre' => 0];
+                        $ma = $meta[$uid . ':' . $a] ?? ['learningplanid' => 0, 'fromgroup' => 0, 'fromprogre' => 0, 'fromqueue' => 0, 'fromprereg' => 0];
+                        $mb = $meta[$uid . ':' . $b] ?? ['learningplanid' => 0, 'fromgroup' => 0, 'fromprogre' => 0, 'fromqueue' => 0, 'fromprereg' => 0];
                         $pa = $progress[$uid . ':' . $a] ?? null;
                         $pb = $progress[$uid . ':' . $b] ?? null;
                         $conflicts[$k] = [
                             'userid' => (int)$uid, 'user' => $users[$uid], 'classa' => $classes[$a], 'classb' => $classes[$b], 'proga' => $pa, 'progb' => $pb,
                             'fromgroupa' => (int)$ma['fromgroup'], 'fromprogrea' => (int)$ma['fromprogre'], 'fromgroupb' => (int)$mb['fromgroup'], 'fromprogreb' => (int)$mb['fromprogre'],
+                            'fromqueuea' => (int)$ma['fromqueue'], 'fromprerega' => (int)$ma['fromprereg'], 'fromqueueb' => (int)$mb['fromqueue'], 'frompreregb' => (int)$mb['fromprereg'],
                             'lpa' => (int)($ma['learningplanid'] ?: ($pa->learningplanid ?? 0) ?: ($classes[$a]->learningplanid ?? 0)),
                             'lpb' => (int)($mb['learningplanid'] ?: ($pb->learningplanid ?? 0) ?: ($classes[$b]->learningplanid ?? 0)),
                             'windows' => []
@@ -464,6 +494,134 @@ if (true) {
 $stats['conflicts'] = count($rows);
 $stats['studentswithconflicts'] = count(array_unique(array_map(function($r) { return (int)$r['userid']; }, $rows)));
 
+if (trim((string)$studentq) !== '') {
+    $like = '%' . trim((string)$studentq) . '%';
+    $studentcandidate = $DB->get_record_sql(
+        "SELECT id, firstname, lastname, idnumber, email, username
+           FROM {user}
+          WHERE deleted = 0
+            AND (
+                " . $DB->sql_like('firstname', ':q1', false) . "
+                OR " . $DB->sql_like('lastname', ':q2', false) . "
+                OR " . $DB->sql_like('idnumber', ':q3', false) . "
+                OR " . $DB->sql_like('email', ':q4', false) . "
+                OR " . $DB->sql_like('username', ':q5', false) . "
+            )
+       ORDER BY id ASC",
+        ['q1' => $like, 'q2' => $like, 'q3' => $like, 'q4' => $like, 'q5' => $like],
+        IGNORE_MULTIPLE
+    );
+
+    if ($studentcandidate) {
+        $uid = (int)$studentcandidate->id;
+        $srcrows = $DB->get_records_sql(
+            "SELECT x.classid,
+                    MAX(x.fromgroup) AS fromgroup,
+                    MAX(x.fromprogre) AS fromprogre,
+                    MAX(x.fromqueue) AS fromqueue,
+                    MAX(x.fromprereg) AS fromprereg
+               FROM (
+                    SELECT c.id AS classid, 1 AS fromgroup, 0 AS fromprogre, 0 AS fromqueue, 0 AS fromprereg
+                      FROM {gmk_class} c
+                      JOIN {groups_members} gm ON gm.groupid = c.groupid
+                     WHERE gm.userid = :uid1
+                    UNION ALL
+                    SELECT cp.classid AS classid, 0 AS fromgroup, 1 AS fromprogre, 0 AS fromqueue, 0 AS fromprereg
+                      FROM {gmk_course_progre} cp
+                     WHERE cp.userid = :uid2
+                       AND cp.classid > 0
+                    UNION ALL
+                    SELECT q.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 1 AS fromqueue, 0 AS fromprereg
+                      FROM {gmk_class_queue} q
+                     WHERE q.userid = :uid3
+                    UNION ALL
+                    SELECT pr.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 0 AS fromqueue, 1 AS fromprereg
+                      FROM {gmk_class_pre_registration} pr
+                     WHERE pr.userid = :uid4
+               ) x
+              GROUP BY x.classid",
+            ['uid1' => $uid, 'uid2' => $uid, 'uid3' => $uid, 'uid4' => $uid]
+        );
+
+        $reasoncounts = ['status' => 0, 'window' => 0, 'schedule' => 0, 'ok' => 0];
+        $sample = [];
+        if (!empty($srcrows)) {
+            $srcids = array_map('intval', array_keys($srcrows));
+            $srcclasses = $DB->get_records_list('gmk_class', 'id', $srcids);
+
+            list($diagdaycol, $diagstartcol, $diagendcol) = ov_get_schedule_columns();
+            $validschedule = [];
+            if (!empty($diagdaycol) && !empty($diagstartcol) && !empty($diagendcol)) {
+                list($diaginsql, $diagparams) = $DB->get_in_or_equal($srcids, SQL_PARAMS_NAMED, 'sd');
+                $diagschedules = $DB->get_records_sql(
+                    "SELECT id, classid, {$diagdaycol} AS dayvalue, {$diagstartcol} AS startvalue, {$diagendcol} AS endvalue
+                       FROM {gmk_class_schedules}
+                      WHERE classid $diaginsql",
+                    $diagparams
+                );
+                foreach ($diagschedules as $ds) {
+                    $dd = ov_day_to_int($ds->dayvalue ?? '');
+                    $dst = ov_tmin($ds->startvalue ?? '');
+                    $den = ov_tmin($ds->endvalue ?? '');
+                    if ($dd > 0 && $dst >= 0 && $den > $dst) {
+                        $validschedule[(int)$ds->classid] = true;
+                    }
+                }
+            }
+
+            foreach ($srcrows as $classid => $src) {
+                $class = $srcclasses[$classid] ?? null;
+                if (!$class) {
+                    continue;
+                }
+                $statusok = ((int)$class->approved === 1 && (int)$class->closed === 0);
+                $windowok = ((int)$runningonly !== 1) || ((int)$class->initdate <= $now && (int)$class->enddate >= $now);
+                $schedok = !empty($validschedule[(int)$classid]);
+
+                $reason = [];
+                if (!$statusok) {
+                    $reasoncounts['status']++;
+                    $reason[] = 'status';
+                }
+                if ($statusok && !$windowok) {
+                    $reasoncounts['window']++;
+                    $reason[] = 'window';
+                }
+                if ($statusok && $windowok && !$schedok) {
+                    $reasoncounts['schedule']++;
+                    $reason[] = 'schedule';
+                }
+                if ($statusok && $windowok && $schedok) {
+                    $reasoncounts['ok']++;
+                    $reason[] = 'ok';
+                }
+
+                if (count($sample) < 12) {
+                    $sample[] = [
+                        'id' => (int)$classid,
+                        'name' => (string)$class->name,
+                        'periodid' => (int)$class->periodid,
+                        'approved' => (int)$class->approved,
+                        'closed' => (int)$class->closed,
+                        'fromgroup' => (int)$src->fromgroup,
+                        'fromprogre' => (int)$src->fromprogre,
+                        'fromqueue' => (int)$src->fromqueue,
+                        'fromprereg' => (int)$src->fromprereg,
+                        'reason' => implode(',', $reason),
+                    ];
+                }
+            }
+        }
+
+        $studentdiagnostic = [
+            'user' => $studentcandidate,
+            'sourcecount' => count($srcrows),
+            'reasons' => $reasoncounts,
+            'sample' => $sample,
+        ];
+    }
+}
+
 echo $OUTPUT->header();
 ?>
 <style>
@@ -491,6 +649,53 @@ echo $OUTPUT->header();
     <?php if ($flash): ?><div class="ov-alert<?php echo ((int)($flash['error'] ?? 0) > 0 ? ' err' : ''); ?>">Resultado: <?php echo (int)($flash['ok'] ?? 0); ?> exitoso(s), <?php echo (int)($flash['error'] ?? 0); ?> error(es).<?php if (!empty($flash['messages'])): ?><ul style="margin:6px 0 0 18px"><?php foreach ($flash['messages'] as $m): ?><li><?php echo s((string)$m); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
     <?php if (!empty($schemawarning)): ?><div class="ov-alert err"><?php echo s($schemawarning); ?></div><?php endif; ?>
     <?php if ($truncated): ?><div class="ov-alert err">Se alcanzo el limite de <?php echo (int)$maxconflicts; ?> conflictos. Ajusta filtros.</div><?php endif; ?>
+    <?php if (!empty($studentdiagnostic)): ?>
+        <div class="ov-alert">
+            <strong>Diagnostico de estudiante:</strong>
+            <?php
+                $du = $studentdiagnostic['user'];
+                echo s(trim((string)$du->firstname . ' ' . (string)$du->lastname));
+            ?>
+            (uid=<?php echo (int)$du->id; ?>, idnumber=<?php echo s((string)($du->idnumber ?? '-')); ?>)
+            <br>
+            Clases detectadas por fuentes: <?php echo (int)$studentdiagnostic['sourcecount']; ?> |
+            Incluibles por filtros: <?php echo (int)($studentdiagnostic['reasons']['ok'] ?? 0); ?> |
+            Excluidas por estado: <?php echo (int)($studentdiagnostic['reasons']['status'] ?? 0); ?> |
+            Excluidas por ventana: <?php echo (int)($studentdiagnostic['reasons']['window'] ?? 0); ?> |
+            Excluidas por horario invalido/sin horario: <?php echo (int)($studentdiagnostic['reasons']['schedule'] ?? 0); ?>
+            <?php if (!empty($studentdiagnostic['sample'])): ?>
+                <details style="margin-top:8px;">
+                    <summary>Ver muestra de clases/fuentes</summary>
+                    <div style="margin-top:8px; overflow:auto;">
+                        <table class="ov-table" style="min-width:920px;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th><th>Clase</th><th>Periodo</th><th>approved/closed</th><th>Fuentes</th><th>Razon</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($studentdiagnostic['sample'] as $sc): ?>
+                                <tr>
+                                    <td><?php echo (int)$sc['id']; ?></td>
+                                    <td><?php echo s((string)$sc['name']); ?></td>
+                                    <td><?php echo (int)$sc['periodid']; ?></td>
+                                    <td><?php echo (int)$sc['approved']; ?>/<?php echo (int)$sc['closed']; ?></td>
+                                    <td>
+                                        <?php if (!empty($sc['fromgroup'])): ?><span class="ov-tag">grupo</span><?php endif; ?>
+                                        <?php if (!empty($sc['fromprogre'])): ?><span class="ov-tag">progreso</span><?php endif; ?>
+                                        <?php if (!empty($sc['fromqueue'])): ?><span class="ov-tag">queue</span><?php endif; ?>
+                                        <?php if (!empty($sc['fromprereg'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?>
+                                    </td>
+                                    <td><?php echo s((string)$sc['reason']); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
 
     <div class="ov-stats">
         <div class="ov-card"><div class="ov-l">Clases analizadas</div><div class="ov-v"><?php echo (int)$stats['classes']; ?></div></div>
@@ -527,8 +732,8 @@ echo $OUTPUT->header();
                         <td><input type="checkbox" class="ov-check-item" name="selected[]" value="<?php echo s($sel); ?>"></td>
                         <td><strong><?php echo s(trim((string)$u->firstname . ' ' . (string)$u->lastname)); ?></strong><br><small>uid=<?php echo (int)$row['userid']; ?> | idnumber=<?php echo s((string)($u->idnumber ?? '-')); ?><br><?php echo s((string)($u->email ?? '-')); ?></small></td>
                         <td><?php foreach ($row['windows'] as $w): ?><span class="ov-win"><?php echo s((string)$w); ?></span><?php endforeach; ?></td>
-                        <td><strong>#<?php echo (int)$a->id; ?> <?php echo s((string)$a->name); ?></strong><br><small>Periodo: <?php echo s((string)($a->periodname ?? ('ID ' . (int)$a->periodid))); ?><br>Plan: <?php echo s((string)($a->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($a->instructorfirstname ?? '') . ' ' . (string)($a->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scorea']; ?></span><span class="ov-tag">Avance <?php echo (float)($pa->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pa->grade ?? 0); ?></span></td>
-                        <td><strong>#<?php echo (int)$b->id; ?> <?php echo s((string)$b->name); ?></strong><br><small>Periodo: <?php echo s((string)($b->periodname ?? ('ID ' . (int)$b->periodid))); ?><br>Plan: <?php echo s((string)($b->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($b->instructorfirstname ?? '') . ' ' . (string)($b->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scoreb']; ?></span><span class="ov-tag">Avance <?php echo (float)($pb->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pb->grade ?? 0); ?></span></td>
+                        <td><strong>#<?php echo (int)$a->id; ?> <?php echo s((string)$a->name); ?></strong><br><small>Periodo: <?php echo s((string)($a->periodname ?? ('ID ' . (int)$a->periodid))); ?><br>Plan: <?php echo s((string)($a->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($a->instructorfirstname ?? '') . ' ' . (string)($a->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scorea']; ?></span><span class="ov-tag">Avance <?php echo (float)($pa->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pa->grade ?? 0); ?></span><?php if (!empty($row['fromgroupa'])): ?><span class="ov-tag">grupo</span><?php endif; ?><?php if (!empty($row['fromprogrea'])): ?><span class="ov-tag">progreso</span><?php endif; ?><?php if (!empty($row['fromqueuea'])): ?><span class="ov-tag">queue</span><?php endif; ?><?php if (!empty($row['fromprerega'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?></td>
+                        <td><strong>#<?php echo (int)$b->id; ?> <?php echo s((string)$b->name); ?></strong><br><small>Periodo: <?php echo s((string)($b->periodname ?? ('ID ' . (int)$b->periodid))); ?><br>Plan: <?php echo s((string)($b->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($b->instructorfirstname ?? '') . ' ' . (string)($b->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scoreb']; ?></span><span class="ov-tag">Avance <?php echo (float)($pb->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pb->grade ?? 0); ?></span><?php if (!empty($row['fromgroupb'])): ?><span class="ov-tag">grupo</span><?php endif; ?><?php if (!empty($row['fromprogreb'])): ?><span class="ov-tag">progreso</span><?php endif; ?><?php if (!empty($row['fromqueueb'])): ?><span class="ov-tag">queue</span><?php endif; ?><?php if (!empty($row['frompreregb'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?></td>
                         <td><span class="ov-tag">Retirar #<?php echo (int)$s['classid']; ?></span><br><small><?php echo s((string)$s['reason']); ?></small></td>
                         <td>
                             <div class="ov-actions">
