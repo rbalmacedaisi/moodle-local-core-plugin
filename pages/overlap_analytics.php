@@ -385,6 +385,132 @@ function ov_load_attendance_fallback_sessions(array $classes) {
     return $out;
 }
 
+function ov_load_attendance_course_fallback_sessions(array $classes, array $existing = []) {
+    global $DB;
+
+    $out = [];
+    if (empty($classes)) {
+        return $out;
+    }
+
+    $classesbycourse = [];
+    foreach ($classes as $cid => $class) {
+        $cid = (int)$cid;
+        if (!empty($existing[$cid])) {
+            continue;
+        }
+        $courseid = (int)($class->corecourseid ?? 0);
+        if ($courseid <= 0) {
+            continue;
+        }
+        if (!isset($classesbycourse[$courseid])) {
+            $classesbycourse[$courseid] = [];
+        }
+        $classesbycourse[$courseid][$cid] = $class;
+    }
+    if (empty($classesbycourse)) {
+        return $out;
+    }
+
+    $courseids = array_values(array_map('intval', array_keys($classesbycourse)));
+    list($cinsql, $cparams) = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cfa');
+    $sessions = $DB->get_records_sql(
+        "SELECT s.id, s.attendanceid, s.groupid, s.sessdate, s.duration, a.course
+           FROM {attendance_sessions} s
+           JOIN {attendance} a ON a.id = s.attendanceid
+          WHERE a.course $cinsql",
+        $cparams
+    );
+
+    $dedup = [];
+    foreach ($sessions as $sess) {
+        $courseid = (int)($sess->course ?? 0);
+        if ($courseid <= 0 || empty($classesbycourse[$courseid])) {
+            continue;
+        }
+        $ts = (int)($sess->sessdate ?? 0);
+        if ($ts <= 0) {
+            continue;
+        }
+        $day = (int)date('N', $ts);
+        $start = ((int)date('G', $ts) * 60) + (int)date('i', $ts);
+        $duration = (int)($sess->duration ?? 0);
+        if ($duration <= 0) {
+            $duration = 3600;
+        }
+        $end = $start + max(1, (int)ceil($duration / 60));
+        if ($end <= $start) {
+            continue;
+        }
+        $date = date('Y-m-d', $ts);
+        $sessiongroup = (int)($sess->groupid ?? 0);
+
+        $candidates = [];
+        foreach ($classesbycourse[$courseid] as $cid => $class) {
+            $classstart = (int)($class->initdate ?? 0);
+            $classend = (int)($class->enddate ?? 0);
+            if ($classstart > 0 && $ts < $classstart) {
+                continue;
+            }
+            if ($classend > 0 && $ts > $classend) {
+                continue;
+            }
+
+            $classgroup = (int)($class->groupid ?? 0);
+            if ($sessiongroup > 0) {
+                if ($classgroup !== $sessiongroup) {
+                    continue;
+                }
+                $candidates[$cid] = $class;
+                continue;
+            }
+
+            if ($classgroup === 0) {
+                $candidates[$cid] = $class;
+                continue;
+            }
+
+            $cstart = ov_tmin($class->inittime ?? '');
+            $cend = ov_tmin($class->endtime ?? '');
+            if ($cstart >= 0 && $cend > $cstart) {
+                $mask = explode('/', trim((string)($class->classdays ?? '')));
+                $dayok = (isset($mask[$day - 1]) && (string)$mask[$day - 1] === '1');
+                if ($dayok) {
+                    $st = max($cstart, $start);
+                    $en = min($cend, $end);
+                    if ($st < $en) {
+                        $candidates[$cid] = $class;
+                    }
+                }
+            }
+        }
+
+        if (empty($candidates)) {
+            continue;
+        }
+
+        foreach ($candidates as $cid => $class) {
+            $key = $date . '|' . $start . '|' . $end;
+            if (isset($dedup[(int)$cid][$key])) {
+                continue;
+            }
+            $dedup[(int)$cid][$key] = true;
+            if (!isset($out[(int)$cid])) {
+                $out[(int)$cid] = [];
+            }
+            $out[(int)$cid][] = [
+                'day' => $day,
+                'start' => $start,
+                'end' => $end,
+                'assigned' => [$date],
+                'excluded' => []
+            ];
+        }
+    }
+
+    return $out;
+}
+
 function ov_load_legacy_time_fallback_sessions(array $classes) {
     $out = [];
     foreach ($classes as $cid => $class) {
@@ -851,6 +977,15 @@ if (true) {
             $sched[(int)$cid] = $rowsatt;
         }
 
+        // Fallback by attendance.course + attendance_sessions.groupid/date.
+        $attcoursefallback = ov_load_attendance_course_fallback_sessions($classes, $sched);
+        foreach ($attcoursefallback as $cid => $rowsatt) {
+            if (!empty($sched[(int)$cid])) {
+                continue;
+            }
+            $sched[(int)$cid] = $rowsatt;
+        }
+
         // Last fallback: classes created outside planner may only have classdays + inittime/endtime.
         $legacyfallback = ov_load_legacy_time_fallback_sessions($classes);
         foreach ($legacyfallback as $cid => $rowslegacy) {
@@ -1146,6 +1281,20 @@ if (trim((string)$studentq) !== '') {
                 }
             }
 
+            $diagattcourse = ov_load_attendance_course_fallback_sessions($srcclasses, $validschedule);
+            foreach ($diagattcourse as $cid => $rowsatt) {
+                if (empty($rowsatt) || !empty($validschedule[(int)$cid])) {
+                    continue;
+                }
+                $validschedule[(int)$cid] = true;
+                if (!isset($scheduletexts[(int)$cid])) {
+                    $scheduletexts[(int)$cid] = [];
+                }
+                foreach ($rowsatt as $sa) {
+                    $scheduletexts[(int)$cid][] = '[ATT-COURSE] ' . ov_day((int)$sa['day']) . ' ' . ov_fmin((int)$sa['start']) . '-' . ov_fmin((int)$sa['end']) . ' assigned=' . count((array)($sa['assigned'] ?? []));
+                }
+            }
+
             $diaglegacy = ov_load_legacy_time_fallback_sessions($srcclasses);
             foreach ($diaglegacy as $cid => $rowslegacy) {
                 if (empty($rowslegacy) || !empty($validschedule[(int)$cid])) {
@@ -1229,7 +1378,7 @@ echo $OUTPUT->header();
 </style>
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
-    <div class="ov-alert">Analisis global activo: sin filtros, todos los periodos, incluyendo pendientes.</div>
+    <div class="ov-alert">Analisis global activo: sin filtros, todos los periodos, incluyendo pendientes. Build: global-attendance-fallback-v2</div>
 
     <?php if ($flash): ?><div class="ov-alert<?php echo ((int)($flash['error'] ?? 0) > 0 ? ' err' : ''); ?>">Resultado: <?php echo (int)($flash['ok'] ?? 0); ?> exitoso(s), <?php echo (int)($flash['error'] ?? 0); ?> error(es).<?php if (!empty($flash['messages'])): ?><ul style="margin:6px 0 0 18px"><?php foreach ($flash['messages'] as $m): ?><li><?php echo s((string)$m); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
     <?php if (!empty($schemawarning)): ?><div class="ov-alert err"><?php echo s($schemawarning); ?></div><?php endif; ?>
