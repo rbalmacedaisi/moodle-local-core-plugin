@@ -57,7 +57,7 @@ window.Vue.component('editclass', {
                             <label class="w-100" for="classRoom">{{ lang.class_room }}</label>
                             <select v-model="classData.classRoomIndex" ref="classRoom" id="classRoom" class="form-control" :required="showClassRoomSelector">
                                 <option :value="undefined">{{ lang.class_room_placeholder }}</option>
-                                <option v-for="(classRoom,index) in (window.templatedata.classRooms || [])" :value="index">{{ classRoom.label }}</option>
+                                <option v-for="(classRoom,index) in classRooms" :value="index">{{ classRoom.label }}</option>
                             </select>
                         </div>
                             
@@ -305,6 +305,7 @@ window.Vue.component('editclass', {
             },
             filledInputs: false,
             classTypes: [],
+            classRooms: [],
             learningPlans: [],
             periods: [],
             lectivePeriods: [],
@@ -387,10 +388,11 @@ window.Vue.component('editclass', {
             this.classData.initDate = rawTemplatedata.initDate;
             this.classData.endDate = rawTemplatedata.endDate;
             this.classData.classroomCapacity = rawTemplatedata.classroomCapacity || 40;
-            if (Array.isArray(rawTemplatedata.classRooms)) {
+            this.classRooms = Array.isArray(rawTemplatedata.classRooms) ? rawTemplatedata.classRooms : [];
+            if (this.classRooms.length > 0) {
                 const roomId = Number(rawTemplatedata.classRoomId || 0);
                 if (roomId > 0) {
-                    const idx = rawTemplatedata.classRooms.findIndex(r => Number(r.value) === roomId);
+                    const idx = this.classRooms.findIndex(r => Number(r.value) === roomId);
                     this.classData.classRoomIndex = idx >= 0 ? idx : undefined;
                 } else {
                     this.classData.classRoomIndex = undefined;
@@ -660,8 +662,7 @@ window.Vue.component('editclass', {
             return this.activityRescheduleData.activityProposedInitTime < this.activityRescheduleData.activityProposedEndTime
         },
         selectedClassRoom() {
-            const rooms = Array.isArray(window.templatedata?.classRooms) ? window.templatedata.classRooms : [];
-            return rooms[this.classData.classRoomIndex];
+            return this.classRooms[this.classData.classRoomIndex];
         },
         showClassRoomSelector() {
             return Number(this.classData.type) !== 1;
