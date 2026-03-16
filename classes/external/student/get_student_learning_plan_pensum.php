@@ -109,7 +109,7 @@ class get_student_learning_plan_pensum extends external_api
         try {
             $userPensumCourses = $DB->get_records_sql(
                 "
-                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid, gcp.timemodified as progresstimemodified,
+                SELECT lpc.*, lpc.id as learningcourseid, gcp.status, gcp.progress, gcp.credits, gcp.prerequisites, gcp.id as progressid,
                        gcp.grade as progressgrade, gcp.classid as progressclassid, gcp.groupid as progressgroupid
                 FROM {local_learning_courses} lpc
                 LEFT JOIN {gmk_course_progre} gcp ON (gcp.courseid = lpc.courseid AND gcp.userid = :userid AND gcp.learningplanid = :learningplanid)
@@ -117,54 +117,6 @@ class get_student_learning_plan_pensum extends external_api
                 ORDER BY lpc.position ASC",
                 ['userid' => $params['userId'], 'learningplanid' => $params['learningPlanId'], 'lpid' => $params['learningPlanId']]
             );
-
-            // Deduplicate rows per learning course when gmk_course_progre has duplicates for same user/course/plan.
-            // Keep the most recent progress record, with tiebreakers favoring rows that are actively linked to class/group.
-            if (!empty($userPensumCourses)) {
-                $dedup = [];
-                foreach ($userPensumCourses as $row) {
-                    $learningkey = (int)($row->learningcourseid ?? 0);
-                    if ($learningkey <= 0) {
-                        $learningkey = (int)($row->courseid ?? 0);
-                    }
-                    $key = (string)$learningkey;
-                    $rowtime = (int)($row->progresstimemodified ?? 0);
-                    $rowid = (int)($row->progressid ?? 0);
-                    $rowscore = $rowtime;
-                    if ((int)($row->status ?? 0) === COURSE_IN_PROGRESS) {
-                        $rowscore += 1000000000;
-                    }
-                    if ((int)($row->progressclassid ?? 0) > 0) {
-                        $rowscore += 1000000;
-                    }
-                    if ((int)($row->progressgroupid ?? 0) > 0) {
-                        $rowscore += 100000;
-                    }
-                    $rowscore += $rowid;
-
-                    if (!isset($dedup[$key])) {
-                        $dedup[$key] = ['row' => $row, 'score' => $rowscore];
-                        continue;
-                    }
-
-                    if ($rowscore > (int)$dedup[$key]['score']) {
-                        $dedup[$key] = ['row' => $row, 'score' => $rowscore];
-                    }
-                }
-
-                $userPensumCourses = array_values(array_map(function($entry) {
-                    return $entry['row'];
-                }, $dedup));
-
-                usort($userPensumCourses, function($a, $b) {
-                    $ap = (int)($a->position ?? 0);
-                    $bp = (int)($b->position ?? 0);
-                    if ($ap === $bp) {
-                        return ((int)($a->learningcourseid ?? 0)) <=> ((int)($b->learningcourseid ?? 0));
-                    }
-                    return $ap <=> $bp;
-                });
-            }
             
             \gmk_log("DEBUG get_student_learning_plan_pensum - Courses found: " . count($userPensumCourses));
 

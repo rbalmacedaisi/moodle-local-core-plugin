@@ -427,13 +427,142 @@ function ov_flash_dec($v) {
     return is_array($arr) ? $arr : null;
 }
 
-function ov_withdraw($classid, $userid, $learningplanid) {
-    try {
-        $r = \local_grupomakro_core\external\schedule\withdraw_student::execute((int)$classid, (int)$userid, (int)$learningplanid);
-        return is_array($r) ? $r : ['status' => 'error', 'message' => 'Respuesta invalida'];
-    } catch (Throwable $e) {
-        return ['status' => 'error', 'message' => $e->getMessage()];
+function ov_withdraw_plan_candidates($classid, $userid, $preferredplanid = 0) {
+    global $DB;
+    $candidates = [];
+    if ((int)$preferredplanid > 0) {
+        $candidates[(int)$preferredplanid] = (int)$preferredplanid;
     }
+
+    $class = $DB->get_record('gmk_class', ['id' => (int)$classid], 'id,corecourseid,learningplanid,courseid', IGNORE_MISSING);
+    if ($class) {
+        if (!empty($class->learningplanid)) {
+            $candidates[(int)$class->learningplanid] = (int)$class->learningplanid;
+        }
+        if (!empty($class->courseid)) {
+            $mappedplan = (int)$DB->get_field('local_learning_courses', 'learningplanid', ['id' => (int)$class->courseid], IGNORE_MISSING);
+            if ($mappedplan > 0) {
+                $candidates[$mappedplan] = $mappedplan;
+            }
+        }
+
+        if (!empty($class->corecourseid)) {
+            $courseplanids = $DB->get_fieldset_sql(
+                "SELECT DISTINCT learningplanid
+                   FROM {gmk_course_progre}
+                  WHERE userid = :uid
+                    AND courseid = :courseid
+                    AND learningplanid > 0",
+                ['uid' => (int)$userid, 'courseid' => (int)$class->corecourseid]
+            );
+            foreach ($courseplanids as $pid) {
+                $pid = (int)$pid;
+                if ($pid > 0) {
+                    $candidates[$pid] = $pid;
+                }
+            }
+
+            $activeplans = $DB->get_fieldset_sql(
+                "SELECT DISTINCT lu.learningplanid
+                   FROM {local_learning_users} lu
+                   JOIN {local_learning_courses} lpc ON lpc.learningplanid = lu.learningplanid
+                  WHERE lu.userid = :uid
+                    AND lu.status = :active
+                    AND lpc.courseid = :courseid",
+                ['uid' => (int)$userid, 'active' => 'activo', 'courseid' => (int)$class->corecourseid]
+            );
+            foreach ($activeplans as $pid) {
+                $pid = (int)$pid;
+                if ($pid > 0) {
+                    $candidates[$pid] = $pid;
+                }
+            }
+        }
+    }
+
+    return array_values($candidates);
+}
+
+function ov_withdraw_residuals($classid, $userid, array $planids = []) {
+    global $DB;
+
+    $class = $DB->get_record('gmk_class', ['id' => (int)$classid], 'id,groupid,corecourseid', IGNORE_MISSING);
+    $ingroup = false;
+    if ($class && !empty($class->groupid)) {
+        $ingroup = groups_is_member((int)$class->groupid, (int)$userid);
+    }
+
+    $classrows = (int)$DB->count_records('gmk_course_progre', ['userid' => (int)$userid, 'classid' => (int)$classid]);
+    $prereg = (int)$DB->count_records('gmk_class_pre_registration', ['userid' => (int)$userid, 'classid' => (int)$classid]);
+    $queue = (int)$DB->count_records('gmk_class_queue', ['userid' => (int)$userid, 'classid' => (int)$classid]);
+
+    $floating = 0;
+    if ($class && !empty($class->corecourseid) && !empty($planids)) {
+        list($insql, $inparams) = $DB->get_in_or_equal(array_values(array_unique(array_map('intval', $planids))), SQL_PARAMS_NAMED, 'ovlp');
+        $floating = (int)$DB->count_records_sql(
+            "SELECT COUNT(1)
+               FROM {gmk_course_progre}
+              WHERE userid = :uid
+                AND courseid = :courseid
+                AND learningplanid $insql
+                AND status = :stinprogress
+                AND classid = 0
+                AND groupid = 0",
+            ['uid' => (int)$userid, 'courseid' => (int)$class->corecourseid, 'stinprogress' => COURSE_IN_PROGRESS] + $inparams
+        );
+    }
+
+    return [
+        'ingroup' => $ingroup ? 1 : 0,
+        'classrows' => $classrows,
+        'prereg' => $prereg,
+        'queue' => $queue,
+        'floating' => $floating
+    ];
+}
+
+function ov_withdraw($classid, $userid, $learningplanid) {
+    $planids = ov_withdraw_plan_candidates((int)$classid, (int)$userid, (int)$learningplanid);
+    if (!in_array(0, $planids, true)) {
+        $planids[] = 0;
+    }
+
+    $lastr = null;
+    foreach ($planids as $pid) {
+        try {
+            $r = \local_grupomakro_core\external\schedule\withdraw_student::execute((int)$classid, (int)$userid, (int)$pid);
+            $lastr = is_array($r) ? $r : ['status' => 'error', 'message' => 'Respuesta invalida'];
+        } catch (Throwable $e) {
+            $lastr = ['status' => 'error', 'message' => $e->getMessage()];
+        }
+
+        $residual = ov_withdraw_residuals((int)$classid, (int)$userid, $planids);
+        $complete = ((int)$residual['ingroup'] === 0)
+            && ((int)$residual['classrows'] === 0)
+            && ((int)$residual['prereg'] === 0)
+            && ((int)$residual['queue'] === 0)
+            && ((int)$residual['floating'] === 0);
+
+        if ($complete) {
+            $msg = (string)($lastr['message'] ?? 'ok');
+            if ((int)$pid > 0 && (int)$pid !== (int)$learningplanid) {
+                $msg .= ' (reintento con learningplanid=' . (int)$pid . ')';
+            }
+            return ['status' => 'ok', 'message' => $msg];
+        }
+    }
+
+    $residual = ov_withdraw_residuals((int)$classid, (int)$userid, $planids);
+    $base = is_array($lastr) ? $lastr : ['status' => 'error', 'message' => 'No se pudo retirar'];
+    $base['status'] = 'error';
+    $base['message'] = (string)($base['message'] ?? 'No se pudo retirar')
+        . ' | residuals group=' . (int)$residual['ingroup']
+        . ' classrows=' . (int)$residual['classrows']
+        . ' prereg=' . (int)$residual['prereg']
+        . ' queue=' . (int)$residual['queue']
+        . ' floating=' . (int)$residual['floating'];
+    return $base;
+
 }
 
 function ov_keep_score($class, $progre, $planmatch, $group, $prog, $now) {
