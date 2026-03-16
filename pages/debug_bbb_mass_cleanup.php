@@ -25,6 +25,7 @@ $PAGE->set_heading('BBB Mass Cleanup');
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $classid = optional_param('classid', 0, PARAM_INT);
 $maxclasses = optional_param('maxclasses', 250, PARAM_INT);
+$maxrepair = optional_param('maxrepair', 200, PARAM_INT);
 $maxdeltahours = optional_param('maxdeltahours', 48, PARAM_INT);
 $showonlyissues = optional_param('showonlyissues', 1, PARAM_INT);
 $deletemodules = optional_param('deletemodules', 0, PARAM_INT);
@@ -694,6 +695,7 @@ foreach ($periods as $p) {
 echo '</select></label> ';
 echo '<label style="margin-left:10px">Class ID: <input type="number" name="classid" value="' . (int)$classid . '" style="width:90px"></label> ';
 echo '<label style="margin-left:10px">Max classes: <input type="number" name="maxclasses" min="1" max="5000" value="' . (int)$maxclasses . '" style="width:90px"></label> ';
+echo '<label style="margin-left:10px">Max repair: <input type="number" name="maxrepair" min="1" max="5000" value="' . (int)$maxrepair . '" style="width:90px"></label> ';
 echo '<label style="margin-left:10px">Max delta hours: <input type="number" name="maxdeltahours" min="1" max="240" value="' . (int)$maxdeltahours . '" style="width:90px"></label> ';
 echo '<label style="margin-left:10px"><input type="checkbox" name="showonlyissues" value="1" ' . (!empty($showonlyissues) ? 'checked' : '') . '> Show only issues</label> ';
 echo '<label style="margin-left:10px"><input type="checkbox" name="deletemodules" value="1" ' . (!empty($deletemodules) ? 'checked' : '') . '> Delete orphan BBB modules</label> ';
@@ -702,9 +704,11 @@ echo '<button type="submit" class="btn btn-primary" style="margin-left:10px">Ana
 echo '</form>';
 
 $maxclasses = max(1, min(5000, (int)$maxclasses));
+$maxrepair = max(1, min(5000, (int)$maxrepair));
 $maxdeltasecs = max(3600, min(240 * 3600, (int)$maxdeltahours * 3600));
 $isrepairpost = ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected');
 $repairone = $isrepairpost ? optional_param('repairone', 0, PARAM_INT) : 0;
+$repairall = $isrepairpost ? optional_param('repairall', 0, PARAM_INT) : 0;
 $postselected = $isrepairpost ? optional_param_array('selected', [], PARAM_INT) : [];
 if ($repairone > 0) {
     $postselected = [$repairone];
@@ -775,6 +779,20 @@ $applyresults = [];
 if ($isrepairpost) {
     require_sesskey();
     $selected = $postselected;
+    if (!empty($repairall)) {
+        $selected = [];
+        foreach ($analyses as $cid => $a) {
+            if (!empty($a['summary']['has_issues'])) {
+                $selected[] = (int)$cid;
+            }
+        }
+        if (count($selected) > $maxrepair) {
+            $selected = array_slice($selected, 0, $maxrepair);
+            echo '<div class="mc-card"><span class="mc-warn">Repair all capped by maxrepair=' . (int)$maxrepair . '.</span></div>';
+        } else {
+            echo '<div class="mc-card"><span class="mc-warn">Repair all issues mode: ' . count($selected) . ' classes selected.</span></div>';
+        }
+    }
     if (empty($selected)) {
         echo '<div class="mc-card"><span class="mc-warn">No classes selected for repair.</span></div>';
     } else {
@@ -834,6 +852,7 @@ if ($isrepairpost) {
 echo '<div class="mc-card">';
 echo 'Classes scanned: <strong>' . (int)$summary['classes_scanned'] . '</strong> | ';
 echo 'With issues: <strong>' . (int)$summary['classes_with_issues'] . '</strong> | ';
+echo 'Max repair: <strong>' . (int)$maxrepair . '</strong> | ';
 echo 'Planned relation updates: <strong>' . (int)$summary['total_updates'] . '</strong> | ';
 echo 'Planned relation deletes: <strong>' . (int)$summary['total_delete_rel'] . '</strong> | ';
 echo 'Orphan module candidates: <strong>' . (int)$summary['total_extra_cm'] . '</strong>';
@@ -865,11 +884,11 @@ echo '<input type="hidden" name="action" value="repair_selected">';
 echo '<input type="hidden" name="periodid" value="' . (int)$periodid . '">';
 echo '<input type="hidden" name="classid" value="' . (int)$classid . '">';
 echo '<input type="hidden" name="maxclasses" value="' . (int)$maxclasses . '">';
+echo '<input type="hidden" name="maxrepair" value="' . (int)$maxrepair . '">';
 echo '<input type="hidden" name="maxdeltahours" value="' . (int)$maxdeltahours . '">';
 echo '<input type="hidden" name="showonlyissues" value="' . (!empty($showonlyissues) ? '1' : '0') . '">';
 echo '<input type="hidden" name="deletemodules" value="' . (!empty($deletemodules) ? '1' : '0') . '">';
 echo '<input type="hidden" name="deleteextras" value="' . (!empty($deleteextras) ? '1' : '0') . '">';
-echo '<input type="hidden" name="repairone" value="0">';
 
 echo '<table class="mc-table"><thead><tr>'
     . '<th>Select</th><th>Class</th><th>Period</th><th>Core course</th><th>Group</th>'
@@ -918,6 +937,7 @@ if (empty($analyses)) {
 
 echo '</tbody></table>';
 echo '<div class="mc-card">';
+echo '<button type="submit" name="repairall" value="1" class="btn btn-danger" onclick="return confirm(\'Apply repair to all detected issues in current filter?\');">Repair all issues</button> ';
 echo '<button type="submit" class="btn btn-danger" onclick="return confirm(\'Apply repair to selected classes?\');">Repair selected classes</button>';
 echo '</div>';
 echo '</form>';
