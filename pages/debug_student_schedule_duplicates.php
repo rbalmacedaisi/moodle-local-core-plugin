@@ -211,17 +211,24 @@ function gmk_dbg_sd_dup_values_text(array $values): string {
     return empty($out) ? '-' : implode(', ', $out);
 }
 
-function gmk_dbg_sd_period_sql_parts(): array {
+function gmk_dbg_sd_table_exists(string $tablename): bool {
     global $DB;
-    $dbman = $DB->get_manager();
+    try {
+        $cols = $DB->get_columns($tablename);
+        return is_array($cols) && !empty($cols);
+    } catch (Throwable $t) {
+        return false;
+    }
+}
 
-    if ($dbman->table_exists(new xmldb_table('gmk_academic_periods'))) {
+function gmk_dbg_sd_period_sql_parts(): array {
+    if (gmk_dbg_sd_table_exists('gmk_academic_periods')) {
         return [
             'select' => 'p.name AS periodname',
             'join' => 'LEFT JOIN {gmk_academic_periods} p ON p.id = c.periodid',
         ];
     }
-    if ($dbman->table_exists(new xmldb_table('local_learning_periods'))) {
+    if (gmk_dbg_sd_table_exists('local_learning_periods')) {
         return [
             'select' => 'p.name AS periodname',
             'join' => 'LEFT JOIN {local_learning_periods} p ON p.id = c.periodid',
