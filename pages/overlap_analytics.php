@@ -628,8 +628,53 @@ $base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $run
 
 if (data_submitted() && confirm_sesskey()) {
     $op = optional_param('op', '', PARAM_ALPHA);
-    if ($op !== '') {
-        $targets = [];
+    $targets = [];
+    $rowsel = optional_param('rowop', '', PARAM_RAW_TRIMMED);
+    $parseSelection = function($sel) {
+        $parts = explode('|', (string)$sel);
+        if (count($parts) !== 6) {
+            return null;
+        }
+        $uid = (int)$parts[0];
+        $ca = (int)$parts[1];
+        $lpa = (int)$parts[2];
+        $cb = (int)$parts[3];
+        $lpb = (int)$parts[4];
+        $suggested = (int)$parts[5];
+        if ($uid <= 0 || $ca <= 0 || $cb <= 0) {
+            return null;
+        }
+        return [
+            'uid' => $uid,
+            'ca' => $ca,
+            'lpa' => $lpa,
+            'cb' => $cb,
+            'lpb' => $lpb,
+            'suggested' => $suggested
+        ];
+    };
+
+    if ($rowsel !== '') {
+        // rowop format: <op>|<uid>|<classa>|<lpa>|<classb>|<lpb>|<suggested>
+        $rowparts = explode('|', (string)$rowsel, 2);
+        if (count($rowparts) === 2) {
+            $rowop = trim((string)$rowparts[0]);
+            $parsed = $parseSelection((string)$rowparts[1]);
+            if (in_array($rowop, ['withdraw_a', 'withdraw_b', 'withdraw_suggested'], true) && is_array($parsed)) {
+                $targetclass = (int)$parsed['ca'];
+                $targetlp = (int)$parsed['lpa'];
+                if ($rowop === 'withdraw_b') {
+                    $targetclass = (int)$parsed['cb'];
+                    $targetlp = (int)$parsed['lpb'];
+                } else if ($rowop === 'withdraw_suggested' && (int)$parsed['suggested'] > 0) {
+                    $targetclass = (int)$parsed['suggested'];
+                    $targetlp = ($targetclass === (int)$parsed['ca']) ? (int)$parsed['lpa'] : (int)$parsed['lpb'];
+                }
+                $targets[] = ['userid' => (int)$parsed['uid'], 'classid' => $targetclass, 'learningplanid' => $targetlp];
+                $op = $rowop;
+            }
+        }
+    } else if ($op !== '') {
         if (in_array($op, ['withdraw_a', 'withdraw_b', 'withdraw_suggested'], true)) {
             $userid = required_param('userid', PARAM_INT);
             $classida = required_param('classida', PARAM_INT);
@@ -649,32 +694,30 @@ if (data_submitted() && confirm_sesskey()) {
             $targets[] = ['userid' => $userid, 'classid' => $targetclass, 'learningplanid' => $targetlp];
         }
         if (in_array($op, ['bulk_suggested', 'bulk_a', 'bulk_b'], true)) {
-            foreach (optional_param_array('selected', [], PARAM_RAW_TRIMMED) as $sel) {
-                $parts = explode('|', (string)$sel);
-                if (count($parts) !== 6) {
+            $selectedrows = optional_param_array('selected', [], PARAM_RAW_TRIMMED);
+            if (empty($selectedrows)) {
+                $selectedrows = optional_param_array('allrows', [], PARAM_RAW_TRIMMED);
+            }
+            foreach ($selectedrows as $sel) {
+                $parsed = $parseSelection((string)$sel);
+                if (!is_array($parsed)) {
                     continue;
                 }
-                $uid = (int)$parts[0];
-                $ca = (int)$parts[1];
-                $lpa = (int)$parts[2];
-                $cb = (int)$parts[3];
-                $lpb = (int)$parts[4];
-                $suggested = (int)$parts[5];
-                if ($uid <= 0) {
-                    continue;
-                }
-                $targetclass = $ca;
-                $targetlp = $lpa;
+                $targetclass = (int)$parsed['ca'];
+                $targetlp = (int)$parsed['lpa'];
                 if ($op === 'bulk_b') {
-                    $targetclass = $cb;
-                    $targetlp = $lpb;
-                } else if ($op === 'bulk_suggested' && $suggested > 0) {
-                    $targetclass = $suggested;
-                    $targetlp = ($targetclass === $ca) ? $lpa : $lpb;
+                    $targetclass = (int)$parsed['cb'];
+                    $targetlp = (int)$parsed['lpb'];
+                } else if ($op === 'bulk_suggested' && (int)$parsed['suggested'] > 0) {
+                    $targetclass = (int)$parsed['suggested'];
+                    $targetlp = ($targetclass === (int)$parsed['ca']) ? (int)$parsed['lpa'] : (int)$parsed['lpb'];
                 }
-                $targets[] = ['userid' => $uid, 'classid' => $targetclass, 'learningplanid' => $targetlp];
+                $targets[] = ['userid' => (int)$parsed['uid'], 'classid' => $targetclass, 'learningplanid' => $targetlp];
             }
         }
+    }
+
+    if ($op !== '' || !empty($targets)) {
 
         $ok = 0;
         $err = 0;
@@ -1221,7 +1264,10 @@ echo $OUTPUT->header();
                         $sel = (int)$row['userid'] . '|' . (int)$a->id . '|' . (int)$row['lpa'] . '|' . (int)$b->id . '|' . (int)$row['lpb'] . '|' . (int)$s['classid'];
                     ?>
                     <tr>
-                        <td><input type="checkbox" class="ov-check-item" name="selected[]" value="<?php echo s($sel); ?>"></td>
+                        <td>
+                            <input type="checkbox" class="ov-check-item" name="selected[]" value="<?php echo s($sel); ?>">
+                            <input type="hidden" name="allrows[]" value="<?php echo s($sel); ?>">
+                        </td>
                         <td><strong><?php echo s(trim((string)$u->firstname . ' ' . (string)$u->lastname)); ?></strong><br><small>uid=<?php echo (int)$row['userid']; ?> | idnumber=<?php echo s((string)($u->idnumber ?? '-')); ?><br><?php echo s((string)($u->email ?? '-')); ?></small></td>
                         <td><?php foreach ($row['windows'] as $w): ?><span class="ov-win"><?php echo s((string)$w); ?></span><?php endforeach; ?></td>
                         <td><strong>#<?php echo (int)$a->id; ?> <?php echo s((string)$a->name); ?></strong><br><small>Periodo: <?php echo s((string)($a->periodname ?? ('ID ' . (int)$a->periodid))); ?><br>Plan: <?php echo s((string)($a->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($a->instructorfirstname ?? '') . ' ' . (string)($a->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scorea']; ?></span><span class="ov-tag">Avance <?php echo (float)($pa->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pa->grade ?? 0); ?></span><?php if (!empty($row['fromgroupa'])): ?><span class="ov-tag">grupo</span><?php endif; ?><?php if (!empty($row['fromprogrea'])): ?><span class="ov-tag">progreso</span><?php endif; ?><?php if (!empty($row['fromqueuea'])): ?><span class="ov-tag">queue</span><?php endif; ?><?php if (!empty($row['fromprerega'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?></td>
@@ -1229,36 +1275,15 @@ echo $OUTPUT->header();
                         <td><span class="ov-tag">Retirar #<?php echo (int)$s['classid']; ?></span><br><small><?php echo s((string)$s['reason']); ?></small></td>
                         <td>
                             <div class="ov-actions">
-                                <button class="ov-btn ov-row-action" type="button" data-op="withdraw_suggested" data-confirm="Retirar sugerida para este estudiante?"
-                                    data-userid="<?php echo (int)$row['userid']; ?>" data-classida="<?php echo (int)$a->id; ?>" data-classidb="<?php echo (int)$b->id; ?>"
-                                    data-lpa="<?php echo (int)$row['lpa']; ?>" data-lpb="<?php echo (int)$row['lpb']; ?>" data-suggested="<?php echo (int)$s['classid']; ?>">Sugerida</button>
-                                <button class="ov-btn warn ov-row-action" type="button" data-op="withdraw_a" data-confirm="Retirar Clase A para este estudiante?"
-                                    data-userid="<?php echo (int)$row['userid']; ?>" data-classida="<?php echo (int)$a->id; ?>" data-classidb="<?php echo (int)$b->id; ?>"
-                                    data-lpa="<?php echo (int)$row['lpa']; ?>" data-lpb="<?php echo (int)$row['lpb']; ?>" data-suggested="<?php echo (int)$s['classid']; ?>">Retirar A</button>
-                                <button class="ov-btn err ov-row-action" type="button" data-op="withdraw_b" data-confirm="Retirar Clase B para este estudiante?"
-                                    data-userid="<?php echo (int)$row['userid']; ?>" data-classida="<?php echo (int)$a->id; ?>" data-classidb="<?php echo (int)$b->id; ?>"
-                                    data-lpa="<?php echo (int)$row['lpa']; ?>" data-lpb="<?php echo (int)$row['lpb']; ?>" data-suggested="<?php echo (int)$s['classid']; ?>">Retirar B</button>
+                                <button class="ov-btn" type="submit" name="rowop" value="<?php echo s('withdraw_suggested|' . $sel); ?>" data-confirm="Retirar sugerida para este estudiante?">Sugerida</button>
+                                <button class="ov-btn warn" type="submit" name="rowop" value="<?php echo s('withdraw_a|' . $sel); ?>" data-confirm="Retirar Clase A para este estudiante?">Retirar A</button>
+                                <button class="ov-btn err" type="submit" name="rowop" value="<?php echo s('withdraw_b|' . $sel); ?>" data-confirm="Retirar Clase B para este estudiante?">Retirar B</button>
                             </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
-        </form>
-        <form method="post" id="ov-row-form" style="display:none">
-            <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
-            <input type="hidden" name="periodid" value="<?php echo (int)$periodid; ?>">
-            <input type="hidden" name="studentq" value="<?php echo s($studentq); ?>">
-            <input type="hidden" name="runningonly" value="<?php echo (int)$runningonly; ?>">
-            <input type="hidden" name="includepending" value="<?php echo (int)$includepending; ?>">
-            <input type="hidden" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>">
-            <input type="hidden" name="op" value="">
-            <input type="hidden" name="userid" value="">
-            <input type="hidden" name="classida" value="">
-            <input type="hidden" name="classidb" value="">
-            <input type="hidden" name="lpa" value="">
-            <input type="hidden" name="lpb" value="">
-            <input type="hidden" name="suggested" value="">
         </form>
     <?php endif; ?>
 </div>
@@ -1281,36 +1306,22 @@ echo $OUTPUT->header();
             }
             if ((btn.value || '').indexOf('bulk_') === 0) {
                 var selected = document.querySelectorAll('.ov-check-item:checked');
-                if (!selected.length) {
+                var count = selected.length;
+                if (!count) {
+                    count = document.querySelectorAll('.ov-check-item').length;
+                }
+                if (!count) {
                     e.preventDefault();
-                    window.alert('Selecciona al menos un conflicto.');
+                    window.alert('No hay conflictos para procesar.');
                     return;
                 }
-                if (!window.confirm('Ejecutar accion masiva sobre ' + selected.length + ' conflicto(s)?')) {
+                if (!window.confirm('Ejecutar accion masiva sobre ' + count + ' conflicto(s)?')) {
                     e.preventDefault();
                 }
             }
         });
     });
 
-    var rowForm = document.getElementById('ov-row-form');
-    document.querySelectorAll('.ov-row-action').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            if (!rowForm) { return; }
-            var msg = btn.getAttribute('data-confirm');
-            if (msg && !window.confirm(msg)) {
-                return;
-            }
-            rowForm.querySelector('input[name="op"]').value = btn.getAttribute('data-op') || '';
-            rowForm.querySelector('input[name="userid"]').value = btn.getAttribute('data-userid') || '';
-            rowForm.querySelector('input[name="classida"]').value = btn.getAttribute('data-classida') || '';
-            rowForm.querySelector('input[name="classidb"]').value = btn.getAttribute('data-classidb') || '';
-            rowForm.querySelector('input[name="lpa"]').value = btn.getAttribute('data-lpa') || '';
-            rowForm.querySelector('input[name="lpb"]').value = btn.getAttribute('data-lpb') || '';
-            rowForm.querySelector('input[name="suggested"]').value = btn.getAttribute('data-suggested') || '';
-            rowForm.submit();
-        });
-    });
 })();
 </script>
 <?php
