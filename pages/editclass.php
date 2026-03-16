@@ -170,6 +170,8 @@ $classPotentialTeachers = array_values(array_map(function ($potentialTeacher) us
     return $teacherData;
 },$classPotentialTeachers));
 
+$classRooms = get_classrooms();
+
 $classDaysRaw = trim($class->classdays ?? '');
 $daysParts = explode('/', $classDaysRaw);
 $classDays = [
@@ -240,6 +242,8 @@ $templatedata = json_encode([
     'classId'=> $class->id,
     'className'=> $class->name,
     'classTypes' => $classTypes,
+    'classRooms' => $classRooms,
+    'classRoomId' => !empty($class->classroomid) ? (int)$class->classroomid : 0,
     'classLearningPlans' => $classLearningPlans,
     'classPeriods'=>$classPeriods,
     'classLectivePeriods' => $classLectivePeriods,

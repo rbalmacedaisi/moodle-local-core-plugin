@@ -52,6 +52,14 @@ window.Vue.component('editclass', {
                                 <option v-for="classType in classTypes" :value="classType.value">{{classType.label}}</option> 
                             </select>
                         </div>
+
+                        <div id="classroom-fieldset" class="col-sm-12 col-md-6 py-2" v-show="showClassRoomSelector">
+                            <label class="w-100" for="classRoom">{{ lang.class_room }}</label>
+                            <select v-model="classData.classRoomIndex" ref="classRoom" id="classRoom" class="form-control" :required="showClassRoomSelector">
+                                <option :value="undefined">{{ lang.class_room_placeholder }}</option>
+                                <option v-for="(classRoom,index) in (window.templatedata.classRooms || [])" :value="index">{{ classRoom.label }}</option>
+                            </select>
+                        </div>
                             
                         <div id="learning-fieldset" class="col-sm-12 col-md-6 py-2">
                             <label class="w-100" for="classLearningPlan">{{ lang.class_learning_plan }}</label>
@@ -274,6 +282,7 @@ window.Vue.component('editclass', {
                 id: undefined,
                 name: undefined,
                 type: undefined,
+                classRoomIndex: undefined,
                 learningPlanId: undefined,
                 periodId: undefined,
                 academicPeriodId: undefined,
@@ -378,6 +387,15 @@ window.Vue.component('editclass', {
             this.classData.initDate = rawTemplatedata.initDate;
             this.classData.endDate = rawTemplatedata.endDate;
             this.classData.classroomCapacity = rawTemplatedata.classroomCapacity || 40;
+            if (Array.isArray(rawTemplatedata.classRooms)) {
+                const roomId = Number(rawTemplatedata.classRoomId || 0);
+                if (roomId > 0) {
+                    const idx = rawTemplatedata.classRooms.findIndex(r => Number(r.value) === roomId);
+                    this.classData.classRoomIndex = idx >= 0 ? idx : undefined;
+                } else {
+                    this.classData.classRoomIndex = undefined;
+                }
+            }
 
             this.classData.classDays = classDays;
 
@@ -619,6 +637,7 @@ window.Vue.component('editclass', {
             return [
                 this.$refs.className,
                 this.$refs.classType,
+                this.showClassRoomSelector ? this.$refs.classRoom : null,
                 this.$refs.classLearningPlan,
                 this.$refs.classPeriod,
                 this.$refs.classAcademicPeriod,
@@ -639,6 +658,13 @@ window.Vue.component('editclass', {
         },
         validRescheduleTimeRange() {
             return this.activityRescheduleData.activityProposedInitTime < this.activityRescheduleData.activityProposedEndTime
+        },
+        selectedClassRoom() {
+            const rooms = Array.isArray(window.templatedata?.classRooms) ? window.templatedata.classRooms : [];
+            return rooms[this.classData.classRoomIndex];
+        },
+        showClassRoomSelector() {
+            return Number(this.classData.type) !== 1;
         },
         selectedClassTeacher() {
             return this.teachers[this.classData.teacherIndex]
@@ -694,6 +720,7 @@ window.Vue.component('editclass', {
         },
         saveClassParameters() {
             const { id, name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, classroomCapacity } = this.classData
+            const selectedRoomId = this.showClassRoomSelector ? (this.selectedClassRoom?.value || 0) : 0;
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_update_class',
@@ -710,6 +737,7 @@ window.Vue.component('editclass', {
                 initDate: this.classData.initDate,
                 endDate: this.classData.endDate,
                 classDays: this.classDaysString,
+                classroomId: selectedRoomId,
                 classroomCapacity: classroomCapacity || 40,
             }
         },
@@ -741,6 +769,11 @@ window.Vue.component('editclass', {
     },
     watch: {
         classDaysString: 'getPotentialTeachers',
+        'classData.type': function handler(newVal) {
+            if (Number(newVal) === 1) {
+                this.classData.classRoomIndex = undefined;
+            }
+        },
         'classData.learningPlanId': function handler(newVal, oldVal) {
             if (!this.filledInputs) {
                 return;

@@ -440,7 +440,7 @@ window.Vue.component('createclass', {
             return [
                 this.$refs.className,
                 this.$refs.classType,
-                this.$refs.classRoom,
+                this.showClassRoomSelector ? this.$refs.classRoom : null,
                 this.$refs.classLearningPlan,
                 this.$refs.classPeriod,
                 this.$refs.classAcademicPeriod,
@@ -480,10 +480,12 @@ window.Vue.component('createclass', {
             return this.teachers[this.classData.teacherIndex]
         },
         showClassRoomSelector() {
-            return this.classData.type === 0;
+            return Number(this.classData.type) !== 1;
         },
         saveClassParameters() {
             const { name, type, learningPlanId, periodId, academicPeriodId, courseId, initTime, endTime, initDate, endDate } = this.classData
+            const selectedRoomId = this.showClassRoomSelector ? (this.selectedClassRoom?.value || 0) : 0;
+            const selectedRoomCapacity = this.showClassRoomSelector ? (this.selectedClassRoom?.capacity || 40) : 40;
             return {
                 ...wsDefaultParams,
                 wsfunction: 'local_grupomakro_create_class',
@@ -499,8 +501,8 @@ window.Vue.component('createclass', {
                 initDate,
                 endDate,
                 classDays: this.classDaysString,
-                classroomId: this.selectedClassRoom?.value,
-                classroomCapacity: this.selectedClassRoom?.capacity || 40
+                classroomId: selectedRoomId,
+                classroomCapacity: selectedRoomCapacity
             }
         },
         validTimeRange() {
@@ -540,5 +542,10 @@ window.Vue.component('createclass', {
     },
     watch: {
         classDaysString: 'getPotentialTeachers',
+        'classData.type': function handler(newVal) {
+            if (Number(newVal) === 1) {
+                this.classData.classRoomIndex = undefined;
+            }
+        },
     },
 })

@@ -3560,6 +3560,14 @@ function update_class($classParams)
     $class->initdate       = isset($classParams["initDate"]) ? strtotime($classParams["initDate"]) : 0;
     $class->enddate        = isset($classParams["endDate"]) ? strtotime($classParams["endDate"]) : 0;
     $class->classdays      = $classParams["classDays"];
+    if (array_key_exists("classroomId", $classParams)) {
+        $roomToken = trim((string)$classParams["classroomId"]);
+        if ($roomToken === '' || $roomToken === '0' || core_text::strtolower($roomToken) === 'sin aula') {
+            $class->classroomid = null;
+        } else {
+            $class->classroomid = (int)$roomToken;
+        }
+    }
     $class->usermodified   = $USER->id;
     $class->timemodified   = time();
 
@@ -3572,8 +3580,30 @@ function update_class($classParams)
 
     $classUpdated = $DB->update_record('gmk_class', $class);
 
-    if ($class->instructorid !== $classOldInstructorId) {
+    $groupIdentityChanged = (
+        (string)$class->name !== (string)$oldClass->name ||
+        (int)$class->type !== (int)$oldClass->type ||
+        (int)$class->periodid !== (int)$oldClass->periodid ||
+        (int)($class->classroomid ?? 0) !== (int)($oldClass->classroomid ?? 0)
+    );
+    if ((int)($class->groupid ?? 0) > 0 && ($class->instructorid !== $classOldInstructorId || $groupIdentityChanged)) {
         update_class_group($class, $classOldInstructorId);
+    }
+
+    // Keep schedule rows aligned with classroom selected in editclass, even if
+    // date/time did not change (no activity rebuild needed for room-only updates).
+    if ((int)($class->classroomid ?? 0) !== (int)($oldClass->classroomid ?? 0)) {
+        $DB->execute(
+            "UPDATE {gmk_class_schedules}
+                SET classroomid = :rid, timemodified = :tm, usermodified = :um
+              WHERE classid = :cid",
+            [
+                'rid' => !empty($class->classroomid) ? (int)$class->classroomid : null,
+                'tm' => time(),
+                'um' => (int)$USER->id,
+                'cid' => (int)$class->id
+            ]
+        );
     }
     
     // Performance Optimization: Only recreate activities if schedule parameters changed
@@ -3631,12 +3661,14 @@ function update_class_group($class, $oldInstructorId)
         throw new Exception('Error updating class group');
     }
 
-    //Remove the previous instructor and add the new one to the group
-    if (!empty($oldInstructorId) && (int)$oldInstructorId > 0) {
-        groups_remove_member((int)$class->groupid, (int)$oldInstructorId);
-    }
-    if (!empty($class->instructorid) && (int)$class->instructorid > 0) {
-        groups_add_member((int)$class->groupid, (int)$class->instructorid);
+    //Remove/add instructor only when instructor actually changed.
+    if ((int)$oldInstructorId !== (int)$class->instructorid) {
+        if (!empty($oldInstructorId) && (int)$oldInstructorId > 0) {
+            groups_remove_member((int)$class->groupid, (int)$oldInstructorId);
+        }
+        if (!empty($class->instructorid) && (int)$class->instructorid > 0) {
+            groups_add_member((int)$class->groupid, (int)$class->instructorid);
+        }
     }
 
     return $updatedClassGroup->updatedGroup;

@@ -67,6 +67,7 @@ class update_class extends external_api {
                 'initDate' => new external_value(PARAM_TEXT, 'The start date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'endDate' => new external_value(PARAM_TEXT, 'The end date of the class (YYYY-MM-DD)', VALUE_DEFAULT, ''),
                 'classDays' => new external_value(PARAM_TEXT, 'The days when the class will have sessions, the format is l/m/m/j/v/s/d and every letter can contain 0 or 1 depending if the day is active'),
+                'classroomId' => new external_value(PARAM_TEXT, 'Classroom id', VALUE_DEFAULT, null, NULL_ALLOWED),
                 'classroomCapacity' => new external_value(PARAM_INT, 'Classroom capacity', VALUE_DEFAULT, 0),
                 'academicPeriodId' => new external_value(PARAM_INT, 'Institutional/lective period id (gmk_academic_periods.id)', VALUE_DEFAULT, 0),
             ]
@@ -92,6 +93,7 @@ class update_class extends external_api {
         string $initDate = '',
         string $endDate = '',
         string $classDays,
+        ?string $classroomId = null,
         int $classroomCapacity = 0,
         int $academicPeriodId = 0
         ) {
@@ -111,6 +113,7 @@ class update_class extends external_api {
             'initDate'=>$initDate,
             'endDate'=>$endDate,
             'classDays'=>$classDays,
+            'classroomId'=>$classroomId,
             'classroomCapacity'=>$classroomCapacity,
             'academicPeriodId'=>$academicPeriodId
         ]);
@@ -118,7 +121,7 @@ class update_class extends external_api {
         try{
             // Only check availability if an instructor is actually assigned
             if (!empty($instructorId) && intval($instructorId) > 0) {
-                check_class_schedule_availability($instructorId,$classDays, $initTime ,$endTime,'', $classId, $initDate, $endDate);
+                check_class_schedule_availability($instructorId, $classDays, $initTime, $endTime, (string)($classroomId ?? ''), $classId, $initDate, $endDate);
             }
             
             update_class($params);
