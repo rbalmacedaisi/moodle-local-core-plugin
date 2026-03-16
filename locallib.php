@@ -2644,6 +2644,165 @@ function delete_class($classId, $reason = null)
     // Delete the class.
     return $DB->delete_records('gmk_class', ['id' => $classid]);
 }
+
+/**
+ * Cleanup stale BBB modules/events for a class before activity rebuild.
+ *
+ * This is defensive. Legacy/republish flows can leave BBB rows with broken or
+ * missing pointers in gmk_class/gmk_bbb_attendance_relation.
+ */
+function gmk_cleanup_stale_bbb_for_class_before_rebuild($class): array
+{
+    global $DB, $CFG;
+
+    $stats = [
+        'candidates' => 0,
+        'deleted_cmids' => 0,
+        'deleted_events' => 0,
+        'skipped_referenced' => 0,
+        'errors' => [],
+    ];
+
+    $classid = (int)($class->id ?? 0);
+    $courseid = (int)($class->corecourseid ?? 0);
+    if ($classid <= 0 || $courseid <= 0) {
+        return $stats;
+    }
+
+    $bbbmoduleid = (int)gmk_get_module_id_by_name('bigbluebuttonbn');
+    if ($bbbmoduleid <= 0) {
+        return $stats;
+    }
+
+    $candidatecmids = [];
+    $candidateinstances = [];
+
+    foreach (explode(',', (string)($class->bbbmoduleids ?? '')) as $cmidraw) {
+        $cmid = (int)trim((string)$cmidraw);
+        if ($cmid > 0) {
+            $candidatecmids[$cmid] = $cmid;
+        }
+    }
+
+    $relrows = $DB->get_records(
+        'gmk_bbb_attendance_relation',
+        ['classid' => $classid],
+        '',
+        'id,bbbmoduleid,bbbid'
+    );
+    foreach ($relrows as $rr) {
+        if (!empty($rr->bbbmoduleid)) {
+            $candidatecmids[(int)$rr->bbbmoduleid] = (int)$rr->bbbmoduleid;
+        }
+        if (!empty($rr->bbbid)) {
+            $candidateinstances[(int)$rr->bbbid] = (int)$rr->bbbid;
+        }
+    }
+
+    // Name pattern used by create_big_blue_button_activity(): <class name>-<classid>-<timestamp>.
+    $namerows = $DB->get_records_sql(
+        "SELECT cm.id, cm.instance
+           FROM {course_modules} cm
+           JOIN {bigbluebuttonbn} b ON b.id = cm.instance
+          WHERE cm.course = :courseid
+            AND cm.module = :moduleid
+            AND (" . $DB->sql_like('b.name', ':namep1') . " OR " . $DB->sql_like('b.name', ':namep2') . ")",
+        [
+            'courseid' => $courseid,
+            'moduleid' => $bbbmoduleid,
+            'namep1' => '%-' . $classid . '-%',
+            'namep2' => '%-' . $classid,
+        ]
+    );
+    foreach ($namerows as $nr) {
+        $cmid = (int)($nr->id ?? 0);
+        $inst = (int)($nr->instance ?? 0);
+        if ($cmid > 0) {
+            $candidatecmids[$cmid] = $cmid;
+        }
+        if ($inst > 0) {
+            $candidateinstances[$inst] = $inst;
+        }
+    }
+
+    $stats['candidates'] = count($candidatecmids);
+    if (empty($candidatecmids) && empty($candidateinstances)) {
+        return $stats;
+    }
+
+    require_once($CFG->dirroot . '/course/lib.php');
+
+    foreach ($candidatecmids as $cmid) {
+        $cmid = (int)$cmid;
+        if ($cmid <= 0) {
+            continue;
+        }
+
+        if ($DB->record_exists_select(
+            'gmk_bbb_attendance_relation',
+            'classid <> :classid AND bbbmoduleid = :cmid',
+            ['classid' => $classid, 'cmid' => $cmid]
+        )) {
+            $stats['skipped_referenced']++;
+            continue;
+        }
+
+        $cm = $DB->get_record('course_modules', ['id' => $cmid], 'id,course,module,instance', IGNORE_MISSING);
+        if (!$cm) {
+            continue;
+        }
+        if ((int)$cm->course !== $courseid) {
+            continue;
+        }
+        if ((int)$cm->module !== $bbbmoduleid) {
+            continue;
+        }
+        if (!empty($cm->instance)) {
+            $candidateinstances[(int)$cm->instance] = (int)$cm->instance;
+        }
+
+        try {
+            course_delete_module($cmid, false);
+            $stats['deleted_cmids']++;
+        } catch (\Throwable $t) {
+            $stats['errors'][] = 'cmid ' . $cmid . ': ' . $t->getMessage();
+        }
+    }
+
+    foreach ($candidateinstances as $instanceid) {
+        $instanceid = (int)$instanceid;
+        if ($instanceid <= 0) {
+            continue;
+        }
+
+        if ($DB->record_exists_select(
+            'gmk_bbb_attendance_relation',
+            'classid <> :classid AND bbbid = :bbbid',
+            ['classid' => $classid, 'bbbid' => $instanceid]
+        )) {
+            $stats['skipped_referenced']++;
+            continue;
+        }
+
+        $evcount = (int)$DB->count_records('event', [
+            'modulename' => 'bigbluebuttonbn',
+            'instance' => $instanceid,
+            'courseid' => $courseid
+        ]);
+        if ($evcount <= 0) {
+            continue;
+        }
+
+        $DB->delete_records('event', [
+            'modulename' => 'bigbluebuttonbn',
+            'instance' => $instanceid,
+            'courseid' => $courseid
+        ]);
+        $stats['deleted_events'] += $evcount;
+    }
+
+    return $stats;
+}
 /**
  * Create or updated (delete and recreate) the activities for the given class
  *
@@ -2684,6 +2843,15 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     $attendanceReason = '';
     $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attendanceReason);
     if (!$hasValidAttendance && !empty($class->attendancemoduleid)) {
+        $stalecleanup = gmk_cleanup_stale_bbb_for_class_before_rebuild($class);
+        gmk_log(
+            "INFO: class {$class->id} stale BBB pre-clean(invalid attendance)"
+            . " candidates={$stalecleanup['candidates']}"
+            . " deleted_cmids={$stalecleanup['deleted_cmids']}"
+            . " deleted_events={$stalecleanup['deleted_events']}"
+            . " skipped_ref={$stalecleanup['skipped_referenced']}"
+            . " errors=" . count($stalecleanup['errors'])
+        );
         gmk_log("WARNING: class {$class->id} tiene attendancemoduleid invalido {$class->attendancemoduleid}: {$attendanceReason}. Se recreara attendance.");
         $class->attendancemoduleid = 0;
         $class->bbbmoduleids = null;
@@ -2701,6 +2869,16 @@ function create_class_activities($class, $updating = false, $forceRebuildDates =
     }
 
     if ($updating) {
+        $stalecleanup = gmk_cleanup_stale_bbb_for_class_before_rebuild($class);
+        gmk_log(
+            "INFO: class {$class->id} stale BBB pre-clean(update)"
+            . " candidates={$stalecleanup['candidates']}"
+            . " deleted_cmids={$stalecleanup['deleted_cmids']}"
+            . " deleted_events={$stalecleanup['deleted_events']}"
+            . " skipped_ref={$stalecleanup['skipped_referenced']}"
+            . " errors=" . count($stalecleanup['errors'])
+        );
+
         //Delete Big Blue Button Sessions.
         // Use both class field and relation table to avoid stale leftovers.
         $bbbModulesToDelete = [];
@@ -7202,97 +7380,85 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
         MIXTA_CLASS_TYPE_INDEX => MIXTA_CLASS_COLOR
     ];
 
-    // Attempt to link this BBB activity to a Class
-    // 1. Try relation table first
+    // Attempt to link BBB event to class using strict relation mapping.
+    // If there is no valid relation, we skip the event to avoid stale/duplicated cards.
     $cm = get_coursemodule_from_instance('bigbluebuttonbn', $event->instance, $event->courseid);
-    $relation = null;
-    if ($cm) {
-        $relation = $DB->get_record('gmk_bbb_attendance_relation', ['bbbid' => $event->instance, 'bbbmoduleid' => $cm->id], '*', IGNORE_MULTIPLE);
-        $event->cmid = $cm->id; // Verify this is set for later use
+    if (!$cm) {
+        return false;
     }
-    
+    $event->cmid = (int)$cm->id;
+
+    $picklatestrelation = static function(array $conditions) use ($DB) {
+        $rows = $DB->get_records('gmk_bbb_attendance_relation', $conditions, 'id DESC', '*', 0, 1);
+        if (empty($rows)) {
+            return null;
+        }
+        return reset($rows);
+    };
+
+    $relation = $picklatestrelation(['bbbid' => (int)$event->instance, 'bbbmoduleid' => (int)$cm->id]);
+    if (!$relation) {
+        $relation = $picklatestrelation(['bbbid' => (int)$event->instance]);
+    }
+    if (!$relation) {
+        $relation = $picklatestrelation(['bbbmoduleid' => (int)$cm->id]);
+    }
+    if (!$relation || empty($relation->classid)) {
+        return false;
+    }
+
+    $eventClassId = (int)$relation->classid;
     $gmkClass = null;
-
-    if ($relation) {
-        $eventClassId = $relation->classid;
+    if (array_key_exists($eventClassId, $fetchedClasses)) {
+        $gmkClass = $fetchedClasses[$eventClassId];
     } else {
-        // 2. heuristic: Find class by Group ID if event has one
-        if (!empty($event->groupid)) {
-            $gmkClass = $DB->get_record('gmk_class', ['groupid' => $event->groupid, 'closed' => 0]);
-        }
-        
-        // 3. Fallback: Find class by Course ID (if only one active class exists for this course)
-        if (!$gmkClass) {
-             $classes = $DB->get_records('gmk_class', ['corecourseid' => $event->courseid, 'closed' => 0]);
-             if (count($classes) == 1) {
-                 $gmkClass = reset($classes);
-             }
+        $gmkClass = $DB->get_record('gmk_class', ['id' => $eventClassId, 'closed' => 0], '*', IGNORE_MISSING);
+        if ($gmkClass) {
+            $fetchedClasses[$eventClassId] = $gmkClass;
         }
     }
-
-    if (isset($eventClassId) && !$gmkClass) {
-        if (array_key_exists($eventClassId, $fetchedClasses)) {
-            $gmkClass = $fetchedClasses[$eventClassId];
-        } else {
-            $gmkClass = $DB->get_record('gmk_class', ['id' => $eventClassId]);
-            if ($gmkClass) $fetchedClasses[$eventClassId] = $gmkClass;
-        }
-    }
-
     if (!$gmkClass) {
-        // If we can't link it to a specific Makro Class, we return generic event info or skip?
-        // Let's return generic info so it at least shows up
-        $event->color = VIRTUAL_CLASS_COLOR; // Default to virtual
-        $event->className = $event->course->fullname ?? 'Actividad Virtual'; 
-        // Need basic fields to prevent JS errors if it expects them
-        $event->instructorName = '';
-        $event->instructorid = 0;
-        $event->classroomid = 0;
-        $event->classroomName = 'Sin aula';
-        $event->room = 'Sin aula';
-        $event->timeRange = date('H:i', $event->timestart) . ' - ' . date('H:i', $event->timestart + $event->timeduration);
-        $event->classDaysES = [];
-        $event->classDaysEN = [];
-        $event->classType = 1; 
-        $event->typelabel = 'VIRTUAL';
-        $event->coursename = $event->className;
-    } else {
-        // Populate from Class
-        // Ensure class has helper fields if we fetched it raw (using list_classes for consistency)
-        if (!isset($gmkClass->selectedDaysES)) {
-             $enrichedClasses = list_classes(['id' => $gmkClass->id]);
-             if (!empty($enrichedClasses)) {
-                  $gmkClass = $enrichedClasses[$gmkClass->id];
-                  $fetchedClasses[$gmkClass->id] = $gmkClass;
-             }
+        return false;
+    }
+
+    if (!empty($gmkClass->corecourseid) && (int)$gmkClass->corecourseid !== (int)$event->courseid) {
+        return false;
+    }
+    if (!empty($event->groupid) && !empty($gmkClass->groupid) && (int)$event->groupid !== (int)$gmkClass->groupid) {
+        return false;
+    }
+
+    // Ensure helper fields if class was fetched raw.
+    if (!isset($gmkClass->selectedDaysES)) {
+        $enrichedClasses = list_classes(['id' => $gmkClass->id]);
+        if (!empty($enrichedClasses) && isset($enrichedClasses[$gmkClass->id])) {
+            $gmkClass = $enrichedClasses[$gmkClass->id];
+            $fetchedClasses[$gmkClass->id] = $gmkClass;
         }
-
-        $event->instructorName = $gmkClass->instructorName ?? '';
-        $event->instructorid = $gmkClass->instructorid ?? 0;
-        $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
-        $event->classDaysES = $gmkClass->selectedDaysES ?? [];
-        $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
-        $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
-        $event->classType = $gmkClass->type ?? 1;
-        $event->className = $gmkClass->name ?? '';
-        $event->coursename = $gmkClass->course->fullname ?? $event->className;
-        $event->classId = $gmkClass->id;
-        $event->groupid = $gmkClass->groupid;
-        $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
-        $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
-        $event->room = $event->classroomName;
-        $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
-        $event->timeduration = $gmkClass->classduration ?? $event->timeduration;
     }
 
-    $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $event->cmid; // Need CMID. Event usually has 'cmid' or we find it.
-    // Event object from calendar_get_events usually has 'modulename', 'instance', 'courseid'. 
-    // It might NOT have 'cmid'.
-    if (empty($event->cmid)) {
-        $cm = get_coursemodule_from_instance('bigbluebuttonbn', $event->instance, $event->courseid);
-        $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . ($cm ? $cm->id : 0);
+    $event->instructorName = $gmkClass->instructorName ?? '';
+    $event->instructorid = $gmkClass->instructorid ?? 0;
+    $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+    $event->classDaysES = $gmkClass->selectedDaysES ?? [];
+    $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
+    $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
+    $event->classType = $gmkClass->type ?? 1;
+    $event->className = $gmkClass->name ?? '';
+    $event->coursename = $event->className;
+    if (!empty($gmkClass->course) && is_object($gmkClass->course) && !empty($gmkClass->course->fullname)) {
+        $event->coursename = (string)$gmkClass->course->fullname;
+    } else if (!empty($event->course) && is_object($event->course) && !empty($event->course->fullname)) {
+        $event->coursename = (string)$event->course->fullname;
     }
-
+    $event->classId = (int)$gmkClass->id;
+    $event->groupid = (int)($gmkClass->groupid ?? 0);
+    $event->classroomid = !empty($gmkClass->classroomid) ? (int)$gmkClass->classroomid : 0;
+    $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
+    $event->room = $event->classroomName;
+    $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
+    $event->timeduration = !empty($gmkClass->classduration) ? (int)$gmkClass->classduration : (int)$event->timeduration;
+    $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$event->cmid;
     $event->start = date('Y-m-d H:i:s', $event->timestart);
     $event->end = date('Y-m-d H:i:s', $event->timestart + $event->timeduration);
 
