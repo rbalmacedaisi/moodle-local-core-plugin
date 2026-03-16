@@ -893,11 +893,9 @@ if (true) {
                     SELECT cp.classid,cp.userid,cp.learningplanid,0 AS fromgroup,1 AS fromprogre,0 AS fromqueue,0 AS fromprereg
                       FROM {gmk_course_progre} cp
                       JOIN {gmk_class} ccp ON ccp.id = cp.classid
-                 LEFT JOIN {groups_members} gmp ON gmp.groupid = ccp.groupid AND gmp.userid = cp.userid
                      WHERE cp.classid $ins2b
                        AND cp.classid > 0
                        AND cp.status = :stinprogress
-                       AND (ccp.groupid = 0 OR gmp.id IS NOT NULL)
                     {$pendingunion}
                ) x
               GROUP BY x.classid,x.userid",
@@ -1086,11 +1084,9 @@ if (trim((string)$studentq) !== '') {
                     SELECT cp.classid AS classid, 0 AS fromgroup, 1 AS fromprogre, 0 AS fromqueue, 0 AS fromprereg
                       FROM {gmk_course_progre} cp
                       JOIN {gmk_class} ccp ON ccp.id = cp.classid
-                 LEFT JOIN {groups_members} gmp ON gmp.groupid = ccp.groupid AND gmp.userid = cp.userid
                      WHERE cp.userid = :uid2
                        AND cp.classid > 0
                        AND cp.status = :stinprogress
-                       AND (ccp.groupid = 0 OR gmp.id IS NOT NULL)
                     {$pendingdiagunion}
                ) x
               GROUP BY x.classid",
