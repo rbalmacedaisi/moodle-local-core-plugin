@@ -138,6 +138,11 @@ if ($hassiteconfig) {
         'Debug: Overlap Student Trace',
         new moodle_url('/local/grupomakro_core/pages/debug_overlap_student_trace.php')
     );
+    $academicDemandGapsPage = new admin_externalpage(
+        'grupomakro_core_academic_demand_gaps',
+        'Brechas de Demanda Académica',
+        new moodle_url('/local/grupomakro_core/pages/academic_demand_gaps.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -160,6 +165,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugPublishDraftPage);
     $ADMIN->add('grupomakrocore_plugin', $overlapAnalyticsPage);
     $ADMIN->add('grupomakrocore_plugin', $debugOverlapStudentPage);
+    $ADMIN->add('grupomakrocore_plugin', $academicDemandGapsPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
