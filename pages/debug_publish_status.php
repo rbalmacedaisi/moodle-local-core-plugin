@@ -1119,6 +1119,32 @@ function gmk_debug_collect_class_snapshot(int $classid, int $hintcmid = 0): arra
     return $snapshot;
 }
 
+/**
+ * Attendance sessions count for class attendancemoduleid (cmid).
+ *
+ * @param stdClass $class
+ * @return int
+ */
+function gmk_debug_attendance_sessions_count($class): int {
+    global $DB;
+
+    if (empty($class) || empty($class->attendancemoduleid)) {
+        return 0;
+    }
+
+    $cmid = (int)$class->attendancemoduleid;
+    if ($cmid <= 0) {
+        return 0;
+    }
+
+    $attinstanceid = $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
+    if (empty($attinstanceid)) {
+        return 0;
+    }
+
+    return (int)$DB->count_records('attendance_sessions', ['attendanceid' => (int)$attinstanceid]);
+}
+
 // -- AJAX: inspeccionar datos DB de una clase para analisis --------------------
 if ($ajax === 'inspect_class') {
     $PAGE->set_context(context_system::instance());
@@ -1215,9 +1241,14 @@ if ($ajax === 'recreate') {
 
         // 3. Actividades (attendance + BBB)
         $attReason = '';
-        $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
+        $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
+        $attSessionsBefore = gmk_debug_attendance_sessions_count($class);
+        $hasActivities = $hasValidAttendance && ($attSessionsBefore > 0);
         if (!$hasActivities && !empty($class->attendancemoduleid)) {
             $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
+            if ($hasValidAttendance && $attSessionsBefore <= 0) {
+                $log[] = "Attendance sin sesiones, forzando recreacion completa.";
+            }
         }
         try {
             create_class_activities($class, $hasActivities);
@@ -1347,6 +1378,22 @@ if ($ajax === 'recreate') {
             ]);
             exit;
         }
+        $finalAttSessions = gmk_debug_attendance_sessions_count($class);
+        if ($finalAttSessions <= 0) {
+            $log[] = "ERROR final: attendance valido pero sin sesiones.";
+            ob_end_clean();
+            echo json_encode([
+                'status'  => 'error',
+                'message' => "La clase quedo sin sesiones de attendance.",
+                'log'     => $log,
+                'groupid' => $class->groupid,
+                'coursesectionid' => $class->coursesectionid,
+                'attendancemoduleid' => $class->attendancemoduleid,
+                'diagnostics' => gmk_debug_publish_diagnostics($class),
+            ]);
+            exit;
+        }
+        $log[] = "POSTCHECK attendance_sessions={$finalAttSessions}";
 
         ob_end_clean();
         echo json_encode([
@@ -1397,7 +1444,8 @@ if ($ajax === 'recreate_all') {
             $groupOk = gmk_is_valid_class_group($candidate, $dummy);
             $sectionOk = gmk_is_valid_class_section($candidate, $dummy);
             $attOk = gmk_is_valid_class_attendance_module($candidate, $dummy);
-            if (!$groupOk || !$sectionOk || !$attOk) {
+            $attSessionsOk = gmk_debug_attendance_sessions_count($candidate) > 0;
+            if (!$groupOk || !$sectionOk || !$attOk || !$attSessionsOk) {
                 $classes[$candidate->id] = $candidate;
             }
         }
@@ -1419,7 +1467,8 @@ if ($ajax === 'recreate_all') {
                     $class->coursesectionid = $sectionId;
                 }
                 $attReason = '';
-                $hasActivities = gmk_is_valid_class_attendance_module($class, $attReason);
+                $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
+                $hasActivities = $hasValidAttendance && (gmk_debug_attendance_sessions_count($class) > 0);
                 try {
                     create_class_activities($class, $hasActivities);
                 } catch (Throwable $e) {
@@ -1437,6 +1486,9 @@ if ($ajax === 'recreate_all') {
                 $finalAttReason = '';
                 if (!gmk_is_valid_class_attendance_module($class, $finalAttReason)) {
                     throw new \Exception("Attendance invalido tras recreacion: {$finalAttReason}");
+                }
+                if (gmk_debug_attendance_sessions_count($class) <= 0) {
+                    throw new \Exception("Attendance valido pero sin sesiones tras recreacion.");
                 }
                 $results['ok']++;
             } catch (Throwable $e) {
@@ -1545,10 +1597,11 @@ foreach ($classes as $c) {
     $g  = gmk_is_valid_class_group($c, $dummy);
     $s  = gmk_is_valid_class_section($c, $dummy);
     $a  = gmk_is_valid_class_attendance_module($c, $dummy);
-    if ($g && $s && $a) { $complete++; } else { $incomplete++; }
+    $attSessionsOk = gmk_debug_attendance_sessions_count($c) > 0;
+    if ($g && $s && $a && $attSessionsOk) { $complete++; } else { $incomplete++; }
     if (!$g) $noGroup++;
     if (!$s) $noSection++;
-    if (!$a) $noActivities++;
+    if (!$a || !$attSessionsOk) $noActivities++;
 }
 ?>
 
@@ -1623,7 +1676,9 @@ foreach ($classes as $c) {
       $hasSect   = gmk_is_valid_class_section($c, $sectionReason);
       $hasAtt    = gmk_is_valid_class_attendance_module($c, $attReason);
       $hasBBB    = !empty($c->bbbmoduleids);
-      $allOk     = $hasGroup && $hasSect && $hasAtt;
+      $attSessions = gmk_debug_attendance_sessions_count($c);
+      $hasAttSessions = $attSessions > 0;
+      $allOk     = $hasGroup && $hasSect && $hasAtt && $hasAttSessions;
       $rowClass  = $allOk ? 'ok' : ((!$hasGroup) ? 'err' : 'warn');
 
       // Verificar que groupid realmente existe en BD de Moodle
@@ -1642,15 +1697,7 @@ foreach ($classes as $c) {
           ? '<span class="badge badge-ok">OK</span>'
           : '<span class="badge badge-err">INCOMPLETA</span>';
 
-      // Attendance sessions count: attendancemoduleid is a course_modules.id (cmid).
-      // course_modules.instance -> attendance.id -> attendance_sessions.attendanceid
-      $attSessions = 0;
-      if ($hasAtt && $attExists) {
-          $attInstanceId = $DB->get_field('course_modules', 'instance', ['id' => $c->attendancemoduleid]);
-          if ($attInstanceId) {
-              $attSessions = $DB->count_records('attendance_sessions', ['attendanceid' => $attInstanceId]);
-          }
-      }
+      // Already resolved above with gmk_debug_attendance_sessions_count().
   ?>
   <tr class="<?php echo $rowClass ?>" data-complete="<?php echo $allOk ? '1' : '0' ?>" id="row-<?php echo $c->id ?>">
     <td><?php echo $c->id ?></td>
@@ -1680,7 +1727,7 @@ foreach ($classes as $c) {
         <span class="cross">X</span>
       <?php endif ?>
     </td>
-    <td class="<?php echo $hasAtt ? ($attExists ? '' : 'warn') : 'err' ?>">
+    <td class="<?php echo ($hasAtt && $attExists && $hasAttSessions) ? '' : 'err' ?>">
       <?php if ($hasAtt): ?>
         <?php echo $attExists ? '<span class="check">OK</span>' : '<span class="cross">WARN</span>' ?>
         <small><?php echo $c->attendancemoduleid ?></small>
@@ -1702,7 +1749,7 @@ foreach ($classes as $c) {
     </td>
     <td><?php echo $statusBadge ?></td>
     <td>
-      <?php if (!$allOk || !$groupExists || !$sectExists || !$attExists): ?>
+      <?php if (!$allOk || !$groupExists || !$sectExists || !$attExists || !$hasAttSessions): ?>
       <button class="btn btn-warning" style="padding:2px 8px;font-size:11px"
         onclick="recreateOne(<?php echo $c->id ?>, this)">Re-crear</button>
       <?php else: ?>
