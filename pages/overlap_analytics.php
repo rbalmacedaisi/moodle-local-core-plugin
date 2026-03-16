@@ -77,7 +77,7 @@ function ov_get_schedule_columns() {
     global $DB;
     $cols = $DB->get_columns('gmk_class_schedules');
     if (empty($cols)) {
-        return [null, null, null];
+        return [null, null, null, null, null];
     }
     $keys = array_map('strtolower', array_keys($cols));
     $find = function(array $candidates) use ($keys) {
@@ -92,7 +92,102 @@ function ov_get_schedule_columns() {
     $daycol = $find(['day', 'weekday']);
     $startcol = $find(['start_time', 'starttime', 'inittime', 'start']);
     $endcol = $find(['end_time', 'endtime', 'end']);
-    return [$daycol, $startcol, $endcol];
+    $assignedcol = $find(['assigned_dates', 'assigneddates']);
+    $excludedcol = $find(['excluded_dates', 'excludeddates']);
+    return [$daycol, $startcol, $endcol, $assignedcol, $excludedcol];
+}
+
+function ov_parse_date_json($value) {
+    if ($value === null || $value === '') {
+        return [];
+    }
+    if (is_array($value)) {
+        $arr = $value;
+    } else {
+        $arr = json_decode((string)$value, true);
+        if (!is_array($arr)) {
+            return [];
+        }
+    }
+    $out = [];
+    foreach ($arr as $d) {
+        $d = trim((string)$d);
+        if ($d === '') {
+            continue;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+            $out[$d] = $d;
+        }
+    }
+    return array_values($out);
+}
+
+function ov_effective_assigned_dates(array $session, $class) {
+    $assigned = $session['assigned'] ?? [];
+    if (empty($assigned)) {
+        return [];
+    }
+    $excluded = array_flip($session['excluded'] ?? []);
+    $start = (int)($class->initdate ?? 0);
+    $end = (int)($class->enddate ?? 0);
+    $out = [];
+    foreach ($assigned as $d) {
+        if (isset($excluded[$d])) {
+            continue;
+        }
+        $ts = strtotime($d . ' 00:00:00');
+        if ($ts === false) {
+            continue;
+        }
+        if ($start > 0 && $ts < $start) {
+            continue;
+        }
+        if ($end > 0 && $ts > $end) {
+            continue;
+        }
+        $out[$d] = $d;
+    }
+    return array_values($out);
+}
+
+function ov_schedule_date_overlap(array $sa, array $sb, $classa, $classb) {
+    $da = ov_effective_assigned_dates($sa, $classa);
+    $db = ov_effective_assigned_dates($sb, $classb);
+    if (empty($da) && empty($db)) {
+        return true;
+    }
+    if (!empty($da) && !empty($db)) {
+        return (count(array_intersect($da, $db)) > 0);
+    }
+    if (!empty($da)) {
+        $bstart = (int)($classb->initdate ?? 0);
+        $bend = (int)($classb->enddate ?? 0);
+        foreach ($da as $d) {
+            $ts = strtotime($d . ' 00:00:00');
+            if ($ts === false) {
+                continue;
+            }
+            if (($bstart <= 0 || $ts >= $bstart) && ($bend <= 0 || $ts <= $bend)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if (!empty($db)) {
+        $astart = (int)($classa->initdate ?? 0);
+        $aend = (int)($classa->enddate ?? 0);
+        foreach ($db as $d) {
+            $ts = strtotime($d . ' 00:00:00');
+            if ($ts === false) {
+                continue;
+            }
+            if (($astart <= 0 || $ts >= $astart) && ($aend <= 0 || $ts <= $aend)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    return true;
 }
 
 function ov_overlap_dates($a, $b) {
@@ -196,13 +291,14 @@ function ov_recommend($row, $activeplans, $now) {
 $periodid = optional_param('periodid', 0, PARAM_INT);
 $studentq = optional_param('studentq', '', PARAM_TEXT);
 $runningonly = optional_param('runningonly', 1, PARAM_INT);
+$includepending = optional_param('includepending', 0, PARAM_INT);
 $maxconflicts = min(max(optional_param('maxconflicts', 600, PARAM_INT), 50), 5000);
 
 $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC, id DESC', 'id,name,startdate,enddate,status');
 // Analitica global: siempre comparar contra todos los periodos.
 $periodid = 0;
 
-$base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'maxconflicts' => $maxconflicts];
+$base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'includepending' => $includepending, 'maxconflicts' => $maxconflicts];
 
 if (data_submitted() && confirm_sesskey()) {
     $op = optional_param('op', '', PARAM_ALPHA);
@@ -303,12 +399,15 @@ if (true) {
     $stats['classes'] = count($classes);
     if (!empty($classes)) {
         $classids = array_map('intval', array_keys($classes));
-        list($daycol, $startcol, $endcol) = ov_get_schedule_columns();
+        list($daycol, $startcol, $endcol, $assignedcol, $excludedcol) = ov_get_schedule_columns();
         list($ins1, $par1) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'c1');
         $schedules = [];
         if (!empty($daycol) && !empty($startcol) && !empty($endcol)) {
+            $assignedselect = !empty($assignedcol) ? "{$assignedcol} AS assignedvalue" : "'' AS assignedvalue";
+            $excludedselect = !empty($excludedcol) ? "{$excludedcol} AS excludedvalue" : "'' AS excludedvalue";
             $schedules = $DB->get_records_sql(
-                "SELECT id AS schedid, classid, {$daycol} AS dayvalue, {$startcol} AS startvalue, {$endcol} AS endvalue
+                "SELECT id AS schedid, classid, {$daycol} AS dayvalue, {$startcol} AS startvalue, {$endcol} AS endvalue,
+                        {$assignedselect}, {$excludedselect}
                    FROM {gmk_class_schedules}
                   WHERE classid $ins1
                ORDER BY classid, {$daycol}, {$startcol}",
@@ -325,13 +424,33 @@ if (true) {
             if ($day <= 0 || $start < 0 || $end <= $start) {
                 continue;
             }
-            $sched[(int)$s->classid][] = ['day' => $day, 'start' => $start, 'end' => $end];
+            $sched[(int)$s->classid][] = [
+                'day' => $day,
+                'start' => $start,
+                'end' => $end,
+                'assigned' => ov_parse_date_json($s->assignedvalue ?? ''),
+                'excluded' => ov_parse_date_json($s->excludedvalue ?? '')
+            ];
         }
 
         list($ins2a, $par2a) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'ca');
         list($ins2b, $par2b) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cb');
-        list($ins2c, $par2c) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cc');
-        list($ins2d, $par2d) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cd');
+        $pendingunion = '';
+        $linkparams = $par2a + $par2b + ['stinprogress' => COURSE_IN_PROGRESS];
+        if ((int)$includepending === 1) {
+            list($ins2c, $par2c) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cc');
+            list($ins2d, $par2d) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cd');
+            $pendingunion = "
+                    UNION ALL
+                    SELECT q.classid,q.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,1 AS fromqueue,0 AS fromprereg
+                      FROM {gmk_class_queue} q
+                     WHERE q.classid $ins2c
+                    UNION ALL
+                    SELECT pr.classid,pr.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,0 AS fromqueue,1 AS fromprereg
+                      FROM {gmk_class_pre_registration} pr
+                     WHERE pr.classid $ins2d";
+            $linkparams = $linkparams + $par2c + $par2d;
+        }
         $linkkeyexpr = $DB->sql_concat('x.classid', "'-'", 'x.userid');
         $links = $DB->get_records_sql(
             "SELECT {$linkkeyexpr} AS linkkey,
@@ -346,23 +465,16 @@ if (true) {
                     UNION ALL
                     SELECT cp.classid,cp.userid,cp.learningplanid,0 AS fromgroup,1 AS fromprogre,0 AS fromqueue,0 AS fromprereg
                       FROM {gmk_course_progre} cp
+                      JOIN {gmk_class} ccp ON ccp.id = cp.classid
+                 LEFT JOIN {groups_members} gmp ON gmp.groupid = ccp.groupid AND gmp.userid = cp.userid
                      WHERE cp.classid $ins2b
                        AND cp.classid > 0
-                       AND cp.status IN (:stavailable, :stinprogress)
-                    UNION ALL
-                    SELECT q.classid,q.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,1 AS fromqueue,0 AS fromprereg
-                      FROM {gmk_class_queue} q
-                     WHERE q.classid $ins2c
-                    UNION ALL
-                    SELECT pr.classid,pr.userid,0 AS learningplanid,0 AS fromgroup,0 AS fromprogre,0 AS fromqueue,1 AS fromprereg
-                      FROM {gmk_class_pre_registration} pr
-                     WHERE pr.classid $ins2d
+                       AND cp.status = :stinprogress
+                       AND (ccp.groupid = 0 OR gmp.id IS NOT NULL)
+                    {$pendingunion}
                ) x
               GROUP BY x.classid,x.userid",
-            $par2a + $par2b + $par2c + $par2d + [
-                'stavailable' => COURSE_AVAILABLE,
-                'stinprogress' => COURSE_IN_PROGRESS
-            ]
+            $linkparams
         );
 
         $studentclasses = [];
@@ -442,6 +554,9 @@ if (true) {
                             if ($st >= $en) {
                                 continue;
                             }
+                            if (!ov_schedule_date_overlap($sa, $sb, $classes[$a], $classes[$b])) {
+                                continue;
+                            }
                             $wins[ov_day((int)$sa['day']) . ' ' . ov_fmin($st) . '-' . ov_fmin($en)] = true;
                         }
                     }
@@ -514,6 +629,21 @@ if (trim((string)$studentq) !== '') {
 
     if ($studentcandidate) {
         $uid = (int)$studentcandidate->id;
+        $pendingdiagunion = '';
+        $diagparams = ['uid1' => $uid, 'uid2' => $uid, 'stinprogress' => COURSE_IN_PROGRESS];
+        if ((int)$includepending === 1) {
+            $pendingdiagunion = "
+                    UNION ALL
+                    SELECT q.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 1 AS fromqueue, 0 AS fromprereg
+                      FROM {gmk_class_queue} q
+                     WHERE q.userid = :uid3
+                    UNION ALL
+                    SELECT pr.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 0 AS fromqueue, 1 AS fromprereg
+                      FROM {gmk_class_pre_registration} pr
+                     WHERE pr.userid = :uid4";
+            $diagparams['uid3'] = $uid;
+            $diagparams['uid4'] = $uid;
+        }
         $srcrows = $DB->get_records_sql(
             "SELECT x.classid,
                     MAX(x.fromgroup) AS fromgroup,
@@ -528,19 +658,16 @@ if (trim((string)$studentq) !== '') {
                     UNION ALL
                     SELECT cp.classid AS classid, 0 AS fromgroup, 1 AS fromprogre, 0 AS fromqueue, 0 AS fromprereg
                       FROM {gmk_course_progre} cp
+                      JOIN {gmk_class} ccp ON ccp.id = cp.classid
+                 LEFT JOIN {groups_members} gmp ON gmp.groupid = ccp.groupid AND gmp.userid = cp.userid
                      WHERE cp.userid = :uid2
                        AND cp.classid > 0
-                    UNION ALL
-                    SELECT q.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 1 AS fromqueue, 0 AS fromprereg
-                      FROM {gmk_class_queue} q
-                     WHERE q.userid = :uid3
-                    UNION ALL
-                    SELECT pr.classid AS classid, 0 AS fromgroup, 0 AS fromprogre, 0 AS fromqueue, 1 AS fromprereg
-                      FROM {gmk_class_pre_registration} pr
-                     WHERE pr.userid = :uid4
+                       AND cp.status = :stinprogress
+                       AND (ccp.groupid = 0 OR gmp.id IS NOT NULL)
+                    {$pendingdiagunion}
                ) x
               GROUP BY x.classid",
-            ['uid1' => $uid, 'uid2' => $uid, 'uid3' => $uid, 'uid4' => $uid]
+            $diagparams
         );
 
         $reasoncounts = ['status' => 0, 'window' => 0, 'schedule' => 0, 'ok' => 0];
@@ -549,12 +676,16 @@ if (trim((string)$studentq) !== '') {
             $srcids = array_map('intval', array_keys($srcrows));
             $srcclasses = $DB->get_records_list('gmk_class', 'id', $srcids);
 
-            list($diagdaycol, $diagstartcol, $diagendcol) = ov_get_schedule_columns();
+            list($diagdaycol, $diagstartcol, $diagendcol, $diagassignedcol, $diagexcludedcol) = ov_get_schedule_columns();
             $validschedule = [];
+            $scheduletexts = [];
             if (!empty($diagdaycol) && !empty($diagstartcol) && !empty($diagendcol)) {
                 list($diaginsql, $diagparams) = $DB->get_in_or_equal($srcids, SQL_PARAMS_NAMED, 'sd');
+                $diagassignedselect = !empty($diagassignedcol) ? "{$diagassignedcol} AS assignedvalue" : "'' AS assignedvalue";
+                $diagexcludedselect = !empty($diagexcludedcol) ? "{$diagexcludedcol} AS excludedvalue" : "'' AS excludedvalue";
                 $diagschedules = $DB->get_records_sql(
-                    "SELECT id, classid, {$diagdaycol} AS dayvalue, {$diagstartcol} AS startvalue, {$diagendcol} AS endvalue
+                    "SELECT id, classid, {$diagdaycol} AS dayvalue, {$diagstartcol} AS startvalue, {$diagendcol} AS endvalue,
+                            {$diagassignedselect}, {$diagexcludedselect}
                        FROM {gmk_class_schedules}
                       WHERE classid $diaginsql",
                     $diagparams
@@ -565,6 +696,15 @@ if (trim((string)$studentq) !== '') {
                     $den = ov_tmin($ds->endvalue ?? '');
                     if ($dd > 0 && $dst >= 0 && $den > $dst) {
                         $validschedule[(int)$ds->classid] = true;
+                        if (!isset($scheduletexts[(int)$ds->classid])) {
+                            $scheduletexts[(int)$ds->classid] = [];
+                        }
+                        $note = '';
+                        $assigned = ov_parse_date_json($ds->assignedvalue ?? '');
+                        if (!empty($assigned)) {
+                            $note = ' assigned=' . count($assigned);
+                        }
+                        $scheduletexts[(int)$ds->classid][] = ov_day($dd) . ' ' . ov_fmin($dst) . '-' . ov_fmin($den) . $note;
                     }
                 }
             }
@@ -607,6 +747,7 @@ if (trim((string)$studentq) !== '') {
                         'fromprogre' => (int)$src->fromprogre,
                         'fromqueue' => (int)$src->fromqueue,
                         'fromprereg' => (int)$src->fromprereg,
+                        'schedules' => implode(' | ', $scheduletexts[(int)$classid] ?? []),
                         'reason' => implode(',', $reason),
                     ];
                 }
@@ -627,7 +768,7 @@ echo $OUTPUT->header();
 <style>
 .ov-wrap{background:#f6f8fc;border:1px solid #d7e1f1;border-radius:10px;padding:14px}
 .ov-head{margin:0 0 10px;font-size:24px;font-weight:800;color:#1a355b}
-.ov-grid{display:grid;grid-template-columns:1.1fr 1.3fr .6fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
+.ov-grid{display:grid;grid-template-columns:1.1fr 1.2fr .6fr .8fr .6fr auto;gap:8px;align-items:end}.ov-grid label{font-size:12px;color:#4b6385;font-weight:700;display:block;margin-bottom:4px}
 .ov-grid input,.ov-grid select{width:100%;border:1px solid #c6d4ea;border-radius:7px;padding:7px 9px}.ov-btn{border:0;border-radius:7px;padding:8px 10px;background:#1f65dc;color:#fff;font-weight:700;cursor:pointer}.ov-btn.warn{background:#9e6100}.ov-btn.err{background:#b72a2a}.ov-btn.gray{background:#566b8b}
 .ov-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.ov-card{background:#fff;border:1px solid #d7e1f1;border-radius:8px;padding:8px}.ov-l{font-size:11px;text-transform:uppercase;color:#587093;font-weight:700}.ov-v{font-size:22px;font-weight:800;color:#18375e}
 .ov-alert{margin:8px 0;padding:8px;border-radius:8px;border:1px solid #cde4d5;background:#ecf8ef;color:#1b6b3e}.ov-alert.err{border-color:#f0cccc;background:#fff1f1;color:#8a2626}
@@ -641,6 +782,7 @@ echo $OUTPUT->header();
         <div><label>Ambito</label><input type="text" value="Todos los periodos (global)" readonly /></div>
         <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
         <div><label>Solo en curso</label><select name="runningonly"><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option></select></div>
+        <div><label>Incluir pendientes</label><select name="includepending"><option value="0" <?php echo ((int)$includepending === 0 ? 'selected' : ''); ?>>No (solo grupo/progreso)</option><option value="1" <?php echo ((int)$includepending === 1 ? 'selected' : ''); ?>>Si (queue y pre-reg)</option></select></div>
         <div><label>Max conflictos</label><input type="number" min="50" max="5000" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>" /></div>
         <input type="hidden" name="periodid" value="0">
         <div><button class="ov-btn" type="submit">Analizar</button> <a class="ov-btn gray" style="text-decoration:none;display:inline-block" href="<?php echo (new moodle_url('/local/grupomakro_core/pages/overlap_analytics.php'))->out(false); ?>">Limpiar</a></div>
@@ -670,7 +812,7 @@ echo $OUTPUT->header();
                         <table class="ov-table" style="min-width:920px;">
                             <thead>
                                 <tr>
-                                    <th>ID</th><th>Clase</th><th>Periodo</th><th>approved/closed</th><th>Fuentes</th><th>Razon</th>
+                                    <th>ID</th><th>Clase</th><th>Periodo</th><th>approved/closed</th><th>Fuentes</th><th>Horarios</th><th>Razon</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -686,6 +828,7 @@ echo $OUTPUT->header();
                                         <?php if (!empty($sc['fromqueue'])): ?><span class="ov-tag">queue</span><?php endif; ?>
                                         <?php if (!empty($sc['fromprereg'])): ?><span class="ov-tag">pre-reg</span><?php endif; ?>
                                     </td>
+                                    <td><?php echo s((string)($sc['schedules'] ?? '')); ?></td>
                                     <td><?php echo s((string)$sc['reason']); ?></td>
                                 </tr>
                             <?php endforeach; ?>
@@ -712,6 +855,7 @@ echo $OUTPUT->header();
             <input type="hidden" name="periodid" value="<?php echo (int)$periodid; ?>">
             <input type="hidden" name="studentq" value="<?php echo s($studentq); ?>">
             <input type="hidden" name="runningonly" value="<?php echo (int)$runningonly; ?>">
+            <input type="hidden" name="includepending" value="<?php echo (int)$includepending; ?>">
             <input type="hidden" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>">
             <div class="ov-bulk">
                 <strong>Accion masiva:</strong>
@@ -758,6 +902,7 @@ echo $OUTPUT->header();
             <input type="hidden" name="periodid" value="<?php echo (int)$periodid; ?>">
             <input type="hidden" name="studentq" value="<?php echo s($studentq); ?>">
             <input type="hidden" name="runningonly" value="<?php echo (int)$runningonly; ?>">
+            <input type="hidden" name="includepending" value="<?php echo (int)$includepending; ?>">
             <input type="hidden" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>">
             <input type="hidden" name="op" value="">
             <input type="hidden" name="userid" value="">
