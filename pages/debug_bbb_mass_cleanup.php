@@ -27,7 +27,7 @@ $classid = optional_param('classid', 0, PARAM_INT);
 $maxclasses = optional_param('maxclasses', 250, PARAM_INT);
 $maxdeltahours = optional_param('maxdeltahours', 48, PARAM_INT);
 $showonlyissues = optional_param('showonlyissues', 1, PARAM_INT);
-$deletemodules = optional_param('deletemodules', 1, PARAM_INT);
+$deletemodules = optional_param('deletemodules', 0, PARAM_INT);
 $deleteextras = optional_param('deleteextras', 1, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHAEXT);
 
@@ -455,11 +455,13 @@ function gmk_bbb_mc_analyze_class(stdClass $class, int $maxdeltasecs): array {
     }
 
     $extracmids = [];
+    $extrainstances = [];
     foreach ($events as $e) {
         $inst = (int)$e->instance;
         if (isset($selectedinstances[$inst])) {
             continue;
         }
+        $extrainstances[$inst] = $inst;
         $cmid = (int)($cmidbyinstance[$inst] ?? 0);
         if ($cmid > 0) {
             $extracmids[$cmid] = $cmid;
@@ -488,6 +490,8 @@ function gmk_bbb_mc_analyze_class(stdClass $class, int $maxdeltasecs): array {
             'delete_rel_ids' => array_values($deleterelids),
             'old_cmids' => array_values($oldcmids),
             'extra_cmids' => array_values($extracmids),
+            'old_instances' => array_values(array_unique(array_values($oldinstances))),
+            'extra_instances' => array_values(array_unique(array_values($extrainstances))),
         ],
     ];
 }
@@ -501,6 +505,7 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $delet
         'classname' => (string)$class->name,
         'updated' => 0,
         'deleted_rel' => 0,
+        'deleted_events' => 0,
         'deleted_cm' => 0,
         'errors' => [],
         'logs' => [],
@@ -512,6 +517,8 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $delet
         . ' delete_rel=' . count($plan['delete_rel_ids'])
         . ' old_cmids=' . count($plan['old_cmids'])
         . ' extra_cmids=' . count($plan['extra_cmids'])
+        . ' old_instances=' . count($plan['old_instances'])
+        . ' extra_instances=' . count($plan['extra_instances'])
         . ' deleteextras=' . ($deleteextras ? '1' : '0');
 
     $tx = $DB->start_delegated_transaction();
@@ -560,7 +567,40 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $delet
         return $result;
     }
 
+    // Fast path cleanup: delete orphan BBB calendar events by instance.
+    $instancecandidates = array_values(array_unique($plan['old_instances']));
+    if ($deleteextras) {
+        $instancecandidates = array_values(array_unique(array_merge($instancecandidates, $plan['extra_instances'])));
+    }
+    $result['logs'][] = 'Event delete candidates=' . count($instancecandidates);
+    foreach ($instancecandidates as $inst) {
+        $inst = (int)$inst;
+        if ($inst <= 0) {
+            continue;
+        }
+        if ($DB->record_exists('gmk_bbb_attendance_relation', ['bbbid' => $inst])) {
+            $result['logs'][] = 'Skipped events for bbbid=' . $inst . ' still referenced';
+            continue;
+        }
+        $evcount = (int)$DB->count_records('event', [
+            'modulename' => 'bigbluebuttonbn',
+            'instance' => $inst,
+            'courseid' => (int)$class->corecourseid
+        ]);
+        if ($evcount <= 0) {
+            continue;
+        }
+        $DB->delete_records('event', [
+            'modulename' => 'bigbluebuttonbn',
+            'instance' => $inst,
+            'courseid' => (int)$class->corecourseid
+        ]);
+        $result['deleted_events'] += $evcount;
+        $result['logs'][] = 'Deleted BBB events for instance=' . $inst . ' rows=' . $evcount;
+    }
+
     if ($deletemodules) {
+        @set_time_limit(0);
         $bbbmoduleid = gmk_bbb_mc_bbb_module_id();
         $deletecandidates = array_values(array_unique($plan['old_cmids']));
         if ($deleteextras) {
@@ -592,7 +632,7 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $delet
             }
 
             try {
-                course_delete_module($cmid, false);
+                course_delete_module($cmid);
                 $result['deleted_cm']++;
                 $result['logs'][] = 'Deleted BBB cmid=' . $cmid;
             } catch (Throwable $de) {
@@ -617,6 +657,7 @@ function gmk_bbb_mc_apply_plan(array $analysis, bool $deletemodules, bool $delet
 
     $result['logs'][] = 'Finish updated=' . (int)$result['updated']
         . ' deleted_rel=' . (int)$result['deleted_rel']
+        . ' deleted_events=' . (int)$result['deleted_events']
         . ' deleted_cm=' . (int)$result['deleted_cm']
         . ' errors=' . count($result['errors']);
 
@@ -662,25 +703,50 @@ echo '</form>';
 
 $maxclasses = max(1, min(5000, (int)$maxclasses));
 $maxdeltasecs = max(3600, min(240 * 3600, (int)$maxdeltahours * 3600));
-
-$sql = "SELECT c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid,
-               COUNT(r.id) AS relcount
-          FROM {gmk_class} c
-          JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
-         WHERE 1 = 1";
-$params = [];
-if ($periodid > 0) {
-    $sql .= " AND c.periodid = :periodid";
-    $params['periodid'] = (int)$periodid;
+$isrepairpost = ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected');
+$repairone = $isrepairpost ? optional_param('repairone', 0, PARAM_INT) : 0;
+$postselected = $isrepairpost ? optional_param_array('selected', [], PARAM_INT) : [];
+if ($repairone > 0) {
+    $postselected = [$repairone];
 }
-if ($classid > 0) {
-    $sql .= " AND c.id = :classid";
-    $params['classid'] = (int)$classid;
-}
-$sql .= " GROUP BY c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid
-          ORDER BY c.id DESC";
+$postselected = array_values(array_unique(array_filter(array_map('intval', $postselected))));
 
-$classrows = $DB->get_records_sql($sql, $params, 0, $maxclasses);
+$classrows = [];
+if ($isrepairpost && !empty($postselected)) {
+    @set_time_limit(0);
+    list($insql, $inparams) = $DB->get_in_or_equal($postselected, SQL_PARAMS_NAMED, 'cid');
+    $classrows = $DB->get_records_sql(
+        "SELECT c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid,
+                COUNT(r.id) AS relcount
+           FROM {gmk_class} c
+      LEFT JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
+          WHERE c.id {$insql}
+       GROUP BY c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid
+       ORDER BY c.id DESC",
+        $inparams
+    );
+    echo '<div class="mc-card"><span class="mc-warn">POST repair mode: scanning selected classes only (' . count($postselected) . ')</span></div>';
+} else {
+    $sql = "SELECT c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid,
+                   COUNT(r.id) AS relcount
+              FROM {gmk_class} c
+              JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
+             WHERE 1 = 1";
+    $params = [];
+    if ($periodid > 0) {
+        $sql .= " AND c.periodid = :periodid";
+        $params['periodid'] = (int)$periodid;
+    }
+    if ($classid > 0) {
+        $sql .= " AND c.id = :classid";
+        $params['classid'] = (int)$classid;
+    }
+    $sql .= " GROUP BY c.id, c.name, c.periodid, c.corecourseid, c.groupid, c.learningplanid, c.approved, c.closed, c.attendancemoduleid
+              ORDER BY c.id DESC";
+
+    $classrows = $DB->get_records_sql($sql, $params, 0, $maxclasses);
+}
+
 $analyses = [];
 $summary = [
     'classes_scanned' => 0,
@@ -706,13 +772,9 @@ foreach ($classrows as $c) {
 }
 
 $applyresults = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected') {
+if ($isrepairpost) {
     require_sesskey();
-    $selected = optional_param_array('selected', [], PARAM_INT);
-    $repairone = optional_param('repairone', 0, PARAM_INT);
-    if ($repairone > 0) {
-        $selected = [$repairone];
-    }
+    $selected = $postselected;
     if (empty($selected)) {
         echo '<div class="mc-card"><span class="mc-warn">No classes selected for repair.</span></div>';
     } else {
@@ -743,6 +805,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected') {
                         'classname' => '',
                         'updated' => 0,
                         'deleted_rel' => 0,
+                        'deleted_events' => 0,
                         'deleted_cm' => 0,
                         'errors' => ['Class not found'],
                         'logs' => ['ERROR class not found id=' . $sid],
@@ -756,6 +819,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'repair_selected') {
                 'classname' => (string)($analyses[$sid]['class']->name ?? ''),
                 'updated' => 0,
                 'deleted_rel' => 0,
+                'deleted_events' => 0,
                 'deleted_cm' => 0,
                 'errors' => [],
                 'logs' => ['No issues detected for this class; nothing to change.'],
@@ -778,13 +842,14 @@ echo '</div>';
 if (!empty($applyresults)) {
     echo '<div class="mc-card"><strong>Repair results</strong></div>';
     echo '<table class="mc-table"><thead><tr>'
-        . '<th>Class</th><th>Updated rows</th><th>Deleted relation rows</th><th>Deleted modules</th><th>Errors</th><th>Log</th>'
+        . '<th>Class</th><th>Updated rows</th><th>Deleted relation rows</th><th>Deleted events</th><th>Deleted modules</th><th>Errors</th><th>Log</th>'
         . '</tr></thead><tbody>';
     foreach ($applyresults as $r) {
         echo '<tr>';
         echo '<td>' . (int)$r['classid'] . ' ' . gmk_bbb_mc_h((string)($r['classname'] ?? '')) . '</td>';
         echo '<td>' . (int)$r['updated'] . '</td>';
         echo '<td>' . (int)$r['deleted_rel'] . '</td>';
+        echo '<td>' . (int)($r['deleted_events'] ?? 0) . '</td>';
         echo '<td>' . (int)$r['deleted_cm'] . '</td>';
         echo '<td>' . gmk_bbb_mc_h(empty($r['errors']) ? '-' : implode(' | ', $r['errors'])) . '</td>';
         $logtxt = !empty($r['logs']) ? implode("\n", $r['logs']) : '-';
