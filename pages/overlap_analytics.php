@@ -147,16 +147,8 @@ $runningonly = optional_param('runningonly', 1, PARAM_INT);
 $maxconflicts = min(max(optional_param('maxconflicts', 600, PARAM_INT), 50), 5000);
 
 $periods = $DB->get_records('gmk_academic_periods', [], 'startdate DESC, id DESC', 'id,name,startdate,enddate,status');
-if ($periodid <= 0) {
-    foreach ($periods as $p) {
-        if ((int)$p->status === 1) {
-            $periodid = (int)$p->id;
-            break;
-        }
-    }
-    if ($periodid <= 0 && !empty($periods)) {
-        $periodid = (int)reset($periods)->id;
-    }
+if ($periodid < 0) {
+    $periodid = 0;
 }
 
 $base = ['periodid' => $periodid, 'studentq' => $studentq, 'runningonly' => $runningonly, 'maxconflicts' => $maxconflicts];
@@ -237,17 +229,23 @@ $flash = ov_flash_dec(optional_param('flash', '', PARAM_RAW_TRIMMED));
 $rows = [];
 $truncated = false;
 $stats = ['classes' => 0, 'students' => 0, 'studentswithconflicts' => 0, 'conflicts' => 0];
-$selectedperiod = $periods[$periodid] ?? null;
+$selectedperiod = ($periodid > 0) ? ($periods[$periodid] ?? null) : null;
 
-if ($selectedperiod) {
+if ($periodid === 0 || $selectedperiod) {
     $now = time();
     $sql = "SELECT c.id,c.name,c.periodid,c.learningplanid,c.shift,c.initdate,c.enddate,c.groupid,c.approved,c.closed,c.instructorid,
-                   lp.name AS learningplanname,u.firstname AS instructorfirstname,u.lastname AS instructorlastname
+                   lp.name AS learningplanname,u.firstname AS instructorfirstname,u.lastname AS instructorlastname,
+                   ap.name AS periodname
               FROM {gmk_class} c
          LEFT JOIN {local_learning_plans} lp ON lp.id=c.learningplanid
          LEFT JOIN {user} u ON u.id=c.instructorid
-             WHERE c.periodid=:p AND c.approved=1 AND c.closed=0";
-    $params = ['p' => $periodid];
+         LEFT JOIN {gmk_academic_periods} ap ON ap.id=c.periodid
+             WHERE c.approved=1 AND c.closed=0";
+    $params = [];
+    if ($periodid > 0) {
+        $sql .= " AND c.periodid=:p";
+        $params['p'] = $periodid;
+    }
     if ((int)$runningonly === 1) {
         $sql .= " AND c.initdate<=:n1 AND c.enddate>=:n2";
         $params['n1'] = $now;
@@ -420,7 +418,7 @@ echo $OUTPUT->header();
 <div class="ov-wrap">
     <h2 class="ov-head">Analitica de Solapamientos</h2>
     <form method="get" class="ov-grid">
-        <div><label>Periodo</label><select name="periodid"><?php foreach ($periods as $p): ?><option value="<?php echo (int)$p->id; ?>" <?php echo ((int)$p->id === (int)$periodid ? 'selected' : ''); ?>><?php echo s((string)$p->name) . ' (' . userdate((int)$p->startdate, '%d/%m/%Y') . ' - ' . userdate((int)$p->enddate, '%d/%m/%Y') . ')'; ?></option><?php endforeach; ?></select></div>
+        <div><label>Periodo</label><select name="periodid"><option value="0" <?php echo ((int)$periodid === 0 ? 'selected' : ''); ?>>Todos los periodos</option><?php foreach ($periods as $p): ?><option value="<?php echo (int)$p->id; ?>" <?php echo ((int)$p->id === (int)$periodid ? 'selected' : ''); ?>><?php echo s((string)$p->name) . ' (' . userdate((int)$p->startdate, '%d/%m/%Y') . ' - ' . userdate((int)$p->enddate, '%d/%m/%Y') . ')'; ?></option><?php endforeach; ?></select></div>
         <div><label>Estudiante (nombre/cedula/correo/usuario)</label><input type="text" name="studentq" value="<?php echo s($studentq); ?>" /></div>
         <div><label>Solo en curso</label><select name="runningonly"><option value="1" <?php echo ((int)$runningonly === 1 ? 'selected' : ''); ?>>Si</option><option value="0" <?php echo ((int)$runningonly === 0 ? 'selected' : ''); ?>>No</option></select></div>
         <div><label>Max conflictos</label><input type="number" min="50" max="5000" name="maxconflicts" value="<?php echo (int)$maxconflicts; ?>" /></div>
@@ -465,8 +463,8 @@ echo $OUTPUT->header();
                         <td><input type="checkbox" class="ov-check-item" name="selected[]" value="<?php echo s($sel); ?>"></td>
                         <td><strong><?php echo s(trim((string)$u->firstname . ' ' . (string)$u->lastname)); ?></strong><br><small>uid=<?php echo (int)$row['userid']; ?> | idnumber=<?php echo s((string)($u->idnumber ?? '-')); ?><br><?php echo s((string)($u->email ?? '-')); ?></small></td>
                         <td><?php foreach ($row['windows'] as $w): ?><span class="ov-win"><?php echo s((string)$w); ?></span><?php endforeach; ?></td>
-                        <td><strong>#<?php echo (int)$a->id; ?> <?php echo s((string)$a->name); ?></strong><br><small>Plan: <?php echo s((string)($a->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($a->instructorfirstname ?? '') . ' ' . (string)($a->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scorea']; ?></span><span class="ov-tag">Avance <?php echo (float)($pa->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pa->grade ?? 0); ?></span></td>
-                        <td><strong>#<?php echo (int)$b->id; ?> <?php echo s((string)$b->name); ?></strong><br><small>Plan: <?php echo s((string)($b->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($b->instructorfirstname ?? '') . ' ' . (string)($b->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scoreb']; ?></span><span class="ov-tag">Avance <?php echo (float)($pb->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pb->grade ?? 0); ?></span></td>
+                        <td><strong>#<?php echo (int)$a->id; ?> <?php echo s((string)$a->name); ?></strong><br><small>Periodo: <?php echo s((string)($a->periodname ?? ('ID ' . (int)$a->periodid))); ?><br>Plan: <?php echo s((string)($a->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($a->instructorfirstname ?? '') . ' ' . (string)($a->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scorea']; ?></span><span class="ov-tag">Avance <?php echo (float)($pa->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pa->grade ?? 0); ?></span></td>
+                        <td><strong>#<?php echo (int)$b->id; ?> <?php echo s((string)$b->name); ?></strong><br><small>Periodo: <?php echo s((string)($b->periodname ?? ('ID ' . (int)$b->periodid))); ?><br>Plan: <?php echo s((string)($b->learningplanname ?? '-')); ?><br>Docente: <?php echo s(trim((string)($b->instructorfirstname ?? '') . ' ' . (string)($b->instructorlastname ?? '')) ?: '-'); ?></small><br><span class="ov-tag">Score <?php echo (int)$s['scoreb']; ?></span><span class="ov-tag">Avance <?php echo (float)($pb->progress ?? 0); ?>%</span><span class="ov-tag">Nota <?php echo (float)($pb->grade ?? 0); ?></span></td>
                         <td><span class="ov-tag">Retirar #<?php echo (int)$s['classid']; ?></span><br><small><?php echo s((string)$s['reason']); ?></small></td>
                         <td>
                             <div class="ov-actions">
