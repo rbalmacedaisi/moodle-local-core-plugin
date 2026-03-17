@@ -132,7 +132,8 @@ try {
                 s.start_time,
                 s.end_time,
                 COALESCE(cr.name, '') AS classroomname,
-                (SELECT COUNT(*) FROM {gmk_class_queue} WHERE classid = gc.id) AS student_count
+                gc.classroomcapacity,
+                (SELECT COUNT(*) FROM {groups_members} WHERE groupid = gc.groupid AND gc.groupid > 0) AS student_count
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
            JOIN {course} c ON c.id = gc.corecourseid
@@ -402,7 +403,7 @@ echo $OUTPUT->header();
                 <?php if ($roomStr !== ''): ?>
                 <div class="room">📍 <?php echo swv_h($roomStr); ?></div>
                 <?php endif; ?>
-                <div class="students">👥 <?php echo (int)$card->student_count; ?> estudiante<?php echo (int)$card->student_count !== 1 ? 's' : ''; ?></div>
+                <div class="students">👥 <?php echo (int)$card->student_count; ?>/<?php echo (int)$card->classroomcapacity; ?></div>
                 <div><span class="type-chip"><?php echo swv_h($typeLabel); ?></span></div>
             </div>
             <?php endforeach; ?>
