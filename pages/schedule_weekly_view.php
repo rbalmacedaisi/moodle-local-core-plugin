@@ -245,6 +245,11 @@ echo $OUTPUT->header();
 .swv-period-dot{width:10px;height:10px;border-radius:50%;background:#1976D2;flex-shrink:0}
 /* ── No data ─────────────────────────────────────────────────────────────────── */
 .swv-nodata{background:#f0faf4;border-left:4px solid #4caf50;border-radius:4px;padding:16px 20px;margin:20px 0;color:#2e7d32;font-weight:600}
+/* ── Color legend ────────────────────────────────────────────────────────────── */
+.swv-legend{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#f8f9fa;border-top:1px solid #dee2e6;border-radius:0 0 10px 10px}
+.swv-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#37474f;background:#fff;border:1px solid #e0e0e0;border-radius:20px;padding:3px 10px 3px 5px;white-space:nowrap;max-width:260px}
+.swv-legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+.swv-legend-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 
 <div class="swv-wrap">
@@ -366,11 +371,11 @@ echo $OUTPUT->header();
     </div>
 
     <!-- Day columns -->
+    <?php $legendCourses = array(); ?>
     <div class="swv-week">
         <?php foreach ($DAYS as $day): ?>
         <?php
             $cards = isset($dayData[$day]) ? $dayData[$day] : array();
-            // Sort by start_time
             usort($cards, function($a, $b) {
                 return strcmp((string)$a->start_time, (string)$b->start_time);
             });
@@ -386,6 +391,7 @@ echo $OUTPUT->header();
                 $instrName = trim($card->instr_first . ' ' . $card->instr_last);
                 $typeLabel = (int)$card->type === 1 ? 'Virtual' : ((int)$card->type === 2 ? 'Mixta' : 'Presencial');
                 $roomStr   = $card->classroomname !== '' ? $card->classroomname : '';
+                $legendCourses[(int)$card->corecourseid] = array('name' => $card->coursefullname, 'color' => $cardColor);
             ?>
             <div class="swv-card" style="background:<?php echo swv_h($cardColor); ?>" title="<?php echo swv_h($card->coursefullname . ' — ' . $instrName); ?>">
                 <div class="time">⏰ <?php echo swv_h($startFmt); ?> – <?php echo swv_h($endFmt); ?></div>
@@ -401,6 +407,19 @@ echo $OUTPUT->header();
         </div>
         <?php endforeach; ?>
     </div>
+    <?php if (!empty($legendCourses)): ?>
+    <div class="swv-legend">
+        <?php
+        uasort($legendCourses, function($a, $b) { return strcmp($a['name'], $b['name']); });
+        foreach ($legendCourses as $lc):
+        ?>
+        <div class="swv-legend-item">
+            <span class="swv-legend-dot" style="background:<?php echo swv_h($lc['color']); ?>"></span>
+            <span class="swv-legend-text" title="<?php echo swv_h($lc['name']); ?>"><?php echo swv_h($lc['name']); ?></span>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 </div>
 <?php endforeach; // shifts ?>
 <?php endforeach; // periods ?>
