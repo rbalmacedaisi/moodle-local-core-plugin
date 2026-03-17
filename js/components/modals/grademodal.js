@@ -160,6 +160,17 @@ Vue.component('grademodal', {
                     <v-divider class="my-0"></v-divider>
 
                     <v-card-actions class="pa-3">
+                      <v-btn
+                        v-if="showSchedulePdfButton"
+                        color="secondary"
+                        text
+                        :loading="exportingSchedulePdf"
+                        :disabled="exportingSchedulePdf || !(dataStudent && dataStudent.id)"
+                        @click="downloadStudentSchedulePdf"
+                      >
+                        <v-icon left>mdi-file-pdf-box</v-icon>
+                        Descargar horario PDF
+                      </v-btn>
                       <v-spacer></v-spacer>
                       <v-btn color="primary" text font-weight-bold @click="close">
                         <v-icon left>mdi-check</v-icon>
@@ -276,7 +287,8 @@ Vue.component('grademodal', {
             enrollClasses: [],
             enrollClassesError: '',
             selectedCourse: null,
-            withdrawingCourseKey: null
+            withdrawingCourseKey: null,
+            exportingSchedulePdf: false
         };
     },
     props: {
@@ -328,6 +340,212 @@ Vue.component('grademodal', {
                 console.error('Error fetching course activities:', error);
             } finally {
                 this.loadingActivities = false;
+            }
+        },
+        loadExternalScript(src) {
+            return new Promise((resolve, reject) => {
+                const selector = `script[data-gmk-src="${src}"]`;
+                const existing = document.querySelector(selector);
+                if (existing) {
+                    if (existing.getAttribute('data-loaded') === '1') {
+                        resolve();
+                        return;
+                    }
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('Script load error: ' + src)), { once: true });
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.setAttribute('data-gmk-src', src);
+                script.addEventListener('load', () => {
+                    script.setAttribute('data-loaded', '1');
+                    resolve();
+                }, { once: true });
+                script.addEventListener('error', () => reject(new Error('Script load error: ' + src)), { once: true });
+                document.head.appendChild(script);
+            });
+        },
+        async ensurePdfLibrary() {
+            if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) {
+                return;
+            }
+            await this.loadExternalScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+            if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)) {
+                throw new Error('No se pudo inicializar jsPDF.');
+            }
+        },
+        sanitizeFileToken(value) {
+            const raw = String(value || '');
+            const normalized = raw
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9_-]+/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_+|_+$/g, '');
+            return normalized || 'estudiante';
+        },
+        async downloadStudentSchedulePdf() {
+            if (this.exportingSchedulePdf || !(this.dataStudent && this.dataStudent.id)) {
+                return;
+            }
+
+            this.exportingSchedulePdf = true;
+            try {
+                const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
+                const params = {
+                    action: 'local_grupomakro_get_student_schedule_pdf_data',
+                    sesskey: M.cfg.sesskey,
+                    userId: Number(this.dataStudent.id),
+                };
+
+                const response = await window.axios.get(url, { params });
+                const payload = response && response.data ? response.data : {};
+                if (payload.status !== 'success') {
+                    this.showMessage('error', payload.message || 'No se pudo obtener el horario del estudiante.');
+                    return;
+                }
+
+                const classes = Array.isArray(payload.classes) ? payload.classes : [];
+                if (!classes.length) {
+                    this.showMessage('info', 'El estudiante no tiene clases activas o pendientes para exportar.');
+                    return;
+                }
+
+                await this.ensurePdfLibrary();
+                const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+                const student = payload.student || {};
+                const generatedAt = String(payload.generatedat || '');
+                const pageW = doc.internal.pageSize.getWidth();
+                const pageH = doc.internal.pageSize.getHeight();
+                const margin = 10;
+                const colGap = 4;
+                const rowGap = 4;
+                const cardW = (pageW - (margin * 2) - colGap) / 2;
+                const cardH = 52;
+
+                const drawHeader = (continued) => {
+                    let y = margin;
+                    doc.setFillColor(25, 118, 210);
+                    doc.roundedRect(margin, y, pageW - (margin * 2), 16, 2, 2, 'F');
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(14);
+                    doc.text(continued ? 'Horario del estudiante (continuacion)' : 'Horario del estudiante', margin + 3, y + 6.5);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(9);
+                    doc.text('Generado: ' + (generatedAt || '--'), margin + 3, y + 12);
+
+                    doc.setTextColor(0, 0, 0);
+                    y += 20;
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(10);
+                    doc.text('Estudiante:', margin, y);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(String(student.name || this.studentName || '--'), margin + 22, y);
+                    y += 5;
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('ID:', margin, y);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(String(student.idnumber || this.dataStudent.documentnumber || '--'), margin + 22, y);
+                    y += 5;
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Email:', margin, y);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(String(student.email || this.studentEmail || '--'), margin + 22, y);
+                    y += 4;
+                    return y;
+                };
+
+                const statusColors = {
+                    'Inscrito': [46, 125, 50],
+                    'Pendiente': [245, 124, 0],
+                    'Pre-registrado': [2, 136, 209],
+                    'Relacionado': [97, 97, 97],
+                };
+
+                const drawCard = (x, y, item, index) => {
+                    doc.setDrawColor(210, 210, 210);
+                    doc.setLineWidth(0.2);
+                    doc.roundedRect(x, y, cardW, cardH, 2, 2, 'S');
+
+                    const status = String(item.enrollmentstatus || 'Relacionado');
+                    const color = statusColors[status] || statusColors['Relacionado'];
+                    doc.setFillColor(color[0], color[1], color[2]);
+                    doc.roundedRect(x, y, cardW, 6, 2, 2, 'F');
+
+                    doc.setTextColor(255, 255, 255);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(8);
+                    doc.text('#' + String(index + 1) + ' - ' + status, x + 2, y + 4.2);
+
+                    doc.setTextColor(0, 0, 0);
+                    let cy = y + 9;
+                    const contentW = cardW - 4;
+
+                    const title = String(item.subjectname || item.name || '--');
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(9);
+                    const titleLines = doc.splitTextToSize(title, contentW);
+                    const limitedTitle = titleLines.slice(0, 2);
+                    doc.text(limitedTitle, x + 2, cy);
+                    cy += (limitedTitle.length * 3.7) + 1;
+
+                    const pushLine = (label, value, maxLines = 2) => {
+                        doc.setFont('helvetica', 'bold');
+                        doc.setFontSize(7.5);
+                        doc.text(label + ':', x + 2, cy);
+                        doc.setFont('helvetica', 'normal');
+                        const textLines = doc.splitTextToSize(String(value || '--'), contentW - 15).slice(0, maxLines);
+                        doc.text(textLines, x + 17, cy);
+                        cy += (textLines.length * 3.3) + 0.8;
+                    };
+
+                    pushLine('Curso', item.name || '--', 2);
+                    pushLine('Docente', item.instructorname || '--', 2);
+                    pushLine('Horario', item.schedulelabel || '--', 3);
+                    pushLine('Aula', item.classroomname || 'Sin aula', 1);
+                    pushLine('Modalidad', item.typelabel || '--', 1);
+                    pushLine('Periodo', item.periodname || ('ID ' + String(item.periodid || '--')), 1);
+                    pushLine('Rango', (item.initdateformatted || '--') + ' - ' + (item.enddateformatted || '--'), 1);
+                };
+
+                let y = drawHeader(false) + 2;
+                let col = 0;
+                let rowY = y;
+
+                classes.forEach((item, idx) => {
+                    if (col === 0 && (rowY + cardH > (pageH - margin))) {
+                        doc.addPage();
+                        y = drawHeader(true) + 2;
+                        rowY = y;
+                        col = 0;
+                    }
+
+                    const x = margin + (col * (cardW + colGap));
+                    drawCard(x, rowY, item, idx);
+
+                    if (col === 0) {
+                        col = 1;
+                    } else {
+                        col = 0;
+                        rowY += cardH + rowGap;
+                    }
+                });
+
+                const token = this.sanitizeFileToken(student.name || this.studentName || 'estudiante');
+                const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                const filename = `horario_${token}_${dateToken}.pdf`;
+                doc.save(filename);
+            } catch (error) {
+                console.error('Error generating student schedule pdf:', error);
+                this.showMessage('error', 'Error al generar el PDF del horario.');
+            } finally {
+                this.exportingSchedulePdf = false;
             }
         },
         async getpensum() {
@@ -592,6 +810,9 @@ Vue.component('grademodal', {
         },
         studentEmail() {
             return (this.dataStudent && this.dataStudent.email) ? this.dataStudent.email : '--';
+        },
+        showSchedulePdfButton() {
+            return !this.classId;
         },
         selectedCourseName() {
             return this.selectedCourse && this.selectedCourse.coursename ? this.selectedCourse.coursename : '--';

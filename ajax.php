@@ -876,6 +876,219 @@ try {
             ];
             break;
 
+        case 'local_grupomakro_get_student_schedule_pdf_data':
+            require_sesskey();
+            require_capability('moodle/site:config', $context);
+            $userid = required_param('userId', PARAM_INT);
+            $periodfilter = optional_param('periodId', 0, PARAM_INT);
+
+            $student = $DB->get_record(
+                'user',
+                ['id' => $userid, 'deleted' => 0],
+                'id,firstname,lastname,email,idnumber',
+                MUST_EXIST
+            );
+
+            $periodtable = '';
+            foreach (['gmk_academic_periods', 'gmk_periods', 'local_learning_periods'] as $candidateperiodtable) {
+                try {
+                    $cols = $DB->get_columns($candidateperiodtable);
+                    if (is_array($cols) && isset($cols['id']) && isset($cols['name'])) {
+                        $periodtable = $candidateperiodtable;
+                        break;
+                    }
+                } catch (Throwable $periodtableerror) {
+                    // Continue with fallback tables.
+                }
+            }
+
+            $periodnames = [];
+            if ($periodtable !== '') {
+                $periodrows = $DB->get_records_sql("SELECT id, name FROM {" . $periodtable . "}");
+                foreach ($periodrows as $periodrow) {
+                    $periodnames[(int)$periodrow->id] = (string)$periodrow->name;
+                }
+            }
+
+            $params = [
+                'userid_group' => $userid,
+                'userid_progre' => $userid,
+                'userid_queue' => $userid,
+                'userid_prereg' => $userid,
+            ];
+            $whereperiod = '';
+            if ($periodfilter > 0) {
+                $whereperiod = ' AND c.periodid = :periodfilter';
+                $params['periodfilter'] = $periodfilter;
+            }
+
+            $classsql = "SELECT
+                            c.id,
+                            c.name,
+                            c.periodid,
+                            c.shift,
+                            c.type,
+                            c.typelabel,
+                            c.initdate,
+                            c.enddate,
+                            c.inithourformatted,
+                            c.endhourformatted,
+                            c.classdays,
+                            c.groupid,
+                            c.learningplanid,
+                            c.corecourseid,
+                            c.classroomid,
+                            COALESCE(room.name, 'Sin aula') AS classroomname,
+                            CONCAT(COALESCE(tu.firstname, ''), ' ', COALESCE(tu.lastname, '')) AS instructorname,
+                            COALESCE(core.fullname, c.name) AS subjectname,
+                            COALESCE(lp.name, '') AS learningplanname,
+                            MAX(CASE WHEN gm.id IS NOT NULL THEN 1 ELSE 0 END) AS in_group,
+                            MAX(CASE WHEN gcp.id IS NOT NULL AND gcp.status = 2 THEN 1 ELSE 0 END) AS in_progre,
+                            MAX(CASE WHEN cq.id IS NOT NULL THEN 1 ELSE 0 END) AS in_queue,
+                            MAX(CASE WHEN cpr.id IS NOT NULL THEN 1 ELSE 0 END) AS in_prereg
+                        FROM {gmk_class} c
+                        LEFT JOIN {groups_members} gm ON gm.groupid = c.groupid AND gm.userid = :userid_group
+                        LEFT JOIN {gmk_course_progre} gcp ON gcp.classid = c.id AND gcp.userid = :userid_progre
+                        LEFT JOIN {gmk_class_queue} cq ON cq.classid = c.id AND cq.userid = :userid_queue
+                        LEFT JOIN {gmk_class_pre_registration} cpr ON cpr.classid = c.id AND cpr.userid = :userid_prereg
+                        LEFT JOIN {user} tu ON tu.id = c.instructorid
+                        LEFT JOIN {gmk_classrooms} room ON room.id = c.classroomid
+                        LEFT JOIN {course} core ON core.id = c.corecourseid
+                        LEFT JOIN {local_learning_plans} lp ON lp.id = c.learningplanid
+                        WHERE c.closed = 0
+                          AND (
+                            gm.id IS NOT NULL
+                            OR (gcp.id IS NOT NULL AND gcp.status = 2)
+                            OR cq.id IS NOT NULL
+                            OR cpr.id IS NOT NULL
+                          )
+                          {$whereperiod}
+                        GROUP BY
+                            c.id, c.name, c.periodid, c.shift, c.type, c.typelabel, c.initdate, c.enddate,
+                            c.inithourformatted, c.endhourformatted, c.classdays, c.groupid, c.learningplanid,
+                            c.corecourseid, c.classroomid, room.name, tu.firstname, tu.lastname, core.fullname, lp.name
+                        ORDER BY c.periodid DESC, c.initdate ASC, c.inittimets ASC, c.id ASC";
+
+            $classrows = $DB->get_records_sql($classsql, $params);
+            $classids = array_map(static function($row) {
+                return (int)$row->id;
+            }, array_values($classrows));
+
+            $schedulemap = [];
+            if (!empty($classids)) {
+                list($classinsql, $classinparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cid');
+                $schedulerows = $DB->get_records_sql(
+                    "SELECT id, classid, day, start_time, end_time
+                       FROM {gmk_class_schedules}
+                      WHERE classid {$classinsql}
+                   ORDER BY classid ASC, id ASC",
+                    $classinparams
+                );
+
+                $daylabels = [
+                    'lunes' => 'Lunes',
+                    'monday' => 'Lunes',
+                    'martes' => 'Martes',
+                    'tuesday' => 'Martes',
+                    'miercoles' => 'Miercoles',
+                    'wednesday' => 'Miercoles',
+                    'jueves' => 'Jueves',
+                    'thursday' => 'Jueves',
+                    'viernes' => 'Viernes',
+                    'friday' => 'Viernes',
+                    'sabado' => 'Sabado',
+                    'saturday' => 'Sabado',
+                    'domingo' => 'Domingo',
+                    'sunday' => 'Domingo',
+                ];
+
+                foreach ($schedulerows as $schedulerow) {
+                    $classidkey = (int)$schedulerow->classid;
+                    if (!isset($schedulemap[$classidkey])) {
+                        $schedulemap[$classidkey] = [];
+                    }
+                    $daytoken = cleanString((string)$schedulerow->day);
+                    $daylabel = $daylabels[$daytoken] ?? ((string)$schedulerow->day ?: 'Dia');
+                    $start = !empty($schedulerow->start_time) ? (string)$schedulerow->start_time : '--';
+                    $end = !empty($schedulerow->end_time) ? (string)$schedulerow->end_time : '--';
+                    $piece = trim($daylabel . ' ' . $start . '-' . $end);
+                    if ($piece !== '' && !in_array($piece, $schedulemap[$classidkey], true)) {
+                        $schedulemap[$classidkey][] = $piece;
+                    }
+                }
+            }
+
+            $bitdaylabels = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+            $types = ['Presencial', 'Virtual', 'Mixta'];
+            $outputclasses = [];
+
+            foreach ($classrows as $classrow) {
+                $cid = (int)$classrow->id;
+                $schedulepieces = $schedulemap[$cid] ?? [];
+                if (empty($schedulepieces) && !empty($classrow->classdays)) {
+                    $parts = explode('/', (string)$classrow->classdays);
+                    $daysout = [];
+                    foreach ($parts as $idx => $flag) {
+                        if ((string)$flag === '1' && isset($bitdaylabels[$idx])) {
+                            $daysout[] = $bitdaylabels[$idx];
+                        }
+                    }
+                    if (!empty($daysout)) {
+                        $schedulepieces[] = implode(', ', $daysout) . ' ' . ($classrow->inithourformatted ?: '--') . '-' . ($classrow->endhourformatted ?: '--');
+                    } else {
+                        $schedulepieces[] = ($classrow->inithourformatted ?: '--') . '-' . ($classrow->endhourformatted ?: '--');
+                    }
+                }
+
+                $statuslabel = 'Relacionado';
+                if (!empty($classrow->in_group) || !empty($classrow->in_progre)) {
+                    $statuslabel = 'Inscrito';
+                } else if (!empty($classrow->in_queue)) {
+                    $statuslabel = 'Pendiente';
+                } else if (!empty($classrow->in_prereg)) {
+                    $statuslabel = 'Pre-registrado';
+                }
+
+                $typelabel = trim((string)$classrow->typelabel);
+                if ($typelabel === '') {
+                    $typeidx = (int)$classrow->type;
+                    $typelabel = $types[$typeidx] ?? 'Presencial';
+                }
+
+                $outputclasses[] = [
+                    'id' => $cid,
+                    'name' => (string)$classrow->name,
+                    'subjectname' => (string)$classrow->subjectname,
+                    'periodid' => (int)$classrow->periodid,
+                    'periodname' => (string)($periodnames[(int)$classrow->periodid] ?? ''),
+                    'shift' => (string)$classrow->shift,
+                    'typelabel' => $typelabel,
+                    'classroomname' => (string)$classrow->classroomname,
+                    'instructorname' => trim((string)$classrow->instructorname),
+                    'learningplanname' => (string)$classrow->learningplanname,
+                    'initdate' => (int)$classrow->initdate,
+                    'enddate' => (int)$classrow->enddate,
+                    'initdateformatted' => !empty($classrow->initdate) ? userdate((int)$classrow->initdate, get_string('strftimedate', 'langconfig')) : '',
+                    'enddateformatted' => !empty($classrow->enddate) ? userdate((int)$classrow->enddate, get_string('strftimedate', 'langconfig')) : '',
+                    'schedulepieces' => array_values($schedulepieces),
+                    'schedulelabel' => implode(' | ', $schedulepieces),
+                    'enrollmentstatus' => $statuslabel,
+                ];
+            }
+
+            $response = [
+                'status' => 'success',
+                'student' => [
+                    'id' => (int)$student->id,
+                    'name' => trim((string)$student->firstname . ' ' . (string)$student->lastname),
+                    'email' => (string)$student->email,
+                    'idnumber' => (string)$student->idnumber,
+                ],
+                'classes' => $outputclasses,
+                'generatedat' => userdate(time(), '%Y-%m-%d %H:%M'),
+            ];
+            break;
+
         case 'local_grupomakro_get_student_attendance_details':
             $userid = required_param('userId', PARAM_INT);
             $classid = required_param('classId', PARAM_INT);

@@ -192,12 +192,17 @@ try {
         "SELECT cp.id, cp.userid, cp.courseid, c.fullname, cp.status AS cpstatus
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
-           JOIN {local_learning_users} llu
-                ON llu.userid = cp.userid
-               AND llu.userrolename = 'student'
-               AND llu.status = 'activo'
-           JOIN {user} u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
-          WHERE cp.status IN (0, 1)"
+          WHERE cp.status IN (0, 1)
+            AND EXISTS (
+                SELECT 1 FROM {local_learning_users} llu
+                 WHERE llu.userid = cp.userid
+                   AND llu.userrolename = 'student'
+                   AND llu.status = 'activo'
+            )
+            AND EXISTS (
+                SELECT 1 FROM {user} u
+                 WHERE u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
+            )"
     );
     foreach ($pendingRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
@@ -317,12 +322,17 @@ try {
         "SELECT cp.id, cp.userid, cp.courseid, c.fullname
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
-           JOIN {local_learning_users} llu
-                ON llu.userid = cp.userid
-               AND llu.userrolename = 'student'
-               AND llu.status = 'activo'
-           JOIN {user} u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
-          WHERE cp.status = 5"
+          WHERE cp.status = 5
+            AND EXISTS (
+                SELECT 1 FROM {local_learning_users} llu
+                 WHERE llu.userid = cp.userid
+                   AND llu.userrolename = 'student'
+                   AND llu.status = 'activo'
+            )
+            AND EXISTS (
+                SELECT 1 FROM {user} u
+                 WHERE u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
+            )"
     );
     foreach ($failedRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
