@@ -143,6 +143,11 @@ if ($hassiteconfig) {
         'Brechas de Demanda Académica',
         new moodle_url('/local/grupomakro_core/pages/academic_demand_gaps.php')
     );
+    $scheduleWeeklyViewPage = new admin_externalpage(
+        'grupomakro_core_schedule_weekly_view',
+        'Vista Semanal de Horarios',
+        new moodle_url('/local/grupomakro_core/pages/schedule_weekly_view.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -166,6 +171,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $overlapAnalyticsPage);
     $ADMIN->add('grupomakrocore_plugin', $debugOverlapStudentPage);
     $ADMIN->add('grupomakrocore_plugin', $academicDemandGapsPage);
+    $ADMIN->add('grupomakrocore_plugin', $scheduleWeeklyViewPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********

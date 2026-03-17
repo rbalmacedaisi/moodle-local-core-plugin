@@ -153,11 +153,11 @@ try {
 $soldaduraexclusivecourseids = array();
 try {
     $structurerows = $DB->get_records_sql(
-        "SELECT p.learningplanid, c.id AS courseid
+        "SELECT lpc.id AS rid, p.learningplanid, c.id AS courseid
            FROM {local_learning_periods} p
            JOIN {local_learning_courses} lpc ON lpc.periodid = p.id
            JOIN {course} c ON c.id = lpc.courseid
-       ORDER BY p.learningplanid ASC, p.id ASC"
+        ORDER BY p.learningplanid ASC, p.id ASC"
     );
 
     $coursesbyplan = array();
