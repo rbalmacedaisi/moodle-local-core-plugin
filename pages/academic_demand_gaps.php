@@ -179,6 +179,30 @@ try {
     }
 } catch (Exception $e) { }
 
+// ── 8. Courseids exclusive to "TÉCNICO SUPERIOR EN SOLDADURA SUBACUÁTICA" ────
+// Any course shared with at least one other plan is NOT excluded.
+$soldaduraExclusiveCourseIds = array();
+$soldaduraPlanId = 0;
+foreach ($allPlans as $pl) {
+    $pn = mb_strtoupper((string)$pl->name, 'UTF-8');
+    if (strpos($pn, 'SOLDADURA') !== false || strpos($pn, 'SUBACUATICA') !== false || strpos($pn, 'SUBACUÁTICA') !== false) {
+        $soldaduraPlanId = (int)$pl->id;
+        break;
+    }
+}
+if ($soldaduraPlanId > 0 && isset($structure[$soldaduraPlanId])) {
+    foreach (array_keys($structure[$soldaduraPlanId]) as $cid) {
+        $sharedWithOther = false;
+        foreach ($structure as $planid => $courses) {
+            if ($planid === $soldaduraPlanId) { continue; }
+            if (isset($courses[$cid])) { $sharedWithOther = true; break; }
+        }
+        if (!$sharedWithOther) {
+            $soldaduraExclusiveCourseIds[$cid] = true;
+        }
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 1: BRECHAS DE CARGA
 // Pending subjects = gmk_course_progre.status IN (0,1), excluding PRACTICA
@@ -208,6 +232,7 @@ try {
     );
     foreach ($pendingRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
+        if (!empty($soldaduraExclusiveCourseIds[(int)$r->courseid])) { continue; }
         $pendingByUser[(int)$r->userid][(int)$r->courseid] = array(
             'fullname' => (string)$r->fullname,
             'cpstatus' => (int)$r->cpstatus,
@@ -340,6 +365,7 @@ try {
     );
     foreach ($failedRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
+        if (!empty($soldaduraExclusiveCourseIds[(int)$r->courseid])) { continue; }
         $failedByUser[(int)$r->userid][(int)$r->courseid] = (string)$r->fullname;
     }
 } catch (Exception $e) { }
