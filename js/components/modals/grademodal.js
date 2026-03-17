@@ -755,28 +755,34 @@ Vue.component('grademodal', {
                     const x = calendarX + timeColumnW + (dayPos * dayW) + 0.7;
                     const y = calendarY + dayHeaderH + (startOffset * rowH) + 0.5;
                     const w = dayW - 1.4;
-                    let h = Math.max(3.2, (duration / interval) * rowH - 1);
+                    let h = Math.max(8, (duration / interval) * rowH - 1);
                     const maxH = (calendarY + calendarH - 0.7) - y;
                     if (maxH <= 1) {
                         return;
                     }
                     h = Math.min(h, maxH);
 
-                    const bg = this.getCalendarColor(entry.classid);
+                    const status = String(entry.enrollmentstatus || 'Relacionado');
+                    const bg = statusColors[status] || statusColors['Relacionado'];
                     doc.setFillColor(bg[0], bg[1], bg[2]);
-                    doc.setDrawColor(120, 140, 160);
+                    doc.setDrawColor(Math.max(0, bg[0] - 35), Math.max(0, bg[1] - 35), Math.max(0, bg[2] - 35));
                     doc.roundedRect(x, y, w, h, 1, 1, 'FD');
 
-                    doc.setTextColor(20, 20, 20);
+                    doc.setTextColor(255, 255, 255);
                     doc.setFont('helvetica', 'bold');
                     doc.setFontSize(7);
-                    const line1 = String(entry.subjectname || entry.name || '--');
-                    const line2 = `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)}`;
-                    const line3 = `Aula: ${entry.classroomname || 'Sin aula'}`;
-                    const line4 = entry.enrollmentstatus || '';
-                    const content = [line1, line2, line3, line4].filter(Boolean).join(' | ');
-                    const wrapped = doc.splitTextToSize(content, w - 1.2);
-                    const maxLines = Math.max(1, Math.floor((h - 1.4) / 3.0));
+                    const contentLines = [
+                        String(entry.subjectname || entry.name || '--'),
+                        `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)} | ${status}`,
+                        `Docente: ${entry.instructorname || '--'}`,
+                        `Aula: ${entry.classroomname || 'Sin aula'}`,
+                    ];
+                    let wrapped = [];
+                    contentLines.forEach((line) => {
+                        const part = doc.splitTextToSize(String(line || ''), w - 1.2);
+                        wrapped = wrapped.concat(part);
+                    });
+                    const maxLines = Math.max(1, Math.floor((h - 1.4) / 2.9));
                     doc.text(wrapped.slice(0, maxLines), x + 0.6, y + 2.7);
                 });
 
