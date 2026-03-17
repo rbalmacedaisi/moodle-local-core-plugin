@@ -6636,9 +6636,63 @@ function get_logged_user_token()
 
 function get_theme_token()
 {
-    global $DB;
+    global $DB, $USER;
+
     $themeExternalService = $DB->get_record('external_services', array('shortname' => 'Settings_Theme', 'enabled' => 1));
-    return json_encode(external_generate_token_for_current_user($themeExternalService)->token);
+    if (!$themeExternalService) {
+        return json_encode('');
+    }
+
+    $context = context_system::instance();
+    $isAdmin = is_siteadmin() || has_capability('moodle/site:config', $context);
+
+    // Ensure the user is in the authorized users list when the service restricts access.
+    if (!empty($themeExternalService->restrictedusers) && $isAdmin) {
+        $authorized = $DB->record_exists('external_services_users', array(
+            'externalserviceid' => (int)$themeExternalService->id,
+            'userid'            => (int)$USER->id,
+        ));
+        if (!$authorized) {
+            $record = new stdClass();
+            $record->externalserviceid = (int)$themeExternalService->id;
+            $record->userid            = (int)$USER->id;
+            $record->iprestriction     = null;
+            $record->validuntil        = 0;
+            $record->timecreated       = time();
+            $DB->insert_record('external_services_users', $record);
+        }
+    }
+
+    // Try the standard token generation (requires moodle/webservice:createtoken capability).
+    try {
+        return json_encode(external_generate_token_for_current_user($themeExternalService)->token);
+    } catch (moodle_exception $e) {
+        // Fallback only for admins lacking moodle/webservice:createtoken.
+        if (!$isAdmin) {
+            throw $e;
+        }
+    }
+
+    // Admin fallback: reuse existing token or create one directly (bypasses capability check).
+    $existingToken = $DB->get_record('external_tokens', array(
+        'userid'            => (int)$USER->id,
+        'externalserviceid' => (int)$themeExternalService->id,
+        'tokentype'         => EXTERNAL_TOKEN_PERMANENT,
+    ), 'token', IGNORE_MULTIPLE);
+
+    if ($existingToken) {
+        return json_encode($existingToken->token);
+    }
+
+    $token = external_generate_token(
+        EXTERNAL_TOKEN_PERMANENT,
+        $themeExternalService,
+        (int)$USER->id,
+        $context,
+        0,
+        ''
+    );
+    return json_encode($token);
 }
 
 function gmk_fix_mojibake_text($string)
