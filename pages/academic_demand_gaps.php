@@ -189,7 +189,8 @@ try {
 $pendingByUser = array();
 try {
     $pendingRows = $DB->get_records_sql(
-        "SELECT cp.id, cp.userid, cp.courseid, c.fullname, cp.status AS cpstatus
+        "SELECT CONCAT(cp.userid, '_', cp.courseid) AS id,
+                cp.userid, cp.courseid, c.fullname, cp.status AS cpstatus
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
           WHERE cp.status IN (0, 1)
@@ -202,7 +203,8 @@ try {
             AND EXISTS (
                 SELECT 1 FROM {user} u
                  WHERE u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
-            )"
+            )
+          GROUP BY cp.userid, cp.courseid, c.fullname, cp.status"
     );
     foreach ($pendingRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
@@ -319,7 +321,8 @@ foreach ($gapRawStudents as $stu) {
 $failedByUser = array();
 try {
     $failedRows = $DB->get_records_sql(
-        "SELECT cp.id, cp.userid, cp.courseid, c.fullname
+        "SELECT CONCAT(cp.userid, '_', cp.courseid) AS id,
+                cp.userid, cp.courseid, c.fullname
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
           WHERE cp.status = 5
@@ -332,7 +335,8 @@ try {
             AND EXISTS (
                 SELECT 1 FROM {user} u
                  WHERE u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
-            )"
+            )
+          GROUP BY cp.userid, cp.courseid, c.fullname"
     );
     foreach ($failedRows as $r) {
         if (adg_is_excluded_course($r->fullname)) { continue; }
