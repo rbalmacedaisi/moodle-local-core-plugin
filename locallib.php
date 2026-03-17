@@ -3319,7 +3319,7 @@ function create_attendance_session_object($class, $initDateTS, $classDurationInS
     $attendanceSessionDefinition->description     = $BBBCourseModuleInfo ? "Sesión de asistencia - bbbModule:" . $BBBCourseModuleInfo->name . '.' : 'Sesión de clase presencial.';
     $attendanceSessionDefinition->calendarevent   = 1;
     $attendanceSessionDefinition->includeqrcode   = 1;
-    $attendanceSessionDefinition->rotateqrcode    = 1;
+    $attendanceSessionDefinition->rotateqrcode    = 0; // Static QR for the full session — avoids qr_pass_wrong errors.
     $attendanceSessionDefinition->studentscanmark = 1;
     $attendanceSessionDefinition->autoassignstatus = 1;
     $attendanceSessionDefinition->automark  = 2;
