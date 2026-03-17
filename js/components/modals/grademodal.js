@@ -674,6 +674,13 @@ Vue.component('grademodal', {
 
                 const student = payload.student || {};
                 const generatedAt = String(payload.generatedat || '');
+                const studentIdentification = String(
+                    (this.dataStudent && this.dataStudent.documentnumber) ||
+                    student.documentnumber ||
+                    (this.dataStudent && this.dataStudent.idnumber) ||
+                    student.idnumber ||
+                    '--'
+                );
                 const calendarData = this.extractCalendarEntries(classes);
                 const entries = calendarData.entries;
                 const withoutSchedule = calendarData.withoutSchedule;
@@ -738,7 +745,7 @@ Vue.component('grademodal', {
                 doc.setFont('helvetica', 'bold');
                 doc.text('ID:', margin + 110, margin + 22);
                 doc.setFont('helvetica', 'normal');
-                doc.text(String(student.idnumber || this.dataStudent.documentnumber || '--'), margin + 117, margin + 22);
+                doc.text(studentIdentification, margin + 117, margin + 22);
                 doc.setFont('helvetica', 'bold');
                 doc.text('Email:', margin + 170, margin + 22);
                 doc.setFont('helvetica', 'normal');
