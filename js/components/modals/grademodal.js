@@ -342,8 +342,20 @@ Vue.component('grademodal', {
                 this.loadingActivities = false;
             }
         },
-        loadExternalScript(src) {
+        loadExternalScript(src, options = {}) {
             return new Promise((resolve, reject) => {
+                const isolateAmd = !!options.isolateAmd;
+                let originalDefine = null;
+                let originalRequire = null;
+                const restoreAmd = () => {
+                    if (isolateAmd && originalDefine) {
+                        window.define = originalDefine;
+                        if (originalRequire) {
+                            window.require = originalRequire;
+                        }
+                    }
+                };
+
                 const selector = `script[data-gmk-src="${src}"]`;
                 const existing = document.querySelector(selector);
                 if (existing) {
@@ -356,15 +368,26 @@ Vue.component('grademodal', {
                     return;
                 }
 
+                if (isolateAmd && typeof window.define === 'function' && window.define.amd) {
+                    originalDefine = window.define;
+                    originalRequire = window.require;
+                    window.define = undefined;
+                }
+
                 const script = document.createElement('script');
                 script.src = src;
                 script.async = true;
                 script.setAttribute('data-gmk-src', src);
                 script.addEventListener('load', () => {
                     script.setAttribute('data-loaded', '1');
+                    restoreAmd();
                     resolve();
                 }, { once: true });
-                script.addEventListener('error', () => reject(new Error('Script load error: ' + src)), { once: true });
+                script.addEventListener('error', () => {
+                    restoreAmd();
+                    script.remove();
+                    reject(new Error('Script load error: ' + src));
+                }, { once: true });
                 document.head.appendChild(script);
             });
         },
@@ -372,10 +395,25 @@ Vue.component('grademodal', {
             if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) {
                 return;
             }
-            await this.loadExternalScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-            if (!((window.jspdf && window.jspdf.jsPDF) || window.jsPDF)) {
-                throw new Error('No se pudo inicializar jsPDF.');
+            const sources = [
+                'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            ];
+            let lasterror = null;
+            for (const src of sources) {
+                try {
+                    await this.loadExternalScript(src, { isolateAmd: true });
+                    if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) {
+                        return;
+                    }
+                } catch (error) {
+                    lasterror = error;
+                }
             }
+            if (lasterror) {
+                throw lasterror;
+            }
+            throw new Error('No se pudo inicializar jsPDF.');
         },
         sanitizeFileToken(value) {
             const raw = String(value || '');

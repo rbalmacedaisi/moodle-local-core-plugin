@@ -180,6 +180,6 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/student
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260316_1'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260316_2'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 echo $OUTPUT->footer();
