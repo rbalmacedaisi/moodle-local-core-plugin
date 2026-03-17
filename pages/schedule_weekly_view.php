@@ -61,7 +61,7 @@ $allPlans = array();
 try { $allPlans = $DB->get_records('local_learning_plans', null, 'name ASC', 'id, name'); } catch (Exception $e) {}
 
 $allPeriods = array();
-try { $allPeriods = $DB->get_records('gmk_academic_periods', null, 'name ASC', 'id, name'); } catch (Exception $e) {}
+try { $allPeriods = $DB->get_records('local_learning_periods', null, 'name ASC', 'id, name'); } catch (Exception $e) {}
 
 $allShifts = array();
 try {
@@ -120,7 +120,7 @@ try {
                 COALESCE(cr.name, '') AS classroomname
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
-           JOIN {gmk_academic_periods} ap ON ap.id = gc.periodid
+           JOIN {local_learning_periods} ap ON ap.id = gc.periodid
            JOIN {course} c ON c.id = gc.corecourseid
            JOIN {user} u ON u.id = gc.instructorid
            JOIN {gmk_class_schedules} s ON s.classid = gc.id
