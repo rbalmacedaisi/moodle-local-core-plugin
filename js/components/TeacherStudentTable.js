@@ -43,10 +43,7 @@ Vue.component('teacher-student-table', {
                                 ></v-text-field>
                             </v-col>
                             <v-col cols="auto" class="d-flex" style="gap: 8px;">
-                                <v-btn v-if="isAdmin" color="secondary" @click="syncProgress" :loading="syncing" :disabled="syncing">
-                                    <v-icon left>mdi-sync</v-icon>
-                                    Sincronizar Progreso
-                                </v-btn>
+
                                 <v-btn v-if="isSuperAdmin" color="warning" @click="syncMigratedPeriods" :loading="syncing" :disabled="syncing">
                                     <v-icon left>mdi-account-arrow-right</v-icon>
                                     Asignar Periodos (Migrados)
