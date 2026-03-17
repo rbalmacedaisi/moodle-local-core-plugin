@@ -82,7 +82,12 @@ if ($filter_planid > 0) {
     $whereParams['planid'] = $filter_planid;
 }
 if ($filter_periodid > 0) {
-    $whereExtra .= ' AND gc.periodid = :periodid';
+    $whereExtra .= ' AND EXISTS (
+        SELECT 1 FROM {local_learning_courses} llcf
+         JOIN {local_learning_periods} pf ON pf.id = llcf.periodid
+        WHERE llcf.courseid = gc.corecourseid
+          AND pf.learningplanid = gc.learningplanid
+          AND pf.id = :periodid)';
     $whereParams['periodid'] = $filter_periodid;
 }
 if ($filter_shift !== '') {
@@ -110,7 +115,16 @@ try {
                 gc.instructorid,
                 gc.corecourseid,
                 lp.name AS planname,
-                ap.name AS periodname,
+                (SELECT p.name FROM {local_learning_courses} llc2
+                  JOIN {local_learning_periods} p ON p.id = llc2.periodid
+                 WHERE llc2.courseid = gc.corecourseid
+                   AND p.learningplanid = gc.learningplanid
+                 LIMIT 1) AS periodname,
+                (SELECT p.id FROM {local_learning_courses} llc2
+                  JOIN {local_learning_periods} p ON p.id = llc2.periodid
+                 WHERE llc2.courseid = gc.corecourseid
+                   AND p.learningplanid = gc.learningplanid
+                 LIMIT 1) AS nivel_periodid,
                 c.fullname AS coursefullname,
                 u.firstname AS instr_first,
                 u.lastname  AS instr_last,
@@ -120,7 +134,6 @@ try {
                 COALESCE(cr.name, '') AS classroomname
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
-           JOIN {local_learning_periods} ap ON ap.id = gc.periodid
            JOIN {course} c ON c.id = gc.corecourseid
            JOIN {user} u ON u.id = gc.instructorid
            JOIN {gmk_class_schedules} s ON s.classid = gc.id
@@ -129,7 +142,7 @@ try {
             AND gc.closed   = 0
             AND gc.enddate  > :now
             {$whereExtra}
-          ORDER BY lp.name ASC, ap.name ASC, gc.shift ASC, s.start_time ASC",
+          ORDER BY lp.name ASC, periodname ASC, gc.shift ASC, s.start_time ASC",
         array_merge(array('now' => time() - 86400), $whereParams)
     );
 } catch (Exception $e) {
