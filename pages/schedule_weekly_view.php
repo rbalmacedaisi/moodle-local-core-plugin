@@ -131,7 +131,8 @@ try {
                 s.day,
                 s.start_time,
                 s.end_time,
-                COALESCE(cr.name, '') AS classroomname
+                COALESCE(cr.name, '') AS classroomname,
+                (SELECT COUNT(*) FROM {gmk_class_queue} WHERE classid = gc.id) AS student_count
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
            JOIN {course} c ON c.id = gc.corecourseid
@@ -235,6 +236,7 @@ echo $OUTPUT->header();
 .swv-card .subject{font-weight:700;font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .swv-card .instructor{font-size:10px;opacity:.88;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .swv-card .room{font-size:10px;opacity:.78;margin-top:1px}
+.swv-card .students{font-size:10px;opacity:.88;margin-top:2px}
 .swv-card .type-chip{display:inline-block;background:rgba(255,255,255,.25);border-radius:8px;padding:0 5px;font-size:9px;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
 /* ── Empty day ───────────────────────────────────────────────────────────────── */
 .swv-empty-day{color:#cdd;font-size:20px;text-align:center;padding:10px 0;flex:1;display:flex;align-items:center;justify-content:center}
@@ -385,13 +387,13 @@ echo $OUTPUT->header();
             <div class="swv-empty-day">·</div>
             <?php else: ?>
             <?php foreach ($cards as $card):
-                $cardColor = swv_color_for((string)$card->corecourseid);
+                $cardColor = swv_color_for((string)$card->classid);
                 $startFmt  = swv_fmt_time($card->start_time);
                 $endFmt    = swv_fmt_time($card->end_time);
                 $instrName = trim($card->instr_first . ' ' . $card->instr_last);
                 $typeLabel = (int)$card->type === 1 ? 'Virtual' : ((int)$card->type === 2 ? 'Mixta' : 'Presencial');
                 $roomStr   = $card->classroomname !== '' ? $card->classroomname : '';
-                $legendCourses[(int)$card->corecourseid] = array('name' => $card->coursefullname, 'color' => $cardColor);
+                $legendCourses[(int)$card->classid] = array('name' => $card->classname . ' — ' . $card->coursefullname, 'color' => $cardColor);
             ?>
             <div class="swv-card" style="background:<?php echo swv_h($cardColor); ?>" title="<?php echo swv_h($card->coursefullname . ' — ' . $instrName); ?>">
                 <div class="time">⏰ <?php echo swv_h($startFmt); ?> – <?php echo swv_h($endFmt); ?></div>
@@ -400,6 +402,7 @@ echo $OUTPUT->header();
                 <?php if ($roomStr !== ''): ?>
                 <div class="room">📍 <?php echo swv_h($roomStr); ?></div>
                 <?php endif; ?>
+                <div class="students">👥 <?php echo (int)$card->student_count; ?> estudiante<?php echo (int)$card->student_count !== 1 ? 's' : ''; ?></div>
                 <div><span class="type-chip"><?php echo swv_h($typeLabel); ?></span></div>
             </div>
             <?php endforeach; ?>
