@@ -185,12 +185,18 @@ try {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // pendingByUser[userid][courseid] = array('fullname'=>..., 'cpstatus'=>0|1)
+// Only loads subjects for active students (llu.status = 'activo', not deleted/suspended).
 $pendingByUser = array();
 try {
     $pendingRows = $DB->get_records_sql(
         "SELECT cp.id, cp.userid, cp.courseid, c.fullname, cp.status AS cpstatus
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
+           JOIN {local_learning_users} llu
+                ON llu.userid = cp.userid
+               AND llu.userrolename = 'student'
+               AND llu.status = 'activo'
+           JOIN {user} u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
           WHERE cp.status IN (0, 1)"
     );
     foreach ($pendingRows as $r) {
@@ -304,12 +310,18 @@ foreach ($gapRawStudents as $stu) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // failedByUser[userid][courseid] = fullname
+// Only loads subjects for active students (llu.status = 'activo', not deleted/suspended).
 $failedByUser = array();
 try {
     $failedRows = $DB->get_records_sql(
         "SELECT cp.id, cp.userid, cp.courseid, c.fullname
            FROM {gmk_course_progre} cp
            JOIN {course} c ON c.id = cp.courseid
+           JOIN {local_learning_users} llu
+                ON llu.userid = cp.userid
+               AND llu.userrolename = 'student'
+               AND llu.status = 'activo'
+           JOIN {user} u ON u.id = cp.userid AND u.deleted = 0 AND u.suspended = 0
           WHERE cp.status = 5"
     );
     foreach ($failedRows as $r) {
