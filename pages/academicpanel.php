@@ -71,6 +71,21 @@ $strings = json_encode($strings);
 $token = get_logged_user_token();
 $themeToken = get_theme_token();
 
+$logoUrl = $OUTPUT->get_logo_url();
+if (!$logoUrl) {
+    try {
+        $theme = theme_config::load($CFG->theme);
+        if (isset($theme->settings->logo) && !empty($theme->settings->logo)) {
+            $logo = basename($theme->settings->logo);
+            $logoUrl = new moodle_url('/theme/' . $CFG->theme . '/pix/static/' . $logo);
+        }
+    } catch (Exception $e) {
+        // Ignore and continue without logo.
+    }
+}
+$schedulePdfLogoUrl = ($logoUrl instanceof moodle_url) ? $logoUrl->out(false) : '';
+$schedulePdfLogoUrl = json_encode($schedulePdfLogoUrl);
+
 $default_carrer_img = $CFG->wwwroot.'/local/grupomakro_core/pix/img-default.jpg';
 $default_carrer_img = json_encode($default_carrer_img);
 
@@ -170,6 +185,7 @@ echo <<<EOT
     var themeToken = $themeToken || null;
     var isAdmin = $isAdmin;
     var isSuperAdmin = $isSuperAdmin;
+    var schedulePdfLogoUrl = $schedulePdfLogoUrl;
   </script>
 
   
@@ -180,6 +196,6 @@ $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/student
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/academicoffer.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/curriculum.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/revalidatestudents.js?v=' . $assetversion));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260316_4'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/modals/grademodal.js?v=' . $assetversion . '_20260317_1'));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 echo $OUTPUT->footer();

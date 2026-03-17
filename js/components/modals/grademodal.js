@@ -425,6 +425,30 @@ Vue.component('grademodal', {
                 .replace(/^_+|_+$/g, '');
             return normalized || 'estudiante';
         },
+        getSchedulePdfLogoUrl() {
+            const raw = (typeof window.schedulePdfLogoUrl === 'string') ? window.schedulePdfLogoUrl.trim() : '';
+            if (!raw) {
+                return '';
+            }
+            try {
+                const parsed = new URL(raw, window.location.origin);
+                if (parsed.origin !== window.location.origin) {
+                    return '';
+                }
+                return parsed.href;
+            } catch (e) {
+                return '';
+            }
+        },
+        loadImageForPdf(url) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('Image load error: ' + url));
+                const hasQuery = url.indexOf('?') !== -1;
+                img.src = `${url}${hasQuery ? '&' : '?'}v=${Date.now()}`;
+            });
+        },
         toDayIndex(dayValue) {
             if (typeof dayValue === 'number' && Number.isFinite(dayValue)) {
                 const n = Math.trunc(dayValue);
@@ -653,6 +677,20 @@ Vue.component('grademodal', {
                 const calendarData = this.extractCalendarEntries(classes);
                 const entries = calendarData.entries;
                 const withoutSchedule = calendarData.withoutSchedule;
+                let logoImage = null;
+                let logoRatio = 1;
+
+                const logoUrl = this.getSchedulePdfLogoUrl();
+                if (logoUrl) {
+                    try {
+                        logoImage = await this.loadImageForPdf(logoUrl);
+                        if (logoImage && logoImage.naturalWidth > 0 && logoImage.naturalHeight > 0) {
+                            logoRatio = logoImage.naturalWidth / logoImage.naturalHeight;
+                        }
+                    } catch (logoError) {
+                        console.warn('Schedule PDF logo could not be loaded:', logoError);
+                    }
+                }
 
                 if (!entries.length && !withoutSchedule.length) {
                     this.showMessage('info', 'No hay datos de horario para exportar.');
@@ -666,12 +704,30 @@ Vue.component('grademodal', {
                 doc.setFillColor(25, 118, 210);
                 doc.roundedRect(margin, margin, pageW - (margin * 2), 16, 2, 2, 'F');
                 doc.setTextColor(255, 255, 255);
+                let headerTextX = margin + 3;
+                if (logoImage) {
+                    const logoH = 12;
+                    const logoW = Math.max(10, Math.min(36, logoH * logoRatio));
+                    const logoX = margin + 2;
+                    const logoY = margin + 2;
+                    try {
+                        doc.addImage(logoImage, 'PNG', logoX, logoY, logoW, logoH);
+                        headerTextX = logoX + logoW + 2.5;
+                    } catch (e1) {
+                        try {
+                            doc.addImage(logoImage, 'JPEG', logoX, logoY, logoW, logoH);
+                            headerTextX = logoX + logoW + 2.5;
+                        } catch (e2) {
+                            // Continue without logo.
+                        }
+                    }
+                }
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(14);
-                doc.text('Horario semanal del estudiante', margin + 3, margin + 6.5);
+                doc.text('Horario semanal del estudiante', headerTextX, margin + 6.5);
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
-                doc.text('Generado: ' + (generatedAt || '--'), margin + 3, margin + 12);
+                doc.text('Generado: ' + (generatedAt || '--'), headerTextX, margin + 12);
 
                 doc.setTextColor(0, 0, 0);
                 doc.setFont('helvetica', 'bold');
