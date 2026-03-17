@@ -975,6 +975,7 @@ try {
             }, array_values($classrows));
 
             $schedulemap = [];
+            $schedulestructmap = [];
             if (!empty($classids)) {
                 list($classinsql, $classinparams) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'cid');
                 $schedulerows = $DB->get_records_sql(
@@ -985,35 +986,70 @@ try {
                     $classinparams
                 );
 
-                $daylabels = [
-                    'lunes' => 'Lunes',
-                    'monday' => 'Lunes',
-                    'martes' => 'Martes',
-                    'tuesday' => 'Martes',
-                    'miercoles' => 'Miercoles',
-                    'wednesday' => 'Miercoles',
-                    'jueves' => 'Jueves',
-                    'thursday' => 'Jueves',
-                    'viernes' => 'Viernes',
-                    'friday' => 'Viernes',
-                    'sabado' => 'Sabado',
-                    'saturday' => 'Sabado',
-                    'domingo' => 'Domingo',
-                    'sunday' => 'Domingo',
+                $daymeta = [
+                    'lunes' => ['label' => 'Lunes', 'index' => 1],
+                    'monday' => ['label' => 'Lunes', 'index' => 1],
+                    'martes' => ['label' => 'Martes', 'index' => 2],
+                    'tuesday' => ['label' => 'Martes', 'index' => 2],
+                    'miercoles' => ['label' => 'Miercoles', 'index' => 3],
+                    'wednesday' => ['label' => 'Miercoles', 'index' => 3],
+                    'jueves' => ['label' => 'Jueves', 'index' => 4],
+                    'thursday' => ['label' => 'Jueves', 'index' => 4],
+                    'viernes' => ['label' => 'Viernes', 'index' => 5],
+                    'friday' => ['label' => 'Viernes', 'index' => 5],
+                    'sabado' => ['label' => 'Sabado', 'index' => 6],
+                    'saturday' => ['label' => 'Sabado', 'index' => 6],
+                    'domingo' => ['label' => 'Domingo', 'index' => 7],
+                    'sunday' => ['label' => 'Domingo', 'index' => 7],
                 ];
+
+                $normalizetime = static function($value) {
+                    $value = trim((string)$value);
+                    if ($value === '') {
+                        return '--';
+                    }
+                    if (preg_match('/^(\d{1,2}):(\d{2})/', $value, $matches)) {
+                        return sprintf('%02d:%02d', (int)$matches[1], (int)$matches[2]);
+                    }
+                    return $value;
+                };
 
                 foreach ($schedulerows as $schedulerow) {
                     $classidkey = (int)$schedulerow->classid;
                     if (!isset($schedulemap[$classidkey])) {
                         $schedulemap[$classidkey] = [];
                     }
+                    if (!isset($schedulestructmap[$classidkey])) {
+                        $schedulestructmap[$classidkey] = [];
+                    }
                     $daytoken = cleanString((string)$schedulerow->day);
-                    $daylabel = $daylabels[$daytoken] ?? ((string)$schedulerow->day ?: 'Dia');
-                    $start = !empty($schedulerow->start_time) ? (string)$schedulerow->start_time : '--';
-                    $end = !empty($schedulerow->end_time) ? (string)$schedulerow->end_time : '--';
+                    $meta = $daymeta[$daytoken] ?? ['label' => ((string)$schedulerow->day ?: 'Dia'), 'index' => 0];
+                    $daylabel = (string)$meta['label'];
+                    $dayindex = (int)$meta['index'];
+                    $start = $normalizetime($schedulerow->start_time);
+                    $end = $normalizetime($schedulerow->end_time);
                     $piece = trim($daylabel . ' ' . $start . '-' . $end);
                     if ($piece !== '' && !in_array($piece, $schedulemap[$classidkey], true)) {
                         $schedulemap[$classidkey][] = $piece;
+                    }
+                    $alreadyexists = false;
+                    foreach ($schedulestructmap[$classidkey] as $existingentry) {
+                        if (
+                            ((int)$existingentry['dayindex']) === $dayindex &&
+                            ((string)$existingentry['start']) === $start &&
+                            ((string)$existingentry['end']) === $end
+                        ) {
+                            $alreadyexists = true;
+                            break;
+                        }
+                    }
+                    if (!$alreadyexists) {
+                        $schedulestructmap[$classidkey][] = [
+                            'day' => $daylabel,
+                            'dayindex' => $dayindex,
+                            'start' => $start,
+                            'end' => $end,
+                        ];
                     }
                 }
             }
@@ -1025,19 +1061,25 @@ try {
             foreach ($classrows as $classrow) {
                 $cid = (int)$classrow->id;
                 $schedulepieces = $schedulemap[$cid] ?? [];
+                $schedulestruct = $schedulestructmap[$cid] ?? [];
                 if (empty($schedulepieces) && !empty($classrow->classdays)) {
                     $parts = explode('/', (string)$classrow->classdays);
-                    $daysout = [];
                     foreach ($parts as $idx => $flag) {
                         if ((string)$flag === '1' && isset($bitdaylabels[$idx])) {
-                            $daysout[] = $bitdaylabels[$idx];
+                            $startfallback = $classrow->inithourformatted ?: '--';
+                            $endfallback = $classrow->endhourformatted ?: '--';
+                            $schedulepieces[] = $bitdaylabels[$idx] . ' ' . $startfallback . '-' . $endfallback;
+                            $schedulestruct[] = [
+                                'day' => $bitdaylabels[$idx],
+                                'dayindex' => ($idx === 0 ? 7 : $idx),
+                                'start' => $startfallback,
+                                'end' => $endfallback,
+                            ];
                         }
                     }
-                    if (!empty($daysout)) {
-                        $schedulepieces[] = implode(', ', $daysout) . ' ' . ($classrow->inithourformatted ?: '--') . '-' . ($classrow->endhourformatted ?: '--');
-                    } else {
-                        $schedulepieces[] = ($classrow->inithourformatted ?: '--') . '-' . ($classrow->endhourformatted ?: '--');
-                    }
+                }
+                if (empty($schedulepieces) && (!empty($classrow->inithourformatted) || !empty($classrow->endhourformatted))) {
+                    $schedulepieces[] = ($classrow->inithourformatted ?: '--') . '-' . ($classrow->endhourformatted ?: '--');
                 }
 
                 $statuslabel = 'Relacionado';
@@ -1071,6 +1113,7 @@ try {
                     'initdateformatted' => !empty($classrow->initdate) ? userdate((int)$classrow->initdate, get_string('strftimedate', 'langconfig')) : '',
                     'enddateformatted' => !empty($classrow->enddate) ? userdate((int)$classrow->enddate, get_string('strftimedate', 'langconfig')) : '',
                     'schedulepieces' => array_values($schedulepieces),
+                    'schedules' => array_values($schedulestruct),
                     'schedulelabel' => implode(' | ', $schedulepieces),
                     'enrollmentstatus' => $statuslabel,
                 ];

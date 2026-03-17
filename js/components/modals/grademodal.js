@@ -425,6 +425,198 @@ Vue.component('grademodal', {
                 .replace(/^_+|_+$/g, '');
             return normalized || 'estudiante';
         },
+        toDayIndex(dayValue) {
+            if (typeof dayValue === 'number' && Number.isFinite(dayValue)) {
+                const n = Math.trunc(dayValue);
+                if (n >= 1 && n <= 7) return n;
+                if (n === 0) return 7;
+            }
+            const raw = String(dayValue || '').trim();
+            if (!raw) return 0;
+            if (/^\d+$/.test(raw)) {
+                const n = Number(raw);
+                if (n >= 1 && n <= 7) return n;
+                if (n === 0) return 7;
+            }
+            const key = raw
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+            const map = {
+                lun: 1, lunes: 1, monday: 1,
+                mar: 2, martes: 2, tuesday: 2,
+                mie: 3, miercoles: 3, wednesday: 3,
+                jue: 4, jueves: 4, thursday: 4,
+                vie: 5, viernes: 5, friday: 5,
+                sab: 6, sabado: 6, saturday: 6,
+                dom: 7, domingo: 7, sunday: 7,
+            };
+            return map[key] || 0;
+        },
+        toMinutes(timeValue) {
+            const raw = String(timeValue || '').trim();
+            if (!raw || raw === '--') {
+                return null;
+            }
+            const normalized = raw
+                .toLowerCase()
+                .replace(/\./g, '')
+                .replace(/\s+/g, '');
+
+            let match = normalized.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(am|pm)?$/);
+            if (!match) {
+                match = normalized.match(/^(\d{1,2})(am|pm)$/);
+                if (match) {
+                    match = [normalized, match[1], '00', match[2]];
+                }
+            }
+            if (!match) {
+                return null;
+            }
+
+            let hours = Number(match[1]);
+            const minutes = Number(match[2]);
+            const meridiem = match[3] || '';
+
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes) || minutes < 0 || minutes > 59) {
+                return null;
+            }
+
+            if (meridiem === 'pm' && hours < 12) {
+                hours += 12;
+            } else if (meridiem === 'am' && hours === 12) {
+                hours = 0;
+            }
+
+            if (hours < 0 || hours > 23) {
+                return null;
+            }
+            return (hours * 60) + minutes;
+        },
+        formatMinutesLabel(totalMinutes) {
+            const min = Math.max(0, Math.min(24 * 60, Number(totalMinutes) || 0));
+            const h = Math.floor(min / 60);
+            const m = min % 60;
+            const hh = String(h).padStart(2, '0');
+            const mm = String(m).padStart(2, '0');
+            return `${hh}:${mm}`;
+        },
+        getCalendarColor(seed) {
+            const palette = [
+                [232, 245, 233],
+                [227, 242, 253],
+                [255, 243, 224],
+                [243, 229, 245],
+                [232, 234, 246],
+                [252, 228, 236],
+                [225, 245, 254],
+                [255, 249, 196],
+            ];
+            const source = String(seed || '0');
+            let hash = 0;
+            for (let i = 0; i < source.length; i += 1) {
+                hash = ((hash * 31) + source.charCodeAt(i)) % 2147483647;
+            }
+            return palette[Math.abs(hash) % palette.length];
+        },
+        extractCalendarEntries(classes) {
+            const entries = [];
+            const withoutSchedule = [];
+            const unique = new Set();
+
+            const pushEntry = (item, dayValue, startValue, endValue) => {
+                const dayIndex = this.toDayIndex(dayValue);
+                const startMin = this.toMinutes(startValue);
+                let endMin = this.toMinutes(endValue);
+                if (dayIndex < 1 || dayIndex > 7 || startMin === null || endMin === null) {
+                    return false;
+                }
+                if (endMin <= startMin) {
+                    endMin = startMin + 60;
+                }
+                endMin = Math.min(endMin, 24 * 60);
+                const classId = Number(item && item.id ? item.id : 0);
+                const key = `${classId}|${dayIndex}|${startMin}|${endMin}`;
+                if (unique.has(key)) {
+                    return false;
+                }
+                unique.add(key);
+                entries.push({
+                    classid: classId,
+                    name: String(item && item.name ? item.name : '--'),
+                    subjectname: String(item && item.subjectname ? item.subjectname : (item && item.name ? item.name : '--')),
+                    instructorname: String(item && item.instructorname ? item.instructorname : ''),
+                    classroomname: String(item && item.classroomname ? item.classroomname : 'Sin aula'),
+                    enrollmentstatus: String(item && item.enrollmentstatus ? item.enrollmentstatus : 'Relacionado'),
+                    dayIndex: dayIndex,
+                    startMin: startMin,
+                    endMin: endMin,
+                });
+                return true;
+            };
+
+            classes.forEach((item) => {
+                let addedAny = false;
+                const structured = Array.isArray(item && item.schedules) ? item.schedules : [];
+
+                structured.forEach((schedule) => {
+                    const dayValue = (schedule && schedule.dayindex) ? schedule.dayindex : (schedule ? schedule.day : '');
+                    const startValue = schedule ? schedule.start : '';
+                    const endValue = schedule ? schedule.end : '';
+                    if (pushEntry(item, dayValue, startValue, endValue)) {
+                        addedAny = true;
+                    }
+                });
+
+                if (!addedAny) {
+                    const pieces = Array.isArray(item && item.schedulepieces) ? item.schedulepieces : [];
+                    pieces.forEach((piece) => {
+                        const text = String(piece || '').trim();
+                        if (!text) {
+                            return;
+                        }
+                        const match = text.match(/^(.+?)\s+([0-9]{1,2}:[0-9]{2}(?:\s*[ap]\.?m\.?)?)-([0-9]{1,2}:[0-9]{2}(?:\s*[ap]\.?m\.?)?)$/i);
+                        if (!match) {
+                            return;
+                        }
+                        const daysPart = String(match[1] || '');
+                        const startValue = String(match[2] || '');
+                        const endValue = String(match[3] || '');
+                        const dayTokens = daysPart
+                            .split(/[,/|]+/)
+                            .map((d) => String(d || '').trim())
+                            .filter(Boolean);
+
+                        let pieceAdded = false;
+                        dayTokens.forEach((dayToken) => {
+                            if (pushEntry(item, dayToken, startValue, endValue)) {
+                                pieceAdded = true;
+                            }
+                        });
+
+                        if (!pieceAdded && pushEntry(item, daysPart, startValue, endValue)) {
+                            pieceAdded = true;
+                        }
+                        if (pieceAdded) {
+                            addedAny = true;
+                        }
+                    });
+                }
+
+                if (!addedAny) {
+                    withoutSchedule.push(item);
+                }
+            });
+
+            entries.sort((a, b) => {
+                if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+                if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+                if (a.endMin !== b.endMin) return a.endMin - b.endMin;
+                return a.classid - b.classid;
+            });
+
+            return { entries, withoutSchedule };
+        },
         async downloadStudentSchedulePdf() {
             if (this.exportingSchedulePdf || !(this.dataStudent && this.dataStudent.id)) {
                 return;
@@ -454,50 +646,47 @@ Vue.component('grademodal', {
 
                 await this.ensurePdfLibrary();
                 const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
-                const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
                 const student = payload.student || {};
                 const generatedAt = String(payload.generatedat || '');
+                const calendarData = this.extractCalendarEntries(classes);
+                const entries = calendarData.entries;
+                const withoutSchedule = calendarData.withoutSchedule;
+
+                if (!entries.length && !withoutSchedule.length) {
+                    this.showMessage('info', 'No hay datos de horario para exportar.');
+                    return;
+                }
+
                 const pageW = doc.internal.pageSize.getWidth();
                 const pageH = doc.internal.pageSize.getHeight();
-                const margin = 10;
-                const colGap = 4;
-                const rowGap = 4;
-                const cardW = (pageW - (margin * 2) - colGap) / 2;
-                const cardH = 52;
+                const margin = 8;
 
-                const drawHeader = (continued) => {
-                    let y = margin;
-                    doc.setFillColor(25, 118, 210);
-                    doc.roundedRect(margin, y, pageW - (margin * 2), 16, 2, 2, 'F');
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(14);
-                    doc.text(continued ? 'Horario del estudiante (continuacion)' : 'Horario del estudiante', margin + 3, y + 6.5);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setFontSize(9);
-                    doc.text('Generado: ' + (generatedAt || '--'), margin + 3, y + 12);
+                doc.setFillColor(25, 118, 210);
+                doc.roundedRect(margin, margin, pageW - (margin * 2), 16, 2, 2, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(14);
+                doc.text('Horario semanal del estudiante', margin + 3, margin + 6.5);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.text('Generado: ' + (generatedAt || '--'), margin + 3, margin + 12);
 
-                    doc.setTextColor(0, 0, 0);
-                    y += 20;
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(10);
-                    doc.text('Estudiante:', margin, y);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(String(student.name || this.studentName || '--'), margin + 22, y);
-                    y += 5;
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('ID:', margin, y);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(String(student.idnumber || this.dataStudent.documentnumber || '--'), margin + 22, y);
-                    y += 5;
-                    doc.setFont('helvetica', 'bold');
-                    doc.text('Email:', margin, y);
-                    doc.setFont('helvetica', 'normal');
-                    doc.text(String(student.email || this.studentEmail || '--'), margin + 22, y);
-                    y += 4;
-                    return y;
-                };
+                doc.setTextColor(0, 0, 0);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.text('Estudiante:', margin, margin + 22);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(student.name || this.studentName || '--'), margin + 20, margin + 22);
+                doc.setFont('helvetica', 'bold');
+                doc.text('ID:', margin + 110, margin + 22);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(student.idnumber || this.dataStudent.documentnumber || '--'), margin + 117, margin + 22);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Email:', margin + 170, margin + 22);
+                doc.setFont('helvetica', 'normal');
+                doc.text(String(student.email || this.studentEmail || '--'), margin + 182, margin + 22);
 
                 const statusColors = {
                     'Inscrito': [46, 125, 50],
@@ -506,78 +695,133 @@ Vue.component('grademodal', {
                     'Relacionado': [97, 97, 97],
                 };
 
-                const drawCard = (x, y, item, index) => {
-                    doc.setDrawColor(210, 210, 210);
-                    doc.setLineWidth(0.2);
-                    doc.roundedRect(x, y, cardW, cardH, 2, 2, 'S');
+                let minMinutes = 7 * 60;
+                let maxMinutes = 22 * 60;
+                if (entries.length > 0) {
+                    minMinutes = Math.min(...entries.map((e) => e.startMin));
+                    maxMinutes = Math.max(...entries.map((e) => e.endMin));
+                    minMinutes = Math.max(0, (Math.floor(minMinutes / 30) * 30) - 30);
+                    maxMinutes = Math.min(24 * 60, (Math.ceil(maxMinutes / 30) * 30) + 30);
+                    if ((maxMinutes - minMinutes) < (5 * 60)) {
+                        maxMinutes = Math.min(24 * 60, minMinutes + (5 * 60));
+                    }
+                }
 
-                    const status = String(item.enrollmentstatus || 'Relacionado');
-                    const color = statusColors[status] || statusColors['Relacionado'];
-                    doc.setFillColor(color[0], color[1], color[2]);
-                    doc.roundedRect(x, y, cardW, 6, 2, 2, 'F');
+                const interval = 30;
+                const rows = Math.max(1, Math.round((maxMinutes - minMinutes) / interval));
+                const dayLabels = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+                const calendarX = margin;
+                const calendarY = margin + 26;
+                const bottomReserve = withoutSchedule.length > 0 ? 20 : 12;
+                const calendarW = pageW - (margin * 2);
+                const calendarH = Math.max(90, pageH - calendarY - bottomReserve);
+                const timeColumnW = 17;
+                const dayHeaderH = 8;
+                const dayW = (calendarW - timeColumnW) / 7;
+                const rowH = (calendarH - dayHeaderH) / rows;
 
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(8);
-                    doc.text('#' + String(index + 1) + ' - ' + status, x + 2, y + 4.2);
+                doc.setDrawColor(180, 180, 180);
+                doc.setLineWidth(0.2);
+                doc.rect(calendarX, calendarY, calendarW, calendarH);
+                doc.setFillColor(240, 244, 248);
+                doc.rect(calendarX, calendarY, calendarW, dayHeaderH, 'F');
+                doc.rect(calendarX, calendarY, timeColumnW, calendarH, 'F');
 
-                    doc.setTextColor(0, 0, 0);
-                    let cy = y + 9;
-                    const contentW = cardW - 4;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.setTextColor(40, 40, 40);
+                for (let d = 0; d < dayLabels.length; d += 1) {
+                    const x = calendarX + timeColumnW + (d * dayW);
+                    doc.line(x, calendarY, x, calendarY + calendarH);
+                    const centerX = x + (dayW / 2);
+                    doc.text(dayLabels[d], centerX, calendarY + 5.2, { align: 'center' });
+                }
 
-                    const title = String(item.subjectname || item.name || '--');
-                    doc.setFont('helvetica', 'bold');
-                    doc.setFontSize(9);
-                    const titleLines = doc.splitTextToSize(title, contentW);
-                    const limitedTitle = titleLines.slice(0, 2);
-                    doc.text(limitedTitle, x + 2, cy);
-                    cy += (limitedTitle.length * 3.7) + 1;
-
-                    const pushLine = (label, value, maxLines = 2) => {
-                        doc.setFont('helvetica', 'bold');
-                        doc.setFontSize(7.5);
-                        doc.text(label + ':', x + 2, cy);
+                for (let r = 0; r <= rows; r += 1) {
+                    const yLine = calendarY + dayHeaderH + (r * rowH);
+                    doc.line(calendarX, yLine, calendarX + calendarW, yLine);
+                    if (r % 2 === 0) {
+                        const mins = minMinutes + (r * interval);
                         doc.setFont('helvetica', 'normal');
-                        const textLines = doc.splitTextToSize(String(value || '--'), contentW - 15).slice(0, maxLines);
-                        doc.text(textLines, x + 17, cy);
-                        cy += (textLines.length * 3.3) + 0.8;
-                    };
-
-                    pushLine('Curso', item.name || '--', 2);
-                    pushLine('Docente', item.instructorname || '--', 2);
-                    pushLine('Horario', item.schedulelabel || '--', 3);
-                    pushLine('Aula', item.classroomname || 'Sin aula', 1);
-                    pushLine('Modalidad', item.typelabel || '--', 1);
-                    pushLine('Periodo', item.periodname || ('ID ' + String(item.periodid || '--')), 1);
-                    pushLine('Rango', (item.initdateformatted || '--') + ' - ' + (item.enddateformatted || '--'), 1);
-                };
-
-                let y = drawHeader(false) + 2;
-                let col = 0;
-                let rowY = y;
-
-                classes.forEach((item, idx) => {
-                    if (col === 0 && (rowY + cardH > (pageH - margin))) {
-                        doc.addPage();
-                        y = drawHeader(true) + 2;
-                        rowY = y;
-                        col = 0;
+                        doc.setFontSize(7);
+                        doc.text(this.formatMinutesLabel(mins), calendarX + 1.5, yLine + 2.5);
                     }
+                }
 
-                    const x = margin + (col * (cardW + colGap));
-                    drawCard(x, rowY, item, idx);
-
-                    if (col === 0) {
-                        col = 1;
-                    } else {
-                        col = 0;
-                        rowY += cardH + rowGap;
+                entries.forEach((entry) => {
+                    const dayPos = Math.min(6, Math.max(0, entry.dayIndex - 1));
+                    const startOffset = (entry.startMin - minMinutes) / interval;
+                    const duration = Math.max(interval, entry.endMin - entry.startMin);
+                    const x = calendarX + timeColumnW + (dayPos * dayW) + 0.7;
+                    const y = calendarY + dayHeaderH + (startOffset * rowH) + 0.5;
+                    const w = dayW - 1.4;
+                    let h = Math.max(3.2, (duration / interval) * rowH - 1);
+                    const maxH = (calendarY + calendarH - 0.7) - y;
+                    if (maxH <= 1) {
+                        return;
                     }
+                    h = Math.min(h, maxH);
+
+                    const bg = this.getCalendarColor(entry.classid);
+                    doc.setFillColor(bg[0], bg[1], bg[2]);
+                    doc.setDrawColor(120, 140, 160);
+                    doc.roundedRect(x, y, w, h, 1, 1, 'FD');
+
+                    doc.setTextColor(20, 20, 20);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(7);
+                    const line1 = String(entry.subjectname || entry.name || '--');
+                    const line2 = `${this.formatMinutesLabel(entry.startMin)}-${this.formatMinutesLabel(entry.endMin)}`;
+                    const line3 = `Aula: ${entry.classroomname || 'Sin aula'}`;
+                    const line4 = entry.enrollmentstatus || '';
+                    const content = [line1, line2, line3, line4].filter(Boolean).join(' | ');
+                    const wrapped = doc.splitTextToSize(content, w - 1.2);
+                    const maxLines = Math.max(1, Math.floor((h - 1.4) / 3.0));
+                    doc.text(wrapped.slice(0, maxLines), x + 0.6, y + 2.7);
                 });
+
+                let legendY = calendarY + calendarH + 4;
+                let legendX = calendarX;
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.setTextColor(30, 30, 30);
+                doc.text('Estado:', legendX, legendY);
+                legendX += 14;
+
+                Object.keys(statusColors).forEach((label) => {
+                    const color = statusColors[label];
+                    doc.setFillColor(color[0], color[1], color[2]);
+                    doc.rect(legendX, legendY - 3.3, 4, 3.2, 'F');
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7.5);
+                    doc.setTextColor(30, 30, 30);
+                    doc.text(label, legendX + 5.5, legendY - 0.4);
+                    legendX += (18 + (label.length * 1.4));
+                });
+
+                if (withoutSchedule.length > 0) {
+                    const sample = withoutSchedule
+                        .slice(0, 6)
+                        .map((item) => String(item && (item.subjectname || item.name) ? (item.subjectname || item.name) : '--'))
+                        .join(' | ');
+                    const rest = withoutSchedule.length > 6 ? ` | +${withoutSchedule.length - 6} mas` : '';
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(7.5);
+                    doc.setTextColor(70, 70, 70);
+                    const text = 'Sin horario estructurado: ' + sample + rest;
+                    doc.text(doc.splitTextToSize(text, calendarW), calendarX, legendY + 4.8);
+                }
+
+                if (entries.length === 0) {
+                    doc.setTextColor(120, 30, 30);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(10);
+                    doc.text('No hay horarios con dia/hora para pintar en el calendario.', calendarX + timeColumnW + 5, calendarY + dayHeaderH + 10);
+                }
 
                 const token = this.sanitizeFileToken(student.name || this.studentName || 'estudiante');
                 const dateToken = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                const filename = `horario_${token}_${dateToken}.pdf`;
+                const filename = `horario_semanal_${token}_${dateToken}.pdf`;
                 doc.save(filename);
             } catch (error) {
                 console.error('Error generating student schedule pdf:', error);
@@ -602,7 +846,6 @@ Vue.component('grademodal', {
                             }
                         });
                     }
-
                     this.$set(element, 'periods', groupedByPeriodName);
                 }
             } finally {
