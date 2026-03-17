@@ -275,7 +275,7 @@ echo $OUTPUT->header();
                 <input type="text" name="q" value="<?php echo adgds_h($q); ?>" style="width:320px">
             </div>
             <div>
-                <label>Search filter (same as page: firstname/lastname/email)</label>
+                <label>Search filter (same as page: firstname/lastname/email/idnumber/username)</label>
                 <input type="text" name="search" value="<?php echo adgds_h($filtersearch); ?>" style="width:320px">
             </div>
             <div>
@@ -439,14 +439,16 @@ if (!$targetuser && !empty($matches)) {
     }
     $pendingincludedcount = count($pendingincluded);
 
-    // Search behavior in real page: only firstname, lastname, email.
+    // Search behavior in real page: firstname, lastname, email, idnumber, username.
     $searchpass = true;
     if (trim($filtersearch) !== '') {
         $needle = trim($filtersearch);
         $searchpass =
             adgds_like_match($needle, (string)$targetuser->firstname) ||
             adgds_like_match($needle, (string)$targetuser->lastname) ||
-            adgds_like_match($needle, (string)$targetuser->email);
+            adgds_like_match($needle, (string)$targetuser->email) ||
+            adgds_like_match($needle, (string)$targetuser->idnumber) ||
+            adgds_like_match($needle, (string)$targetuser->username);
     }
     $qwouldmatchpagesearch = false;
     if (trim($q) !== '') {
@@ -454,7 +456,9 @@ if (!$targetuser && !empty($matches)) {
         $qwouldmatchpagesearch =
             adgds_like_match($qneedle, (string)$targetuser->firstname) ||
             adgds_like_match($qneedle, (string)$targetuser->lastname) ||
-            adgds_like_match($qneedle, (string)$targetuser->email);
+            adgds_like_match($qneedle, (string)$targetuser->email) ||
+            adgds_like_match($qneedle, (string)$targetuser->idnumber) ||
+            adgds_like_match($qneedle, (string)$targetuser->username);
     }
 
     // HAVING logic.
@@ -507,10 +511,14 @@ if (!$targetuser && !empty($matches)) {
                 $like = '%' . $DB->sql_like_escape(trim($filtersearch)) . '%';
                 $searchwhere = " AND (" . $DB->sql_like('u.firstname', ':s1', false) .
                                " OR " . $DB->sql_like('u.lastname', ':s2', false) .
-                               " OR " . $DB->sql_like('u.email', ':s3', false) . ")";
+                               " OR " . $DB->sql_like('u.email', ':s3', false) .
+                               " OR " . $DB->sql_like('u.idnumber', ':s4', false) .
+                               " OR " . $DB->sql_like('u.username', ':s5', false) . ")";
                 $params['s1'] = $like;
                 $params['s2'] = $like;
                 $params['s3'] = $like;
+                $params['s4'] = $like;
+                $params['s5'] = $like;
             }
 
             $gapsql = "
@@ -558,7 +566,7 @@ if (!$targetuser && !empty($matches)) {
         $reasons[] = 'plan_filter_not_matching';
     }
     if (!$searchpass) {
-        $reasons[] = 'search_filter_not_matching_firstname_lastname_email';
+        $reasons[] = 'search_filter_not_matching_supported_fields';
     }
     if (!$shiftpass) {
         if ($filtershift !== '' && $jornadafieldid <= 0) {
@@ -609,7 +617,7 @@ if (!$targetuser && !empty($matches)) {
         '</td><td>rows=' . count($activestudentrows) . '</td></tr>';
     echo '<tr><td>Plan filter</td><td>' . ($planpass ? adgds_badge('PASS', 'ok') : adgds_badge('FAIL', 'no')) .
         '</td><td>planid=' . (int)$filterplanid . '</td></tr>';
-    echo '<tr><td>Search filter (firstname/lastname/email)</td><td>' . ($searchpass ? adgds_badge('PASS', 'ok') : adgds_badge('FAIL', 'no')) .
+    echo '<tr><td>Search filter (firstname/lastname/email/idnumber/username)</td><td>' . ($searchpass ? adgds_badge('PASS', 'ok') : adgds_badge('FAIL', 'no')) .
         '</td><td>search="' . adgds_h($filtersearch) . '"</td></tr>';
     echo '<tr><td>Shift filter</td><td>' . ($shiftpass ? adgds_badge('PASS', 'ok') : adgds_badge('FAIL', 'no')) .
         '</td><td>filter="' . adgds_h($filtershift) . '" / student_shift="' . adgds_h($shiftvalue) . '" / fieldid=' . (int)$jornadafieldid . '</td></tr>';

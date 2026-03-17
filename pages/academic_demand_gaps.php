@@ -121,8 +121,10 @@ if (trim($filter_search) !== '') {
     $like = '%' . $DB->sql_like_escape(trim($filter_search)) . '%';
     $searchWhere = " AND (" . $DB->sql_like('u.firstname', ':ss1', false) .
                    " OR "  . $DB->sql_like('u.lastname',  ':ss2', false) .
-                   " OR "  . $DB->sql_like('u.email',     ':ss3', false) . ")";
-    $searchParams = array('ss1' => $like, 'ss2' => $like, 'ss3' => $like);
+                   " OR "  . $DB->sql_like('u.email',     ':ss3', false) .
+                   " OR "  . $DB->sql_like('u.idnumber',  ':ss4', false) .
+                   " OR "  . $DB->sql_like('u.username',  ':ss5', false) . ")";
+    $searchParams = array('ss1' => $like, 'ss2' => $like, 'ss3' => $like, 'ss4' => $like, 'ss5' => $like);
 }
 
 $allFiltersParams = array_merge($extraParams, $searchParams);
