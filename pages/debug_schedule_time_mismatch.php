@@ -346,20 +346,30 @@ if ($runall) {
         $baseparams['sq5'] = $like;
     }
 
+    $llucolumns = $DB->get_columns('local_learning_users');
+    $llukeys = array_map('strtolower', array_keys($llucolumns));
+    $hasllurole = in_array('role', $llukeys, true);
+    $hasllustatus = in_array('status', $llukeys, true);
+    $lluextrawhere = '';
+    if ($hasllurole) {
+        $lluextrawhere .= " AND (llu.role = 'student' OR llu.role IS NULL OR llu.role = '')";
+    }
+    if ($hasllustatus) {
+        $lluextrawhere .= " AND (llu.status = 'activo' OR llu.status = 'active' OR llu.status IS NULL OR llu.status = '')";
+    }
+
     $countsql = "SELECT COUNT(DISTINCT u.id)
                    FROM {local_learning_users} llu
                    JOIN {user} u ON u.id = llu.userid
                   WHERE {$basewhere}
-                    AND (llu.role = 'student' OR llu.role IS NULL OR llu.role = '')
-                    AND (llu.status = 'activo' OR llu.status IS NULL OR llu.status = '')";
+                    {$lluextrawhere}";
     $totalcandidates = (int)$DB->count_records_sql($countsql, $baseparams);
 
     $listsql = "SELECT DISTINCT u.id, u.firstname, u.lastname, u.email, u.username, u.idnumber
                   FROM {local_learning_users} llu
                   JOIN {user} u ON u.id = llu.userid
                  WHERE {$basewhere}
-                   AND (llu.role = 'student' OR llu.role IS NULL OR llu.role = '')
-                   AND (llu.status = 'activo' OR llu.status IS NULL OR llu.status = '')
+                   {$lluextrawhere}
               ORDER BY u.id ASC";
     $users = array_values($DB->get_records_sql($listsql, $baseparams, $offsetusers, $maxusers));
 
