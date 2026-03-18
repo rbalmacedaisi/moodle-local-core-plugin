@@ -421,7 +421,7 @@ if ($runall) {
 
     $classlist = array_values($DB->get_records_sql(
         "SELECT c.id, c.name, c.corecourseid, c.learningplanid, c.groupid, c.instructorid,
-                c.inittime, c.endtime, c.initdate, c.enddate, c.approved, c.closed,
+                c.inittime, c.endtime, c.classduration, c.initdate, c.enddate, c.approved, c.closed,
                 crs.fullname AS corecoursename
            FROM {gmk_class} c
       LEFT JOIN {course} crs ON crs.id = c.corecourseid
@@ -478,10 +478,17 @@ if ($runall) {
             if (!isset($classmap[$cid])) {
                 continue;
             }
-            $modalrange = trim((string)$classmap[$cid]->inittime) . ' - ' . trim((string)$classmap[$cid]->endtime);
+            $duration = (int)$row->timeduration;
+            if ($duration <= 0) {
+                $duration = (int)($classmap[$cid]->classduration ?? 0);
+            }
+            if ($duration < 0) {
+                $duration = 0;
+            }
+            $modalrange = gmk_build_event_time_range((int)$row->timestart, $duration);
             $evobj = (object)[
                 'timestart' => (int)$row->timestart,
-                'timeduration' => (int)$row->timeduration,
+                'timeduration' => $duration,
                 'timeRange' => $modalrange,
             ];
             $cmp = dstm_build_event_compare($evobj);
@@ -538,7 +545,8 @@ if ($runall) {
         $bbbparams = array_merge($classparams2, ['st2' => $startts, 'en2' => $endts]);
         $bbbrs = $DB->get_recordset_sql(
             "SELECT c.id AS classid, c.name AS classname, c.inittime AS classstart, c.endtime AS classend,
-                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration
+                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration,
+                    COALESCE(r.bbbid, cm.instance, 0) AS bbbinstanceid
                FROM {gmk_class} c
                JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
           LEFT JOIN {course_modules} cm ON cm.id = r.bbbmoduleid
@@ -565,10 +573,16 @@ if ($runall) {
             if (!isset($classmap[$cid])) {
                 continue;
             }
-            $modalrange = trim((string)$classmap[$cid]->inittime) . ' - ' . trim((string)$classmap[$cid]->endtime);
+            list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
+                (int)($row->bbbinstanceid ?? 0),
+                (int)$row->timestart,
+                (int)$row->timeduration,
+                (int)($classmap[$cid]->classduration ?? 0)
+            );
+            $modalrange = gmk_build_event_time_range((int)$resolvedstart, (int)$resolvedduration);
             $evobj = (object)[
-                'timestart' => (int)$row->timestart,
-                'timeduration' => (int)$row->timeduration,
+                'timestart' => (int)$resolvedstart,
+                'timeduration' => (int)$resolvedduration,
                 'timeRange' => $modalrange,
             ];
             $cmp = dstm_build_event_compare($evobj);

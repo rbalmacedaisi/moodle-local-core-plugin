@@ -5769,6 +5769,86 @@ function get_class_events($userId = null, $initDate = null, $endDate = null)
     return $dedupedEvents;
 }
 
+/**
+ * Build a display range from event timestamps.
+ */
+function gmk_build_event_time_range(int $startts, int $duration): string
+{
+    if ($startts <= 0) {
+        return '';
+    }
+    if ($duration < 0) {
+        $duration = 0;
+    }
+    $endts = $startts + $duration;
+    return userdate($startts, '%I:%M %p') . ' - ' . userdate($endts, '%I:%M %p');
+}
+
+/**
+ * Resolve BBB event schedule from BBB activity record when available.
+ * Returns [startts, duration].
+ */
+function gmk_resolve_bbb_event_schedule(int $bbbinstanceid, int $defaultstart, int $defaultduration, int $fallbackduration = 0): array
+{
+    global $DB;
+
+    $startts = $defaultstart;
+    $duration = $defaultduration;
+
+    static $checkedcols = false;
+    static $hasopeningtime = false;
+    static $hasclosingtime = false;
+    static $bbbrowcache = [];
+
+    if (!$checkedcols) {
+        $bbbcols = $DB->get_columns('bigbluebuttonbn');
+        $bbckeys = array_map('strtolower', array_keys($bbbcols));
+        $hasopeningtime = in_array('openingtime', $bbckeys, true);
+        $hasclosingtime = in_array('closingtime', $bbckeys, true);
+        $checkedcols = true;
+    }
+
+    if ($bbbinstanceid > 0 && ($hasopeningtime || $hasclosingtime)) {
+        if (!array_key_exists($bbbinstanceid, $bbbrowcache)) {
+            $fields = ['id'];
+            if ($hasopeningtime) {
+                $fields[] = 'openingtime';
+            }
+            if ($hasclosingtime) {
+                $fields[] = 'closingtime';
+            }
+            $bbbrowcache[$bbbinstanceid] = $DB->get_record(
+                'bigbluebuttonbn',
+                ['id' => $bbbinstanceid],
+                implode(',', $fields),
+                IGNORE_MISSING
+            );
+        }
+
+        $bbbrow = $bbbrowcache[$bbbinstanceid];
+        if ($bbbrow) {
+            $opening = $hasopeningtime ? (int)($bbbrow->openingtime ?? 0) : 0;
+            $closing = $hasclosingtime ? (int)($bbbrow->closingtime ?? 0) : 0;
+
+            if ($opening > 0) {
+                $startts = $opening;
+            }
+            if ($closing > $startts) {
+                $duration = $closing - $startts;
+            }
+        }
+    }
+
+    if ($duration <= 0 && $fallbackduration > 0) {
+        $duration = $fallbackduration;
+    }
+    if ($duration < 0) {
+        $duration = 0;
+    }
+
+    return [$startts, $duration];
+}
+
 function complete_class_event_information($event, &$fetchedClasses)
 {
     global $DB, $CFG;
@@ -5807,7 +5887,15 @@ function complete_class_event_information($event, &$fetchedClasses)
 
     //Set the class information for the event
     $event->instructorName = $gmkClass->instructorName;
-    $event->timeRange = $gmkClass->inithourformatted . ' - ' . $gmkClass->endhourformatted;
+    $duration = (int)($event->timeduration ?? 0);
+    if ($duration <= 0) {
+        $duration = (int)($gmkClass->classduration ?? 0);
+    }
+    if ($duration < 0) {
+        $duration = 0;
+    }
+    $event->timeduration = $duration;
+    $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
     $event->classDaysES = $gmkClass->selectedDaysES;
     $event->classDaysEN = $gmkClass->selectedDaysEN;
     $event->typelabel = $gmkClass->typelabel;
@@ -5822,7 +5910,9 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->room = $event->classroomName;
     $event->coursename = $gmkClass->course->fullname;
     $event->courseShortName = $gmkClass->course->shortname;
-    $event->timeduration = $gmkClass->classduration;
+    if ($event->timeRange === '') {
+        $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+    }
     $event->color = $eventColors[$event->classType];
 
     //Add the attendance module info to the event.
@@ -5834,8 +5924,8 @@ function complete_class_event_information($event, &$fetchedClasses)
     $event->bigBlueButtonActivityUrl = $event->classType !== '0' ? $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . $eventModuleClassRelation->bbbmoduleid : null;
 
     //Set the initial date and the end date of the event
-    $event->start = date('Y-m-d H:i:s', $event->timestart);
-    $event->end = date('Y-m-d H:i:s', $event->timestart + $event->timeduration);
+    $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
+    $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
 
     return $event;
 }
@@ -7493,7 +7583,17 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
 
     $event->instructorName = $gmkClass->instructorName ?? '';
     $event->instructorid = $gmkClass->instructorid ?? 0;
-    $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+    $defaultduration = (int)($event->timeduration ?? 0);
+    $fallbackclassduration = !empty($gmkClass->classduration) ? (int)$gmkClass->classduration : 0;
+    list($resolvedstart, $resolvedduration) = gmk_resolve_bbb_event_schedule(
+        (int)$event->instance,
+        (int)$event->timestart,
+        $defaultduration,
+        $fallbackclassduration
+    );
+    $event->timestart = $resolvedstart;
+    $event->timeduration = $resolvedduration;
+    $event->timeRange = gmk_build_event_time_range((int)$event->timestart, (int)$event->timeduration);
     $event->classDaysES = $gmkClass->selectedDaysES ?? [];
     $event->classDaysEN = $gmkClass->selectedDaysEN ?? [];
     $event->typelabel = $gmkClass->typelabel ?? ($gmkClass->type == 1 ? 'VIRTUAL' : 'PRESENCIAL');
@@ -7511,10 +7611,12 @@ function complete_class_event_information_bbb($event, &$fetchedClasses)
     $event->classroomName = !empty($gmkClass->classroomName) ? (string)$gmkClass->classroomName : 'Sin aula';
     $event->room = $event->classroomName;
     $event->color = isset($eventColors[$event->classType]) ? $eventColors[$event->classType] : VIRTUAL_CLASS_COLOR;
-    $event->timeduration = !empty($gmkClass->classduration) ? (int)$gmkClass->classduration : (int)$event->timeduration;
+    if ($event->timeRange === '') {
+        $event->timeRange = ($gmkClass->inithourformatted ?? '') . ' - ' . ($gmkClass->endhourformatted ?? '');
+    }
     $event->bigBlueButtonActivityUrl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$event->cmid;
-    $event->start = date('Y-m-d H:i:s', $event->timestart);
-    $event->end = date('Y-m-d H:i:s', $event->timestart + $event->timeduration);
+    $event->start = date('Y-m-d H:i:s', (int)$event->timestart);
+    $event->end = date('Y-m-d H:i:s', (int)$event->timestart + (int)$event->timeduration);
 
     return $event;
 }
