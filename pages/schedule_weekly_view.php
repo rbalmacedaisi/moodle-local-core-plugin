@@ -133,7 +133,7 @@ try {
                 s.end_time,
                 COALESCE(cr.name, '') AS classroomname,
                 gc.groupid,
-                (SELECT COUNT(*) FROM {groups_members} WHERE groupid = gc.groupid AND gc.groupid > 0) AS student_count
+                (SELECT COUNT(*) FROM {groups_members} WHERE groupid = gc.groupid AND gc.groupid > 0 AND userid <> gc.instructorid) AS student_count
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
            JOIN {course} c ON c.id = gc.corecourseid
