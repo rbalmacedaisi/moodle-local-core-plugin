@@ -6,7 +6,8 @@ require_login();
 require_capability('moodle/site:config', context_system::instance());
 
 $classid = optional_param('classid', 0, PARAM_INT);
-$classfilter = optional_param('classfilter', '', PARAM_TEXT);
+$classfilter = trim((string)optional_param('classfilter', '', PARAM_TEXT));
+$classquery = trim((string)optional_param('q', $classfilter, PARAM_TEXT));
 $testjoin = optional_param('testjoin', 0, PARAM_INT);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_manageclass_sessions.php'));
@@ -41,21 +42,105 @@ echo html_writer::tag('h3', 'Debug de sesiones en Teacher Dashboard');
 echo '<form method="get" style="margin-bottom:16px">';
 echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
 echo '<label>Class ID: <input type="number" name="classid" value="' . (int)$classid . '" style="width:120px"></label> ';
-echo '<label style="margin-left:12px">Filtro nombre: <input type="text" name="classfilter" value="' . s($classfilter) . '" style="width:360px"></label> ';
+echo '<label style="margin-left:12px">Buscar clase: <input type="text" name="q" value="' . s($classquery) . '" placeholder="Nombre, docente, curso o ID" style="width:420px"></label> ';
 echo '<label style="margin-left:12px"><input type="checkbox" name="testjoin" value="1" ' . ($testjoin ? 'checked' : '') . '> Test join_url BBB</label> ';
 echo '<button type="submit">Diagnosticar</button>';
 echo '</form>';
 
-if ($classid <= 0 && $classfilter !== '') {
-    $class = $DB->get_record_sql(
-        "SELECT * FROM {gmk_class}
-          WHERE " . $DB->sql_like('name', ':name', false, false) . "
-       ORDER BY id DESC",
-        ['name' => '%' . $classfilter . '%']
-    );
-    if ($class) {
-        $classid = (int)$class->id;
+// Dynamic class finder: no manual ID lookup required.
+$classmatches = [];
+if ($classid <= 0 || $classquery !== '') {
+    $params = [];
+    $where = [];
+    if ($classquery !== '') {
+        $isnumeric = ctype_digit($classquery);
+        $like = '%' . $classquery . '%';
+        $where[] = '('
+            . $DB->sql_like('c.name', ':qname', false, false)
+            . ' OR ' . $DB->sql_like('crs.fullname', ':qcourse', false, false)
+            . ' OR ' . $DB->sql_like("CONCAT(COALESCE(u.firstname,''), ' ', COALESCE(u.lastname,''))", ':qteacher', false, false)
+            . ($isnumeric ? ' OR c.id = :qid' : '')
+            . ')';
+        $params['qname'] = $like;
+        $params['qcourse'] = $like;
+        $params['qteacher'] = $like;
+        if ($isnumeric) {
+            $params['qid'] = (int)$classquery;
+        }
     }
+
+    $wheresql = empty($where) ? '' : ('WHERE ' . implode(' AND ', $where));
+    $classmatches = array_values($DB->get_records_sql(
+        "SELECT c.id,
+                c.name,
+                c.periodid,
+                c.groupid,
+                c.shift,
+                c.approved,
+                c.closed,
+                c.initdate,
+                c.enddate,
+                c.corecourseid,
+                crs.fullname AS corecoursename,
+                c.instructorid,
+                CONCAT(COALESCE(u.firstname,''), ' ', COALESCE(u.lastname,'')) AS instructorname
+           FROM {gmk_class} c
+      LEFT JOIN {course} crs ON crs.id = c.corecourseid
+      LEFT JOIN {user} u ON u.id = c.instructorid
+           {$wheresql}
+       ORDER BY c.id DESC",
+        $params,
+        0,
+        120
+    ));
+}
+
+if ($classid <= 0) {
+    echo html_writer::tag('h4', 'Clases encontradas');
+    if (empty($classmatches)) {
+        echo html_writer::div('No hay resultados. Escribe parte del nombre de la clase/docente/curso.', 'alert alert-info');
+        echo $OUTPUT->footer();
+        exit;
+    }
+
+    $rows = [];
+    foreach ($classmatches as $m) {
+        $url = new moodle_url('/local/grupomakro_core/pages/debug_manageclass_sessions.php', [
+            'classid' => (int)$m->id,
+            'testjoin' => (int)$testjoin,
+            'q' => $classquery
+        ]);
+        $rows[] = (object)[
+            'id' => (int)$m->id,
+            'class' => (string)$m->name,
+            'course' => (string)($m->corecoursename ?? ''),
+            'teacher' => trim((string)($m->instructorname ?? '')),
+            'periodid' => (int)$m->periodid,
+            'groupid' => (int)$m->groupid,
+            'shift' => (string)($m->shift ?? ''),
+            'approved_closed' => ((int)$m->approved) . '/' . ((int)$m->closed),
+            'action' => html_writer::link($url, 'Diagnosticar')
+        ];
+    }
+
+    $table = new html_table();
+    $table->head = ['ID', 'Clase', 'Curso', 'Docente', 'Periodo', 'Grupo', 'Jornada', 'Aprobada/Cerrada', 'Accion'];
+    foreach ($rows as $r) {
+        $table->data[] = [
+            s((string)$r->id),
+            s((string)$r->class),
+            s((string)$r->course),
+            s((string)$r->teacher),
+            s((string)$r->periodid),
+            s((string)$r->groupid),
+            s((string)$r->shift),
+            s((string)$r->approved_closed),
+            $r->action
+        ];
+    }
+    echo html_writer::table($table);
+    echo $OUTPUT->footer();
+    exit;
 }
 
 if ($classid > 0) {
