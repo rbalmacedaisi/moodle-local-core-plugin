@@ -446,7 +446,7 @@ echo $OUTPUT->header();
                 <?php if ($roomStr !== ''): ?>
                 <div class="room">📍 <?php echo swv_h($roomStr); ?></div>
                 <?php endif; ?>
-                <div class="students">👥 <?php echo (int)$card->student_count; ?>/<?php echo $ctxTotal; ?></div>
+                <div class="students">👥 <?php echo $ctxTotal; ?>/<?php echo (int)$card->student_count; ?></div>
                 <div><span class="type-chip"><?php echo swv_h($typeLabel); ?></span></div>
             </div>
             <?php endforeach; ?>
