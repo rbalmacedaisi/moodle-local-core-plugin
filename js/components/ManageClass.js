@@ -179,6 +179,14 @@ const ManageClass = {
                                                                 </template>
                                                                 <span>Gestionar Preguntas</span>
                                                             </v-tooltip>
+                                                            <v-tooltip bottom v-if="activity.modname === 'forum'">
+                                                                <template v-slot:activator="{ on, attrs }">
+                                                                    <v-btn icon small color="indigo" class="mr-2" @click.stop="openForumActivity(activity)" v-bind="attrs" v-on="on">
+                                                                        <v-icon>mdi-forum-outline</v-icon>
+                                                                    </v-btn>
+                                                                </template>
+                                                                <span>Abrir foro</span>
+                                                            </v-tooltip>
                                                             <v-tooltip bottom v-if="canDeleteActivity(activity)">
                                                                 <template v-slot:activator="{ on, attrs }">
                                                                     <v-btn
@@ -489,6 +497,31 @@ const ManageClass = {
                 </v-card>
             </v-dialog>
 
+            <v-dialog v-model="forumDialog" max-width="1200px" persistent>
+                <v-card class="rounded-lg">
+                    <v-card-title class="headline" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-4'">
+                        {{ forumDialogTitle || 'Foro' }}
+                        <v-spacer></v-spacer>
+                        <v-btn icon @click="openForumInNewTab" :disabled="!forumDialogUrl" title="Abrir en nueva pestana">
+                            <v-icon>mdi-open-in-new</v-icon>
+                        </v-btn>
+                        <v-btn icon @click="closeForumDialog">
+                            <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                    </v-card-title>
+                    <v-card-text class="pa-0" style="height:75vh;">
+                        <iframe
+                            v-if="forumDialogUrl"
+                            :src="forumDialogUrl"
+                            style="width:100%; height:100%; border:0;"
+                        ></iframe>
+                    </v-card-text>
+                    <v-card-actions class="justify-end">
+                        <v-btn text @click="closeForumDialog">Cerrar</v-btn>
+                    </v-card-actions>
+                </v-card>
+            </v-dialog>
+
         </v-container>
     `,
     props: ['classId', 'config'],
@@ -556,7 +589,10 @@ const ManageClass = {
             loadingQR: false,
             qrTimer: null,
             qrSecondsLeft: 0,
-            qrTotalSeconds: 30
+            qrTotalSeconds: 30,
+            forumDialog: false,
+            forumDialogUrl: '',
+            forumDialogTitle: ''
         };
     },
     computed: {
@@ -930,6 +966,27 @@ const ManageClass = {
                 cmid: activity.id,
                 id: this.classId // Ensure we keep track of current class
             });
+        },
+        openForumActivity(activity) {
+            const forumurl = activity && activity.url ? String(activity.url) : '';
+            if (!forumurl) {
+                alert('No se encontro la URL del foro.');
+                return;
+            }
+            this.forumDialogTitle = activity && activity.name ? activity.name : 'Foro';
+            this.forumDialogUrl = forumurl;
+            this.forumDialog = true;
+        },
+        openForumInNewTab() {
+            if (!this.forumDialogUrl) {
+                return;
+            }
+            window.open(this.forumDialogUrl, '_blank');
+        },
+        closeForumDialog() {
+            this.forumDialog = false;
+            this.forumDialogUrl = '';
+            this.forumDialogTitle = '';
         },
         canDeleteActivity(activity) {
             if (!activity || !activity.modname) return false;

@@ -7047,6 +7047,51 @@ function local_grupomakro_apply_assign_defaults(stdClass &$moduleinfo, array $as
 }
 
 /**
+ * Creates the first discussion topic in a forum if it has none yet.
+ *
+ * @param int $forumid
+ * @param string $topic
+ * @param string $message
+ * @return int Discussion ID (0 when skipped/not created)
+ */
+function local_grupomakro_create_initial_forum_discussion(int $forumid, string $topic, string $message): int {
+    global $CFG, $DB;
+    require_once($CFG->dirroot . '/mod/forum/lib.php');
+
+    $forum = $DB->get_record('forum', ['id' => $forumid], 'id,course,type', MUST_EXIST);
+
+    // Avoid duplicate "first topics" if the module already has discussions.
+    if ($DB->record_exists('forum_discussions', ['forum' => (int)$forum->id])) {
+        return 0;
+    }
+
+    $topic = trim(clean_param($topic, PARAM_TEXT));
+    if ($topic === '') {
+        $topic = 'Tema inicial del foro';
+    }
+
+    $message = trim((string)$message);
+    if ($message === '') {
+        $message = 'Bienvenido al foro. Utiliza este espacio para iniciar la discusion.';
+    }
+
+    $discussion = new stdClass();
+    $discussion->course = (int)$forum->course;
+    $discussion->forum = (int)$forum->id;
+    $discussion->name = $topic;
+    $discussion->message = $message;
+    $discussion->messageformat = FORMAT_HTML;
+    $discussion->messagetrust = 0;
+    $discussion->mailnow = 0;
+    $discussion->groupid = -1;
+    $discussion->timestart = 0;
+    $discussion->timeend = 0;
+    $discussion->pinned = 0;
+
+    return (int)forum_add_discussion($discussion);
+}
+
+/**
  * Creates an activity (BBB, Assignment, etc.) with pre-calculated parameters.
  * Part of the innovative Teacher Experience.
  */
@@ -7306,6 +7351,34 @@ function local_grupomakro_create_express_activity($classid, $type, $name, $intro
     }
     if (empty($result) || empty($result->coursemodule)) {
         throw new \moodle_exception('No se pudo crear la actividad en el curso.');
+    }
+
+    if ($type === 'forum' && !empty($result->instance)) {
+        $result->forumdiscussionid = 0;
+        $createinitial = !array_key_exists('forumcreateinitial', $extra) || !empty($extra['forumcreateinitial']);
+        if ($createinitial) {
+            $topic = isset($extra['forumtopic']) ? (string)$extra['forumtopic'] : '';
+            if (trim($topic) === '') {
+                $topic = (string)$name;
+            }
+            $message = isset($extra['forummessage']) ? (string)$extra['forummessage'] : '';
+            if (trim($message) === '') {
+                $message = (string)$intro;
+            }
+            try {
+                $result->forumdiscussionid = local_grupomakro_create_initial_forum_discussion(
+                    (int)$result->instance,
+                    $topic,
+                    $message
+                );
+            } catch (\Throwable $forumerr) {
+                gmk_log(
+                    'WARNING: create_express_activity forum initial discussion failed ' .
+                    'classid=' . (int)$classid . ' forumid=' . (int)$result->instance .
+                    ' msg=' . $forumerr->getMessage()
+                );
+            }
+        }
     }
 
     // Enforce class grade category even if module internals ignored gradecat.

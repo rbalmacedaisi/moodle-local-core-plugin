@@ -36,12 +36,33 @@ class create_express_activity extends external_api {
                 'timeclose' => new external_value(PARAM_INT, 'Quiz close time', VALUE_DEFAULT, 0),
                 'timelimit' => new external_value(PARAM_INT, 'Quiz time limit in seconds', VALUE_DEFAULT, 0),
                 'attempts' => new external_value(PARAM_INT, 'Number of attempts', VALUE_DEFAULT, 1),
-                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1)
+                'grademethod' => new external_value(PARAM_INT, 'Grading method (1=Highest, 2=Avg)', VALUE_DEFAULT, 1),
+                'forumtopic' => new external_value(PARAM_TEXT, 'Initial forum topic title', VALUE_DEFAULT, ''),
+                'forummessage' => new external_value(PARAM_RAW, 'Initial forum topic message', VALUE_DEFAULT, ''),
+                'forumcreateinitial' => new external_value(PARAM_BOOL, 'Create initial discussion topic', VALUE_DEFAULT, true)
             )
         );
     }
 
-    public static function execute($classid, $type, $name, $intro, $duedate, $save_as_template, $tags = [], $gradecat = 0, $guest = false, $timeopen = 0, $timeclose = 0, $timelimit = 0, $attempts = 1, $grademethod = 1) {
+    public static function execute(
+        $classid,
+        $type,
+        $name,
+        $intro,
+        $duedate,
+        $save_as_template,
+        $tags = [],
+        $gradecat = 0,
+        $guest = false,
+        $timeopen = 0,
+        $timeclose = 0,
+        $timelimit = 0,
+        $attempts = 1,
+        $grademethod = 1,
+        $forumtopic = '',
+        $forummessage = '',
+        $forumcreateinitial = true
+    ) {
         $params = self::validate_parameters(self::execute_parameters(), array(
             'classid' => $classid,
             'type' => $type,
@@ -56,7 +77,10 @@ class create_express_activity extends external_api {
             'timeclose' => $timeclose,
             'timelimit' => $timelimit,
             'attempts' => $attempts,
-            'grademethod' => $grademethod
+            'grademethod' => $grademethod,
+            'forumtopic' => $forumtopic,
+            'forummessage' => $forummessage,
+            'forumcreateinitial' => $forumcreateinitial
         ));
 
         $context = \context_system::instance();
@@ -75,7 +99,10 @@ class create_express_activity extends external_api {
             'timeclose' => $params['timeclose'],
             'timelimit' => $params['timelimit'],
             'attempts' => $params['attempts'],
-            'grademethod' => $params['grademethod']
+            'grademethod' => $params['grademethod'],
+            'forumtopic' => $params['forumtopic'],
+            'forummessage' => $params['forummessage'],
+            'forumcreateinitial' => $params['forumcreateinitial']
         ];
 
         try {
@@ -92,13 +119,15 @@ class create_express_activity extends external_api {
             return array(
                 'status' => 'success',
                 'message' => 'Activity created successfully',
-                'cmid' => $result->coursemodule
+                'cmid' => $result->coursemodule,
+                'forumdiscussionid' => !empty($result->forumdiscussionid) ? (int)$result->forumdiscussionid : 0
             );
         } catch (\Throwable $e) {
             return array(
                 'status' => 'error',
                 'message' => 'Backend Error [assign-fix-v5]: ' . ($e->getMessage() ?: get_class($e)),
-                'cmid' => 0
+                'cmid' => 0,
+                'forumdiscussionid' => 0
             );
         }
     }
@@ -108,7 +137,8 @@ class create_express_activity extends external_api {
             array(
                 'status' => new external_value(PARAM_ALPHA, 'success or error'),
                 'message' => new external_value(PARAM_TEXT, 'Error or success message'),
-                'cmid' => new external_value(PARAM_INT, 'Course module ID')
+                'cmid' => new external_value(PARAM_INT, 'Course module ID'),
+                'forumdiscussionid' => new external_value(PARAM_INT, 'Initial forum discussion ID', VALUE_DEFAULT, 0)
             )
         );
     }

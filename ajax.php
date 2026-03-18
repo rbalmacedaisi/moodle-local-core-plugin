@@ -3243,6 +3243,14 @@ try {
             $save_as_template = optional_param('save_as_template', false, PARAM_BOOL);
             $gradecat = optional_param('gradecat', 0, PARAM_INT);
             $guest = optional_param('guest', false, PARAM_BOOL);
+            $timeopen = optional_param('timeopen', 0, PARAM_INT);
+            $timeclose = optional_param('timeclose', 0, PARAM_INT);
+            $timelimit = optional_param('timelimit', 0, PARAM_INT);
+            $attempts = optional_param('attempts', 1, PARAM_INT);
+            $grademethod = optional_param('grademethod', 1, PARAM_INT);
+            $forumtopic = optional_param('forumtopic', '', PARAM_TEXT);
+            $forummessage = optional_param('forummessage', '', PARAM_RAW);
+            $forumcreateinitial = optional_param('forumcreateinitial', true, PARAM_BOOL);
 
             // Normalize tags â€” may arrive as string (FormData/JSON) or array (JSON flattened)
             $tagList = [];
@@ -3255,7 +3263,23 @@ try {
 
             try {
                 $result = \local_grupomakro_core\external\teacher\create_express_activity::execute(
-                    $classid, $type, $name, $intro, $duedate, $save_as_template, [], $gradecat, $guest
+                    $classid,
+                    $type,
+                    $name,
+                    $intro,
+                    $duedate,
+                    $save_as_template,
+                    [],
+                    $gradecat,
+                    $guest,
+                    $timeopen,
+                    $timeclose,
+                    $timelimit,
+                    $attempts,
+                    $grademethod,
+                    $forumtopic,
+                    $forummessage,
+                    $forumcreateinitial
                 );
 
                 // Propagate nested backend errors instead of reporting false success.

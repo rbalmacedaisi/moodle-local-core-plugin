@@ -108,10 +108,38 @@ const ActivityCreationWizard = {
                         <div v-if="isForum" class="pa-4 rounded-lg mb-4" :class="$vuetify.theme.dark ? 'deep-purple darken-4' : 'deep-purple lighten-5'">
                             <v-icon small color="deep-purple" class="mr-2">mdi-forum-outline</v-icon>
                             <span class="text-caption deep-purple--text" :class="$vuetify.theme.dark ? 'text--lighten-2' : ''">
-                                Se creará un foro de uso general donde todos pueden iniciar discusiones.
+                                Se creara un foro general y puedes publicar el primer tema ahora.
                             </span>
                         </div>
 
+                        <v-row v-if="isForum">
+                            <v-col cols="12">
+                                <v-switch
+                                    v-model="formData.forumcreateinitial"
+                                    label="Crear tema inicial al publicar"
+                                    color="deep-purple"
+                                    hide-details
+                                ></v-switch>
+                            </v-col>
+                            <v-col cols="12" v-if="formData.forumcreateinitial">
+                                <v-text-field
+                                    v-model="formData.forumtopic"
+                                    label="Titulo del tema inicial"
+                                    outlined
+                                    dense
+                                    :rules="[v => !formData.forumcreateinitial || !!(v && v.trim()) || 'El titulo es obligatorio']"
+                                ></v-text-field>
+                            </v-col>
+                            <v-col cols="12" v-if="formData.forumcreateinitial">
+                                <v-textarea
+                                    v-model="formData.forummessage"
+                                    label="Mensaje del tema inicial"
+                                    outlined
+                                    rows="3"
+                                    :rules="[v => !formData.forumcreateinitial || !!(v && v.trim()) || 'El mensaje es obligatorio']"
+                                ></v-textarea>
+                            </v-col>
+                        </v-row>
                         <!-- Template Option -->
                         <v-checkbox
                             v-if="!editMode"
@@ -207,7 +235,10 @@ const ActivityCreationWizard = {
                 gradecat: null,
                 tags: '',
                 visible: true,
-                guest: false
+                guest: false,
+                forumtopic: '',
+                forummessage: '',
+                forumcreateinitial: true
             },
             courseTags: [],
             gradeCategories: [],
@@ -304,6 +335,9 @@ const ActivityCreationWizard = {
                     gradecat: this.formData.gradecat,
                     tags: this.formData.tags,
                     guest: this.formData.guest,
+                    forumtopic: this.isForum ? (this.formData.forumtopic || this.formData.name || '') : '',
+                    forummessage: this.isForum ? (this.formData.forummessage || this.formData.intro || '') : '',
+                    forumcreateinitial: this.isForum ? (this.formData.forumcreateinitial ? 1 : 0) : 0,
                     draftitemids: draftitemids
                 };
                 response = await axios.post(window.wsUrl, {
