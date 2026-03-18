@@ -1061,7 +1061,7 @@ Vue.component('grademodal', {
             if (!days) {
                 return '--';
             }
-            const map = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+            const map = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
             const pieces = String(days).split('/');
             const labels = [];
             pieces.forEach((flag, idx) => {
