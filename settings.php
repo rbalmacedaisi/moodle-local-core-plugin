@@ -158,6 +158,11 @@ if ($hassiteconfig) {
         'Debug: Student Activity Visibility',
         new moodle_url('/local/grupomakro_core/pages/debug_student_activity_visibility.php')
     );
+    $syncBbbRecordingsPage = new admin_externalpage(
+        'grupomakro_core_sync_bbb_recordings',
+        '🎙️ Sincronizar Grabaciones BBB',
+        new moodle_url('/local/grupomakro_core/pages/sync_bbb_recordings.php')
+    );
     $ADMIN->add('grupomakrocore_plugin', $classManagementPage);
     $ADMIN->add('grupomakrocore_plugin', $classSchedulesPage);
     $ADMIN->add('grupomakrocore_plugin', $availabilityPanelPage);
@@ -184,6 +189,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $scheduleWeeklyViewPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
+    $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);
 
     $ADMIN->add('localplugins', new admin_category('grupomakrocore', new lang_string('pluginname', 'local_grupomakro_core')));
     /********
