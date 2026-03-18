@@ -918,8 +918,17 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
         return false;
     }
 
+    $cmcols = $DB->get_columns('course_modules');
+    $cmkeys = array_map('strtolower', array_keys($cmcols));
+    $hasdeletion = in_array('deletioninprogress', $cmkeys, true);
+
+    $cmfields = "cm.id, cm.course, cm.section, cm.instance, m.name AS modulename";
+    if ($hasdeletion) {
+        $cmfields .= ", cm.deletioninprogress";
+    }
+
     $cm = $DB->get_record_sql(
-        "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename
+        "SELECT {$cmfields}
            FROM {course_modules} cm
            JOIN {modules} m ON m.id = cm.module
           WHERE cm.id = :cmid",
@@ -932,6 +941,11 @@ function gmk_is_valid_class_attendance_module($class, &$reason = '')
 
     if ($cm->modulename !== 'attendance') {
         $reason = "course module no es attendance ({$cm->modulename})";
+        return false;
+    }
+
+    if ($hasdeletion && !empty($cm->deletioninprogress)) {
+        $reason = "attendance cmid {$cm->id} en deletioninprogress";
         return false;
     }
 

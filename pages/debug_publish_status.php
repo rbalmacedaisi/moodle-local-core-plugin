@@ -1137,7 +1137,23 @@ function gmk_debug_attendance_sessions_count($class): int {
         return 0;
     }
 
-    $attinstanceid = $DB->get_field('course_modules', 'instance', ['id' => $cmid]);
+    $cmcols = $DB->get_columns('course_modules');
+    $cmkeys = array_map('strtolower', array_keys($cmcols));
+    $hasdeletion = in_array('deletioninprogress', $cmkeys, true);
+
+    $cmfields = 'id,instance';
+    if ($hasdeletion) {
+        $cmfields .= ',deletioninprogress';
+    }
+    $cm = $DB->get_record('course_modules', ['id' => $cmid], $cmfields, IGNORE_MISSING);
+    if (!$cm) {
+        return 0;
+    }
+    if ($hasdeletion && !empty($cm->deletioninprogress)) {
+        return 0;
+    }
+
+    $attinstanceid = (int)($cm->instance ?? 0);
     if (empty($attinstanceid)) {
         return 0;
     }
