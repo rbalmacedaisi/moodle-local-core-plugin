@@ -3369,12 +3369,282 @@ try {
              break;
 
         case 'local_grupomakro_get_bbb_join_url':
-            $cmid = required_param('cmid', PARAM_INT);
+            $cmid = optional_param('cmid', 0, PARAM_INT);
+            $classid = optional_param('classid', 0, PARAM_INT);
+            $sessionid = optional_param('sessionid', 0, PARAM_INT);
+            $debug = [];
+            $resolvedrelationid = 0;
+            $resolvedrelationbbbid = 0;
+            $resolvedrelationbbbcmid = 0;
             try {
-                $result = \mod_bigbluebuttonbn\external\get_join_url::execute($cmid);
-                $response = ['status' => 'success', 'join_url' => $result['join_url'] ?? ''];
-            } catch (Exception $e) {
-                $response = ['status' => 'error', 'message' => $e->getMessage()];
+                // Fallback resolver when frontend has no bbb_cmid for the session.
+                if ($cmid <= 0 && $classid > 0 && $sessionid > 0) {
+                    $debug[] = 'resolve_start classid=' . (int)$classid . ' sessionid=' . (int)$sessionid;
+                    $rel = $DB->get_record_sql(
+                        "SELECT id, bbbmoduleid, bbbid
+                           FROM {gmk_bbb_attendance_relation}
+                          WHERE classid = :classid
+                            AND attendancesessionid = :sessionid
+                       ORDER BY id DESC",
+                        ['classid' => (int)$classid, 'sessionid' => (int)$sessionid],
+                        IGNORE_MULTIPLE
+                    );
+
+                    if ($rel) {
+                        $resolvedrelationid = (int)$rel->id;
+                        $resolvedrelationbbbid = (int)($rel->bbbid ?? 0);
+                        $resolvedrelationbbbcmid = (int)($rel->bbbmoduleid ?? 0);
+                        $debug[] = 'relation_id=' . (int)$rel->id;
+                        if (!empty($rel->bbbmoduleid)) {
+                            $cand = (int)$rel->bbbmoduleid;
+                            $cmrow = $DB->get_record_sql(
+                                "SELECT cm.id, m.name AS modulename
+                                   FROM {course_modules} cm
+                                   JOIN {modules} m ON m.id = cm.module
+                                  WHERE cm.id = :cmid",
+                                ['cmid' => $cand],
+                                IGNORE_MISSING
+                            );
+                            if ($cmrow && $cmrow->modulename === 'bigbluebuttonbn') {
+                                $cmid = $cand;
+                                $debug[] = 'resolved_by_relation_bbbmoduleid=' . $cmid;
+                            } else {
+                                $debug[] = 'relation_bbbmoduleid_invalid=' . $cand;
+                            }
+                        }
+                        if ($cmid <= 0 && !empty($rel->bbbid)) {
+                            $bbbid = (int)$rel->bbbid;
+                            $cmrow = $DB->get_record_sql(
+                                "SELECT cm.id
+                                   FROM {course_modules} cm
+                                   JOIN {modules} m ON m.id = cm.module
+                                  WHERE m.name = 'bigbluebuttonbn'
+                                    AND cm.instance = :instanceid
+                               ORDER BY cm.id DESC",
+                                ['instanceid' => $bbbid],
+                                IGNORE_MULTIPLE
+                            );
+                            if ($cmrow) {
+                                $cmid = (int)$cmrow->id;
+                                $debug[] = 'resolved_by_relation_bbbid=' . $cmid;
+                            } else {
+                                $debug[] = 'relation_bbbid_not_found=' . $bbbid;
+                            }
+                        }
+                    } else {
+                        $debug[] = 'relation_not_found';
+                    }
+
+                    // Last fallback: use class.bbbmoduleids and closest event time.
+                    if ($cmid <= 0) {
+                        $classrow = $DB->get_record('gmk_class', ['id' => (int)$classid], 'id, corecourseid, bbbmoduleids', IGNORE_MISSING);
+                        if ($classrow && !empty($classrow->bbbmoduleids)) {
+                            $candcmids = [];
+                            foreach (explode(',', (string)$classrow->bbbmoduleids) as $raw) {
+                                $id = (int)trim((string)$raw);
+                                if ($id > 0) {
+                                    $candcmids[$id] = $id;
+                                }
+                            }
+                            if (!empty($candcmids)) {
+                                list($cminsql, $cmparams) = $DB->get_in_or_equal(array_values($candcmids), SQL_PARAMS_NAMED, 'cmidres');
+                                $cmrows = $DB->get_records_sql(
+                                    "SELECT cm.id, cm.instance, m.name AS modulename
+                                       FROM {course_modules} cm
+                                       JOIN {modules} m ON m.id = cm.module
+                                      WHERE cm.id $cminsql",
+                                    $cmparams
+                                );
+                                $valid = [];
+                                foreach ($cmrows as $row) {
+                                    if ($row->modulename === 'bigbluebuttonbn') {
+                                        $valid[(int)$row->id] = (int)$row->instance;
+                                    }
+                                }
+                                if (count($valid) === 1) {
+                                    $cmid = (int)array_key_first($valid);
+                                    $debug[] = 'resolved_by_class_single=' . $cmid;
+                                } else if (count($valid) > 1) {
+                                    $session = $DB->get_record('attendance_sessions', ['id' => (int)$sessionid], 'id, sessdate', IGNORE_MISSING);
+                                    $target = (int)($session->sessdate ?? 0);
+                                    if ($target > 0) {
+                                        $instmap = [];
+                                        foreach ($valid as $vcmid => $instanceid) {
+                                            if ($instanceid > 0) {
+                                                $instmap[(int)$instanceid] = (int)$vcmid;
+                                            }
+                                        }
+                                        if (!empty($instmap)) {
+                                            list($insql, $inparams) = $DB->get_in_or_equal(array_keys($instmap), SQL_PARAMS_NAMED, 'instres');
+                                            $evrows = $DB->get_records_sql(
+                                                "SELECT id, instance, timestart
+                                                   FROM {event}
+                                                  WHERE modulename = 'bigbluebuttonbn'
+                                                    AND instance $insql
+                                               ORDER BY timestart ASC",
+                                                $inparams
+                                            );
+                                            $bestcmid = 0;
+                                            $bestdiff = PHP_INT_MAX;
+                                            foreach ($evrows as $ev) {
+                                                $instanceid = (int)$ev->instance;
+                                                if (!isset($instmap[$instanceid])) {
+                                                    continue;
+                                                }
+                                                $diff = abs((int)$ev->timestart - $target);
+                                                if ($diff < $bestdiff) {
+                                                    $bestdiff = $diff;
+                                                    $bestcmid = (int)$instmap[$instanceid];
+                                                }
+                                            }
+                                            if ($bestcmid > 0) {
+                                                $cmid = $bestcmid;
+                                                $debug[] = 'resolved_by_class_event_match=' . $cmid . ' diff=' . $bestdiff;
+                                            }
+                                        }
+                                    }
+                                    if ($cmid <= 0) {
+                                        $cmid = (int)array_key_first($valid);
+                                        $debug[] = 'resolved_by_class_first=' . $cmid;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if ($cmid <= 0) {
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'No BBB module linked to this session.',
+                        'debug' => $debug
+                    ];
+                    break;
+                }
+
+                $cmcolumns = $DB->get_columns('course_modules');
+                $hasdeletion = isset($cmcolumns['deletioninprogress']);
+                $deletionselect = $hasdeletion ? ', cm.deletioninprogress AS deletioninprogress' : ', 0 AS deletioninprogress';
+                $cm = $DB->get_record_sql(
+                    "SELECT cm.id, cm.instance, m.name AS modulename{$deletionselect}
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module
+                      WHERE cm.id = :cmid",
+                    ['cmid' => (int)$cmid],
+                    IGNORE_MISSING
+                );
+                if (!$cm || $cm->modulename !== 'bigbluebuttonbn') {
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'Invalid BBB module reference.',
+                        'debug' => array_merge($debug, ['cmid=' . (int)$cmid])
+                    ];
+                    break;
+                }
+                if (!empty($cm->deletioninprogress)) {
+                    $response = [
+                        'status' => 'error',
+                        'message' => 'BBB module is being deleted.',
+                        'debug' => array_merge($debug, ['cmid=' . (int)$cmid, 'deletioninprogress=1'])
+                    ];
+                    break;
+                }
+
+                // Persist repaired relation mapping when we resolved by session context.
+                if ($resolvedrelationid > 0 && $sessionid > 0) {
+                    $needsupdate = ((int)$resolvedrelationbbbcmid !== (int)$cmid);
+                    if (!$needsupdate || $resolvedrelationbbbid <= 0) {
+                        $instancerow = $DB->get_record('course_modules', ['id' => (int)$cmid], 'instance', IGNORE_MISSING);
+                        $resolvedinstance = $instancerow ? (int)$instancerow->instance : 0;
+                        if ($resolvedrelationbbbid <= 0 && $resolvedinstance > 0) {
+                            $needsupdate = true;
+                        }
+                    }
+                    if ($needsupdate) {
+                        $instancerow = $DB->get_record('course_modules', ['id' => (int)$cmid], 'instance', IGNORE_MISSING);
+                        $resolvedinstance = $instancerow ? (int)$instancerow->instance : 0;
+                        $row = new stdClass();
+                        $row->id = (int)$resolvedrelationid;
+                        $row->bbbmoduleid = (int)$cmid;
+                        if ($resolvedinstance > 0) {
+                            $row->bbbid = (int)$resolvedinstance;
+                        }
+                        $row->timemodified = time();
+                        $DB->update_record('gmk_bbb_attendance_relation', $row);
+                        $debug[] = 'relation_updated id=' . (int)$resolvedrelationid . ' bbbmoduleid=' . (int)$cmid
+                            . ($resolvedinstance > 0 ? (' bbbid=' . (int)$resolvedinstance) : '');
+                    }
+                } else if ($classid > 0 && $sessionid > 0) {
+                    $existsrelation = $DB->record_exists('gmk_bbb_attendance_relation', [
+                        'classid' => (int)$classid,
+                        'attendancesessionid' => (int)$sessionid
+                    ]);
+                    if (!$existsrelation) {
+                        $classforrel = $DB->get_record('gmk_class', ['id' => (int)$classid], 'id, attendancemoduleid, coursesectionid', IGNORE_MISSING);
+                        $sessionforrel = $DB->get_record('attendance_sessions', ['id' => (int)$sessionid], 'id, attendanceid', IGNORE_MISSING);
+                        $instancerow = $DB->get_record('course_modules', ['id' => (int)$cmid], 'instance', IGNORE_MISSING);
+                        $newrel = new stdClass();
+                        $newrel->classid = (int)$classid;
+                        $newrel->attendancesessionid = (int)$sessionid;
+                        $newrel->bbbmoduleid = (int)$cmid;
+                        $newrel->bbbid = $instancerow ? (int)$instancerow->instance : 0;
+                        $newrel->attendanceid = $sessionforrel ? (int)$sessionforrel->attendanceid : 0;
+                        $newrel->attendancemoduleid = $classforrel ? (int)$classforrel->attendancemoduleid : 0;
+                        $newrel->sectionid = $classforrel ? (int)$classforrel->coursesectionid : 0;
+                        $newrel->usermodified = (int)$USER->id;
+                        $newrel->timecreated = time();
+                        $newrel->timemodified = time();
+                        $newid = $DB->insert_record('gmk_bbb_attendance_relation', $newrel);
+                        $debug[] = 'relation_inserted id=' . (int)$newid . ' bbbmoduleid=' . (int)$cmid;
+                    }
+                }
+
+                $viewurl = $CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$cmid;
+                try {
+                    $result = \mod_bigbluebuttonbn\external\get_join_url::execute((int)$cmid);
+                    $joinurl = trim((string)($result['join_url'] ?? ''));
+                    $warnings = (isset($result['warnings']) && is_array($result['warnings'])) ? $result['warnings'] : [];
+                    if ($joinurl !== '') {
+                        $response = [
+                            'status' => 'success',
+                            'join_url' => $joinurl,
+                            'view_url' => $viewurl,
+                            'source' => 'ws_join_url',
+                            'debug' => $debug
+                        ];
+                    } else {
+                        $warningtext = '';
+                        if (!empty($warnings[0]['message'])) {
+                            $warningtext = (string)$warnings[0]['message'];
+                        } else if (!empty($warnings[0]['warningcode'])) {
+                            $warningtext = (string)$warnings[0]['warningcode'];
+                        }
+                        $message = 'Join URL empty from BBB service.';
+                        if ($warningtext !== '') {
+                            $message .= ' ' . $warningtext;
+                        }
+                        $response = [
+                            'status' => 'success',
+                            'join_url' => $viewurl,
+                            'view_url' => $viewurl,
+                            'source' => 'view_fallback_empty',
+                            'message' => $message,
+                            'warnings' => $warnings,
+                            'debug' => $debug
+                        ];
+                    }
+                } catch (\Throwable $t) {
+                    $response = [
+                        'status' => 'success',
+                        'join_url' => $viewurl,
+                        'view_url' => $viewurl,
+                        'source' => 'view_fallback_exception',
+                        'message' => 'BBB join service failed. ' . $t->getMessage(),
+                        'debug' => $debug
+                    ];
+                }
+            } catch (\Throwable $e) {
+                $response = ['status' => 'error', 'message' => $e->getMessage(), 'debug' => $debug];
             }
             break;
 

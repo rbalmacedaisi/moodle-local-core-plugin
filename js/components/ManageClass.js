@@ -59,10 +59,10 @@ const ManageClass = {
                                     >
                                         <v-card class="rounded-xl shadow-sm elevation-1 mb-2">
                                             <v-card-title class="text-subtitle-1 font-weight-bold pb-1">
-                                                Sesión {{ index + 1 }}
+                                                SesiÃ³n {{ index + 1 }}
                                                 <v-spacer></v-spacer>
                                                 <v-chip x-small outlined color="blue">
-                                                    {{ ((classDetails.typelabel || 'Sesión') + '').toUpperCase() }}
+                                                    {{ ((classDetails.typelabel || 'SesiÃ³n') + '').toUpperCase() }}
                                                 </v-chip>
                                             </v-card-title>
                                             <v-card-text>
@@ -207,7 +207,7 @@ const ManageClass = {
                                     </v-expansion-panel>
                                 </v-expansion-panels>
                                 <v-alert v-if="Object.keys(groupedActivities).length === 0" type="info" text class="ma-4 rounded-xl">
-                                    No hay actividades creadas aún. Usa el botón + para añadir una.
+                                    No hay actividades creadas aÃºn. Usa el botÃ³n + para aÃ±adir una.
                                 </v-alert>
                              </v-card>
                         </v-tab-item>
@@ -297,12 +297,12 @@ const ManageClass = {
 
                                 <!-- No forum found -->
                                 <v-alert v-else-if="!noticesForum" type="warning" text class="rounded-xl">
-                                    No se encontró el foro de avisos para este curso.
+                                    No se encontrÃ³ el foro de avisos para este curso.
                                 </v-alert>
 
                                 <!-- Empty state -->
                                 <v-alert v-else-if="notices.length === 0 && !loadingNotices" type="info" text class="rounded-xl">
-                                    No hay avisos publicados aún. Usa "Nuevo Aviso" para comunicarte con tus estudiantes.
+                                    No hay avisos publicados aÃºn. Usa "Nuevo Aviso" para comunicarte con tus estudiantes.
                                 </v-alert>
 
                                 <!-- Notice Cards -->
@@ -330,7 +330,7 @@ const ManageClass = {
                                             </div>
                                         </div>
                                         <div class="mt-2 caption grey--text">
-                                            {{ notice.author }} · {{ formatNoticeDate(notice.timemodified) }}
+                                            {{ notice.author }} Â· {{ formatNoticeDate(notice.timemodified) }}
                                         </div>
                                     </v-card-text>
                                 </v-card>
@@ -376,7 +376,7 @@ const ManageClass = {
                             <v-icon>mdi-file-document-edit</v-icon>
                         </v-btn>
                     </template>
-                    <span>Tarea / Asignación</span>
+                    <span>Tarea / AsignaciÃ³n</span>
                 </v-tooltip>
 
                 <v-tooltip left>
@@ -455,7 +455,7 @@ const ManageClass = {
             <v-dialog v-model="qrDialog" max-width="500px" persistent>
                 <v-card v-if="currentQR" class="text-center pa-4">
                     <v-card-title class="justify-center text-h5">
-                        Código de Asistencia
+                        CÃ³digo de Asistencia
                     </v-card-title>
                     <v-card-text>
                         <div class="d-flex justify-center my-4" style="background: white; padding: 10px; display: inline-block;">
@@ -465,7 +465,7 @@ const ManageClass = {
                             {{ currentQR.password }}
                         </div>
                         <div class="caption mt-2" v-if="currentQR.rotate">
-                            El código rota automáticamente.
+                            El cÃ³digo rota automÃ¡ticamente.
                             <div class="mt-2" v-if="qrSecondsLeft > 0">
                                 <v-progress-circular
                                     :rotate="-90"
@@ -564,7 +564,7 @@ const ManageClass = {
             if (!this.activities || !Array.isArray(this.activities)) {
                 return {};
             }
-            // Build groups — General first so it always appears at the top
+            // Build groups â€” General first so it always appears at the top
             const groups = { 'General': [] };
             this.activities.forEach(activity => {
                 const tags = (activity.tags && activity.tags.length > 0) ? activity.tags : ['General'];
@@ -783,13 +783,13 @@ const ManageClass = {
                     }
                 } else {
                     console.error('QR Logic Error:', response.data);
-                    this.snackbarText = (response.data && response.data.message) ? response.data.message : 'Error al obtener QR (Respuesta inválida)';
+                    this.snackbarText = (response.data && response.data.message) ? response.data.message : 'Error al obtener QR (Respuesta invÃ¡lida)';
                     this.snackbarColor = 'error';
                     this.snackbar = true;
                 }
             } catch (e) {
                 console.error(e);
-                this.snackbarText = 'Error de conexión';
+                this.snackbarText = 'Error de conexiÃ³n';
                 this.snackbar = true;
             } finally {
                 this.loadingQR = false;
@@ -886,23 +886,46 @@ const ManageClass = {
             });
         },
         async enterSession(session) {
-            const cmid = session.bbb_cmid || 0;
-            if (!cmid) {
-                alert('El enlace de la sesión no está disponible.');
+            const cmid = parseInt(session?.bbb_cmid || 0, 10) || 0;
+            const directUrl = (session && session.join_url)
+                ? String(session.join_url)
+                : (cmid > 0 ? (this.config.wwwroot + '/mod/bigbluebuttonbn/view.php?id=' + cmid) : '');
+            const attendanceSessionId = (session && session.attendance && session.attendance.id)
+                ? parseInt(session.attendance.id, 10) || 0
+                : 0;
+
+            // Fast path only when we cannot resolve by attendance session.
+            if (!attendanceSessionId && directUrl) {
+                window.open(directUrl, '_blank');
                 return;
             }
 
             this.enteringSessionId = session.id;
             try {
+                const params = new URLSearchParams({
+                    action: 'local_grupomakro_get_bbb_join_url',
+                    cmid: String(cmid || 0),
+                    classid: String(this.classId || 0)
+                });
+                if (attendanceSessionId > 0) {
+                    params.append('sessionid', String(attendanceSessionId));
+                }
+
                 const resp = await axios.post(
                     this.config.wwwroot + '/local/grupomakro_core/ajax.php',
-                    new URLSearchParams({ action: 'local_grupomakro_get_bbb_join_url', cmid })
+                    params
                 );
                 const data = resp.data || {};
-                if (data.status === 'success' && data.join_url) {
-                    window.open(data.join_url, '_blank');
+                if (data && data.debug) {
+                    console.warn('BBB join debug', data.debug);
+                }
+                const resolvedUrl = (data && (data.join_url || data.view_url)) ? (data.join_url || data.view_url) : '';
+                if (resolvedUrl) {
+                    window.open(resolvedUrl, '_blank');
+                } else if (directUrl) {
+                    window.open(directUrl, '_blank');
                 } else {
-                    alert(data.message || 'No se pudo obtener el enlace de la reunión.');
+                    alert((data && data.message) ? data.message : 'No se pudo obtener el enlace de la reunion.');
                 }
             } catch (e) {
                 console.error('enterSession error', e);
@@ -927,7 +950,7 @@ const ManageClass = {
             if (!this.canDeleteActivity(activity)) {
                 return;
             }
-            if (!confirm(`¿Eliminar la actividad "${activity.name}"? Esta acción no se puede deshacer.`)) {
+            if (!confirm(`Â¿Eliminar la actividad "${activity.name}"? Esta acciÃ³n no se puede deshacer.`)) {
                 return;
             }
             this.$set(activity, '_deleting', true);
@@ -948,7 +971,7 @@ const ManageClass = {
                 }
             } catch (error) {
                 console.error('Error deleting activity:', error);
-                alert('Error de conexión al eliminar actividad.');
+                alert('Error de conexiÃ³n al eliminar actividad.');
                 this.$set(activity, '_deleting', false);
             }
         },
@@ -1063,14 +1086,14 @@ const ManageClass = {
                     this.noticeError = response.data.message || 'Error al publicar el aviso.';
                 }
             } catch (e) {
-                this.noticeError = 'Error de conexión al publicar.';
+                this.noticeError = 'Error de conexiÃ³n al publicar.';
                 console.error(e);
             } finally {
                 this.postingNotice = false;
             }
         },
         async deleteNotice(notice) {
-            if (!confirm('¿Eliminar el aviso "' + notice.subject + '"? Esta acción no se puede deshacer.')) return;
+            if (!confirm('Â¿Eliminar el aviso "' + notice.subject + '"? Esta acciÃ³n no se puede deshacer.')) return;
             this.$set(notice, '_deleting', true);
             try {
                 const response = await axios.post(window.wsUrl, {
@@ -1085,7 +1108,7 @@ const ManageClass = {
                     this.$set(notice, '_deleting', false);
                 }
             } catch (e) {
-                alert('Error de conexión al eliminar.');
+                alert('Error de conexiÃ³n al eliminar.');
                 this.$set(notice, '_deleting', false);
             }
         },

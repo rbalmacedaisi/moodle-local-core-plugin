@@ -7,6 +7,7 @@ require_capability('moodle/site:config', context_system::instance());
 
 $classid = optional_param('classid', 0, PARAM_INT);
 $classfilter = optional_param('classfilter', '', PARAM_TEXT);
+$testjoin = optional_param('testjoin', 0, PARAM_INT);
 
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/debug_manageclass_sessions.php'));
 $PAGE->set_context(context_system::instance());
@@ -41,6 +42,7 @@ echo '<form method="get" style="margin-bottom:16px">';
 echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
 echo '<label>Class ID: <input type="number" name="classid" value="' . (int)$classid . '" style="width:120px"></label> ';
 echo '<label style="margin-left:12px">Filtro nombre: <input type="text" name="classfilter" value="' . s($classfilter) . '" style="width:360px"></label> ';
+echo '<label style="margin-left:12px"><input type="checkbox" name="testjoin" value="1" ' . ($testjoin ? 'checked' : '') . '> Test join_url BBB</label> ';
 echo '<button type="submit">Diagnosticar</button>';
 echo '</form>';
 
@@ -152,6 +154,85 @@ if ($classid > 0) {
     );
     gmk_dbg_table('Relaciones gmk_bbb_attendance_relation', $relations);
 
+    $bbbcmids = [];
+    foreach (explode(',', (string)($class->bbbmoduleids ?? '')) as $rawcmid) {
+        $cmid = (int)trim((string)$rawcmid);
+        if ($cmid > 0) {
+            $bbbcmids[$cmid] = $cmid;
+        }
+    }
+    foreach ($relations as $rel) {
+        $cmid = (int)($rel->bbbmoduleid ?? 0);
+        if ($cmid > 0) {
+            $bbbcmids[$cmid] = $cmid;
+        }
+    }
+    $bbbrows = [];
+    if (!empty($bbbcmids)) {
+        $cmcols = $DB->get_columns('course_modules');
+        $hasdeletion = isset($cmcols['deletioninprogress']);
+        foreach (array_values($bbbcmids) as $bbbcmid) {
+            $cm = $DB->get_record_sql(
+                "SELECT cm.id, cm.course, cm.section, cm.instance, m.name AS modulename" . ($hasdeletion ? ", cm.deletioninprogress" : "")
+                . " FROM {course_modules} cm
+                    JOIN {modules} m ON m.id = cm.module
+                   WHERE cm.id = :cmid",
+                ['cmid' => (int)$bbbcmid],
+                IGNORE_MISSING
+            );
+
+            $status = 'ok';
+            $joinstatus = 'not_tested';
+            $joinmessage = '-';
+            $joinurl = '-';
+
+            if (!$cm) {
+                $status = 'missing_cm';
+            } else if ($cm->modulename !== 'bigbluebuttonbn') {
+                $status = 'wrong_module_' . $cm->modulename;
+            } else if ($hasdeletion && !empty($cm->deletioninprogress)) {
+                $status = 'deletioninprogress';
+            }
+
+            if ($testjoin && $status === 'ok') {
+                try {
+                    $res = \mod_bigbluebuttonbn\external\get_join_url::execute((int)$bbbcmid);
+                    $joinurl = !empty($res['join_url']) ? (string)$res['join_url'] : '-';
+                    if ($joinurl !== '-') {
+                        $joinstatus = 'ok';
+                    } else {
+                        $joinstatus = 'empty';
+                        if (!empty($res['warnings'][0]['message'])) {
+                            $joinmessage = (string)$res['warnings'][0]['message'];
+                        } else if (!empty($res['warnings'][0]['warningcode'])) {
+                            $joinmessage = (string)$res['warnings'][0]['warningcode'];
+                        } else {
+                            $joinmessage = 'join_url_empty';
+                        }
+                    }
+                } catch (\Throwable $t) {
+                    $joinstatus = 'exception';
+                    $joinmessage = $t->getMessage();
+                }
+            }
+
+            $bbbrows[] = (object)[
+                'cmid' => (int)$bbbcmid,
+                'status' => $status,
+                'module' => $cm ? (string)$cm->modulename : '-',
+                'instance' => $cm ? (int)$cm->instance : 0,
+                'course' => $cm ? (int)$cm->course : 0,
+                'section' => $cm ? (int)$cm->section : 0,
+                'deletioninprogress' => ($cm && $hasdeletion) ? (int)$cm->deletioninprogress : 0,
+                'view_url' => $cm ? ($CFG->wwwroot . '/mod/bigbluebuttonbn/view.php?id=' . (int)$bbbcmid) : '-',
+                'join_test_status' => $joinstatus,
+                'join_test_message' => $joinmessage,
+                'join_test_url' => $joinurl,
+            ];
+        }
+    }
+    gmk_dbg_table('BBB modules / join diagnostics', $bbbrows);
+
     if ($att) {
         $strict = $DB->get_records_sql(
             "SELECT id, attendanceid, groupid, sessdate, duration, caleventid
@@ -224,4 +305,3 @@ if ($classid > 0) {
 }
 
 echo $OUTPUT->footer();
-
