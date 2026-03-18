@@ -76,25 +76,36 @@ class get_bbb_module_url extends external_api {
         ]);
 
         try{
-            
+
             global $DB;
-            
+
             $courseModuleInfo = get_fast_modinfo($courseId);
             $moduleInfo = $courseModuleInfo->get_cm($moduleId)->get_course_module_record();
             $BBBMeetingInfo = \mod_bigbluebuttonbn\external\meeting_info::execute($moduleInfo->instance,0);
-            // print_object('aqui estoy');
-            // die;
-            $BBBRecordings = \mod_bigbluebuttonbn\external\get_recordings::execute($moduleInfo->instance);
-            
-            $recordingId = $DB->get_field('bigbluebuttonbn_recordings','recordingid',['bigbluebuttonbnid'=>$moduleInfo->instance]);
+
+            // Get the most recent valid recording (PROCESSED=2 or NOTIFIED=3), excluding dismissed/deleted/awaiting.
+            $recording = $DB->get_record_sql(
+                "SELECT recordingid FROM {bigbluebuttonbn_recordings}
+                  WHERE bigbluebuttonbnid = :instanceid
+                    AND status IN (:status_processed, :status_notified)
+                  ORDER BY timecreated DESC
+                  LIMIT 1",
+                [
+                    'instanceid'       => $moduleInfo->instance,
+                    'status_processed' => \mod_bigbluebuttonbn\recording::RECORDING_STATUS_PROCESSED,
+                    'status_notified'  => \mod_bigbluebuttonbn\recording::RECORDING_STATUS_NOTIFIED,
+                ]
+            );
+            $recordingId = $recording ? $recording->recordingid : null;
 
             $meetingInfo = new stdClass();
-            $meetingInfo->opened = $BBBMeetingInfo['statusopen'];
-            $meetingInfo->closed = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
-            $meetingInfo->running = $BBBMeetingInfo['statusrunning'];
-            $meetingInfo->message = $BBBMeetingInfo['statusmessage'];
-            $meetingInfo->joinUrl = $BBBMeetingInfo['canjoin']? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url']:null;
-            $meetingInfo->recordingUrl = $recordingId?  "https://bbb.isi.edu.pa/playback/presentation/2.3/".$recordingId:null;
+            $meetingInfo->opened      = $BBBMeetingInfo['statusopen'];
+            $meetingInfo->closed      = $recordingId ? true : $BBBMeetingInfo['statusclosed'];
+            $meetingInfo->running     = $BBBMeetingInfo['statusrunning'];
+            $meetingInfo->message     = $BBBMeetingInfo['statusmessage'];
+            $meetingInfo->openingtime = $BBBMeetingInfo['openingtime'] ?? null;
+            $meetingInfo->joinUrl     = $BBBMeetingInfo['canjoin'] ? \mod_bigbluebuttonbn\external\get_join_url::execute($params['moduleId'])['join_url'] : null;
+            $meetingInfo->recordingUrl = $recordingId ? "https://bbb.isi.edu.pa/playback/presentation/2.3/" . $recordingId : null;
             return ['BBBInfo'=>json_encode($meetingInfo)];
             
         }

@@ -153,6 +153,7 @@ $cadena['inactivodespués_x_horas_desc'] = '
 // Scheduled tasks.
 $string['taskinactiveusers'] = 'Eliminar usuarios inactivos';
 $string['taskcloseexpiredschedules'] = 'Cerrar horarios vencidos';
+$string['taskprocessperiodtransition'] = 'Procesar transición de periodo académico';
 $string['taskupdatefinancialstatus'] = 'Actualizar estado financiero de estudiantes (Odoo)';
 $string['error_class_closed_modification'] = 'Esta clase está cerrada y no se puede modificar.';
 
