@@ -148,6 +148,11 @@ if ($hassiteconfig) {
         'Vista Semanal de Horarios',
         new moodle_url('/local/grupomakro_core/pages/schedule_weekly_view.php')
     );
+    $activeStudentsByClassPage = new admin_externalpage(
+        'grupomakro_core_active_students_by_class',
+        get_string('active_students_by_class_page', 'local_grupomakro_core'),
+        new moodle_url('/local/grupomakro_core/pages/active_students_by_class.php')
+    );
     $financialPlanningPage = new admin_externalpage(
         'grupomakro_core_financial_planning',
         '💰 Análisis Financiero Docente',
@@ -187,6 +192,7 @@ if ($hassiteconfig) {
     $ADMIN->add('grupomakrocore_plugin', $debugOverlapStudentPage);
     $ADMIN->add('grupomakrocore_plugin', $academicDemandGapsPage);
     $ADMIN->add('grupomakrocore_plugin', $scheduleWeeklyViewPage);
+    $ADMIN->add('grupomakrocore_plugin', $activeStudentsByClassPage);
     $ADMIN->add('grupomakrocore_plugin', $financialPlanningPage);
     $ADMIN->add('grupomakrocore_plugin', $debugStudentActivityVisibilityPage);
     $ADMIN->add('grupomakrocore_plugin', $syncBbbRecordingsPage);

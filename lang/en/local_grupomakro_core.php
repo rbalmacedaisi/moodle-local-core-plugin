@@ -37,6 +37,7 @@ $string['institution_management'] = 'Institution Management';
 $string['academic_director_panel'] = 'Academic Panel';
 $string['admin_teachers_management'] = 'Manage Teachers';
 $string['teachers'] = 'Teachers';
+$string['active_students_by_class_page'] = 'Active students by class';
 
 // Capabilities.
 $string['grupomakro_core:seeallorders'] = 'See all orders';
