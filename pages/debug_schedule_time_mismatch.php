@@ -269,8 +269,8 @@ echo '<div><label>Class ID (optional)</label><input type="number" name="classid"
 echo '<div><label>Subject contains</label><input type="text" name="subject" value="' . dstm_h($subject) . '" style="width:100%"></div>';
 echo '<div><label>Init date (Y-m-d)</label><input type="text" name="initdate" value="' . dstm_h($initdate) . '" style="width:100%"></div>';
 echo '<div><label>End date (Y-m-d)</label><input type="text" name="enddate" value="' . dstm_h($enddate) . '" style="width:100%"></div>';
-echo '<div><label>Scan offset users</label><input type="number" name="offsetusers" value="' . (int)$offsetusers . '" style="width:100%"></div>';
-echo '<div><label>Scan max users</label><input type="number" name="maxusers" value="' . (int)$maxusers . '" style="width:100%"></div>';
+echo '<div><label>Scan offset (chunk)</label><input type="number" name="offsetusers" value="' . (int)$offsetusers . '" style="width:100%"></div>';
+echo '<div><label>Scan size (chunk)</label><input type="number" name="maxusers" value="' . (int)$maxusers . '" style="width:100%"></div>';
 echo '<div><label>Max detail rows</label><input type="number" name="maxdetails" value="' . (int)$maxdetails . '" style="width:100%"></div>';
 echo '</div>';
 echo '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
@@ -329,93 +329,162 @@ if (!$selecteduser && $search !== '') {
 
 if ($runall) {
     $subjectclean = dstm_clean($subject);
+    $startts = strtotime($initdate . ' 00:00:00');
+    $endts = strtotime($enddate . ' 23:59:59');
+    if (!$startts) {
+        $startts = strtotime('-60 days');
+    }
+    if (!$endts) {
+        $endts = strtotime('+180 days');
+    }
+    if ($endts < $startts) {
+        $tmp = $startts;
+        $startts = $endts;
+        $endts = $tmp;
+    }
 
-    $basewhere = "u.deleted = 0 AND u.suspended = 0";
-    $baseparams = [];
-    if (trim($search) !== '') {
+    $scopeuserids = [];
+    $hasscopefilter = false;
+    if ($userid > 0) {
+        $scopeuserids[] = (int)$userid;
+        $hasscopefilter = true;
+    } else if (trim($search) !== '') {
+        $hasscopefilter = true;
         $like = '%' . $DB->sql_like_escape(trim($search)) . '%';
-        $basewhere .= " AND (" . $DB->sql_like('u.idnumber', ':sq1', false)
-            . " OR " . $DB->sql_like('u.username', ':sq2', false)
-            . " OR " . $DB->sql_like('u.email', ':sq3', false)
-            . " OR " . $DB->sql_like('u.firstname', ':sq4', false)
-            . " OR " . $DB->sql_like('u.lastname', ':sq5', false) . ")";
-        $baseparams['sq1'] = $like;
-        $baseparams['sq2'] = $like;
-        $baseparams['sq3'] = $like;
-        $baseparams['sq4'] = $like;
-        $baseparams['sq5'] = $like;
+        $matchedusers = $DB->get_records_sql(
+            "SELECT id
+               FROM {user}
+              WHERE deleted = 0
+                AND (" . $DB->sql_like('idnumber', ':uq1', false) . "
+                  OR " . $DB->sql_like('username', ':uq2', false) . "
+                  OR " . $DB->sql_like('email', ':uq3', false) . "
+                  OR " . $DB->sql_like('firstname', ':uq4', false) . "
+                  OR " . $DB->sql_like('lastname', ':uq5', false) . ")
+           ORDER BY id ASC",
+            ['uq1' => $like, 'uq2' => $like, 'uq3' => $like, 'uq4' => $like, 'uq5' => $like],
+            0,
+            400
+        );
+        foreach ($matchedusers as $mu) {
+            $scopeuserids[] = (int)$mu->id;
+        }
+        $scopeuserids = array_values(array_unique($scopeuserids));
     }
 
-    $llucolumns = $DB->get_columns('local_learning_users');
-    $llukeys = array_map('strtolower', array_keys($llucolumns));
-    $hasllurole = in_array('role', $llukeys, true);
-    $hasllustatus = in_array('status', $llukeys, true);
-    $lluextrawhere = '';
-    if ($hasllurole) {
-        $lluextrawhere .= " AND (llu.role = 'student' OR llu.role IS NULL OR llu.role = '')";
+    $classwhere = "1=1";
+    $classparams = [];
+    if ((int)$classid > 0) {
+        $classwhere .= " AND c.id = :cid";
+        $classparams['cid'] = (int)$classid;
     }
-    if ($hasllustatus) {
-        $lluextrawhere .= " AND (llu.status = 'activo' OR llu.status = 'active' OR llu.status IS NULL OR llu.status = '')";
+    if ($subjectclean !== '') {
+        $like = '%' . $DB->sql_like_escape(trim($subject)) . '%';
+        $classwhere .= " AND (" . $DB->sql_like('c.name', ':cq1', false)
+            . " OR " . $DB->sql_like('crs.fullname', ':cq2', false) . ")";
+        $classparams['cq1'] = $like;
+        $classparams['cq2'] = $like;
+    }
+    $classwhere .= " AND (c.enddate = 0 OR c.enddate >= :wstart)";
+    $classwhere .= " AND (c.initdate = 0 OR c.initdate <= :wend)";
+    $classparams['wstart'] = $startts;
+    $classparams['wend'] = $endts;
+
+    if ($hasscopefilter && empty($scopeuserids)) {
+        $classwhere .= " AND 1 = 0";
+    } else if (!empty($scopeuserids)) {
+        list($gmuin, $gmuparams) = $DB->get_in_or_equal($scopeuserids, SQL_PARAMS_NAMED, 'gmu');
+        list($cpuin, $cpuparams) = $DB->get_in_or_equal($scopeuserids, SQL_PARAMS_NAMED, 'cpu');
+        $classwhere .= " AND (
+                EXISTS (
+                    SELECT 1
+                      FROM {groups_members} gm
+                     WHERE gm.groupid = c.groupid
+                       AND gm.userid {$gmuin}
+                )
+                OR EXISTS (
+                    SELECT 1
+                      FROM {gmk_course_progre} cp
+                     WHERE cp.classid = c.id
+                       AND cp.userid {$cpuin}
+                )
+            )";
+        $classparams = array_merge($classparams, $gmuparams, $cpuparams);
     }
 
-    $countsql = "SELECT COUNT(DISTINCT u.id)
-                   FROM {local_learning_users} llu
-                   JOIN {user} u ON u.id = llu.userid
-                  WHERE {$basewhere}
-                    {$lluextrawhere}";
-    $totalcandidates = (int)$DB->count_records_sql($countsql, $baseparams);
+    $totalcandidates = (int)$DB->count_records_sql(
+        "SELECT COUNT(1)
+           FROM {gmk_class} c
+      LEFT JOIN {course} crs ON crs.id = c.corecourseid
+          WHERE {$classwhere}",
+        $classparams
+    );
 
-    $listsql = "SELECT DISTINCT u.id, u.firstname, u.lastname, u.email, u.username, u.idnumber
-                  FROM {local_learning_users} llu
-                  JOIN {user} u ON u.id = llu.userid
-                 WHERE {$basewhere}
-                   {$lluextrawhere}
-              ORDER BY u.id ASC";
-    $users = array_values($DB->get_records_sql($listsql, $baseparams, $offsetusers, $maxusers));
+    $classlist = array_values($DB->get_records_sql(
+        "SELECT c.id, c.name, c.corecourseid, c.learningplanid, c.groupid, c.instructorid,
+                c.inittime, c.endtime, c.initdate, c.enddate, c.approved, c.closed,
+                crs.fullname AS corecoursename
+           FROM {gmk_class} c
+      LEFT JOIN {course} crs ON crs.id = c.corecourseid
+          WHERE {$classwhere}
+       ORDER BY c.id ASC",
+        $classparams,
+        $offsetusers,
+        $maxusers
+    ));
 
-    $scannedusers = 0;
+    $classmap = [];
+    $classids = [];
+    foreach ($classlist as $c) {
+        $cid = (int)$c->id;
+        if ($cid > 0) {
+            $classids[] = $cid;
+            $classmap[$cid] = $c;
+        }
+    }
+
+    $scannedclasses = count($classids);
     $scannedevents = 0;
     $sessionevents = 0;
     $parseokcount = 0;
     $mismatchcount = 0;
     $affectedclasses = [];
-    $affectedstudents = [];
     $detailrows = [];
+    $seenkeys = [];
 
-    foreach ($users as $u) {
-        $uid = (int)$u->id;
-        if ($uid <= 0) {
-            continue;
-        }
-        $scannedusers++;
-        $events = get_class_events($uid, $initdate, $enddate);
-        if (!is_array($events)) {
-            continue;
-        }
-
-        foreach ($events as $ev) {
+    if (!empty($classids)) {
+        list($classin1, $classparams1) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'c1');
+        $attendanceparams = array_merge($classparams1, ['st1' => $startts, 'en1' => $endts]);
+        $attendancers = $DB->get_recordset_sql(
+            "SELECT c.id AS classid, c.name AS classname, c.inittime AS classstart, c.endtime AS classend,
+                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration
+               FROM {gmk_class} c
+               JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
+               JOIN {attendance_sessions} s ON s.id = r.attendancesessionid
+               JOIN {event} e ON e.id = s.caleventid
+              WHERE c.id {$classin1}
+                AND e.timestart BETWEEN :st1 AND :en1",
+            $attendanceparams
+        );
+        foreach ($attendancers as $row) {
+            $sessionevents++;
             $scannedevents++;
-            $module = (string)($ev->modulename ?? '');
-            if ($module !== 'attendance' && $module !== 'bigbluebuttonbn') {
+            $cid = (int)$row->classid;
+            $eventid = (int)$row->eventid;
+            $dedupkey = 'attendance:' . $cid . ':' . $eventid;
+            if (isset($seenkeys[$dedupkey])) {
                 continue;
             }
-            $sessionevents++;
-
-            if ((int)$classid > 0) {
-                $evcid = (int)($ev->classId ?? 0);
-                if ($evcid !== (int)$classid) {
-                    continue;
-                }
+            $seenkeys[$dedupkey] = true;
+            if (!isset($classmap[$cid])) {
+                continue;
             }
-
-            if ($subjectclean !== '') {
-                $hay = dstm_clean((string)($ev->className ?? '') . ' ' . (string)($ev->coursename ?? '') . ' ' . (string)($ev->name ?? ''));
-                if (strpos($hay, $subjectclean) === false) {
-                    continue;
-                }
-            }
-
-            $cmp = dstm_build_event_compare($ev);
+            $modalrange = trim((string)$classmap[$cid]->inittime) . ' - ' . trim((string)$classmap[$cid]->endtime);
+            $evobj = (object)[
+                'timestart' => (int)$row->timestart,
+                'timeduration' => (int)$row->timeduration,
+                'timeRange' => $modalrange,
+            ];
+            $cmp = dstm_build_event_compare($evobj);
             if (!$cmp['parseok']) {
                 continue;
             }
@@ -423,43 +492,38 @@ if ($runall) {
             if (!$cmp['ismatch']) {
                 continue;
             }
-
             $mismatchcount++;
-            $affectedstudents[$uid] = true;
-            $cid = (int)($ev->classId ?? 0);
-            $classkey = ($cid > 0) ? ('c' . $cid) : ('name:' . md5((string)($ev->className ?? $ev->coursename ?? '')));
-
-            if (!isset($affectedclasses[$classkey])) {
-                $affectedclasses[$classkey] = [
+            if (!isset($affectedclasses[$cid])) {
+                $affectedclasses[$cid] = [
                     'classid' => $cid,
-                    'classname' => (string)($ev->className ?? ''),
-                    'coursename' => (string)($ev->coursename ?? ''),
+                    'classname' => (string)($classmap[$cid]->name ?? ''),
+                    'corecoursename' => (string)($classmap[$cid]->corecoursename ?? ''),
                     'mismatchcount' => 0,
-                    'users' => [],
                     'samplecard' => $cmp['cardrange'],
                     'samplemodal' => $cmp['modalrange'],
                     'samplestartdelta' => $cmp['startdelta'],
                     'sampleenddelta' => $cmp['enddelta'],
+                    'modules' => [],
+                    'affectedusers' => 0,
                 ];
             }
-            $affectedclasses[$classkey]['mismatchcount']++;
-            $affectedclasses[$classkey]['users'][$uid] = true;
-
+            $affectedclasses[$cid]['mismatchcount']++;
+            $affectedclasses[$cid]['modules']['attendance'] = true;
             if (count($detailrows) < $maxdetails) {
                 $detailrows[] = [
-                    'User ID' => $uid,
-                    'User' => dstm_h(trim((string)$u->firstname . ' ' . (string)$u->lastname)),
-                    'ID Number' => dstm_h((string)$u->idnumber),
                     'Class ID' => $cid,
-                    'Class' => dstm_h((string)($ev->className ?? '')),
-                    'Module' => dstm_h($module),
+                    'Class' => dstm_h((string)($classmap[$cid]->name ?? '')),
+                    'Module' => 'attendance',
+                    'Event ID' => $eventid,
+                    'Event' => dstm_h((string)$row->eventname),
                     'Date start' => dstm_ts((int)$cmp['startts']),
                     'Card time' => dstm_h((string)$cmp['cardrange']),
                     'Modal time' => dstm_h((string)$cmp['modalrange']),
                     'Start delta(min)' => ($cmp['startdelta'] === null ? '-' : (string)$cmp['startdelta']),
                     'End delta(min)' => ($cmp['enddelta'] === null ? '-' : (string)$cmp['enddelta']),
                     'Action' => '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
-                        'userid' => $uid,
+                        'userid' => (int)$userid,
+                        'search' => $search,
                         'classid' => $cid,
                         'subject' => $subject,
                         'initdate' => $initdate,
@@ -468,21 +532,173 @@ if ($runall) {
                 ];
             }
         }
+        $attendancers->close();
+
+        list($classin2, $classparams2) = $DB->get_in_or_equal($classids, SQL_PARAMS_NAMED, 'c2');
+        $bbbparams = array_merge($classparams2, ['st2' => $startts, 'en2' => $endts]);
+        $bbbrs = $DB->get_recordset_sql(
+            "SELECT c.id AS classid, c.name AS classname, c.inittime AS classstart, c.endtime AS classend,
+                    e.id AS eventid, e.name AS eventname, e.timestart, e.timeduration
+               FROM {gmk_class} c
+               JOIN {gmk_bbb_attendance_relation} r ON r.classid = c.id
+          LEFT JOIN {course_modules} cm ON cm.id = r.bbbmoduleid
+               JOIN {event} e
+                 ON e.modulename = 'bigbluebuttonbn'
+                AND (
+                    (r.bbbid > 0 AND e.instance = r.bbbid)
+                    OR (cm.instance > 0 AND e.instance = cm.instance)
+                )
+              WHERE c.id {$classin2}
+                AND e.timestart BETWEEN :st2 AND :en2",
+            $bbbparams
+        );
+        foreach ($bbbrs as $row) {
+            $sessionevents++;
+            $scannedevents++;
+            $cid = (int)$row->classid;
+            $eventid = (int)$row->eventid;
+            $dedupkey = 'bbb:' . $cid . ':' . $eventid;
+            if (isset($seenkeys[$dedupkey])) {
+                continue;
+            }
+            $seenkeys[$dedupkey] = true;
+            if (!isset($classmap[$cid])) {
+                continue;
+            }
+            $modalrange = trim((string)$classmap[$cid]->inittime) . ' - ' . trim((string)$classmap[$cid]->endtime);
+            $evobj = (object)[
+                'timestart' => (int)$row->timestart,
+                'timeduration' => (int)$row->timeduration,
+                'timeRange' => $modalrange,
+            ];
+            $cmp = dstm_build_event_compare($evobj);
+            if (!$cmp['parseok']) {
+                continue;
+            }
+            $parseokcount++;
+            if (!$cmp['ismatch']) {
+                continue;
+            }
+            $mismatchcount++;
+            if (!isset($affectedclasses[$cid])) {
+                $affectedclasses[$cid] = [
+                    'classid' => $cid,
+                    'classname' => (string)($classmap[$cid]->name ?? ''),
+                    'corecoursename' => (string)($classmap[$cid]->corecoursename ?? ''),
+                    'mismatchcount' => 0,
+                    'samplecard' => $cmp['cardrange'],
+                    'samplemodal' => $cmp['modalrange'],
+                    'samplestartdelta' => $cmp['startdelta'],
+                    'sampleenddelta' => $cmp['enddelta'],
+                    'modules' => [],
+                    'affectedusers' => 0,
+                ];
+            }
+            $affectedclasses[$cid]['mismatchcount']++;
+            $affectedclasses[$cid]['modules']['bigbluebuttonbn'] = true;
+            if (count($detailrows) < $maxdetails) {
+                $detailrows[] = [
+                    'Class ID' => $cid,
+                    'Class' => dstm_h((string)($classmap[$cid]->name ?? '')),
+                    'Module' => 'bigbluebuttonbn',
+                    'Event ID' => $eventid,
+                    'Event' => dstm_h((string)$row->eventname),
+                    'Date start' => dstm_ts((int)$cmp['startts']),
+                    'Card time' => dstm_h((string)$cmp['cardrange']),
+                    'Modal time' => dstm_h((string)$cmp['modalrange']),
+                    'Start delta(min)' => ($cmp['startdelta'] === null ? '-' : (string)$cmp['startdelta']),
+                    'End delta(min)' => ($cmp['enddelta'] === null ? '-' : (string)$cmp['enddelta']),
+                    'Action' => '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
+                        'userid' => (int)$userid,
+                        'search' => $search,
+                        'classid' => $cid,
+                        'subject' => $subject,
+                        'initdate' => $initdate,
+                        'enddate' => $enddate,
+                    ]))->out(false) . '">Open</a>',
+                ];
+            }
+        }
+        $bbbrs->close();
+    }
+
+    $affectedstudents = 0;
+    if (!empty($affectedclasses)) {
+        $mismatchclassids = array_keys($affectedclasses);
+        list($mcin1, $mcparams1) = $DB->get_in_or_equal($mismatchclassids, SQL_PARAMS_NAMED, 'mc1');
+        list($mcin2, $mcparams2) = $DB->get_in_or_equal($mismatchclassids, SQL_PARAMS_NAMED, 'mc2');
+
+        $gmusersql = '';
+        $cpusersql = '';
+        $scopeparams = [];
+        if (!empty($scopeuserids)) {
+            list($suin1, $suparams1) = $DB->get_in_or_equal($scopeuserids, SQL_PARAMS_NAMED, 'su1');
+            list($suin2, $suparams2) = $DB->get_in_or_equal($scopeuserids, SQL_PARAMS_NAMED, 'su2');
+            $gmusersql = " AND gm.userid {$suin1}";
+            $cpusersql = " AND cp.userid {$suin2}";
+            $scopeparams = array_merge($scopeparams, $suparams1, $suparams2);
+        }
+
+        $classcounts = $DB->get_records_sql_menu(
+            "SELECT x.classid, COUNT(DISTINCT x.userid) AS usercount
+               FROM (
+                    SELECT c.id AS classid, gm.userid AS userid
+                      FROM {gmk_class} c
+                      JOIN {groups_members} gm ON gm.groupid = c.groupid
+                     WHERE c.id {$mcin1}
+                       AND gm.userid <> COALESCE(c.instructorid, 0)
+                           {$gmusersql}
+                    UNION ALL
+                    SELECT cp.classid AS classid, cp.userid AS userid
+                      FROM {gmk_course_progre} cp
+                     WHERE cp.classid {$mcin2}
+                       AND cp.status = 2
+                           {$cpusersql}
+               ) x
+           GROUP BY x.classid",
+            array_merge($mcparams1, $mcparams2, $scopeparams)
+        );
+        foreach ($classcounts as $cid => $cnt) {
+            $icid = (int)$cid;
+            if (isset($affectedclasses[$icid])) {
+                $affectedclasses[$icid]['affectedusers'] = (int)$cnt;
+            }
+        }
+
+        $affectedstudents = (int)$DB->get_field_sql(
+            "SELECT COUNT(DISTINCT x.userid)
+               FROM (
+                    SELECT gm.userid AS userid
+                      FROM {gmk_class} c
+                      JOIN {groups_members} gm ON gm.groupid = c.groupid
+                     WHERE c.id {$mcin1}
+                       AND gm.userid <> COALESCE(c.instructorid, 0)
+                           {$gmusersql}
+                    UNION ALL
+                    SELECT cp.userid AS userid
+                      FROM {gmk_course_progre} cp
+                     WHERE cp.classid {$mcin2}
+                       AND cp.status = 2
+                           {$cpusersql}
+               ) x",
+            array_merge($mcparams1, $mcparams2, $scopeparams)
+        );
     }
 
     echo '<div class="dstm-card">';
     echo '<div class="dstm-sub">Mass scan summary</div>';
     echo '<div class="dstm-grid">';
-    echo '<div><strong>Total student candidates</strong><br>' . (int)$totalcandidates . '</div>';
-    echo '<div><strong>Scanned users (chunk)</strong><br>' . (int)$scannedusers . '</div>';
+    echo '<div><strong>Total class candidates</strong><br>' . (int)$totalcandidates . '</div>';
+    echo '<div><strong>Scanned classes (chunk)</strong><br>' . (int)$scannedclasses . '</div>';
     echo '<div><strong>Offset</strong><br>' . (int)$offsetusers . '</div>';
-    echo '<div><strong>Max users</strong><br>' . (int)$maxusers . '</div>';
+    echo '<div><strong>Chunk size</strong><br>' . (int)$maxusers . '</div>';
     echo '<div><strong>Scanned events</strong><br>' . (int)$scannedevents . '</div>';
     echo '<div><strong>Session events</strong><br>' . (int)$sessionevents . '</div>';
     echo '<div><strong>Parseable events</strong><br>' . (int)$parseokcount . '</div>';
     echo '<div><strong>Mismatches</strong><br>' . ((int)$mismatchcount > 0 ? '<span class="dstm-bad">' . (int)$mismatchcount . '</span>' : '<span class="dstm-ok">0</span>') . '</div>';
     echo '<div><strong>Affected classes</strong><br>' . (int)count($affectedclasses) . '</div>';
-    echo '<div><strong>Affected students</strong><br>' . (int)count($affectedstudents) . '</div>';
+    echo '<div><strong>Affected students</strong><br>' . (int)$affectedstudents . '</div>';
+    echo '<div><strong>User scope</strong><br>' . (!empty($scopeuserids) ? (int)count($scopeuserids) . ' user(s)' : 'All') . '</div>';
     echo '</div>';
 
     $prevurl = null;
@@ -495,7 +711,9 @@ if ($runall) {
         $prevurl = new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
             'runall' => 1,
             'search' => $search,
+            'userid' => (int)$userid,
             'subject' => $subject,
+            'classid' => (int)$classid,
             'initdate' => $initdate,
             'enddate' => $enddate,
             'offsetusers' => $prevoffset,
@@ -507,7 +725,9 @@ if ($runall) {
         $nexturl = new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
             'runall' => 1,
             'search' => $search,
+            'userid' => (int)$userid,
             'subject' => $subject,
+            'classid' => (int)$classid,
             'initdate' => $initdate,
             'enddate' => $enddate,
             'offsetusers' => $offsetusers + $maxusers,
@@ -545,33 +765,34 @@ if ($runall) {
         $samplestartdelta = ($ac['samplestartdelta'] === null ? '-' : (string)$ac['samplestartdelta']);
         $sampleenddelta = ($ac['sampleenddelta'] === null ? '-' : (string)$ac['sampleenddelta']);
         $sampledelta = $samplestartdelta . ' / ' . $sampleenddelta;
-        $action = '-';
-        if ($cid > 0) {
-            $action = '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
-                'classid' => $cid,
-                'subject' => $subject,
-                'initdate' => $initdate,
-                'enddate' => $enddate,
-            ]))->out(false) . '">Diagnose class</a>';
-        }
+        $action = '<a href="' . (new moodle_url('/local/grupomakro_core/pages/debug_schedule_time_mismatch.php', [
+            'userid' => (int)$userid,
+            'search' => $search,
+            'classid' => $cid,
+            'subject' => $subject,
+            'initdate' => $initdate,
+            'enddate' => $enddate,
+        ]))->out(false) . '">Diagnose</a>';
         $classrows[] = [
             'Class ID' => $cid,
-            'Class' => dstm_h((string)($ac['classname'] ?: $ac['coursename'])),
+            'Class' => dstm_h((string)($ac['classname'] ?? '')),
+            'Core course' => dstm_h((string)($ac['corecoursename'] ?? '')),
             'Mismatches' => (int)($ac['mismatchcount'] ?? 0),
-            'Affected users' => (int)count($ac['users'] ?? []),
+            'Affected users' => (int)($ac['affectedusers'] ?? 0),
+            'Modules' => dstm_h(implode(', ', array_keys($ac['modules'] ?? []))),
             'Sample card' => dstm_h((string)($ac['samplecard'] ?? '')),
             'Sample modal' => dstm_h((string)($ac['samplemodal'] ?? '')),
             'Sample delta start/end' => dstm_h($sampledelta),
             'Action' => $action,
         ];
     }
-    dstm_print_table(['Class ID', 'Class', 'Mismatches', 'Affected users', 'Sample card', 'Sample modal', 'Sample delta start/end', 'Action'], $classrows);
+    dstm_print_table(['Class ID', 'Class', 'Core course', 'Mismatches', 'Affected users', 'Modules', 'Sample card', 'Sample modal', 'Sample delta start/end', 'Action'], $classrows);
     echo '</div>';
 
     echo '<div class="dstm-card"><div class="dstm-sub">Mismatch details (limited)</div>';
     echo '<div class="dstm-note">Showing up to ' . (int)$maxdetails . ' rows.</div>';
     dstm_print_table(
-        ['User ID', 'User', 'ID Number', 'Class ID', 'Class', 'Module', 'Date start', 'Card time', 'Modal time', 'Start delta(min)', 'End delta(min)', 'Action'],
+        ['Class ID', 'Class', 'Module', 'Event ID', 'Event', 'Date start', 'Card time', 'Modal time', 'Start delta(min)', 'End delta(min)', 'Action'],
         $detailrows
     );
     echo '</div>';
