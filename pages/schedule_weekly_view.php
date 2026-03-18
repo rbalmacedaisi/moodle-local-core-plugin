@@ -132,14 +132,8 @@ try {
                 s.start_time,
                 s.end_time,
                 COALESCE(cr.name, '') AS classroomname,
-                (SELECT COUNT(*) FROM {groups_members} WHERE groupid = gc.groupid AND gc.groupid > 0) AS student_count,
-                (SELECT COUNT(DISTINCT gm2.userid)
-                   FROM {gmk_class} gc2
-                   JOIN {groups_members} gm2 ON gm2.groupid = gc2.groupid AND gc2.groupid > 0
-                  WHERE gc2.corecourseid = gc.corecourseid
-                    AND gc2.learningplanid = gc.learningplanid
-                    AND gc2.approved = 1
-                    AND gc2.closed = 0) AS course_total_students
+                gc.groupid,
+                (SELECT COUNT(*) FROM {groups_members} WHERE groupid = gc.groupid AND gc.groupid > 0) AS student_count
            FROM {gmk_class} gc
            JOIN {local_learning_plans} lp ON lp.id = gc.learningplanid
            JOIN {course} c ON c.id = gc.corecourseid
@@ -155,6 +149,47 @@ try {
     );
 } catch (Exception $e) {
     $scheduleRows = array();
+}
+
+// ── Precompute context totals: unique students per (plan + nivel + shift) ─────
+// Strategy: one extra query for groups_members of all visible classes.
+// Context key = planname . '||' . periodname . '||' . shift
+$contextTotals  = array(); // groupKey → unique student count
+$classGroupKeys = array(); // classid  → groupKey
+$groupidMap     = array(); // groupid  → classid (first seen, for lookup)
+
+foreach ($scheduleRows as $r) {
+    $gk = (string)$r->planname . '||' . (string)$r->periodname . '||' . (trim((string)$r->shift) ?: '—');
+    $classGroupKeys[(int)$r->classid] = $gk;
+    $gid = (int)$r->groupid;
+    if ($gid > 0 && !isset($groupidMap[$gid])) {
+        $groupidMap[$gid] = (int)$r->classid;
+    }
+}
+
+$allGroupids = array_keys($groupidMap);
+if (!empty($allGroupids)) {
+    try {
+        list($insql, $inparams) = $DB->get_in_or_equal($allGroupids);
+        $memberRows = $DB->get_records_sql(
+            "SELECT gm.id, gm.groupid, gm.userid FROM {groups_members} gm WHERE gm.groupid $insql",
+            $inparams
+        );
+        // Accumulate unique userids per groupKey
+        $usersByKey = array();
+        foreach ($memberRows as $mr) {
+            $classid = $groupidMap[(int)$mr->groupid] ?? null;
+            if ($classid === null) { continue; }
+            $gk = $classGroupKeys[$classid] ?? null;
+            if ($gk === null) { continue; }
+            $usersByKey[$gk][(string)$mr->userid] = true;
+        }
+        foreach ($usersByKey as $gk => $users) {
+            $contextTotals[$gk] = count($users);
+        }
+    } catch (Exception $e) {
+        // leave $contextTotals empty; display will degrade gracefully
+    }
 }
 
 // ── Group data: groups[planname][periodname][shift][day][] = entry ────────────
@@ -359,7 +394,9 @@ echo $OUTPUT->header();
         }
     }
     $groupCount = count($groupClassIds);
-    $headerColor = swv_color_for($planName . $periodName . $shiftName);
+    $headerColor   = swv_color_for($planName . $periodName . $shiftName);
+    $ctxGroupKey   = $planName . '||' . $periodName . '||' . $shiftName;
+    $ctxTotal      = isset($contextTotals[$ctxGroupKey]) ? (int)$contextTotals[$ctxGroupKey] : 0;
 ?>
 <div class="swv-group" style="margin-bottom:16px">
     <!-- Group header -->
@@ -409,7 +446,7 @@ echo $OUTPUT->header();
                 <?php if ($roomStr !== ''): ?>
                 <div class="room">📍 <?php echo swv_h($roomStr); ?></div>
                 <?php endif; ?>
-                <div class="students">👥 <?php echo (int)$card->student_count; ?>/<?php echo (int)$card->course_total_students; ?></div>
+                <div class="students">👥 <?php echo (int)$card->student_count; ?>/<?php echo $ctxTotal; ?></div>
                 <div><span class="type-chip"><?php echo swv_h($typeLabel); ?></span></div>
             </div>
             <?php endforeach; ?>
