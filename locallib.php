@@ -6548,13 +6548,15 @@ function student_get_active_classes($userId, $courseId = null)
             $classFilter = ['corecourseid' => $neededCourse->courseid, 'approved' => '0', 'closed' => '0'];
 
             $courseCustomFields = $courseCustomFieldHandler->get_instance_data($neededCourse->courseid);
-            $tc = '0';
+            $tc = 0;
             foreach ($courseCustomFields as $customField) {
                 if ($customField->get_field()->get('shortname') === 'tc') {
                     $tc = $customField->get_value();
                 }
             }
-            $tc === 0 ? $classFilter['learningplanid'] = $userLearningPlan->learningplanid : null;
+            if ((int)$tc === 0) {
+                $classFilter['learningplanid'] = (int)$userLearningPlan->learningplanid;
+            }
             $courseActiveClasses = list_classes($classFilter);
 
             foreach ($courseActiveClasses as $courseActiveClass) {
