@@ -1145,6 +1145,170 @@ function gmk_debug_attendance_sessions_count($class): int {
     return (int)$DB->count_records('attendance_sessions', ['attendanceid' => (int)$attinstanceid]);
 }
 
+/**
+ * BBB integrity status for a class (strict enough for publish-status completeness).
+ *
+ * Rules:
+ * - Must have at least 1 BBB cmid referenced by class field and/or relation table.
+ * - At least 1 cmid must exist, be bigbluebuttonbn, not deletioninprogress,
+ *   belong to class course/section and have a real bbb instance.
+ * - Must have at least 1 relation row for the class.
+ *
+ * @param stdClass $class
+ * @return array{ok:bool,total:int,valid:int,relations:int,reason:string,ids:array,validids:array,invalidids:array}
+ */
+function gmk_debug_bbb_status($class): array {
+    global $DB;
+
+    $status = [
+        'ok' => false,
+        'total' => 0,
+        'valid' => 0,
+        'relations' => 0,
+        'reason' => '',
+        'ids' => [],
+        'validids' => [],
+        'invalidids' => [],
+    ];
+
+    if (empty($class) || empty($class->id)) {
+        $status['reason'] = 'clase invalida';
+        return $status;
+    }
+
+    $ids = [];
+    if (!empty($class->bbbmoduleids)) {
+        foreach (explode(',', (string)$class->bbbmoduleids) as $raw) {
+            $id = (int)trim((string)$raw);
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+    }
+
+    $relations = $DB->get_records('gmk_bbb_attendance_relation', ['classid' => (int)$class->id], 'id ASC', 'id,bbbmoduleid,attendancesessionid');
+    $status['relations'] = count($relations);
+    foreach ($relations as $rel) {
+        $cmid = (int)($rel->bbbmoduleid ?? 0);
+        if ($cmid > 0) {
+            $ids[$cmid] = $cmid;
+        }
+    }
+
+    $status['ids'] = array_values($ids);
+    $status['total'] = count($status['ids']);
+    if ($status['total'] <= 0) {
+        $status['reason'] = 'bbbmoduleids vacio y sin relaciones';
+        return $status;
+    }
+
+    $cmcols = $DB->get_columns('course_modules');
+    $cmkeys = array_map('strtolower', array_keys($cmcols));
+    $hasdeletion = in_array('deletioninprogress', $cmkeys, true);
+    $cmfields = 'cm.id, cm.course, cm.section, cm.instance, m.name AS modulename';
+    if ($hasdeletion) {
+        $cmfields .= ', cm.deletioninprogress';
+    }
+
+    list($insql, $inparams) = $DB->get_in_or_equal($status['ids'], SQL_PARAMS_NAMED, 'bbcm');
+    $cmrows = $DB->get_records_sql(
+        "SELECT {$cmfields}
+           FROM {course_modules} cm
+           JOIN {modules} m ON m.id = cm.module
+          WHERE cm.id {$insql}",
+        $inparams
+    );
+    $cmmap = [];
+    foreach ($cmrows as $cm) {
+        $cmmap[(int)$cm->id] = $cm;
+    }
+
+    $bbbinstances = [];
+    foreach ($cmmap as $cm) {
+        if ((string)$cm->modulename === 'bigbluebuttonbn' && !empty($cm->instance)) {
+            $bbbinstances[(int)$cm->instance] = (int)$cm->instance;
+        }
+    }
+    $bbbinstmap = [];
+    if (!empty($bbbinstances)) {
+        list($iinsql, $iinparams) = $DB->get_in_or_equal(array_values($bbbinstances), SQL_PARAMS_NAMED, 'bbbi');
+        $bbbrows = $DB->get_records_select('bigbluebuttonbn', "id {$iinsql}", $iinparams, '', 'id');
+        foreach ($bbbrows as $br) {
+            $bbbinstmap[(int)$br->id] = true;
+        }
+    }
+
+    $seqset = [];
+    if (!empty($class->coursesectionid)) {
+        $section = $DB->get_record('course_sections', ['id' => (int)$class->coursesectionid], 'id,sequence', IGNORE_MISSING);
+        if ($section && trim((string)$section->sequence) !== '') {
+            foreach (explode(',', (string)$section->sequence) as $rawcm) {
+                $cmid = (int)trim((string)$rawcm);
+                if ($cmid > 0) {
+                    $seqset[$cmid] = true;
+                }
+            }
+        }
+    }
+
+    $reasons = [];
+    foreach ($status['ids'] as $cmid) {
+        $cmid = (int)$cmid;
+        $cm = $cmmap[$cmid] ?? null;
+        if (!$cm) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} no existe";
+            continue;
+        }
+        if ((string)$cm->modulename !== 'bigbluebuttonbn') {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} no es BBB ({$cm->modulename})";
+            continue;
+        }
+        if ($hasdeletion && !empty($cm->deletioninprogress)) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} en deletioninprogress";
+            continue;
+        }
+        if (!empty($class->corecourseid) && (int)$cm->course !== (int)$class->corecourseid) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} en curso {$cm->course}, esperado {$class->corecourseid}";
+            continue;
+        }
+        if (!empty($class->coursesectionid) && (int)$cm->section !== (int)$class->coursesectionid) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} en seccion {$cm->section}, esperado {$class->coursesectionid}";
+            continue;
+        }
+        if (!empty($seqset) && empty($seqset[$cmid])) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} no esta en sequence de seccion {$class->coursesectionid}";
+            continue;
+        }
+        $instanceid = (int)($cm->instance ?? 0);
+        if ($instanceid <= 0 || empty($bbbinstmap[$instanceid])) {
+            $status['invalidids'][] = $cmid;
+            $reasons[] = "cm {$cmid} sin instancia BBB valida";
+            continue;
+        }
+        $status['validids'][] = $cmid;
+    }
+
+    $status['validids'] = array_values(array_unique(array_map('intval', $status['validids'])));
+    $status['invalidids'] = array_values(array_unique(array_map('intval', $status['invalidids'])));
+    $status['valid'] = count($status['validids']);
+
+    if ($status['relations'] <= 0) {
+        $reasons[] = 'sin filas en gmk_bbb_attendance_relation';
+    }
+
+    $status['ok'] = ($status['valid'] > 0 && $status['relations'] > 0);
+    if (!$status['ok']) {
+        $status['reason'] = !empty($reasons) ? implode(' | ', array_slice($reasons, 0, 6)) : 'sin BBB valido';
+    }
+    return $status;
+}
+
 // -- AJAX: inspeccionar datos DB de una clase para analisis --------------------
 if ($ajax === 'inspect_class') {
     $PAGE->set_context(context_system::instance());
@@ -1243,11 +1407,15 @@ if ($ajax === 'recreate') {
         $attReason = '';
         $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
         $attSessionsBefore = gmk_debug_attendance_sessions_count($class);
-        $hasActivities = $hasValidAttendance && ($attSessionsBefore > 0);
+        $bbbBefore = gmk_debug_bbb_status($class);
+        $hasActivities = $hasValidAttendance && ($attSessionsBefore > 0) && !empty($bbbBefore['ok']);
         if (!$hasActivities && !empty($class->attendancemoduleid)) {
             $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
             if ($hasValidAttendance && $attSessionsBefore <= 0) {
                 $log[] = "Attendance sin sesiones, forzando recreacion completa.";
+            }
+            if (empty($bbbBefore['ok'])) {
+                $log[] = "BBB invalido/faltante ({$bbbBefore['reason']}), forzando recreacion completa.";
             }
         }
         try {
@@ -1394,6 +1562,22 @@ if ($ajax === 'recreate') {
             exit;
         }
         $log[] = "POSTCHECK attendance_sessions={$finalAttSessions}";
+        $finalBbb = gmk_debug_bbb_status($class);
+        if (empty($finalBbb['ok'])) {
+            $log[] = "ERROR final: BBB invalido tras re-crear ({$finalBbb['reason']})";
+            ob_end_clean();
+            echo json_encode([
+                'status'  => 'error',
+                'message' => "La clase quedo sin BBB valido: {$finalBbb['reason']}",
+                'log'     => $log,
+                'groupid' => $class->groupid,
+                'coursesectionid' => $class->coursesectionid,
+                'attendancemoduleid' => $class->attendancemoduleid,
+                'diagnostics' => gmk_debug_publish_diagnostics($class),
+            ]);
+            exit;
+        }
+        $log[] = "POSTCHECK bbb_valid={$finalBbb['valid']}/{$finalBbb['total']} relations={$finalBbb['relations']}";
 
         ob_end_clean();
         echo json_encode([
@@ -1445,7 +1629,8 @@ if ($ajax === 'recreate_all') {
             $sectionOk = gmk_is_valid_class_section($candidate, $dummy);
             $attOk = gmk_is_valid_class_attendance_module($candidate, $dummy);
             $attSessionsOk = gmk_debug_attendance_sessions_count($candidate) > 0;
-            if (!$groupOk || !$sectionOk || !$attOk || !$attSessionsOk) {
+            $bbbOk = !empty(gmk_debug_bbb_status($candidate)['ok']);
+            if (!$groupOk || !$sectionOk || !$attOk || !$attSessionsOk || !$bbbOk) {
                 $classes[$candidate->id] = $candidate;
             }
         }
@@ -1468,7 +1653,8 @@ if ($ajax === 'recreate_all') {
                 }
                 $attReason = '';
                 $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
-                $hasActivities = $hasValidAttendance && (gmk_debug_attendance_sessions_count($class) > 0);
+                $bbbBefore = gmk_debug_bbb_status($class);
+                $hasActivities = $hasValidAttendance && (gmk_debug_attendance_sessions_count($class) > 0) && !empty($bbbBefore['ok']);
                 try {
                     create_class_activities($class, $hasActivities);
                 } catch (Throwable $e) {
@@ -1489,6 +1675,10 @@ if ($ajax === 'recreate_all') {
                 }
                 if (gmk_debug_attendance_sessions_count($class) <= 0) {
                     throw new \Exception("Attendance valido pero sin sesiones tras recreacion.");
+                }
+                $bbbAfter = gmk_debug_bbb_status($class);
+                if (empty($bbbAfter['ok'])) {
+                    throw new \Exception("BBB invalido tras recreacion: " . (string)$bbbAfter['reason']);
                 }
                 $results['ok']++;
             } catch (Throwable $e) {
@@ -1598,10 +1788,11 @@ foreach ($classes as $c) {
     $s  = gmk_is_valid_class_section($c, $dummy);
     $a  = gmk_is_valid_class_attendance_module($c, $dummy);
     $attSessionsOk = gmk_debug_attendance_sessions_count($c) > 0;
-    if ($g && $s && $a && $attSessionsOk) { $complete++; } else { $incomplete++; }
+    $bbb = gmk_debug_bbb_status($c);
+    if ($g && $s && $a && $attSessionsOk && !empty($bbb['ok'])) { $complete++; } else { $incomplete++; }
     if (!$g) $noGroup++;
     if (!$s) $noSection++;
-    if (!$a || !$attSessionsOk) $noActivities++;
+    if (!$a || !$attSessionsOk || empty($bbb['ok'])) $noActivities++;
 }
 ?>
 
@@ -1675,10 +1866,12 @@ foreach ($classes as $c) {
       $hasGroup  = gmk_is_valid_class_group($c, $groupReason);
       $hasSect   = gmk_is_valid_class_section($c, $sectionReason);
       $hasAtt    = gmk_is_valid_class_attendance_module($c, $attReason);
-      $hasBBB    = !empty($c->bbbmoduleids);
       $attSessions = gmk_debug_attendance_sessions_count($c);
       $hasAttSessions = $attSessions > 0;
-      $allOk     = $hasGroup && $hasSect && $hasAtt && $hasAttSessions;
+      $bbbStatus = gmk_debug_bbb_status($c);
+      $hasBBB = !empty($bbbStatus['total']);
+      $hasValidBBB = !empty($bbbStatus['ok']);
+      $allOk     = $hasGroup && $hasSect && $hasAtt && $hasAttSessions && $hasValidBBB;
       $rowClass  = $allOk ? 'ok' : ((!$hasGroup) ? 'err' : 'warn');
 
       // Verificar que groupid realmente existe en BD de Moodle
@@ -1686,12 +1879,9 @@ foreach ($classes as $c) {
       $sectExists  = !empty($c->coursesectionid) ? $DB->record_exists('course_sections', ['id' => $c->coursesectionid]) : false;
       $attExists   = !empty($c->attendancemoduleid) ? $DB->record_exists('course_modules', ['id' => $c->attendancemoduleid]) : false;
 
-      // Count BBB modules
-      $bbbCount = 0;
-      if (!empty($c->bbbmoduleids)) {
-          $bbbIds = array_filter(explode(',', $c->bbbmoduleids));
-          $bbbCount = count($bbbIds);
-      }
+      $bbbCount = (int)($bbbStatus['total'] ?? 0);
+      $bbbValidCount = (int)($bbbStatus['valid'] ?? 0);
+      $bbbReason = (string)($bbbStatus['reason'] ?? '');
 
       $statusBadge = $allOk
           ? '<span class="badge badge-ok">OK</span>'
@@ -1740,16 +1930,23 @@ foreach ($classes as $c) {
         <span class="cross">X</span>
       <?php endif ?>
     </td>
-    <td>
+    <td class="<?php echo $hasValidBBB ? '' : 'err' ?>">
       <?php if ($hasBBB): ?>
-        <span class="check">OK</span> <small><?php echo $bbbCount ?></small>
+        <?php if ($hasValidBBB): ?>
+          <span class="check">OK</span> <small><?php echo $bbbValidCount . '/' . $bbbCount ?></small>
+        <?php else: ?>
+          <span class="cross">WARN</span> <small><?php echo $bbbValidCount . '/' . $bbbCount ?></small>
+          <?php if ($bbbReason !== ''): ?>
+            <br><small style="color:#dc3545"><?php echo htmlspecialchars($bbbReason) ?></small>
+          <?php endif ?>
+        <?php endif ?>
       <?php else: ?>
-        <span class="dash">-</span>
+        <span class="cross">X</span>
       <?php endif ?>
     </td>
     <td><?php echo $statusBadge ?></td>
     <td>
-      <?php if (!$allOk || !$groupExists || !$sectExists || !$attExists || !$hasAttSessions): ?>
+      <?php if (!$allOk || !$groupExists || !$sectExists || !$attExists || !$hasAttSessions || !$hasValidBBB): ?>
       <button class="btn btn-warning" style="padding:2px 8px;font-size:11px"
         onclick="recreateOne(<?php echo $c->id ?>, this)">Re-crear</button>
       <?php else: ?>
