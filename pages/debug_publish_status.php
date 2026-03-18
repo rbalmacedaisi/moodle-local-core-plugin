@@ -1252,6 +1252,7 @@ function gmk_debug_bbb_status($class): array {
     }
 
     $reasons = [];
+    $deletioninprogresscount = 0;
     foreach ($status['ids'] as $cmid) {
         $cmid = (int)$cmid;
         $cm = $cmmap[$cmid] ?? null;
@@ -1266,6 +1267,7 @@ function gmk_debug_bbb_status($class): array {
             continue;
         }
         if ($hasdeletion && !empty($cm->deletioninprogress)) {
+            $deletioninprogresscount++;
             $status['invalidids'][] = $cmid;
             $reasons[] = "cm {$cmid} en deletioninprogress";
             continue;
@@ -1300,6 +1302,9 @@ function gmk_debug_bbb_status($class): array {
 
     if ($status['relations'] <= 0) {
         $reasons[] = 'sin filas en gmk_bbb_attendance_relation';
+    }
+    if ($deletioninprogresscount > 0) {
+        $reasons[] = "{$deletioninprogresscount} cm en cola de borrado (cron pendiente)";
     }
 
     $status['ok'] = ($status['valid'] > 0 && $status['relations'] > 0);
@@ -1408,9 +1413,14 @@ if ($ajax === 'recreate') {
         $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
         $attSessionsBefore = gmk_debug_attendance_sessions_count($class);
         $bbbBefore = gmk_debug_bbb_status($class);
-        $hasActivities = $hasValidAttendance && ($attSessionsBefore > 0) && !empty($bbbBefore['ok']);
-        if (!$hasActivities && !empty($class->attendancemoduleid)) {
-            $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
+        // IMPORTANT:
+        // - updating=true triggers full cleanup/rebuild path (delete old BBB/sessions/relations first).
+        // - We want that path whenever attendance exists, even if BBB is currently broken.
+        $updating = $hasValidAttendance && ($attSessionsBefore > 0);
+        if ((!$updating || empty($bbbBefore['ok'])) && !empty($class->attendancemoduleid)) {
+            if (!$hasValidAttendance) {
+                $log[] = "Attendance invalido ({$attReason}), recreando actividades...";
+            }
             if ($hasValidAttendance && $attSessionsBefore <= 0) {
                 $log[] = "Attendance sin sesiones, forzando recreacion completa.";
             }
@@ -1419,7 +1429,7 @@ if ($ajax === 'recreate') {
             }
         }
         try {
-            create_class_activities($class, $hasActivities);
+            create_class_activities($class, $updating);
             $commitok = gmk_best_effort_db_commit("debug_recreate_class_{$classid}");
             $log[] = "POSTCHECK commit_attempt=" . ($commitok ? 'ok' : 'warn');
             // Re-read to get updated fields
@@ -1654,9 +1664,9 @@ if ($ajax === 'recreate_all') {
                 $attReason = '';
                 $hasValidAttendance = gmk_is_valid_class_attendance_module($class, $attReason);
                 $bbbBefore = gmk_debug_bbb_status($class);
-                $hasActivities = $hasValidAttendance && (gmk_debug_attendance_sessions_count($class) > 0) && !empty($bbbBefore['ok']);
+                $updating = $hasValidAttendance && (gmk_debug_attendance_sessions_count($class) > 0);
                 try {
-                    create_class_activities($class, $hasActivities);
+                    create_class_activities($class, $updating);
                 } catch (Throwable $e) {
                     if (!gmk_debug_is_duplicate_read_error($e)) {
                         throw $e;
