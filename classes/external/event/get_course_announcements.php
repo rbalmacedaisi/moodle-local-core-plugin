@@ -1,6 +1,7 @@
 <?php
 namespace local_grupomakro_core\external\event;
 
+use context_module;
 use external_api;
 use external_description;
 use external_function_parameters;
@@ -22,7 +23,7 @@ class get_course_announcements extends external_api
 
     public static function execute($courseId)
     {
-        global $DB, $CFG;
+        global $DB, $CFG, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), ['courseId' => $courseId]);
         $courseId = $params['courseId'];
@@ -44,13 +45,64 @@ class get_course_announcements extends external_api
                 return ['status' => 1, 'posts' => json_encode([])];
             }
 
-            $discussions = $DB->get_records(
-                'forum_discussions',
-                ['forum' => $forum->id],
-                'timemodified DESC',
-                'id, name, userid, timemodified',
-                0, 10
-            );
+            $discussions = [];
+            if (is_siteadmin()) {
+                $discussions = $DB->get_records(
+                    'forum_discussions',
+                    ['forum' => $forum->id],
+                    'timemodified DESC',
+                    'id, name, userid, timemodified, groupid',
+                    0,
+                    20
+                );
+            } else {
+                $usergroupids = $DB->get_fieldset_sql(
+                    "SELECT gm.groupid
+                       FROM {groups_members} gm
+                       JOIN {groups} g ON g.id = gm.groupid
+                      WHERE gm.userid = :userid
+                        AND g.courseid = :courseid",
+                    ['userid' => (int)$USER->id, 'courseid' => (int)$courseId]
+                );
+                $progregroupids = $DB->get_fieldset_sql(
+                    "SELECT c.groupid
+                       FROM {gmk_course_progre} cp
+                       JOIN {gmk_class} c ON c.id = cp.classid
+                      WHERE cp.userid = :userid
+                        AND c.corecourseid = :courseid
+                        AND c.groupid > 0",
+                    ['userid' => (int)$USER->id, 'courseid' => (int)$courseId]
+                );
+                $prereggroupids = $DB->get_fieldset_sql(
+                    "SELECT c.groupid
+                       FROM {gmk_class_pre_registration} pr
+                       JOIN {gmk_class} c ON c.id = pr.classid
+                      WHERE pr.userid = :userid
+                        AND c.corecourseid = :courseid
+                        AND c.groupid > 0",
+                    ['userid' => (int)$USER->id, 'courseid' => (int)$courseId]
+                );
+                $usergroupids = array_merge($usergroupids, $progregroupids, $prereggroupids);
+                $usergroupids = array_values(array_unique(array_map('intval', $usergroupids)));
+
+                if (!empty($usergroupids)) {
+                    list($insql, $inparams) = $DB->get_in_or_equal($usergroupids, SQL_PARAMS_NAMED, 'gid');
+                    $sql = "SELECT id, name, userid, timemodified, groupid
+                              FROM {forum_discussions}
+                             WHERE forum = :forumid
+                               AND (groupid = -1 OR groupid = 0 OR groupid {$insql})
+                          ORDER BY timemodified DESC";
+                    $params = ['forumid' => (int)$forum->id] + $inparams;
+                    $discussions = $DB->get_records_sql($sql, $params, 0, 20);
+                } else {
+                    $sql = "SELECT id, name, userid, timemodified, groupid
+                              FROM {forum_discussions}
+                             WHERE forum = :forumid
+                               AND (groupid = -1 OR groupid = 0)
+                          ORDER BY timemodified DESC";
+                    $discussions = $DB->get_records_sql($sql, ['forumid' => (int)$forum->id], 0, 20);
+                }
+            }
 
             $cm_forum     = get_coursemodule_from_instance('forum', $forum->id, $courseId, false, MUST_EXIST);
             $forum_context = context_module::instance($cm_forum->id);
@@ -90,6 +142,7 @@ class get_course_announcements extends external_api
                     'message'      => $first_post ? format_text($first_post->message, $first_post->messageformat) : '',
                     'author'       => $author ? fullname($author) : 'Desconocido',
                     'timemodified' => (int) $disc->timemodified,
+                    'groupid'      => (int)($disc->groupid ?? 0),
                     'attachments'  => $attachments,
                 ];
             }

@@ -4864,12 +4864,30 @@ try {
                 break;
             }
 
-            $discussions = $DB->get_records('forum_discussions',
-                ['forum' => $forum->id],
-                'timemodified DESC',
-                'id, name, userid, timemodified',
-                0, 20
-            );
+            $discussions = [];
+            if (!empty($class->groupid)) {
+                $discussions = $DB->get_records_sql(
+                    "SELECT id, name, userid, timemodified, groupid
+                       FROM {forum_discussions}
+                      WHERE forum = :forumid
+                        AND (groupid = -1 OR groupid = 0 OR groupid = :classgroupid)
+                   ORDER BY timemodified DESC",
+                    ['forumid' => (int)$forum->id, 'classgroupid' => (int)$class->groupid],
+                    0,
+                    20
+                );
+            } else {
+                $discussions = $DB->get_records_sql(
+                    "SELECT id, name, userid, timemodified, groupid
+                       FROM {forum_discussions}
+                      WHERE forum = :forumid
+                        AND (groupid = -1 OR groupid = 0)
+                   ORDER BY timemodified DESC",
+                    ['forumid' => (int)$forum->id],
+                    0,
+                    20
+                );
+            }
 
             $cm_forum = get_coursemodule_from_instance('forum', $forum->id, $class->corecourseid, false, MUST_EXIST);
             $forum_context = context_module::instance($cm_forum->id);
@@ -4909,6 +4927,7 @@ try {
                     'message'      => $first_post ? format_text($first_post->message, $first_post->messageformat) : '',
                     'author'       => $author ? fullname($author) : 'Desconocido',
                     'timemodified' => (int)$disc->timemodified,
+                    'groupid'      => (int)($disc->groupid ?? 0),
                     'attachments'  => $attachments,
                 ];
             }
@@ -4968,7 +4987,7 @@ try {
             $disc_record->name         = $subject;
             $disc_record->firstpost    = $postid;
             $disc_record->userid       = $USER->id;
-            $disc_record->groupid      = -1;
+            $disc_record->groupid      = !empty($class->groupid) ? (int)$class->groupid : -1;
             $disc_record->assessed     = 0;
             $disc_record->timemodified = $now;
             $disc_record->usermodified = $USER->id;
