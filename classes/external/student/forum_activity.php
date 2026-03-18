@@ -3,6 +3,7 @@ namespace local_grupomakro_core\external\student;
 
 use context_course;
 use context_module;
+use core_text;
 use external_api;
 use external_function_parameters;
 use external_single_structure;
@@ -367,4 +368,3 @@ class forum_activity extends external_api {
         ]);
     }
 }
-
