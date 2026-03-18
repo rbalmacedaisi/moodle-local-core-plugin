@@ -185,7 +185,7 @@ const ManageClass = {
                                                                         <v-icon>mdi-forum-outline</v-icon>
                                                                     </v-btn>
                                                                 </template>
-                                                                <span>Abrir foro</span>
+                                                                <span>Gestionar foro</span>
                                                             </v-tooltip>
                                                             <v-tooltip bottom v-if="canDeleteActivity(activity)">
                                                                 <template v-slot:activator="{ on, attrs }">
@@ -497,28 +497,137 @@ const ManageClass = {
                 </v-card>
             </v-dialog>
 
-            <v-dialog v-model="forumDialog" max-width="1200px" persistent>
+            <v-dialog v-model="forumManagerDialog" max-width="1200px" persistent>
                 <v-card class="rounded-lg">
                     <v-card-title class="headline" :class="$vuetify.theme.dark ? 'grey darken-3' : 'grey lighten-4'">
-                        {{ forumDialogTitle || 'Foro' }}
+                        Gestion de foro
+                        <span class="ml-2 text-subtitle-2 grey--text" v-if="forumManagerActivity && forumManagerActivity.name">
+                            {{ forumManagerActivity.name }}
+                        </span>
                         <v-spacer></v-spacer>
-                        <v-btn icon @click="openForumInNewTab" :disabled="!forumDialogUrl" title="Abrir en nueva pestana">
-                            <v-icon>mdi-open-in-new</v-icon>
-                        </v-btn>
-                        <v-btn icon @click="closeForumDialog">
-                            <v-icon>mdi-close</v-icon>
-                        </v-btn>
+                        <v-btn icon @click="closeForumManagerDialog"><v-icon>mdi-close</v-icon></v-btn>
                     </v-card-title>
-                    <v-card-text class="pa-0" style="height:75vh;">
-                        <iframe
-                            v-if="forumDialogUrl"
-                            :src="forumDialogUrl"
-                            style="width:100%; height:100%; border:0;"
-                        ></iframe>
+
+                    <v-card-text class="pa-0">
+                        <v-container fluid class="pa-4">
+                            <v-alert v-if="forumManagerError" type="error" text class="mb-3">
+                                {{ forumManagerError }}
+                            </v-alert>
+
+                            <v-row>
+                                <v-col cols="12" md="4" class="pr-md-2">
+                                    <v-btn small color="indigo" dark depressed class="mb-2" @click="forumManagerShowNewTopic = !forumManagerShowNewTopic">
+                                        <v-icon left small>mdi-plus</v-icon>
+                                        Nuevo tema
+                                    </v-btn>
+
+                                    <v-expand-transition>
+                                        <v-card v-if="forumManagerShowNewTopic" outlined class="mb-3">
+                                            <v-card-text>
+                                                <v-text-field
+                                                    v-model="forumManagerNewSubject"
+                                                    label="Titulo"
+                                                    outlined
+                                                    dense
+                                                    :disabled="forumManagerPostingDiscussion"
+                                                ></v-text-field>
+                                                <v-textarea
+                                                    v-model="forumManagerNewMessage"
+                                                    label="Mensaje"
+                                                    outlined
+                                                    rows="4"
+                                                    :disabled="forumManagerPostingDiscussion"
+                                                ></v-textarea>
+                                                <v-btn
+                                                    color="indigo"
+                                                    dark
+                                                    small
+                                                    depressed
+                                                    :loading="forumManagerPostingDiscussion"
+                                                    :disabled="!forumManagerNewSubject.trim() || !forumManagerNewMessage.trim()"
+                                                    @click="createForumDiscussion"
+                                                >
+                                                    Publicar tema
+                                                </v-btn>
+                                            </v-card-text>
+                                        </v-card>
+                                    </v-expand-transition>
+
+                                    <v-card outlined>
+                                        <v-list dense class="py-0" style="max-height: 55vh; overflow:auto;">
+                                            <v-list-item
+                                                v-for="disc in forumDiscussions"
+                                                :key="disc.id"
+                                                @click="selectForumDiscussion(disc)"
+                                                :class="(selectedForumDiscussionId === disc.id) ? 'blue lighten-5' : ''"
+                                            >
+                                                <v-list-item-content>
+                                                    <v-list-item-title class="text-body-2 font-weight-bold">{{ disc.subject }}</v-list-item-title>
+                                                    <v-list-item-subtitle class="caption">{{ disc.author }} - {{ formatForumDate(disc.timemodified) }}</v-list-item-subtitle>
+                                                    <v-list-item-subtitle class="caption grey--text text--darken-1">{{ disc.preview }}</v-list-item-subtitle>
+                                                </v-list-item-content>
+                                                <v-list-item-action>
+                                                    <v-chip x-small>{{ disc.replies }}</v-chip>
+                                                </v-list-item-action>
+                                            </v-list-item>
+                                            <v-list-item v-if="forumDiscussions.length === 0 && !forumManagerLoading">
+                                                <v-list-item-content>
+                                                    <v-list-item-title class="caption grey--text">No hay temas en este foro.</v-list-item-title>
+                                                </v-list-item-content>
+                                            </v-list-item>
+                                        </v-list>
+                                    </v-card>
+                                </v-col>
+
+                                <v-col cols="12" md="8" class="pl-md-2">
+                                    <v-card outlined class="mb-3">
+                                        <v-card-title class="text-subtitle-1 font-weight-bold">
+                                            {{ selectedForumDiscussion ? selectedForumDiscussion.subject : 'Selecciona un tema' }}
+                                        </v-card-title>
+                                        <v-divider></v-divider>
+                                        <v-card-text style="max-height: 48vh; overflow:auto;">
+                                            <div v-if="forumManagerLoading" class="text-center py-6">
+                                                <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                                            </div>
+                                            <div v-else-if="forumPosts.length === 0" class="caption grey--text">
+                                                No hay comentarios para este tema.
+                                            </div>
+                                            <v-card v-for="post in forumPosts" :key="post.id" class="mb-2" outlined>
+                                                <v-card-text>
+                                                    <div class="d-flex align-center mb-2">
+                                                        <strong class="mr-2">{{ post.author }}</strong>
+                                                        <span class="caption grey--text">{{ formatForumDate(post.created) }}</span>
+                                                    </div>
+                                                    <div v-html="post.message"></div>
+                                                </v-card-text>
+                                            </v-card>
+                                        </v-card-text>
+                                    </v-card>
+
+                                    <v-card outlined>
+                                        <v-card-text>
+                                            <v-textarea
+                                                v-model="forumManagerReplyMessage"
+                                                label="Escribe un comentario"
+                                                outlined
+                                                rows="3"
+                                                :disabled="forumManagerPostingReply || !selectedForumDiscussionId"
+                                            ></v-textarea>
+                                            <v-btn
+                                                color="primary"
+                                                depressed
+                                                :loading="forumManagerPostingReply"
+                                                :disabled="!selectedForumDiscussionId || !forumManagerReplyMessage.trim()"
+                                                @click="createForumReply"
+                                            >
+                                                Comentar
+                                            </v-btn>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+                        </v-container>
                     </v-card-text>
-                    <v-card-actions class="justify-end">
-                        <v-btn text @click="closeForumDialog">Cerrar</v-btn>
-                    </v-card-actions>
                 </v-card>
             </v-dialog>
 
@@ -590,9 +699,19 @@ const ManageClass = {
             qrTimer: null,
             qrSecondsLeft: 0,
             qrTotalSeconds: 30,
-            forumDialog: false,
-            forumDialogUrl: '',
-            forumDialogTitle: ''
+            forumManagerDialog: false,
+            forumManagerLoading: false,
+            forumManagerError: '',
+            forumManagerActivity: null,
+            forumDiscussions: [],
+            selectedForumDiscussionId: 0,
+            forumPosts: [],
+            forumManagerShowNewTopic: false,
+            forumManagerNewSubject: '',
+            forumManagerNewMessage: '',
+            forumManagerReplyMessage: '',
+            forumManagerPostingDiscussion: false,
+            forumManagerPostingReply: false
         };
     },
     computed: {
@@ -612,6 +731,12 @@ const ManageClass = {
             // Remove General if empty
             if (groups['General'].length === 0) delete groups['General'];
             return groups;
+        },
+        selectedForumDiscussion() {
+            if (!this.selectedForumDiscussionId) {
+                return null;
+            }
+            return this.forumDiscussions.find(d => parseInt(d.id, 10) === parseInt(this.selectedForumDiscussionId, 10)) || null;
         }
     },
     mounted() {
@@ -968,25 +1093,182 @@ const ManageClass = {
             });
         },
         openForumActivity(activity) {
-            const forumurl = activity && activity.url ? String(activity.url) : '';
-            if (!forumurl) {
-                alert('No se encontro la URL del foro.');
+            if (!activity || !activity.id) {
+                alert('No se encontro el foro.');
                 return;
             }
-            this.forumDialogTitle = activity && activity.name ? activity.name : 'Foro';
-            this.forumDialogUrl = forumurl;
-            this.forumDialog = true;
+            this.forumManagerActivity = activity;
+            this.forumManagerDialog = true;
+            this.forumManagerError = '';
+            this.forumManagerShowNewTopic = false;
+            this.forumManagerNewSubject = '';
+            this.forumManagerNewMessage = '';
+            this.forumManagerReplyMessage = '';
+            this.forumDiscussions = [];
+            this.forumPosts = [];
+            this.selectedForumDiscussionId = 0;
+            this.fetchForumActivityData();
         },
-        openForumInNewTab() {
-            if (!this.forumDialogUrl) {
+        closeForumManagerDialog() {
+            this.forumManagerDialog = false;
+            this.forumManagerActivity = null;
+            this.forumManagerError = '';
+            this.forumManagerShowNewTopic = false;
+            this.forumManagerNewSubject = '';
+            this.forumManagerNewMessage = '';
+            this.forumManagerReplyMessage = '';
+            this.forumDiscussions = [];
+            this.forumPosts = [];
+            this.selectedForumDiscussionId = 0;
+        },
+        async fetchForumActivityData() {
+            if (!this.forumManagerActivity || !this.forumManagerActivity.id) {
                 return;
             }
-            window.open(this.forumDialogUrl, '_blank');
+            this.forumManagerLoading = true;
+            this.forumManagerError = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_forum_activity_data',
+                    args: {
+                        classid: parseInt(this.classId, 10),
+                        cmid: parseInt(this.forumManagerActivity.id, 10)
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status !== 'success') {
+                    throw new Error(response.data.message || 'No se pudo cargar el foro.');
+                }
+                this.forumDiscussions = Array.isArray(response.data.discussions) ? response.data.discussions : [];
+                if (this.forumDiscussions.length > 0) {
+                    await this.selectForumDiscussion(this.forumDiscussions[0]);
+                } else {
+                    this.selectedForumDiscussionId = 0;
+                    this.forumPosts = [];
+                }
+            } catch (e) {
+                this.forumManagerError = e && e.message ? e.message : 'Error cargando foro.';
+            } finally {
+                this.forumManagerLoading = false;
+            }
         },
-        closeForumDialog() {
-            this.forumDialog = false;
-            this.forumDialogUrl = '';
-            this.forumDialogTitle = '';
+        async selectForumDiscussion(discussion) {
+            if (!discussion || !discussion.id || !this.forumManagerActivity) {
+                return;
+            }
+            this.selectedForumDiscussionId = parseInt(discussion.id, 10);
+            this.forumManagerLoading = true;
+            this.forumManagerError = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_get_forum_discussion_posts',
+                    args: {
+                        classid: parseInt(this.classId, 10),
+                        cmid: parseInt(this.forumManagerActivity.id, 10),
+                        discussionid: parseInt(discussion.id, 10)
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status !== 'success') {
+                    throw new Error(response.data.message || 'No se pudieron cargar los comentarios.');
+                }
+                this.forumPosts = Array.isArray(response.data.posts) ? response.data.posts : [];
+            } catch (e) {
+                this.forumManagerError = e && e.message ? e.message : 'Error cargando comentarios.';
+            } finally {
+                this.forumManagerLoading = false;
+            }
+        },
+        async createForumDiscussion() {
+            if (!this.forumManagerActivity || !this.forumManagerActivity.id) {
+                return;
+            }
+            const subject = (this.forumManagerNewSubject || '').trim();
+            const message = (this.forumManagerNewMessage || '').trim();
+            if (!subject || !message) {
+                return;
+            }
+            this.forumManagerPostingDiscussion = true;
+            this.forumManagerError = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_create_forum_discussion',
+                    args: {
+                        classid: parseInt(this.classId, 10),
+                        cmid: parseInt(this.forumManagerActivity.id, 10),
+                        subject: subject,
+                        message: message
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status !== 'success') {
+                    throw new Error(response.data.message || 'No se pudo crear el tema.');
+                }
+                this.forumManagerNewSubject = '';
+                this.forumManagerNewMessage = '';
+                this.forumManagerShowNewTopic = false;
+                await this.fetchForumActivityData();
+                if (response.data.discussionid) {
+                    const created = this.forumDiscussions.find(d => parseInt(d.id, 10) === parseInt(response.data.discussionid, 10));
+                    if (created) {
+                        await this.selectForumDiscussion(created);
+                    }
+                }
+                this.snackbarText = 'Tema publicado correctamente.';
+                this.snackbar = true;
+            } catch (e) {
+                this.forumManagerError = e && e.message ? e.message : 'Error creando tema.';
+            } finally {
+                this.forumManagerPostingDiscussion = false;
+            }
+        },
+        async createForumReply() {
+            if (!this.forumManagerActivity || !this.forumManagerActivity.id || !this.selectedForumDiscussionId) {
+                return;
+            }
+            const message = (this.forumManagerReplyMessage || '').trim();
+            if (!message) {
+                return;
+            }
+            this.forumManagerPostingReply = true;
+            this.forumManagerError = '';
+            try {
+                const response = await axios.post(window.wsUrl, {
+                    action: 'local_grupomakro_create_forum_reply',
+                    args: {
+                        classid: parseInt(this.classId, 10),
+                        cmid: parseInt(this.forumManagerActivity.id, 10),
+                        discussionid: parseInt(this.selectedForumDiscussionId, 10),
+                        message: message
+                    },
+                    ...window.wsStaticParams
+                });
+                if (response.data.status !== 'success') {
+                    throw new Error(response.data.message || 'No se pudo publicar el comentario.');
+                }
+                this.forumManagerReplyMessage = '';
+                const selected = this.selectedForumDiscussion;
+                if (selected) {
+                    await this.selectForumDiscussion(selected);
+                }
+                await this.fetchForumActivityData();
+                this.snackbarText = 'Comentario publicado correctamente.';
+                this.snackbar = true;
+            } catch (e) {
+                this.forumManagerError = e && e.message ? e.message : 'Error publicando comentario.';
+            } finally {
+                this.forumManagerPostingReply = false;
+            }
+        },
+        formatForumDate(timestamp) {
+            if (!timestamp) return '';
+            return new Date(parseInt(timestamp, 10) * 1000).toLocaleString('es', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         },
         canDeleteActivity(activity) {
             if (!activity || !activity.modname) return false;

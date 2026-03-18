@@ -61,6 +61,41 @@ $response = [
     'message' => 'Invalid action.'
 ];
 
+if (!function_exists('gmk_forum_manage_context')) {
+    /**
+     * Resolves and validates forum context for teacher-side forum management.
+     *
+     * @param int $classid
+     * @param int $cmid
+     * @return array [$class, $course, $cm, $forum, $coursecontext, $cmcontext]
+     * @throws Exception
+     */
+    function gmk_forum_manage_context(int $classid, int $cmid): array {
+        global $DB, $USER;
+
+        $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
+        $course = get_course((int)$class->corecourseid);
+        $cm = get_coursemodule_from_id('forum', $cmid, $course->id, false, MUST_EXIST);
+        $forum = $DB->get_record('forum', ['id' => (int)$cm->instance, 'course' => $course->id], '*', MUST_EXIST);
+
+        if (!empty($class->coursesectionid) && (int)$cm->section !== (int)$class->coursesectionid) {
+            throw new Exception('El foro no pertenece a la seccion de esta clase.');
+        }
+
+        $coursecontext = context_course::instance($course->id);
+        $cmcontext = context_module::instance($cm->id);
+        $canmanage = is_siteadmin()
+            || ((int)$class->instructorid === (int)$USER->id)
+            || has_capability('moodle/course:manageactivities', $coursecontext);
+
+        if (!$canmanage) {
+            throw new Exception('No tienes permiso para administrar este foro.');
+        }
+
+        return [$class, $course, $cm, $forum, $coursecontext, $cmcontext];
+    }
+}
+
 // Ensure we don't have any output before header
 ob_start();
 
@@ -5003,6 +5038,273 @@ try {
             $DB->delete_records('forum_discussions', ['id'         => $discussionid]);
 
             $response = ['status' => 'success'];
+            break;
+
+        case 'local_grupomakro_get_forum_activity_data':
+            $classid = required_param('classid', PARAM_INT);
+            $cmid = required_param('cmid', PARAM_INT);
+            list($class, $course, $cm, $forum, $coursecontext, $cmcontext) = gmk_forum_manage_context($classid, $cmid);
+
+            $discussions = $DB->get_records(
+                'forum_discussions',
+                ['forum' => (int)$forum->id],
+                'timemodified DESC, id DESC',
+                'id, forum, name, firstpost, userid, timemodified',
+                0,
+                100
+            );
+
+            $firstpostids = [];
+            $authors = [];
+            foreach ($discussions as $d) {
+                if (!empty($d->firstpost)) {
+                    $firstpostids[] = (int)$d->firstpost;
+                }
+                if (!empty($d->userid)) {
+                    $authors[] = (int)$d->userid;
+                }
+            }
+            $firstpostids = array_values(array_unique($firstpostids));
+            $authors = array_values(array_unique($authors));
+
+            $firstposts = [];
+            if (!empty($firstpostids)) {
+                $firstposts = $DB->get_records_list(
+                    'forum_posts',
+                    'id',
+                    $firstpostids,
+                    '',
+                    'id, discussion, userid, subject, message, messageformat, created'
+                );
+                foreach ($firstposts as $fp) {
+                    if (!empty($fp->userid)) {
+                        $authors[] = (int)$fp->userid;
+                    }
+                }
+            }
+
+            $authors = array_values(array_unique($authors));
+            $users = [];
+            if (!empty($authors)) {
+                $users = $DB->get_records_list('user', 'id', $authors, '', 'id,firstname,lastname');
+            }
+
+            $rows = [];
+            foreach ($discussions as $d) {
+                $first = (!empty($d->firstpost) && isset($firstposts[(int)$d->firstpost])) ? $firstposts[(int)$d->firstpost] : null;
+                $authorname = (!empty($d->userid) && isset($users[(int)$d->userid])) ? fullname($users[(int)$d->userid]) : 'Desconocido';
+                $preview = '';
+                if ($first) {
+                    $plain = trim(strip_tags(format_text($first->message, $first->messageformat, ['context' => $cmcontext])));
+                    if ($plain !== '') {
+                        $preview = core_text::substr($plain, 0, 220);
+                    }
+                }
+                $replies = max(0, (int)$DB->count_records('forum_posts', ['discussion' => (int)$d->id]) - 1);
+                $rows[] = [
+                    'id' => (int)$d->id,
+                    'subject' => (string)$d->name,
+                    'author' => (string)$authorname,
+                    'timemodified' => (int)$d->timemodified,
+                    'replies' => (int)$replies,
+                    'preview' => (string)$preview
+                ];
+            }
+
+            $response = [
+                'status' => 'success',
+                'forum' => [
+                    'cmid' => (int)$cm->id,
+                    'forumid' => (int)$forum->id,
+                    'name' => (string)$cm->name,
+                    'intro' => !empty($forum->intro) ? format_text($forum->intro, $forum->introformat, ['context' => $cmcontext]) : ''
+                ],
+                'discussions' => $rows
+            ];
+            break;
+
+        case 'local_grupomakro_get_forum_discussion_posts':
+            $classid = required_param('classid', PARAM_INT);
+            $cmid = required_param('cmid', PARAM_INT);
+            $discussionid = required_param('discussionid', PARAM_INT);
+            list($class, $course, $cm, $forum, $coursecontext, $cmcontext) = gmk_forum_manage_context($classid, $cmid);
+
+            $discussion = $DB->get_record(
+                'forum_discussions',
+                ['id' => (int)$discussionid, 'forum' => (int)$forum->id],
+                'id, forum, name, firstpost, userid, timemodified',
+                MUST_EXIST
+            );
+
+            $posts = $DB->get_records(
+                'forum_posts',
+                ['discussion' => (int)$discussion->id],
+                'created ASC, id ASC',
+                'id, discussion, parent, userid, subject, message, messageformat, created, modified'
+            );
+
+            $userids = [];
+            foreach ($posts as $p) {
+                if (!empty($p->userid)) {
+                    $userids[] = (int)$p->userid;
+                }
+            }
+            $userids = array_values(array_unique($userids));
+            $users = [];
+            if (!empty($userids)) {
+                $users = $DB->get_records_list('user', 'id', $userids, '', 'id,firstname,lastname');
+            }
+
+            $rows = [];
+            foreach ($posts as $p) {
+                $author = (!empty($p->userid) && isset($users[(int)$p->userid])) ? fullname($users[(int)$p->userid]) : 'Desconocido';
+                $rows[] = [
+                    'id' => (int)$p->id,
+                    'parent' => (int)$p->parent,
+                    'userid' => (int)$p->userid,
+                    'author' => (string)$author,
+                    'subject' => (string)$p->subject,
+                    'message' => format_text($p->message, $p->messageformat, ['context' => $cmcontext]),
+                    'created' => (int)$p->created,
+                    'modified' => (int)$p->modified,
+                    'ismine' => ((int)$p->userid === (int)$USER->id)
+                ];
+            }
+
+            $response = [
+                'status' => 'success',
+                'discussion' => [
+                    'id' => (int)$discussion->id,
+                    'subject' => (string)$discussion->name,
+                    'timemodified' => (int)$discussion->timemodified
+                ],
+                'posts' => $rows
+            ];
+            break;
+
+        case 'local_grupomakro_create_forum_discussion':
+            require_sesskey();
+            $classid = required_param('classid', PARAM_INT);
+            $cmid = required_param('cmid', PARAM_INT);
+            $subject = trim(required_param('subject', PARAM_TEXT));
+            $message = trim(required_param('message', PARAM_RAW));
+            list($class, $course, $cm, $forum, $coursecontext, $cmcontext) = gmk_forum_manage_context($classid, $cmid);
+
+            if ($subject === '') {
+                throw new Exception('El titulo del tema es obligatorio.');
+            }
+            if ($message === '') {
+                throw new Exception('El mensaje del tema es obligatorio.');
+            }
+            if (!has_capability('mod/forum:startdiscussion', $cmcontext)) {
+                throw new Exception('No tienes permiso para crear temas en este foro.');
+            }
+
+            $now = time();
+            $postrecord = new stdClass();
+            $postrecord->discussion = 0;
+            $postrecord->parent = 0;
+            $postrecord->privatereplyto = 0;
+            $postrecord->userid = $USER->id;
+            $postrecord->created = $now;
+            $postrecord->modified = $now;
+            $postrecord->mailed = 0;
+            $postrecord->subject = $subject;
+            $postrecord->message = $message;
+            $postrecord->messageformat = FORMAT_HTML;
+            $postrecord->messagetrust = 0;
+            $postrecord->attachment = 0;
+            $postrecord->mailnow = 0;
+            $postrecord->wordcount = str_word_count(strip_tags($message));
+            $postrecord->charcount = core_text::strlen(strip_tags($message));
+
+            $postid = $DB->insert_record('forum_posts', $postrecord);
+            if (!$postid) {
+                throw new Exception('No se pudo crear el post inicial del tema.');
+            }
+
+            $discrecord = new stdClass();
+            $discrecord->course = (int)$course->id;
+            $discrecord->forum = (int)$forum->id;
+            $discrecord->name = $subject;
+            $discrecord->firstpost = (int)$postid;
+            $discrecord->userid = (int)$USER->id;
+            $discrecord->groupid = -1;
+            $discrecord->assessed = 0;
+            $discrecord->timemodified = $now;
+            $discrecord->usermodified = (int)$USER->id;
+            $discrecord->timestart = 0;
+            $discrecord->timeend = 0;
+            $discrecord->pinned = 0;
+            $discrecord->timelocked = 0;
+
+            $discussionid = $DB->insert_record('forum_discussions', $discrecord);
+            if (!$discussionid) {
+                throw new Exception('No se pudo crear la discusion del tema.');
+            }
+
+            $DB->set_field('forum_posts', 'discussion', (int)$discussionid, ['id' => (int)$postid]);
+            $DB->set_field('forum', 'timemodified', $now, ['id' => (int)$forum->id]);
+
+            $response = ['status' => 'success', 'discussionid' => (int)$discussionid];
+            break;
+
+        case 'local_grupomakro_create_forum_reply':
+            require_sesskey();
+            $classid = required_param('classid', PARAM_INT);
+            $cmid = required_param('cmid', PARAM_INT);
+            $discussionid = required_param('discussionid', PARAM_INT);
+            $message = trim(required_param('message', PARAM_RAW));
+            list($class, $course, $cm, $forum, $coursecontext, $cmcontext) = gmk_forum_manage_context($classid, $cmid);
+
+            if ($message === '') {
+                throw new Exception('El comentario es obligatorio.');
+            }
+            if (!has_capability('mod/forum:replypost', $cmcontext)) {
+                throw new Exception('No tienes permiso para comentar en este foro.');
+            }
+
+            $discussion = $DB->get_record(
+                'forum_discussions',
+                ['id' => (int)$discussionid, 'forum' => (int)$forum->id],
+                'id, forum, name, firstpost',
+                MUST_EXIST
+            );
+
+            $now = time();
+            $subjectbase = trim((string)$discussion->name);
+            if ($subjectbase === '') {
+                $subjectbase = 'Tema';
+            }
+            $subject = 'Re: ' . $subjectbase;
+
+            $reply = new stdClass();
+            $reply->discussion = (int)$discussion->id;
+            $reply->parent = (int)$discussion->firstpost;
+            $reply->privatereplyto = 0;
+            $reply->userid = (int)$USER->id;
+            $reply->created = $now;
+            $reply->modified = $now;
+            $reply->mailed = 0;
+            $reply->subject = $subject;
+            $reply->message = $message;
+            $reply->messageformat = FORMAT_HTML;
+            $reply->messagetrust = 0;
+            $reply->attachment = 0;
+            $reply->mailnow = 0;
+            $reply->wordcount = str_word_count(strip_tags($message));
+            $reply->charcount = core_text::strlen(strip_tags($message));
+
+            $postid = $DB->insert_record('forum_posts', $reply);
+            if (!$postid) {
+                throw new Exception('No se pudo crear el comentario.');
+            }
+
+            $DB->set_field('forum_discussions', 'timemodified', $now, ['id' => (int)$discussion->id]);
+            $DB->set_field('forum_discussions', 'usermodified', (int)$USER->id, ['id' => (int)$discussion->id]);
+            $DB->set_field('forum', 'timemodified', $now, ['id' => (int)$forum->id]);
+
+            $response = ['status' => 'success', 'postid' => (int)$postid];
             break;
 
         case 'local_grupomakro_check_grace_period':
